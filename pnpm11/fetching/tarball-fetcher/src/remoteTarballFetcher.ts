@@ -1,9 +1,8 @@
 import type { IncomingMessage } from 'node:http'
 import { isIP } from 'node:net'
-import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError, FetchTimeoutError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
+import { FetchError, FetchTimeoutError, isError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -215,7 +214,7 @@ export function createDownloader (
       } catch (err: unknown) {
         const error = isFetchTimeoutError(err)
           ? new FetchTimeoutError('FETCH_TIMEOUT', url, gotOpts.timeout, { cause: err })
-          : util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
+          : isError(err) ? err : new Error(String(err), { cause: err })
         Object.assign(error, {
           attempts: currentAttempt,
           resource: url,

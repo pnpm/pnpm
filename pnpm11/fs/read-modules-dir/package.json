@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.read-modules-dir",
-  "version": "1100.0.2",
+  "version": "1100.0.3",
   "description": "Finds all direct packages in node_modules",
   "keywords": [
     "pnpm",
@@ -31,6 +31,7 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "graceful-fs": "catalog:"
   },
   "devDependencies": {

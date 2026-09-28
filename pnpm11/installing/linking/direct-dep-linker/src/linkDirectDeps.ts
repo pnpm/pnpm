@@ -2,8 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { rootLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
-import { symlinkDependency, symlinkDir, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
+import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { rimraf } from '@zkochan/rimraf'
 import { omit } from 'ramda'
 import { resolveLinkTarget } from 'resolve-link-target'
@@ -62,7 +63,7 @@ async function linkDirectDepsAndDedupe (
       if (deletedAll) {
         await rimraf(project.modulesDir)
       }
-      await linkPublishModulesDir(project)
+      await removePublishModulesLink(project)
     })
   )
   return linkedDeps
@@ -146,25 +147,44 @@ async function linkDirectDepsOfProject (project: ProjectToLink, opts: { absolute
     })
     linkedDeps++
   }))
-  await linkPublishModulesDir(project)
+  await removePublishModulesLink(project)
   return linkedDeps
 }
 
-async function linkPublishModulesDir (project: ProjectToLink): Promise<void> {
+/**
+ * Removes `<publishDir>/node_modules` when it is a link that resolves to the
+ * project's modules directory, as pnpm 11.28.0 created for
+ * `publishConfig.linkDirectory`. A build tool that cleans the publish
+ * directory through that link deletes the dependencies' files. Real
+ * directories and links to anything else are left alone.
+ */
+async function removePublishModulesLink (project: ProjectToLink): Promise<void> {
   if (!project.publishDir) return
-  const resolvedPublishDir = path.resolve(project.dir, project.publishDir)
-  const resolvedProjectDir = path.resolve(project.dir)
-  const relative = path.relative(resolvedProjectDir, resolvedPublishDir)
+  const projectDir = path.resolve(project.dir)
+  const publishDir = path.resolve(projectDir, project.publishDir)
+  const relative = path.relative(projectDir, publishDir)
   if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     return
   }
+  const link = path.join(publishDir, path.basename(project.modulesDir))
+  let stats: fs.Stats
   try {
-    await fs.promises.access(project.modulesDir)
+    stats = await fs.promises.lstat(link)
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return
     throw err
   }
-  const publishModulesDir = path.join(resolvedPublishDir, path.basename(project.modulesDir))
-  await fs.promises.mkdir(path.dirname(publishModulesDir), { recursive: true })
-  await symlinkDir(project.modulesDir, publishModulesDir)
+  if (!stats.isSymbolicLink()) return
+  const [linkTarget, modulesDir] = await Promise.all([safeRealpath(link), safeRealpath(project.modulesDir)])
+  if (linkTarget == null || linkTarget !== modulesDir) return
+  await rimraf(link)
+}
+
+async function safeRealpath (target: string): Promise<string | null> {
+  try {
+    return await fs.promises.realpath(target)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
+    throw err
+  }
 }

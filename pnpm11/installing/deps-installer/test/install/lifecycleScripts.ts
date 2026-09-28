@@ -1101,3 +1101,38 @@ test('build dependencies that were not previously built after allowBuilds change
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
+
+test.each([false, true])('persist ignored builds after allowing previously ignored scripts (approve all: %s)', async (approveAll) => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example@1.0.0'],
+    testDefaults({ fastUnpack: false, allowBuilds: {} })
+  )
+
+  const initialModulesManifest = project.readModulesManifest()!
+  expect(initialModulesManifest.allowBuilds).toStrictEqual({})
+  expect(Array.from(initialModulesManifest.ignoredBuilds!).sort()).toStrictEqual([
+    '@pnpm.e2e/install-script-example@1.0.0',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  const allowBuilds = {
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    ...(approveAll ? { '@pnpm.e2e/install-script-example': true } : {}),
+  }
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    frozenLockfile: true,
+    allowBuilds,
+  }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBe(approveAll)
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest).not.toBeNull()
+  expect(Array.from(modulesManifest!.ignoredBuilds ?? [])).toStrictEqual(
+    approveAll ? [] : ['@pnpm.e2e/install-script-example@1.0.0']
+  )
+})

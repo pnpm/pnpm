@@ -4,7 +4,7 @@ import readline from 'node:readline'
 import { input, password as passwordPrompt } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
@@ -328,7 +328,7 @@ async function classicLogin ({
     password = await enquirer.password({ message: 'Password:' })
     email = await enquirer.input({ message: 'Email (this IS public):' })
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       throw new PnpmError('LOGIN_CANCELED', 'Login canceled')
     }
     throw err

@@ -15,8 +15,10 @@ use std::{
 pub(super) struct LinkingPaths<'a> {
     pub(super) bins_dir: Cow<'a, Path>,
     /// [`bins_dir`](Self::bins_dir) with its symlinks resolved, as the POSIX
-    /// shim's `cd -P` resolves them. Lexical on Windows, where `canonicalize`
-    /// also resolves a `subst` drive, which the MSYS shell does not.
+    /// shim's `cd -P` resolves them. On Windows it is resolved only when a
+    /// symlink or junction lies on the path, since `canonicalize` also
+    /// resolves a `subst` drive, which the MSYS shell does not.
+    /// [`sh_shim_path`](Self::sh_shim_path) keeps the lexical drive either way.
     physical_bins_dir: Cow<'a, Path>,
     pub(super) relocatable_root: Option<PathBuf>,
     pub(super) project_node_path: Option<String>,
@@ -30,7 +32,7 @@ impl<'a> LinkingPaths<'a> {
     ) -> Result<Self, LinkBinsError> {
         let mut paths = Self {
             bins_dir: Cow::Borrowed(bins_dir),
-            physical_bins_dir: if cfg!(unix) {
+            physical_bins_dir: if cfg!(unix) || has_reparse_point_on_path(bins_dir) {
                 Cow::Owned(resolve(bins_dir)?)
             } else {
                 Cow::Borrowed(bins_dir)
@@ -168,6 +170,26 @@ fn project_modules_dir<'a>(bins_dir: &'a Path, options: &LinkBinsOptions) -> Opt
     (bins_dir.file_name() == Some(OsStr::new(".bin")) && modules_dir.ends_with(name)).then_some(
         modules_dir,
     )
+}
+
+/// Whether a symlink, a junction, or another reparse point lies on `dir`'s
+/// path.
+#[cfg(windows)]
+fn has_reparse_point_on_path(dir: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    dir.ancestors()
+        .any(|ancestor| {
+            std::fs::symlink_metadata(ancestor)
+                .is_ok_and(|metadata| {
+                    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+                })
+        })
+}
+
+#[cfg(not(windows))]
+fn has_reparse_point_on_path(_dir: &Path) -> bool {
+    false
 }
 
 fn resolve(path: &Path) -> Result<PathBuf, LinkBinsError> {

@@ -24,6 +24,10 @@ these issues:
 - **Batch writes.** Multiple entries can be inserted in a single transaction,
   reducing disk flushes.
 
+## Incomplete `node:sqlite`
+
+When `DatabaseSync.exec` is missing, the store index runs its SQL through prepared statements. When `DatabaseSync.prepare` is missing too, entries are stored in `index.fallback`. A later pnpm with a complete `node:sqlite` reads `index.db` only. `frozenStore` still requires a connection that can open `index.db`. The file index does not coordinate concurrent writers.
+
 ## License
 
 MIT

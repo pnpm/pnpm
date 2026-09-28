@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.28.0",
+  "version": "11.28.1",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -21,11 +21,8 @@
     "prepare.js",
     "dist/",
     "pn.cmd",
-    "pn.ps1",
     "pnpx.cmd",
-    "pnpx.ps1",
-    "pnx.cmd",
-    "pnx.ps1"
+    "pnx.cmd"
   ],
   "scripts": {
     "preinstall": "node setup.js",
@@ -42,7 +39,6 @@
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",
     "@pnpm/linux-x64": "workspace:*",
-    "@pnpm/linuxstatic-arm64": "workspace:*",
     "@pnpm/linuxstatic-x64": "workspace:*",
     "@pnpm/macos-arm64": "workspace:*",
     "@pnpm/win-arm64": "workspace:*",

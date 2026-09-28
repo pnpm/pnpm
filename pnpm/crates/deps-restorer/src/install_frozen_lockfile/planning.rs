@@ -5,7 +5,6 @@ use crate::{
 };
 use pnpm_lockfile::{Lockfile, LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
-use pnpm_package_manifest::DependencyGroup;
 use pnpm_store_dir::StoreIndexWriter;
 use pnpm_tarball::SharedReportedProgressKeys;
 use std::{
@@ -18,7 +17,7 @@ pub(super) struct PlanContextLayout<'p> {
     pub(super) link_options: pnpm_cmd_shim::LinkBinsOptions,
     pub(super) layout: VirtualStoreLayout,
     pub(super) dir_clone_cache: Option<crate::DirCloneCache<'p>>,
-    pub(super) git_source_cache: pnpm_git_fetcher::GitSourceCache,
+    pub(super) git_source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
 }
 
 impl PlanContextLayout<'_> {
@@ -81,13 +80,7 @@ impl<'a> FrozenInputs<'a> {
     /// Which dependency groups this install includes, in the shape the
     /// skip set and the sidecars record.
     pub(super) fn included(&self) -> IncludedDependencies {
-        IncludedDependencies {
-            dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self.projects.dependency_groups.contains(
-                &DependencyGroup::Optional,
-            ),
-        }
+        self.projects.groups.included
     }
 
     pub(super) fn groups(&self) -> &'a crate::GroupSelection {

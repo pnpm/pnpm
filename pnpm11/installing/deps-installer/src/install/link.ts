@@ -6,7 +6,8 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
+import * as dp from '@pnpm/deps.path'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
@@ -51,6 +52,7 @@ export interface LinkPackagesOptions {
   currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
+  deferDependencyBuilds: boolean
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   depsStateCache: DepsStateCache
@@ -175,6 +177,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     depGraph,
     {
       allowBuild: opts.allowBuild,
+      deferDependencyBuilds: opts.deferDependencyBuilds,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       externallyMaterialized: opts.packageProvider != null,
@@ -317,15 +320,10 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
         const deps = opts.dependenciesByProjectId[id]
         const importerFromLockfile = newCurrentLockfile.importers[id]
-        const publishDir = (manifest.publishConfig?.directory != null && manifest.publishConfig.linkDirectory !== false)
-          ? manifest.publishConfig.directory
-          : (importerFromLockfile?.publishDirectory != null && importerFromLockfile?.linkDirectory !== false)
-            ? importerFromLockfile.publishDirectory
-            : undefined
         return [id, {
           dir: rootDir,
           modulesDir,
-          publishDir,
+          publishDir: manifest.publishConfig?.directory ?? importerFromLockfile?.publishDirectory,
           dependencies: await Promise.all([
             ...Array.from(deps.entries())
               .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
@@ -387,6 +385,7 @@ function resolvePath (where: string, spec: string): string {
 
 interface LinkNewPackagesOptions {
   allowBuild?: AllowBuild
+  deferDependencyBuilds: boolean
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   enableGlobalVirtualStore: boolean
@@ -530,6 +529,7 @@ async function linkNewPackages (
       allowBuild: opts.allowBuild,
       depGraph,
       depsStateCache: opts.depsStateCache,
+      deferDependencyBuilds: opts.deferDependencyBuilds,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       force: opts.force,
@@ -591,6 +591,7 @@ async function linkAllPkgs (
     allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    deferDependencyBuilds: boolean
     disableRelinkLocalDirDeps?: boolean
     enableGlobalVirtualStore: boolean
     force: boolean
@@ -639,7 +640,11 @@ async function linkAllPkgs (
       if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
+            includeDepGraphHash: shouldIncludeDepGraphHash({
+              ignoreScripts: opts.ignoreScripts,
+              deferDependencyBuilds: opts.deferDependencyBuilds,
+              requiresBuild: depNode.requiresBuild,
+            }),
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion: opts.nodeVersion,
@@ -765,6 +770,11 @@ function getChildrenPaths (
   const childrenPaths: Record<string, string> = {}
   for (const [alias, childDepPath] of Object.entries(children ?? {})) {
     if (alias === depNode.name) continue
+    const packageRootLinkTarget = dp.packageRootLinkTarget(childDepPath)
+    if (packageRootLinkTarget != null) {
+      childrenPaths[alias] = path.join(depNode.modules, depNode.name, packageRootLinkTarget)
+      continue
+    }
     if (childDepPath.startsWith('link:')) {
       childrenPaths[alias] = path.resolve(lockfileDir, childDepPath.slice(5))
       continue

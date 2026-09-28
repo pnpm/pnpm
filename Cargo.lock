@@ -3773,7 +3773,7 @@ dependencies = [
 [[package]]
 name = "node-semver"
 version = "2.2.0"
-source = "git+https://github.com/pnpm/node-semver-rs?rev=1ae976a0023b4dec80b1a5411ccee8343f91320e#1ae976a0023b4dec80b1a5411ccee8343f91320e"
+source = "git+https://github.com/pnpm/node-semver-rs?rev=3d74d6b7f4de1de2006cf2f7663aac09de65b1f6#3d74d6b7f4de1de2006cf2f7663aac09de65b1f6"
 dependencies = [
  "bytecount",
  "miette 7.6.0",
@@ -5173,6 +5173,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "which 8.0.4",
  "windows-sys 0.61.2",
 ]
 
@@ -5687,6 +5688,7 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "chrono",
+ "console",
  "dashmap",
  "derive_more",
  "dialoguer",
@@ -5750,6 +5752,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-text-sanitize",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
  "pnpm-workspace-projects-graph",
@@ -5784,6 +5787,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-fs",
  "pnpm-yaml-document-sync",
  "pretty_assertions",
  "serde",
@@ -6049,6 +6053,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-patching",
  "pnpm-resolving-jsr-specifier-parser",
+ "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-semver-include-prerelease",
@@ -6179,13 +6184,17 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+ "url",
 ]
 
 [[package]]
 name = "pnpm-resolving-tarball-resolver"
 version = "0.0.1"
 dependencies = [
+ "httpdate",
  "mockito",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-reporter",
@@ -6225,6 +6234,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "dunce",
+ "junction 2.0.0",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
@@ -6454,6 +6464,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-reporter",
  "pretty_assertions",
+ "regex",
  "rustc-hash 2.1.3",
  "serde",
  "serde_json",
@@ -6473,7 +6484,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.13"
+version = "0.1.0-alpha.14"
 dependencies = [
  "async-trait",
  "axum 0.8.9",

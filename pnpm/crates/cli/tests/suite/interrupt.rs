@@ -185,6 +185,117 @@ fn ctrl_c_interrupts_the_script_once() {
     drop(root);
 }
 
+/// A nested `pnpm run` keeps a shell as the script's parent. dash holds the
+/// terminal's `SIGINT` until that command exits, so pnpm's status is the
+/// script's own status
+/// (<https://github.com/pnpm/pnpm/issues/9945>).
+#[test]
+fn a_nested_run_keeps_the_scripts_exit_status_after_ctrl_c() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let pnpm = pacquet.get_program().to_owned();
+    let bin = root.path().join("bin");
+    fs::create_dir_all(&bin).expect("create a bin directory");
+    std::os::unix::fs::symlink(&pnpm, bin.join("pnpm")).expect("expose the test pnpm as pnpm");
+    let path = std::env::join_paths(
+        std::iter::once(bin)
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
+    )
+    .expect("join PATH");
+    write_project_running(&workspace, "test", "node dev.js", GRACEFUL_SCRIPT);
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "start": "node dev.js",
+            "start:with-bug": "pnpm run start",
+        },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(
+        pacquet
+            .with_env("PATH", path)
+            .with_args(["--config.verify-deps-before-run=false", "run", "start:with-bug"]),
+    );
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited\n{output}",
+    );
+    assert!(
+        !output.contains("ELIFECYCLE"),
+        "a script that shut down cleanly is not a lifecycle failure\n{output}",
+    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too\n{output}");
+
+    drop(root);
+}
+
+/// After a command handles a terminal `SIGINT`, the rest of the script runs
+/// in every shell, as bash runs it. dash on its own would die from the
+/// signal.
+#[test]
+fn ctrl_c_handled_by_a_command_lets_the_rest_of_the_script_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js && echo > after.txt", GRACEFUL_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "run",
+        "dev",
+    ]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert!(
+        workspace.join("after.txt").exists(),
+        "the command after the interrupted one must run\n{output}",
+    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too\n{output}");
+
+    drop(root);
+}
+
+/// The same shell, when the script never handles `SIGINT`, still ends
+/// pnpm with that signal. The child's status is a real interrupt, and
+/// pnpm reports it.
+#[test]
+fn ctrl_c_still_reports_a_script_the_shell_could_not_keep_alive() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js", LINGERING_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "run",
+        "dev",
+    ]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert_eq!(
+        status.signal(),
+        Some(libc::SIGINT),
+        "an unhandled interrupt still ends pnpm with SIGINT\n{output}",
+    );
+    assert!(
+        output.contains("[ELIFECYCLE] Command failed with signal SIGINT."),
+        "an unhandled interrupt is still a lifecycle failure\n{output}",
+    );
+
+    drop(root);
+}
+
 /// Without a terminal, the shell running the script may stay its parent
 /// (dash does) and then keeps a relayed `SIGINT` to itself until its
 /// child exits. pnpm signals the script's whole process group instead,

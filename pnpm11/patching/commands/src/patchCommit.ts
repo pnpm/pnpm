@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { createShortHash } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/installing.commands'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
@@ -271,13 +270,24 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
     stdout = result.stdout as string
     stderr = result.stderr as string
   } catch (err: any) { // eslint-disable-line
+    if (err.exitCode !== 1) {
+      const errorMessage = (err.stderr as string) || (err.message as string) || ''
+      throw new Error(
+        'Unable to diff directories. Make sure you have a recent version of \'git\' available in PATH.\n' +
+        `The following error was reported:\n${errorMessage}`,
+        { cause: err }
+      )
+    }
     stdout = err.stdout as string
     stderr = err.stderr as string
   }
-  // we cannot rely on exit code, because --no-index implies --exit-code
-  // i.e. git diff will exit with 1 if there were differences
-  if (stderr.length > 0)
-    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
+
+  if (stderr.length > 0) {
+    throw new Error(
+      'Unable to diff directories. Make sure you have a recent version of \'git\' available in PATH.\n' +
+      `The following error was reported by 'git':\n${stderr}`
+    )
+  }
 
   return stdout
     .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`, 'g'), '$1/')
@@ -339,7 +349,7 @@ export async function preparePkgFilesForDiff (src: string, packageFiles?: string
 
 function isUnsupportedLinkError (err: unknown): boolean {
   return (
-    util.types.isNativeError(err) &&
+    isError(err) &&
     'code' in err &&
     typeof err.code === 'string' &&
     ['EXDEV', 'EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)

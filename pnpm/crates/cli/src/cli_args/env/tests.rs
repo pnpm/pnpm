@@ -1,4 +1,4 @@
-use super::{EnvArgs, EnvError, EnvSubcommand};
+use super::{EnvArgs, EnvError, EnvSubcommand, remove::remove_matching_global_node};
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
 use std::path::PathBuf;
@@ -42,6 +42,71 @@ fn managing_node_needs_a_global_bin_dir() {
         .subcommand::<SilentReporter>(&Config::default())
         .unwrap_err();
     assert!(matches!(error, EnvError::CannotManageNode), "{error:?}");
+}
+
+#[test]
+fn remove_deletes_a_stored_node_without_a_global_bin_dir() {
+    let subcommand = args(true, &["remove", "22.5.0"])
+        .subcommand::<SilentReporter>(&Config::default())
+        .unwrap();
+    let EnvSubcommand::Remove { versions } = subcommand else {
+        panic!("expected a `remove` subcommand");
+    };
+    assert_eq!(versions, vec!["22.5.0".to_string()]);
+}
+
+fn seed_global_node_package(install_dir: &std::path::Path, version: &str) {
+    let node_pkg_dir = install_dir.join("node_modules/node");
+    std::fs::create_dir_all(&node_pkg_dir).unwrap();
+    std::fs::write(
+        install_dir.join("package.json"),
+        serde_json::json!({
+            "engines": { "runtime": { "name": "node", "version": version, "onFail": "download" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        node_pkg_dir.join("package.json"),
+        serde_json::json!({ "name": "node", "version": version, "bin": { "node": "bin/node" } })
+            .to_string(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn remove_deletes_a_global_node_package_without_a_bin_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let global_pkg_dir = root.path().join("global").join("v11");
+    let install_dir = global_pkg_dir.join("install-node");
+    seed_global_node_package(&install_dir, "22.11.0");
+    let hash_link = global_pkg_dir.join("hash-node");
+    pnpm_fs::symlink_dir(&install_dir, &hash_link).unwrap();
+
+    let config: &'static Config = Box::leak(Box::new(Config {
+        global_pkg_dir: Some(global_pkg_dir),
+        global_bin: None,
+        ..Config::default()
+    }));
+
+    let kept = remove_matching_global_node::<SilentReporter>(config, &["20".to_string()]).unwrap();
+    assert!(!kept);
+    assert!(hash_link.symlink_metadata().is_ok());
+    assert!(install_dir.exists());
+
+    let removed =
+        remove_matching_global_node::<SilentReporter>(config, &["22.11.0".to_string()]).unwrap();
+    assert!(removed);
+    assert!(hash_link.symlink_metadata().is_err());
+    assert!(!install_dir.exists());
+}
+
+#[test]
+fn listing_node_does_not_need_a_global_bin_dir() {
+    let subcommand = args(true, &["list"])
+        .subcommand::<SilentReporter>(&Config::default())
+        .unwrap();
+    assert!(matches!(subcommand, EnvSubcommand::List { version_spec: None }), "{subcommand:?}");
 }
 
 #[test]

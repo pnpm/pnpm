@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.package-requester",
-  "version": "1102.2.0",
+  "version": "1102.2.1",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
@@ -43,6 +43,7 @@
     "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

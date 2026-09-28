@@ -1,7 +1,7 @@
 import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import type {
   AddToStoreResult,
@@ -12,6 +12,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 
 import { parseJsonBufferSync } from './parseJson.js'
+import { normalizeSymlinkTarget, SYMLINK_MODE } from './symlinks.js'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
@@ -20,9 +21,16 @@ export function addFilesFromDir (
     files?: string[]
     includeNodeModules?: boolean
     readManifest?: boolean
+    /**
+     * Record symlinks whose targets {@link normalizeSymlinkTarget} accepts as
+     * entries of type {@link SYMLINK_MODE}, instead of following them.
+     */
+    recordSymlinks?: boolean
   } = {}
 ): AddToStoreResult {
   const filesIndex = new Map() as FilesIndex
+  let hasUnrecordedSymlinks = false
+  let symlinks: Symlink[] = []
   let manifest: DependencyManifest | undefined
   let files: File[]
   // Resolve the package root to a canonical path for security validation
@@ -31,7 +39,9 @@ export function addFilesFromDir (
     files = []
     for (const file of opts.files) {
       const absolutePath = path.join(dirname, file)
-      const stat = getStatIfContained(absolutePath, resolvedRoot)
+      const result = getStatIfContained(absolutePath, resolvedRoot)
+      hasUnrecordedSymlinks ||= result.isSymbolicLink
+      const { stat } = result
       if (!stat) {
         continue
       }
@@ -42,7 +52,10 @@ export function addFilesFromDir (
       })
     }
   } else {
-    files = findFilesInDir(dirname, resolvedRoot, opts)
+    const result = findFilesInDir(dirname, resolvedRoot, opts)
+    files = result.files
+    hasUnrecordedSymlinks = result.hasUnrecordedSymlinks
+    symlinks = result.symlinks
   }
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
@@ -57,7 +70,20 @@ export function addFilesFromDir (
       ...addBuffer(buffer, mode),
     })
   }
-  return { manifest, filesIndex }
+  for (const { relativePath, target } of symlinks) {
+    const buffer = Buffer.from(target, 'utf8')
+    filesIndex.set(relativePath, {
+      mode: SYMLINK_MODE,
+      size: buffer.length,
+      ...addBuffer(buffer, SYMLINK_MODE),
+    })
+  }
+  return { manifest, filesIndex, hasUnrecordedSymlinks }
+}
+
+interface Symlink {
+  relativePath: string
+  target: string
 }
 
 interface File {
@@ -69,25 +95,28 @@ interface File {
 /**
  * Resolves a path and validates it stays within the allowed root directory.
  * If the path is a symlink, resolves it and validates the target.
- * Returns null if the path is a symlink pointing outside the root, or if target is inaccessible.
+ * Returns a null stat if the path is missing, points outside the root, or has an inaccessible target.
  */
 function getStatIfContained (
   absolutePath: string,
   rootDir: string
-): Stats | null {
+): { isSymbolicLink: boolean, stat: Stats | null } {
   let lstat: Stats
   try {
     lstat = fs.lstatSync(absolutePath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+      return { isSymbolicLink: false, stat: null }
     }
     throw err
   }
   if (lstat.isSymbolicLink()) {
-    return getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null
+    return {
+      isSymbolicLink: true,
+      stat: getSymlinkStatIfContained(absolutePath, rootDir)?.stat ?? null,
+    }
   }
-  return lstat
+  return { isSymbolicLink: false, stat: lstat }
 }
 
 /**
@@ -103,7 +132,7 @@ function getSymlinkStatIfContained (
     realPath = fs.realpathSync(absolutePath)
   } catch (err: unknown) {
     // Broken symlink or inaccessible target
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -115,21 +144,30 @@ function getSymlinkStatIfContained (
   return { stat: fs.statSync(realPath), realPath }
 }
 
-function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): File[] {
-  const files: File[] = []
+function findFilesInDir (
+  dir: string,
+  rootDir: string,
+  opts: { includeNodeModules?: boolean, recordSymlinks?: boolean }
+): { files: File[], hasUnrecordedSymlinks: boolean, symlinks: Symlink[] } {
   const ctx: FindFilesContext = {
-    filesList: files,
+    filesList: [],
     includeNodeModules: opts.includeNodeModules ?? false,
+    hasUnrecordedSymlinks: false,
+    recordSymlinks: opts.recordSymlinks ?? false,
     rootDir,
+    symlinks: [],
     visited: new Set([rootDir]),
   }
   findFiles(ctx, dir, '', rootDir)
-  return files
+  return { files: ctx.filesList, hasUnrecordedSymlinks: ctx.hasUnrecordedSymlinks, symlinks: ctx.symlinks }
 }
 
 interface FindFilesContext {
   filesList: File[]
+  hasUnrecordedSymlinks: boolean
   includeNodeModules: boolean
+  recordSymlinks: boolean
+  symlinks: Symlink[]
   rootDir: string
   visited: Set<string>
 }
@@ -147,6 +185,17 @@ function findFiles (
     let nextRealDir: string | undefined
 
     if (file.isSymbolicLink()) {
+      if (relativeDir === '' && file.name === 'node_modules' && !ctx.includeNodeModules) {
+        continue
+      }
+      if (ctx.recordSymlinks) {
+        const target = normalizeSymlinkTarget(relativeSubdir, fs.readlinkSync(absolutePath))
+        if (target != null) {
+          ctx.symlinks.push({ relativePath: relativeSubdir, target })
+          continue
+        }
+      }
+      ctx.hasUnrecordedSymlinks = true
       const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
       if (!res) {
         continue
@@ -179,7 +228,7 @@ function findFiles (
     try {
       stat = fs.statSync(absolutePath)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
         continue
       }
       throw err

@@ -121,7 +121,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(
         pkg_key.clone(),
-        std::sync::Arc::new(HashMap::from([(expected_cache_key, overlay)])),
+        std::sync::Arc::new(HashMap::from([(expected_cache_key, overlay.into())])),
     );
     // `requires_build` must be forced on: the gate is only reached for a
     // build candidate, and the manifest-less slot would otherwise probe as
@@ -162,7 +162,11 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -210,7 +214,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     // `side_effects_cache: false` flag must short-circuit before
     // the lookup even runs.
     let mut overlay = std::collections::HashMap::new();
-    overlay.insert("any-key".to_string(), std::collections::HashMap::new());
+    overlay.insert("any-key".to_string(), pnpm_store_dir::SideEffectsOverlay::default());
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(pkg_key, std::sync::Arc::new(overlay));
 
@@ -248,7 +252,11 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -421,7 +429,11 @@ async fn write_path_populates_side_effects_row() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,

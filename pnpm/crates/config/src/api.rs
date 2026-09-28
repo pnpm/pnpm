@@ -33,7 +33,7 @@ use std::{
 /// — invalid UTF-8 is preserved verbatim so the path can be passed
 /// to `std::fs` without round-tripping through `String`.
 ///
-/// The `NPM_CONFIG_WORKSPACE_DIR` lookup in `findWorkspaceDir` goes
+/// The `PNPM_CONFIG_WORKSPACE_DIR` lookup in `findWorkspaceDir` goes
 /// through this trait so tests can drive the "set", "unset", and
 /// "empty" branches without touching process state.
 pub trait EnvVarOs {

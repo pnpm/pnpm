@@ -1,10 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
@@ -117,7 +116,7 @@ export async function readReadmeFile (projectDir: string): Promise<string | unde
     return await handle.readFile('utf8')
   } catch (err: unknown) {
     // ELOOP: the entry is a symlink after all (a concurrent swap) — skip it, as the isFile() check intended.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ELOOP') return undefined
+    if (isError(err) && 'code' in err && err.code === 'ELOOP') return undefined
     throw err
   } finally {
     await handle?.close()

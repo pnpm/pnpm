@@ -4,6 +4,7 @@ use super::{
     claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
     opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
     resolve_catalog_child_specs, resolve_wanted_cached, resolves_children_through_catalogs,
+    wanted_package_root_link,
 };
 
 /// Speculatively warm a freshly-seeded node's whole subtree so its
@@ -119,6 +120,11 @@ pub(super) async fn warm_child<Chain>(
 ) where
     Chain: Resolver + ?Sized,
 {
+    // A link into the declaring package is never resolved; see
+    // `package_root_link_result`.
+    if wanted_package_root_link(&wanted).is_some() {
+        return;
+    }
     let project_scope = project_relative_cache_scope(&wanted, opts);
     let cache_key = WantedKey::new((
         wanted.alias.clone(),
@@ -126,7 +132,7 @@ pub(super) async fn warm_child<Chain>(
         wanted.optional,
         wanted.injected,
         opts.version.pick_lowest_version,
-        opts.policy.published_by,
+        (opts.policy.published_by, opts.policy.fallback_published_by),
         project_scope,
         // No prior-lockfile key: a warm entry must only be
         // reused by edges that carry no currentPkg either.

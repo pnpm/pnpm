@@ -1,5 +1,4 @@
 import assert from 'node:assert'
-import util from 'node:util'
 
 import { type BuildOptions, buildProjects as rebuildAll, buildSelectedPkgs } from '@pnpm/building.after-install'
 import {
@@ -12,6 +11,7 @@ import {
   createProjectConfigRecord,
   getWorkspaceConcurrency,
 } from '@pnpm/config.reader'
+import { isError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { Project, ProjectRootDir } from '@pnpm/types'
@@ -26,9 +26,11 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'nodeLinker'
+| 'patchedDependencies'
 | 'packageConfigs'
 | 'registriesByScope'
 | 'sharedWorkspaceLockfile'
+| 'virtualStoreDir'
 > & Pick<ConfigContext,
 | 'hooks'
 | 'rootProjectManifest'
@@ -129,7 +131,7 @@ export async function recursiveRebuild (
         result[rootDir].status = 'passed'
         return 'passed'
       } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
+        assert(isError(err))
         const errWithPrefix = Object.assign(err, { prefix: rootDir })
         logger.info(errWithPrefix)
         result[rootDir] = {

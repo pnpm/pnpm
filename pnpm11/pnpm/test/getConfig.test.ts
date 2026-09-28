@@ -453,6 +453,86 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(result.config.registry).toBe('https://registry.npmjs.org/')
   })
 
+  test('the command line outranks the updateConfig hook', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => {
+            config.hoistPattern.push('*babel*')
+            return {
+              ...config,
+              registry: 'http://hook.example/',
+              registriesByScope: { default: 'http://hook.example/', '@scoped': 'http://hook.example/' },
+              packageManagerRegistries: { default: 'http://hook.example/' },
+              nodeLinker: 'isolated',
+              storeDir: '/hook/store',
+              minimumReleaseAge: 1440,
+            }
+          },
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, {
+      registry: 'http://cli.example/',
+      registriesByScope: { default: 'http://cli.example/', '@scoped': 'http://cli.example/scoped/', '@yaml': 'http://yaml.example/' },
+      packageManagerRegistries: { default: 'http://cli.example/', '@scoped': 'http://cli.example/scoped/' },
+      nodeLinker: 'hoisted',
+      storeDir: '/resolved/cli/store',
+      minimumReleaseAge: 0,
+      hoistPattern: ['*eslint*'],
+    })
+    context.cliOptions = {
+      registry: 'http://cli.example',
+      '@scoped:registry': 'http://cli.example/scoped',
+      'node-linker': 'hoisted',
+      'store-dir': 'store',
+      'hoist-pattern': ['*eslint*'],
+    }
+
+    const { config: updated } = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(updated.registry).toBe('http://cli.example/')
+    expect(updated.registriesByScope).toStrictEqual({
+      default: 'http://cli.example/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@scoped': 'http://cli.example/scoped/',
+    })
+    expect(updated.packageManagerRegistries).toStrictEqual({
+      default: 'http://cli.example/',
+      '@scoped': 'http://cli.example/scoped/',
+    })
+    expect(updated.nodeLinker).toBe('hoisted')
+    expect(updated.storeDir).toBe('/resolved/cli/store')
+    expect(updated.minimumReleaseAge).toBe(1440)
+    expect(updated.hoistPattern).toStrictEqual(['*eslint*'])
+  })
+
+  test('an updateConfig hook cannot replace the public hoist pattern that --shamefully-hoist derives', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      shamefullyHoist: false,
+      publicHoistPattern: ['*types*'],
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, {
+      shamefullyHoist: true,
+      publicHoistPattern: ['*'],
+      symlink: true,
+    })
+    context.cliOptions = { 'shamefully-hoist': true }
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.shamefullyHoist).toBe(true)
+    expect(result.config.publicHoistPattern).toStrictEqual(['*'])
+  })
+
   function writeUpdateConfigHook (updateConfig: string): void {
     fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig: ${updateConfig} } }`)
   }
@@ -476,6 +556,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     } as unknown as Config
     const context = {
       rootProjectManifestDir: dir,
+      cliOptions: {},
     } as unknown as ConfigContext
     return { config, context }
   }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.modules-cleaner",
-  "version": "1100.1.25",
+  "version": "1100.1.26",
   "description": "Exports util functions to clean up node_modules",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
     "@pnpm/bins.remover": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

@@ -46,9 +46,12 @@
 //! - [`is_unreadable_registry_key`] — whether a directory name in the
 //!   mirror root predates the current key shape, so nothing can read it.
 
+#[cfg(test)]
+pub(crate) mod save_fail;
+
 pub use registry_key::{
-    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_registry_name,
-    is_unreadable_registry_key,
+    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
+    get_registry_name, is_unreadable_registry_key,
 };
 
 mod read_records;
@@ -98,6 +101,11 @@ pub struct MetaHeaders {
     pub etag: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified: Option<String>,
+    /// The registry's `Cache-Control` said this document is already stale
+    /// (`max-age=0`, `no-cache`, or `no-store`). The next online fetch must
+    /// not revalidate it with `If-None-Match` or `If-Modified-Since`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub uncacheable: bool,
 }
 
 /// Error from [`save_meta`]. Surfaced to callers that care about
@@ -190,6 +198,25 @@ pub fn get_pkg_mirror_path(
         .join(format!("{encoded_name}.jsonl")))
 }
 
+/// Path to a legacy metadata mirror file for the given registry and package.
+/// Returns `None` when the registry URL does not parse or has no host.
+#[must_use]
+pub fn get_legacy_pkg_mirror_path(
+    cache_dir: &Path,
+    meta_dir: &str,
+    registry: &str,
+    pkg_name: &str,
+) -> Option<PathBuf> {
+    let registry_name = get_legacy_registry_name(registry)?;
+    let encoded_name = encode_pkg_name(pkg_name);
+    Some(
+        cache_dir
+            .join(meta_dir)
+            .join(registry_name)
+            .join(format!("{encoded_name}.jsonl")),
+    )
+}
+
 /// Magic + format version. The trailing space separates it from the
 /// two record lengths on the same line.
 const MIRROR_MAGIC: &str = "pacquet-meta-v1";
@@ -235,10 +262,12 @@ pub fn save_meta_indexed(
     pkg_mirror: &Path,
     meta: &Package,
     etag: Option<&str>,
+    uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
     let headers = serde_json::to_string(&MetaHeaders {
         etag: etag.map(str::to_string),
         modified: meta_modified(meta),
+        uncacheable,
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
@@ -281,10 +310,12 @@ pub fn save_meta_ndjson(
     pkg_mirror: &Path,
     meta: &Package,
     etag: Option<&str>,
+    uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
     let headers = serde_json::to_vec(&MetaHeaders {
         etag: etag.map(str::to_string),
         modified: meta_modified(meta),
+        uncacheable,
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
     let mut body_meta = meta.clone();
@@ -534,6 +565,10 @@ pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHe
 /// The rename is the only atomic step; an observer sees either the
 /// old contents or the new ones, never a torn body line.
 pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError> {
+    #[cfg(test)]
+    if let Some(error) = save_fail::forced_mirror_save_error(pkg_mirror) {
+        return Err(error);
+    }
     let dir = pkg_mirror.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(dir)
         .map_err(|error| SaveMetaError::CreateDir { dir: dir.to_path_buf(), error })?;

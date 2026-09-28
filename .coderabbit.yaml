@@ -59,12 +59,6 @@ issue_enrichment:
   labeling:
     auto_apply_labels: true
     labeling_instructions:
-      - label: "type: bug"
-        instructions: "Apply when the issue reports incorrect or unexpected behavior."
-      - label: "type: feature"
-        instructions: "Apply when the issue requests new functionality or an enhancement."
-      - label: "type: question"
-        instructions: "Apply when the issue is a usage question rather than a bug or feature request."
       - label: "area: lockfile"
         instructions: "Apply when the issue concerns pnpm-lock.yaml parsing, format, or handling."
       - label: "area: monorepo"

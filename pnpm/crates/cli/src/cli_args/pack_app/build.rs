@@ -219,6 +219,7 @@ pub(super) fn reject_non_regular_output_file(output_file: &Path) -> Result<(), P
 
 /// pnpm home directory, the base of pack-app's per-target runtime cache.
 pub(super) fn pnpm_home_dir() -> miette::Result<PathBuf> {
+    pnpm_config::ensure_windows_home_dir_env::<Host>()?;
     pnpm_config::default_pnpm_home_dir::<Host>()
         .ok_or_else(|| miette::miette!("could not determine the pnpm home directory"))
 }
@@ -300,7 +301,10 @@ pub(super) fn run_command(command: &mut Command, label: &str) -> miette::Result<
     Ok(())
 }
 
-fn write_runtime_install_manifest(install_dir: &Path, target_id: &str) -> miette::Result<()> {
+pub(super) fn write_runtime_install_manifest(
+    install_dir: &Path,
+    target_id: &str,
+) -> miette::Result<()> {
     fs::create_dir_all(install_dir)
         .into_diagnostic()
         .wrap_err_with(|| {
@@ -311,7 +315,7 @@ fn write_runtime_install_manifest(install_dir: &Path, target_id: &str) -> miette
         format!(
             "{}\n",
             serde_json::to_string_pretty(&serde_json::json!({
-                "name": format!("pacquet-pack-app-{target_id}"),
+                "name": format!("pnpm-pack-app-{target_id}"),
                 "private": true,
             }))
             .expect("serialize the runtime install manifest"),

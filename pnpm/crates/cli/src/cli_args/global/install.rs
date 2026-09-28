@@ -67,7 +67,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     {
         return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
     }
-    run_group_install::<Reporter>(GroupInstall {
+    Box::pin(run_group_install::<Reporter>(GroupInstall {
         base_config,
         global_pkg_dir,
         install_dir,
@@ -76,7 +76,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
         supported_architectures,
         allow_build: &[],
         lockfile_only: true,
-    })
+    }))
     .await?;
     let resolved = resolved_direct_versions(install_dir);
 

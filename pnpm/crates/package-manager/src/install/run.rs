@@ -34,7 +34,7 @@ use super::{
 use pnpm_config::Config;
 
 use crate::{
-    PolicyExcludes, ProjectMutation,
+    PolicyExcludes, PreferredVersionsOverride, ProjectMutation,
     catalog_cleanup::{
         post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
     },
@@ -155,6 +155,7 @@ where
                     catalogs_override: self.projects.catalogs_override,
                     pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
                     workspace_projects_override: self.projects.workspace_projects_override,
+                    dedicated: self.projects.dedicated,
                 },
                 resolution: self.resolution,
             },
@@ -339,6 +340,12 @@ pub struct InstallExecution {
     pub dry_run: bool,
 }
 
+impl InstallOwned {
+    fn shared_caches(&self) -> Option<&super::SharedInstallCaches> {
+        self.projects.dedicated.as_ref().map(|dedicated| &dedicated.caches)
+    }
+}
+
 /// The install's owned inputs, each consumed by one phase.
 struct InstallOwned {
     tarball_mem_cache: Arc<super::MemCache>,
@@ -350,7 +357,7 @@ struct InstallOwned {
 #[derive(Default)]
 pub struct ResolutionInputs {
     pub update_seed_policy: UpdateSeedPolicy,
-    pub preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
+    pub preferred_versions_override: Option<PreferredVersionsOverride>,
     pub auth_override: Option<Arc<super::AuthHeaders>>,
     pub observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
@@ -401,14 +408,16 @@ impl Verification {
         let install = execution.install;
         let owned = &execution.owned;
         let workspace_root = &execution.workspace.dirs.workspace_root;
-        let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+        let shared_caches = owned.shared_caches();
+        let meta_cache: Arc<InMemoryPackageMetaCache> =
+            shared_caches.map_or_else(Default::default, |caches| Arc::clone(&caches.packuments));
         let planned_canonical_fetches =
             pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
         let resolution_verifiers = install_resolution_verifiers(
             install.context.config,
             install.lockfile_policy.trust,
             (&owned.http_client_arc, &meta_cache, owned.resolution.auth_override.as_ref()),
-            &planned_canonical_fetches,
+            (&planned_canonical_fetches, shared_caches),
         )?;
         Ok(Self {
             meta_cache,
@@ -437,12 +446,16 @@ fn install_resolution_verifiers(
         &Arc<InMemoryPackageMetaCache>,
         Option<&Arc<super::AuthHeaders>>,
     ),
-    planned_canonical_fetches: &pnpm_resolving_resolver_base::PlannedCanonicalFetches,
+    shared: (
+        &pnpm_resolving_resolver_base::PlannedCanonicalFetches,
+        Option<&super::SharedInstallCaches>,
+    ),
 ) -> Result<Vec<Arc<dyn super::ResolutionVerifier>>, InstallError> {
     if trust_lockfile {
         return Ok(Vec::new());
     }
     let (http_client_arc, meta_cache, auth_override) = clients;
+    let (planned_canonical_fetches, shared_caches) = shared;
     build_resolution_verifiers(
         config,
         Arc::clone(http_client_arc),
@@ -450,6 +463,7 @@ fn install_resolution_verifiers(
         auth_override.cloned(),
         None,
         Some(std::sync::Arc::clone(planned_canonical_fetches)),
+        shared_caches.map(|caches| caches.verifier_lookups.clone()),
     )
     .map_err(InstallError::BuildVerifiers)
 }

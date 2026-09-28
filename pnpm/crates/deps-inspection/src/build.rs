@@ -9,12 +9,11 @@ mod loaded_state;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    io,
     path::{Path, PathBuf},
 };
 
 use miette::{Context, IntoDiagnostic};
-use pnpm_fs::lexical_normalize;
+use pnpm_fs::{lexical_normalize, read_modules_dir};
 use pnpm_lockfile::{Lockfile, ProjectSnapshot, RegistryOptions};
 use pnpm_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, Modules,
@@ -236,7 +235,7 @@ fn read_unsaved_dependencies(
     modules_dir: &Path,
 ) -> miette::Result<Vec<DependencyNode>> {
     let saved = saved_direct_dep_names(importer);
-    let unsaved: Vec<DependencyNode> = read_modules_dir_names(modules_dir)
+    let unsaved: Vec<DependencyNode> = read_modules_dir(modules_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to read {}", modules_dir.display()))?
         .into_iter()
@@ -260,57 +259,6 @@ fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
         }
     }
     names
-}
-
-/// The package directory names directly under `modules_dir`, following
-/// the same enumeration rules as the TypeScript CLI's `readModulesDir`.
-/// A missing `modules_dir` is not an error; any other read failure is.
-fn read_modules_dir_names(modules_dir: &Path) -> io::Result<Vec<String>> {
-    let mut names = Vec::new();
-    collect_module_names(modules_dir, None, &mut names)?;
-    Ok(names)
-}
-
-fn collect_module_names(
-    modules_dir: &Path,
-    scope: Option<&str>,
-    names: &mut Vec<String>,
-) -> io::Result<()> {
-    let parent_dir = match scope {
-        Some(scope) => modules_dir.join(scope),
-        None => modules_dir.to_path_buf(),
-    };
-    let entries = match std::fs::read_dir(&parent_dir) {
-        Ok(entries) => entries,
-        // A missing directory is "no packages"; every other error is
-        // surfaced, matching `readModulesDir`, which only swallows ENOENT.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    for entry in entries {
-        let entry = entry?;
-        let Some(name) = package_dir_name(&entry) else {
-            continue;
-        };
-        match scope {
-            // A scope directory holds the `@scope/<pkg>` entries one level
-            // down, and never nests further.
-            None if name.starts_with('@') => collect_module_names(modules_dir, Some(&name), names)?,
-            Some(scope) => names.push(format!("{scope}/{name}")),
-            None => names.push(name),
-        }
-    }
-    Ok(())
-}
-
-/// The entry's name when it can hold a package: dot-directories (`.bin`,
-/// `.pnpm`, ...) and plain files never do.
-fn package_dir_name(entry: &std::fs::DirEntry) -> Option<String> {
-    let name = entry.file_name().to_str()?.to_string();
-    if name.starts_with('.') || entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
-        return None;
-    }
-    Some(name)
 }
 
 /// Build the leaf [`DependencyNode`] for one extraneous package, taking

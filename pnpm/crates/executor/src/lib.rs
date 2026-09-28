@@ -1,4 +1,4 @@
-pub use bundled_node_gyp::bundled_node_gyp_bin;
+pub use bundled_node_gyp::{bundled_node_gyp_bin, bundled_node_gyp_entry};
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use interrupt::exit_like;
 pub use job_control::{JobGuard, arm_process_tree_cleanup};
@@ -31,6 +31,7 @@ mod make_env;
 mod pnpm_executable;
 mod process_tracker;
 mod run_script;
+mod script_args;
 mod script_exit;
 mod script_options;
 mod script_working_dir;

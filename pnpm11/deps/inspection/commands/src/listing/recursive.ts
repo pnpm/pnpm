@@ -1,8 +1,8 @@
 import assert from 'node:assert'
-import util from 'node:util'
 
 import { type Config, createProjectConfigRecord } from '@pnpm/config.reader'
 import { renderJson } from '@pnpm/deps.inspection.list'
+import { isError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies, Project } from '@pnpm/types'
 
@@ -66,7 +66,7 @@ async function withProjectError<Result> (rootDir: string, action: () => Promise<
   try {
     return await action()
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     const errWithPrefix = Object.assign(err, { prefix: rootDir })
     logger.info(errWithPrefix)
     throw errWithPrefix

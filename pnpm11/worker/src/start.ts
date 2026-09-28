@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild, storedRequiresBuildNeedsManifestCheck } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { symlinkDependencySync } from '@pnpm/fs.symlink-dependency'
 import {
@@ -85,7 +84,7 @@ async function handleMessage (
   try {
     switch (message.type) {
       case 'extract': {
-        parentPort!.postMessage(addTarballToStore(message))
+        parentPort!.postMessage(await addTarballToStore(message))
         break
       }
       case 'link': {
@@ -214,14 +213,14 @@ function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefin
   try {
     return parseJsonBufferSync(fs.readFileSync(manifestPath)) as DependencyManifest
   } catch (err: unknown) {
-    if (err instanceof SyntaxError || (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+    if (err instanceof SyntaxError || (isError(err) && 'code' in err && err.code === 'ENOENT')) {
       return undefined
     }
     throw err
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
+async function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
     const calculatedHash = hashBuffer(algorithm, buffer)
@@ -242,7 +241,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId
   }
   const cafs = cafsCache.get(storeDir)!
   const ignore = ignoreFilePattern ? makeIgnoreFromPattern(ignoreFilePattern) : undefined
-  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true, ignore)
+  let { filesIndex, manifest } = await cafs.addFilesFromTarballBounded(buffer, true, ignore)
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)
@@ -292,7 +291,7 @@ function makeIgnoreFromPattern (pattern: string): (filename: string) => boolean 
   try {
     regex = new RegExp(pattern)
   } catch (err: unknown) {
-    const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+    const detail = isError(err) ? `: ${err.message}` : ''
     throw new PnpmError(
       'INVALID_IGNORE_FILE_PATTERN',
       `Invalid ignoreFilePattern regex${detail}: ${pattern}`
@@ -370,10 +369,13 @@ function addFilesFromDir (
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+  let { filesIndex, hasUnrecordedSymlinks, manifest } = cafs.addFilesFromDir(dir, {
     files,
     includeNodeModules,
     readManifest: true,
+    // A side-effects entry never reaches Windows with a symlink in it:
+    // creating one there needs a privilege most users lack.
+    recordSymlinks: sideEffectsCacheKey != null && process.platform !== 'win32',
   })
   if (appendManifest && manifest == null) {
     manifest = appendManifest
@@ -398,6 +400,23 @@ function addFilesFromDir (
           manifest: bundledManifest,
           requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
+      }
+    }
+    if (hasUnrecordedSymlinks) {
+      if (existingFilesIndex.sideEffects?.delete(sideEffectsCacheKey)) {
+        if (existingFilesIndex.sideEffects.size === 0) {
+          existingFilesIndex.sideEffects = undefined
+        }
+        indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
+      }
+      return {
+        status: 'success',
+        value: {
+          filesMap,
+          manifest: bundledManifest,
+          requiresBuild: existingFilesIndex.requiresBuild ?? pkgRequiresBuild(manifest, filesMap),
+        },
+        indexWrites,
       }
     }
     if (!existingFilesIndex.sideEffects) {
@@ -479,7 +498,8 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
     } else if (
       !baseFiles.has(file) ||
       baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest ||
-      baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode
+      // On Windows, the mode read back from disk does not preserve the mode stored from the tarball.
+      (process.platform !== 'win32' && baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode)
     ) {
       added.set(file, sideEffectsFiles.get(file)!)
     }

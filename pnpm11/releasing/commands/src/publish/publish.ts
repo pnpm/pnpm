@@ -4,7 +4,7 @@ import { confirm } from '@inquirer/prompts'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { getCurrentBranch, isGitRepo, isHeadDetached, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
@@ -203,7 +203,7 @@ export async function publish (
           message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". Do you want to continue?`,
         })
       } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
+        if (isError(err) && err.name === 'ExitPromptError') {
           isConfirmed = false
         } else {
           throw err

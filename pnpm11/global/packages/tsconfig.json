@@ -13,6 +13,9 @@
       "path": "../../bins/resolver"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/types"
     },
     {

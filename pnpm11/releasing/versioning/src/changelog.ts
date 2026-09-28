@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 import { isDirRef, type PlannedRelease } from './assembleReleasePlan.js'
 import type { IntentBumpType, ReleaseBumpType } from './intents.js'
@@ -79,7 +80,7 @@ export async function prependChangelogSection (pkgDir: string, pkgName: string, 
   try {
     existing = await fs.readFile(changelogPath, 'utf8')
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
   }

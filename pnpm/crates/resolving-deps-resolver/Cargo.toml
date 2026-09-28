@@ -23,6 +23,7 @@ pnpm-local-spec = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
+pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-semver-include-prerelease = { workspace = true }

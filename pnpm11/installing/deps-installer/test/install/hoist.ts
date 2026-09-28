@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -20,6 +21,21 @@ import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
+
+test('root dependencies remain resolvable from an external virtual store on frozen installs', async () => {
+  prepareEmpty()
+  const virtualStoreDir = path.resolve('../external-store')
+  const opts = testDefaults({ virtualStoreDir, fastUnpack: false, hoistPattern: ['*'] })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.1.0', 'is-negative@2.1.0'], opts)
+  const resolveFromDependency = () => createRequire(fs.realpathSync('node_modules/is-negative/package.json'))
+    .resolve('is-positive/package.json')
+
+  expect(resolveFromDependency()).toBe(fs.realpathSync('node_modules/is-positive/package.json'))
+  rimrafSync('node_modules')
+  rimrafSync(virtualStoreDir)
+  await install(manifest, { ...opts, frozenLockfile: true })
+  expect(resolveFromDependency()).toBe(fs.realpathSync('node_modules/is-positive/package.json'))
+})
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()

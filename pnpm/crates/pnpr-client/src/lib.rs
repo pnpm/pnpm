@@ -179,6 +179,17 @@ pub struct VerificationPolicy {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
+/// Workspace link target for one project. `directory` is the publish
+/// directory the manifest declares, relative to the project; `linkDirectory`
+/// is forwarded verbatim (`true` and absent both mean "link it").
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishConfig {
+    pub directory: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_directory: Option<bool>,
+}
+
 /// One workspace project sent to the pnpr resolver.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -189,6 +200,11 @@ pub struct ResolveProject {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// Omitted when the manifest declares no `publishConfig.directory`, so a
+    /// project that links its own root sends the same body to servers that
+    /// predate the field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publish_config: Option<PublishConfig>,
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
@@ -224,6 +240,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 dir: ".".to_string(),
                 name: None,
                 version: None,
+                publish_config: None,
                 dependencies: opts.dependencies,
                 dev_dependencies: opts.dev_dependencies,
                 optional_dependencies: opts.optional_dependencies,

@@ -40,9 +40,21 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum StoreIndexError {
+    #[display("Store-index writer is unavailable")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITER_UNAVAILABLE))]
+    WriterUnavailable,
+
     #[display("Failed to create directory for index.db at {path:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_DIR))]
     CreateDir {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[display("Failed to create index.db at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_FILE))]
+    CreateFile {
         path: PathBuf,
         #[error(source)]
         source: std::io::Error,
@@ -113,14 +125,16 @@ impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
-        std::fs::create_dir_all(store_dir)
+        pnpm_fs::file_mode::create_dir_all_inheriting_mode(store_dir)
             .map_err(|source| StoreIndexError::CreateDir {
                 path: store_dir.to_path_buf(),
                 source,
             })?;
         let db_path = store_dir.join("index.db");
+        #[cfg(unix)]
+        create_new_index_with_inherited_mode(&db_path, store_dir)?;
         let conn = Connection::open(&db_path)
-            .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
+            .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
 
         // Busy-timeout FIRST so the internal busy handler is active during the
         // rest of the setup — on Windows file locking is mandatory and
@@ -503,6 +517,40 @@ fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
         .map_err(|()| StoreIndexError::FileUri { path: absolute, source: None })?;
     url.query_pairs_mut().append_pair("immutable", "1");
     Ok(url.into())
+}
+
+/// Create `index.db` if it is missing, with the store directory's inherited
+/// mode as both the open ceiling and the post-create grant (see
+/// [`pnpm_fs::file_mode::unix_creation_mode`]). `SQLite` copies the database's mode onto the WAL and
+/// shared-memory sidecars, so the bits must be in place before it opens.
+///
+/// The exclusive create decides which process made the database. An
+/// existing database, including one a concurrent process just created, is
+/// not chmod'd.
+#[cfg(unix)]
+fn create_new_index_with_inherited_mode(
+    db_path: &Path,
+    store_dir: &Path,
+) -> Result<(), StoreIndexError> {
+    let to_error = |source| StoreIndexError::CreateFile { path: db_path.to_path_buf(), source };
+    let creation = pnpm_fs::file_mode::unix_creation_mode(store_dir, None);
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    creation.apply_to(&mut options);
+    let file = match options.open(db_path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => return Err(to_error(error)),
+    };
+    creation
+        .grant(&file)
+        .map_err(|error| {
+            // A database left without its inherited mode would be taken as
+            // complete by the next open, which skips the grant for an existing file.
+            drop(file);
+            let _ = std::fs::remove_file(db_path);
+            to_error(error)
+        })
 }
 
 #[cfg(test)]

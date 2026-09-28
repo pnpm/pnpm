@@ -358,3 +358,13 @@ fn no_output_name_without_package_name() {
     let err = super::derive_output_name_from_package(&project, dir.path()).unwrap_err();
     assert_eq!(diagnostic_code(err), "ERR_PNPM_PACK_APP_NO_OUTPUT_NAME");
 }
+
+#[test]
+fn runtime_install_manifest_is_named_after_pnpm() {
+    let dir = TempDir::new().unwrap();
+    super::build::write_runtime_install_manifest(dir.path(), "linux-x64-glibc").unwrap();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["name"], "pnpm-pack-app-linux-x64-glibc");
+}

@@ -1,0 +1,53 @@
+{
+  "name": "@pnpm/network.agent",
+  "version": "1100.0.0",
+  "description": "An http/s agent factory with proxy support",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "agent",
+    "http",
+    "network",
+    "proxy"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/network/agent",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/network/agent#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "prepublishOnly": "tsgo --build"
+  },
+  "dependencies": {
+    "@pnpm/network.config": "workspace:*",
+    "@pnpm/network.proxy-agent": "workspace:*",
+    "agentkeepalive": "catalog:",
+    "lru-cache": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/network.agent": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

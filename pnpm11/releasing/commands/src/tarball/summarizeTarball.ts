@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
-import util from 'node:util'
 import { gunzipSync } from 'node:zlib'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import stripBom from 'strip-bom'
 import tar from 'tar-stream'
 
@@ -132,7 +131,7 @@ function maybeGunzip (tarballData: Buffer): Buffer {
   try {
     return gunzipSync(tarballData, { maxOutputLength: MAX_TARBALL_BYTES })
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
       throw new PnpmError(
         'STAGE_REGISTRY_ERROR',
         `Failed to read the staged tarball: tarball exceeded ${MAX_TARBALL_BYTES} bytes when decompressed`

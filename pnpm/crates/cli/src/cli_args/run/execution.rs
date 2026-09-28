@@ -1,10 +1,11 @@
 use super::{
     Config, ExecDirs, HashMap, IndexMap, IntoDiagnostic, Mutex, PackageManifest, Path,
     ProcessTracker, ReporterType, RunError, RunScript, ScheduleGraphOptions, ScriptExit,
-    ScriptOutput, ScriptSelector, ScriptsPrependNodePath, SyncInjectedDeps, TaskCompletion, Value,
-    env, exec_fallback, exit_like, make_node_package_map_option, make_node_require_option,
-    package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
-    sync_injected_deps, throw_or_filter_hidden_scripts,
+    ScriptOutput, ScriptSelector, ScriptsPrependNodePath, TaskCompletion, Value, env,
+    exec_fallback, exit_like,
+    injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution, run_script, schedule_graph, throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::concurrency_group::{
     SlotOutcome, acquire_concurrency_group_slot, with_held_group,
@@ -341,6 +342,8 @@ fn run_script_stages(
     main_body: &str,
     args: &[String],
 ) -> miette::Result<ScriptExit> {
+    // Joined before the hardlink sync below, including when a stage fails.
+    let watch = start_injected_edit_watch(ctx, name);
     let mut main_status = None;
     for (stage, script) in
         get_run_script_stages(ctx.manifest, name, main_body, ctx.config.enable_pre_post_scripts)
@@ -353,6 +356,7 @@ fn run_script_stages(
         // A failing stage stops the script, and its status is the
         // script's.
         if !status.success() {
+            drop(watch);
             return Ok(status);
         }
         if is_main {
@@ -363,25 +367,8 @@ fn run_script_stages(
         "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
     );
 
-    if ctx.config.sync_injected_deps_after_scripts
-        .iter()
-        .any(|script| script == name)
-    {
-        sync_injected_deps(&SyncInjectedDeps {
-            pkg_name: ctx.manifest
-                .value()
-                .get("name")
-                .and_then(Value::as_str),
-            pkg_root_dir: ctx.dir,
-            workspace_dir: ctx.config.workspace_dir.as_deref(),
-            modules_dir_name: ctx.config.modules_dir_name(),
-            workspace_modules_dir: &ctx.config.modules_dir,
-            extend_node_path: ctx.config.extend_node_path,
-            // Read before the script ran, so a bin it drops can still be named.
-            manifest_before_scripts: Some(ctx.manifest.value()),
-            ignored_directories: ctx.config.managed_directories(),
-        })?;
-    }
+    drop(watch);
+    sync_injected_deps_after(ctx, name)?;
 
     Ok(main_status)
 }

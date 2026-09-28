@@ -2,6 +2,8 @@ mod behavior;
 
 mod release_age;
 
+mod mature_fallback;
+
 mod trust_policy;
 
 mod cache_partitions;
@@ -9,6 +11,8 @@ mod cache_partitions;
 mod cache_read_modes;
 
 mod version_selection;
+
+mod offline_store_pick;
 
 use std::sync::Arc;
 
@@ -31,7 +35,8 @@ use super::{
 };
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_path,
+        get_pkg_mirror_path, load_meta,
     },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     registry_url::to_registry_url,
@@ -150,12 +155,14 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         blocked_versions: None,
         policy: crate::PackagePickPolicy {
             published_by: None,
+            fallback_published_by: None,
             published_by_exclude: None,
             trust_policy: None,
         },
         request: crate::MetadataPickRequest {
             dry_run: false,
             optional: false,
+            refresh_metadata: false,
             update_checksums: false,
         },
     }

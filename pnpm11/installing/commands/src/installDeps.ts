@@ -146,7 +146,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'selectedProjectsGraph'
-> & Partial<Pick<Config, 'ci'>>
+> & Partial<Pick<Config, 'ci' | 'loglevel' | 'reporter'>>
 & CreateStoreControllerOptions & {
   argv: {
     cooked?: string[]
@@ -368,8 +368,10 @@ export async function installDeps (
   // every checkpoint when no policies are configured.
   const policyHandlers = setupPolicyHandlers(opts)
 
+  const { reporter: reporterName, ...coreOpts } = opts
+
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
-    ...opts,
+    ...coreOpts,
     // In case installation is done in a multi-package repository
     // The dependencies should be built first,
     // so ignoring scripts for now
@@ -385,6 +387,10 @@ export async function installDeps (
     preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
     handleResolutionPolicyViolations: policyHandlers?.handleResolutionPolicyViolations,
     runPacquet,
+    ...((opts.loglevel === 'warn' || opts.loglevel === 'error')
+      && (reporterName == null || reporterName === 'default' || reporterName === 'append-only')
+      ? { ownLifecycleHooksStdio: 'pipe' }
+      : {}),
   }
 
   let updateMatch: UpdateDepsMatcher | null
@@ -588,7 +594,7 @@ export async function installDeps (
           rootDir: opts.dir as ProjectRootDir,
         },
       ], {
-        ...opts,
+        ...coreOpts,
         pending: true,
         storeController: store.ctrl,
         storeDir: store.dir,

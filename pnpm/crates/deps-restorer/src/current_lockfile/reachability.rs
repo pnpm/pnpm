@@ -137,7 +137,8 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
         for map in [
             included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
             included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
-            included.optional_dependencies
+            included
+                .includes_project_optional_dependencies()
                 .then_some(importer.optional_dependencies.as_ref())
                 .flatten(),
         ]

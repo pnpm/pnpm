@@ -17,6 +17,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod cmd_encoding;
+mod pwsh_encoding;
 mod relocatable;
 
 #[test]

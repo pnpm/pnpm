@@ -32,13 +32,24 @@ pub(super) struct ColdCapture<'a> {
     pub(super) cas_paths: HashMap<String, PathBuf>,
     pub(super) requires_build: bool,
     pub(super) source_is_mutable: bool,
+    /// See [`crate::SlotImportSource::source_exists`].
+    pub(super) source_exists: bool,
     pub(super) force_import: bool,
 }
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
     map.reserve(cold_cas_paths.len());
-    for ColdCapture { snapshot_key, cas_paths: paths, .. } in cold_cas_paths {
+    for ColdCapture {
+        snapshot_key,
+        cas_paths: paths,
+        source_is_mutable,
+        ..
+    } in cold_cas_paths
+    {
         map.entry(cas_paths_key(snapshot_key))
-            .or_insert_with(|| Arc::new(paths));
+            .or_insert_with(|| crate::HoistedPackageFiles {
+                cas_paths: Arc::new(paths),
+                source_is_mutable,
+            });
     }
 }
 /// An optional snapshot whose fetch fails is dropped rather than aborting the
@@ -149,7 +160,11 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             return failure;
         }
     };
-    let crate::InstalledPackage { cas_paths, source_is_mutable } = installed;
+    let crate::InstalledPackage {
+        cas_paths,
+        source_is_mutable,
+        source_exists,
+    } = installed;
     Ok((
         None,
         Some(ColdCapture {
@@ -158,6 +173,7 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             requires_build: requires_build_from_cas_paths(&cas_paths),
             cas_paths,
             source_is_mutable,
+            source_exists,
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))

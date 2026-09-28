@@ -22,7 +22,7 @@ for (const name of ['pnpm']) {
 // first there, and would find nothing at all when the directory holding these
 // bins is not on `PATH`.
 //
-// The .cmd and .ps1 wrappers resolve pnpm through the caller's `PATH` instead,
+// The .cmd wrappers resolve pnpm through the caller's `PATH` instead,
 // deliberately. `bin` is extensionless for every alias, so neither install
 // state makes them a shim target: with install scripts, setup.js hardlinks
 // pn.exe/pnpx.exe/pnx.exe and repoints `bin` at those; without them, `bin`
@@ -39,7 +39,9 @@ for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]
   }
   fs.writeFileSync(file, unixScript(name, subcommand), { mode: 0o755 })
   fs.writeFileSync(path.join(ownDir, name + '.cmd'), `@echo off\npnpm${subcommand} %*\nexit /b %errorlevel%\n`)
-  fs.writeFileSync(path.join(ownDir, name + '.ps1'), `pnpm${subcommand} @args\nexit $LASTEXITCODE\n`)
+  // No .ps1 wrapper: PowerShell would prefer it over the .cmd, and it fails
+  // wherever the execution policy blocks unsigned scripts.
+  fs.rmSync(path.join(ownDir, name + '.ps1'), { force: true })
 }
 
 function unixScript (name, subcommand) {

@@ -297,13 +297,14 @@ test('installing non-prod deps then all deps', async () => {
   }
 })
 
-test('installing only optional deps', async () => {
+// https://github.com/pnpm/pnpm/issues/9678
+test('installing dev deps with optional deps included skips the project optional deps', async () => {
   const prefix = f.prepare('simple')
 
   await headlessInstall(await testDefaults({
     include: {
       dependencies: false,
-      devDependencies: false,
+      devDependencies: true,
       optionalDependencies: true,
     },
     lockfileDir: prefix,
@@ -312,8 +313,8 @@ test('installing only optional deps', async () => {
   const project = assertProject(prefix)
   project.hasNot('is-positive')
   project.hasNot('rimraf')
-  project.hasNot('is-negative')
-  project.has('colors')
+  project.has('is-negative')
+  project.hasNot('colors')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1958
@@ -796,7 +797,7 @@ test.each([['isolated'], ['hoisted']] as const)('using side effects cache with n
   storeIndexes.push(storeIndex)
   const cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
@@ -976,6 +977,73 @@ test('installing in a workspace with node-linker=hoisted', async () => {
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/express'))).toBe('4.17.2')
   expect(readPkgVersion(path.join(prefix, 'node_modules/webpack'))).toBe('5.65.0')
   expect(readPkgVersion(path.join(prefix, 'node_modules/express'))).toBe('2.5.11')
+})
+
+// An install interrupted before the current lockfile and `.modules.yaml` are
+// written leaves nested copies on disk that no later install could see, because
+// the next run starts from an empty previous graph. They go to `.ignored`
+// rather than being deleted: pnpm has no record of installing them, so they may
+// hold work someone did by hand. See https://github.com/pnpm/pnpm/issues/13676
+test('installing in a workspace with node-linker=hoisted quarantines directories that the hoisting plan does not place', async () => {
+  const prefix = f.prepare('workspace2')
+
+  const orphans = [
+    { dir: path.join(prefix, 'node_modules/orphan'), ignored: path.join(prefix, 'node_modules/.ignored/orphan_1') },
+    { dir: path.join(prefix, 'foo/node_modules/orphan'), ignored: path.join(prefix, 'foo/node_modules/.ignored/orphan') },
+    { dir: path.join(prefix, 'bar/node_modules/@scope/orphan'), ignored: path.join(prefix, 'bar/node_modules/.ignored/@scope/orphan') },
+  ]
+  for (const { dir } of orphans) {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'orphan', version: '1.0.0' }))
+    fs.writeFileSync(path.join(dir, 'hand-edit.js'), 'work someone did by hand')
+  }
+  // An earlier quarantined copy may hold hand edits too, so it is never overwritten.
+  const earlierQuarantine = path.join(prefix, 'node_modules/.ignored/orphan')
+  fs.mkdirSync(earlierQuarantine, { recursive: true })
+  fs.writeFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'earlier work')
+  const toolCache = path.join(prefix, 'foo/node_modules/.cache')
+  fs.mkdirSync(toolCache, { recursive: true })
+  // Not a package — no `package.json` — so not the linker's to remove, however
+  // little the hoisting plan has to say about it.
+  const buildOutput = path.join(prefix, 'foo/node_modules/build-output')
+  fs.mkdirSync(buildOutput, { recursive: true })
+  fs.writeFileSync(path.join(buildOutput, 'bundle.js'), '')
+  // `.ignored` is a write destination, so a symlink there would redirect the
+  // move out of the project.
+  const outsideIgnored = path.join(prefix, '../outside-ignored')
+  fs.mkdirSync(outsideIgnored, { recursive: true })
+  fs.symlinkSync(outsideIgnored, path.join(prefix, 'bar/node_modules/.ignored'), 'junction')
+  const linkedDep = path.join(prefix, 'foo/node_modules/linked-dep')
+  fs.symlinkSync(path.join(prefix, 'bar'), linkedDep, 'junction')
+  // A symlinked scope container would put every name under it outside the
+  // install root, where the scan must not follow.
+  const outsidePkg = path.join(prefix, '../outside/child')
+  fs.mkdirSync(outsidePkg, { recursive: true })
+  fs.symlinkSync(path.join(prefix, '../outside'), path.join(prefix, 'foo/node_modules/@scope'), 'junction')
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  for (const { dir, ignored } of orphans) {
+    if (dir.startsWith(path.join(prefix, 'bar'))) continue
+    expect(fs.existsSync(dir)).toBeFalsy()
+    expect(fs.readFileSync(path.join(ignored, 'hand-edit.js'), 'utf8')).toBe('work someone did by hand')
+  }
+  expect(fs.readFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'utf8')).toBe('earlier work')
+  // Nothing may travel through the symlinked `.ignored`, so bar's orphan stays put.
+  expect(fs.readdirSync(outsideIgnored)).toStrictEqual([])
+  expect(fs.existsSync(path.join(prefix, 'bar/node_modules/@scope/orphan'))).toBeTruthy()
+  expect(fs.existsSync(toolCache)).toBeTruthy()
+  expect(fs.existsSync(buildOutput)).toBeTruthy()
+  expect(fs.lstatSync(linkedDep).isSymbolicLink()).toBeTruthy()
+  expect(fs.existsSync(outsidePkg)).toBeTruthy()
+  expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
 })
 
 function readPkgVersion (dir: string): string {

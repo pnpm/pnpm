@@ -64,3 +64,34 @@ test('explicitly denied preparation installs the source without running lifecycl
   expect(result).toEqual({ shouldBeBuilt: true, pkgDir: tmp, ignoredBuild: true })
   expect(await fs.readFile(path.join(tmp, 'index.js'), 'utf8')).toBe('module.exports = 42')
 })
+
+test('prepare package runs its scripts with strictDepBuilds off', async () => {
+  const tmp = tempDir()
+  await using server = await createTestIpcServer(path.join(tmp, 'test.sock'))
+  await fs.writeFile(path.join(tmp, 'pnpm-lock.yaml'), '')
+  await fs.writeFile(path.join(tmp, 'package.json'), JSON.stringify({
+    name: 'records-strict-dep-builds',
+    version: '1.0.0',
+    scripts: {
+      prepublish: 'node -e "console.log(process.env.pnpm_config_strict_dep_builds, process.env.PNPM_CONFIG_STRICT_DEP_BUILDS)" | test-ipc-server-client ./test.sock',
+    },
+  }))
+  await preparePackage({ allowBuild, pkgResolutionId }, tmp, '')
+  expect(server.getLines()).toStrictEqual([
+    'false false',
+  ])
+})
+
+test('prepare package installs a workspace that has no lockfile with pnpm', async () => {
+  const tmp = tempDir()
+  await fs.writeFile(path.join(tmp, 'pnpm-workspace.yaml'), 'packages: []\n')
+  await fs.writeFile(path.join(tmp, 'package.json'), JSON.stringify({
+    name: 'workspace-without-lockfile',
+    version: '1.0.0',
+    scripts: { prepare: 'node -e ""' },
+  }))
+  await preparePackage({ allowBuild, pkgResolutionId }, tmp, '')
+  const files = await fs.readdir(tmp)
+  expect(files).toContain('pnpm-lock.yaml')
+  expect(files).not.toContain('package-lock.json')
+})

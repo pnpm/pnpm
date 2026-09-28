@@ -26,15 +26,16 @@ use reqwest::{Response, StatusCode, header};
 
 use crate::{
     FetchMetadataError,
+    errors::legacy_mirror_hint,
     fetch_full_metadata::{
         ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
-        is_abbreviated_content_type, normalize_abbreviated_meta, send_metadata_request,
-        warn_if_request_is_slow,
+        is_abbreviated_content_type, metadata_response_is_uncacheable, normalize_abbreviated_meta,
+        send_metadata_request, warn_if_request_is_slow,
     },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
-        get_pkg_mirror_path, load_meta, load_meta_async, load_meta_headers_async,
-        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
+        load_meta_headers_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };
@@ -81,9 +82,16 @@ pub async fn fetch_full_metadata_cached(
         if let Some(meta) = load_meta_async(mirror_path.as_deref()).await {
             return Ok(meta);
         }
+        let hint = match legacy_mirror_path_for(pkg_name, opts) {
+            Some(path) if tokio::fs::try_exists(&path).await.unwrap_or(false) => {
+                Some(legacy_mirror_hint(&path))
+            }
+            _ => None,
+        };
         return Err(FetchMetadataError::NoOfflineMeta {
             pkg_name: pkg_name.to_string(),
             pkg_mirror: mirror_path.unwrap_or_default(),
+            hint,
         });
     }
 
@@ -147,9 +155,7 @@ impl FetchAttempt<'_> {
                 error: error.without_url(),
             })?;
 
-        let etag = response_etag(&response);
-        let normalize_to_abbreviated =
-            !opts.full_metadata && !is_abbreviated_content_type(response.headers());
+        let decode = self.decoder(&response, started_at);
         let raw_body = response
             .text()
             .await
@@ -172,7 +178,6 @@ impl FetchAttempt<'_> {
         // socket that worker pumps — on a cold babylon install the
         // inline parses held the metadata phase to a third of pnpm's
         // throughput.
-        let decode = self.decoder(etag, normalize_to_abbreviated, started_at);
         let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
             .await
             .map_err(|error| FetchMetadataError::ParseTask {
@@ -184,17 +189,14 @@ impl FetchAttempt<'_> {
         meta.pipe(Ok)
     }
 
-    fn decoder(
-        &self,
-        etag: Option<String>,
-        normalize_to_abbreviated: bool,
-        started_at: Instant,
-    ) -> DecodeMeta {
+    fn decoder(&self, response: &Response, started_at: Instant) -> DecodeMeta {
         DecodeMeta {
             url: self.url.to_string(),
             mirror_path: self.mirror_path.map(Path::to_path_buf),
-            etag,
-            normalize_to_abbreviated,
+            etag: response_etag(response),
+            uncacheable: metadata_response_is_uncacheable(response.headers()),
+            normalize_to_abbreviated: !self.opts.full_metadata
+                && !is_abbreviated_content_type(response.headers()),
             should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
             started_at,
         }
@@ -202,6 +204,8 @@ impl FetchAttempt<'_> {
 
     fn metadata_request(&self) -> MetadataRequestOptions<'_> {
         let opts = self.opts;
+        let stored_uncacheable =
+            self.cache_headers.as_ref().is_some_and(|headers| headers.uncacheable);
         MetadataRequestOptions {
             pkg_name: self.pkg_name,
             url: self.url,
@@ -211,7 +215,7 @@ impl FetchAttempt<'_> {
             modified: self.cache_headers
                 .as_ref()
                 .and_then(|headers| headers.modified.as_deref()),
-            bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
+            bypass_cache: stored_uncacheable || self.cache_bypass.load(Ordering::Relaxed),
             http: opts.http.one_attempt(),
         }
     }
@@ -256,12 +260,29 @@ fn mirror_path_for(
     }
 }
 
+/// Locate the legacy mirror path for `pkg_name` in `opts.cache_dir`.
+/// Unlike [`mirror_path_for`], this checks only the unscoped directory.
+fn legacy_mirror_path_for(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Option<PathBuf> {
+    let base_meta_dir = if opts.full_metadata {
+        if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+    } else {
+        ABBREVIATED_META_DIR
+    };
+    get_legacy_pkg_mirror_path(opts.cache_dir?, base_meta_dir, opts.registry, pkg_name)
+}
+
 /// The off-reactor half of one fetch: parse the body, normalize it, and
 /// persist the mirror.
 struct DecodeMeta {
     url: String,
     mirror_path: Option<PathBuf>,
     etag: Option<String>,
+    /// The response `Cache-Control` forbade reusing this document, so the
+    /// next install must refetch it instead of revalidating the mirror.
+    uncacheable: bool,
     normalize_to_abbreviated: bool,
     should_filter_metadata: bool,
     started_at: Instant,
@@ -305,16 +326,27 @@ impl DecodeMeta {
     fn persist(&self, meta: &Package) -> Option<Package> {
         let path = self.mirror_path.as_deref()?;
         if self.should_filter_metadata {
-            if let Err(error) = save_meta_ndjson(path, meta, self.etag.as_deref()) {
+            if let Err(error) = save_meta_ndjson(path, meta, self.etag.as_deref(), self.uncacheable)
+            {
                 warn_mirror_write_failed(&error, path);
+                self.drop_mirror_that_would_revalidate(path);
             }
             return None;
         }
-        if let Err(error) = save_meta_indexed(path, meta, self.etag.as_deref()) {
+        if let Err(error) = save_meta_indexed(path, meta, self.etag.as_deref(), self.uncacheable) {
             warn_mirror_write_failed(&error, path);
+            self.drop_mirror_that_would_revalidate(path);
             return None;
         }
         load_meta(path)
+    }
+
+    /// A failed write leaves the previous header, whose validators the next
+    /// fetch would send. An uncacheable response must not keep that file.
+    fn drop_mirror_that_would_revalidate(&self, path: &Path) {
+        if self.uncacheable {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
 

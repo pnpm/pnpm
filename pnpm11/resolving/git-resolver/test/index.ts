@@ -686,14 +686,86 @@ test('a missing git binary is reported as one', async () => {
   expect(err.message).toBe('Failed to resolve git dependency "zkochan/is-negative#master": git ls-remote failed: `git` executable not found on PATH. Install git to resolve git-hosted packages.')
 })
 
-test('an unreachable SSH remote carries no transport substitution hint', async () => {
+test('an unreachable SSH remote that refuses the key explains ssh-agent and a local HTTPS rewrite', async () => {
   mockFetchAsPrivate()
   mockGit(async () => {
     throw new Error('Permission denied (publickey)')
   })
   const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' }))
   expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.message).toContain('Permission denied (publickey)')
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('Git refused the SSH key for github.com')
+  expect(err.hint).toContain('git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"')
+  // The opposite rewrite is the hint for an HTTPS remote, and would send this
+  // failure back at the transport that just refused the key.
+  expect(err.hint).not.toContain('url."git@github.com:".insteadOf')
+})
+
+test('an unreachable SSH remote that is not a key refusal carries no auth hint', async () => {
+  mockFetchAsPrivate()
+  mockGit(async () => {
+    throw new Error('ssh: connect to host github.com port 22: Connection refused')
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
   expect(err.hint).toBeUndefined()
+})
+
+test('a publickey refusal keeps brackets around an IPv6 host', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git@[2001:db8::1]:2222/foo/bar.git',
+  }))
+  expect(err.hint).toContain('git config --global url."https://[2001:db8::1]/".insteadOf "ssh://git@[2001:db8::1]:2222/"')
+})
+
+test('a connection failure to a host named publickey carries no auth hint', async () => {
+  mockGit(async () => {
+    throw new Error('ssh: connect to host publickey.example.com port 22: Connection refused')
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@publickey.example.com/foo/bar.git' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+test('a publickey refusal does not offer a shell command for a host that cannot be pasted safely', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git@-evil.example/foo/bar.git',
+  }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+test('a publickey refusal offers no HTTPS rewrite for an SSH user other than git', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'git+ssh://deploy-key@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo',
+  }))
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('git-codecommit.us-east-1.amazonaws.com')
+  expect(err.hint).not.toContain('insteadOf')
+  expect(err.hint).not.toContain('deploy-key')
+})
+
+test('a publickey refusal redacts a password embedded in the SSH URL', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git:s3cr3t-t0ken@git.example.com/foo/bar.git',
+  }))
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('git config --global url."https://git.example.com/".insteadOf "ssh://git@git.example.com/"')
+  expect(err.hint).not.toContain('s3cr3t-t0ken')
+  expect(err.message).not.toContain('s3cr3t-t0ken')
 })
 
 test('resolve an explicit SSH specifier over SSH when only SSH access works', async () => {

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv, safeGitEnv } from '@pnpm/network.git-utils'
+import { getBranchesContainingHead, getCurrentBranch, isGitRepo, isHeadDetached, isWorkingTreeClean, nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv, safeGitEnv } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
@@ -61,6 +61,33 @@ test('getCurrentBranch returns null outside a git repo', async () => {
 
   await expect(getCurrentBranch({ cwd: tempDir })).resolves.toBeNull()
   await expect(isHeadDetached({ cwd: tempDir })).resolves.toBe(false)
+})
+
+test('getBranchesContainingHead lists local and remote-tracking branches by branch name', async () => {
+  const tempDir = temporaryDirectory()
+  const git = (...args: string[]) => execa('git', args, { cwd: tempDir })
+
+  await git('init', '-b', 'main')
+  await git('config', 'user.email', 'test@test.com')
+  await git('config', 'user.name', 'test')
+  await git('config', 'commit.gpgsign', 'false')
+  await git('commit', '--allow-empty', '-m', 'init')
+  await git('checkout', '-b', 'feature')
+  await git('commit', '--allow-empty', '-m', 'feature')
+  await git('update-ref', 'refs/remotes/origin/feature', 'HEAD')
+  await git('update-ref', 'refs/remotes/upstream/fix/login', 'HEAD')
+  await git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/feature')
+  await git('checkout', '--detach')
+
+  await expect(getBranchesContainingHead({ cwd: tempDir })).resolves.toStrictEqual(['feature', 'fix/login'])
+
+  await git('branch', '-D', 'feature')
+
+  await expect(getBranchesContainingHead({ cwd: tempDir })).resolves.toStrictEqual(['feature', 'fix/login'])
+})
+
+test('getBranchesContainingHead returns an empty array outside a git repo', async () => {
+  await expect(getBranchesContainingHead({ cwd: temporaryDirectory() })).resolves.toStrictEqual([])
 })
 
 test('isWorkingTreeClean', async () => {

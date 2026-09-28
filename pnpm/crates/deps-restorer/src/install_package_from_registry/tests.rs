@@ -111,6 +111,7 @@ fn create_config(
         merge_git_branch_lockfiles: false,
         merge_git_branch_lockfiles_branch_pattern: Vec::new(),
         git_branch_lockfile_name: None,
+        git_branch_lockfile_candidates: Vec::new(),
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
@@ -149,6 +150,7 @@ fn create_config(
         strict_store_pkg_content_check: true,
         frozen_store: false,
         force: false,
+        isolate_local_directory_imports: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
         side_effects_cache_read_setting: None,
@@ -256,6 +258,8 @@ fn create_config(
         tls_by_uri: Default::default(),
         package_manager_bootstrap: Default::default(),
         explicit_settings: Default::default(),
+        cli_settings: Default::default(),
+        cli_setting_values: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
     }
@@ -292,7 +296,7 @@ async fn resolve_via_mock(
             prefer_offline: false,
             ignore_missing_time_field: true,
         },
-        store_index: None,
+        store_view: None,
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

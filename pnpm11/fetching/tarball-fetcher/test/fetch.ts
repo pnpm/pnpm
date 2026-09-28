@@ -974,7 +974,7 @@ test('fail when extracting a broken tarball', async () => {
       lockfileDir: process.cwd(),
       pkg,
     })
-  ).rejects.toThrow(`Failed to add tarball from "${registry}/foo.tgz" to store: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
+  ).rejects.toThrow(`Failed to add tarball from "${registry}/foo.tgz" to store: Unexpected end of TAR archive at offset 27`
   )
 })
 

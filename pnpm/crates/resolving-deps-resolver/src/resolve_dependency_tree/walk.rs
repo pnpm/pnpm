@@ -38,11 +38,17 @@ use locked_versions::{
 
 mod edge_resolution;
 
+mod package_root_link;
+use package_root_link::{
+    link_file_deps_inside_package, package_root_link_result, wanted_package_root_link,
+};
+
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, SnapshotEntry, TarballRevision};
+use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
     RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,

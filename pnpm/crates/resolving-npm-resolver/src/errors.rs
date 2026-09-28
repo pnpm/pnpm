@@ -27,6 +27,10 @@ pub enum FetchMetadataError {
         pkg_name: String,
         #[error(not(source))]
         pkg_mirror: std::path::PathBuf,
+        /// Explanatory hint when a legacy mirror for the same registry exists on disk.
+        #[error(not(source))]
+        #[help]
+        hint: Option<String>,
     },
 
     /// The deployment's route policy refuses this origin. Only a server
@@ -105,6 +109,17 @@ pub enum FetchMetadataError {
         #[error(source)]
         error: tokio::task::JoinError,
     },
+}
+
+/// Format the help text for `ERR_PNPM_NO_OFFLINE_META` when `legacy_mirror` exists on disk.
+#[must_use]
+pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
+    format!(
+        "The cache layout for registry metadata changed in pnpm 11.27 and 12.4. {} holds a mirror \
+         from an older pnpm version, which this offline install cannot read. Run one online install \
+         to repopulate the cache under the new layout, then retry offline.",
+        legacy_mirror.display(),
+    )
 }
 
 impl FetchMetadataError {

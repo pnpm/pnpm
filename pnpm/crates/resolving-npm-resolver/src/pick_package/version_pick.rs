@@ -1,11 +1,12 @@
 use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
-    PickPackageContext, PickPackageFromMetaError, PickPackageFromMetaOptions, PickPackageOptions,
+    PickPackageContext, PickPackageError, PickPackageFromMetaOptions, PickPackageOptions,
     RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
-    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
-    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
-    warn_missing_time_once,
+    VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
+    pick_lowest_version_by_version_range, pick_package_from_meta, pick_stable_cached_range_version,
+    pick_version_by_version_range, warn_missing_time_once,
 };
+use crate::{OfflineStoreView, PickPackageFromMetaError};
 
 /// Whether a pick made from a registry-unverified entry can be returned as
 /// is: an offline-leaning resolve, a lowest-version pick and an exact
@@ -44,6 +45,7 @@ pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
 pub(super) struct PickerOpts<'a> {
     pub(super) preferred_version_selectors: Option<&'a VersionSelectors>,
     pub(super) published_by: Option<DateTime<Utc>>,
+    pub(super) fallback_published_by: Option<DateTime<Utc>>,
     pub(super) published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub(super) pick_lowest_version: bool,
     pub(super) include_latest_tag: bool,
@@ -125,6 +127,7 @@ pub(super) fn pick_matching_version_final(
             let fallback = PickerOpts {
                 preferred_version_selectors: picker_opts.preferred_version_selectors,
                 published_by: None,
+                fallback_published_by: None,
                 published_by_exclude: None,
                 pick_lowest_version: picker_opts.pick_lowest_version,
                 include_latest_tag: picker_opts.include_latest_tag,
@@ -136,11 +139,9 @@ pub(super) fn pick_matching_version_final(
     }
 }
 
-/// `publishedBy` is active: it narrows which versions are on offer, and
-/// `pick_lowest_version` decides which end of what is left to take. The
-/// fallback deliberately drops the maturity filter so a range no mature
-/// version satisfies still yields a pick, which the install layer
-/// reports as a violation.
+/// Picks within the selection cutoff, then the release-age cutoff when it
+/// is later. Only the final fallback drops the maturity filter, leaving
+/// violation handling to the install layer.
 pub(super) fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -157,18 +158,36 @@ pub(super) fn pick_respecting_min_release_age(
         if mature.is_some() {
             return Ok(mature);
         }
+        pick_release_age_fallback(picker_opts, target_spec, meta)
+    })
+}
+
+fn pick_release_age_fallback(
+    picker_opts: &PickerOpts<'_>,
+    target_spec: &RegistryPackageSpec,
+    meta: &Package,
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
+    if picker_opts.fallback_published_by > picker_opts.published_by {
         let fallback_opts = PickPackageFromMetaOptions {
-            preferred_version_selectors: picker_opts.preferred_version_selectors,
-            published_by: None,
-            published_by_exclude: None,
+            published_by: picker_opts.fallback_published_by,
+            ..meta_opts(picker_opts)
         };
-        pick_package_from_meta(
+        let mature = pick_package_from_meta(
             pick_lowest_version_by_version_range,
             &fallback_opts,
             meta,
             target_spec,
-        )
-    })
+        )?;
+        if mature.is_some() {
+            return Ok(mature);
+        }
+    }
+    let fallback_opts = PickPackageFromMetaOptions {
+        preferred_version_selectors: picker_opts.preferred_version_selectors,
+        published_by: None,
+        published_by_exclude: None,
+    };
+    pick_package_from_meta(pick_lowest_version_by_version_range, &fallback_opts, meta, target_spec)
 }
 
 /// `publishedBy` is off: respect `pickLowestVersion`.
@@ -243,4 +262,64 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
         published_by: picker_opts.published_by,
         published_by_exclude: picker_opts.published_by_exclude,
     }
+}
+
+/// The offline adjustment: when the pick the preferences made names a version
+/// the store does not hold, the fetcher could only reject it with
+/// `ERR_PNPM_NO_OFFLINE_TARBALL`, so the pick is redone over the packument
+/// narrowed to the store-held versions; when nothing store-held satisfies the
+/// spec, the original pick returns so the existing failure surfaces unchanged
+/// ([pnpm/pnpm#10715](https://github.com/pnpm/pnpm/issues/10715)).
+/// An exact-version or tag pick names its target outright — only a range has
+/// older alternatives worth falling back to.
+///
+/// `unfiltered_meta` is the packument before `blocked_versions` filtering:
+/// the memo is keyed by route alone, so it must be derived from metadata no
+/// caller has pre-narrowed, and each caller's block set applies only to its
+/// own final re-pick.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the inputs are independent pick-time values; bundling them moves the fields into a wrapper without removing work"
+)]
+pub(super) async fn pick_from_meta_offline(
+    store_view: Option<&OfflineStoreView>,
+    route_key: &str,
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    unfiltered_meta: &Arc<Package>,
+    meta: Arc<Package>,
+    picked: Option<Arc<PackageVersion>>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageError> {
+    let Some(picked_version) = picked.as_ref() else {
+        return Ok((meta, None));
+    };
+    if !matches!(spec.spec_type, RegistryPackageSpecType::Range) {
+        return Ok((meta, picked));
+    }
+    let Some(store_view) = store_view else {
+        return Ok((meta, picked));
+    };
+    // Fast path: the pick the preferences already made is installable
+    // offline — one presence check, no re-pick. A pick without integrity
+    // cannot be verified against the store, so it falls through to the
+    // narrowed re-pick, which only offers versions the store can verify.
+    let picked_key =
+        tarball_key(&meta.name, &picked_version.version.to_string(), &picked_version.dist);
+    let picked_is_held = match picked_key {
+        Some(key) => store_view.holds(&key).await,
+        None => false,
+    };
+    if picked_is_held {
+        return Ok((meta, picked));
+    }
+    let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {
+        return Ok((meta, picked));
+    };
+    let (_narrowed_meta, narrowed_pick) =
+        pick_from_meta(picker_opts, spec, narrowed, blocked_versions)?;
+    if let Some(adjusted) = narrowed_pick {
+        return Ok((meta, Some(adjusted)));
+    }
+    Ok((meta, picked))
 }

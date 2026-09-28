@@ -1,9 +1,9 @@
 import assert from 'node:assert'
 import { chmodSync, constants, existsSync, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
@@ -98,7 +98,7 @@ function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): Impo
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
         globalWarn(err.message)
         globalInfo('Falling back to copying packages from store')
@@ -156,7 +156,7 @@ function tryClonePkg (
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
-  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+  if (shouldImportPkg(to, opts)) {
     const clone = alignedClone(createCloneFunction())
     importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
     removeQuarantineFromNativeBinaries(to, opts)
@@ -179,7 +179,7 @@ function createClonePkg (): ImportIndexedPackage {
     try {
       clone(src, dest)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+      if (isError(err) && 'code' in err && err.code === 'ENOTSUP') {
         fallback(src, dest)
         return
       }
@@ -191,13 +191,29 @@ function createClonePkg (): ImportIndexedPackage {
     importFileAtomic: withFallback(atomicCopyFileSync),
   }
   return (to: string, opts: ImportOptions) => {
-    if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+    if (shouldImportPkg(to, opts)) {
       importIndexedDir(importer, to, opts.filesMap, opts)
       removeQuarantineFromNativeBinaries(to, opts)
       return 'clone'
     }
     return undefined
   }
+}
+
+// Whether to (re)import via clone or copy. A directory dependency's source
+// can change without the lockfile changing, so these methods import it
+// unconditionally by default, the same way `shouldRelinkPkg` does for the
+// hardlink path below, including the same guard against wiping an
+// already-materialized target when a `publishConfig.directory` source has
+// not been built yet.
+function shouldImportPkg (
+  to: string,
+  opts: ImportOptions
+): boolean {
+  if (opts.resolvedFrom === 'local-dir' && opts.sourceExists === false) {
+    return targetHasNothingToLose(to)
+  }
+  return opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)
 }
 
 function pkgExistsAtTargetDir (targetDir: string, filesMap: FilesMap): boolean {
@@ -233,7 +249,7 @@ function createCloneFunction (): CloneFunction {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
         // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+        if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
       }
     }
   } else {
@@ -241,7 +257,7 @@ function createCloneFunction (): CloneFunction {
       try {
         fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
       } catch (err: unknown) {
-        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+        if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
       }
     }
   }
@@ -253,6 +269,9 @@ function hardlinkPkg (
   to: string,
   opts: ImportOptions
 ): 'hardlink' | undefined {
+  // Checked ahead of `opts.force`: a caller-requested force must not be able
+  // to bypass the missing-source preservation below.
+  if (missingSourceHasSomethingToPreserve(to, opts)) return undefined
   if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
     removeQuarantineFromNativeBinaries(to, opts)
@@ -266,14 +285,38 @@ function shouldRelinkPkg (
   opts: ImportOptions
 ): boolean {
   if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
-    try {
-      const files = fs.readdirSync(to)
-      return files.length === 0 || files.length === 1 && files[0] === 'node_modules'
-    } catch {
-      return true
-    }
+    return targetHasNothingToLose(to)
+  }
+  // A directory dependency relinks on every install by default, since its
+  // source can change without the lockfile changing. But when the source is
+  // a `publishConfig.directory` its own `prepare` script has not (re)built
+  // yet, the fetcher tolerates the missing directory and comes back with an
+  // empty `filesMap`; relinking from that would wipe an already-materialized
+  // target. Only skip the relink when there is something in the target
+  // worth preserving — an empty or missing target has nothing to lose, and
+  // still needs the relink to create it so the post-build resync has
+  // somewhere to write into. `hardlinkPkg` checks this same condition ahead
+  // of its own `opts.force`, so this only runs once that has already passed.
+  if (opts.resolvedFrom === 'local-dir' && opts.sourceExists === false) {
+    return targetHasNothingToLose(to)
   }
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
+}
+
+// See `shouldRelinkPkg`'s comment on the missing-source case. Pulled out so
+// `hardlinkPkg` can apply the same guard ahead of its `opts.force` check,
+// which would otherwise bypass it.
+function missingSourceHasSomethingToPreserve (to: string, opts: ImportOptions): boolean {
+  return opts.resolvedFrom === 'local-dir' && opts.sourceExists === false && !targetHasNothingToLose(to)
+}
+
+function targetHasNothingToLose (to: string): boolean {
+  try {
+    const files = fs.readdirSync(to)
+    return files.length === 0 || files.length === 1 && files[0] === 'node_modules'
+  } catch {
+    return true
+  }
 }
 
 // The CLI never changes its own umask and the import path asks for it once
@@ -337,7 +380,7 @@ function linkOrCopy (existingPath: string, newPath: string): void {
   } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
@@ -363,7 +406,7 @@ function resilientCopyFileSync (src: string, dest: string): void {
     fs.copyFileSync(src, dest)
     alignStoreFileMode(src, dest)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+    if (isError(err) && 'code' in err && err.code === 'ENOTSUP') {
       const storeMode = storeEntryModeForSource(src)
       const srcMode = storeMode ?? fs.statSync(src).mode
       fs.writeFileSync(dest, fs.readFileSync(src), { mode: srcMode })
@@ -380,7 +423,7 @@ function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
   try {
     stats0 = fs.statSync(linkedFile)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
   }
   const stats1 = fs.statSync(filesMap.get(filename)!)
   if (stats0.ino === stats1.ino) return true
@@ -392,7 +435,7 @@ export function copyPkg (
   to: string,
   opts: ImportOptions
 ): 'copy' | undefined {
-  if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
+  if (shouldImportPkg(to, opts)) {
     // copyFileSync is not atomic on non-COW filesystems: a crash mid-copy
     // can leave a partially-written file.  package.json is the completion
     // marker, so it must be written atomically via temp file + rename.

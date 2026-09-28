@@ -6,7 +6,7 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, isSymlinkMode, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -95,7 +95,7 @@ test('using side effects cache', async () => {
   storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
@@ -204,11 +204,11 @@ test('a postinstall script does not modify the original sources added to the sto
   const filesIndex = storeIndex3.get(filesIndexKey3) as PackageFilesIndex
   storeIndex3.close()
   expect(filesIndex.sideEffects).toBeTruthy()
-  expect(filesIndex.sideEffects?.has(`${ENGINE_NAME};deps=${hashObject({
+  expect(filesIndex.sideEffects?.has(`${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
   })}`)).toBeTruthy()
-  const sideEffectEntry = filesIndex.sideEffects!.get(`${ENGINE_NAME};deps=${hashObject({
+  const sideEffectEntry = filesIndex.sideEffects!.get(`${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
   })}`)!
@@ -238,7 +238,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   const filesIndex4 = storeIndex4.get(filesIndexKey4) as PackageFilesIndex
   storeIndex4.close()
   expect(filesIndex4.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
@@ -268,4 +268,76 @@ test('a corrupted side-effects cache is ignored', async () => {
   await install(manifest, opts2)
 
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
+})
+
+// https://github.com/pnpm/pnpm/issues/12859
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+testOnPosix('symlinks created by a build are restored from the side-effects cache', async () => {
+  prepareEmpty()
+  const pkgName = '@pnpm.e2e/postinstall-creates-symlinks'
+  const pkgDir = `node_modules/${pkgName}`
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    allowBuilds: { [pkgName]: true },
+  })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [`${pkgName}@1.0.0`], opts)
+
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(storeIndexKey(getIntegrity(pkgName, '1.0.0'), `${pkgName}@1.0.0`)) as PackageFilesIndex
+  const added = [...filesIndex.sideEffects!.values()][0].added!
+  expect(isSymlinkMode(added.get('bin/tool-alias')!.mode)).toBe(true)
+  expect(isSymlinkMode(added.get('lib-link')!.mode)).toBe(true)
+  expect(isSymlinkMode(added.get('replaced.js')!.mode)).toBe(true)
+
+  rimrafSync('node_modules')
+  process.env.PNPM_E2E_FAIL_POSTINSTALL = '1'
+  try {
+    await install(manifest, testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      storeDir: opts.storeDir,
+      allowBuilds: { [pkgName]: true },
+    }))
+  } finally {
+    delete process.env.PNPM_E2E_FAIL_POSTINSTALL
+  }
+
+  expect(fs.readlinkSync(`${pkgDir}/bin/tool-alias`)).toBe('tool')
+  expect(fs.readlinkSync(`${pkgDir}/lib-link`)).toBe('lib')
+  expect(fs.readFileSync(`${pkgDir}/lib-link/index.js`, 'utf8')).toBe('module.exports = true\n')
+  expect(fs.readlinkSync(`${pkgDir}/replaced.js`)).toBe('lib/index.js')
+})
+
+// https://github.com/pnpm/pnpm/issues/15667
+test('a build with nothing to restore runs again when the package ships an executable file', async () => {
+  prepareEmpty()
+  const log = path.resolve('outside-log')
+  fs.writeFileSync(log, '')
+  process.env.PNPM_E2E_OUTSIDE_LOG = log
+  try {
+    const opts = testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      allowBuilds: { '@pnpm.e2e/postinstall-writes-outside-package': true },
+    })
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/postinstall-writes-outside-package@1.1.0'], opts)
+    expect(fs.readFileSync(log, 'utf8')).toBe('x')
+
+    rimrafSync('node_modules')
+    await install(manifest, testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      storeDir: opts.storeDir,
+      allowBuilds: { '@pnpm.e2e/postinstall-writes-outside-package': true },
+    }))
+    expect(fs.readFileSync(log, 'utf8')).toBe('xx')
+  } finally {
+    delete process.env.PNPM_E2E_OUTSIDE_LOG
+  }
 })

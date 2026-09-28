@@ -1961,6 +1961,88 @@ test('allProjectsAreUpToDate(): works with injected workspace dependency with a 
   expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
 })
 
+// A fresh checkout (or a clean before `--frozen-lockfile`) has nothing at the
+// publish directory until the project's own `prepare` script runs, so this
+// must not fall back to reading `a`'s manifest from a directory that does
+// not exist yet (pnpm/pnpm#7811).
+test('allProjectsAreUpToDate(): returns true for an injected workspace dependency that publishes from a directory not yet built', async () => {
+  prepareEmpty()
+  await mkdir('packages/a', { recursive: true })
+  const project1Manifest = {
+    name: 'a',
+    version: '1.0.0',
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  await writeFile('./packages/a/package.json', JSON.stringify(project1Manifest))
+  const projects = [
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          a: 'workspace:1.0.0',
+        },
+        dependenciesMeta: {
+          a: {
+            injected: true,
+          },
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'a' as ProjectId,
+      manifest: project1Manifest,
+      rootDir: path.resolve('packages/a') as ProjectRootDir,
+    },
+  ]
+  const opts = {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            a: 'file:packages/a/dist',
+          },
+          specifiers: {
+            a: 'workspace:1.0.0',
+          },
+          dependenciesMeta: {
+            a: {
+              injected: true,
+            },
+          },
+        },
+        a: {
+          publishDirectory: 'dist',
+          specifiers: {},
+        },
+      },
+      packages: {
+        'a@file:packages/a/dist': {
+          resolution: { directory: 'packages/a/dist', type: 'directory' },
+          version: '1.0.0',
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    } as LockfileObject,
+    workspacePackages: new Map([
+      ['a', new Map([
+        ['1.0.0', {
+          rootDir: path.resolve('packages/a') as ProjectRootDir,
+          manifest: project1Manifest,
+        }],
+      ])],
+    ]),
+    lockfileDir: process.cwd(),
+  }
+  expect(await allProjectsAreUpToDate(projects, opts)).toBeTruthy()
+})
+
 test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a package entry even when skipping local directory dependencies', async () => {
   expect(await checkLinkedPackagesAreUpToDate({
     linkWorkspacePackages: true,

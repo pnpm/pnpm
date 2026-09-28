@@ -1,7 +1,8 @@
 use super::{
     AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, NpmrcAuth, Path, WorkspaceSettings, build_package_manager_bootstrap,
-    collect_explicit_settings, default_config_dir, default_state_dir, resolve_configured_state_dir,
+    collect_explicit_settings, default_config_dir, default_state_dir, ensure_windows_dir_envs,
+    resolve_configured_state_dir,
 };
 
 impl Config {
@@ -9,7 +10,8 @@ impl Config {
     ///
     /// Config sources (low → high precedence): `SmartDefault`, the supported
     /// `.npmrc` subset (cwd, falling back to home), global `config.yaml`,
-    /// project `pnpm-workspace.yaml`, then `PNPM_CONFIG_*` env.
+    /// project `pnpm-workspace.yaml`, `PNPM_CONFIG_*` env, then
+    /// [`Config::cli_setting_values`].
     ///
     /// Pacquet currently applies `registry`, scoped registry routes,
     /// npm-auth credentials, the
@@ -52,6 +54,7 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        ensure_windows_dir_envs::<Sys>().map_err(LoadWorkspaceYamlError::UnexpandedEnvInPath)?;
         let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
         self.state_dir.clone_from(&default_state_dir);
 
@@ -120,10 +123,7 @@ impl Config {
         npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
 
         self.apply_env_settings::<Sys>(&mut explicit, &default_state_dir, start_dir);
-
-        if !self.explicit_settings.contains_key("lockfile") {
-            self.lockfile = self.package_lock;
-        }
+        self.apply_cli_setting_values(&mut explicit, &default_state_dir, start_dir);
 
         self.apply_store_derivations::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
 
@@ -235,5 +235,29 @@ impl Config {
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);
         }
+    }
+
+    /// Layer [`Self::cli_setting_values`] over every other source, before the
+    /// derivations that read the final settings run.
+    fn apply_cli_setting_values(
+        &mut self,
+        explicit: &mut ExplicitPaths,
+        default_state_dir: &Path,
+        start_dir: &Path,
+    ) {
+        if self.cli_setting_values.is_empty() {
+            return;
+        }
+        let mut settings = WorkspaceSettings::from_string_values(&self.cli_setting_values);
+        explicit.note(&settings);
+        collect_explicit_settings(&mut self.explicit_settings, &settings);
+        if let Some(configured_state_dir) = settings.state_dir.take() {
+            self.state_dir = resolve_configured_state_dir(default_state_dir, &configured_state_dir);
+        }
+        let bootstrap = &mut self.package_manager_bootstrap;
+        settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
+        let saved_workspace_dir = self.workspace_dir.clone();
+        settings.apply_to(self, start_dir);
+        self.workspace_dir = saved_workspace_dir;
     }
 }

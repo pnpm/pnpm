@@ -9,9 +9,12 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({
+  getCurrentBranch: jest.fn(),
+  getBranchesContainingHead: jest.fn(() => Promise.resolve([])),
+}))
 
-const { getCurrentBranch } = await import('@pnpm/network.git-utils')
+const { getCurrentBranch, getBranchesContainingHead } = await import('@pnpm/network.git-utils')
 const { install, mutateModules } = await import('@pnpm/installing.deps-installer')
 
 test('install with git-branch-lockfile = true', async () => {
@@ -154,6 +157,73 @@ test('install a workspace with git-branch-lockfile = true', async () => {
 
   expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
+test('a detached HEAD reads the lockfile of the branch containing the commit', async () => {
+  const project = prepareEmpty()
+
+  // is-positive was installed on the feature branch. The branch workflow
+  // keeps the shared lockfile for the default branch, so the checkout
+  // carries only pnpm-lock.feature.yaml.
+  writeYamlFileSync('pnpm-lock.feature.yaml', {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@3.1.0': {
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+    snapshots: {
+      'is-positive@3.1.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  // CI checked the commit out by its SHA, so no branch is checked out even
+  // though the commit belongs to the feature branch.
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
+  jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve(['feature']))
+
+  await install({
+    dependencies: {
+      'is-positive': '^3.1.0',
+    },
+  }, testDefaults({
+    useGitBranchLockfile: true,
+    frozenLockfile: true,
+  }))
+
+  project.has('is-positive')
+  expect(fs.existsSync('pnpm-lock.feature.yaml')).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
+test('a detached HEAD that no branch contains still fails a frozen install', async () => {
+  prepareEmpty()
+
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
+  jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve([]))
+
+  await expect(
+    install({
+      dependencies: {
+        'is-positive': '^3.1.0',
+      },
+    }, testDefaults({
+      useGitBranchLockfile: true,
+      frozenLockfile: true,
+    }))
+  ).rejects.toThrow(/ERR_PNPM_NO_LOCKFILE|is absent/)
 })
 
 test('install with --merge-git-branch-lockfiles', async () => {

@@ -243,7 +243,11 @@ fn load_pre_command_config(
     dir: &Path,
     resolve_store: bool,
 ) -> miette::Result<Config> {
-    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace);
+    let mut config = seed_config(
+        switch.paths.npmrc_auth_file.as_deref(),
+        switch.ignore_workspace,
+        config_overrides,
+    );
     config.skip_store_dir_resolution = !resolve_store;
     let mut config = config
         .current::<Host>(dir)

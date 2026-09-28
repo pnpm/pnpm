@@ -8,14 +8,15 @@ const exeDir = path.resolve(import.meta.dirname, '..')
 const pnpmRootDir = path.resolve(exeDir, '..', '..')
 
 // Hosts the release pipeline runs on (Linux CI and Apple Silicon Macs) build
-// the full seven-target matrix. Other hosts — currently any non-Linux,
+// the full six-target matrix. Other hosts — currently any non-Linux,
 // non-Apple-Silicon-Mac dev box (Intel Mac, Windows, etc.) — build only the
 // two baseline targets so dev-local runs stay fast. The defaults (entry,
 // outputDir, outputName, targets) live in the "pnpm.app" object of
 // pnpm/package.json — CLI --target flags replace that list when we want to
 // narrow it. darwin-x64 is intentionally absent from the matrix on
 // every host: Node.js SEA injection produces a binary that segfaults on
-// Intel Macs (pnpm/pnpm#11423, nodejs/node#62893).
+// Intel Macs (pnpm/pnpm#11423, nodejs/node#62893). linux-arm64-musl is
+// absent for the same reason (pnpm/pnpm#10443).
 const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
 const buildFullMatrix = process.platform === 'linux' || isM1Mac
 

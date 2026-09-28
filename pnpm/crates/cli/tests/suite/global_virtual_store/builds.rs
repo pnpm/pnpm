@@ -248,6 +248,58 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
     drop((root, mock_instance));
 }
 
+/// A slot an earlier install built is linked again, not built again, by an
+/// install into a fresh `node_modules`. The postinstall artifact deleted
+/// from the slot tells the two apart: with the side-effects cache off, only
+/// a rebuild writes it back, which an explicit `rebuild` still does.
+#[test]
+fn gvs_reinstall_does_not_rebuild_a_built_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+    );
+    let allow_builds =
+        allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    set_gvs_workspace_yaml(&workspace, &format!("{allow_builds}sideEffectsCache: false\n"));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+    let pkg =
+        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
+    let artifact = pkg.join("generated-by-postinstall.js");
+    fs::remove_file(&artifact).expect("remove the postinstall artifact");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!artifact.exists(), "a built slot must not be built again");
+    assert!(
+        is_symlink_or_junction(&workspace.join(
+            "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example"
+        ))
+        .expect("stat the linked package"),
+        "the built slot must be linked into the fresh node_modules",
+    );
+
+    pacquet(&workspace)
+        .with_arg("rebuild")
+        .assert()
+        .success();
+    assert!(artifact.exists(), "an explicit rebuild must build the slot again");
+
+    drop((root, mock_instance));
+}
+
 /// TS: `GVS: approve-builds scenario — install with no builds, then
 /// reinstall with allowBuilds` (`globalVirtualStore.ts:290`). The
 /// hash-directory move is what makes approval safe: the unbuilt slot stays
@@ -365,11 +417,66 @@ fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
     drop((root, mock_instance));
 }
 
-/// An optional dependency whose build fails is skipped, but its GVS slot
-/// stays for the same reason as [`gvs_build_failure_keeps_the_slot_marked_for_a_rebuild`]:
-/// other projects may link it.
+/// TS: `GVS removes an optional dependency whose build failed from its slot`
+/// (`globalVirtualStore.ts`).
+///
+/// The package directory goes, so the parent's link inside its own shared
+/// slot finds nothing, while the failed slot keeps its lock and links.
 #[test]
-fn gvs_optional_build_failure_keeps_the_slot() {
+fn gvs_removes_an_optional_dependency_whose_build_failed_from_its_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pkg-with-failing-optional-dependency": "1.0.0" }),
+    );
+    set_gvs_workspace_yaml(
+        &workspace,
+        &allow_builds_yaml(&[("@pnpm.e2e/pkg-with-failing-postinstall", true)]),
+    );
+    let failed_version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-failing-postinstall", "1.0.0");
+    let parent_version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-failing-optional-dependency", "1.0.0");
+
+    for _ in 0..2 {
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let failed_slot = sole_hash_dir(&failed_version_dir);
+        assert!(
+            !pkg_in_slot(&failed_slot, "@pnpm.e2e/pkg-with-failing-postinstall").exists(),
+            "the optional dependency whose build failed must be removed from its slot",
+        );
+        let parent_slot = sole_hash_dir(&parent_version_dir);
+        assert!(
+            pkg_in_slot(&parent_slot, "@pnpm.e2e/pkg-with-failing-optional-dependency")
+                .join("package.json")
+                .exists(),
+            "the parent must stay installed",
+        );
+        assert!(
+            !pkg_in_slot(&parent_slot, "@pnpm.e2e/pkg-with-failing-postinstall")
+                .join("package.json")
+                .exists(),
+            "the parent must not resolve the optional dependency whose build failed",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+/// TS: `rebuild keeps a global virtual store slot whose optional build failed`
+/// (`building/commands/test/build/index.ts`).
+///
+/// A rebuild may re-run the scripts of a slot other projects use with a
+/// working build, so its failure keeps the slot.
+#[test]
+fn gvs_rebuild_keeps_the_slot_whose_optional_build_failed() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
@@ -384,16 +491,17 @@ fn gvs_optional_build_failure_keeps_the_slot() {
     );
 
     pacquet(&workspace)
-        .with_arg("install")
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    pacquet(&workspace)
+        .with_arg("rebuild")
         .assert()
         .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
     let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
-    assert!(
-        pkg.join("package.json").exists(),
-        "the failed optional build's slot must stay in place",
-    );
+    assert!(pkg.join("package.json").exists(), "a failed rebuild must keep the slot");
 
     drop((root, mock_instance));
 }
@@ -744,32 +852,46 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     drop((root, mock_instance));
 }
 
-/// A slot's hash does not record the workspace root's bins, so a build
-/// that another project reuses must not depend on them. Only the pinned
-/// runtime's `node` reaches the script, which the engine part of the hash
-/// does record.
+/// A dependency's build script in a shared slot sees the workspace root's
+/// bins and the privately hoisted bins, as it does with a local virtual store.
+/// This is by design, although the slot hash records neither: `NODE_PATH`
+/// already exposes the root and hoisted `node_modules` to the same scripts,
+/// and builds that run a tool they do not declare would fail without them.
 #[test]
-fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
+fn gvs_dependency_build_scripts_see_the_workspace_root_and_hoisted_bins() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    fs::create_dir_all(workspace.join("tool")).expect("mkdir tool");
+    for (name, bin, marker) in [
+        ("tool", "gvs-root-tool", "root-tool-ran"),
+        ("hoisted-tool", "gvs-hoisted-tool", "hoisted-tool-ran"),
+    ] {
+        fs::create_dir_all(workspace.join(name)).expect("mkdir tool");
+        fs::write(
+            workspace.join(name).join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "bin": { bin: "cli.js" } })
+                .to_string(),
+        )
+        .expect("write tool package.json");
+        fs::write(
+            workspace.join(name).join("cli.js"),
+            format!("#!/usr/bin/env node\nrequire('fs').writeFileSync('{marker}', '')\n"),
+        )
+        .expect("write tool cli.js");
+    }
+
+    fs::create_dir_all(workspace.join("wrapper")).expect("mkdir wrapper");
     fs::write(
-        workspace.join("tool/package.json"),
+        workspace.join("wrapper/package.json"),
         serde_json::json!({
-            "name": "tool",
+            "name": "wrapper",
             "version": "1.0.0",
-            "bin": { "gvs-root-tool": "cli.js" },
+            "dependencies": { "hoisted-tool": "file:../hoisted-tool" },
         })
         .to_string(),
     )
-    .expect("write tool/package.json");
-    fs::write(
-        workspace.join("tool/cli.js"),
-        "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n",
-    )
-    .expect("write tool/cli.js");
+    .expect("write wrapper/package.json");
 
     fs::create_dir_all(workspace.join("dep")).expect("mkdir dep");
     fs::write(
@@ -777,15 +899,16 @@ fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
         serde_json::json!({
             "name": "dep",
             "version": "1.0.0",
-            "scripts": {
-                "postinstall": r#"gvs-root-tool || node -e "require('fs').writeFileSync('root-tool-missing', '')""#,
-            },
+            "scripts": { "postinstall": "gvs-root-tool && gvs-hoisted-tool" },
         })
         .to_string(),
     )
     .expect("write dep/package.json");
 
-    write_manifest(&workspace, &serde_json::json!({ "tool": "file:tool", "dep": "file:dep" }));
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "tool": "file:tool", "wrapper": "file:wrapper", "dep": "file:dep" }),
+    );
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[("dep@file:dep", true)]));
 
     pacquet(&workspace)
@@ -795,11 +918,8 @@ fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
 
     let slot = sole_hash_dir(&pkg_version_dir(&store_dir, "@/dep", "directory"));
     let dep_dir = pkg_in_slot(&slot, "dep");
-    assert!(dep_dir.join("root-tool-missing").exists(), "the postinstall script did not run");
-    assert!(
-        !dep_dir.join("root-tool-ran").exists(),
-        "the postinstall script ran a bin from the workspace root's node_modules/.bin",
-    );
+    assert!(dep_dir.join("root-tool-ran").exists(), "the workspace root's bin did not run");
+    assert!(dep_dir.join("hoisted-tool-ran").exists(), "the hoisted bin did not run");
 
     drop((root, mock_instance));
 }

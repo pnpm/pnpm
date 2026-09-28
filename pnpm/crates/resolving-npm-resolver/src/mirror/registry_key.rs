@@ -105,6 +105,18 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     Ok(key)
 }
 
+/// Format the legacy registry directory name `<host>[+<port>]` from a registry URL.
+/// Returns `None` when the registry URL does not parse or has no host.
+#[must_use]
+pub fn get_legacy_registry_name(registry: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(registry).ok()?;
+    let host = parsed.host_str()?;
+    Some(match parsed.port() {
+        Some(port) => format!("{host}+{port}"),
+        None => host.to_string(),
+    })
+}
+
 /// Append the registry path's own key. A path that is not all lowercase
 /// gets a sha256 suffix, because HFS+ and NTFS would otherwise merge
 /// `…/Team` into `…/team`.

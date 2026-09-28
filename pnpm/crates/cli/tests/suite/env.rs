@@ -79,6 +79,45 @@ fn rm_without_global_is_refused_after_the_deprecation_warning() {
     assert!(output.stdout.contains(r#""pnpm env remove" is deprecated"#), "{}", output.stdout);
 }
 
+/// A pnpm installed by another tool has a home directory, and the Node
+/// copies it downloaded live there, but its bin directory is not on `PATH`.
+#[test]
+fn remove_deletes_a_managed_node_when_the_global_bin_is_not_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let nodejs_dir = pnpm_home.join("nodejs");
+    std::fs::create_dir_all(nodejs_dir.join("22.5.0")).unwrap();
+    std::fs::create_dir_all(nodejs_dir.join("20.0.0")).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["env", "remove", "--global", "22.5.0"])
+        .output()
+        .expect("run pacquet env remove");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+    assert!(!nodejs_dir.join("22.5.0").exists());
+    assert!(nodejs_dir.join("20.0.0").exists());
+}
+
+#[test]
+fn use_refuses_to_manage_node_when_the_global_bin_is_not_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    std::fs::create_dir_all(&pnpm_home).unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["env", "use", "--global", "24"])
+        .output()
+        .expect("run pacquet env use");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "stderr={stderr}");
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH"), "{stderr}");
+}
+
 #[cfg(unix)]
 #[test]
 fn remove_cleans_up_dangling_node_link() {
@@ -203,23 +242,15 @@ fn remove_preserves_windows_cmd_shims_targeting_longer_version() {
     assert!(nodejs_dir.join("18.10.0").exists());
 }
 
-#[test]
-fn remove_with_custom_global_dir_removes_configured_global_node() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
-    let pnpm_home = root.path().join("pnpm_home");
-    let global_bin = pnpm_home.join("bin");
-    let custom_global_dir = root.path().join("custom_global");
-    let custom_pkg_dir = custom_global_dir.join("v11");
+fn seed_custom_global_node(custom_pkg_dir: &std::path::Path, version: &str) -> std::path::PathBuf {
     let install_dir = custom_pkg_dir.join("install-node");
     let node_pkg_dir = install_dir.join("node_modules").join("node");
-
-    std::fs::create_dir_all(&global_bin).unwrap();
     std::fs::create_dir_all(&node_pkg_dir).unwrap();
     std::fs::write(
         install_dir.join("package.json"),
         serde_json::to_string_pretty(&serde_json::json!({
             "engines": {
-                "runtime": { "name": "node", "version": "18.12.0", "onFail": "download" },
+                "runtime": { "name": "node", "version": version, "onFail": "download" },
             },
         }))
         .unwrap(),
@@ -229,13 +260,26 @@ fn remove_with_custom_global_dir_removes_configured_global_node() {
         node_pkg_dir.join("package.json"),
         serde_json::to_string_pretty(&serde_json::json!({
             "name": "node",
-            "version": "18.12.0",
+            "version": version,
             "bin": { "node": "bin/node" }
         }))
         .unwrap(),
     )
     .unwrap();
-    pnpm_fs::symlink_dir(&install_dir, &custom_pkg_dir.join("hash-node")).unwrap();
+    let link = custom_pkg_dir.join("hash-node");
+    pnpm_fs::symlink_dir(&install_dir, &link).unwrap();
+    link
+}
+
+#[test]
+fn remove_with_custom_global_dir_removes_configured_global_node() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let custom_global_dir = root.path().join("custom_global");
+    let custom_pkg_dir = custom_global_dir.join("v11");
+    std::fs::create_dir_all(&global_bin).unwrap();
+    let linked_pkg = seed_custom_global_node(&custom_pkg_dir, "18.12.0");
 
     let output = pacquet
         .with_env("PNPM_HOME", &pnpm_home)
@@ -251,5 +295,43 @@ fn remove_with_custom_global_dir_removes_configured_global_node() {
         .expect("run pacquet env rm");
 
     assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
-    assert!(!custom_pkg_dir.join("hash-node").exists());
+    assert!(!linked_pkg.exists());
+}
+
+#[test]
+fn remove_deletes_a_global_node_package_when_the_global_bin_is_not_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm_home");
+    let global_bin = pnpm_home.join("bin");
+    let custom_global_dir = root.path().join("custom_global");
+    std::fs::create_dir_all(&global_bin).unwrap();
+    let linked_pkg = seed_custom_global_node(&custom_global_dir.join("v11"), "18.12.0");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        linked_pkg.join("node_modules/node/bin/node"),
+        global_bin.join("node"),
+    )
+    .unwrap();
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args([
+            "--global",
+            &format!("--global-dir={}", custom_global_dir.display()),
+            "env",
+            "rm",
+            "18.12.0",
+        ])
+        .output()
+        .expect("run pacquet env rm");
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(!linked_pkg.exists());
+    #[cfg(unix)]
+    assert!(
+        global_bin
+            .join("node")
+            .symlink_metadata()
+            .is_err(),
+    );
 }

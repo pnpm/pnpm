@@ -48,7 +48,14 @@ pub enum HookError {
     Timeout(String, u64),
 
     #[display("Error during pnpmfile execution. pnpmfile: \"{pnpmfile}\". Error: \"{message}\".")]
-    Execution { pnpmfile: String, message: String },
+    Execution {
+        pnpmfile: String,
+        message: String,
+    },
+
+    BadReadPackageResult {
+        message: String,
+    },
 }
 
 /// Context provided to pnpmfile hooks.
@@ -161,6 +168,16 @@ pub trait PnpmfileHooks: Send + Sync {
 
     /// Whether this pnpmfile exports a callable `readPackage` hook.
     async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(false)
+    }
+
+    /// Whether this pnpmfile exports a callable `afterAllResolved` hook.
+    async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        Ok(false)
+    }
+
+    /// Whether this pnpmfile exports a callable `preResolution` hook.
+    async fn has_pre_resolution(&self) -> Result<bool, HookError> {
         Ok(false)
     }
 
@@ -433,6 +450,14 @@ impl PnpmfileHooks for ChecksumFreeHooks {
 
     async fn has_read_package(&self) -> Result<bool, HookError> {
         self.0.has_read_package().await
+    }
+
+    async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        self.0.has_after_all_resolved().await
+    }
+
+    async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.0.has_pre_resolution().await
     }
 
     async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {

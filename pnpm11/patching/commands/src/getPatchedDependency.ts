@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { confirm, select } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
@@ -52,7 +52,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
         message: 'Apply this patch to all versions?',
       })
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
+      if (isError(err) && err.name === 'ExitPromptError') {
         throw new PnpmError('PATCH_CANCELED', 'Canceled')
       }
       throw err

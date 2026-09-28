@@ -170,6 +170,44 @@ test('fetch only dev dependencies', async () => {
   project.storeHasNot('is-positive')
 })
 
+// https://github.com/pnpm/pnpm/issues/9678
+test.each([
+  [true, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0', 'is-positive@1.0.0']],
+  [false, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0']],
+])('fetch only dev dependencies with optional = %s', async (optional, expectedVirtualStoreEntries) => {
+  const project = prepare({
+    dependencies: { 'is-negative': '1.0.0' },
+    devDependencies: { '@pnpm.e2e/pkg-with-good-optional': '1.0.0' },
+    optionalDependencies: { '@pnpm.e2e/bravo': '1.0.0' },
+  })
+  const storeDir = path.resolve('store')
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  rimrafSync(path.resolve(project.dir(), './package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dev: true,
+    dir: process.cwd(),
+    optional,
+    production: false,
+    storeDir,
+  })
+
+  const virtualStoreEntries = fs.readdirSync('node_modules/.pnpm', { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'node_modules')
+    .map(({ name }) => name)
+  expect(virtualStoreEntries.sort()).toStrictEqual(expectedVirtualStoreEntries)
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/10460
 // pnpm fetch should skip local file: protocol dependencies
 // because they won't be available in Docker builds

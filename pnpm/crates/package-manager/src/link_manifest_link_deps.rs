@@ -151,7 +151,7 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
     for (included, group) in [
         (project.included.dependencies, DependencyGroup::Prod),
         (project.included.dev_dependencies, DependencyGroup::Dev),
-        (project.included.optional_dependencies, DependencyGroup::Optional),
+        (project.included.includes_project_optional_dependencies(), DependencyGroup::Optional),
     ] {
         if !included {
             continue;

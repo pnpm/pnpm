@@ -52,11 +52,11 @@ import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import { clone } from 'ramda'
 import semver from 'semver'
-import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
+import { getIntegrity } from './getIntegrity.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
@@ -296,6 +296,7 @@ export function createNpmResolver (
       cacheDir: opts.cacheDir,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
       releaseAgeUpgradeCheckedPackuments,
+      peekManifestFromStore,
     }),
     registriesByScope: opts.registriesByScope,
     registriesByPrefix,
@@ -543,6 +544,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
   trustPolicy?: TrustPolicy
@@ -617,53 +619,36 @@ async function resolveNpm (
   // If publishedBy is set (resolutionMode=time-based or minimumReleaseAge is configured), we only take
   // the fast path when publishedAt is already known from the lockfile's `time:` block; otherwise we
   // fall through to a registry fetch so the cutoff isn't computed from missing data.
-  if (
-    ctx.peekManifestFromStore &&
-    opts.currentPkg?.resolution &&
+  const locked = (
+    opts.currentPkg != null &&
     !opts.update &&
     !opts.updatePatches &&
     !opts.updateChecksums &&
     spec.revision == null &&
-    opts.trustPolicy !== 'no-downgrade' &&
-    (opts.publishedBy == null || opts.currentPkg.publishedAt != null)
-  ) {
-    const currentResolution = opts.currentPkg.resolution
-    // Only use this optimization for tarball resolutions with integrity (npm packages)
-    if ('tarball' in currentResolution && typeof currentResolution.integrity === 'string') {
-      const manifest = await ctx.peekManifestFromStore({
-        id: opts.currentPkg.id,
-        integrity: currentResolution.integrity,
-        name: opts.currentPkg.name,
-        version: opts.currentPkg.version,
-      })
-      if (manifest?.name && manifest?.version) {
-        const id = `${manifest.name}@${manifest.version}` as PkgResolutionId
-        const satisfiesSpec =
-          (spec.type !== 'range' || spec.fetchSpec === '*' || semver.satisfies(manifest.version, spec.fetchSpec, { loose: true })) &&
-          (spec.type !== 'version' || manifest.version === spec.fetchSpec)
-        if (id === opts.currentPkg.id && satisfiesSpec) {
-          return {
-            id,
-            manifest,
-            resolution: currentResolution as TarballResolution,
-            resolvedVia: 'npm-registry',
-            publishedAt: opts.currentPkg.publishedAt,
-            // Loose-mode bypass: a lockfile entry whose publishedAt sits
-            // after the maturity cutoff would have been rejected at
-            // resolver time, but the peek path skips the maturity check.
-            // Report inline so the deps-resolver aggregator surfaces it
-            // to the install command.
-            policyViolation: detectMinReleaseAgeViolation({
-              name: manifest.name,
-              version: manifest.version,
-              publishedAt: opts.currentPkg.publishedAt,
-              resolution: currentResolution,
-              publishedBy: opts.publishedBy,
-              publishedByExclude: opts.publishedByExclude,
-            }),
-          }
-        }
-      }
+    opts.trustPolicy !== 'no-downgrade'
+  )
+    ? await peekLockedPackage(ctx, spec, opts.currentPkg)
+    : undefined
+  if (locked != null && (opts.publishedBy == null || locked.publishedAt != null)) {
+    return {
+      id: locked.id,
+      manifest: locked.manifest,
+      resolution: locked.resolution,
+      resolvedVia: 'npm-registry',
+      publishedAt: locked.publishedAt,
+      // Loose-mode bypass: a lockfile entry whose publishedAt sits
+      // after the maturity cutoff would have been rejected at
+      // resolver time, but the peek path skips the maturity check.
+      // Report inline so the deps-resolver aggregator surfaces it
+      // to the install command.
+      policyViolation: detectMinReleaseAgeViolation({
+        name: locked.manifest.name,
+        version: locked.manifest.version,
+        publishedAt: locked.publishedAt,
+        resolution: locked.resolution,
+        publishedBy: opts.publishedBy,
+        publishedByExclude: opts.publishedByExclude,
+      }),
     }
   }
 
@@ -704,6 +689,7 @@ async function resolveNpm (
   const pickOptions: PickPackageOptions = {
     pickLowestVersion: opts.pickLowestVersion,
     publishedBy: opts.publishedBy,
+    fallbackPublishedBy: opts.fallbackPublishedBy,
     publishedByExclude: opts.publishedByExclude,
     authHeaderValue,
     dryRun: opts.dryRun === true,
@@ -711,6 +697,7 @@ async function resolveNpm (
     registry,
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums || opts.updatePatches,
+    refreshMetadata: opts.update === 'compatible' || opts.update === 'latest' || opts.updateRequested === true,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
   }
@@ -838,10 +825,14 @@ async function resolveNpm (
     })
   }
   const publishedAt = meta.time?.[pickedPackage.version]
+  // When the registry confirms the locked package, its manifest stays the one
+  // the fast path reads. A registry whose metadata disagrees with the tarball
+  // would otherwise rewrite the lockfile entry of a package nobody updated.
+  const keepsLockedPackage = locked != null && id === locked.id && resolution.integrity === locked.resolution.integrity
   return {
     id,
     latest,
-    manifest: selectedPackage,
+    manifest: keepsLockedPackage ? locked.manifest : selectedPackage,
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt,
@@ -1003,6 +994,7 @@ async function pickFromSimpleRegistry (
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
     pickLowestVersion: opts.pickLowestVersion,
     publishedBy: opts.publishedBy,
+    fallbackPublishedBy: opts.fallbackPublishedBy,
     publishedByExclude: opts.publishedByExclude,
     authHeaderValue,
     dryRun: opts.dryRun === true,
@@ -1010,6 +1002,7 @@ async function pickFromSimpleRegistry (
     registry,
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums || opts.updatePatches,
+    refreshMetadata: opts.update === 'compatible' || opts.update === 'latest' || opts.updateRequested === true,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
   })
@@ -1373,6 +1366,44 @@ function latestAllowedByPolicy (
 }
 
 /**
+ * Reads the locked package's manifest from the store. Only a tarball
+ * resolution pinned by integrity is looked up, and only while the stored
+ * package is still the locked one and satisfies `spec`.
+ */
+async function peekLockedPackage (
+  ctx: Pick<ResolveFromNpmContext, 'peekManifestFromStore'>,
+  spec: RegistryPackageSpec,
+  lockedPkg: NonNullable<ResolveFromNpmOptions['currentPkg']>
+): Promise<LockedPackage | undefined> {
+  const { resolution } = lockedPkg
+  if (ctx.peekManifestFromStore == null || !('tarball' in resolution) || typeof resolution.integrity !== 'string') return undefined
+  const manifest = await ctx.peekManifestFromStore({
+    id: lockedPkg.id,
+    integrity: resolution.integrity,
+    name: lockedPkg.name,
+    version: lockedPkg.version,
+  })
+  if (!manifest?.name || !manifest?.version) return undefined
+  const satisfiesSpec =
+    (spec.type !== 'range' || spec.fetchSpec === '*' || semver.satisfies(manifest.version, spec.fetchSpec, { loose: true })) &&
+    (spec.type !== 'version' || manifest.version === spec.fetchSpec)
+  if (`${manifest.name}@${manifest.version}` !== lockedPkg.id || !satisfiesSpec) return undefined
+  return {
+    id: lockedPkg.id,
+    manifest,
+    publishedAt: lockedPkg.publishedAt,
+    resolution: resolution as TarballResolution,
+  }
+}
+
+interface LockedPackage {
+  id: PkgResolutionId
+  manifest: DependencyManifest
+  publishedAt?: string
+  resolution: TarballResolution
+}
+
+/**
  * Inline minimumReleaseAge detection: returns a violation entry when the
  * picked version's publish timestamp is past the policy cutoff (and
  * isn't covered by `publishedByExclude`). The resolver already has the
@@ -1387,7 +1418,7 @@ function latestAllowedByPolicy (
  * full-name exclusions (`pkg`) are both honored so an entry already on
  * the user's exclude list isn't re-announced every install.
  */
-function detectMinReleaseAgeViolation (args: {
+export function detectMinReleaseAgeViolation (args: {
   name: string
   version: string
   publishedAt: string | undefined
@@ -1408,24 +1439,6 @@ function detectMinReleaseAgeViolation (args: {
     code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
     reason: `was published at ${new Date(ts).toISOString()}, within the minimumReleaseAge cutoff (${args.publishedBy.toISOString()})`,
   }
-}
-
-function getIntegrity (dist: {
-  integrity?: string
-  shasum: string
-  tarball: string
-}): string | undefined {
-  if (dist.integrity) {
-    return dist.integrity
-  }
-  if (!dist.shasum) {
-    return undefined
-  }
-  const integrity = ssri.fromHex(dist.shasum, 'sha1')
-  if (!integrity) {
-    throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
-  }
-  return integrity.toString()
 }
 
 function createRegistryTarballResolution (

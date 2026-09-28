@@ -28,7 +28,7 @@ import {
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -59,9 +59,11 @@ import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  convertToLockfileObject,
   getLockfileImporterId,
   getWantedLockfileName,
   isEmptyLockfile,
+  type LockfileFile,
   type LockfileObject,
   type ProjectSnapshot,
   readEnvLockfile,
@@ -93,8 +95,8 @@ import {
   satisfiesPackageManifest,
   unresolvedOptionalDependencies,
 } from '@pnpm/lockfile.verification'
-import { logger, streamParser } from '@pnpm/logger'
-import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
+import { globalWarn, logger, streamParser } from '@pnpm/logger'
+import { groupPatchedDependenciesWithPaths, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
@@ -267,7 +269,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer && canUsePnprForInstall(opts)) {
+  if (opts.pnprServer && canUsePnprForInstall(opts) && pnpmfileHookPnprCannotRun(opts.hooks) == null) {
     return installViaPnprServer({
       manifest,
       rootDir,
@@ -318,6 +320,7 @@ export type MutatedProject = DependenciesMutation & { rootDir: ProjectRootDir }
 
 export type MutateModulesOptions = InstallOptions & {
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   hooks?: {
     readPackage?: ReadPackageHook[] | ReadPackageHook
   } | InstallOptions['hooks']
@@ -434,7 +437,7 @@ export async function mutateModules (
   // (pnpm remove), and complete-project revision refreshes. Mutations that
   // need other client-side update behavior still fall through to the normal
   // flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects, opts)) {
+  if (opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -505,10 +508,6 @@ export async function mutateModules (
       ...(extraOpts.peer === true || (hasCliOpts && cliOpts.peer === true) ? { peerDependencies: true } : {}),
     }
     ctx.include = opts.include
-  }
-
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
@@ -2390,12 +2389,13 @@ function rootProjectRunsPreinstallEarly (
  * from a manifest it writes `dependencies` into and nothing else.
  * `optionalDependencies` are the exception, because every package in the
  * graph can declare one and dropping the group drops those too, which no
- * importer's manifest shows.
+ * importer's manifest shows. An importer's own `optionalDependencies` drop
+ * with its `dependencies`.
  */
 function materializesGroupSubset (include: IncludedDependencies, projects: ImporterToUpdate[]): boolean {
   if (!include.optionalDependencies) return true
   return projects.some(({ manifest }) =>
-    (!include.dependencies && !isEmpty(manifest.dependencies ?? {})) ||
+    (!include.dependencies && (!isEmpty(manifest.dependencies ?? {}) || !isEmpty(manifest.optionalDependencies ?? {}))) ||
     (!include.devDependencies && !isEmpty(manifest.devDependencies ?? {}))
   )
 }
@@ -2427,6 +2427,7 @@ type InstallFunction = (
     staleOverrideTargets?: ReadonlySet<string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
+    preferredVersionsByImporterId?: Record<string, PreferredVersions>
     pruneVirtualStore: boolean
     /** The root project's `preinstall` already ran, ahead of resolution. */
     rootProjectPreinstallRan: boolean
@@ -2603,6 +2604,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
       preferredVersions,
+      preferredVersionsByImporterId: opts.preferredVersionsByImporterId,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registriesByScope: ctx.registriesByScope,
       registriesByPrefix: opts.registriesByPrefix,
@@ -2704,7 +2706,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
-          linkedDep.optional && !opts.include.optionalDependencies ||
+          linkedDep.optional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
         )),
       linkedDependenciesByProjectId ?? {}
@@ -2716,11 +2718,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (!dep) {
           include = false
         } else {
-          const isDev = Boolean(manifest.devDependencies?.[dep.name])
-          const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+          const isDev = Object.hasOwn(manifest.devDependencies ?? {}, alias)
+          const isOptional = Object.hasOwn(manifest.optionalDependencies ?? {}, alias)
           include = !(
             isDev && !opts.include.devDependencies ||
-            isOptional && !opts.include.optionalDependencies ||
+            isOptional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
             !isDev && !isOptional && !opts.include.dependencies
           )
         }
@@ -2779,6 +2781,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
         depsStateCache,
+        deferDependencyBuilds: opts.deferDependencyBuilds,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
         extraNodePaths: ctx.extraNodePaths,
@@ -3033,7 +3036,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }))
 
     const injectionTargetsByDepPath = getInjectionTargetsByDepPath(newLockfile, dependenciesGraph)
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath, opts.lockfileDir)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -3637,6 +3640,7 @@ function getInjectionTargetsByDepPath (
   dependenciesGraph: DependenciesGraph
 ): Map<string, string[]> {
   const injectionTargetsByDepPath = new Map<string, string[]>()
+
   if (lockfile.packages) {
     for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
       if (resolution?.type === 'directory') {
@@ -3701,6 +3705,42 @@ function canUsePnprForMutations (
 
 function definesUninstallStage (scripts: ProjectManifest['scripts']): boolean {
   return scripts != null && [...PRE_UNINSTALL_STAGES, ...POST_UNINSTALL_STAGES].some((stage) => scripts[stage] != null)
+}
+
+/**
+ * Whether the configured pnpr server may resolve this install. The server runs
+ * no pnpmfile, so this returns `false` and warns when the pnpmfile defines a
+ * hook that shapes resolution, and the install then resolves locally
+ * (https://github.com/pnpm/pnpm/issues/14460).
+ */
+function pnprCanRunPnpmfile (opts: Pick<StrictInstallOptions, 'hooks' | 'pnprServer'>): boolean {
+  const unsupported = pnpmfileHookPnprCannotRun(opts.hooks)
+  if (unsupported == null) return true
+  globalWarn(`Resolving dependencies locally because the pnpr server at ${redactUrlForDisplay(opts.pnprServer!)} cannot run the pnpmfile's ${unsupported}`)
+  return false
+}
+
+function pnpmfileHookPnprCannotRun (hooks: Opts['hooks']): string | undefined {
+  if (definesHooks(hooks?.readPackage)) return '"readPackage" hook'
+  if (definesHooks(hooks?.afterAllResolved)) return '"afterAllResolved" hook'
+  if (definesHooks(hooks?.preResolution)) return '"preResolution" hook'
+  if (hooks?.customResolvers?.length) return 'custom resolvers'
+  return undefined
+}
+
+function definesHooks (hooks: unknown[] | unknown | undefined): boolean {
+  return Array.isArray(hooks) ? hooks.length > 0 : hooks != null
+}
+
+/**
+ * Whether any importer of an on-disk lockfile records a dependency. Only the
+ * importers are converted, so the check does not scale with the package count.
+ */
+function recordsDependencies (lockfile: LockfileFile): boolean {
+  return !isEmptyLockfile(convertToLockfileObject({
+    lockfileVersion: lockfile.lockfileVersion,
+    importers: lockfile.importers,
+  }))
 }
 
 function canUsePnprForInstall (opts: Opts): boolean {
@@ -4055,6 +4095,20 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
     }
 
+    // Like the local install, `frozenLockfileIfExists` ignores a lockfile
+    // that records no dependencies.
+    const frozenLockfile = opts.frozenLockfile === true || (
+      opts.frozenLockfileIfExists === true &&
+      existingLockfile != null &&
+      recordsDependencies(existingLockfile)
+    )
+    const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
+    // The server skips the pnpmfile comparison a local frozen install makes,
+    // and a frozen install must not rewrite the recorded checksum.
+    if (frozenLockfile && !opts.ignorePnpmfile && existingLockfile != null && existingLockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+      throw new LockfileConfigMismatchError('pnpmfileChecksum')
+    }
+
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
     // Build projects list for workspace support.
@@ -4066,6 +4120,10 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
         dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
         name: p.manifest.name,
         version: p.manifest.version,
+        publishConfig: p.manifest.publishConfig?.directory == null ? undefined : {
+          directory: p.manifest.publishConfig.directory,
+          linkDirectory: p.manifest.publishConfig.linkDirectory,
+        },
         dependencies: p.manifest.dependencies,
         devDependencies: p.manifest.devDependencies,
         optionalDependencies: p.manifest.optionalDependencies,
@@ -4077,6 +4135,10 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       registryUrl: opts.pnprServer!,
       name: projectsList ? undefined : manifest.name,
       version: projectsList ? undefined : manifest.version,
+      publishConfig: projectsList || manifest.publishConfig?.directory == null ? undefined : {
+        directory: manifest.publishConfig.directory,
+        linkDirectory: manifest.publishConfig.linkDirectory,
+      },
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
@@ -4107,11 +4169,18 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       // Lockfile reuse. Without these the server always reuse-and-updates,
       // so `--frozen-lockfile` would silently resolve and rewrite the very
       // lockfile it promises to leave alone.
-      frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
+      frozenLockfile,
       preferFrozenLockfile: opts.preferFrozenLockfile,
       updatePatches: opts.updatePatches,
       lockfile: existingLockfile ?? undefined,
     })
+
+    // The server never sees the pnpmfile, so the fields a local resolution
+    // records for it are stamped here.
+    if (!frozenLockfile) {
+      lockfile.pnpmfileChecksum = pnpmfileChecksum
+      setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
+    }
 
     await writeWantedLockfileAndRecordVerified({
       lockfileDir,
@@ -4235,25 +4304,6 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
   }
-}
-
-function groupPatchedDependenciesWithPaths (
-  patchedDependencies: Record<string, string> | undefined,
-  resolvedPatchedDependencies: Record<string, string> | undefined
-): PatchGroupRecord | undefined {
-  if (!patchedDependencies) return undefined
-  if (!resolvedPatchedDependencies) return groupPatchedDependencies(patchedDependencies)
-  return groupPatchedDependencies(Object.fromEntries(
-    Object.entries(patchedDependencies).map(([key, hash]) => {
-      let patchFilePath: string | undefined = resolvedPatchedDependencies[key]
-      if (!patchFilePath) {
-        const lastAt = key.lastIndexOf('@')
-        const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-        patchFilePath = resolvedPatchedDependencies[pkgName]
-      }
-      return [key, { hash, patchFilePath }]
-    })
-  ))
 }
 
 function getUntrackedPnpmfileReadPackageHook (

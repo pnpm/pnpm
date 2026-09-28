@@ -13,11 +13,13 @@ import uidNumber from 'uid-number'
 import { extendPath } from './extendPath.js'
 import { makePackageManagerEnv } from './makePackageManagerEnv.js'
 import { missingScriptShellError, SCRIPT_SHELL_NOT_FOUND } from './missingScriptShell.js'
-import { selectShell } from './selectShell.js'
+import { scriptBody, selectShell, useShellEmulator } from './selectShell.js'
 import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn, type SpawnError } from './spawn.js'
 
 export { makePackageManagerEnv } from './makePackageManagerEnv.js'
+export { appendScriptArgs, showScriptWithArgs } from './scriptArgs.js'
+export { commandParsedByCmd } from './selectShell.js'
 export type { ProcessGroupWatchdog, RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
 export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup, watchProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
@@ -64,6 +66,8 @@ export interface LifecycleOptions {
   raiseOnInterrupt?: boolean
   runConcurrently?: boolean
   scriptShell?: string
+  /** The package script as error messages show it, when that differs from what runs. */
+  shownScript?: string
   scriptsPrependNodePath?: boolean | 'warn-only'
   shellEmulator?: boolean
   stdio?: StdioOptions
@@ -93,6 +97,8 @@ type Callback = (err?: LifecycleError | null) => void
 /** One script or hook of one package, as the runner threads it through. */
 interface ScriptRun {
   cmd: string
+  /** `cmd` as error messages show it. */
+  shownCmd?: string
   relayReservation?: SignalRelayReservation
   pkg: LifecyclePackage
   stage: string
@@ -128,6 +134,11 @@ if (process.platform === 'win32') {
       PATH = e
     }
   })
+}
+
+/** The `PATH` a script in `wd` runs with. */
+export function scriptSearchPath (wd: string, opts: Pick<LifecycleOptions, 'wdBinDir' | 'extraBinPaths' | 'extraEnv'>): string {
+  return extendPath(wd, opts.extraEnv?.[PATH] ?? process.env[PATH], { ...opts, nodeGypBinDir: NODE_GYP_BIN_DIR })
 }
 
 export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opts: LifecycleOptions): Promise<void> {
@@ -243,7 +254,7 @@ function runLifecycle (run: Omit<ScriptRun, 'cmd'>, cb: Callback): void {
   if (packageLifecycle) {
     // run package lifecycle scripts in the package root, or the nearest parent.
     tasks.push((next) => {
-      runCmd({ ...run, cmd: env.npm_lifecycle_script }, next)
+      runCmd({ ...run, cmd: env.npm_lifecycle_script, shownCmd: opts.shownScript }, next)
     })
   }
   tasks.push((next) => {
@@ -352,20 +363,21 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
     conf.gid = owner.gid ^ 0
   }
 
-  const { sh, shFlag, windowsVerbatimArguments } = selectShell(opts.scriptShell || undefined, process.platform, process.env.comspec)
-  if (windowsVerbatimArguments) {
+  const scriptShell = opts.scriptShell || undefined
+  const shell = selectShell(scriptShell, process.platform, process.env.comspec)
+  if (shell.windowsVerbatimArguments) {
     conf.windowsVerbatimArguments = true
   }
 
   opts.log.verbose('lifecycle', logId(pkg, stage), 'PATH:', env[PATH])
   opts.log.verbose('lifecycle', logId(pkg, stage), 'CWD:', wd)
-  opts.log.silly('lifecycle', logId(pkg, stage), 'Args:', [shFlag, cmd])
+  opts.log.silly('lifecycle', logId(pkg, stage), 'Args:', [shell.shFlag, cmd])
 
-  if (opts.shellEmulator) {
+  if (useShellEmulator(opts.shellEmulator, scriptShell)) {
     runEmulated(run, cb)
     return
   }
-  const proc = spawn(sh, [shFlag, cmd], { ...conf, log: opts.log })
+  const proc = spawn(shell.sh, [shell.shFlag, scriptBody(shell, cmd)], { ...conf, log: opts.log })
   runSpawned(run, { proc, ownProcessGroup }, cb)
 }
 
@@ -503,7 +515,8 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
  * with the script's identity and the `ELIFECYCLE` code.
  */
 function createProcError (run: ScriptRun, cb: Callback): (er?: LifecycleError | null) => void {
-  const { cmd, pkg, stage, opts } = run
+  const { pkg, stage, opts } = run
+  const cmd = run.shownCmd ?? run.cmd
   let completed = false
   return (er) => {
     if (completed) return

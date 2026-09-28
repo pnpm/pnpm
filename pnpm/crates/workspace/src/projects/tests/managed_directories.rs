@@ -1,5 +1,8 @@
 use super::{
-    super::{FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir},
+    super::{
+        FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir,
+        managed::managed_directory_ignores,
+    },
     make_project,
 };
 use pretty_assertions::assert_eq;
@@ -137,6 +140,38 @@ fn skips_a_managed_directory_when_the_root_is_spelled_with_dot_dot() {
     );
 }
 
+/// The cache and state directories default to the home drive, so a workspace
+/// on another drive has managed directories no path from its root reaches.
+#[cfg(windows)]
+#[test]
+fn a_managed_directory_on_another_drive_does_not_break_a_glob_pattern() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "plugins/group/pkg", "pkg");
+    let other_drive = if tmp.path().starts_with(r"Z:\") { r"Y:\cache" } else { r"Z:\cache" };
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["plugins/*/*"], vec![PathBuf::from(other_drive)]),
+        ["pkg", "root"],
+    );
+}
+
+/// A walk glob can prune only a directory under the walk root. Paths that
+/// share no root with it, like the other-drive case above, stand in here as
+/// an absolute directory against a relative root so that every platform
+/// covers it.
+#[test]
+fn only_a_managed_directory_under_the_walk_root_yields_a_walk_glob() {
+    let ignores = |walk_root: &str, dir: &str| {
+        managed_directory_ignores(Path::new(walk_root), &[PathBuf::from(dir)])
+    };
+
+    assert_eq!(ignores("/workspace", "/workspace/store"), ["store/**"]);
+    assert_eq!(ignores("/workspace", "/workspace"), Vec::<String>::new());
+    assert_eq!(ignores("/workspace", "/pnpm-cache"), Vec::<String>::new());
+    assert_eq!(ignores("workspace", "/pnpm-cache"), Vec::<String>::new());
+}
+
 #[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn skips_a_managed_directory_configured_with_different_casing() {
@@ -200,5 +235,18 @@ fn a_managed_directory_is_never_a_workspace_project_dir() {
     assert!(!is_workspace_project_dir(tmp.path(), &tmp.path().join("store/tool"), &opts).unwrap());
     assert!(
         is_workspace_project_dir(tmp.path(), &tmp.path().join("packages/real"), &opts).unwrap(),
+    );
+}
+
+#[test]
+fn skips_dot_directories_when_a_managed_directory_is_configured() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/real", "real");
+    make_project(tmp.path(), "packages/.cache", "cached");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("node_modules")]),
+        ["real", "root"],
     );
 }

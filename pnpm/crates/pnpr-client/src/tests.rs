@@ -138,7 +138,7 @@ async fn rejects_a_server_that_omits_or_changes_patch_metadata() {
         if let Some(patched_dependencies) = patched_dependencies {
             lockfile["patchedDependencies"] = patched_dependencies;
         }
-        assert_transform_metadata_rejected(
+        assert_protocol_rejected(
             resolve_projects_options(),
             lockfile,
             "returned patchedDependencies that do not match the request",
@@ -157,13 +157,55 @@ async fn rejects_a_server_that_omits_or_changes_package_extension_metadata() {
         if let Some(package_extensions_checksum) = package_extensions_checksum {
             lockfile["packageExtensionsChecksum"] = json!(package_extensions_checksum);
         }
-        assert_transform_metadata_rejected(
+        assert_protocol_rejected(
             resolve_projects_options(),
             lockfile,
             "returned packageExtensionsChecksum that does not match the request",
         )
         .await;
     }
+}
+
+#[tokio::test]
+async fn rejects_a_server_that_omits_or_changes_a_project_publish_directory() {
+    for publish_directory in [None, Some("build")] {
+        let mut options = resolve_projects_options();
+        options.projects[0].publish_config =
+            Some(crate::PublishConfig { directory: "dist".to_string(), link_directory: None });
+        let mut importer = json!({});
+        if let Some(publish_directory) = publish_directory {
+            importer["publishDirectory"] = json!(publish_directory);
+        }
+        let mut lockfile = matching_transform_lockfile(&options);
+        lockfile["importers"] = json!({ ".": importer });
+        assert_protocol_rejected(options, lockfile, "instead of its publishConfig.directory").await;
+    }
+}
+
+#[tokio::test]
+async fn does_not_check_a_project_the_server_did_not_return() {
+    let mut options = resolve_projects_options();
+    options.projects[0].publish_config =
+        Some(crate::PublishConfig { directory: "dist".to_string(), link_directory: None });
+    // A partial install resolves a subset of the workspace, so a project the
+    // response leaves out carries no importer to compare a publish directory
+    // against, and the merge only takes the importers the server did return.
+    let lockfile = matching_transform_lockfile(&options);
+    let result = resolve_mock_frames(
+        options,
+        vec![json!({ "type": "done", "lockfile": lockfile })],
+        true,
+        |_| {},
+    )
+    .await;
+
+    let Ok(outcome) = result else {
+        panic!("a response that omits the project must not fail the resolve");
+    };
+    assert!(
+        outcome.lockfile.importers.is_empty(),
+        "the resolve must not invent an importer for the omitted project",
+    );
 }
 
 #[tokio::test]
@@ -208,6 +250,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             dir: ".".to_string(),
             name: Some("app".to_string()),
             version: Some("1.0.0".to_string()),
+            publish_config: None,
             dependencies: BTreeMap::from([("acme".to_string(), "catalog:".to_string())]),
             dev_dependencies: BTreeMap::new(),
             optional_dependencies: BTreeMap::new(),
@@ -283,7 +326,7 @@ fn package_extensions_checksum(options: &ResolveProjectsOptions) -> String {
         .expect("configured package extensions have a checksum")
 }
 
-async fn assert_transform_metadata_rejected(
+async fn assert_protocol_rejected(
     options: ResolveProjectsOptions,
     lockfile: Value,
     expected_message: &str,
@@ -352,16 +395,41 @@ fn a_violations_frame_rebuilds_a_verify_error() {
 }
 
 #[test]
-fn tarball_mismatch_maps_to_the_generic_envelope() {
+fn tarball_mismatch_keeps_its_own_variant() {
     let line = br#"{"type":"violations","violations":[{"name":"acme","version":"1.0.0","code":"TARBALL_URL_MISMATCH","reason":"url mismatch"}]}"#;
     let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
         panic!("expected a violations frame");
     };
     let verify_err = build_verify_error(violations);
-    assert!(
-        matches!(verify_err, VerifyError::LockfileResolutionVerification { .. }),
-        "got {verify_err:?}",
-    );
+    assert!(matches!(verify_err, VerifyError::TarballUrlMismatch { .. }), "got {verify_err:?}");
+}
+
+#[test]
+fn structural_violations_keep_their_code_and_hint() {
+    for code in [
+        "MISSING_TARBALL_INTEGRITY",
+        "RESOLUTION_SHAPE_MISMATCH",
+        "TARBALL_URL_MISMATCH",
+        "TARBALL_REVISION_MISMATCH",
+        "MISSING_NAMED_REGISTRY",
+    ] {
+        let line = format!(
+            r#"{{"type":"violations","violations":[{{"name":"acme","version":"1.0.0","code":"{code}","reason":"broken"}},{{"name":"bravo","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"young"}}]}}"#,
+        );
+        let Frame::Violations { violations } = parse_frame(line.as_bytes()).expect("frame parses")
+        else {
+            panic!("expected a violations frame");
+        };
+        let verify_err = build_verify_error(violations);
+        assert!(
+            verify_err
+                .to_string()
+                .contains(&format!("[{code}]")),
+            "got {verify_err}",
+        );
+        let help = miette::Diagnostic::help(&verify_err).expect("hint").to_string();
+        assert!(!help.contains("relax the policy"), "{code}: {help}");
+    }
 }
 
 #[test]

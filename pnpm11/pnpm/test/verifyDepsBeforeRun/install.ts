@@ -78,7 +78,7 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: true,
-        optional: false,
+        optional: true,
         production: false,
       },
     })
@@ -99,7 +99,7 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: true,
-        optional: false,
+        optional: true,
         production: false,
       },
     })

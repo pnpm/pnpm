@@ -1,12 +1,11 @@
 import fs, { promises as fsp } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { ProjectId } from '@pnpm/types'
@@ -19,7 +18,7 @@ import { LockfileBreakingChangeError } from './errors/index.js'
 import { getGitBranchLockfileNames } from './gitBranchLockfile.js'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
 import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
-import { getWantedLockfileName } from './lockfileName.js'
+import { selectWantedLockfile } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { extractMainDocument } from './yamlDocuments.js'
 
@@ -114,7 +113,7 @@ export function wantedLockfileHasMergeConflictsSync (pkgPath: string, lockfileNa
     const lockfileRawContent = stripBom(fs.readFileSync(path.join(pkgPath, lockfileName), 'utf8'))
     return isDiff(extractMainDocument(lockfileRawContent))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return false
     }
     throw err
@@ -139,7 +138,7 @@ async function _read (
   try {
     lockfileRawContent = stripBom(await fsp.readFile(lockfilePath, 'utf8'))
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
     return {
@@ -221,7 +220,7 @@ function formatLockfileError (err: unknown): string {
       : ''
     return `${reason}${position}`
   }
-  return util.types.isNativeError(err) ? err.message : String(err)
+  return isError(err) ? err.message : String(err)
 }
 
 function isYamlException (err: unknown): err is YamlExceptionLike {
@@ -282,10 +281,11 @@ async function _readWantedLockfile (
 }> {
   const lockfileNames: string[] = [WANTED_LOCKFILE]
   if (opts.useGitBranchLockfile) {
-    const gitBranchLockfileName: string = await getWantedLockfileName(opts)
-    if (gitBranchLockfileName !== WANTED_LOCKFILE) {
-      lockfileNames.unshift(gitBranchLockfileName)
+    const { fileName, detachedHeadCandidates } = await selectWantedLockfile(opts)
+    if (fileName !== WANTED_LOCKFILE) {
+      lockfileNames.unshift(fileName)
     }
+    lockfileNames.unshift(...detachedHeadCandidates)
   }
   let result: { lockfile: LockfileObject | null, lockfileFile: LockfileFile | null, hadConflicts: boolean } = { lockfile: null, lockfileFile: null, hadConflicts: false }
   let preMergeImporters: LockfileObject['importers'] | undefined

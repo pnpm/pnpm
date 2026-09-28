@@ -49,17 +49,35 @@ export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
 export type FilesMap = Map<string, string>
 
+/**
+ * One side-effects diff resolved to store paths. `added` holds only files.
+ * `symlinks` maps each link the build created to its target.
+ */
+export interface SideEffectsFilesMap {
+  added?: FilesMap
+  deleted?: string[]
+  symlinks?: Map<string, string>
+}
+
 export interface PackageFilesResponse {
   resolvedFrom: ResolvedFrom
   filesMap: FilesMap
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   // Pre-calculated file location maps for side effects, avoiding recalculation during import
-  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
+  sideEffectsMaps?: Map<string, SideEffectsFilesMap>
   sideEffectsDiffs?: SideEffects
   remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
   requiresBuild: boolean
   /** Whether preparing a git package required lifecycle scripts before these files were stored. */
   requiresPrepare?: boolean
+  /**
+   * Whether a `local-dir` resolution's source directory existed to walk.
+   * Only meaningful when `resolvedFrom` is `'local-dir'`. See
+   * `DirectoryFetcherResult['sourceExists']` for why an importer must not
+   * treat a missing source's empty `filesMap` as a reason to force a
+   * reimport.
+   */
+  sourceExists?: boolean
 }
 
 export interface ImportPackageOpts {
@@ -97,6 +115,8 @@ export interface FileWriteResult {
 
 export interface AddToStoreResult {
   filesIndex: FilesIndex
+  /** Whether the directory holds symlinks that were followed rather than recorded. */
+  hasUnrecordedSymlinks?: boolean
   manifest?: DependencyManifest
 }
 

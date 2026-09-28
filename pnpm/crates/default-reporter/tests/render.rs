@@ -351,6 +351,9 @@ mod security;
 #[path = "render/streaming.rs"]
 mod streaming;
 
+#[path = "render/quiet.rs"]
+mod quiet;
+
 #[path = "render/dependencies.rs"]
 mod dependencies;
 

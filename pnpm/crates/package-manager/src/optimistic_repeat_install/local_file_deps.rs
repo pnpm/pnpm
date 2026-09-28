@@ -136,7 +136,7 @@ fn scan_local_tarball_deps(
         (
             "optionalDependencies",
             DependencyGroup::Optional,
-            check.layout.included.optional_dependencies,
+            check.layout.included.includes_project_optional_dependencies(),
         ),
     ];
     let workspace_packages = if check.config.inject_workspace_packages {

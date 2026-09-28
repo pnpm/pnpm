@@ -8,14 +8,14 @@ if (!global['pnpm__startedAt']) {
 }
 import fs from 'node:fs'
 import path from 'node:path'
-import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
@@ -112,6 +112,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     ;({ config, context } = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
+      skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
       workspaceDir,
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
       forSelfUpdate: cmd === 'self-update',
@@ -467,7 +468,7 @@ async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () =
  * error opens its message with the code, so naming it again would repeat it.
  */
 function describeFailure (err: unknown): string {
-  if (!utilTypes.isNativeError(err)) return redactAndSanitize(String(err))
+  if (!isError(err)) return redactAndSanitize(String(err))
   const code = 'code' in err ? String(err.code) : ''
   const described = code === '' || err.message.startsWith(code) ? err.message : `${code}: ${err.message}`
   return redactAndSanitize(described)
@@ -495,6 +496,26 @@ function shouldSkipPmHandling (cmd: string | null, cliParams: string[], location
   if (skipPackageManagerCheckForCommand.has(cmd)) return true
   if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
   return false
+}
+
+/**
+ * `env remove` and `env list` do not link a Node.js executable into the global
+ * bin directory. They have to run when that directory is absent from `PATH`,
+ * which is how pnpm looks when another tool installed it.
+ */
+function envSubcommandSkipsGlobalBinCheck (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd !== 'env') return false
+  switch (cliParams[0]) {
+    case 'remove':
+    case 'rm':
+    case 'uninstall':
+    case 'un':
+    case 'list':
+    case 'ls':
+      return true
+    default:
+      return false
+  }
 }
 
 function isRunningPnpmPinned (pm: EngineDependency): boolean {

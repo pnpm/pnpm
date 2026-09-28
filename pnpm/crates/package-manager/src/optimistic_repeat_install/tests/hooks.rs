@@ -17,7 +17,11 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state_with_pnpmfiles(
         dir.path(),

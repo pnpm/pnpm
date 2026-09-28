@@ -51,6 +51,12 @@ export interface DependenciesGraphNode {
   filesIndexFile?: string
   patch?: PatchInfo
   resolution: LockfileResolution
+  /**
+   * Populated in the hoisted graph only. Maps the alias of each
+   * `link:<root>/...` dependency to its path inside this package, where the
+   * hoisted linker symlinks it from the package's own `node_modules`.
+   */
+  packageRootLinks?: Record<string, string>
 }
 
 export interface DependenciesGraph {
@@ -163,7 +169,7 @@ export async function lockfileToDepGraph (
       ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
     }
     const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-    node.children = _getChildrenPaths(allDeps, peerDeps, '.')
+    node.children = _getChildrenPaths(allDeps, peerDeps, { importerId: '.', pkgDir: node.dir })
   }
 
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
@@ -172,9 +178,9 @@ export async function lockfileToDepGraph (
     const rootDeps = {
       ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
       ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
-      ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
     }
-    directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
+    directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, { importerId })
   }
 
   return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
@@ -367,13 +373,18 @@ function getChildrenPaths (
   ctx: GetChildrenPathsContext,
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
-  importerId: string
+  parent: { importerId: string, pkgDir?: string }
 ): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
+    const packageRootLinkTarget = dp.packageRootLinkTarget(ref)
+    if (packageRootLinkTarget != null && parent.pkgDir != null) {
+      children[alias] = path.join(parent.pkgDir, packageRootLinkTarget)
+      continue
+    }
     const childDepPath = dp.refToRelative(ref, alias)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
+      children[alias] = path.resolve(ctx.lockfileDir, parent.importerId, ref.slice(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(ref, alias)!

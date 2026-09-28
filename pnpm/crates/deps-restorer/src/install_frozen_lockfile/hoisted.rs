@@ -9,6 +9,7 @@ pub use hoist_plan::{
 
 mod direct_links;
 mod hoist_plan;
+mod package_root_links;
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
@@ -126,6 +127,11 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     unlink_prior_workspace_hoists(inputs)?;
     let (held_back_bins_dirs, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    package_root_links::link_hoisted_package_root_links(
+        &lockfile,
+        walked.graph.values(),
+        inputs.projects.dependency_groups.contains(&DependencyGroup::Optional),
+    )?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it
@@ -267,11 +273,11 @@ fn link_hoisted<Reporter: self::Reporter>(
         config.force,
     );
     let held_back_bins_dirs = link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
-        import: crate::PackageImportOptions {
-            method: config.package_import_method,
-            logged_methods: inputs.materialization.logged_methods,
-            requester: inputs.materialization.requester,
-        },
+        import: crate::PackageImportOptions::from_config(
+            config,
+            inputs.materialization.logged_methods,
+            inputs.materialization.requester,
+        ),
         graph: &walked.graph,
         prev_graph: walked.prev_graph.as_ref(),
         hierarchy: &walked.hierarchy,

@@ -252,6 +252,24 @@ pub fn generate_cmd_shim(
         }
     }
 
+    with_utf8_codepage(cmd)
+}
+
+fn with_utf8_codepage(mut cmd: String) -> String {
+    if !cmd.is_ascii() {
+        cmd.insert_str(
+            "@SETLOCAL\r\n".len(),
+            "@SET \"_PNPM_CODEPAGE=\"\r\n\
+             @FOR /F \"tokens=2 delims=:\" %%a IN ('\"%SystemRoot%\\System32\\chcp.com\"') DO @SET \"_PNPM_CODEPAGE=%%a\"\r\n\
+             @\"%SystemRoot%\\System32\\chcp.com\" 65001 >NUL\r\n\
+             @SET \"ERRORLEVEL=\"\r\n",
+        );
+        cmd.push_str(
+            "@SET \"_PNPM_EXIT_CODE=%ERRORLEVEL%\"\r\n\
+             @IF DEFINED _PNPM_CODEPAGE @\"%SystemRoot%\\System32\\chcp.com\" %_PNPM_CODEPAGE% >NUL\r\n\
+             @EXIT /B %_PNPM_EXIT_CODE%\r\n",
+        );
+    }
     cmd
 }
 

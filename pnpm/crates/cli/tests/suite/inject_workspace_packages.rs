@@ -681,6 +681,164 @@ fn injected_copy_gets_the_output_of_the_prepare_script_with_a_nested_modules_dir
     drop((root, mock_instance));
 }
 
+/// project-1 publishes from `publishConfig.directory: dist`, which its own
+/// `prepare` script builds. The directory does not exist until the script
+/// runs, after project-2's injected copy of it is linked (pnpm/pnpm#7811).
+fn write_workspace_with_publish_directory(workspace: &std::path::Path) {
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "scripts": { "prepare": "node build.cjs" },
+            "publishConfig": { "directory": "dist" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::write(
+        workspace.join("project-1/build.cjs"),
+        "const fs = require('fs')\n\
+         fs.mkdirSync(__dirname + '/dist', { recursive: true })\n\
+         fs.copyFileSync(__dirname + '/package.json', __dirname + '/dist/package.json')\n\
+         fs.writeFileSync(__dirname + '/dist/index.js', 'built')\n",
+    )
+    .expect("write project-1/build.cjs");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+}
+
+#[test]
+fn injected_copy_of_a_package_that_publishes_from_a_directory_gets_the_prepare_output() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let copy = workspace.join("project-2/node_modules/project-1");
+    // The injected copy is packed from the publish directory, so the built
+    // file sits at the copy's root, and `dist/` is not nested inside it.
+    assert_eq!(
+        fs::read_to_string(copy.join("index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {copy:?}: {error}")),
+        "built",
+    );
+    assert!(!copy.join("dist").exists(), "the copy should not nest the publish directory");
+
+    for dir in ["node_modules", "project-1/dist", "project-2/node_modules"] {
+        fs::remove_dir_all(workspace.join(dir)).expect("clean the install");
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(copy.join("index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {copy:?}: {error}")),
+        "built",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A `file:` dependency on project-1 bypasses the `workspace:` protocol's
+/// publish-directory redirect (`resolve_workspace_package_dir` in
+/// `pnpm-resolving-npm-resolver` only applies to `workspace:` specs), so its
+/// injected copy is built from project-1's root rather than its `dist/`. A
+/// workspace can mix both dependency styles on the same source project, and
+/// each copy must be refreshed from its own source after `prepare` builds
+/// `dist/`.
+#[test]
+fn injected_copy_of_a_file_dependency_gets_the_project_root_not_the_publish_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    fs::create_dir_all(workspace.join("project-3")).expect("mkdir project-3");
+    fs::write(
+        workspace.join("project-3/package.json"),
+        serde_json::json!({
+            "name": "project-3",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "file:../project-1" },
+            // `injectWorkspacePackages` only auto-injects `workspace:` specs,
+            // so a `file:` dependency needs this to opt into injection.
+            "dependenciesMeta": { "project-1": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write project-3/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let workspace_copy = workspace.join("project-2/node_modules/project-1");
+    let root_copy = workspace.join("project-3/node_modules/project-1");
+    // The `workspace:` dependency's copy is packed from the publish directory.
+    assert_eq!(
+        fs::read_to_string(workspace_copy.join("index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {workspace_copy:?}: {error}")),
+        "built",
+    );
+    assert!(
+        !workspace_copy.join("dist").exists(),
+        "the workspace: copy should not nest the publish directory",
+    );
+    // The `file:` dependency's copy is packed from the project root,
+    // unaffected by the publish-directory redirect.
+    assert_eq!(
+        fs::read_to_string(root_copy.join("dist/index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {root_copy:?}: {error}")),
+        "built",
+    );
+    assert!(
+        !root_copy.join("index.js").exists(),
+        "the file: copy should nest the publish directory instead",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[cfg(unix)]
 #[test]
 fn relinked_bin_of_an_injected_copy_keeps_a_custom_modules_dir_on_node_path() {

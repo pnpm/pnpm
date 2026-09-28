@@ -188,12 +188,17 @@ fn engine_alias_at_version(pkg: &GlobalPackageInfo, version: &str) -> Option<&'s
 /// alias it was installed as, instead of downloading it again. Every
 /// candidate is tried: a group that cannot be relinked (a pre-v12 JS `pnpm`
 /// where the native `@pnpm/exe` is wanted, say) must not hide a usable one.
+/// Where the JavaScript `pnpm` is wanted, only that package qualifies: a
+/// native engine at that version does not run on this host.
 fn reuse_global_engine(
     global_pkg_dir: &Path,
     package: PnpmPackageToInstall,
     version: &str,
 ) -> miette::Result<Option<InstallPnpmResult>> {
     for (existing, name) in find_global_engines(global_pkg_dir, version)? {
+        if !package.links_native_binary && name != package.name {
+            continue;
+        }
         let existing_package = PnpmPackageToInstall { name, ..package };
         if reuse_cached_engine(&existing.install_dir, existing_package, version) {
             return Ok(Some(InstallPnpmResult {
@@ -255,17 +260,35 @@ pub(crate) fn assert_release_is_installable(version: &str) -> miette::Result<()>
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {
+    pnpm_package_to_install_on(pnpm_version, host_platform(), host_arch(), host_libc())
+}
+
+/// [`pnpm_package_to_install`] for the given host instead of this one.
+fn pnpm_package_to_install_on(
+    pnpm_version: &str,
+    platform: &str,
+    arch: &str,
+    libc: &str,
+) -> PnpmPackageToInstall {
     let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
         return PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true };
     };
     if version.major >= 12 {
         return PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: true };
     }
-    if version_gte(&version, PNPM_EXE_INTRODUCED) {
+    if version_gte(&version, PNPM_EXE_INTRODUCED) && pnpm_exe_runs_on(platform, arch, libc) {
         PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true }
     } else {
         PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false }
     }
+}
+
+/// Whether `@pnpm/exe` below v12 has a working binary for the host. On
+/// arm64 musl Linux it ships either none or one that segfaults at startup
+/// (<https://github.com/pnpm/pnpm/issues/10443>), so the JavaScript `pnpm`
+/// runs there instead.
+fn pnpm_exe_runs_on(platform: &str, arch: &str, libc: &str) -> bool {
+    !(platform == "linux" && arch == "arm64" && libc == "musl")
 }
 
 fn version_gte(version: &node_semver::Version, minimum: (u64, u64, u64)) -> bool {

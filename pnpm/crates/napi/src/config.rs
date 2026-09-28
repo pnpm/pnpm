@@ -192,10 +192,7 @@ fn cache_key(dir: &Path, overlay: &ConfigOverlay) -> u64 {
 fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
     hash_file(&dir.join(".npmrc"), hasher);
 
-    let workspace_dir = std::env::var_os("NPM_CONFIG_WORKSPACE_DIR")
-        .or_else(|| std::env::var_os("npm_config_workspace_dir"))
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
+    let workspace_dir = pnpm_workspace::find_workspace_dir_from_env()
         .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
         hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);

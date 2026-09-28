@@ -1,9 +1,8 @@
 import { constants } from 'node:fs'
 import { type FileHandle, lstat, open, readFile } from 'node:fs/promises'
 import { StringDecoder } from 'node:string_decoder'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import stripBom from 'strip-bom'
 
 export const YAML_DOCUMENT_SEPARATOR = '\n---\n'
@@ -55,7 +54,7 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
     }
     return null
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -68,7 +67,7 @@ export async function readLockfileToString (filePath: string): Promise<string | 
   try {
     return stripBom(await readFile(filePath, 'utf8')).replace(/\r\n/g, '\n')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -86,7 +85,7 @@ export async function ensureLockfileIsNotSymlink (filePath: string): Promise<voi
   try {
     stat = await lstat(filePath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return
     }
     throw err

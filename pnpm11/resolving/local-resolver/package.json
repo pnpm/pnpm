@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.local-resolver",
-  "version": "1101.2.3",
+  "version": "1101.2.4",
   "description": "Resolver for local packages",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",

@@ -2,8 +2,8 @@ use super::{
     ABBREVIATED_META_DIR, ACCEPT_ABBREVIATED, AuthHeaders, FULL_FILTERED_META_DIR, FULL_META_DIR,
     FetchFullMetadataCachedOptions, FetchMetadataError, Matcher, PACKAGE_BODY, TempDir,
     ThrottledClient, assert_cache_loss_after_304_recovers, fast_retry_opts,
-    fetch_full_metadata_cached, get_pkg_mirror_path, load_meta, load_meta_headers, no_retry_opts,
-    remove_raced_mirror, write_stale_mirror,
+    fetch_full_metadata_cached, get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta,
+    load_meta_headers, no_retry_opts, remove_raced_mirror, write_stale_mirror,
 };
 
 #[tokio::test]
@@ -116,6 +116,49 @@ async fn offline_without_mirror_errors_without_registry() {
         error,
         FetchMetadataError::NoOfflineMeta { ref pkg_name, .. } if pkg_name == "acme"
     ),);
+    no_network.assert_async().await;
+}
+
+#[tokio::test]
+async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_rename() {
+    let mut server = mockito::Server::new_async().await;
+    let no_network = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let legacy_mirror = get_legacy_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme")
+        .expect("legacy mirror path");
+    std::fs::create_dir_all(legacy_mirror.parent().expect("legacy mirror parent")).expect("mkdir");
+    std::fs::write(&legacy_mirror, "{}\n{}").expect("write legacy mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        offline: true,
+        priority: pnpm_network::UNPRIORITIZED,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    let error = fetch_full_metadata_cached("acme", &opts).await
+        .expect_err("offline + only a legacy mirror = error");
+    let FetchMetadataError::NoOfflineMeta { hint, .. } = &error else {
+        panic!("got {error:?}");
+    };
+    let hint = hint.as_ref().expect("hint naming the legacy mirror");
+    assert!(hint.contains(&legacy_mirror.display().to_string()), "got {hint:?}");
     no_network.assert_async().await;
 }
 
@@ -748,4 +791,120 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
 
     // Restore so TempDir's drop can clean up.
     let _ = fs::set_permissions(cache.path(), fs::Permissions::from_mode(mode));
+}
+
+#[tokio::test]
+async fn max_age_zero_metadata_is_refetched_without_validators() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("etag", r#"W/"old""#)
+        .with_header("cache-control", "max-age=0, private, must-revalidate")
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    let first_pkg = fetch_full_metadata_cached("acme", &opts).await.expect("first fetch");
+    assert!(first_pkg.versions.get("1.0.0").is_some());
+    let mirror_path =
+        get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
+    let stored = load_meta_headers(&mirror_path).expect("headers");
+    assert!(stored.uncacheable);
+
+    let newer = PACKAGE_BODY.replace("1.0.0", "1.0.1");
+    let second = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("etag", r#"W/"new""#)
+        .with_header("cache-control", "public, max-age=300")
+        .with_body(newer)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let second_pkg = fetch_full_metadata_cached("acme", &opts).await.expect("second fetch");
+    assert!(second_pkg.versions.get("1.0.1").is_some());
+    let stored = load_meta_headers(&mirror_path).expect("headers after refetch");
+    assert!(!stored.uncacheable);
+    assert_eq!(stored.etag.as_deref(), Some(r#"W/"new""#));
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
+/// A mirror without the uncacheable flag still sends validators. A stale 304
+/// that forbids reuse must not hide a newer publish.
+#[tokio::test]
+async fn uncacheable_304_to_an_unflagged_mirror_is_refetched_without_validators() {
+    let mut server = mockito::Server::new_async().await;
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let mirror_path = write_stale_mirror(cache.path(), FULL_META_DIR, &registry);
+    let stale_304 = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"stale""#)
+        .with_status(304)
+        .with_header("cache-control", "max-age=0, private, must-revalidate")
+        .expect(1)
+        .create_async()
+        .await;
+    let fresh = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("etag", r#"W/"new""#)
+        .with_header("cache-control", "max-age=0, private, must-revalidate")
+        .with_body(PACKAGE_BODY.replace("1.0.0", "1.0.1"))
+        .expect(1)
+        .create_async()
+        .await;
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("refetch");
+    assert!(pkg.versions.get("1.0.1").is_some());
+    assert!(load_meta_headers(&mirror_path).expect("headers").uncacheable);
+    stale_304.assert_async().await;
+    fresh.assert_async().await;
 }

@@ -1,7 +1,6 @@
-import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { redactUrlForDisplay } from '@pnpm/error'
+import { isError, redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import { type Dispatcher, fetch as undiciFetch, getGlobalDispatcher } from 'undici'
 
@@ -99,7 +98,7 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           if (isNonRetryableError(error)) {
             // undici's "fetch failed" wrapper hides the TLS reason.
             const cause = (error as { cause?: unknown }).cause
-            reject(util.types.isNativeError(cause) && isNonRetryableError(cause) ? cause : error)
+            reject(isError(cause) && isNonRetryableError(cause) ? cause : error)
             return
           }
           // Undici errors may not pass isNativeError check, so we handle them more carefully

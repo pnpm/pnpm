@@ -310,7 +310,7 @@ fn the_dependency_group_filter_narrows_what_the_install_materializes() {
         (&[][..], &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional][..]),
         (&["--prod"][..], &[DependencyGroup::Prod, DependencyGroup::Optional][..]),
         (&["--production"][..], &[DependencyGroup::Prod, DependencyGroup::Optional][..]),
-        (&["--dev"][..], &[DependencyGroup::Dev][..]),
+        (&["--dev"][..], &[DependencyGroup::Dev, DependencyGroup::Optional][..]),
     ] {
         let argv: Vec<&str> = ["pacquet", "add", "foo"]
             .into_iter()

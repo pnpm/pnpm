@@ -12,7 +12,7 @@ use crate::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
     ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
     CompatibilityScopes, LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
+    PublishArtifactRequest, SIGNATURE_ALGORITHM, SYMLINK_MODE, SignedArtifactEnvelope,
     WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id, compatibility_rank,
     compatibility_scopes, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
     macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
@@ -261,6 +261,23 @@ fn rejects_duplicate_and_case_colliding_paths() {
     let file_integrity = integrity(b"addon");
     let mut artifact = payload(file_integrity);
     artifact.manifest.deleted.push("BUILD/addon.node".to_string());
+    assert!(artifact.validate().is_err());
+}
+
+/// An added entry is a plain or executable file, or a symlink whose blob is
+/// its target. Any other mode would have no defined restore.
+#[test]
+fn accepts_symlink_entries_and_no_other_mode() {
+    let mut artifact = payload(integrity(b"addon"));
+    artifact.manifest.added.push(ArtifactFile {
+        path: "build/addon-alias.node".to_string(),
+        integrity: integrity(b"addon.node"),
+        mode: SYMLINK_MODE,
+        size: 10,
+    });
+    artifact.validate().unwrap();
+
+    artifact.manifest.added[0].mode = 0o744;
     assert!(artifact.validate().is_err());
 }
 

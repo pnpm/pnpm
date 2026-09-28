@@ -158,6 +158,40 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+const argsThatCmdInterprets = [
+  'C:\\Program Files\\tool\\',
+  '%PATH%',
+  'a b',
+  'a"b',
+  'tab\there',
+  '^&|<>()!',
+  '',
+  'ends with a backslash\\',
+]
+
+test.each([
+  ['a node script', 'node echo.js'],
+  ['a node_modules/.bin shim', 'record-args'],
+])('runLifecycleHook() passes the args unchanged to %s', async (_, script) => {
+  const pkgRoot = f.prepare('escape-args')
+  const binDir = path.join(pkgRoot, 'node_modules', '.bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync(path.join(binDir, 'record-args'), '#!/bin/sh\nexec node "$(dirname "$0")/../../echo.js" "$@"\n', { mode: 0o755 })
+  fs.writeFileSync(path.join(binDir, 'record-args.cmd'), '@node "%~dp0\\..\\..\\echo.js" %*\r\n')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+
+  await runLifecycleHook('echo', { ...pkg, scripts: { echo: script } }, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+    args: argsThatCmdInterprets,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(argsThatCmdInterprets)
+})
+
 test('runLifecycleHook() preserves literal arguments with the shell emulator', async () => {
   const pkgRoot = f.find('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
@@ -200,7 +234,7 @@ test('runLifecycleHook() passes newline correctly', async () => {
   })
 
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual([
-    process.platform === 'win32' ? 'a\\nb != \'A\\\\nB\'' : 'a\nb != \'A\\nB\'',
+    process.platform === 'win32' ? 'a\\nb != \'A\\nB\'' : 'a\nb != \'A\\nB\'',
   ])
 })
 

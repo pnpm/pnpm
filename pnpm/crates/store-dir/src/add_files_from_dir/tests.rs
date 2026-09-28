@@ -1,4 +1,6 @@
 use super::{AddFilesFromDirError, add_files_from_dir};
+#[cfg(unix)]
+use crate::SYMLINK_MODE;
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -18,6 +20,16 @@ fn write(path: &Path, contents: &str) {
         fs::create_dir_all(parent).expect("create parent dir");
     }
     fs::write(path, contents).expect("write file");
+}
+
+#[cfg(unix)]
+fn symlink_dir(target: &Path, link: &Path) {
+    unix_fs::symlink(target, link).expect("create directory symlink");
+}
+
+#[cfg(windows)]
+fn symlink_dir(target: &Path, link: &Path) {
+    junction::create(target, link).expect("create directory junction");
 }
 
 #[test]
@@ -81,6 +93,24 @@ fn top_level_node_modules_is_skipped() {
 }
 
 #[test]
+fn top_level_node_modules_link_is_not_reported_as_build_output() {
+    let (_tmp, store_dir) = make_store();
+    let pkg_dir = tempdir().expect("create pkg dir");
+    write(&pkg_dir.path().join("index.js"), "x\n");
+    let dependency_dir = tempdir().expect("create dependency dir");
+    write(&dependency_dir.path().join("index.js"), "dependency\n");
+    symlink_dir(dependency_dir.path(), &pkg_dir.path().join("node_modules"));
+
+    let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
+    assert!(!added.has_unrecorded_symlinks);
+    assert!(
+        !added.files
+            .keys()
+            .any(|path| path.starts_with("node_modules/")),
+    );
+}
+
+#[test]
 fn nested_node_modules_is_walked() {
     let (_tmp, store_dir) = make_store();
     let pkg_dir = tempdir().expect("create pkg dir");
@@ -114,13 +144,39 @@ fn symlinks_pointing_outside_root_are_skipped() {
 
 #[cfg(unix)]
 #[test]
-fn symlinks_within_root_are_followed() {
+fn relative_symlinks_within_root_are_recorded() {
     let (_tmp, store_dir) = make_store();
     let pkg_dir = tempdir().expect("create pkg dir");
     write(&pkg_dir.path().join("target.js"), "ok\n");
+    write(&pkg_dir.path().join("lib/index.js"), "lib\n");
     unix_fs::symlink("target.js", pkg_dir.path().join("alias.js")).expect("create symlink");
+    unix_fs::symlink("lib", pkg_dir.path().join("lib-link")).expect("create dir symlink");
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
+    assert!(!added.has_unrecorded_symlinks);
+    let mut keys: Vec<&String> = added.files.keys().collect();
+    keys.sort();
+    assert_eq!(keys, ["alias.js", "lib-link", "lib/index.js", "target.js"]);
+    for (link, target) in [("alias.js", "target.js"), ("lib-link", "lib")] {
+        let info = &added.files[link];
+        assert_eq!(info.mode, SYMLINK_MODE);
+        let cas_path =
+            store_dir.cas_file_path_by_mode(&info.digest, info.mode).expect("symlink CAFS path");
+        assert_eq!(fs::read_to_string(cas_path).expect("read symlink target"), target);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn unrecordable_symlinks_within_root_are_followed() {
+    let (_tmp, store_dir) = make_store();
+    let pkg_dir = tempdir().expect("create pkg dir");
+    write(&pkg_dir.path().join("target.js"), "ok\n");
+    unix_fs::symlink(pkg_dir.path().join("target.js"), pkg_dir.path().join("alias.js"))
+        .expect("create absolute symlink");
+
+    let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
+    assert!(added.has_unrecorded_symlinks);
     let info_target = added.files.get("target.js").expect("target.js");
     let info_alias = added.files.get("alias.js").expect("alias.js");
     assert_eq!(

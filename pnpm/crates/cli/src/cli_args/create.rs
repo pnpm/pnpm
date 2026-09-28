@@ -102,6 +102,7 @@ impl CreateArgs {
         let create_name = convert_to_create_name(&name);
         let dlx_args = DlxArgs {
             command: std::iter::once(create_name).chain(args).collect(),
+            version: None,
             package: vec![],
             allow_build,
             shell_mode,

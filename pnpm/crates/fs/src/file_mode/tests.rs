@@ -1,4 +1,4 @@
-use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_executable};
+use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_cas_file_path, is_executable};
 use std::path::Path;
 
 #[test]
@@ -22,6 +22,24 @@ fn cas_path_is_executable_matches_trailing_suffix() {
     assert!(!cas_path_is_executable(Path::new("files/1b/59d9")));
     assert!(!cas_path_is_executable(Path::new("files-exec/1b/59d9")));
     assert!(!cas_path_is_executable(Path::new("files/1b/59d9-executable")));
+}
+
+#[test]
+fn is_cas_file_path_matches_the_store_layout_only() {
+    let digest = "59d9".repeat(10);
+    let store = Path::new("store/v11/files/1b");
+    assert!(is_cas_file_path(&store.join(&digest)));
+    assert!(is_cas_file_path(&store.join(format!("{digest}-exec"))));
+    assert!(is_cas_file_path(&store.join("a".repeat(126))));
+
+    assert!(!is_cas_file_path(&store.join(&digest[1..])), "digest shorter than a SHA-1");
+    assert!(!is_cas_file_path(&store.join(digest.to_uppercase())), "uppercase hex");
+    assert!(!is_cas_file_path(&store.join(format!("{digest}.js"))), "not a bare digest");
+    assert!(!is_cas_file_path(&Path::new("files/1b0").join(&digest)), "shard of three digits");
+    assert!(!is_cas_file_path(&Path::new("files/zz").join(&digest)), "non-hex shard");
+    assert!(!is_cas_file_path(&Path::new("dist/1b").join(&digest)), "not under files/");
+    assert!(!is_cas_file_path(&Path::new("1b").join(&digest)), "no files/ ancestor");
+    assert!(!is_cas_file_path(Path::new("project/bin/pnpm-exec")), "a project's own file");
 }
 
 #[cfg(unix)]
@@ -152,4 +170,155 @@ fn restore_exec_bit_does_not_widen_non_exec_suffix() {
         .mode()
         & 0o777;
     assert_eq!(mode, 0o600, "non-exec CAS entry must not gain exec bits, got {mode:o}");
+}
+
+#[test]
+fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
+    assert_eq!(super::inherited_file_mode(0o2775, false) & 0o777, 0o664);
+    assert_eq!(super::inherited_file_mode(0o2775, true) & 0o777, 0o775);
+    assert_eq!(super::inherited_file_mode(0o755, false) & 0o777, 0o644);
+    assert_eq!(super::inherited_file_mode(0o700, false) & 0o777, 0o600);
+    assert_eq!(super::inherited_file_mode(0o2775, true) & 0o7000, 0);
+    assert_eq!(super::inherited_file_mode(0o1777, false) & 0o777, 0o664);
+    assert_eq!(super::inherited_file_mode(0o1777, true) & 0o777, 0o775);
+}
+
+#[test]
+fn inherited_dir_bits_carry_group_access_with_group_write() {
+    assert_eq!(super::inherited_dir_bits(0o2775), 0o2070);
+    assert_eq!(super::inherited_dir_bits(0o770), 0o070);
+    assert_eq!(super::inherited_dir_bits(0o2750), 0o2050);
+    assert_eq!(super::inherited_dir_bits(0o755), 0);
+}
+
+/// A restrictive umask leaves a new directory at `0o700`. Granting only
+/// group-write and setgid would make it writable but not searchable for the
+/// group.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_restores_group_search_under_restrictive_umask() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let outer = tmp.path().join("files");
+    let inner = outer.join("ab");
+    fs::create_dir_all(&inner).unwrap();
+    for dir in [&outer, &inner] {
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+
+    super::grant_inherited_dir_mode(&inner, tmp.path()).unwrap();
+
+    for dir in [&outer, &inner] {
+        let mode = fs::metadata(dir)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o7777;
+        assert_eq!(mode, 0o2770, "{} mode {mode:o}", dir.display());
+    }
+}
+
+/// A new directory swapped for a symlink before the grant must not pass the
+/// grant on to the symlink's target.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_does_not_follow_a_swapped_symlink() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let store = tmp.path().join("store");
+    let outside = tmp.path().join("outside");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&outside).unwrap();
+    fs::set_permissions(&store, fs::Permissions::from_mode(0o2775)).unwrap();
+    fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
+    let shard = store.join("ab");
+    std::os::unix::fs::symlink(&outside, &shard).unwrap();
+
+    super::grant_inherited_dir_mode(&shard, &store).unwrap_err();
+
+    let mode = fs::metadata(&outside)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o700, "symlink target must keep its mode, got {mode:o}");
+}
+
+/// A new directory swapped for a FIFO before the grant must be refused
+/// without blocking on the FIFO's open.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_refuses_a_swapped_fifo_without_blocking() {
+    use std::{ffi::CString, fs, os::unix::ffi::OsStrExt, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let store = tmp.path().join("store");
+    fs::create_dir(&store).unwrap();
+    fs::set_permissions(&store, fs::Permissions::from_mode(0o2775)).unwrap();
+    let shard = store.join("ab");
+    let c_path = CString::new(shard.as_os_str().as_bytes()).unwrap();
+    // SAFETY: `c_path` is a valid NUL-terminated path.
+    assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+
+    let error = super::grant_inherited_dir_mode(&shard, &store).unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::NotADirectory);
+}
+
+/// A umask such as `0o477` leaves a new directory its owner cannot open.
+/// The grant must still reach it.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_reaches_a_directory_its_owner_cannot_read() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let shard = tmp.path().join("ab");
+    fs::create_dir(&shard).unwrap();
+    fs::set_permissions(&shard, fs::Permissions::from_mode(0o300)).unwrap();
+
+    super::grant_inherited_dir_mode(&shard, tmp.path()).unwrap();
+
+    let mode = fs::metadata(&shard)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o2370, "mode {mode:o}");
+}
+
+/// The fallback for a C library without no-follow `fchmodat` reaches a
+/// directory its owner cannot read and refuses a symlink.
+#[cfg(target_os = "linux")]
+#[test]
+fn chmod_through_path_handle_reaches_unreadable_dir_and_refuses_symlink() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("ab");
+    fs::create_dir(&dir).unwrap();
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o300)).unwrap();
+    super::chmod_through_path_handle(&dir, 0o2070).unwrap();
+    let mode = fs::metadata(&dir)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o2370, "mode {mode:o}");
+
+    let outside = tmp.path().join("outside");
+    fs::create_dir(&outside).unwrap();
+    fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
+    let link = tmp.path().join("cd");
+    std::os::unix::fs::symlink(&outside, &link).unwrap();
+    super::chmod_through_path_handle(&link, 0o2070).unwrap_err();
+    let mode = fs::metadata(&outside)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o700, "symlink target must keep its mode, got {mode:o}");
 }

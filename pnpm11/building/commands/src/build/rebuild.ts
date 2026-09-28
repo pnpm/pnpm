@@ -24,6 +24,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'scripts-prepend-node-path',
       'unsafe-perm',
       'store-dir',
+      'virtual-store-dir',
     ], allTypes),
   }
 }
@@ -80,12 +81,14 @@ export type RebuildCommandOpts = Pick<Config,
 | 'engineStrict'
 | 'lockfileDir'
 | 'nodeLinker'
+| 'patchedDependencies'
 | 'registriesByScope'
 | 'scriptShell'
 | 'sideEffectsCacheRead'
 | 'sideEffectsCacheWrite'
 | 'scriptsPrependNodePath'
 | 'shellEmulator'
+| 'virtualStoreDir'
 | 'workspaceDir'
 > & Pick<ConfigContext,
 | 'allProjects'

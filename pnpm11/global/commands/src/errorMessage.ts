@@ -1,9 +1,8 @@
-import util from 'node:util'
 
-import { redactAndSanitize } from '@pnpm/error'
+import { isError, redactAndSanitize } from '@pnpm/error'
 
 export function getErrorMessage (err: unknown): string {
-  if (util.types.isNativeError(err)) return err.message
+  if (isError(err)) return err.message
   try {
     return String(err)
   } catch {

@@ -117,6 +117,8 @@ export interface StrictInstallOptions extends RegistryContext {
   includeDirect: IncludedDependencies
   ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
+  /** Dependency builds are postponed until the workspace-wide rebuild pass. */
+  deferDependencyBuilds: boolean
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
@@ -342,6 +344,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     hooks: {},
     ignoreCurrentSpecifiers: false,
     ignoreScripts: false,
+    deferDependencyBuilds: false,
     include: {
       dependencies: true,
       devDependencies: true,
@@ -430,6 +433,7 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
    * `mutateModules` adds its own for a catalog entry it moves.
    */
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   parsedOverrides: VersionOverride[]
   /**
    * Present when the overrides contain convergence entries (`"pkg@"`). The

@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import { isError } from '@pnpm/error'
 import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
 
@@ -202,5 +202,5 @@ async function dirExists (dir: string): Promise<boolean> {
 }
 
 function isNotFound (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
+  return isError(err) && 'code' in err && err.code === 'ENOENT'
 }

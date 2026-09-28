@@ -510,6 +510,50 @@ fn link_direct_dep_bins_skips_dep_with_missing_manifest() {
     assert!(!modules.join(".bin").exists());
 }
 
+#[test]
+fn read_dep_bin_source_skips_missing_publish_directory() {
+    let tmp = tempdir().unwrap();
+    let project = tmp.path().join("project");
+    create_dir_all(&project).unwrap();
+    write_file(
+        project.join("package.json"),
+        json!({ "name": "foo", "bin": "cli.js", "publishConfig": { "directory": "dist" } })
+            .to_string(),
+    )
+    .unwrap();
+
+    let source = super::direct::read_dep_bin_source(
+        &tmp.path().join("node_modules"),
+        "foo",
+        &project.join("dist"),
+    );
+
+    assert!(source.is_none(), "a missing publish directory has no bins");
+}
+
+/// A publish target that cannot be inspected surfaces the error instead of
+/// being taken for a missing directory. A path through a regular file fails
+/// with `ENOTDIR` on Unix, where Windows reports it as not found.
+#[cfg(unix)]
+#[test]
+fn read_dep_bin_source_reports_publish_directory_inspection_error() {
+    let tmp = tempdir().unwrap();
+    let file = tmp.path().join("file");
+    write_file(&file, "").unwrap();
+    let target = file.join("dist");
+
+    let error =
+        super::direct::read_dep_bin_source(&tmp.path().join("node_modules"), "foo", &target)
+            .expect("an inspection error yields a result")
+            .expect_err("an inspection error is not a bin source");
+
+    dbg!(&error);
+    assert!(
+        matches!(&error, pnpm_cmd_shim::LinkBinsError::ResolvePath { path, .. } if path == &target),
+        "expected ResolvePath for {target:?}",
+    );
+}
+
 /// [`LinkVirtualStoreBins::run_with`] propagates a non-`NotFound`
 /// `read_dir` error on the virtual-store directory itself. Real fs
 /// can't trigger this portably; the fake forces the

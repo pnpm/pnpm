@@ -43,7 +43,7 @@ export function lockfileWalkerGroupImporterSteps (
     const entryNodes = Object.entries({
       ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+      ...(opts?.include?.dependencies === false || opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((nodeId) => nodeId !== null) as DepPath[]
@@ -75,7 +75,7 @@ export function lockfileWalker (
     Object.entries({
       ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+      ...(opts?.include?.dependencies === false || opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
       .forEach(([pkgName, reference]) => {
         const depPath = dp.refToRelative(reference, pkgName)

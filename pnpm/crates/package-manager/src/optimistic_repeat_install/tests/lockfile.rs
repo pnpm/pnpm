@@ -83,7 +83,11 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -201,6 +205,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
+        &[],
     );
 
     assert!(matches!(
@@ -361,7 +366,11 @@ fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_import
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
@@ -715,6 +724,7 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
+        &[],
     );
 
     assert!(

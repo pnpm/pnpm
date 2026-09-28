@@ -1354,6 +1354,55 @@ test('dependencies of workspace projects are built during headless installation'
   }
 })
 
+test.each(['isolated', 'hoisted'])('built dependencies are restored from a populated store when the workspace has separate lockfiles (nodeLinker: %s)', async (nodeLinker) => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    nodeLinker,
+    sharedWorkspaceLockfile: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+    packageExtensions: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  })
+
+  const buildArtifact = 'project-1/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+
+  await execPnpm(['install'])
+  expect(fs.existsSync(buildArtifact)).toBe(true)
+
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  expect(fs.existsSync(buildArtifact)).toBe(true)
+
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  await execPnpm(['install', '--ignore-scripts', '--frozen-lockfile'])
+
+  expect(fs.existsSync(buildArtifact)).toBe(false)
+})
+
 test("linking the package's bin to another workspace package in a monorepo", async () => {
   const projects = preparePackages([
     {
@@ -2391,6 +2440,42 @@ test('an injected dependency with a postinstall script is hard linked when share
     expect(fs.statSync(path.join('app/node_modules/shared', file)).ino)
       .toBe(fs.statSync(path.join('shared', file)).ino)
   }
+})
+
+test('an injected dependency that publishes from a directory built by prepare gets the built content when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      scripts: {
+        prepare: 'node -e "const fs = require(\'fs\'); fs.mkdirSync(\'dist\', { recursive: true }); fs.copyFileSync(\'package.json\', \'dist/package.json\'); fs.writeFileSync(\'dist/index.js\', \'built\')"',
+      },
+      publishConfig: {
+        directory: 'dist',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/index.js', 'utf8')).toBe('built')
 })
 
 test('pnpm install --frozen-lockfile fails when workspace package version is bumped and no longer satisfies dependency range', async () => {

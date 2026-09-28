@@ -83,7 +83,11 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     const WHOLE_SECOND_MS: i64 = 1_700_000_000_000;
     set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), WHOLE_SECOND_MS);
@@ -175,7 +179,11 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
@@ -221,7 +229,11 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 

@@ -1,7 +1,7 @@
 pub use errors::InstallWithFreshLockfileError;
 pub(crate) use lockfile_build::compute_package_extensions_checksum;
 pub(crate) use seed_policy::prefer_requested_version;
-pub use seed_policy::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+pub use seed_policy::{ImporterUpdateSeedPolicy, PreferredVersionsOverride, UpdateSeedPolicy};
 
 mod persist;
 use persist::{
@@ -346,6 +346,8 @@ pub(crate) struct FreshFetchingInputs {
     /// from it to skip duplicate fetches when both touch the same
     /// `(registry, name)`.
     pub(crate) meta_cache: Arc<InMemoryPackageMetaCache>,
+    /// See [`crate::DedicatedProjectInstall::caches`].
+    pub(crate) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
 
 pub(crate) struct FreshProjectInputs {

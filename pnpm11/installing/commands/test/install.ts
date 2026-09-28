@@ -417,3 +417,102 @@ test('repeat install refetches a file: dependency after its contents change', as
   })
   expect(fs.readFileSync('node_modules/local-dep/index.js', 'utf8')).toBe('v2')
 })
+
+describe('shouldFreezeLockfileIfExists', () => {
+  describe('when opts.frozenLockfileIfExists is set', () => {
+    test('is true', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfileIfExists: true,
+        ci: false,
+      })).toBe(true)
+    })
+
+    test('is false', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfileIfExists: false,
+        frozenLockfile: true,
+        preferFrozenLockfile: true,
+        ci: true,
+      })).toBe(false)
+    })
+  })
+
+  describe('when opts.frozenLockfileIfExists is not set', () => {
+    test('is false if not on CI', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfile: true,
+        preferFrozenLockfile: true,
+        ci: false,
+      })).toBe(false)
+    })
+
+    describe('when on CI', () => {
+      test('is true if frozen-lockfile and prefer-frozen-lockfile is true or unset', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: true,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: true,
+          ci: true,
+        })).toBe(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          ci: true,
+        })).toBe(true)
+      })
+
+      test('is false if either frozen-lockfile or prefer-frozen-lockfile is false', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: true,
+          preferFrozenLockfile: false,
+          ci: true,
+        })).toBe(false)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: false,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(false)
+      })
+
+      test('is false if lockfileOnly or resolutionOnly is true', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          lockfileOnly: true,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(false)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          resolutionOnly: true,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(false)
+      })
+    })
+  })
+})

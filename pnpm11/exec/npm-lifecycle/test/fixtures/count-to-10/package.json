@@ -4,6 +4,6 @@
   "scripts": {
     "postinstall": "node postinstall",
     "signal-abrt": "echo 'signal-abrt script' && kill -s ABRT $$",
-    "signal-int": "echo 'signal-int script' && kill -s INT $$"
+    "signal-int": "echo 'signal-int script' && sh -c 'kill -s INT $PPID; kill -s INT $$' && echo unreachable"
   }
 }

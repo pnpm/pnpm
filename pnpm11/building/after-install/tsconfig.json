@@ -46,7 +46,13 @@
       "path": "../../installing/context"
     },
     {
+      "path": "../../installing/deps-restorer"
+    },
+    {
       "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
     },
     {
       "path": "../../lockfile/types"
@@ -56,6 +62,9 @@
     },
     {
       "path": "../../lockfile/walker"
+    },
+    {
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/reader"

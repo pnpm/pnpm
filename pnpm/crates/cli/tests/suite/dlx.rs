@@ -511,7 +511,7 @@ fn dlx_recovers_ignored_builds() {
             .unwrap()
             .path()
             .join("pkg");
-        let artifact = cache_entry.join("node_modules/.pacquet/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
+        let artifact = cache_entry.join("node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js");
         assert_eq!(artifact.exists(), approve);
         let actual_yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
         eprintln!("CALLER SETTINGS:\n{actual_yaml}\n");

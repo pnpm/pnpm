@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
@@ -99,6 +100,21 @@ test('fetch including all files', async () => {
   ])
 })
 
+test('fetch can override the local directory package import method', async () => {
+  process.chdir(f.find('simple-pkg'))
+  const fetcher = createDirectoryFetcher({ localDirPackageImportMethod: 'clone-or-copy' })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(fetchResult.packageImportMethod).toBe('clone-or-copy')
+})
+
 test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
   const fetcher = createDirectoryFetcher()
@@ -168,6 +184,38 @@ test('fetch respects absolute directory regardless of lockfileDir', async () => 
 
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.filesMap.get('package.json')).toBe(path.join(absDir, 'package.json'))
+})
+
+test('fetch tolerates a publish directory that has not been built yet', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'x', version: '1.0.0', publishConfig: { directory: 'dist' } }))
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: 'dist',
+    type: 'directory',
+  }, {
+    lockfileDir: projectDir,
+  })
+
+  expect(fetchResult.sourceExists).toBe(false)
+  expect(fetchResult.filesMap.size).toBe(0)
+  expect(fetchResult.manifest?.name).toBe('x')
+})
+
+test('fetch fails for a missing directory that no project publishes from', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'x', version: '1.0.0', publishConfig: { directory: 'dist' } }))
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
+
+  // eslint-disable-next-line
+  await expect(fetcher.directory({} as any, {
+    directory: 'missing',
+    type: 'directory',
+  }, {
+    lockfileDir: projectDir,
+  })).rejects.toThrow()
 })
 
 describe('fetch resolves symlinked files to their real locations', () => {

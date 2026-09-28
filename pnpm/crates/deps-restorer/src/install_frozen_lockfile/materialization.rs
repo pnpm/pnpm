@@ -173,12 +173,10 @@ async fn plan_materialization_inner<'p>(
     let engine = plan_engine_name(config, &host_detection, install.importers()).await;
     let layout = install.verified_layout(allow_build_policy, engine.name.as_deref())?;
     let dir_clone_cache = install.dir_clone_cache(allow_build_policy, engine.source());
-    let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
-        config,
+    let cas_prefetch = install.drivers.start_cas_prefetch(
         entries,
         allow_build_policy,
         install.platform.supported_architectures,
-        None,
     )
     .await;
 
@@ -187,7 +185,7 @@ async fn plan_materialization_inner<'p>(
             link_options: crate::shim_link_options(config, install.platform.node_linker),
             layout,
             dir_clone_cache,
-            git_source_cache: pnpm_git_fetcher::GitSourceCache::default(),
+            git_source_cache: install.drivers.git_source_cache(),
         },
         host: HostPlan {
             host_detection,

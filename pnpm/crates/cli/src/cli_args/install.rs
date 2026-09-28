@@ -2,6 +2,7 @@ pub use arguments::{
     InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
 };
 
+pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target};
 pub(crate) use pnpr_resolution::{install_selected_via_pnpr, install_via_pnpr};
 
 mod arguments;
@@ -37,20 +38,22 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
-    PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyLockfileOptions,
+    PnprClient, PnprClientError, PublishConfig, ResolveProject, ResolveProjectsOptions,
+    VerifyLockfileOptions,
 };
 use pnpm_reporter::Reporter;
 use pnpr_lockfile::{
     LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
 };
+use pnpr_pnpmfile::{check_frozen_pnpmfile, record_pnpmfile};
 use pnpr_request::{
     PnprBenchmarkRegistryOverride, PnprRequestInputs, pnpr_catalogs, pnpr_request_inputs,
     resolve_projects_for_pnpr, resolve_projects_options,
 };
 use pnpr_resolution::{
     DryRunIncompatibleWithPnpr, PackageProviderIncompatibleWithPnpr, PnprSession,
-    install_via_pnpr_inner, prefetch_allowed, resolve_project,
+    install_via_pnpr_inner, prefetch_allowed,
 };
 
 use std::path::PathBuf;
@@ -123,19 +126,18 @@ pub(crate) fn included_dependency_groups(
     dev: bool,
     include_optional: bool,
 ) -> impl Iterator<Item = DependencyGroup> {
-    // `--prod` wins over `--dev`, and a dev-only install drops optional
-    // dependencies along with the production ones.
-    let (has_prod, has_dev, has_optional) = if prod {
-        (true, false, include_optional)
+    // `--prod` wins over `--dev`.
+    let (has_prod, has_dev) = if prod {
+        (true, false)
     } else if dev {
-        (false, true, false)
+        (false, true)
     } else {
-        (true, true, include_optional)
+        (true, true)
     };
     std::iter::empty()
         .chain(has_prod.then_some(DependencyGroup::Prod))
         .chain(has_dev.then_some(DependencyGroup::Dev))
-        .chain(has_optional.then_some(DependencyGroup::Optional))
+        .chain(include_optional.then_some(DependencyGroup::Optional))
 }
 
 #[derive(Debug, Default, Clone, Args)]
@@ -239,16 +241,16 @@ impl InstallArgs {
         let frozen_lockfile = self.resolve_frozen_lockfile(&state)?;
         let lockfile_path = state.lockfile_path();
         let link = self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
-        if let Some(pnpr_server) = state.config.pnpr_server.as_deref() {
-            if self.materialization.dry_run {
-                return Err(DryRunIncompatibleWithPnpr.into());
-            }
+        if state.config.pnpr_server.is_some() && self.materialization.dry_run {
+            return Err(DryRunIncompatibleWithPnpr.into());
+        }
+        if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
             if state.config.package_provider.is_some() {
                 return Err(PackageProviderIncompatibleWithPnpr.into());
             }
             return Box::pin(install_via_pnpr_inner::<Reporter>(
                 &state,
-                pnpr_server,
+                target,
                 selection.as_ref(),
                 link,
             ))
@@ -357,9 +359,8 @@ impl InstallArgs {
     ///
     /// `--fix-lockfile` rewrites the lockfile, so it is never frozen. On
     /// CI a project that already has a non-empty lockfile installs frozen
-    /// by default, unless the run said otherwise through
-    /// `--lockfile-only`, either `preferFrozenLockfile` flag, or the
-    /// setting itself.
+    /// by default, unless the run is `--lockfile-only` or the effective
+    /// `preferFrozenLockfile` is `false`.
     fn resolve_frozen_lockfile(&self, state: &State) -> miette::Result<bool> {
         if self.lockfile.fix {
             return Ok(false);
@@ -367,12 +368,10 @@ impl InstallArgs {
         if let Some(value) = self.configured_frozen_lockfile(state.config) {
             return Ok(value);
         }
-        let ci_default = state.config.ci
-            && !self.lockfile.only
-            && !self.lockfile.prefer_frozen
-            && !self.lockfile.no_prefer_frozen
-            && !state.config.explicit_settings.contains_key("preferFrozenLockfile");
-        if !ci_default {
+        let prefer_frozen =
+            self.prefer_frozen_override().unwrap_or(state.config.prefer_frozen_lockfile);
+        let ci_frozen = state.config.ci && !self.lockfile.only && prefer_frozen;
+        if !ci_frozen {
             return Ok(false);
         }
         Ok(state.lockfile
@@ -473,6 +472,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod pnpr_pnpmfile;
 
 mod pnpr_request;
 

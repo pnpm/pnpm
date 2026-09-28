@@ -166,7 +166,7 @@ pub(super) fn cached_manifest(
 /// `dist.shasum` hex digest, which pins the bytes just as well, so it is
 /// promoted to its `sha1-` SRI form. `None` when the version pins
 /// nothing at all.
-pub(super) fn dist_integrity(
+pub(crate) fn dist_integrity(
     dist: &PackageDistribution,
 ) -> Result<Option<Integrity>, ResolveError> {
     if let Some(integrity) = &dist.integrity {

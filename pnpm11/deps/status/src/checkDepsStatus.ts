@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -8,7 +7,7 @@ import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrid
 import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
@@ -45,7 +44,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { getHoistedProjectModulesDir, loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
 
@@ -83,7 +82,14 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'hooks'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'selectedProjectsGraph'
 > & {
+  /**
+   * The project a non-recursive command runs in. When `selectedProjectsGraph`
+   * is absent, it is the project held to the modules-directory requirement
+   * after a filtered install.
+   */
+  dir?: string
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]
@@ -153,7 +159,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
   try {
     return await _checkDepsStatus(opts, workspaceState)
   } catch (error) {
-    if (util.types.isNativeError(error) && 'code' in error && String(error.code).startsWith('ERR_PNPM_RUN_CHECK_DEPS_')) {
+    if (isError(error) && 'code' in error && String(error.code).startsWith('ERR_PNPM_RUN_CHECK_DEPS_')) {
       return {
         upToDate: false,
         issue: error.message,
@@ -165,7 +171,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
     // In the worst-case scenario, the install will run redundantly.
     return {
       upToDate: undefined,
-      issue: util.types.isNativeError(error) ? error.message : undefined,
+      issue: isError(error) ? error.message : undefined,
       workspaceState,
     }
   }
@@ -270,12 +276,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     ignoredSettings.add('catalogs')
     for (const settingName of WORKSPACE_STATE_SETTING_KEYS) {
       if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
-      const storedValue = settingName === 'allowBuilds'
-        ? workspaceState.settings[settingName] ?? {}
-        : workspaceState.settings[settingName as keyof WorkspaceStateSettings]
-      const currentValue = settingName === 'allowBuilds'
-        ? opts.allowBuilds ?? {}
-        : opts[settingName as keyof WorkspaceStateSettings]
+      const settingKey = settingName as keyof WorkspaceStateSettings
+      const storedValue = normalizeUnsetSetting(settingKey, workspaceState.settings[settingKey])
+      const currentValue = normalizeUnsetSetting(settingKey, opts[settingKey])
       if (!equals(storedValue, currentValue)) {
         return {
           upToDate: false,
@@ -367,8 +370,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }))
 
-    if (!workspaceState.filteredInstall) {
+    // A filtered install legitimately leaves the projects it did not select
+    // without a modules directory, so a state that records one can only be
+    // held to that requirement for the projects the command being gated
+    // selected. Skipping those as well would let a filtered `run` or `exec`
+    // select a project the filtered install never materialized and run it
+    // without its dependencies (https://github.com/pnpm/pnpm/issues/11865).
+    const selectedProjectDirs = workspaceState.filteredInstall
+      ? selectProjectDirs(opts)
+      : undefined
+    if (selectedProjectDirs == null || selectedProjectDirs.size > 0) {
       const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
+        (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
         modulesDirStats?.isDirectory() !== true && !isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,
@@ -394,10 +407,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           mayBeDeduped(project) &&
           dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir, opts.include)
         ) continue
-        const id = project.manifest.name ?? project.rootDir
         return {
           upToDate: false,
-          issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+          issue: missingModulesDirIssue(project),
+          workspaceState,
+        }
+      }
+      const missingRecordedModulesDir = nodeLinker === 'hoisted'
+        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, { rootProjectManifestDir, selectedProjectDirs })
+        : undefined
+      if (missingRecordedModulesDir != null) {
+        return {
+          upToDate: false,
+          issue: missingModulesDirIssue(missingRecordedModulesDir),
           workspaceState,
         }
       }
@@ -446,7 +468,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       try {
         wantedLockfileStats = fs.statSync(path.join(workspaceDir, wantedLockfileName))
       } catch (error) {
-        if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+        if (isError(error) && 'code' in error && error.code === 'ENOENT') {
           wantedLockfileStats = undefined
         } else {
           throw error
@@ -542,7 +564,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     } catch (err) {
       return {
         upToDate: false,
-        issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined,
+        issue: (isError(err) && 'message' in err) ? err.message : undefined,
         workspaceState,
       }
     }
@@ -664,7 +686,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       } catch (err) {
         return {
           upToDate: false,
-          issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined,
+          issue: (isError(err) && 'message' in err) ? err.message : undefined,
           workspaceState,
         }
       }
@@ -709,6 +731,28 @@ interface AssertWantedLockfileUpToDateContext {
   getWorkspacePackages: () => WorkspacePackages | undefined
   rootDir: string
   patchedDependencies?: Record<string, string>
+}
+
+/**
+ * Settings whose unset form means the same as a concrete value.
+ *
+ * The workspace state only records settings that were configured, so a
+ * setting left at its default has no key in the state file. The resolved
+ * config, on the other hand, may carry the value the default resolves to:
+ * `@pnpm/config.reader` writes `enableGlobalVirtualStore: false` when `ci`
+ * is set, and reading `allowBuilds` yields `{}`. Normalizing unset values
+ * ensures an unrecorded setting matches its resolved default.
+ *
+ * pacquet normalizes the same two settings before comparing, in
+ * `enable_global_virtual_store_match` and `allow_builds_match`.
+ */
+const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, unknown>> = {
+  allowBuilds: {},
+  enableGlobalVirtualStore: false,
+}
+
+function normalizeUnsetSetting (settingName: keyof WorkspaceStateSettings, value: unknown): unknown {
+  return value ?? SETTING_UNSET_EQUIVALENTS[settingName]
 }
 
 interface AssertWantedLockfileUpToDateOptions {
@@ -993,7 +1037,7 @@ function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: nu
       try {
         stats = fs.statSync(path.join(lockfileDir, lockfileName))
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+        if (isError(err) && 'code' in err && err.code === 'ENOENT') continue
         throw err
       }
       foundInDir = true
@@ -1014,7 +1058,7 @@ function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string
   try {
     branchLockfileNames = getGitBranchLockfileNamesSync(lockfileDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       branchLockfileNames = []
     } else {
       throw err
@@ -1143,4 +1187,41 @@ function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir:
   const recordedProjectDirs = Object.keys(workspaceState.projects)
   return recordedProjectDirs.length > 0 &&
     !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
+}
+
+function missingModulesDirIssue (project: Project): string {
+  const id = project.manifest.name ?? project.rootDir
+  return `Workspace package ${id} has dependencies but does not have a modules directory`
+}
+
+function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
+  if (opts.selectedProjectsGraph != null) {
+    return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
+  }
+  return new Set(opts.dir == null ? [] : [path.resolve(opts.dir)])
+}
+
+/**
+ * The hoisted linker gives a project its own node_modules only for the
+ * dependencies it nests there, so a project without one may be fully
+ * installed. The last install recorded which projects have one
+ * (`hasModulesDir`); this returns the first of them that no longer does.
+ * The workspace root is left out: the workspace state is stored in its
+ * node_modules, and the missing-directory check before this one covers it.
+ */
+async function findProjectMissingRecordedHoistedModulesDir (
+  allProjects: Project[],
+  workspaceState: WorkspaceState,
+  { rootProjectManifestDir, selectedProjectDirs }: {
+    rootProjectManifestDir: string
+    selectedProjectDirs: Set<string> | undefined
+  }
+): Promise<Project | undefined> {
+  const missing = await Promise.all(allProjects.map(async (project) =>
+    (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
+    project.rootDir !== rootProjectManifestDir &&
+    workspaceState.projects[project.rootDir]?.hasModulesDir === true &&
+    (await safeStat(getHoistedProjectModulesDir(project.rootDir)))?.isDirectory() !== true
+  ))
+  return allProjects.find((_, index) => missing[index])
 }

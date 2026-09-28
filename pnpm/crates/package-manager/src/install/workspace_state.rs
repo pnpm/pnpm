@@ -18,6 +18,31 @@ use super::{
     unapproved_recorded_ignored_builds,
 };
 use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
+use pnpm_reporter::Reporter;
+use pnpm_workspace_state::update_workspace_state;
+
+/// Persist `.pnpm-workspace-state-v1.json`, warning instead of failing
+/// the command when the write is lost.
+///
+/// The state file is a cache: the next command's content check
+/// re-derives everything in it, so a lost write must not fail an
+/// install whose `node_modules` and lockfile are already committed
+/// ([#14550](https://github.com/pnpm/pnpm/issues/14550)).
+pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
+    workspace_root: &Path,
+    state: &WorkspaceState,
+) {
+    if let Err(error) = update_workspace_state(workspace_root, state) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to write the workspace state",
+        );
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "Failed to write the workspace state: {error}",
+        ));
+    }
+}
 
 /// Inputs for [`install_already_up_to_date`].
 pub struct UpToDateFastPathCheck<'a> {
@@ -295,6 +320,7 @@ pub(super) fn build_projects_map(
             let entry = ProjectEntry {
                 name: manifest_string_field(manifest, "name"),
                 version: manifest_string_field(manifest, "version"),
+                has_modules_dir: false,
             };
             (project_dir.to_string_lossy().into_owned(), entry)
         })
@@ -354,7 +380,24 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     };
     // Frozen installs share this builder and cannot establish a deduplication baseline.
     state.settings.auto_dedupe = None;
+    if node_linker == NodeLinker::Hoisted {
+        record_hoisted_modules_dirs(&mut state.projects, project_manifests);
+    }
     state
+}
+
+/// Set [`ProjectEntry::has_modules_dir`] for each project the hoisted
+/// install left with its own modules directory.
+fn record_hoisted_modules_dirs(
+    projects: &mut BTreeMap<String, ProjectEntry>,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) {
+    for (root_dir, _) in project_manifests {
+        if let Some(entry) = projects.get_mut(&*root_dir.to_string_lossy()) {
+            entry.has_modules_dir =
+                crate::optimistic_repeat_install::hoisted_project_modules_dir(root_dir).is_dir();
+        }
+    }
 }
 
 /// The wanted lockfile, read on first use — or a stand-in that never reads

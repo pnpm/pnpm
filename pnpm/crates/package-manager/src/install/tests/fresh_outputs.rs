@@ -107,6 +107,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -204,6 +205,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -313,6 +315,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -411,6 +414,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -531,6 +535,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

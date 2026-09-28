@@ -5,7 +5,7 @@
 //! every injected copy pointing at the old inodes. The setting names
 //! the scripts after which those copies are refreshed.
 
-use crate::_utils::pacquet_in;
+use crate::_utils::{pacquet_in, wait_for_child_output};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -13,6 +13,17 @@ use std::{fs, path::Path};
 
 /// The injected copies of `project-1` inside the virtual store: every
 /// `project-1` directory under `node_modules/.pnpm`.
+struct StopChild(Option<std::process::Child>);
+
+impl Drop for StopChild {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 fn injected_copies(workspace: &Path) -> Vec<std::path::PathBuf> {
     let virtual_store = workspace.join("node_modules/.pnpm");
     let mut copies: Vec<_> = fs::read_dir(&virtual_store)
@@ -141,6 +152,68 @@ fn an_unlisted_script_leaves_the_injected_copies_alone() {
         assert!(
             !copy.join("distribution/generated.js").exists(),
             "the injected copy at {copy:?} should not have gained the generated file",
+        );
+    }
+
+    drop((mock_instance, root));
+}
+
+/// A long-running script listed in `syncInjectedDepsAfterScripts` publishes
+/// injected copies before it exits. The published file is its own inode, so
+/// a watcher on the injected directory sees the write.
+#[test]
+fn a_listed_script_publishes_injected_edits_before_it_exits() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - dev\n");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "scripts": {
+                "dev": "node dev.cjs",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the dev script manifest");
+    fs::write(
+        workspace.join("project-1/dev.cjs"),
+        "require('fs').writeFileSync(__dirname + '/distribution/live.js', 'live')\nsetInterval(() => {}, 1000)\n",
+    )
+    .expect("write the dev script");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let copies = injected_copies(&workspace);
+    assert!(!copies.is_empty(), "the install should have injected project-1 somewhere");
+
+    let mut child = StopChild(Some(
+        pacquet_in(&workspace.join("project-1"))
+            .with_args(["run", "dev"])
+            .spawn()
+            .expect("spawn the dev script"),
+    ));
+    let live = copies[0].join("distribution/live.js");
+    wait_for_child_output(child.0.as_mut().expect("child"), &live, "live");
+    let source = workspace.join("project-1/distribution/live.js");
+    for copy in &copies {
+        let path = copy.join("distribution/live.js");
+        assert_eq!(fs::read_to_string(&path).expect("read the injected copy"), "live");
+        assert!(
+            !same_file::is_same_file(&source, &path).unwrap(),
+            "the injected file at {path:?} is its own inode, so a watcher on it sees the write",
         );
     }
 

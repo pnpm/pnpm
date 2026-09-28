@@ -106,6 +106,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -172,6 +173,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         workspace_state::ProjectEntry {
             name: Some("workspace-root".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     projects.insert(
@@ -179,6 +181,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         workspace_state::ProjectEntry {
             name: Some("app".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let validated_at = 0;
@@ -319,6 +322,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
@@ -393,6 +397,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -488,6 +493,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -573,6 +579,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -684,6 +691,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()

@@ -239,16 +239,28 @@ impl AddArgs {
 
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
+        if self.save.types || self.save.no_save_types {
+            config.cli_settings.insert("saveTypes".to_string());
+        }
         config.save_types =
             resolve_bool_override(self.save.types, self.save.no_save_types, config.save_types);
         self.install.dedupe.apply(config);
+        if self.target.ignore_workspace_root_check || self.target.no_ignore_workspace_root_check {
+            config.cli_settings.insert("ignoreWorkspaceRootCheck".to_string());
+        }
         config.ignore_workspace_root_check = resolve_bool_override(
             self.target.ignore_workspace_root_check,
             self.target.no_ignore_workspace_root_check,
             config.ignore_workspace_root_check,
         );
+        if self.install.optional || self.install.no_optional {
+            config.cli_settings.insert("optional".to_string());
+        }
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        if self.install.force {
+            config.cli_settings.insert("force".to_string());
+        }
         config.force = self.install.force || config.force;
     }
 

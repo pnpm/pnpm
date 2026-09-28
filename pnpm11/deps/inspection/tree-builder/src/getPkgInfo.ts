@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { refToRelative } from '@pnpm/deps.path'
+import { packageRootLinkTarget, refToRelative } from '@pnpm/deps.path'
 import { DepType, type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type {
   PackageSnapshot,
@@ -126,7 +126,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       modulesDir: opts.modulesDir,
       parentDir: opts.parentDir,
     })
-    : path.resolve(opts.linkedPathBaseDir, opts.ref.slice(5))
+    : resolveLinkedPath(opts)
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`
@@ -175,4 +175,11 @@ interface PackageInfo {
   resolved?: string
   optional?: true
   dev?: boolean
+}
+
+function resolveLinkedPath (opts: Pick<GetPkgInfoOpts, 'linkedPathBaseDir' | 'parentDir' | 'ref'>): string {
+  const target = packageRootLinkTarget(opts.ref)
+  return target != null && opts.parentDir != null
+    ? path.join(opts.parentDir, target)
+    : path.resolve(opts.linkedPathBaseDir, opts.ref.slice(5))
 }

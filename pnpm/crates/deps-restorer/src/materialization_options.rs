@@ -21,6 +21,36 @@ pub struct PackageImportOptions<'a> {
     /// `requester`. Same value as the `prefix` in
     /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
+    /// Mirrors [`Config::isolate_local_directory_imports`].
+    pub isolate_mutable_sources: bool,
+}
+
+impl<'a> PackageImportOptions<'a> {
+    #[must_use]
+    pub fn from_config(config: &Config, logged_methods: &'a AtomicU8, requester: &'a str) -> Self {
+        PackageImportOptions {
+            method: config.package_import_method,
+            logged_methods,
+            requester,
+            isolate_mutable_sources: config.isolate_local_directory_imports,
+        }
+    }
+
+    /// The method a package's files are actually materialized with: `clone-or-copy`
+    /// when a build or patch will still write them, or when the source is a
+    /// mutable local directory this install must not share inodes with;
+    /// `hardlink` for any other mutable local directory under the `auto`
+    /// method, so an in-place edit of the source reaches the injected copy,
+    /// as pnpm v11's directory fetcher asks for; [`Self::method`] otherwise.
+    #[must_use]
+    pub fn method_for(&self, source_is_mutable: bool, needs_build: bool) -> PackageImportMethod {
+        let needs_private_files =
+            needs_build || (source_is_mutable && self.isolate_mutable_sources);
+        if source_is_mutable && !needs_private_files && self.method == PackageImportMethod::Auto {
+            return PackageImportMethod::Hardlink;
+        }
+        crate::effective_import_method(self.method, needs_private_files)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -34,6 +64,17 @@ pub struct SlotImportSource<'a> {
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
     /// leave the previous install's copy in place forever.
     pub is_mutable: bool,
+    /// Whether the mutable source above was there to read from. `false`
+    /// for an injected workspace dependency whose `publishConfig.directory`
+    /// its own `prepare` script has not (re)built yet — the directory
+    /// fetch tolerates that and comes back with an empty file map. Forcing
+    /// a reimport from that empty map, the way `is_mutable` normally does,
+    /// would overwrite an already-materialized slot with nothing; this
+    /// flag keeps that force conditional on the source actually being
+    /// there. A source directory that exists but is genuinely empty still
+    /// forces, since that reflects a real change. Meaningless (and left
+    /// `true`) when `is_mutable` is `false`.
+    pub source_exists: bool,
     /// Whether an existing slot contains a different immutable artifact
     /// under the same package key and must be replaced.
     pub force: bool,

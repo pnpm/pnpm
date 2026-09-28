@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { humanId } from 'human-id'
 import * as yaml from 'yaml'
 
@@ -34,7 +33,7 @@ export function parseChangeIntent (content: string, id: string, filePath: string
   try {
     frontmatter = yaml.parse(lines.slice(1, closingIndex).join('\n')) ?? {}
   } catch (err: unknown) {
-    throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has invalid YAML frontmatter: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+    throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has invalid YAML frontmatter: ${isError(err) ? err.message : String(err)}`)
   }
 
   if (typeof frontmatter !== 'object' || frontmatter === null || Array.isArray(frontmatter)) {
@@ -63,7 +62,7 @@ export async function readChangeIntents (workspaceDir: string): Promise<ChangeIn
   try {
     fileNames = await fs.readdir(changesDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err

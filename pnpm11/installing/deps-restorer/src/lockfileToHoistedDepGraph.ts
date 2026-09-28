@@ -167,9 +167,17 @@ async function _lockfileToHoistedDepGraph (
         const projectDir = path.join(opts.lockfileDir, importerId)
         const modulesDir = path.join(projectDir, 'node_modules')
         const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
-        hierarchy[projectDir] = nextHierarchy
-
         const importer = lockfile.importers[importerId]
+        const hasDeps = Boolean(
+          (importer.dependencies && Object.keys(importer.dependencies).length) ||
+          (importer.devDependencies && Object.keys(importer.devDependencies).length) ||
+          (importer.optionalDependencies && Object.keys(importer.optionalDependencies).length) ||
+          rootDep.dependencies.size > 0
+        )
+        if (hasDeps) {
+          hierarchy[projectDir] = nextHierarchy
+        }
+
         const importerDir = path.join(opts.lockfileDir, importerId)
         symlinkedDirectDependenciesByImporterId[importerId] = pickLinkedDirectDeps(importer, importerDir, opts.include)
         directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), graph)
@@ -202,7 +210,7 @@ function pickLinkedDirectDeps (
   const rootDeps = {
     ...(include.devDependencies ? importer.devDependencies : {}),
     ...(include.dependencies ? importer.dependencies : {}),
-    ...(include.optionalDependencies ? importer.optionalDependencies : {}),
+    ...(include.dependencies && include.optionalDependencies ? importer.optionalDependencies : {}),
   }
   const directDeps: Record<string, string> = {}
   for (const alias in rootDeps) {
@@ -363,6 +371,9 @@ async function fetchDeps (
     }
     opts.hoistedLocations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByPkgId, opts)
+    if (!opts.skipFetching) {
+      opts.graph[dir].packageRootLinks = getPackageRootLinks(pkgSnapshot, opts.include)
+    }
   }))
   return depHierarchy
 }
@@ -378,6 +389,22 @@ async function dirHasPackageJsonWithVersion (dir: string, expectedVersion?: stri
     }
     throw err
   }
+}
+
+function getPackageRootLinks (pkgSnapshot: PackageSnapshot, include: IncludedDependencies): Record<string, string> | undefined {
+  let links: Record<string, string> | undefined
+  const allDeps = {
+    ...pkgSnapshot.dependencies,
+    ...(include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+  }
+  for (const [alias, ref] of Object.entries(allDeps)) {
+    const target = dp.packageRootLinkTarget(ref)
+    if (target != null) {
+      links ??= {}
+      links[alias] = target
+    }
+  }
+  return links
 }
 
 function getChildren (

@@ -41,6 +41,39 @@ pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
 /// <https://github.com/npm/registry/blob/ae49abf1ba/docs/responses/package-metadata.md>
 const ABBREVIATED_META_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
+/// `true` when `Cache-Control` says the metadata document is already stale.
+///
+/// `max-age=0`, `no-cache`, and `no-store` are the signals a registry uses
+/// when a later publish must not be hidden behind the previous document.
+/// A positive `max-age` stays cacheable and keeps conditional requests.
+pub(crate) fn metadata_response_is_uncacheable(headers: &header::HeaderMap) -> bool {
+    // `get` returns only the first field. A registry can send
+    // `Cache-Control: public` and `Cache-Control: no-cache` as two
+    // fields; any one of them forbidding reuse wins.
+    headers
+        .get_all(header::CACHE_CONTROL)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .any(cache_control_value_is_uncacheable)
+}
+
+fn cache_control_value_is_uncacheable(value: &str) -> bool {
+    value
+        .split(',')
+        .any(|directive| {
+            let directive = directive.trim();
+            if directive.eq_ignore_ascii_case("no-cache")
+                || directive.eq_ignore_ascii_case("no-store")
+            {
+                return true;
+            }
+            let Some((name, age)) = directive.split_once('=') else {
+                return false;
+            };
+            name.trim().eq_ignore_ascii_case("max-age") && age.trim().parse::<u64>().ok() == Some(0)
+        })
+}
+
 /// Whether the response `Content-Type` declares the abbreviated packument
 /// media type. Parameters (`; charset=utf-8`) are dropped and the comparison
 /// is case-insensitive (RFC 9110 §8.3.1).
@@ -135,6 +168,13 @@ impl MetadataHttpClient<'_> {
 /// A [`MetadataRequestOptions::bypass_cache`] request has already given up its
 /// validators, so that retry would only repeat itself: its 304 fails straight
 /// away instead.
+///
+/// A 304 to a revalidation whose `Cache-Control` forbids reuse (see
+/// [`metadata_response_is_uncacheable`]) is asked once more without
+/// validators. A mirror without the uncacheable flag still sends
+/// validators, and a stale intermediary can answer them with a 304. If the
+/// validator-free request is answered with a 304 too, it is returned as is
+/// and the caller serves its mirror.
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
@@ -146,8 +186,15 @@ pub(crate) async fn send_metadata_request<'a>(
     }
     let validators = Validators::for_request(opts);
     let (client, response) = send_once(opts, &validators, opts.bypass_cache).await?;
-    if response.status() != StatusCode::NOT_MODIFIED || validators.any() {
+    if response.status() != StatusCode::NOT_MODIFIED {
         return Ok((client, response));
+    }
+    if validators.any() {
+        if !metadata_response_is_uncacheable(response.headers()) {
+            return Ok((client, response));
+        }
+        drop(client);
+        return send_once(opts, &Validators::NONE, true).await;
     }
     drop(client);
     if opts.bypass_cache {
@@ -174,9 +221,11 @@ struct Validators<'a> {
 }
 
 impl<'a> Validators<'a> {
+    const NONE: Validators<'static> = Validators { etag: None, modified: None };
+
     fn for_request(opts: &MetadataRequestOptions<'a>) -> Self {
         if opts.bypass_cache {
-            return Validators { etag: None, modified: None };
+            return Validators::NONE;
         }
         Validators {
             etag: opts.etag.filter(|value| !value.is_empty()),
@@ -243,55 +292,91 @@ fn to_http_date(value: &str) -> Option<String> {
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
+/// A metadata document plus whether that response forbade caching.
+pub(crate) struct MetadataDocument {
+    pub outcome: FetchFullMetadataOutcome,
+    pub uncacheable: bool,
+}
+
 pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
+    Ok(fetch_metadata_document(pkg_name, opts).await?.outcome)
+}
+
+pub(crate) async fn fetch_metadata_document(
+    pkg_name: &str,
+    opts: &FetchFullMetadataOptions<'_>,
+) -> Result<MetadataDocument, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || async {
-        let started_at = Instant::now();
-        let (client, response) = send_metadata_request(&MetadataRequestOptions {
-            pkg_name,
-            url: &url,
-            accept,
-            priority: pnpm_network::UNPRIORITIZED,
-            etag: opts.etag,
-            modified: opts.modified,
-            bypass_cache: false,
-            http: opts.http.one_attempt(),
-        })
-        .await?;
-        if response.status() == StatusCode::NOT_MODIFIED {
-            return Ok(FetchFullMetadataOutcome::NotModified);
-        }
-        let response = response
-            .error_for_status()
-            .map_err(|error| FetchMetadataError::Network {
-                url: redact_url_credentials(&url),
-                error: error.without_url(),
-            })?;
-        let normalize_to_abbreviated =
-            !opts.full_metadata && !is_abbreviated_content_type(response.headers());
-        let raw_body = response
-            .text()
-            .await
-            .map_err(|error| FetchMetadataError::BodyRead {
-                url: redact_url_credentials(&url),
-                error: error.without_url(),
-            })?;
-        // Body fully buffered — release the connection and its
-        // network-concurrency permit, then parse off the reactor: a
-        // multi-MB packument parse would otherwise pin a tokio worker
-        // and stall every socket it pumps (see
-        // `fetch_full_metadata_cached` for the cold-install numbers).
-        drop(client);
-        let (meta, elapsed) =
-            decode_full_metadata(&url, raw_body, normalize_to_abbreviated, started_at).await?;
-        warn_if_request_is_slow(opts.http.http_client, elapsed, &url);
-        Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
+    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || {
+        one_metadata_attempt(pkg_name, opts, &url, accept)
     })
     .await
+}
+
+async fn one_metadata_attempt(
+    pkg_name: &str,
+    opts: &FetchFullMetadataOptions<'_>,
+    url: &str,
+    accept: &str,
+) -> Result<MetadataDocument, FetchMetadataError> {
+    let started_at = Instant::now();
+    let (client, response) = send_metadata_request(&MetadataRequestOptions {
+        pkg_name,
+        url,
+        accept,
+        priority: pnpm_network::UNPRIORITIZED,
+        etag: opts.etag,
+        modified: opts.modified,
+        bypass_cache: false,
+        http: opts.http.one_attempt(),
+    })
+    .await?;
+    if response.status() == StatusCode::NOT_MODIFIED {
+        return Ok(MetadataDocument {
+            outcome: FetchFullMetadataOutcome::NotModified,
+            uncacheable: false,
+        });
+    }
+    document_from_response(client, response, opts, url, started_at).await
+}
+
+async fn document_from_response(
+    client: pnpm_network::ThrottledClientGuard<'_>,
+    response: reqwest::Response,
+    opts: &FetchFullMetadataOptions<'_>,
+    url: &str,
+    started_at: Instant,
+) -> Result<MetadataDocument, FetchMetadataError> {
+    let uncacheable = metadata_response_is_uncacheable(response.headers());
+    let response = response
+        .error_for_status()
+        .map_err(|error| FetchMetadataError::Network {
+            url: redact_url_credentials(url),
+            error: error.without_url(),
+        })?;
+    let normalize_to_abbreviated =
+        !opts.full_metadata && !is_abbreviated_content_type(response.headers());
+    let raw_body = response
+        .text()
+        .await
+        .map_err(|error| FetchMetadataError::BodyRead {
+            url: redact_url_credentials(url),
+            error: error.without_url(),
+        })?;
+    // Body fully buffered — release the connection and its
+    // network-concurrency permit, then parse off the reactor.
+    drop(client);
+    let (meta, elapsed) =
+        decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at).await?;
+    warn_if_request_is_slow(opts.http.http_client, elapsed, url);
+    Ok(MetadataDocument {
+        outcome: FetchFullMetadataOutcome::Modified(Box::new(meta)),
+        uncacheable,
+    })
 }
 
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {

@@ -171,8 +171,7 @@ describe('extractZipToTarget security', () => {
 
   describe('destination symlink following', () => {
     it('does not write through a symlink planted next to the target directory', async () => {
-      // AdmZip resolves symlinks when it opens a destination (GHSA-vwc7-r8mq-g2x9), so
-      // extraction must not happen at a path an attacker sharing the store can predict.
+      // Extraction must not happen at a path an attacker sharing the store can predict.
       const parentDir = temporaryDirectory()
       const targetDir = path.join(parentDir, 'target')
       fs.mkdirSync(targetDir)
@@ -463,40 +462,120 @@ describe('extractZipToTarget security', () => {
 const itOnNonWindows = process.platform === 'win32' ? it.skip : it
 
 // A symlink inside an extraction destination can redirect a ZIP entry to a file outside it.
-describe('adm-zip symlink extraction', () => {
-  function extractOverSymlink (plantSymlink: (paths: { root: string, outside: string }) => void): string {
+describe('zip extraction over a symlink', () => {
+  async function extractOverSymlink (plantSymlink: (paths: { targetDir: string, outside: string }) => void): Promise<{ extraction: Promise<void>, outside: string, targetDir: string }> {
     const dir = temporaryDirectory()
     const outside = path.join(dir, 'outside')
     fs.mkdirSync(outside)
     fs.writeFileSync(path.join(outside, 'node'), 'original')
-    const root = path.join(dir, 'root')
-    fs.mkdirSync(root)
-    plantSymlink({ root, outside })
+    const targetDir = path.join(dir, 'target')
+    fs.mkdirSync(targetDir)
+    plantSymlink({ targetDir, outside })
 
     const zip = new AdmZip()
-    zip.addFile('node-v1/bin/node', Buffer.from('overwritten'))
-    expect(() => {
-      for (const entry of zip.getEntries()) {
-        if (!entry.isDirectory) zip.extractEntryTo(entry, root, true, true)
-      }
-    }).toThrow(/There is a file in the way/)
-    return fs.readFileSync(path.join(outside, 'node'), 'utf8')
+    zip.addFile('bin/node', Buffer.from('overwritten'))
+    const zipBuffer = zip.toBuffer()
+    const extraction = downloadAndUnpackZip(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      createMockFetch(zipBuffer) as any,
+      { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
+      targetDir
+    )
+    return { extraction, outside, targetDir }
   }
 
-  it('refuses to extract through a symlinked parent directory', () => {
-    expect(extractOverSymlink(({ root, outside }) => {
-      fs.mkdirSync(path.join(root, 'node-v1'), { recursive: true })
-      fs.symlinkSync(outside, path.join(root, 'node-v1', 'bin'), 'junction')
-    })).toBe('original')
+  it('refuses to extract through a symlinked parent directory', async () => {
+    const { extraction, outside } = await extractOverSymlink(({ targetDir, outside }) => {
+      fs.symlinkSync(outside, path.join(targetDir, 'bin'), 'junction')
+    })
+    await expect(extraction).rejects.toMatchObject({ code: 'ERR_PNPM_PATH_TRAVERSAL' })
+    expect(fs.readFileSync(path.join(outside, 'node'), 'utf8')).toBe('original')
   })
 
-  itOnNonWindows('refuses to extract through a symlinked destination file', () => {
-    expect(extractOverSymlink(({ root, outside }) => {
-      fs.mkdirSync(path.join(root, 'node-v1', 'bin'), { recursive: true })
-      fs.symlinkSync(path.join(outside, 'node'), path.join(root, 'node-v1', 'bin', 'node'))
-    })).toBe('original')
+  itOnNonWindows('replaces a symlinked destination file instead of writing through it', async () => {
+    const { extraction, outside, targetDir } = await extractOverSymlink((paths) => {
+      fs.mkdirSync(path.join(paths.targetDir, 'bin'))
+      fs.symlinkSync(path.join(paths.outside, 'node'), path.join(paths.targetDir, 'bin', 'node'))
+    })
+    await extraction
+    expect(fs.readFileSync(path.join(outside, 'node'), 'utf8')).toBe('original')
+    expect(fs.lstatSync(path.join(targetDir, 'bin', 'node')).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('overwritten')
   })
 })
+
+describe('zip entry sizes', () => {
+  it('rejects an entry that inflates past the size the archive declares for it', async () => {
+    const zip = new AdmZip()
+    zip.addFile('bin/node', Buffer.alloc(64 * 1024, 'x'))
+    const zipBuffer = setDeclaredUncompressedSize(zip.toBuffer(), 1024)
+    const targetDir = temporaryDirectory()
+
+    await expect(downloadAndUnpackZip(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      createMockFetch(zipBuffer) as any,
+      { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
+      targetDir
+    )).rejects.toThrow('too many bytes in the stream')
+  })
+})
+
+describe('zip extraction target', () => {
+  it('creates a target directory that does not exist yet when basename is empty', async () => {
+    const zip = new AdmZip()
+    zip.addFile('bin/node', Buffer.from('binary'))
+    const zipBuffer = zip.toBuffer()
+    const targetDir = path.join(temporaryDirectory(), 'missing', 'target')
+
+    await downloadAndUnpackZip(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      createMockFetch(zipBuffer) as any,
+      { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
+      targetDir
+    )
+    expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('binary')
+  })
+})
+
+describe('zip download integrity', () => {
+  it('rejects a download whose checksum does not match, leaving the target untouched', async () => {
+    const zip = new AdmZip()
+    zip.addFile('bin/node', Buffer.from('binary'))
+    const zipBuffer = zip.toBuffer()
+    const integrity = ssri.fromData(Buffer.from('something else')).toString()
+    const targetDir = temporaryDirectory()
+
+    await expect(downloadAndUnpackZip(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      createMockFetch(zipBuffer) as any,
+      { url: 'https://example.com/node.zip', integrity, basename: '' },
+      targetDir
+    )).rejects.toMatchObject({
+      code: 'ERR_PNPM_TARBALL_INTEGRITY',
+      message: `Got unexpected checksum for "https://example.com/node.zip". Wanted "${integrity}". Got "${ssri.fromData(zipBuffer).toString()}".`,
+    })
+    expect(fs.readdirSync(targetDir)).toStrictEqual([])
+  })
+})
+
+/**
+ * Returns a copy of a single-entry zip whose entry declares `size` as its
+ * uncompressed size, in both its local file header and its central directory
+ * record. The input is left unchanged. The zip must start with the entry's
+ * local file header, and the expectations fail if either record is not where
+ * a single-entry zip has it.
+ */
+function setDeclaredUncompressedSize (zipBuffer: Buffer, size: number): Buffer {
+  const patched = Buffer.from(zipBuffer)
+  const LOCAL_FILE_HEADER = 0x04034b50
+  const CENTRAL_DIRECTORY_HEADER = 0x02014b50
+  expect(patched.readUInt32LE(0)).toBe(LOCAL_FILE_HEADER)
+  patched.writeUInt32LE(size, 22)
+  const centralDirectoryOffset = patched.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
+  expect(patched.readUInt32LE(centralDirectoryOffset)).toBe(CENTRAL_DIRECTORY_HEADER)
+  patched.writeUInt32LE(size, centralDirectoryOffset + 24)
+  return patched
+}
 
 describe('createBinaryFetcher', () => {
   it.each([

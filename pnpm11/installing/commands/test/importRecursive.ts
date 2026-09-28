@@ -154,3 +154,45 @@ test('import keeps the root project on the version pinned by yarn.lock when anot
   expect(importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.0')
   expect(importers['packages/foo'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.1.0')
 })
+
+test('import keeps the version pinned by a nested yarn.lock', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.0' },
+  }))
+  fs.writeFileSync('yarn.lock', `# yarn lockfile v1
+
+
+"@pnpm.e2e/bravo-dep@^1.0.0":
+  version "1.0.0"
+`)
+  fs.mkdirSync('packages/foo', { recursive: true })
+  fs.writeFileSync('packages/foo/package.json', JSON.stringify({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.1' },
+  }))
+  fs.writeFileSync('packages/foo/yarn.lock', `# yarn lockfile v1
+
+
+"@pnpm.e2e/bravo-dep@^1.0.1":
+  version "1.0.1"
+`)
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjectsGraph,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    dir: process.cwd(),
+  }, [])
+
+  const { importers } = assertProject(process.cwd()).readLockfile()
+  expect(importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.0')
+  expect(importers['packages/foo'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
+})

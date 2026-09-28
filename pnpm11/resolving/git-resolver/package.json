@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.git-resolver",
-  "version": "1100.1.23",
+  "version": "1100.1.24",
   "description": "Resolver for git-hosted packages",
   "keywords": [
     "pnpm",

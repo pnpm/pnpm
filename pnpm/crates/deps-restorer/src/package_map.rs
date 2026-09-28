@@ -5,7 +5,7 @@ pub use node_options::{
 
 mod dependencies;
 use dependencies::{
-    LinkReference, LinkTarget, PhysicalPackageIndex, add_importer_dependencies,
+    LinkBase, LinkReference, LinkTarget, PhysicalPackageIndex, add_importer_dependencies,
     add_loose_dependencies, add_physical_importer_dependencies, add_physical_snapshot_dependencies,
     add_snapshot_dependencies, get_node_modules_path, resolve_link_target,
 };
@@ -243,13 +243,19 @@ fn add_snapshot_package(
     let id = key.to_string();
     let mut dependencies = BTreeMap::new();
     dependencies.insert(key.name.to_string(), id.clone());
-    for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
-        add_snapshot_dependencies(packages, &mut dependencies, lockfile, opts, group);
-    }
     let package_dir = pnpm_fs::join_slash_separated_path(
         &opts.layout.slot_dir(key).join("node_modules"),
         &key.name.to_string(),
     );
+    for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
+        add_snapshot_dependencies(
+            packages,
+            &mut dependencies,
+            lockfile,
+            opts,
+            (&package_dir, group),
+        );
+    }
     add_package(packages, id, package_dirs, &package_dir, dependencies, opts.modules_dir);
     let Some(loose_index) = loose_index.as_mut() else { return };
     if let Some(modules_dir) = get_node_modules_path(&package_dir) {

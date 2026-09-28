@@ -188,6 +188,7 @@ impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
         if let Some(pnpr_server) = self.install.pnpr_server.clone() {
+            config.cli_settings.insert("pnprServer".to_string());
             config.pnpr_server = Some(pnpr_server);
         }
     }
@@ -275,33 +276,29 @@ impl UpdateArgs {
         self,
         config: &'static Config,
     ) -> miette::Result<()> {
-        self.check_patches_options()?;
-        self.check_interactive_peer_options()?;
-        self.check_workspace_option(None)?;
-        if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
-            return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
-        }
-        let selected_hashes: Option<HashSet<String>> = if self.selection.interactive {
-            match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
-                config,
-                &self.packages,
-                self.selection.latest,
-                self.prompt,
-            )
-            .await?
-            {
-                Some(selected) => Some(selected),
-                None => return Ok(()),
-            }
-        } else {
-            None
-        };
+        self.check_global_options()?;
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = RangeSpecStyle::from_save_options(
             self.save.exact || config.save_exact,
             config.save_prefix.as_deref(),
         );
+        // Before the interactive selection, so the migrated groups are
+        // offered too.
+        Box::pin(crate::cli_args::global::migrate_legacy_global_packages::<Reporter>(
+            config,
+            range_spec_style,
+            supported_architectures.clone(),
+        ))
+        .await?;
+        let selected_hashes = if self.selection.interactive {
+            let Some(selected) = self.select_global_groups::<Reporter>(config).await? else {
+                return Ok(());
+            };
+            Some(selected)
+        } else {
+            None
+        };
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,
@@ -311,6 +308,31 @@ impl UpdateArgs {
             supported_architectures,
         ))
         .await
+    }
+
+    /// The groups `--interactive` picked, or `None` when the prompt was
+    /// cancelled.
+    async fn select_global_groups<Reporter: self::Reporter + 'static>(
+        &self,
+        config: &'static Config,
+    ) -> miette::Result<Option<HashSet<String>>> {
+        crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
+            config,
+            &self.packages,
+            self.selection.latest,
+            self.prompt,
+        )
+        .await
+    }
+
+    fn check_global_options(&self) -> miette::Result<()> {
+        self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
+        self.check_workspace_option(None)?;
+        if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
+            return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
+        }
+        Ok(())
     }
 
     /// Validate `--workspace` against the rest of the invocation,

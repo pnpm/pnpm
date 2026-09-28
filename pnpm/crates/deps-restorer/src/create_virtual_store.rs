@@ -74,7 +74,7 @@ pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::V
 /// already built (typically because pnpm seeded the cache on a
 /// previous install).
 pub type SideEffectsMapsBySnapshot =
-    HashMap<PackageKey, std::sync::Arc<HashMap<String, HashMap<String, PathBuf>>>>;
+    HashMap<PackageKey, std::sync::Arc<HashMap<String, pnpm_store_dir::SideEffectsOverlay>>>;
 
 pub type SideEffectsBySnapshot =
     HashMap<PackageKey, std::sync::Arc<HashMap<String, pnpm_store_dir::SideEffectsDiff>>>;

@@ -1,10 +1,9 @@
 import assert from 'node:assert'
 import path from 'node:path'
-import util from 'node:util'
 
 import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
 import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -13,7 +12,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import { globalWarn } from '@pnpm/logger'
-import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
+import type { PackageScripts, ProjectRootDir, WorkspaceTasks } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
 import {
   buildTaskGraph,
@@ -78,6 +77,11 @@ export async function runRecursive (
 
   const modulesDirFor = createProjectModulesDirResolver(opts)
   const fullTaskGraph = buildRunTaskGraph(scriptName, opts)
+  // Read before sequencing, which drops the edges of a tolerated cycle.
+  const hiddenScriptExemptions = dependsOnTargets(fullTaskGraph, {
+    reversed: Boolean(opts.reverse),
+    tasks: runTasks(opts),
+  })
   const taskRunStateContext = new TaskRunStateContext({
     command: 'run',
     params,
@@ -137,10 +141,7 @@ export async function runRecursive (
   }
 
   if (!process.env.npm_lifecycle_event) {
-    for (const node of taskGraph.values()) {
-      if (!node.requested) continue
-      node.scripts = throwOrFilterHiddenScripts(node.scripts, scriptName)
-    }
+    filterHiddenRequestedScripts(taskGraph, scriptName, hiddenScriptExemptions)
   }
 
   // Before anything is dispatched: when no selected project has the script,
@@ -169,7 +170,7 @@ export async function runRecursive (
 
   const result: RecursiveSummary = {}
   for (const node of taskGraph.values()) {
-    result[taskSummaryKey(node)] = { status: 'queued' }
+    result[taskSummaryKey(node, scriptName)] = { status: 'queued' }
   }
   let hasCommand = 0
   let firstError: Error | undefined
@@ -188,7 +189,7 @@ export async function runRecursive (
 
   const runTaskScripts = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
     const pkg = opts.selectedProjectsGraph[node.project]
-    const summaryKey = taskSummaryKey(node)
+    const summaryKey = taskSummaryKey(node, scriptName)
     // A RegExp selector can match several scripts in one task, but the
     // summary carries a single status per task and countFailures derives
     // the exit code from it. Once one of a task's scripts has failed,
@@ -279,7 +280,7 @@ export async function runRecursive (
             result[summaryKey].duration = getExecutionDuration(startTime)
           }
         } catch (err: unknown) {
-          assert(util.types.isNativeError(err))
+          assert(isError(err))
           taskFailed = true
           result[summaryKey] = {
             status: 'failure',
@@ -309,7 +310,7 @@ export async function runRecursive (
       bail: Boolean(opts.bail),
       runTask,
       onTaskSkipped: (node) => {
-        result[taskSummaryKey(node)].status = 'skipped'
+        result[taskSummaryKey(node, scriptName)].status = 'skipped'
       },
     })
 
@@ -368,7 +369,8 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
     scriptsByProject: (project) => opts.selectedProjectsGraph[project].package.manifest.scripts ?? {},
     selectScripts: getSpecifiedScripts,
     taskName: scriptName,
-    tasks: opts.sort ? opts.tasks : undefined,
+    tasks: runTasks(opts),
+    isSelectorTaskName: isRegExpSelector,
   })
   if (opts.reverse) {
     taskGraph = reverseTaskGraph(taskGraph)
@@ -389,8 +391,13 @@ function noRequestedScriptError (scriptName: string, opts: RecursiveRunOpts): Pn
     : new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the selected packages has a "${scriptName}" script`)
 }
 
-function taskSummaryKey (node: TaskNode): string {
-  return node.requested ? node.project : `${node.project}#${node.taskName}`
+/**
+ * The task of the script the invocation named keeps the project directory
+ * alone. Every other task qualifies it with the task name: those `dependsOn`
+ * pulled in, and the per-script tasks a RegExp selector expands into.
+ */
+function taskSummaryKey (node: TaskNode, scriptName: string): string {
+  return node.requested && node.taskName === scriptName ? node.project : `${node.project}#${node.taskName}`
 }
 
 function formatSectionName ({
@@ -421,4 +428,69 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
   }
 
   return []
+}
+
+/**
+ * Removes hidden scripts from the requested tasks, and throws when everything
+ * a project's requested tasks select is hidden. Checked only for the tasks
+ * the invocation named: a `dependsOn` declaration naming a hidden script is a
+ * deliberate reference, like a call from another script, so the `exempt`
+ * tasks such a declaration targets are not checked. Checked per project, over
+ * every requested task: a RegExp selector can seed one task per matched
+ * script.
+ */
+function filterHiddenRequestedScripts (taskGraph: TaskGraph, scriptName: string, exempt: Set<TaskKey>): void {
+  const checkedNodes = [...taskGraph].filter(([key, node]) => node.requested && !exempt.has(key)).map(([, node]) => node)
+  const requestedScriptsByProject = new Map<string, string[]>()
+  for (const node of checkedNodes) {
+    const scripts = requestedScriptsByProject.get(node.project) ?? []
+    scripts.push(...node.scripts)
+    requestedScriptsByProject.set(node.project, scripts)
+  }
+  const visibleScriptsByProject = new Map<string, Set<string>>()
+  for (const [project, scripts] of requestedScriptsByProject) {
+    visibleScriptsByProject.set(project, new Set(throwOrFilterHiddenScripts(scripts, scriptName)))
+  }
+  for (const node of checkedNodes) {
+    const visibleScripts = visibleScriptsByProject.get(node.project)!
+    node.scripts = node.scripts.filter((script) => visibleScripts.has(script))
+  }
+}
+
+/**
+ * The tasks a `dependsOn` declaration targets: every dependency of a task that
+ * has a `tasks` entry. A task without one only has the default dependency on
+ * its own name in the dependency projects, which is no reference. Edges are
+ * read in declaration direction when `--reverse` inverted them.
+ */
+function dependsOnTargets (graph: TaskGraph, opts: { reversed: boolean, tasks: WorkspaceTasks | undefined }): Set<TaskKey> {
+  const targets = new Set<TaskKey>()
+  if (opts.tasks == null) return targets
+  const tasks = opts.tasks
+  for (const [key, node] of graph) {
+    for (const dependency of node.dependencies) {
+      const [dependent, target] = opts.reversed ? [dependency, key] : [key, dependency]
+      if (Object.hasOwn(tasks, graph.get(dependent)!.taskName)) targets.add(target)
+    }
+  }
+  return targets
+}
+
+/** The `tasks` declarations the run's graph follows: none under `--no-sort`. */
+function runTasks (opts: Pick<RecursiveRunOpts, 'sort' | 'tasks'>): WorkspaceTasks | undefined {
+  return opts.sort ? opts.tasks : undefined
+}
+
+/**
+ * Whether a task name addresses scripts by RegExp literal rather than by
+ * name. A selector carrying flags is shaped like one but is rejected by
+ * `tryBuildRegExpFromCommand`; it is a selector here too, so the graph
+ * treats it the way `getSpecifiedScripts` does.
+ */
+function isRegExpSelector (taskName: string): boolean {
+  try {
+    return tryBuildRegExpFromCommand(taskName) != null
+  } catch {
+    return true
+  }
 }

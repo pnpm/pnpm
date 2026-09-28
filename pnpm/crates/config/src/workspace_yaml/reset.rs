@@ -212,6 +212,7 @@ impl WorkspaceSettings {
             "gitBranchLockfile" => {
                 config.use_git_branch_lockfile = defaults.use_git_branch_lockfile;
                 config.git_branch_lockfile_name = None;
+                config.git_branch_lockfile_candidates.clear();
             }
             "sideEffectsCache" => {
                 config.side_effects_cache_read_setting = defaults.side_effects_cache_read_setting;

@@ -1,6 +1,6 @@
-import util from 'node:util'
 
 import { parse, refToRelative } from '@pnpm/deps.path'
+import { isError } from '@pnpm/error'
 import type { LockfileObject, PackageSnapshot, PackageSnapshots, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { getPatchInfo, groupPatchedDependencies } from '@pnpm/patching.config'
 import type { PatchGroup, PatchGroupRecord } from '@pnpm/patching.types'
@@ -229,7 +229,7 @@ function patchSelectsOnVersion (group: PatchGroup | undefined): boolean {
  * reports these against the configured patches, where the key the user can act on lives.
  */
 function isUnusablePatchConfig (err: unknown): boolean {
-  return util.types.isNativeError(err) &&
+  return isError(err) &&
     'code' in err &&
     (err.code === 'ERR_PNPM_PATCH_NON_SEMVER_RANGE' || err.code === 'ERR_PNPM_PATCH_KEY_CONFLICT')
 }

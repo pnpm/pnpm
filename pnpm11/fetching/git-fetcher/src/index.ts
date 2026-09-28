@@ -2,9 +2,8 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
 import { URL } from 'node:url'
-import util from 'node:util'
 
-import { PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
 import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
@@ -53,7 +52,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
         })
       }
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       throw gitFetchError(err, resolution.repo, opts.pkg?.name)
     }
     let pkgDir: string
@@ -74,7 +73,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }
@@ -155,6 +154,10 @@ function sshRemediationHint (repo: string, pkgName?: string): string | undefined
   if (host == null) return undefined
   return `The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for ${redactAndSanitize(host)}.
 
+If git reported "Permission denied (publickey)", the host was reached and refused the key. Make sure ssh-agent has a key loaded:
+
+    ssh-add -l
+
 If its specifier does not ask for SSH (for example "github:owner/repo"), the lockfile entry was written before pnpm v11.21 and can be re-recorded over HTTPS:
 
     pnpm update ${pkgName ?? '<package>'}
@@ -214,7 +217,7 @@ async function hasGitSubmodules (location: string): Promise<boolean> {
   try {
     return (await fs.promises.stat(path.join(location, '.gitmodules'))).isFile()
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
     throw err
   }

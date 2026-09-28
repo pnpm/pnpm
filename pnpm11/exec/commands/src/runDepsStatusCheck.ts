@@ -1,13 +1,12 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { confirm } from '@inquirer/prompts'
-import type { Config, VerifyDepsBeforeRun } from '@pnpm/config.reader'
+import { type Config, getIgnoredLockfilePnpmFieldKeys, type VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
@@ -20,7 +19,7 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
@@ -36,7 +35,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (!needsInstall(upToDate, opts)) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings)]
+  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
   const install = lockedInstall.bind(null, opts, command)
 
   switch (opts.verifyDepsBeforeRun) {
@@ -47,6 +46,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     // In non-TTY environments (like CI), we can't prompt the user
     // Exit with error to alert users that node_modules are out of sync
       if (!process.stdin.isTTY) {
+        refuseInstallDroppingIgnoredSettings(opts)
         throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', issue ?? 'Your node_modules are out of sync with your lockfile', {
           hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
         })
@@ -60,7 +60,7 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
           default: true,
         })
       } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
+        if (isError(err) && err.name === 'ExitPromptError') {
           process.exit(1)
         }
         throw err
@@ -80,6 +80,22 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
   }
 }
 
+/**
+ * An install would ignore the settings the root manifest still keeps in its
+ * `pnpm` field and rewrite the lockfile without the ones the lockfile records.
+ * That drops them silently, so the gate leaves the decision to an explicit
+ * `pnpm install` after the settings have moved.
+ */
+function refuseInstallDroppingIgnoredSettings (opts: RunDepsStatusCheckOptions): void {
+  if (opts.rootProjectManifest == null) return
+  const keys = getIgnoredLockfilePnpmFieldKeys(opts.rootProjectManifest)
+  if (keys.length === 0) return
+  const quotedKeys = keys.map(key => `"pnpm.${key}"`).join(', ')
+  throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', `Your node_modules are out of sync with your lockfile, and installing would drop ${quotedKeys} from the lockfile, because the "pnpm" field in package.json is no longer read by pnpm`, {
+    hint: 'Move these settings to pnpm-workspace.yaml (see https://pnpm.io/settings), then run "pnpm install".',
+  })
+}
+
 function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOptions): boolean {
   if (upToDate === true) return false
   return upToDate === false || opts.allProjects != null || opts.rootProjectManifest != null
@@ -93,6 +109,7 @@ function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOp
  * predecessor's install left them out of date.
  */
 async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]): Promise<void> {
+  refuseInstallDroppingIgnoredSettings(opts)
   const root = opts.workspaceDir ?? opts.dir
   let lock: DirLock | undefined
   let waited = false
@@ -104,14 +121,14 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
       lock = await DirLock.acquire(lockPath, { waitMs: INSTALL_LOCK_WAIT_MS, abandonedMs: INSTALL_LOCK_ABANDONED_MS })
     }
   } catch (err: unknown) {
-    const message = util.types.isNativeError(err) ? err.message : String(err)
+    const message = isError(err) ? err.message : String(err)
     globalWarn(`Could not lock the dependency install at ${root}: ${message}. Installing without it, which is unsafe if another pnpm is installing there concurrently.`)
   }
   try {
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
       if (!needsInstall(upToDate, opts)) return
-      command = ['install', ...createInstallArgs(workspaceState?.settings)]
+      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
     const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
     runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
@@ -144,4 +161,22 @@ export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'o
     args.push('--no-optional')
   }
   return args
+}
+
+/**
+ * The install that the gate spawns has to select the same projects the command
+ * being gated was filtered to, otherwise a filtered `run` or `exec` would
+ * install every project of the workspace. Each selector also selects its
+ * dependencies, because a selected project needs the workspace projects it
+ * depends on installed too.
+ */
+export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter' | 'filterProd'>): string[] {
+  return [
+    ...(opts.filter ?? []).map((selector) => `--filter=${withDependencies(selector)}`),
+    ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
+  ]
+}
+
+function withDependencies (selector: string): string {
+  return selector.startsWith('!') || selector.endsWith('...') ? selector : `${selector}...`
 }

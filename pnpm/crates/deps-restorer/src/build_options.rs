@@ -13,10 +13,9 @@ pub struct BuildScriptOptions<'a> {
     /// Mirrors `config.user_agent`, stamped into each build script's
     /// `npm_config_user_agent`.
     pub user_agent: &'a str,
-    /// Mirrors `config.scripts_prepend_node_path`. Threaded through to
-    /// [`pnpm_executor::ScriptExecutionOptions::prepend_node_path`] for each
-    /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
-    pub prepend_node_path: ScriptsPrependNodePath,
+    /// What goes on each build script's `PATH` besides its own package's
+    /// `node_modules/.bin` walk.
+    pub path: ScriptPath<'a>,
     /// Mirrors `config.script_shell`. Threaded through to
     /// [`pnpm_executor::ScriptExecutionOptions::shell`], so a workspace that
     /// configures a shell gets it for build scripts too, not only for
@@ -42,6 +41,23 @@ pub struct BuildScriptOptions<'a> {
     pub patched_engines: PatchedEngineCheck<'a>,
 }
 
+/// What goes on each build script's `PATH` besides its own package's
+/// `node_modules/.bin` walk.
+#[derive(Clone, Copy)]
+pub struct ScriptPath<'a> {
+    /// Mirrors `config.scripts_prepend_node_path`. Threaded through to
+    /// [`pnpm_executor::ScriptExecutionOptions::prepend_node_path`] for each
+    /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
+    pub prepend_node_path: ScriptsPrependNodePath,
+    /// Mirrors `config.extra_bin_paths`: the workspace root's
+    /// `node_modules/.bin`.
+    pub extra_bin_paths: &'a [PathBuf],
+    /// Whether `config.hoist_pattern` hoists anything privately, which puts
+    /// hoisted bins in [`PatchedEngineCheck::virtual_store_dir`]'s
+    /// `node_modules/.bin`.
+    pub private_hoisting: bool,
+}
+
 /// Engine check options for patched packages.
 #[derive(Clone, Copy)]
 pub struct PatchedEngineCheck<'a> {
@@ -63,7 +79,13 @@ impl<'a> BuildScriptOptions<'a> {
         Self {
             extra_env,
             user_agent: &config.user_agent,
-            prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
+            path: ScriptPath {
+                prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
+                extra_bin_paths: &config.extra_bin_paths,
+                private_hoisting: config.hoist_pattern
+                    .as_ref()
+                    .is_some_and(|patterns| !patterns.is_empty()),
+            },
             shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
             unsafe_perm: config.unsafe_perm,

@@ -8,8 +8,9 @@ use pnpm_network::MetadataCacheScope;
 
 use super::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
-    encode_pkg_name, get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers,
-    load_meta_with_hold_cap, save_meta_indexed, scoped_meta_dir,
+    encode_pkg_name, get_legacy_pkg_mirror_path, get_legacy_registry_name, get_pkg_mirror_path,
+    get_registry_name, load_meta, load_meta_headers, load_meta_with_hold_cap, save_meta_indexed,
+    scoped_meta_dir,
 };
 
 #[test]
@@ -154,6 +155,62 @@ fn get_registry_name_cannot_collide_with_an_earlier_pnpm_version() {
     }
     assert_eq!(get_registry_name("https://nexus_npm/").expect("encode"), "https%3A+nexus_npm");
     assert_eq!(get_registry_name("https://nexus/npm/").expect("encode"), "https%3A+nexus%2Fnpm");
+}
+
+/// [`get_legacy_registry_name`] reproduces `encode-registry`: the URL's host, with `:`
+/// replaced by `+` for a non-default port, and no scheme, path, or hash suffix.
+#[test]
+fn get_legacy_registry_name_matches_the_pre_rename_encoding() {
+    assert_eq!(
+        get_legacy_registry_name("https://registry.npmjs.org/").expect("legacy encode"),
+        "registry.npmjs.org",
+    );
+    assert_eq!(
+        get_legacy_registry_name("https://npm.example:8443/").expect("legacy encode"),
+        "npm.example+8443",
+    );
+    assert_eq!(
+        get_legacy_registry_name("https://npm.example:443/").expect("legacy encode"),
+        "npm.example",
+    );
+    assert_eq!(
+        get_legacy_registry_name("http://localhost:4873/").expect("legacy encode"),
+        "localhost+4873",
+    );
+}
+
+#[test]
+fn get_legacy_registry_name_none_for_a_hostless_url() {
+    assert_eq!(get_legacy_registry_name("not a url"), None);
+}
+
+#[test]
+fn get_legacy_pkg_mirror_path_sits_next_to_the_current_mirror() {
+    let cache_dir = TempDir::new().expect("tempdir");
+    let current = get_pkg_mirror_path(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        "https://registry.npmjs.org/",
+        "acme",
+    )
+    .expect("current path");
+    let legacy = get_legacy_pkg_mirror_path(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        "https://registry.npmjs.org/",
+        "acme",
+    )
+    .expect("legacy path");
+    assert_eq!(legacy.file_name(), current.file_name(), "same package, same file name");
+    assert_ne!(legacy, current, "legacy and current mirrors never collide");
+    assert_eq!(
+        legacy,
+        cache_dir
+            .path()
+            .join(ABBREVIATED_META_DIR)
+            .join("registry.npmjs.org")
+            .join("acme.jsonl"),
+    );
 }
 
 /// `http` metadata can be rewritten in transit and must never be handed to
@@ -445,7 +502,7 @@ fn load_meta_headers_round_trip() {
         .join("nested")
         .join("lodash.jsonl");
     let pkg = fixture_package();
-    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#), false).expect("save");
     let headers = load_meta_headers(&mirror).expect("read headers back");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"abc""#));
     assert_eq!(headers.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
@@ -456,7 +513,7 @@ fn load_meta_round_trip_hydrates_versions_from_spans() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
-    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#), false).expect("save");
     let loaded = load_meta(&mirror).expect("read full back");
     assert_eq!(loaded.name, "acme");
     assert_eq!(loaded.etag.as_deref(), Some(r#"W/"abc""#));
@@ -471,7 +528,7 @@ fn load_meta_survives_mirror_rewrite() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
-    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    save_meta_indexed(&mirror, &pkg, None, false).expect("save");
     let loaded = load_meta(&mirror).expect("read full back");
     // The fatter `0.9.0` fragment shifts `1.0.0`'s offset, so a loader
     // that re-read the path instead of the pinned inode parses garbage.
@@ -501,7 +558,7 @@ fn load_meta_survives_mirror_rewrite() {
         }
     }))
     .expect("deserialize rewritten Package");
-    save_meta_indexed(&mirror, &newer, None).expect("overwrite");
+    save_meta_indexed(&mirror, &newer, None, false).expect("overwrite");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate after rewrite");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
 }
@@ -511,7 +568,7 @@ fn load_meta_past_the_hold_cap_buffers_fragments_instead_of_missing() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
-    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#), false).expect("save");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
@@ -531,7 +588,7 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
-    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    save_meta_indexed(&mirror, &pkg, None, false).expect("save");
     let file = std::fs::OpenOptions::new()
         .write(true)
         .open(&mirror)
@@ -606,7 +663,7 @@ fn load_meta_rejects_truncated_fragments() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
-    save_meta_indexed(&mirror, &pkg, None).expect("save");
+    save_meta_indexed(&mirror, &pkg, None, false).expect("save");
     let full = std::fs::read(&mirror).expect("read mirror");
     std::fs::write(&mirror, &full[..full.len() - 10]).expect("truncate");
     assert!(load_meta(&mirror).is_none());
@@ -658,8 +715,8 @@ fn save_meta_overwrites_existing_mirror() {
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
 
-    save_meta_indexed(&mirror, &pkg, Some(r#"W/"old""#)).expect("first save");
-    save_meta_indexed(&mirror, &pkg, Some(r#"W/"new""#)).expect("second save");
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"old""#), false).expect("first save");
+    save_meta_indexed(&mirror, &pkg, Some(r#"W/"new""#), false).expect("second save");
 
     let headers = load_meta_headers(&mirror).expect("read headers");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"new""#));

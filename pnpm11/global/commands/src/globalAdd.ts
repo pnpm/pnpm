@@ -78,7 +78,7 @@ export async function handleGlobalAdd (
   summaryLogger.debug({ prefix: globalDir })
 }
 
-interface InstallGroupContext {
+export interface InstallGroupContext {
   opts: GlobalAddOptions
   globalDir: string
   globalBinDir: string
@@ -86,7 +86,7 @@ interface InstallGroupContext {
   params: string[]
 }
 
-async function installGroup (
+export async function installGroup (
   ctx: InstallGroupContext,
   commands: CommandHandlerMap
 ): Promise<void> {
@@ -241,7 +241,7 @@ function refersToExistingLocalPath (param: string, baseDir: string): boolean {
   }
 }
 
-function resolveLocalParam (param: string, baseDir: string): string {
+export function resolveLocalParam (param: string, baseDir: string): string {
   for (const prefix of ['file:', 'link:']) {
     if (param.startsWith(prefix)) {
       const rest = param.slice(prefix.length)

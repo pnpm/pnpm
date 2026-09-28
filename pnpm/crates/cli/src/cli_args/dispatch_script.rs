@@ -86,6 +86,9 @@ pub(super) fn test<'a>(
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
+    // A built-in command that a same-named script replaces arrives here with
+    // its own name in `npm_command`, and a script run reports `run-script`.
+    config.extra_env.insert("npm_command".to_string(), "run-script".to_string());
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.locations.dir;
     let reporter = ctx.reporter();

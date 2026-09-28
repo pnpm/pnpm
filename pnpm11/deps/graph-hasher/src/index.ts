@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
+import { getPkgIdWithPatchHash, packageRootLinkTarget, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -112,6 +112,13 @@ export function calcDepStateInputKey<T extends string> (
   return result
 }
 
+/**
+ * The side-effects diff format the cache key names. Format 2 records the
+ * symlinks a build creates, which a pnpm version reading format 1 would
+ * restore as regular files, so the two formats are kept under separate keys.
+ */
+export const SIDE_EFFECTS_FORMAT_KEY = 'format=2'
+
 export function calcDepState<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
@@ -134,7 +141,7 @@ export function calcDepState<T extends string> (
   }
 ): string {
   const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
-  let result = engineName(ownPin ?? opts.nodeVersion)
+  let result = `${engineName(ownPin ?? opts.nodeVersion)};${SIDE_EFFECTS_FORMAT_KEY}`
   if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash({
       depsGraph,
@@ -149,6 +156,14 @@ export function calcDepState<T extends string> (
     result += `;patch=${opts.patchFileHash}`
   }
   return result
+}
+
+export function shouldIncludeDepGraphHash (opts: {
+  ignoreScripts: boolean
+  deferDependencyBuilds: boolean
+  requiresBuild: boolean | undefined
+}): boolean {
+  return (!opts.ignoreScripts || opts.deferDependencyBuilds) && opts.requiresBuild === true
 }
 
 interface CalcDepGraphHashOptions<T extends string> {
@@ -182,6 +197,8 @@ function calcDepGraphHash<T extends string> ({
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
+        // The parent's own integrity already covers a directory inside it.
+        if (packageRootLinkTarget(childId) != null) continue
         deps[alias] = calcDepGraphHash({
           depsGraph,
           cache,
@@ -527,7 +544,7 @@ function lockfileDepsToGraphChildren (
     const depPath = refToRelative(reference, alias)
     if (depPath) {
       children[alias] = depPath
-    } else if (lockfileDir != null && reference.startsWith('link:')) {
+    } else if (lockfileDir != null && reference.startsWith('link:') && packageRootLinkTarget(reference) == null) {
       const linkTargetNode = `link:${path.resolve(lockfileDir, reference.slice(5))}` as DepPath
       children[alias] = linkTargetNode
       linkTargetNodes.add(linkTargetNode)

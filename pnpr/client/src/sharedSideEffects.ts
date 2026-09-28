@@ -4,6 +4,8 @@ import https from 'node:https'
 import { URL } from 'node:url'
 import util, { TextDecoder } from 'node:util'
 
+import { SYMLINK_MODE } from '@pnpm/store.cafs'
+
 export const DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND = 'dependency-side-effects:v1'
 export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
 export const WORKSPACE_TASK_ARTIFACT_KIND = 'workspace-task:v1'
@@ -689,7 +691,7 @@ function validateManifest (manifest: ArtifactManifest): void {
     if (file == null || typeof file !== 'object') throw new Error('Shared artifact file entry is malformed')
     validateManifestPath(file.path)
     insertUniquePath(file.path, exactPaths, foldedPaths)
-    if (file.mode !== 0o644 && file.mode !== 0o755) {
+    if (file.mode !== 0o644 && file.mode !== 0o755 && file.mode !== SYMLINK_MODE) {
       throw new Error(`Shared artifact path ${JSON.stringify(file.path)} has unsupported mode ${String(file.mode)}`)
     }
     if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > MAX_FILE_SIZE) {

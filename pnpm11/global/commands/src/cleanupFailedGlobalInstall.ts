@@ -1,5 +1,6 @@
 import fs from 'node:fs'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 import { getSingleLineErrorMessage } from './errorMessage.js'
 
@@ -39,6 +40,6 @@ export async function cleanupFailedGlobalInstall (
 }
 
 function getErrorCode (err: unknown): string | undefined {
-  if (!util.types.isNativeError(err) || !('code' in err)) return undefined
+  if (!isError(err) || !('code' in err)) return undefined
   return typeof err.code === 'string' ? err.code : undefined
 }

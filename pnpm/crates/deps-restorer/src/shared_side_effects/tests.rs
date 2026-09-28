@@ -1,6 +1,7 @@
 use super::{package_version, platform::validate_windows_kernel_version};
 use crate::shared_side_effects::platform::parse_macos_product_version;
 use pnpm_lockfile::PackageKey;
+use std::collections::HashMap;
 
 #[test]
 fn parses_macos_product_versions() {
@@ -137,6 +138,58 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     }
 }
 
+/// A persisted symlink entry is backed by the CAS blob that holds its target,
+/// which the overlay names by the link's path rather than by the blob's.
+#[tokio::test]
+async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
+    use pnpm_store_dir::{CafsFileInfo, SYMLINK_MODE, SideEffectsDiff, SideEffectsOverlay};
+
+    let store = tempfile::tempdir().unwrap();
+    let store_dir = pnpm_store_dir::StoreDir::new(store.path());
+    let target = b"addon.node";
+    let (path, hash) = store_dir.write_cas_file(target, false).unwrap();
+    let link = "build/addon-alias.node".to_string();
+    let diff = SideEffectsDiff {
+        added: Some(HashMap::from([(
+            link.clone(),
+            CafsFileInfo {
+                checked_at: None,
+                digest: format!("{hash:x}"),
+                mode: SYMLINK_MODE,
+                size: target.len() as u64,
+            },
+        )])),
+        deleted: None,
+        remote_origin: None,
+    };
+    let overlay = SideEffectsOverlay {
+        files: HashMap::new(),
+        symlinks: HashMap::from([(link, "addon.node".to_string())]),
+    };
+    assert!(
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+            .await
+            .unwrap(),
+    );
+    assert!(
+        !super::stored_remote_side_effects_blobs_are_valid(
+            &store_dir,
+            &diff,
+            &SideEffectsOverlay::default(),
+        )
+        .await
+        .unwrap(),
+        "an overlay that does not restore the link does not stand for the row",
+    );
+
+    std::fs::remove_file(&path).unwrap();
+    assert!(
+        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+            .await
+            .unwrap(),
+    );
+}
+
 /// A restore only happens where the remote cache applies at all. Unsupported
 /// libc, operating-system, and architecture combinations have no restore to
 /// observe, so the platform gates below make that boundary visible to tests.
@@ -160,7 +213,9 @@ mod restore {
     use pnpm_shared_artifact_protocol::{
         ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
     };
-    use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreDir};
+    use pnpm_store_dir::{
+        CafsFileInfo, RemoteSideEffectsOrigin, SYMLINK_MODE, SideEffectsDiff, StoreDir,
+    };
     use sha2::{Digest as _, Sha512};
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
@@ -171,6 +226,9 @@ mod restore {
     const SNAPSHOT: &str = "native-addon@1.0.0";
     const BUILT_FILE: &str = "build/addon.node";
     const BUILT_MODE: u32 = 0o755;
+    /// A symlink the build created next to [`BUILT_FILE`], pointing at it.
+    const LINK_PATH: &str = "build/addon-alias.node";
+    const LINK_TARGET: &[u8] = b"addon.node";
     const KEY_ID: &str = "acme-2026";
     const ORGANIZATION: &str = "acme";
     /// Seeds the fixture signing key. The trust root the config carries is
@@ -261,6 +319,24 @@ mod restore {
             }],
             deleted: Vec::new(),
         }
+    }
+
+    /// The blobs behind [`built_manifest`], keyed by integrity as the blob
+    /// endpoint is asked for them.
+    fn built_blobs() -> BTreeMap<String, Vec<u8>> {
+        BTreeMap::from([(integrity_of(built_bytes()), built_bytes().to_vec())])
+    }
+
+    /// [`built_manifest`] plus the symlink at [`LINK_PATH`].
+    fn linked_manifest() -> ArtifactManifest {
+        let mut manifest = built_manifest();
+        manifest.added.push(ArtifactFile {
+            path: LINK_PATH.to_string(),
+            integrity: integrity_of(LINK_TARGET),
+            mode: SYMLINK_MODE,
+            size: LINK_TARGET.len() as u64,
+        });
+        manifest
     }
 
     /// Sign the artifact the server offers for `request`'s one candidate.
@@ -403,24 +479,33 @@ mod restore {
     /// the blob endpoint was hit exactly `expected_downloads` times, and
     /// return the path the resulting overlay maps the built file to.
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
-        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
-        let side_effects = apply(store_dir, built_manifest(), expected_downloads).await;
-        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
-        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
-            panic!("expected one cache key, got {}", maps.len());
-        };
-        overlay
+        let side_effects =
+            apply(store_dir, built_manifest(), built_blobs(), expected_downloads).await;
+        restored_overlay(&side_effects).files
             .get(BUILT_FILE)
             .expect("the built file must be in the overlay")
             .clone()
     }
 
+    /// The one overlay a restore recorded for the fixture snapshot.
+    fn restored_overlay(
+        side_effects: &SideEffectsMapsBySnapshot,
+    ) -> &pnpm_store_dir::SideEffectsOverlay {
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
+        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
+            panic!("expected one cache key, got {}", maps.len());
+        };
+        overlay
+    }
+
     /// Apply the shared cache against a server that offers `manifest` for
-    /// the one snapshot, asserting that the blob endpoint was hit exactly
-    /// `expected_downloads` times.
+    /// the one snapshot and serves `blobs` by integrity, asserting that the
+    /// blob endpoint was hit exactly `expected_downloads` times.
     async fn apply(
         store_dir: &StoreDir,
         manifest: ArtifactManifest,
+        blobs: BTreeMap<String, Vec<u8>>,
         expected_downloads: usize,
     ) -> SideEffectsMapsBySnapshot {
         let snapshots = snapshots();
@@ -458,7 +543,15 @@ mod restore {
             .await;
         let blob = server
             .mock("POST", "/-/pnpr/v0/artifacts/blob")
-            .with_body(built_bytes())
+            .with_body_from_request(move |request| {
+                let request: pnpm_pnpr_client::ArtifactBlobRequest =
+                    serde_json::from_slice(request.body().expect("blob body"))
+                        .expect("blob request");
+                blobs
+                    .get(&request.integrity)
+                    .expect("a blob the manifest names")
+                    .clone()
+            })
             .expect(expected_downloads)
             .create_async()
             .await;
@@ -583,12 +676,54 @@ mod restore {
         let store_dir = StoreDir::new(store.path());
         let empty = ArtifactManifest { added: Vec::new(), deleted: Vec::new() };
 
-        let side_effects = apply(&store_dir, empty, 0).await;
+        let side_effects = apply(&store_dir, empty, BTreeMap::new(), 0).await;
 
         let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
         assert!(
             !side_effects.contains_key(&snapshot_key),
             "an empty artifact must not count as built: {side_effects:?}",
+        );
+    }
+
+    /// A symlink travels as an added entry whose blob is its target, and the
+    /// restore records it as a link to create rather than a file to write.
+    /// Windows cannot create the link, so there the artifact is rejected and
+    /// the package is built locally.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_recorded_symlink_is_restored_as_a_link() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let mut blobs = built_blobs();
+        blobs.insert(integrity_of(LINK_TARGET), LINK_TARGET.to_vec());
+
+        let side_effects = apply(&store_dir, linked_manifest(), blobs, 2).await;
+
+        if cfg!(windows) {
+            let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+            assert!(
+                !side_effects.contains_key(&snapshot_key),
+                "a symlink artifact must not count as built on Windows: {side_effects:?}",
+            );
+            return;
+        }
+        let overlay = restored_overlay(&side_effects);
+        assert!(overlay.files.contains_key(BUILT_FILE));
+        assert!(!overlay.files.contains_key(LINK_PATH), "{:?}", overlay.files);
+        assert_eq!(
+            overlay.symlinks,
+            HashMap::from([(LINK_PATH.to_string(), "addon.node".to_string())]),
         );
     }
 
@@ -695,6 +830,50 @@ mod restore {
             remote_origin: None,
         };
         publish(config, store_dir, built).await;
+        published.assert_async().await;
+    }
+
+    /// A build that created a symlink is shared like any other.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_diff_with_a_symlink_is_published() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let mut server = mockito::Server::new_async().await;
+        let config = publishing_config(&server.url(), &store_dir);
+        let published = server
+            .mock("PUT", "/-/pnpr/v0/artifacts")
+            .expect(1)
+            .create_async()
+            .await;
+        store_dir.write_cas_file(LINK_TARGET, false).expect("seed the link target");
+        let linked = SideEffectsDiff {
+            added: Some(HashMap::from([(
+                LINK_PATH.to_string(),
+                CafsFileInfo {
+                    checked_at: None,
+                    digest: pnpm_pnpr_client::blob_id(&integrity_of(LINK_TARGET)).unwrap(),
+                    mode: SYMLINK_MODE,
+                    size: LINK_TARGET.len() as u64,
+                },
+            )])),
+            deleted: None,
+            remote_origin: None,
+        };
+
+        publish(config, store_dir, linked).await;
+
         published.assert_async().await;
     }
 }

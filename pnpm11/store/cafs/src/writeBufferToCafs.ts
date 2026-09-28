@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 import workerThreads from 'node:worker_threads'
 
+import { isError } from '@pnpm/error'
 import { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { renameOverwriteSync } from 'rename-overwrite'
 
@@ -62,7 +62,7 @@ function writeOrCheck (
   try {
     writeFileExclusive(fileDest, buffer, mode)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') {
       // Another process created the file. If it finished successfully,
       // integrity will pass. If it crashed or is still writing, integrity
       // will fail and we recover via atomic temp+rename.
@@ -185,7 +185,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
   try {
     renameOverwriteSync(temp, fileDest)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
     // The temporary file path is created by appending the process ID to the target file name.
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817

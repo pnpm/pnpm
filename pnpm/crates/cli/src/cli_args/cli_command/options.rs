@@ -242,6 +242,16 @@ impl super::CliNetworkArgs {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
+        if self.https_proxy.is_some() {
+            config.cli_settings.insert("httpsProxy".to_string());
+        }
+        if self.http_proxy.is_some() {
+            config.cli_settings.insert("httpProxy".to_string());
+        }
+        if self.no_proxy.is_some() {
+            config.cli_settings.insert("noProxy".to_string());
+            config.cli_settings.insert("noproxy".to_string());
+        }
         if let Some(registry) = self.registry.as_deref() {
             crate::config_overrides::apply_registry_override(config, registry);
         }

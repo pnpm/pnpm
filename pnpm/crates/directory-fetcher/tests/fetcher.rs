@@ -153,3 +153,44 @@ fn run_in_package_files_mode_honors_files_field() {
         ],
     );
 }
+
+fn fetcher_for(directory: &Path) -> DirectoryFetcher {
+    DirectoryFetcher {
+        directory: directory.to_path_buf(),
+        include_only_package_files: true,
+        resolve_symlinks: false,
+        preserve_symlinks: false,
+        allow_path_escape: false,
+    }
+}
+
+#[test]
+fn run_tolerates_an_unbuilt_publish_directory() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(
+        root,
+        "package.json",
+        r#"{ "name": "x", "version": "1.0.0", "publishConfig": { "directory": "dist" } }"#,
+    );
+
+    let out = fetcher_for(&root.join("dist")).run().unwrap();
+
+    assert!(!out.exists);
+    assert!(out.files_map.is_empty());
+    let manifest = out.manifest.expect("owning project's manifest");
+    assert_eq!(manifest.get("name").and_then(|v| v.as_str()), Some("x"));
+}
+
+#[test]
+fn run_fails_for_a_missing_directory_that_no_project_publishes_from() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(
+        root,
+        "package.json",
+        r#"{ "name": "x", "version": "1.0.0", "publishConfig": { "directory": "dist" } }"#,
+    );
+
+    assert!(fetcher_for(&root.join("missing")).run().is_err());
+}

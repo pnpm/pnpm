@@ -25,13 +25,12 @@ pub enum CheckGlobalBinDirError {
 
     /// The configured global bin directory is not one of the `PATH` entries.
     #[display(r#"The configured global bin directory "{}" is not in PATH"#, global_bin_dir.display())]
-    #[diagnostic(
-        code(ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH),
-        help(r#"Run "pnpm setup" to update your shell configuration."#)
-    )]
+    #[diagnostic(code(ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH))]
     NotInPath {
         #[error(not(source))]
         global_bin_dir: PathBuf,
+        #[help]
+        hint: String,
     },
 
     /// The global bin directory is missing or not writable by the CLI.
@@ -60,6 +59,7 @@ pub fn check_global_bin_dir(
     if !global_bin_dir_is_in_path(global_bin_dir, path_env) {
         return Err(CheckGlobalBinDirError::NotInPath {
             global_bin_dir: global_bin_dir.to_path_buf(),
+            hint: not_in_path_hint(path_env),
         });
     }
     if should_allow_write && !can_write_to_dir_and_exists(global_bin_dir) {
@@ -77,6 +77,34 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
             dirs_equal(global_bin_dir, &dir)
                 || real_global_bin_dir.as_deref().is_some_and(|real| dirs_equal(real, &dir))
         })
+}
+
+/// An entry such as `%PNPM_HOME%\bin` reaching the process verbatim means
+/// Windows did not expand the variable it references: the variable is unset,
+/// or it is a user variable stored as `REG_EXPAND_SZ`, which Windows does not
+/// expand inside the user `Path`. Name that entry instead of suggesting a
+/// `PATH` change the user has seemingly already made. Elsewhere `%` is not
+/// expansion syntax, so the entry is taken literally.
+fn not_in_path_hint(path_env: &str) -> String {
+    let unexpanded = std::env::split_paths(path_env)
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .find(|dir| has_unexpanded_env_reference(dir));
+    match unexpanded.filter(|_| cfg!(windows)) {
+        Some(entry) => format!(
+            r#"PATH contains "{entry}", which was not expanded. A variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
+        ),
+        None => r#"Run "pnpm setup" to update your shell configuration."#.to_string(),
+    }
+}
+
+/// Whether `dir` contains a `%NAME%` environment variable reference.
+fn has_unexpanded_env_reference(dir: &str) -> bool {
+    // Segments at odd indexes sit between a pair of `%` when another
+    // segment follows them.
+    let segments: Vec<&str> = dir.split('%').collect();
+    (1..segments.len().saturating_sub(1))
+        .step_by(2)
+        .any(|index| !segments[index].is_empty())
 }
 
 /// Compares two directories the way `path.relative(dir1, dir2) === ''`

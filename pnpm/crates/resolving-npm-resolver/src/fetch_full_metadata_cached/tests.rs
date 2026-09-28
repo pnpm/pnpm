@@ -4,6 +4,9 @@ mod metadata_cache_body_read_failure_retries;
 
 mod metadata_cache_cold_cache_writes_mirror;
 
+#[cfg(unix)]
+mod metadata_cache_filtered_write_failure;
+
 use mockito::Matcher;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;
@@ -12,8 +15,8 @@ use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 use crate::{
     FetchMetadataError,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
-        load_meta, load_meta_headers, save_meta_indexed,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_path,
+        get_pkg_mirror_path, load_meta, load_meta_headers, save_meta_indexed,
     },
 };
 
@@ -137,7 +140,8 @@ fn write_stale_mirror(
 ) -> std::path::PathBuf {
     let mirror_path = get_pkg_mirror_path(cache_dir, meta_dir, registry, "acme").expect("path");
     let meta = serde_json::from_str(PACKAGE_BODY).expect("package body");
-    save_meta_indexed(&mirror_path, &meta, Some(r#"W/"stale""#)).expect("write stale mirror");
+    save_meta_indexed(&mirror_path, &meta, Some(r#"W/"stale""#), false)
+        .expect("write stale mirror");
     mirror_path
 }
 

@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util, { stripVTControlCharacters } from 'node:util'
+import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
 import { BUILTIN_REGISTRIES_BY_PREFIX, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
@@ -107,6 +107,13 @@ export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOpti
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
+  /**
+   * Skip creating the global bin directory and checking that it is on `PATH`.
+   * `pnpm env remove` deletes Node copies pnpm stored for itself and must
+   * run when that directory is absent or not on `PATH`.
+   * Commands that link executables into the global bin still create it and check it.
+   */
+  skipGlobalBinDirCheck?: boolean
   cliOptions: CliOptions
   packageManager: {
     name: string
@@ -471,7 +478,7 @@ export async function getConfig (opts: {
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
     pnpmConfig.bin = pnpmConfig.globalBinDir ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
-    if (pnpmConfig.bin) {
+    if (pnpmConfig.bin && !opts.skipGlobalBinDirCheck) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     }
@@ -943,7 +950,6 @@ export async function getConfig (opts: {
   } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
     pnpmConfig.production = false
     pnpmConfig.dev = true
-    pnpmConfig.optional = false
   } else {
     pnpmConfig.production = true
     pnpmConfig.dev = true
@@ -1160,6 +1166,23 @@ const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'update',
   'updateConfig',
 ])
+
+// The migrated keys whose values the lockfile records. An install that ignores
+// one of them rewrites the lockfile without it.
+const LOCKFILE_RECORDED_PNPM_FIELD_KEYS = new Set<string>([
+  'ignoredOptionalDependencies',
+  'overrides',
+  'packageExtensions',
+  'patchedDependencies',
+])
+
+/**
+ * The migrated keys the manifest still declares under `pnpm` whose values the
+ * lockfile records.
+ */
+export function getIgnoredLockfilePnpmFieldKeys (manifest: ProjectManifest): string[] {
+  return getIgnoredPnpmFieldKeys(manifest).filter(key => LOCKFILE_RECORDED_PNPM_FIELD_KEYS.has(key))
+}
 
 function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
   const legacyField = (manifest as { pnpm?: unknown }).pnpm
@@ -1538,7 +1561,7 @@ function parseStringValuedJsonObject (value: string, variable: string): Record<s
     parsed = JSON.parse(value)
   } catch (err: unknown) {
     throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV',
-      `${variable} is not valid JSON: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+      `${variable} is not valid JSON: ${isError(err) ? err.message : String(err)}`)
   }
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.values(parsed).every((item) => typeof item === 'string')) {
     throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV', `${variable} must be a JSON object with string values`)

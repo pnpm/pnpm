@@ -124,6 +124,21 @@ fn differently_spelled_equivalent_ranges_do_not_grow_the_merged_range() {
     assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
 }
 
+/// Consumers whose unions overlap leave overlapping pairs of alternatives
+/// in each intersection, and those merge back into a single range.
+#[test]
+fn overlapping_consumer_unions_merge_into_one_range() {
+    let ranges: Vec<String> = (0..64)
+        .map(|patch| format!(">=1.0.{patch} <2.0.{patch} || >=1.1.{patch} <2.1.{patch}"))
+        .collect();
+    let ranges: Vec<&str> = ranges
+        .iter()
+        .map(String::as_str)
+        .collect();
+
+    assert_eq!(merge_ranges(&ranges, false).as_deref(), Some(">=1.0.63 <2.1.0"));
+}
+
 /// A scheme specifier is not a semver range, so intersecting it would
 /// drop the peer instead of hoisting it.
 #[test]

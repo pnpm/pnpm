@@ -340,25 +340,28 @@ Recurring engineering conventions in this codebase — the rules reviewers most 
 
 ## Common Gotchas
 
-### Error Type Checking in Jest (TypeScript only)
+### Error Type Checking (TypeScript only)
 
-When checking if a caught error is an `Error` object, **do not use `instanceof Error`**. Jest runs tests in a VM context where `instanceof` checks can fail across realms.
-
-Instead, use `util.types.isNativeError()`:
+When checking if a caught value is an `Error`, use `isError()` from `@pnpm/error`. Do not use `instanceof Error` or `util.types.isNativeError()` alone. Jest runs tests in a VM context where `instanceof` fails across realms. StackBlitz WebContainers reject async `fs` calls with errors that `util.types.isNativeError()` does not recognize. `isError()` accepts both.
 
 ```typescript
-import util from 'util'
+import { isError } from '@pnpm/error'
 
 try {
   // ... some operation
 } catch (err: unknown) {
-  // ❌ Wrong - may fail in Jest
+  // ❌ Wrong - fails in Jest
   if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
     return null
   }
-  
-  // ✅ Correct - works across realms
+
+  // ❌ Wrong - fails in WebContainers
   if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    return null
+  }
+
+  // ✅ Correct
+  if (isError(err) && 'code' in err && err.code === 'ENOENT') {
     return null
   }
   throw err
@@ -369,7 +372,7 @@ try {
 
 The [`pull-requests`](./.agents/skills/pull-requests/SKILL.md) skill covers taking
 a change through a pull request: opening it from the template, waiting for the
-checks, and working the review rounds. Two rules hold whether or not it is loaded:
+checks, and working the review rounds. These rules hold whether or not it is loaded:
 
 -   **Open the PR as a draft.** CI runs on a draft in this repository and the
     reviewers do not, so the checks and your own pass over the diff happen
@@ -380,6 +383,14 @@ checks, and working the review rounds. Two rules hold whether or not it is loade
     failure, verify each finding before acting on it, and push the fixes. Repeat
     until the checks are green and a round produces nothing to act on. Handing
     back a PR that has an unread round or a red check on it is unfinished work.
+-   **File tasks in [pnpm/tasks](https://github.com/pnpm/tasks), not in pnpm/pnpm.**
+    An issue in pnpm/pnpm is a bug report against released pnpm behavior.
+    Planned work goes to pnpm/tasks (`gh issue create -R pnpm/tasks`): follow-ups
+    left by a PR, refactors, performance work, v11/v12 parity gaps, CI, benchmark
+    and test-harness work, and docs to update after a release. Feature ideas go to
+    [Discussions](https://github.com/pnpm/pnpm/discussions/new?category=ideas).
+    Report a security vulnerability the way [SECURITY.md](./SECURITY.md)
+    directs, not as a task.
 -   **Sign all agent-authored content.** When posting a comment, creating an issue, or opening a PR, append a footer to the message indicating that it was written by an agent. The footer must include the name of the agent and the name of the model used. Example:
 
     ```markdown

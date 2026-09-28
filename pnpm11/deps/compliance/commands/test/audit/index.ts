@@ -222,6 +222,19 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toContain('audited 2 packages')
     expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
   })
+  test('audit signatures throws on unresolvable lockfile dependency', async () => {
+    const dir = f.prepare('has-signatures')
+    const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
+    const lockfile = fs.readFileSync(lockfilePath, 'utf8')
+    fs.writeFileSync(lockfilePath, lockfile.replaceAll('signed-pkg@1.0.0', 'signed-pkg@1.99.99'))
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir,
+      rootProjectManifestDir: dir,
+    }, ['signatures'])).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' })
+  })
+
 
   test('audit rejects unknown subcommands', async () => {
     await expect(audit.handler({

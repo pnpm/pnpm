@@ -420,7 +420,7 @@ fn filter_importer(
     for (dependencies, include, retain_non_runtime) in [
         (&mut out.dependencies, included.dependencies, true),
         (&mut out.dev_dependencies, included.dev_dependencies, true),
-        (&mut out.optional_dependencies, included.optional_dependencies, false),
+        (&mut out.optional_dependencies, included.includes_project_optional_dependencies(), false),
     ] {
         if !include {
             *dependencies = None;

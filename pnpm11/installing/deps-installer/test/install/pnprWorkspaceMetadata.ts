@@ -87,6 +87,22 @@ test("pnpr forwards a single project's name and version", async () => {
   }))
 })
 
+test('pnpr forwards publishConfig for a single project', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = {
+    name: 'lib',
+    version: '1.2.3',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+  }
+
+  await install(manifest, createOptions(workspaceRoot, rootDir))
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    publishConfig: { directory: 'dist', linkDirectory: false },
+  }))
+})
+
 test("pnpr forwards a project's peer dependencies so the server can auto-install them", async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
@@ -125,7 +141,7 @@ test("pnpr forwards every workspace project's name and version", async () => {
     version: '1.0.0',
     dependencies: { lib: 'workspace:*' },
   }
-  const libManifest: ProjectManifest = { name: 'lib', version: '2.0.0' }
+  const libManifest: ProjectManifest = { name: 'lib', version: '2.0.0', publishConfig: { directory: 'dist' } }
   preparePackages([
     { location: 'packages/app', package: appManifest },
     { location: 'packages/lib', package: libManifest },
@@ -151,6 +167,7 @@ test("pnpr forwards every workspace project's name and version", async () => {
       dir: 'packages/app',
       name: 'app',
       version: '1.0.0',
+      publishConfig: undefined,
       dependencies: { lib: 'workspace:*' },
       devDependencies: undefined,
       optionalDependencies: undefined,
@@ -160,6 +177,7 @@ test("pnpr forwards every workspace project's name and version", async () => {
       dir: 'packages/lib',
       name: 'lib',
       version: '2.0.0',
+      publishConfig: { directory: 'dist', linkDirectory: undefined },
       dependencies: undefined,
       devDependencies: undefined,
       optionalDependencies: undefined,
@@ -461,4 +479,19 @@ test.each([false, true])('pnpr materialization keeps configured modules and bin 
   expect(fs.realpathSync(path.join(rootDir, modulesDir, 'tool'))).toBe(fs.realpathSync(path.join(rootDir, 'tool')))
   expect(fs.existsSync(path.join(binsDir, 'tool'))).toBe(true)
   expect(fs.existsSync(path.join(rootDir, 'node_modules/tool'))).toBe(false)
+})
+
+test('pnpr does not freeze an empty lockfile under frozenLockfileIfExists', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n")
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfileIfExists: true,
+    hooks: { calculatePnpmfileChecksum: async () => 'pnpmfile-checksum' },
+  })
+
+  await install({ name: 'app', version: '1.0.0' }, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: false }))
+  expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('pnpmfileChecksum: pnpmfile-checksum')
 })

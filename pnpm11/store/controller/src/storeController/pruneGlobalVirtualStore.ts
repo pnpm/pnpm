@@ -1,8 +1,8 @@
 import crypto from 'node:crypto'
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
@@ -284,7 +284,7 @@ async function getSubdirsSafely (dir: string): Promise<string[]> {
   try {
     entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err

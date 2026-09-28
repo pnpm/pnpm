@@ -200,3 +200,6 @@ async fn resolve_archive_metadata(
     };
     Ok(ResolvedTarballMetadata { resolution, manifest })
 }
+
+#[cfg(test)]
+mod tests;

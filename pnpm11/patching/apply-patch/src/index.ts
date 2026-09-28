@@ -1,8 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { applyPatch } from '@pnpm/patch-package/dist/applyPatches.js'
 import { parsePatchFile } from '@pnpm/patch-package/dist/patch/parse.js'
 
@@ -23,10 +22,10 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts): boolean {
       patchFilePath: opts.patchFilePath,
     })
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       throw new PnpmError('PATCH_NOT_FOUND', `Patch file not found: ${opts.patchFilePath}`)
     }
-    const message = util.types.isNativeError(err) ? err.message : String(err)
+    const message = isError(err) ? err.message : String(err)
     throw new PnpmError('INVALID_PATCH', `Applying patch "${opts.patchFilePath}" failed: ${message}`)
   } finally {
     process.chdir(cwd)
@@ -45,7 +44,7 @@ function assertPatchPathsStayInside (opts: ApplyPatchToDirOpts): void {
   try {
     patchContent = fs.readFileSync(opts.patchFilePath, 'utf8')
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       throw new PnpmError('PATCH_NOT_FOUND', `Patch file not found: ${opts.patchFilePath}`)
     }
     throw err

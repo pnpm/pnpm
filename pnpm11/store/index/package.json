@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.index",
-  "version": "1100.3.2",
+  "version": "1100.3.3",
   "description": "SQLite-backed index for the pnpm content-addressable store",
   "keywords": [
     "pnpm",
@@ -33,6 +33,8 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/store.file-mode": "workspace:*",
     "msgpackr": "catalog:"
   },
   "devDependencies": {

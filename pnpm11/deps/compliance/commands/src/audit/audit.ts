@@ -3,7 +3,7 @@ import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.uti
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -605,7 +605,7 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
       },
     })
   } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Audit fix canceled')
       process.exit(0)
     }

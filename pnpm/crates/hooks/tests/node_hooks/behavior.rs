@@ -5,6 +5,59 @@ use super::{
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]
+async fn read_package_rejects_non_object_results() {
+    for result in ["'a string'", "[]", "42", "0", "{ toJSON () { return 'a string' } }"] {
+        let (hooks, _tmp) = cjs_hooks(&format!(
+            "module.exports = {{ hooks: {{ readPackage () {{ return {result} }} }} }}",
+        ));
+        let err = hooks
+            .read_package(
+                serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+                pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+            )
+            .await
+            .expect_err("a non-object manifest must fail");
+        assert!(matches!(err, pnpm_hooks::HookError::BadReadPackageResult { .. }), "{err}");
+        assert!(
+            err.to_string().contains("readPackage hook did not return a package manifest object."),
+        );
+        assert!(err.to_string().contains(".pnpmfile.cjs"));
+    }
+}
+
+#[tokio::test]
+async fn read_package_rejects_invalid_serialized_dependencies() {
+    let (hooks, _tmp) = cjs_hooks(
+        "module.exports = { hooks: { readPackage () { return { name: 'foo', toJSON () { return { name: 'foo', version: '1.0.0', dependencies: { bar: 1 } } } } } } }",
+    );
+    let err = hooks
+        .read_package(
+            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
+        .await
+        .expect_err("serialized dependency ranges must be strings");
+    assert!(matches!(err, pnpm_hooks::HookError::BadReadPackageResult { .. }), "{err}");
+    assert!(err.to_string().contains("invalid range for 'bar'"), "{err}");
+}
+
+#[tokio::test]
+async fn read_package_rejects_unserializable_results() {
+    let (hooks, _tmp) = cjs_hooks(
+        "module.exports = { hooks: { readPackage () { const pkg = { name: 'foo' }; pkg.self = pkg; return pkg } } }",
+    );
+    let err = hooks
+        .read_package(
+            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
+        )
+        .await
+        .expect_err("a cyclic manifest must fail");
+    assert!(matches!(err, pnpm_hooks::HookError::BadReadPackageResult { .. }), "{err}");
+    assert!(err.to_string().contains("serializable package manifest object"), "{err}");
+}
+
+#[tokio::test]
 async fn read_package_fails_when_hook_returns_undefined() {
     let err = read_package_err("module.exports = { hooks: { readPackage (pkg) {} } }").await;
     eprintln!("err = {err}");

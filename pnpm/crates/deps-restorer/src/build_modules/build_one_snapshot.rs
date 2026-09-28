@@ -13,12 +13,12 @@ use slot_to_build::slot_to_build;
 use std::sync::atomic::Ordering;
 
 use super::{
-    AllowBuildPolicy, BuildModulesError, HashMap, LogEvent, LogLevel, NEEDS_BUILD_MARKER,
-    PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
-    allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
-    run_postinstall_hooks, slot_carries_overlay,
+    AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
+    PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
+    apply_patch_to_dir, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
+    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -29,7 +29,7 @@ pub(crate) struct BuildOneSnapshot<'a> {
     pub graph: crate::BuildSnapshotInputs<'a>,
     pub progress: crate::BuildProgress<'a>,
     pub scripts: crate::BuildScriptOptions<'a>,
-    pub(crate) runtime_node_bin_dir: Option<&'a Path>,
+    pub(crate) project_bin_dirs: &'a [PathBuf],
     pub(crate) allow_build_policy: &'a AllowBuildPolicy,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
 }
@@ -82,7 +82,7 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
+    let Some((pkg_dir, slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
         return Ok(());
     };
 
@@ -103,6 +103,7 @@ fn build_candidate<Reporter: self::Reporter>(
         snapshot_key,
         &pkg_dir,
         &extra_bin_paths,
+        slot_lock.as_ref(),
         (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
     )?
     else {
@@ -142,7 +143,7 @@ fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> V
     } else {
         Vec::new()
     };
-    extra_bin_paths.extend(context.runtime_node_bin_dir.map(Path::to_path_buf));
+    extra_bin_paths.extend_from_slice(context.project_bin_dirs);
     extra_bin_paths
 }
 
@@ -326,7 +327,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
 fn global_slot_carries_overlay(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> bool {
     context.directories.layout.enable_global_virtual_store()
         && context
@@ -342,6 +343,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
+    slot_lock: Option<&pnpm_fs::DirLock>,
     run: (bool, bool, &str, &str),
 ) -> Result<Option<bool>, BuildModulesError> {
     let (should_run_scripts, optional, name, version) = run;
@@ -357,11 +359,20 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
-            discard_skipped_optional_dependency(
-                context.pkg_roots(),
-                context.directories.lockfile_dir,
-                snapshot_key,
-            )?;
+            // A global virtual store slot is removed only by an install that
+            // holds its lock. A rebuild may re-run the scripts of a slot other
+            // projects use with a working build, and without the lock another
+            // install may be writing into the slot. A kept slot stays marked
+            // for the next install to rebuild.
+            if !context.directories.layout.enable_global_virtual_store()
+                || (context.rebuild.is_none() && slot_lock.is_some())
+            {
+                discard_skipped_optional_dependency(
+                    context.pkg_roots(),
+                    context.directories.lockfile_dir,
+                    snapshot_key,
+                )?;
+            }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
                 details: Some(err.to_string()),
@@ -391,14 +402,14 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
             init_cwd: context.directories.lockfile_dir,
             node_execpath: None,
             npm_execpath: None,
-            node_gyp_path: None,
+            node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(context.scripts.user_agent),
             extra_env: context.scripts.extra_env,
         },
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: context.scripts.prepend_node_path,
+            prepend_node_path: context.scripts.path.prepend_node_path,
             shell: context.scripts.shell,
             shell_emulator: context.scripts.shell_emulator,
             wd_bin_dir: None,

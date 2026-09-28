@@ -7,7 +7,7 @@ use pnpm_cmd_shim::{
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
-use pnpm_package_manifest::{parse_manifest_bytes, safe_read_project_manifest_from_dir};
+use pnpm_package_manifest::{find_parent_publish_manifest, parse_manifest_bytes};
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -288,28 +288,6 @@ fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, L
         .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path.to_path_buf(), error })
 }
 
-/// The manifest of a project enclosing `target` whose
-/// `publishConfig.directory` is `target`.
-fn read_parent_publish_manifest(target: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
-    let normalized_target = pnpm_fs::lexical_normalize(target);
-    for parent in target.ancestors().skip(1) {
-        let Some(manifest) = safe_read_project_manifest_from_dir(parent)
-            .map_err(LinkBinsError::ReadProjectManifest)?
-        else {
-            continue;
-        };
-        let is_publish_dir = manifest
-            .get("publishConfig")
-            .and_then(|cfg| cfg.get("directory"))
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
-        if is_publish_dir {
-            return Ok(Some(manifest));
-        }
-    }
-    Ok(None)
-}
-
 /// The disk-read arm of [`link_direct_dep_bins_prefetched`], with the
 /// same `NotFound`-tolerant / other-IO-fatal policy as
 /// [`link_direct_dep_bins`].
@@ -326,10 +304,11 @@ pub(super) fn read_dep_bin_source(
             })
         })
 }
-/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to a
-/// `publishConfig.directory` that has no manifest of its own falls back
-/// to the manifest of the project that declares that directory, found
-/// through `target`.
+/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to an
+/// existing `publishConfig.directory` that has no manifest of its own
+/// falls back to the manifest of the project that declares that
+/// directory, found through `target`. A publish directory that does not
+/// exist yet has no bins to link; a build creates it later.
 fn read_dep_manifest(
     modules_dir: &Path,
     name: &str,
@@ -338,7 +317,7 @@ fn read_dep_manifest(
     let location = modules_dir.join(name);
     let manifest = match read_manifest_at(&location.join("package.json")) {
         Ok(Some(manifest)) => manifest,
-        Ok(None) => match read_parent_publish_manifest(target?) {
+        Ok(None) => match read_existing_publish_manifest(target?) {
             Ok(Some(manifest)) => manifest,
             Ok(None) => return None,
             Err(err) => return Some(Err(err)),
@@ -346,6 +325,18 @@ fn read_dep_manifest(
         Err(err) => return Some(Err(err)),
     };
     Some(Ok((location, manifest)))
+}
+fn read_existing_publish_manifest(
+    target: &Path,
+) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    match fs::metadata(target) {
+        Ok(metadata) if metadata.is_dir() => {
+            find_parent_publish_manifest(target).map_err(LinkBinsError::ReadProjectManifest)
+        }
+        Ok(_) => Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LinkBinsError::ResolvePath { path: target.to_path_buf(), error }),
+    }
 }
 pub(super) fn link_named_dep_bins(
     modules_dir: &Path,

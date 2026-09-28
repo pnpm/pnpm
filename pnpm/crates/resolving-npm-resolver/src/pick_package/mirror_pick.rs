@@ -1,9 +1,21 @@
 use super::{
-    Arc, Package, PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
-    PickPackageResult, PickState, PolicyMatch, RegistryPackageSpec, RegistryPackageSpecType,
-    TrustPolicy, dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
-    pick_from_meta_fast, pick_stable_cached_range_version,
+    Arc, MetadataCacheScope, Package, PackageMetaCache, PickPackageContext, PickPackageError,
+    PickPackageOptions, PickPackageResult, PickState, PolicyMatch, RegistryPackageSpec,
+    RegistryPackageSpecType, TrustPolicy, Utc, cached_meta_misses_preferred_version,
+    dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
+    pick_from_meta_fast, pick_from_meta_offline, pick_stable_cached_range_version,
 };
+use crate::{
+    errors::legacy_mirror_hint,
+    mirror::{MetaHeaders, get_legacy_pkg_mirror_path, load_meta_headers_async},
+};
+
+/// Registries that omit `ETag` cannot answer `If-None-Match` with 304, so a
+/// warm revalidation downloads the whole packument. A public mirror younger
+/// than this and stored without an `ETag` is reused for a range the cache can
+/// already satisfy. The public npm registry sends `ETag`s, so it keeps
+/// conditional revalidation. After this age the mirror is fetched again.
+pub(crate) const UNVALIDATED_MIRROR_MAX_AGE: chrono::TimeDelta = chrono::TimeDelta::minutes(5);
 
 impl PickState<'_> {
     /// The picks a read-only mirror can answer without taking the fetch
@@ -15,10 +27,24 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
+        let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await;
+        // A registry that forbade caching must not be answered from the
+        // mirror on an online pick. Offline and prefer-offline still may.
+        if !ctx.cache_policy.offline
+            && !ctx.cache_policy.prefer_offline
+            && headers.as_ref().is_some_and(|headers| headers.uncacheable)
+        {
+            return None;
+        }
         if let Some(result) = self.version_spec_pick(ctx, spec, opts, disk_meta).await {
             return Some(result);
         }
         if let Some(result) = self.dominant_version_pick(ctx, spec, opts, disk_meta).await {
+            return Some(result);
+        }
+        if let Some(result) =
+            self.fresh_unvalidated_mirror_pick(ctx, spec, opts, headers.as_ref(), disk_meta).await
+        {
             return Some(result);
         }
         self.published_by_pick(ctx, spec, opts, disk_meta).await
@@ -56,6 +82,12 @@ impl PickState<'_> {
         };
         self.promote_unverified(ctx, opts, &meta);
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+    }
+
+    /// `true` when the mirror's header line says the last response forbade caching.
+    pub(super) async fn mirror_is_uncacheable(&self) -> bool {
+        load_meta_headers_async(self.pkg_mirror.as_deref()).await
+            .is_some_and(|headers| headers.uncacheable)
     }
 
     /// The mirror, loaded once and reused by every fast path.
@@ -100,6 +132,63 @@ impl PickState<'_> {
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }
 
+    /// A public mirror with no `ETag` cannot be revalidated cheaply. While it
+    /// is younger than [`UNVALIDATED_MIRROR_MAX_AGE`] and already satisfies
+    /// the range, skip the full download. A private route still contacts the
+    /// registry so a `401` is not hidden behind the mirror.
+    pub(super) async fn fresh_unvalidated_mirror_pick<Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'_, Cache>,
+        spec: &RegistryPackageSpec,
+        opts: &PickPackageOptions<'_>,
+        headers: Option<&MetaHeaders>,
+        disk_meta: &mut Option<Arc<Package>>,
+    ) -> Option<PickPackageResult> {
+        if !Self::range_can_reuse_unvalidated_mirror(ctx, spec, opts)
+            || !matches!(self.scope, MetadataCacheScope::Public)
+        {
+            return None;
+        }
+        let headers = headers?;
+        if headers.etag
+            .as_deref()
+            .is_some_and(|etag| !etag.is_empty())
+        {
+            return None;
+        }
+        let mtime = self.pkg_mirror.as_deref().and_then(get_file_mtime)?;
+        // The age is compared in both directions. A mirror dated far in the
+        // future, for example after the clock was set back, has an unknown
+        // age and is not reused. A few milliseconds of skew between the file
+        // system and the clock are tolerated.
+        if Utc::now().signed_duration_since(mtime).abs() >= UNVALIDATED_MIRROR_MAX_AGE {
+            return None;
+        }
+        let meta = self.mirror_meta(disk_meta).await?;
+        if cached_meta_misses_preferred_version(
+            &meta,
+            &spec.fetch_spec,
+            opts.preferred_version_selectors,
+        ) {
+            return None;
+        }
+        let Ok((picked_meta, Some(picked))) =
+            pick_from_meta_fast(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)
+        else {
+            return None;
+        };
+        self.promote_unverified(ctx, opts, &meta);
+        Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+    }
+
+    fn range_can_reuse_unvalidated_mirror<Cache: PackageMetaCache>(
+        ctx: &PickPackageContext<'_, Cache>,
+        spec: &RegistryPackageSpec,
+        opts: &PickPackageOptions<'_>,
+    ) -> bool {
+        Self::range_pick_is_stable(ctx, spec, opts) && !opts.request.refresh_metadata
+    }
+
     /// Whether a range pick could be settled from the mirror at all: every
     /// option that makes the answer depend on fresh metadata rules it out.
     pub(super) fn range_pick_is_stable<Cache: PackageMetaCache>(
@@ -131,6 +220,9 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
+        if ctx.cache_policy.offline && matches!(spec.spec_type, RegistryPackageSpecType::Range) {
+            return None;
+        }
         let published_by = opts.policy.published_by?;
         let fully_excluded = matches!(
             opts.policy.published_by_exclude.map(|policy| policy.matches(&spec.name)),
@@ -187,19 +279,9 @@ impl PickState<'_> {
         let meta = self.mirror_meta(disk_meta).await;
         if ctx.cache_policy.offline {
             let Some(meta) = meta else {
-                return Err(PickPackageError::NoOfflineMeta {
-                    spec_name: spec.name.clone(),
-                    spec_fetch_spec: spec.fetch_spec.clone(),
-                    pkg_mirror: self.pkg_mirror.clone().unwrap_or_default(),
-                });
+                return Err(self.no_offline_meta_error(ctx, spec, opts).await);
             };
-            // `maybe_upgrade_abbreviated_meta_for_release_age` short-circuits
-            // when offline, so a later cache hit returns this same meta
-            // without any network access.
-            self.promote_unverified(ctx, opts, &meta);
-            let (meta, picked) =
-                pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
-            return Ok(Some(PickPackageResult { meta, picked_package: picked }));
+            return Ok(Some(self.offline_pick(ctx, spec, opts, meta).await?));
         }
 
         let Some(meta) = meta else { return Ok(None) };
@@ -216,5 +298,56 @@ impl PickState<'_> {
         // load.
         *disk_meta = Some(meta);
         Ok(None)
+    }
+
+    async fn no_offline_meta_error(
+        &self,
+        ctx: &PickPackageContext<'_, impl PackageMetaCache>,
+        spec: &RegistryPackageSpec,
+        opts: &PickPackageOptions<'_>,
+    ) -> PickPackageError {
+        let legacy_mirror = ctx.metadata.cache_dir.and_then(|dir| {
+            get_legacy_pkg_mirror_path(dir, self.base_meta_dir, opts.registry, &spec.name)
+        });
+        let hint = match legacy_mirror {
+            Some(path) if tokio::fs::try_exists(&path).await.unwrap_or(false) => {
+                Some(legacy_mirror_hint(&path))
+            }
+            _ => None,
+        };
+        PickPackageError::NoOfflineMeta {
+            spec_name: spec.name.clone(),
+            spec_fetch_spec: spec.fetch_spec.clone(),
+            pkg_mirror: self.pkg_mirror.clone().unwrap_or_default(),
+            hint,
+        }
+    }
+
+    /// The offline disk read with its store-aware adjustment.
+    async fn offline_pick<Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'_, Cache>,
+        spec: &RegistryPackageSpec,
+        opts: &PickPackageOptions<'_>,
+        meta: Arc<Package>,
+    ) -> Result<PickPackageResult, PickPackageError> {
+        // `maybe_upgrade_abbreviated_meta_for_release_age` short-circuits
+        // when offline, so a later cache hit returns this same meta
+        // without any network access.
+        self.promote_unverified(ctx, opts, &meta);
+        let unfiltered_meta = Arc::clone(&meta);
+        let (meta, picked) = pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
+        let (meta, picked) = pick_from_meta_offline(
+            ctx.store_view,
+            &self.cache_key,
+            &self.picker_opts,
+            spec,
+            &unfiltered_meta,
+            meta,
+            picked,
+            opts.blocked_versions,
+        )
+        .await?;
+        Ok(PickPackageResult { meta, picked_package: picked })
     }
 }

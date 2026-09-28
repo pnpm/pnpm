@@ -1,15 +1,17 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
     importers_consuming_linked_peers, include_transitive_optional_dependencies,
-    is_partial_workspace_selection,
+    is_partial_workspace_selection, manifest_transforms::build_manifest_transforms,
 };
 use crate::install_with_fresh_lockfile::{
     persist::verify_merged_repair,
     seed_policy::{full_resolution_required, update_reuse_scopes},
 };
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, PackageExtension};
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 
@@ -43,12 +45,13 @@ fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
 
 #[test]
 fn partial_installs_keep_transitive_optional_dependencies() {
-    let prod_only = [DependencyGroup::Prod];
-    let with_optional = [DependencyGroup::Prod, DependencyGroup::Optional];
+    let without_optional =
+        IncludedDependencies { optional_dependencies: false, ..Default::default() };
+    let with_optional = IncludedDependencies { optional_dependencies: true, ..Default::default() };
 
-    assert!(include_transitive_optional_dependencies(false, &prod_only));
-    assert!(!include_transitive_optional_dependencies(true, &prod_only));
-    assert!(include_transitive_optional_dependencies(true, &with_optional));
+    assert!(include_transitive_optional_dependencies(false, without_optional));
+    assert!(!include_transitive_optional_dependencies(true, without_optional));
+    assert!(include_transitive_optional_dependencies(true, with_optional));
 }
 
 #[tokio::test]
@@ -66,6 +69,33 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
             pnpm_lockfile_verification::VerifyError::InvalidDependencyAlias { .. }
         )
     ));
+}
+
+#[test]
+fn builtin_compatibility_extensions_do_not_apply_to_importer_manifests() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = PackageManifest::from_value(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "name": "vue-loader",
+            "version": "0.0.0",
+        }),
+    );
+    let importer_manifests = std::collections::BTreeMap::from([(".".to_string(), &manifest)]);
+
+    let config = config_with_extensions(&[("vue-loader", &[("test-dependency", "1.0.0")])]);
+    let transforms = build_manifest_transforms(
+        &config,
+        &Catalogs::default(),
+        dir.path(),
+        &importer_manifests,
+        false,
+    )
+    .unwrap();
+    let effective_manifest = transforms.effective_importer_manifests.get(".").unwrap();
+
+    assert_eq!(effective_manifest.value()["dependencies"]["test-dependency"], "1.0.0");
+    assert_eq!(effective_manifest.value().get("peerDependencies"), None);
 }
 
 /// Ports `installing/.../packageExtensions.ts:103-153`

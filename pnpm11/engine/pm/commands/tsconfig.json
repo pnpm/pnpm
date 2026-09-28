@@ -80,6 +80,9 @@
       "path": "../../../network/auth-header"
     },
     {
+      "path": "../../../os/env/path-extender"
+    },
+    {
       "path": "../../../pkg-manifest/utils"
     },
     {

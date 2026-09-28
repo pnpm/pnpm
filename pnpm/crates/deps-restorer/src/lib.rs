@@ -40,7 +40,7 @@ pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
     BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs, PatchedEngineCheck,
+    BuildSnapshotInputs, PatchedEngineCheck, ScriptPath,
 };
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
@@ -51,7 +51,7 @@ pub use deps_graph::*;
 pub use dir_clone_cache::*;
 pub use frozen_install_options::{
     FrozenInstallDrivers, FrozenInstallSeed, FrozenLockfileInputs, FrozenPlatformOptions,
-    FrozenProjectInputs, PriorMaterialization,
+    FrozenProjectInputs, PriorMaterialization, SharedFetchCaches,
 };
 pub use hoist::*;
 pub use hoisted_dep_graph::*;
@@ -131,6 +131,17 @@ pub fn snapshot_has_patch(snapshot_key: &pnpm_lockfile::PackageKey) -> bool {
     pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
         .patch_hash_index
         .is_some()
+}
+
+/// Run `work`, which blocks its thread, from inside an `async fn`. On the
+/// multi-thread runtime, `block_in_place` moves the worker's other futures
+/// to another worker so async progress continues. It panics on the
+/// `current_thread` runtime that `#[tokio::test]` defaults to, so `work`
+/// runs as a plain call there.
+pub fn block_in_place_if_multi_thread<Output>(work: impl FnOnce() -> Output) -> Output {
+    let on_multi_thread = tokio::runtime::Handle::try_current()
+        .is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+    if on_multi_thread { tokio::task::block_in_place(work) } else { work() }
 }
 
 const MAX_SCRIPT_THREADS: usize = 256;

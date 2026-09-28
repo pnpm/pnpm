@@ -102,6 +102,81 @@ test('a RegExp selector attaches every matching script to the task', () => {
   ])
 })
 
+test('a RegExp selector seeds a task per matched script with its own dependsOn', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
+  }, '/test/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  expect(graph.has(taskKey(dir('a'), '/test/'))).toBe(false)
+  const testTask = graph.get(taskKey(dir('a'), 'test'))!
+  expect(testTask.scripts).toStrictEqual(['test'])
+  expect(testTask.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(testTask.requested).toBe(true)
+  expect(graph.get(taskKey(dir('a'), 'build'))!.requested).toBe(false)
+  expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+})
+
+test('a RegExp selector orders matched scripts that depend on each other', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
+  }, '/^(build|test)$/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  expect(graph.has(taskKey(dir('a'), '/^(build|test)$/'))).toBe(false)
+  expect(graph.get(taskKey(dir('a'), 'build'))!.requested).toBe(true)
+  expect(graph.get(taskKey(dir('a'), 'test'))!.requested).toBe(true)
+  expect(graph.get(taskKey(dir('a'), 'test'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+  const order = sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR })
+  expect(order.indexOf(taskKey(dir('b'), 'build'))).toBeLessThan(order.indexOf(taskKey(dir('a'), 'build')))
+  expect(order.indexOf(taskKey(dir('a'), 'build'))).toBeLessThan(order.indexOf(taskKey(dir('a'), 'test')))
+})
+
+test('a RegExp selector with no matched script is a pass-through that depends on nothing', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['lint'] },
+    b: { scripts: ['lint', 'test'] },
+  }, '/test/', {
+    lint: {},
+  })
+
+  const passThrough = graph.get(taskKey(dir('a'), '/test/'))!
+  expect(passThrough.requested).toBe(true)
+  expect(passThrough.scripts).toStrictEqual([])
+  expect(passThrough.dependencies).toStrictEqual([])
+  expect(graph.get(taskKey(dir('b'), 'test'))!.requested).toBe(true)
+  expect(graph.has(taskKey(dir('b'), '/test/'))).toBe(false)
+})
+
+test('a RegExp selector without tasks stays one task per project', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['test'] },
+    b: { scripts: ['test', 'test:unit'] },
+  }, '/test/')
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('b'), '/test/')])
+  expect(graph.get(taskKey(dir('b'), '/test/'))!.scripts).toStrictEqual(['test', 'test:unit'])
+})
+
+test('an exact tasks entry under the selector name keeps it one task', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build', 'test'] },
+  }, '/test/', {
+    '/test/': { dependsOn: ['build'] },
+    test: { dependsOn: [] },
+  })
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.scripts).toStrictEqual(['test'])
+})
+
 test('a malformed RegExp selector becomes a pass-through task', () => {
   const graph = buildGraph({
     a: { scripts: ['build'] },
@@ -177,6 +252,45 @@ test('resumeTaskGraphFrom drops only the anchor\'s transitive dependencies', () 
   // The edge into the dropped dependency is treated as satisfied.
   expect(resumed.get(taskKey(dir('b'), 'build'))!.dependencies).toStrictEqual([])
   expect(resumed.get(taskKey(dir('c'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+})
+
+test('resumeTaskGraphFrom anchors every task an expanded selector requested in the project', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
+  }, '/^(build|test)$/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  const resumed = resumeTaskGraphFrom(graph, {
+    resumeFrom: 'a',
+    selectedProjectsGraph: Object.fromEntries(['a', 'b'].map((name) => [
+      dir(name),
+      { dependencies: [], package: { manifest: { name } } },
+    ])) as never,
+    taskName: '/^(build|test)$/',
+  })
+
+  expect([...resumed.keys()].sort()).toStrictEqual([
+    taskKey(dir('a'), 'build'),
+    taskKey(dir('a'), 'test'),
+    taskKey(dir('b'), 'test'),
+  ].sort())
+  expect(resumed.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([])
+  expect(resumed.get(taskKey(dir('a'), 'test'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+})
+
+test('a script named like the selector keeps its default dependency', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['/build/'] },
+    b: { scripts: ['/build/'] },
+  }, '/build/', {
+    lint: {},
+  })
+
+  expect(graph.get(taskKey(dir('a'), '/build/'))!.scripts).toStrictEqual(['/build/'])
+  expect(graph.get(taskKey(dir('a'), '/build/'))!.dependencies).toStrictEqual([taskKey(dir('b'), '/build/')])
 })
 
 test('resumeTaskGraphFrom drops exact completed tasks when state is available', () => {
@@ -339,6 +453,7 @@ function buildGraph (
     selectScripts,
     taskName,
     tasks,
+    isSelectorTaskName: (name) => name.startsWith('/') && name.endsWith('/'),
   })
 }
 

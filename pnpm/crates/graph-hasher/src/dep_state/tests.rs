@@ -21,7 +21,7 @@ fn engine_only_key() {
             include_dep_graph_hash: false,
         },
     );
-    assert_eq!(result, "darwin;arm64;node20");
+    assert_eq!(result, "darwin;arm64;node20;format=2");
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn patch_appended_without_dep_graph_hash() {
             include_dep_graph_hash: false,
         },
     );
-    assert_eq!(result, "linux;x64;node22;patch=sha256-abc");
+    assert_eq!(result, "linux;x64;node22;format=2;patch=sha256-abc");
 }
 
 #[test]
@@ -63,9 +63,12 @@ fn dep_graph_hash_for_leaf_uses_id_and_empty_deps() {
         },
     );
     let parts: Vec<&str> = result.split(';').collect();
-    assert!(parts.len() == 4, "expected `<plat>;<arch>;node<n>;deps=<hash>`, got {result:?}");
-    assert!(parts[3].starts_with("deps="), "fourth segment must be `deps=...`: {result:?}");
-    assert!(parts[3][5..].len() >= 40, "hash payload must be non-trivial: {result:?}");
+    assert!(
+        parts.len() == 5,
+        "expected `<plat>;<arch>;node<n>;format=2;deps=<hash>`, got {result:?}",
+    );
+    assert!(parts[4].starts_with("deps="), "fifth segment must be `deps=...`: {result:?}");
+    assert!(parts[4][5..].len() >= 40, "hash payload must be non-trivial: {result:?}");
 }
 
 #[test]

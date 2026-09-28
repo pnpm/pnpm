@@ -175,7 +175,7 @@ fn fetch_dev_drops_prod_and_optional() {
     );
     assert!(
         !virtual_dep(&workspace, OPTIONAL_DEP).exists(),
-        "`fetch --dev` must not fetch optional deps (they follow production)",
+        "`fetch --dev` must not fetch the project's optional deps (they follow production)",
     );
     assert_no_importer_links(&workspace);
 

@@ -417,6 +417,16 @@ pub struct ResolutionRefreshOptions {
     pub dry_run: bool,
 }
 
+impl ResolutionRefreshOptions {
+    /// Whether the resolution must see versions published since the
+    /// metadata mirror was written: an update is running, or this package
+    /// is its target.
+    #[must_use]
+    pub fn refreshes_metadata(&self) -> bool {
+        self.update != UpdateBehavior::Off || self.update_requested
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ResolutionPolicyOptions {
     /// `minimumReleaseAge` cutoff. Versions published after this point
@@ -424,6 +434,9 @@ pub struct ResolutionPolicyOptions {
     /// [`ResolveResult::policy_violation`] when no mature pick exists).
     /// `None` disables the maturity filter.
     pub published_by: Option<DateTime<Utc>>,
+    /// Release-age cutoff to try when the time-based cutoff has no match.
+    /// Only used when later than `published_by`.
+    pub fallback_published_by: Option<DateTime<Utc>>,
     /// Per-package exclude policy for the maturity filter. `None`
     /// applies the filter uniformly.
     pub published_by_exclude: Option<PackageVersionPolicy>,

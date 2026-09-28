@@ -151,7 +151,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             for (const depName of [
               '@pnpm/linux-arm64',
               '@pnpm/linux-x64',
-              '@pnpm/linuxstatic-arm64',
               '@pnpm/linuxstatic-x64',
               '@pnpm/macos-arm64',
               '@pnpm/win-arm64',

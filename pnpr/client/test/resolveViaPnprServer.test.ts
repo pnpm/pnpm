@@ -144,6 +144,72 @@ test.each([
   })
 })
 
+test.each([
+  ['omits', {}],
+  ['changes', { publishDirectory: 'build' }],
+] as const)('rejects a server that %s the requested publish directory', async (_behavior, importer) => {
+  await expect(captureResolveRequest({
+    projects: [{
+      dir: 'packages/lib',
+      name: 'lib',
+      publishConfig: { directory: 'dist' },
+    }],
+  }, {
+    lockfileVersion: '9.0',
+    importers: { 'packages/lib': importer },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPR_PUBLISH_DIRECTORY_MISMATCH',
+    message: expect.stringContaining('instead of its publishConfig.directory'),
+  })
+})
+
+test('does not check a project that the server did not return', async () => {
+  const request = await captureResolveRequest({
+    projects: [{
+      dir: 'packages/lib',
+      name: 'lib',
+      publishConfig: { directory: 'dist' },
+    }],
+  }, {
+    lockfileVersion: '9.0',
+    // A partial install resolves a subset of the workspace, so a project the
+    // response leaves out carries no importer to compare against.
+    importers: {},
+  })
+
+  expect(request.projects).toEqual([{
+    dir: 'packages/lib',
+    name: 'lib',
+    publishConfig: { directory: 'dist' },
+  }])
+})
+
+test('serializes publishConfig for the single-project compatibility options', async () => {
+  const request = await captureResolveRequest({
+    name: 'lib',
+    version: '1.2.3',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+    dependencies: {},
+  }, {
+    lockfileVersion: '9.0',
+    importers: { '.': { publishDirectory: 'dist' } },
+  })
+
+  expect(request.projects).toEqual([{
+    dir: '.',
+    name: 'lib',
+    version: '1.2.3',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+    dependencies: {},
+  }])
+})
+
+test('omits an absent publishConfig so servers that predate the field see the same body', async () => {
+  const request = await captureResolveRequest({ dependencies: {} })
+
+  expect(Object.hasOwn(request.projects[0], 'publishConfig')).toBe(false)
+})
+
 test.each([true, false])('serializes updatePatches %s', async (updatePatches) => {
   const request = await captureResolveRequest({ dependencies: {}, updatePatches })
 

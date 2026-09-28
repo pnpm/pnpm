@@ -207,7 +207,7 @@ pub fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     if included.dev_dependencies {
         groups.push(DependencyGroup::Dev);
     }
-    if included.optional_dependencies {
+    if included.includes_project_optional_dependencies() {
         groups.push(DependencyGroup::Optional);
     }
     groups

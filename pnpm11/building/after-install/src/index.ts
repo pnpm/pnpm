@@ -1,9 +1,8 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { linkBins, nodeRuntimeBinDir } from '@pnpm/bins.linker'
+import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import {
@@ -13,14 +12,14 @@ import {
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   PROJECT_INSTALL_STAGES as EXEC_PROJECT_INSTALL_STAGES,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
-import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import type { PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
@@ -56,6 +55,7 @@ import {
   extendBuildOptions,
   type StrictBuildOptions,
 } from './extendBuildOptions.js'
+import { getRebuildContext } from './getRebuildContext.js'
 
 export type { BuildOptions }
 
@@ -126,7 +126,7 @@ export async function buildSelectedPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendBuildOptions(maybeOpts)
-  const ctx = await getContext({ ...opts, allProjects: projects })
+  const ctx = await getRebuildContext(projects, opts)
 
   if (ctx.currentLockfile?.packages == null) return {}
   const packages = ctx.currentLockfile.packages
@@ -199,7 +199,7 @@ export async function buildProjects (
     streamParser.on('data', reporter)
   }
   const opts = await extendBuildOptions(maybeOpts)
-  const ctx = await getContext({ ...opts, allProjects: projects })
+  const ctx = await getRebuildContext(projects, opts)
 
   let idsToRebuild: string[] = []
 
@@ -261,6 +261,7 @@ export async function buildProjects (
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     publicHoistPattern: ctx.publicHoistPattern,
+    allowBuilds: opts.allowBuilds,
     skipped: Array.from(ctx.skipped),
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
@@ -392,22 +393,13 @@ async function _rebuild (
       }
     )) {
       const preferredGvsDir = path.join(globalVirtualStoreDir, hash)
-      gvsDirByDepPath.set(pkgMeta.depPath, fs.existsSync(preferredGvsDir)
-        ? preferredGvsDir
-        : findLinkedGvsDir(pkgMeta.name, Object.values(ctx.projects), globalVirtualStoreDir) ?? preferredGvsDir)
+      gvsDirByDepPath.set(pkgMeta.depPath, preferredGvsDir)
     }
   }
   const pkgModulesDir = (depPath: DepPath): string =>
     gvsDirByDepPath.has(depPath)
       ? path.join(gvsDirByDepPath.get(depPath)!, 'node_modules')
       : path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
-
-  // As in `buildModules` of `@pnpm/building.during-install`: a global virtual
-  // store slot's build scripts get only the root project's runtime `node`,
-  // because the slot hash records nothing else from the workspace root.
-  const gvsScriptBinPaths = nodeVersion == null
-    ? []
-    : [nodeRuntimeBinDir(safeJoinModulesDir(pkgModulesDir(`node@runtime:${nodeVersion}` as DepPath), 'node'))]
 
   const runBuild = async (depPath: DepPath): Promise<void> => {
     const pkgSnapshot = pkgSnapshots[depPath]
@@ -452,10 +444,8 @@ async function _rebuild (
         const modules = pkgModulesDir(depPath)
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
         await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
-        extraBinPaths = gvsDir == null ? ctx.extraBinPaths : gvsScriptBinPaths
+        extraBinPaths = ctx.extraBinPaths
       } else {
-        // A hoisted package builds in the project's own node_modules, not in a
-        // shared slot.
         extraBinPaths = [...ctx.extraBinPaths, ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)]
       }
       const resolution = (pkgSnapshot.resolution as TarballResolution)
@@ -464,7 +454,7 @@ async function _rebuild (
       // @pnpm/installing.package-requester: that's the tarball URL for
       // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
       const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
-      if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
+      if (opts.skipIfHasSideEffectsCache && !fs.existsSync(path.join(pkgRoot, '.pnpm-needs-build')) && (resolution.gitHosted || resolution.integrity)) {
         const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
         const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
         if (pkgFilesIndex) {
@@ -499,6 +489,9 @@ async function _rebuild (
         unsafePerm: opts.unsafePerm || false,
         userAgent: opts.userAgent,
       })
+      if (hasSideEffects && gvsDir != null) {
+        await fs.promises.rm(path.join(pkgRoot, '.pnpm-needs-build'), { force: true })
+      }
       if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
         builtDepPaths.add(depPath)
         const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
@@ -514,7 +507,7 @@ async function _rebuild (
             filesIndexFile,
           })
         } catch (err: unknown) {
-          assert(util.types.isNativeError(err))
+          assert(isError(err))
           logger.warn({
             error: err,
             message: `An error occurred while uploading ${pkgRoot}`,
@@ -524,7 +517,7 @@ async function _rebuild (
       }
       pkgsThatWereRebuilt.add(depPath)
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       if (pkgSnapshot.optional) {
         // Other projects may link a global virtual store slot, so it is kept.
         if (!gvsDirByDepPath.has(depPath)) {
@@ -599,38 +592,6 @@ async function _rebuild (
   }
 
   return { pkgsThatWereRebuilt, ignoredPkgs }
-}
-
-// TODO: delete once rebuild relocates GVS projections to the newly computed
-// hash instead of building in place (https://github.com/pnpm/pnpm/issues/12302).
-function findLinkedGvsDir (
-  pkgName: string,
-  projects: Array<{ rootDir: ProjectRootDir }>,
-  globalVirtualStoreDir: string
-): string | undefined {
-  const normalizedGvsRoot = `${path.resolve(globalVirtualStoreDir)}${path.sep}`
-  for (const { rootDir } of projects) {
-    const pkgLink = path.join(rootDir, 'node_modules', pkgName)
-    try {
-      const target = fs.readlinkSync(pkgLink)
-      const pkgRoot = path.resolve(path.dirname(pkgLink), target)
-      if (!pkgRoot.startsWith(normalizedGvsRoot)) continue
-      return nthAncestorDir(pkgRoot, pkgName.split('/').length + 1)
-    } catch (err: unknown) {
-      // EINVAL: pkgLink exists but is not a symlink.
-      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EINVAL' || err.code === 'ENOENT')) continue
-      throw err
-    }
-  }
-  return undefined
-}
-
-function nthAncestorDir (dir: string, levels: number): string {
-  let result = dir
-  for (let i = 0; i < levels; i++) {
-    result = path.dirname(result)
-  }
-  return result
 }
 
 function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {

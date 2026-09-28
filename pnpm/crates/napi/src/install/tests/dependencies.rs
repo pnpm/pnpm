@@ -117,6 +117,22 @@ fn safe_intersect_matches_merge_peers_semantics() {
     assert!(range.satisfies(&"16.9.1".parse().unwrap()));
 }
 
+/// Pairing overlapping unions keeps every pair, so without merging the
+/// fold doubles its alternatives on each range and aborts on allocation.
+#[test]
+fn safe_intersect_merges_overlapping_unions() {
+    use super::super::peer_issues::safe_intersect;
+
+    let ranges: Vec<String> = (0..64)
+        .map(|patch| format!(">=1.0.{patch} <2.0.{patch} || >=1.1.{patch} <2.1.{patch}"))
+        .collect();
+
+    assert_eq!(
+        safe_intersect(ranges.iter().map(String::as_str)).as_deref(),
+        Some(">=1.0.63 <2.1.0"),
+    );
+}
+
 /// The wire shape mirrors v11's `PeerDependencyIssues`: `missing` /
 /// `bad` entries verbatim, `intersections` from the non-optional
 /// missing ranges, and disjoint ranges surfacing under `conflicts`.

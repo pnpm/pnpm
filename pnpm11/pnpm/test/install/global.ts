@@ -456,6 +456,86 @@ test('unchanged global update still approves a pending build', async () => {
   expect(findGlobalPkgInstall(globalDir, '@pnpm.e2e/install-script-example')?.installDir).toBe(installBefore.installDir)
 })
 
+test('global update migrates the packages of the previous global layout', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+  const legacyDir = path.join(pnpmHome, 'global', '5')
+  const legacyPkgDir = path.join(legacyDir, 'node_modules', '@pnpm.e2e', 'hello-world-js-bin')
+  fs.mkdirSync(legacyPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(legacyDir, 'package.json'), JSON.stringify({
+    dependencies: { '@pnpm.e2e/hello-world-js-bin': '^1.0.0', pnpm: '10.0.0' },
+  }))
+  fs.writeFileSync(path.join(legacyPkgDir, 'package.json'), JSON.stringify({
+    name: '@pnpm.e2e/hello-world-js-bin',
+    version: '1.0.0',
+    bin: './index.js',
+  }))
+  fs.writeFileSync(path.join(legacyPkgDir, 'index.js'), '')
+  // pnpm 10 linked the bins of its global packages straight into the pnpm home.
+  const strayBin = path.join(pnpmHome, 'hello-world-js-bin')
+  fs.writeFileSync(strayBin, '#!/bin/sh\nexec node "$basedir/global/5/node_modules/@pnpm.e2e/hello-world-js-bin/index.js" "$@"\n')
+  const legacyPnpmDir = path.join(legacyDir, 'node_modules', 'pnpm')
+  fs.mkdirSync(path.join(legacyPnpmDir, 'bin'), { recursive: true })
+  fs.writeFileSync(path.join(legacyPnpmDir, 'package.json'), JSON.stringify({
+    name: 'pnpm',
+    version: '10.0.0',
+    bin: { pnpm: 'bin/pnpm.cjs' },
+  }))
+  fs.writeFileSync(path.join(legacyPnpmDir, 'bin', 'pnpm.cjs'), '')
+  const strayPnpmShim = path.join(pnpmHome, 'pnpm')
+  fs.writeFileSync(strayPnpmShim, '#!/bin/sh\nexec node "$basedir/global/5/node_modules/pnpm/bin/pnpm.cjs" "$@"\n')
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const result = execPnpmSync(['update', '--global'], { env, expectSuccess: true })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(output).toContain('Migrating global packages from')
+  expect(findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/hello-world-js-bin')).toBeTruthy()
+  expect(fs.existsSync(path.join(pnpmHome, 'bin', 'hello-world-js-bin'))).toBe(true)
+  expect(fs.existsSync(legacyDir)).toBe(false)
+  expect(fs.existsSync(strayBin)).toBe(false)
+  expect(fs.existsSync(strayPnpmShim)).toBe(false)
+
+  const again = execPnpmSync(['update', '--global'], { env, expectSuccess: true })
+  const outputAgain = `${again.stdout.toString()}\n${again.stderr.toString()}`
+  expect(outputAgain).not.toContain('Migrating global packages from')
+  expect(outputAgain).toContain('Already up to date')
+})
+
+test('global update leaves a legacy package a current group declares to the update', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  await execPnpm(['add', '--global', '@pnpm.e2e/hello-world-js-bin@1.0.0,is-positive@1.0.0'], { env })
+  const globalDir = globalPkgDir(pnpmHome)
+  const group = findGlobalPkgInstall(globalDir, '@pnpm.e2e/hello-world-js-bin')!
+  fs.rmSync(path.join(group.installDir, 'node_modules'), { recursive: true })
+  const legacyDir = path.join(pnpmHome, 'global', '5')
+  fs.mkdirSync(legacyDir, { recursive: true })
+  fs.writeFileSync(path.join(legacyDir, 'package.json'), JSON.stringify({
+    dependencies: { '@pnpm.e2e/hello-world-js-bin': '^1.0.0' },
+  }))
+
+  const result = execPnpmSync(['update', '--global'], { env, expectSuccess: true })
+  const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+
+  expect(output).not.toContain('Migrating global packages from')
+  expect(output).toContain('Kept')
+  expect(fs.existsSync(legacyDir)).toBe(true)
+  const groups = fs.readdirSync(globalDir, { withFileTypes: true }).filter((entry) => entry.isSymbolicLink())
+  expect(groups).toHaveLength(1)
+  const restored = findGlobalPkgInstall(globalDir, '@pnpm.e2e/hello-world-js-bin')!
+  expect(fs.existsSync(path.join(restored.pkgPath, 'package.json'))).toBe(true)
+  expect(fs.existsSync(path.join(restored.installDir, 'node_modules', 'is-positive', 'package.json'))).toBe(true)
+
+  execPnpmSync(['update', '--global'], { env, expectSuccess: true })
+  expect(fs.existsSync(legacyDir)).toBe(false)
+})
+
 test('global update should not crash if there are no global packages', async () => {
   prepare()
   const global = path.resolve('..', 'global')

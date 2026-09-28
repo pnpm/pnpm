@@ -14,12 +14,15 @@ pub fn build_task_graph<SelectScripts>(
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
 {
-    build_task_graph_from_seeds(
-        options.project_dependencies,
-        &options.select_scripts,
-        std::slice::from_ref(&options.task_name),
-        options.tasks,
-    )
+    let options = SeededBuildOptions {
+        project_dependencies: options.project_dependencies,
+        select_scripts: &options.select_scripts,
+        task_names: std::slice::from_ref(&options.task_name),
+        requested_projects: None,
+        tasks: options.tasks,
+        is_selector_task: options.is_selector_task,
+    };
+    options.build()
 }
 
 /// [`build_task_graph`] for a `pnpm pipeline` invocation, which requests
@@ -36,27 +39,9 @@ where
         task_names: options.task_names,
         requested_projects: options.requested_projects,
         tasks: options.tasks,
+        is_selector_task: |_| false,
     };
     seeded.build()
-}
-
-fn build_task_graph_from_seeds<SelectScripts>(
-    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
-    select_scripts: &SelectScripts,
-    task_names: &[&str],
-    tasks: Option<&IndexMap<String, TaskSettings>>,
-) -> TaskGraph
-where
-    SelectScripts: Fn(&Path, &str) -> Vec<String>,
-{
-    let options = SeededBuildOptions {
-        project_dependencies,
-        select_scripts,
-        task_names,
-        requested_projects: None,
-        tasks,
-    };
-    options.build()
 }
 
 struct SeededBuildOptions<'a, SelectScripts>
@@ -68,6 +53,7 @@ where
     task_names: &'a [&'a str],
     requested_projects: Option<&'a [PathBuf]>,
     tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    is_selector_task: fn(&str) -> bool,
 }
 
 impl<SelectScripts> SeededBuildOptions<'_, SelectScripts>
@@ -84,7 +70,14 @@ where
                 continue;
             }
             let settings = self.task_settings(&task_name);
-            let dependencies = self.dependency_keys(&project, &task_name, settings);
+            let scripts = (self.select_scripts)(&project, &task_name);
+            // The pass-through task of a project an expanded selector
+            // matched nothing in: nothing names it, so it orders nothing.
+            let dependencies = if scripts.is_empty() && self.expands_selector(&task_name) {
+                Vec::new()
+            } else {
+                self.dependency_keys(&project, &task_name, settings)
+            };
             queue.extend(
                 dependencies
                     .iter()
@@ -92,7 +85,6 @@ where
                         (dependency.project.clone(), dependency.task_name.clone(), false)
                     }),
             );
-            let scripts = (self.select_scripts)(&project, &task_name);
             graph.insert(
                 key,
                 TaskNode {
@@ -124,9 +116,35 @@ where
             .flat_map(|project| {
                 self.task_names
                     .iter()
-                    .map(|task_name| (project.clone(), (*task_name).to_string(), true))
+                    .flat_map(|task_name| self.seed_task_names(project, task_name))
+                    .map(|task_name| (project.clone(), task_name, true))
             })
             .collect()
+    }
+
+    /// The tasks a requested name seeds in `project`. A `RegExp` selector
+    /// seeds one task per script it matches when `tasks` are declared, so
+    /// each matched script resolves the `dependsOn` declared for its own
+    /// name and matched scripts that depend on each other run in order. A
+    /// project with no matching script keeps a pass-through task under the
+    /// selector name.
+    fn seed_task_names(&self, project: &Path, task_name: &str) -> Vec<String> {
+        if self.expands_selector(task_name) {
+            let scripts = (self.select_scripts)(project, task_name);
+            if !scripts.is_empty() {
+                return scripts;
+            }
+        }
+        vec![task_name.to_string()]
+    }
+
+    /// Whether `task_name` is a `RegExp` selector the graph expands into the
+    /// scripts it matches. An exact `tasks` entry under the selector string
+    /// itself keeps it a single task governed by that entry.
+    fn expands_selector(&self, task_name: &str) -> bool {
+        self.tasks.is_some()
+            && self.task_settings(task_name).is_none()
+            && (self.is_selector_task)(task_name)
     }
 
     /// The tasks `task_name` at `project` depends on, in declaration order

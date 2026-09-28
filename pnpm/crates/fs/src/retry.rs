@@ -212,13 +212,14 @@ where
 
 /// Whether `error` is a transient Windows file lock in the sense of
 /// [`rename_with_retry`]: `ERROR_ACCESS_DENIED` (a directory rename blocked
-/// by an open handle below it), [`ERROR_SHARING_VIOLATION`] or
-/// [`ERROR_LOCK_VIOLATION`] (an open or delete refused by another handle's
-/// share mode), or `ERROR_BUSY`. The sharing and lock violations have no
+/// by an open handle below it), a sharing or lock violation (OS errors 32 and
+/// 33, an open or delete refused by another handle's share mode), or
+/// `ERROR_BUSY`. The sharing and lock violations have no
 /// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
 /// Under WSL the same locks surface as `EACCES`/`EPERM` or `EBUSY`. Always
 /// `false` on other Unix systems.
-pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
+#[must_use]
+pub fn is_transient_file_lock_error(error: &io::Error) -> bool {
     file_locks_are_transient()
         && (matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
             || (cfg!(windows)

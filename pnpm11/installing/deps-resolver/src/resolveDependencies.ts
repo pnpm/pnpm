@@ -1,5 +1,4 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
@@ -11,7 +10,7 @@ import {
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {
   LockfileObject,
@@ -29,7 +28,7 @@ import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
-import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
+import { detectMinReleaseAgeViolation, MINIMUM_RELEASE_AGE_VIOLATION_CODE, parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
@@ -767,7 +766,7 @@ async function readManifestOfLocalTarget (dir: string): Promise<PackageManifest 
   } catch (err: unknown) {
     // A `file:` target is a tarball as often as a directory, and a path
     // component of a tarball is not a directory to read a manifest from.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTDIR') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOTDIR') return null
     throw err
   }
 }
@@ -1133,7 +1132,7 @@ export async function resolveDependencies (
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
       currentParentPkgAliases[pkgAddress.alias] = pkgAddress
     }
-    if (pkgAddress.updated) {
+    if (pkgAddress.updated && options.currentDepth === 0) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
@@ -1365,7 +1364,10 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree.set(createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory), {
+    const linkedNodeId = dp.packageRootLinkTarget(resolveDependencyResult.pkgId) != null
+      ? resolveDependencyResult.pkgId as unknown as NodeId
+      : createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory)
+    ctx.dependenciesTree.set(linkedNodeId, {
       children: {},
       depth: -1,
       installable: true,
@@ -1918,6 +1920,9 @@ function getDepsToResolve (
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, pickRegistryContext(options), reference, wantedDependency.alias)
     if (
       !proceedAll &&
+      // A link into the declaring package has no lockfile entry and no
+      // children, so it gives its siblings no reason to re-resolve.
+      dp.packageRootLinkTarget(wantedDependency.bareSpecifier) == null &&
       (
         (infoFromLockfile == null) ||
         infoFromLockfile.dependencyLockfile != null && (
@@ -2200,6 +2205,10 @@ async function resolveDependency (
   ctx: ResolutionContext,
   options: ResolveDependencyOptions
 ): Promise<ResolveDependencyResult> {
+  const packageRootLinkTarget = dp.packageRootLinkTarget(wantedDependency.bareSpecifier)
+  if (packageRootLinkTarget != null) {
+    return linkIntoDeclaringPackage(wantedDependency, packageRootLinkTarget)
+  }
   const currentPkg = options.currentPkg ?? {}
 
   const currentLockfileContainsTheDep = currentPkg.depPath
@@ -2282,6 +2291,7 @@ async function resolveDependency (
         defaultTag: ctx.defaultTag,
         ignoreScripts: ctx.ignoreScripts,
         publishedBy: options.publishedBy,
+        fallbackPublishedBy: ctx.maximumPublishedBy,
         publishedByExclude: ctx.publishedByExclude,
         pickLowestVersion: options.pickLowestVersion,
         downloadPriority: -options.currentDepth,
@@ -2360,8 +2370,9 @@ async function resolveDependency (
     // here; collect them onto the shared context so resolveDependencyTree
     // can hand the full set to the install command between
     // resolveDependencyTree and resolvePeers.
-    if (pkgResponse.body.policyViolation) {
-      ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
+    const policyViolation = recheckAgainstMinimumReleaseAge(ctx, pkgResponse.body)
+    if (policyViolation) {
+      ctx.resolutionPolicyViolations.push(policyViolation)
     }
 
     // Check if exotic dependencies are disallowed in subdependencies
@@ -2638,6 +2649,54 @@ async function resolveDependency (
   } finally {
     finishPackageResolution()
   }
+}
+
+/**
+ * A `link:<root>/...` dependency points inside the package that declares it,
+ * whose files are only on disk once that package is placed. It is recorded
+ * as a link without reading the target, and each linker resolves `<root>`
+ * against the declaring package's directory.
+ */
+function linkIntoDeclaringPackage (wantedDependency: WantedDependency, target: string): LinkedDependency {
+  const alias = wantedDependency.alias ?? path.posix.basename(target)
+  return {
+    alias,
+    dev: wantedDependency.dev,
+    isLinkedDependency: true,
+    name: alias,
+    optional: wantedDependency.optional,
+    pkg: { name: alias, version: '0.0.0' },
+    pkgId: wantedDependency.bareSpecifier as PkgResolutionId,
+    resolution: { type: 'directory', directory: target },
+    version: '0.0.0',
+    wantedDependency,
+  }
+}
+
+/**
+ * Returns the policy violation to record for a resolved package. A violation
+ * with any other code is returned unchanged. A `minimumReleaseAge` violation
+ * is returned only if the package was published after `ctx.maximumPublishedBy`
+ * and `ctx.publishedByExclude` does not cover it.
+ *
+ * The resolver flags a pick against the cutoff it picked with, which
+ * `resolutionMode: time-based` tightens below the `minimumReleaseAge` cutoff
+ * for subdependencies. The picking cutoff is never later than the
+ * `minimumReleaseAge` one, so every real violation is flagged first.
+ */
+function recheckAgainstMinimumReleaseAge (
+  ctx: Pick<ResolutionContext, 'maximumPublishedBy' | 'publishedByExclude'>,
+  { policyViolation: violation, publishedAt }: { policyViolation?: ResolutionPolicyViolation, publishedAt?: string }
+): ResolutionPolicyViolation | undefined {
+  if (violation?.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return violation
+  return detectMinReleaseAgeViolation({
+    name: violation.name,
+    version: violation.version,
+    publishedAt,
+    resolution: violation.resolution,
+    publishedBy: ctx.maximumPublishedBy,
+    publishedByExclude: ctx.publishedByExclude,
+  })
 }
 
 function hasRegistryRevisionSpecifier (specifier: string): boolean {

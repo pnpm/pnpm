@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import validateNpmPackageName from 'validate-npm-package-name'
 
 // Joins `modulesDir` with a dependency alias and guarantees the result
@@ -97,7 +97,7 @@ async function findExistingAncestor (target: string): Promise<string> {
     await fs.promises.lstat(target)
     return target
   } catch (error: unknown) {
-    if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
+    if (!isError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
   }
   const parent = path.dirname(target)
   if (parent === target) throw new Error(`Path ${target} has no existing ancestor`)
@@ -114,7 +114,7 @@ async function validateWorkspaceParent (opts: {
   try {
     stat = await fs.promises.lstat(opts.current)
   } catch (error: unknown) {
-    if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') return
+    if (isError(error) && 'code' in error && error.code === 'ENOENT') return
     throw error
   }
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
@@ -145,12 +145,12 @@ async function lstatOrCreateDirectory (dir: string): Promise<fs.Stats> {
   try {
     return await fs.promises.lstat(dir)
   } catch (error: unknown) {
-    if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
+    if (!isError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
   }
   try {
     await fs.promises.mkdir(dir)
   } catch (error: unknown) {
-    if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'EEXIST') throw error
+    if (!isError(error) || !('code' in error) || error.code !== 'EEXIST') throw error
   }
   return fs.promises.lstat(dir)
 }

@@ -139,8 +139,7 @@ impl ImporterTransforms {
     }
 
     fn is_active(&self) -> bool {
-        self.compat_package_extender.is_some()
-            || self.package_extender.is_some()
+        self.package_extender.is_some()
             || self.versions_overrider.is_some()
             || self.deploy_manifest_hook
             || !self.ignored_optional_matcher.is_empty()
@@ -232,9 +231,6 @@ fn transform_importer_manifest(
     transforms: &ImporterTransforms,
 ) -> PackageManifest {
     let mut cloned = manifest.clone();
-    if let Some(extender) = transforms.compat_package_extender {
-        extender.apply(cloned.value_mut());
-    }
     if let Some(extender) = transforms.package_extender.as_deref() {
         extender.apply(cloned.value_mut());
     }

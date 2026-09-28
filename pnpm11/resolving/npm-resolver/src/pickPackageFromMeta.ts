@@ -1,6 +1,5 @@
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
@@ -95,7 +94,7 @@ export function pickPackageFromMeta (
     return manifest
   } catch (err: unknown) {
     if (
-      util.types.isNativeError(err) &&
+      isError(err) &&
       'code' in err &&
       typeof err.code === 'string' &&
       err.code.startsWith('ERR_PNPM_')
@@ -229,6 +228,26 @@ export function pickStableCachedRangeVersion ({
   } catch {
     return null
   }
+}
+
+/**
+ * An exact preferred version that satisfies the range but is absent from
+ * `meta` can only be learned from the registry.
+ */
+export function cachedMetaMissesPreferredVersion (
+  versionRange: string,
+  preferredVersionSelectors: VersionSelectors | undefined,
+  meta: PackageMeta
+): boolean {
+  if (preferredVersionSelectors == null) return false
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const selectorType = typeof value === 'string' ? value : value.selectorType
+    if (selectorType !== 'version') continue
+    if (!semverSatisfiesLoose(selector, versionRange)) continue
+    if (meta.versions[selector] == null) return true
+  }
+  return false
 }
 
 export function getDominantLockfileVersion (

@@ -1,8 +1,7 @@
 import { Buffer } from 'node:buffer'
-import util from 'node:util'
 
 import { createHexHash } from '@pnpm/crypto.hash'
-import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 
 /**
  * Bytes a registry key carries verbatim. Everything else is percent-escaped,
@@ -79,7 +78,7 @@ export function encodeRegistry (registry: string): string {
     // `err` is not attached as the cause: Node's ERR_INVALID_URL carries the
     // raw registry — credentials and all — in its `input` property, so
     // anything that serializes the cause would undo the redaction here.
-    const reason = util.types.isNativeError(err) ? err.message : String(err)
+    const reason = isError(err) ? err.message : String(err)
     throw new PnpmError('INVALID_REGISTRY_URL', `Failed to parse registry URL "${redactAndSanitize(registry)}": ${redactAndSanitize(reason)}`)
   }
   if (url.hostname === '') {

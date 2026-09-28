@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
 import { nerfDart } from '@pnpm/config.registry-auth-key'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
 
@@ -289,7 +289,7 @@ function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResu
   try {
     parsed = JSON.parse(value)
   } catch (err: unknown) {
-    throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${err instanceof Error ? err.message : String(err)}`)
+    throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${isError(err) ? err.message : String(err)}`)
   }
   return parseJsonAuth(parsed, 'pnpm_config__auth')
 }
@@ -462,7 +462,7 @@ function readAndFilterNpmrc (
     if (isErrorWithCode(err, 'ENOENT') || isErrorWithCode(err, 'EISDIR')) {
       return {}
     }
-    warnings.push(`Issue while reading "${filePath}". ${err instanceof Error ? err.message : String(err)}`)
+    warnings.push(`Issue while reading "${filePath}". ${isError(err) ? err.message : String(err)}`)
     return {}
   }
 

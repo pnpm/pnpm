@@ -5,7 +5,10 @@
 //! entirely when the caller opted out of integrity verification.
 pub use package_dir_matches_index::package_dir_matches_index;
 
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
+use crate::{
+    CafsFileInfo, PackageFilesIndex, SideEffectsDiff, SideEffectsOverlay, StoreDir,
+    symlinks::{read_recorded_symlink_target, writes_below_a_symlink},
+};
 use dashmap::DashSet;
 use sha2::{Digest, Sha512};
 use std::{
@@ -161,7 +164,7 @@ pub type FilesMap = HashMap<String, PathBuf>;
 pub struct VerifyResult {
     pub passed: bool,
     pub files_map: FilesMap,
-    pub side_effects_maps: Option<HashMap<String, FilesMap>>,
+    pub side_effects_maps: Option<HashMap<String, SideEffectsOverlay>>,
     pub side_effects: Option<HashMap<String, SideEffectsDiff>>,
     pub remote_side_effects_quarantine: Option<HashMap<String, Vec<String>>>,
 }
@@ -287,25 +290,27 @@ fn build_side_effects_maps(
     store_dir: &StoreDir,
     side_effects: Option<&HashMap<String, SideEffectsDiff>>,
     base_files: &FilesMap,
-) -> Option<HashMap<String, FilesMap>> {
+) -> Option<HashMap<String, SideEffectsOverlay>> {
     let raw = side_effects?;
-    let mut out: HashMap<String, FilesMap> = HashMap::with_capacity(raw.len());
+    let mut out: HashMap<String, SideEffectsOverlay> = HashMap::with_capacity(raw.len());
     for (cache_key, diff) in raw {
-        if let Some(overlay) = overlay_for(store_dir, cache_key, diff, base_files) {
+        if let Some(overlay) = side_effects_overlay(store_dir, cache_key, diff, base_files) {
             out.insert(cache_key.clone(), overlay);
         }
     }
     Some(out)
 }
 
-/// One cache key's overlaid [`FilesMap`], or `None` when an entry has to be
-/// dropped so the importer falls back to rebuilding it.
-fn overlay_for(
+/// One cache key's overlay of `diff` over `base_files`, or `None` when the
+/// entry has to be dropped so the importer falls back to rebuilding it.
+/// `cache_key` names the entry in the log of that decision.
+#[must_use]
+pub fn side_effects_overlay(
     store_dir: &StoreDir,
     cache_key: &str,
     diff: &SideEffectsDiff,
     base_files: &FilesMap,
-) -> Option<FilesMap> {
+) -> Option<SideEffectsOverlay> {
     if diff.is_empty() {
         tracing::debug!(
             target: "pacquet::store_index",
@@ -315,9 +320,15 @@ fn overlay_for(
         return None;
     }
     let SideEffectsDiff { added, deleted, .. } = diff;
-    let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
+    let mut files: FilesMap = HashMap::with_capacity(base_files.len());
+    let mut symlinks = HashMap::new();
     for (filename, info) in added.iter().flatten() {
-        overlay.insert(filename.clone(), overlay_path(store_dir, cache_key, filename, info)?);
+        let path = overlay_path(store_dir, cache_key, filename, info)?;
+        if info.is_symlink() {
+            symlinks.insert(filename.clone(), overlay_symlink_target(cache_key, filename, &path)?);
+        } else {
+            files.insert(filename.clone(), path);
+        }
     }
     // Promote `deleted` to a `HashSet` once per cache key so
     // the `base_files` walk stays linear in `|base|` instead of
@@ -328,11 +339,48 @@ fn overlay_for(
         .cloned()
         .collect();
     for (filename, path) in base_files {
-        if !deleted_set.contains(filename) && !overlay.contains_key(filename) {
-            overlay.insert(filename.clone(), path.clone());
+        if !deleted_set.contains(filename)
+            && !files.contains_key(filename)
+            && !symlinks.contains_key(filename)
+        {
+            files.insert(filename.clone(), path.clone());
         }
     }
-    Some(overlay)
+    restorable_overlay(cache_key, SideEffectsOverlay { files, symlinks })
+}
+
+/// `overlay`, or `None` when its symlinks cannot be restored on this host
+/// or restoring them would let a write follow one of them.
+fn restorable_overlay(cache_key: &str, overlay: SideEffectsOverlay) -> Option<SideEffectsOverlay> {
+    if overlay.symlinks.is_empty()
+        || !(cfg!(windows) || writes_below_a_symlink(&overlay.symlinks, overlay.files.keys()))
+    {
+        return Some(overlay);
+    }
+    tracing::debug!(
+        target: "pacquet::store_index",
+        cache_key,
+        "side-effects symlinks cannot be restored here; dropping this cache_key entry entirely so the importer falls back to rebuild",
+    );
+    None
+}
+
+/// The target of one recorded symlink, or `None` when the entry cannot be
+/// restored and its whole cache key must be dropped.
+fn overlay_symlink_target(cache_key: &str, filename: &str, cas_path: &Path) -> Option<String> {
+    let target = read_recorded_symlink_target(filename, cas_path).unwrap_or_else(|error| {
+        tracing::debug!(target: "pacquet::store_index", ?error, ?cas_path, "failed to read a side-effects symlink target");
+        None
+    });
+    if target.is_none() {
+        tracing::debug!(
+            target: "pacquet::store_index",
+            ?filename,
+            cache_key,
+            "unrestorable symlink in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
+        );
+    }
+    target
 }
 
 /// The CAS path one `added` entry points at, or `None` when the entry

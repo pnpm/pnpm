@@ -93,6 +93,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -164,6 +165,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -244,6 +246,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -374,6 +377,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -500,6 +504,7 @@ async fn root_dependency_does_not_override_peers_of_self_contained_subtree() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -607,6 +612,7 @@ async fn fresh_install_records_user_written_specifier() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -706,6 +712,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -764,6 +771,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

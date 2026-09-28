@@ -285,6 +285,9 @@ impl TreeCtx {
     ) -> Self {
         self.options.direct.version.pick_lowest_version = pick_lowest_direct;
         self.options.subdep.version.pick_lowest_version = false;
+        self.options.subdep.policy.fallback_published_by = self.options.base
+            .policy
+            .published_by;
         self.options.subdep.policy.published_by = subdep_published_by;
         self
     }

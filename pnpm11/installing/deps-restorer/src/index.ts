@@ -1,6 +1,5 @@
 import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules, linkBinsOfRuntimeDependencies, lockGlobalVirtualStoreSlot } from '@pnpm/building.during-install'
@@ -24,9 +23,9 @@ import {
   lockfileToDepGraph,
   type LockfileToDepGraphOptions,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -155,6 +154,7 @@ export interface HeadlessOptions extends RegistryContext {
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
   ignoreScripts: boolean
+  deferDependencyBuilds?: boolean
   ignorePackageManifest?: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -542,6 +542,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       }
       heldBackBinsDirs = await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
         allowBuild,
+        deferDependencyBuilds: opts.deferDependencyBuilds === true,
         depsStateCache,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         force: opts.force,
@@ -628,6 +629,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           }),
         linkAllPkgs(opts.storeController, depNodes, {
           allowBuild,
+          deferDependencyBuilds: opts.deferDependencyBuilds === true,
           force: opts.force,
           disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
           depGraph: graph,
@@ -892,7 +894,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     warn: (message) => logger.info({ message, prefix: path.dirname(path.dirname(binsDir)) }),
   })))
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath, opts.lockfileDir)
 
   if (opts.enableModulesDir !== false) {
     if (!skipPostImportLinking) {
@@ -1095,26 +1097,20 @@ async function symlinkDirectDependencies (
     importerManifestsByImporterId[id] = manifest
   }
   const projectsToLink = Object.fromEntries(await Promise.all(
-    projects.map(async ({ rootDir, id, modulesDir }) => {
-      const importer = filteredLockfile.importers[id]
-      const publishDir = (importer?.publishDirectory != null && importer?.linkDirectory !== false)
-        ? importer.publishDirectory
-        : undefined
-      return [id, {
-        dir: rootDir,
-        modulesDir,
-        publishDir,
-        dependencies: await getRootPackagesToLink(filteredLockfile, {
-          importerId: id,
-          importerModulesDir: modulesDir,
-          lockfileDir,
-          projectDir: rootDir,
-          importerManifestsByImporterId,
-          registriesByScope,
-          rootDependencies: directDependenciesByImporterId[id],
-        }),
-      }]
-    })
+    projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
+      dir: rootDir,
+      modulesDir,
+      publishDir: filteredLockfile.importers[id]?.publishDirectory,
+      dependencies: await getRootPackagesToLink(filteredLockfile, {
+        importerId: id,
+        importerModulesDir: modulesDir,
+        lockfileDir,
+        projectDir: rootDir,
+        importerManifestsByImporterId,
+        registriesByScope,
+        rootDependencies: directDependenciesByImporterId[id],
+      }),
+    }]))
   ))
   const rootProject = projectsToLink['.']
   if (rootProject && dedupe) {
@@ -1272,7 +1268,7 @@ async function removeBinsOfWorkspaceHoists (hoistedDependencies: HoistedDependen
     try {
       stats = await fs.lstat(link)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') return
       throw err
     }
     if (stats.isSymbolicLink()) await removeOrphanBins(link)
@@ -1316,7 +1312,7 @@ async function readCommandNames (binsDir: string): Promise<Set<string>> {
   try {
     entries = await fs.readdir(binsDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return new Set()
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return new Set()
     throw err
   }
   if (process.platform !== 'win32') return new Set(entries)
@@ -1332,7 +1328,7 @@ function getRootDependencyAliases (lockfile: LockfileObject, include: IncludedDe
   return Object.keys({
     ...(include.dependencies ? root.dependencies : {}),
     ...(include.devDependencies ? root.devDependencies : {}),
-    ...(include.optionalDependencies ? root.optionalDependencies : {}),
+    ...(include.dependencies && include.optionalDependencies ? root.optionalDependencies : {}),
   })
 }
 
@@ -1376,7 +1372,7 @@ async function workspaceHoistPointsToProject (projectId: ProjectId, aliases: Rec
       const target = await fs.readlink(destination)
       return path.resolve(path.dirname(destination), target) === projectDir
     } catch (error: unknown) {
-      if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return false
+      if (isError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return false
       throw error
     }
   }))).some(Boolean)
@@ -1396,6 +1392,7 @@ async function linkAllPkgs (
     allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    deferDependencyBuilds: boolean
     disableRelinkLocalDirDeps?: boolean
     enableGlobalVirtualStore?: boolean
     force: boolean
@@ -1460,7 +1457,11 @@ async function linkAllPkgs (
       if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
           const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
+            includeDepGraphHash: shouldIncludeDepGraphHash({
+              ignoreScripts: opts.ignoreScripts,
+              deferDependencyBuilds: opts.deferDependencyBuilds,
+              requiresBuild: depNode.requiresBuild,
+            }),
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion: opts.nodeVersion,

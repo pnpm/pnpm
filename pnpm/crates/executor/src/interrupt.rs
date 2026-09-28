@@ -14,6 +14,16 @@
 //! becomes `SIGTERM`, and the third stops the waiting and lets the signal
 //! take pnpm down.
 //!
+//! Windows has no signal to pass on: the console's control event reaches
+//! every attached process at once. What a child needs ending there is the
+//! case that never ends on its own — a `cmd` hosting a batch script, which
+//! answers the event with a "Terminate batch job (Y/N)?" prompt and waits
+//! on the answer forever. `cmd` asks only once the command it ran has
+//! returned, so a `cmd` left without child processes of its own for a
+//! grace after the interrupt is ended by pnpm, while one whose script is
+//! still shutting down is waited for
+//! ([pnpm/pnpm#14860](https://github.com/pnpm/pnpm/issues/14860)).
+//!
 //! A child that shares pnpm's process group has the terminal's interrupt
 //! already, so pnpm does not pass that one on: a second `SIGINT` would
 //! end a script that handles the signal once and then leaves the default
@@ -31,12 +41,13 @@
 //! down before pnpm ends.
 
 use crate::ScriptExit;
+#[cfg(unix)]
+use std::sync::Once;
+#[cfg(windows)]
+use std::sync::atomic::AtomicBool;
 use std::{
     ptr,
-    sync::{
-        Once,
-        atomic::{AtomicI32, AtomicPtr, AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicI32, AtomicPtr, AtomicUsize, Ordering},
 };
 
 /// The number of interrupts pnpm relays to a child before it stops
@@ -55,12 +66,40 @@ const RELAYED_INTERRUPTS: usize = 2;
 /// filled it, and those children would survive the interrupt.
 struct RelayEntry {
     target: AtomicI32,
+    /// Guards `handle` through its lifecycle: a termination holds it for
+    /// the length of its `TerminateProcess` call, a release for the target
+    /// clear, and a claim for the handle's retirement. A handle is
+    /// therefore closed only when no termination can be using it.
+    #[cfg(windows)]
+    handle_lock: AtomicBool,
+    /// A `PROCESS_TERMINATE` handle for the child, opened at registration
+    /// while the child is provably alive. The handle pins the process
+    /// object, so the pid in `target` can never come to name a recycled
+    /// process between this entry's release and a late termination.
+    #[cfg(windows)]
+    handle: AtomicPtr<std::ffi::c_void>,
     /// Interrupts relayed to the child holding this entry. Counting per
     /// child rather than per process is what gives a script that starts
     /// later its own plain first interrupt, while still escalating for
     /// one that sits through them.
     relays: AtomicUsize,
     next: AtomicPtr<RelayEntry>,
+}
+
+#[cfg(windows)]
+impl RelayEntry {
+    fn lock_handle(&self) {
+        while self.handle_lock
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            std::hint::spin_loop();
+        }
+    }
+
+    fn unlock_handle(&self) {
+        self.handle_lock.store(false, Ordering::Release);
+    }
 }
 
 static RELAY_HEAD: AtomicPtr<RelayEntry> = AtomicPtr::new(ptr::null_mut());
@@ -85,7 +124,11 @@ impl SignalRelay {
 impl Drop for SignalRelay {
     fn drop(&mut self) {
         if let Some(entry) = self.entry {
+            #[cfg(windows)]
+            entry.lock_handle();
             entry.target.store(0, Ordering::Release);
+            #[cfg(windows)]
+            entry.unlock_handle();
         }
     }
 }
@@ -102,11 +145,33 @@ pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
         return SignalRelay { entry: None };
     };
     let target = if own_process_group { -pid } else { pid };
-    SignalRelay { entry: Some(claim_entry(target)) }
+    #[cfg(windows)]
+    let handle = open_child_handle(pid);
+    SignalRelay {
+        entry: Some(claim_entry(
+            target,
+            #[cfg(windows)]
+            handle,
+        )),
+    }
+}
+
+/// Open a handle to end and await the child while it is provably alive:
+/// pnpm still holds its own handle for a child it just spawned, so the
+/// process object — and its pid — cannot have been recycled.
+#[cfg(windows)]
+fn open_child_handle(pid: i32) -> *mut std::ffi::c_void {
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    };
+
+    // SAFETY: a plain query by pid; a null result only means the child
+    // cannot be ended through it later, which the termination path skips.
+    unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, 0, pid as u32) }
 }
 
 /// Take the first free entry for `target`, or extend the list with one.
-fn claim_entry(target: i32) -> &'static RelayEntry {
+fn claim_entry(target: i32, #[cfg(windows)] handle: *mut std::ffi::c_void) -> &'static RelayEntry {
     let mut next = RELAY_HEAD.load(Ordering::Acquire);
     // SAFETY: every pointer in the list came from the `Box::leak` in
     // `push_entry` and is never freed, so it stays dereferenceable.
@@ -120,25 +185,42 @@ fn claim_entry(target: i32) -> &'static RelayEntry {
                 .compare_exchange(0, CLAIMING, Ordering::AcqRel, Ordering::Relaxed)
                 .is_ok()
         {
+            #[cfg(windows)]
+            entry.lock_handle();
             // The entry is this thread's alone now, so the count can be
             // cleared before the child is published. Clearing it before
             // taking the entry would let a thread that lost the race wipe
             // the escalation of whichever child won it.
             entry.relays.store(0, Ordering::Relaxed);
+            // The handle the previous child left is retired only now, with
+            // the entry unpublished and the lock held, so no termination
+            // can be using it.
+            #[cfg(windows)]
+            close_retired_handle(entry.handle.swap(handle, Ordering::Relaxed));
+            #[cfg(windows)]
+            entry.unlock_handle();
             entry.target.store(target, Ordering::Release);
             return entry;
         }
         next = entry.next.load(Ordering::Acquire);
     }
-    push_entry(target)
+    push_entry(
+        target,
+        #[cfg(windows)]
+        handle,
+    )
 }
 
 /// Add an entry for `target` at the head of the list. `next` is set before
 /// the head swings, so a handler walking the list concurrently either
 /// misses the new entry entirely or reads a complete one.
-fn push_entry(target: i32) -> &'static RelayEntry {
+fn push_entry(target: i32, #[cfg(windows)] handle: *mut std::ffi::c_void) -> &'static RelayEntry {
     let entry: &'static RelayEntry = Box::leak(Box::new(RelayEntry {
         target: AtomicI32::new(target),
+        #[cfg(windows)]
+        handle_lock: AtomicBool::new(false),
+        #[cfg(windows)]
+        handle: AtomicPtr::new(handle),
         relays: AtomicUsize::new(0),
         next: AtomicPtr::new(ptr::null_mut()),
     }));
@@ -159,7 +241,7 @@ fn push_entry(target: i32) -> &'static RelayEntry {
 
 /// Call `visit` with every registered child and report whether there was
 /// one. The walk allocates nothing, so a signal handler can run it.
-fn visit_targets(mut visit: impl FnMut(&RelayEntry, i32)) -> bool {
+fn visit_targets(mut visit: impl FnMut(&'static RelayEntry, i32)) -> bool {
     let mut visited = false;
     let mut next = RELAY_HEAD.load(Ordering::Acquire);
     // SAFETY: as in `claim_entry`, list entries are leaked and stay
@@ -340,43 +422,27 @@ fn open_controlling_terminal() -> Option<libc::c_int> {
     (tty >= 0).then_some(tty)
 }
 
+/// Close the handle a finished child left in an entry it no longer
+/// occupies. Never called while the entry is published, which is the only
+/// state a termination thread reads the handle in.
 #[cfg(windows)]
-fn install_handler() {
-    use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+fn close_retired_handle(handle: *mut std::ffi::c_void) {
+    use windows_sys::Win32::Foundation::CloseHandle;
 
-    pnpm_fs::install_temp_file_cleanup();
-    static INSTALLED: Once = Once::new();
-    INSTALLED.call_once(|| {
-        // SAFETY: the handler is a plain `extern "system"` function whose
-        // only state is this module's atomics.
-        unsafe {
-            SetConsoleCtrlHandler(Some(relay_console_event), 1);
-        }
-    });
-}
-
-/// Report a console interrupt as handled while children are still
-/// running, which is what keeps pnpm alive. The console delivers the same
-/// event to every process attached to it, so the children already have
-/// it and nothing needs relaying.
-///
-/// Returning `FALSE` passes the event on to the default handler, which
-/// terminates pnpm.
-#[cfg(windows)]
-unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
-
-    if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
-        return 0;
+    if handle.is_null() {
+        return;
     }
-    let mut still_listening = false;
-    visit_targets(|entry, _| {
-        if entry.relays.fetch_add(1, Ordering::Relaxed) < RELAYED_INTERRUPTS {
-            still_listening = true;
-        }
-    });
-    windows_sys::core::BOOL::from(still_listening)
+    // SAFETY: the handle came from `open_child_handle` and is closed once,
+    // by the claim that retires it.
+    unsafe {
+        CloseHandle(handle);
+    }
 }
+
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+use windows::install_handler;
 
 #[cfg(not(any(unix, windows)))]
 fn install_handler() {}

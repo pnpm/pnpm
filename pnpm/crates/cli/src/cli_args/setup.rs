@@ -13,7 +13,7 @@ use miette::{Context, IntoDiagnostic};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
-use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
 use pnpm_fs::write_atomic;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
@@ -40,6 +40,7 @@ impl SetupArgs {
 }
 
 fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+    ensure_windows_home_dir_env::<Host>()?;
     let pnpm_home_dir = default_pnpm_home_dir::<Host>().ok_or_else(|| {
         miette::miette!(
             "Could not determine the pnpm home directory. Set the PNPM_HOME environment variable."
@@ -203,7 +204,7 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
     }
 
     if cfg!(windows) {
-        write_windows_alias_wrappers(target_dir, name, subcommand)?;
+        write_windows_alias_wrapper(target_dir, name, subcommand)?;
     }
     Ok(())
 }
@@ -288,9 +289,14 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
 done
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi"#;
 
-/// The `cmd.exe` and PowerShell forms of an alias, each reaching the sibling
-/// shim written for its own shell.
-fn write_windows_alias_wrappers(
+/// The `cmd.exe` form of an alias, reaching the sibling `pnpm.cmd` shim.
+///
+/// No `.ps1` form is written, and one an earlier setup left is removed, because
+/// PowerShell prefers it over the `.cmd`. A `.ps1` could only call `pnpm.cmd`
+/// too, since the bin linker omits `pnpm.ps1` (see `wants_powershell_shim`), so
+/// it would add nothing but an execution-policy error on systems that block
+/// unsigned scripts, and it would drop a bare `--` from the arguments.
+fn write_windows_alias_wrapper(
     target_dir: &Path,
     name: &str,
     subcommand: &str,
@@ -303,19 +309,10 @@ fn write_windows_alias_wrappers(
         &target_dir.join(format!("{name}.cmd")),
         format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n").as_bytes(),
     )?;
-    // Also `pnpm.cmd`, not `pnpm.ps1`: the bin linker omits the PowerShell shim
-    // for a package named `pnpm` (see `wants_powershell_shim`), so the sibling
-    // `.ps1` may not exist while the `.cmd` always does. `$basedir` is spelled the
-    // way the generated `.ps1` shims spell it, so this works on PowerShell 2.0.
-    write_atomic(
-        &target_dir.join(format!("{name}.ps1")),
-        format!(
-            "$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\
-             & \"$basedir\\pnpm.cmd\"{subcommand} @args\n\
-             exit $LastExitCode\n",
-        )
-        .as_bytes(),
-    )
+    match fs::remove_file(target_dir.join(format!("{name}.ps1"))) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.

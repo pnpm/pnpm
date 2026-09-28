@@ -75,8 +75,13 @@ pub struct FetcherCapabilities {
 
 struct Pending {
     log: LogFn,
-    done: oneshot::Sender<Result<Value, String>>,
+    done: oneshot::Sender<Result<Value, WorkerError>>,
     callbacks: Option<FetcherCallbackSender>,
+}
+
+enum WorkerError {
+    Execution(String),
+    BadReadPackageResult(String),
 }
 
 /// Pending requests keyed by id. A `std` mutex (never held across an
@@ -217,17 +222,27 @@ impl NodeWorker {
 
     /// Whether the loaded pnpmfile exports a callable `readPackage` hook.
     pub async fn has_read_package(&self) -> Result<bool, HookError> {
-        self.request(
-            "hasReadPackage",
-            serde_json::json!({ "query": "hasReadPackage" }),
-            Arc::new(|_| {}),
-        )
-        .await
-        .and_then(|value| {
-            value
-                .as_bool()
-                .ok_or_else(|| self.exec_err("invalid hasReadPackage response"))
-        })
+        self.capability_query("hasReadPackage").await
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `afterAllResolved` hook.
+    pub async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        self.capability_query("hasAfterAllResolved").await
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `preResolution` hook.
+    pub async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.capability_query("hasPreResolution").await
+    }
+
+    async fn capability_query(&self, query: &'static str) -> Result<bool, HookError> {
+        self.request(query, serde_json::json!({ "query": query }), Arc::new(|_| {}))
+            .await
+            .and_then(|value| {
+                value
+                    .as_bool()
+                    .ok_or_else(|| self.exec_err(format!("invalid {query} response")))
+            })
     }
 
     /// Call `method` on the custom resolver at `index` in the pnpmfile's
@@ -372,7 +387,10 @@ impl NodeWorker {
         };
         match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(message))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(WorkerError::Execution(message)))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(WorkerError::BadReadPackageResult(message)))) => {
+                Err(HookError::BadReadPackageResult { message })
+            }
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
         }
@@ -392,7 +410,9 @@ fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mute
             dispatch_line(&pending, &stdin, &line);
         }
         for (_, request) in pending.lock().unwrap().drain() {
-            let _ = request.done.send(Err("pnpmfile worker exited".to_string()));
+            let _ = request.done.send(Err(WorkerError::Execution(
+                "pnpmfile worker exited".to_string(),
+            )));
         }
     });
 }
@@ -420,7 +440,13 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
 
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
-        Some(err) => Err(err.to_string()),
+        Some(err)
+            if message.get("code").and_then(Value::as_str)
+                == Some("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT") =>
+        {
+            Err(WorkerError::BadReadPackageResult(err.to_string()))
+        }
+        Some(err) => Err(WorkerError::Execution(err.to_string())),
         None => Ok(message
             .get("ok")
             .cloned()

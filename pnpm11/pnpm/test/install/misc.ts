@@ -490,6 +490,17 @@ test('installing in a CI environment', async () => {
   })
 
   await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })
+
+  rimrafSync('node_modules')
+  project.writePackageJson({
+    dependencies: { rimraf: '1' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { preferFrozenLockfile: true })
+  const lockfileBeforeInstall = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  await expect(
+    execPnpm(['install'], { env: { CI: 'true' } })
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(lockfileBeforeInstall)
 })
 
 // Tests for issue #9861: frozen-lockfile should be overridable via env vars and updateConfig hook

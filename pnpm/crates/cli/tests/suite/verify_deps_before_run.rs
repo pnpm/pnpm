@@ -11,6 +11,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    diagnostics::assert_diagnostic_contains,
     fs::{backdate_existing_files, bump_mtime},
 };
 use serde_json::json;
@@ -763,6 +764,70 @@ fn warn_action_warns_and_runs_the_script() {
     drop(root);
 }
 
+/// A lockfile that records overrides the root manifest now keeps only in its
+/// ignored `pnpm` field must not be rewritten by an implicit install, which
+/// would drop them. The gate refuses and leaves the lockfile alone
+/// ([pnpm/pnpm#16278](https://github.com/pnpm/pnpm/issues/16278)).
+#[test]
+fn install_action_refuses_to_drop_settings_of_the_ignored_pnpm_field() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest(&workspace, &marker);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "overrides:\n  foo: 1.0.0\n")
+        .expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read the lockfile");
+    assert!(lockfile.contains("overrides:"), "the lockfile must record the overrides:\n{lockfile}");
+
+    fs::remove_file(workspace.join("pnpm-workspace.yaml")).expect("remove pnpm-workspace.yaml");
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "verify-deps-project",
+        &marker,
+        json!({ "pnpm": { "overrides": { "foo": "1.0.0" }, "onlyBuiltDependencies": [] } }),
+    );
+    // `prompt` cannot ask here, and must not advise a plain install either.
+    for action in ["install", "prompt"] {
+        assert_refuses_to_drop_overrides(&workspace, action);
+    }
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+    fs::write(
+        workspace.join("package.yaml"),
+        format!(
+            "name: verify-deps-project\nversion: 0.0.0\nscripts:\n  hello: touch \"{}\"\npnpm:\n  overrides:\n    foo: 1.0.0\n",
+            marker.display(),
+        ),
+    )
+    .expect("write package.yaml");
+    assert_refuses_to_drop_overrides(&workspace, "install");
+    assert!(!marker.exists(), "the script must not run");
+    assert_eq!(
+        fs::read_to_string(&lockfile_path).expect("read the lockfile"),
+        lockfile,
+        "the lockfile must be left alone",
+    );
+
+    drop(root);
+}
+
+fn assert_refuses_to_drop_overrides(workspace: &Path, action: &str) {
+    let output = pacquet_in(workspace)
+        .with_args([&format!("--config.verify-deps-before-run={action}"), "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "{action} mode must refuse to install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(
+        &stderr,
+        r#"installing would drop "pnpm.overrides" from the lockfile, because the "pnpm" field in package.json is no longer read by pnpm"#,
+    );
+    assert_diagnostic_contains(&stderr, "Move these settings to pnpm-workspace.yaml");
+}
+
 /// `prompt` cannot ask in a non-interactive environment and must fail
 /// with the dedicated hint instead of hanging.
 #[test]
@@ -984,6 +1049,264 @@ fn exec_keeps_verifier_output_out_of_child_stdout() {
     );
 
     drop(root);
+}
+
+/// A filtered `exec` must not install the whole workspace: the install the
+/// gate spawns has to select the same projects the command selected
+/// ([pnpm/pnpm#11865](https://github.com/pnpm/pnpm/issues/11865)).
+#[test]
+fn filtered_exec_installs_only_the_selected_projects() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for name in ["project", "other"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({}),
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "project",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("filtered")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert_eq!(stdout, "filtered");
+    assert!(
+        stderr.contains("Done in"),
+        "the verify-deps gate must have spawned an install:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("Scope: all"),
+        "the filtered exec must not install the whole workspace:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// Under dedicated per-project lockfiles the gate installs inside each selected
+/// project directory, where the command's selectors need not select the
+/// project. A recursive filtered run must not hand them to that install: a
+/// selector that matches nothing would install nothing, while an install in a
+/// project directory already covers the project.
+#[test]
+fn separate_lockfiles_recursive_exec_installs_the_selected_projects() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: install\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    for name in ["project", "other"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({}),
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--recursive",
+            "--filter",
+            "./packages/project",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("filtered")"#,
+        ])
+        .output()
+        .expect("spawn recursive pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "the recursive filtered exec must succeed in a per-project-lockfile workspace:\n{stderr}",
+    );
+    assert_eq!(stdout, "filtered");
+    assert!(
+        !stderr.contains("Scope: 0 of"),
+        "the gate install must not select nothing in a project directory:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// A filtered install leaves the projects it did not select without a modules
+/// directory, so the next filtered command has to install the project it
+/// selects instead of treating the recorded state as up to date
+/// ([pnpm/pnpm#11865](https://github.com/pnpm/pnpm/issues/11865)).
+#[test]
+fn exec_installs_the_selected_project_after_a_filtered_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for name in ["foo", "bar"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+        );
+    }
+
+    // the first filtered exec installs `foo` and leaves `bar` without a modules directory
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", r#"process.stdout.write("foo-ok")"#])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("packages/foo/node_modules").exists(),
+        "the first filtered exec must install the project it selected",
+    );
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the first filtered exec must not install the project it did not select",
+    );
+
+    // the second filtered exec must install `bar` instead of treating the
+    // recorded filtered install as up to date
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "bar", "exec", "node", "-e", r#"process.stdout.write("bar-ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the second filtered exec must succeed:\n{stderr}");
+    assert_eq!(stdout, "bar-ok");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/foo").exists(),
+        "the second filtered exec must install the dependencies of the project it selected:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A selected project needs the workspace projects it depends on installed
+/// too, so the install the gate spawns selects the dependencies of the
+/// selected projects.
+#[test]
+fn filtered_exec_installs_the_workspace_dependencies_of_the_selected_projects() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+        ("baz", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", r#"process.stdout.write("foo-ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the workspace dependency of the selected project:\n{stderr}",
+    );
+    assert!(
+        !workspace.join("packages/baz/node_modules").exists(),
+        "the filtered exec must not install an unrelated project:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `--workspace-root` adds the root to a filtered selection. The install the
+/// gate spawns runs from the workspace root and installs it as well.
+#[test]
+fn filtered_exec_with_workspace_root_installs_the_root() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "workspace-root",
+        &workspace.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for name in ["foo", "bar"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "--workspace-root", "exec", "node", "-e", "0"])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the workspace root it selected:\n{stderr}",
+    );
+    assert!(
+        workspace.join("packages/foo/node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the project it selected:\n{stderr}",
+    );
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the filtered exec must not install a project it did not select:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
 }
 
 #[test]

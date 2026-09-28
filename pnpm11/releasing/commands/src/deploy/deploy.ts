@@ -437,6 +437,7 @@ async function deployFromSharedLockfile (
       lockfileDir: deployDir,
       workspaceDir: deployDir,
       virtualStoreDir: resolveDeployVirtualStoreDir(deployDir, opts),
+      localDirPackageImportMethod: 'clone-or-copy',
       modulesDir: undefined,
       confirmModulesPurge: false,
       frozenLockfile: true,

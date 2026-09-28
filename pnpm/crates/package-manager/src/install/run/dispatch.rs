@@ -323,7 +323,6 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         // gone does.
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
-                allow_missing_dependency_free_importers: false,
                 allow_unresolved_optional_dependencies: true,
                 prune_stale_importers: false,
                 ..dispatch.freshness.scope
@@ -395,7 +394,7 @@ pub(super) async fn auto_frozen_path(
                 let current =
                     pnpm_hooks::untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
                         .await
-                        .map_err(InstallError::ReadPackageHook)?;
+                        .map_err(InstallError::from)?;
                 if crate::install::untracked_read_package_hook_may_have_changed(
                     lockfile.untracked_pnpmfile_read_package_hook(),
                     current,

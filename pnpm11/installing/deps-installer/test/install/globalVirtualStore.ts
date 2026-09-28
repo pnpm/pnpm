@@ -105,6 +105,57 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
   expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
+test('fresh install into a second project reuses a warm global virtual store', async () => {
+  const manifest = {
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest },
+    { location: 'project-2', package: manifest },
+  ])
+
+  const cwd = process.cwd()
+  const project1Dir = path.resolve('project-1')
+  const project2Dir = path.resolve('project-2')
+  const globalVirtualStoreDir = path.resolve('links')
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    hoistPattern: ['*'],
+  })
+
+  try {
+    process.chdir(project1Dir)
+    await install(manifest, opts)
+    fs.copyFileSync(path.join(project1Dir, 'pnpm-lock.yaml'), path.join(project2Dir, 'pnpm-lock.yaml'))
+
+    const originalImportPackage = opts.storeController.importPackage
+    let importCount = 0
+    opts.storeController.importPackage = (async (targetDir, importOpts) => {
+      const result = await originalImportPackage(targetDir, importOpts)
+      if (result.importMethod != null) {
+        importCount++
+      }
+      return result
+    }) as typeof originalImportPackage
+
+    process.chdir(project2Dir)
+    await install(manifest, {
+      ...opts,
+      frozenLockfile: true,
+    })
+
+    expect(importCount).toBe(0)
+    expect(fs.existsSync(path.join(project2Dir, 'node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+  } finally {
+    process.chdir(cwd)
+  }
+})
+
 test('modules are correctly updated when using a global virtual store', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
@@ -360,6 +411,39 @@ test('GVS build failure keeps the slot and marks it for a rebuild', async () => 
   const pkgInGvs = path.join(pkgVersionDir, hashes[0], 'node_modules/@pnpm.e2e/failing-postinstall')
   expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
   expect(fs.readFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'utf8')).toBe('started')
+})
+
+test('GVS removes an optional dependency whose build failed from its slot', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-failing-optional-dependency': '1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pkg-with-failing-postinstall': true },
+  })
+  const failedVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-postinstall/1.0.0')
+  const parentVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-optional-dependency/1.0.0')
+
+  // A repeat install leaves the package removed.
+  for (let i = 0; i < 2; i++) {
+    // eslint-disable-next-line no-await-in-loop
+    await install(manifest, opts)
+
+    const hashes = fs.readdirSync(failedVersionDir)
+    expect(hashes).toHaveLength(1)
+    expect(fs.existsSync(path.join(failedVersionDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-failing-postinstall'))).toBeFalsy()
+    const parentHashes = fs.readdirSync(parentVersionDir)
+    expect(parentHashes).toHaveLength(1)
+    const parentModules = path.join(parentVersionDir, parentHashes[0], 'node_modules')
+    expect(fs.existsSync(path.join(parentModules, '@pnpm.e2e/pkg-with-failing-optional-dependency/package.json'))).toBeTruthy()
+    expect(fs.existsSync(path.join(parentModules, '@pnpm.e2e/pkg-with-failing-postinstall/package.json'))).toBeFalsy()
+  }
 })
 
 test('GVS build waits for another install building the same slot', async () => {

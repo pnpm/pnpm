@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry, withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
@@ -34,6 +34,8 @@ export interface ImportIndexedDirOptions {
    */
   safeToSkip?: boolean
   resolvedFrom?: ResolvedFrom
+  /** Symlinks to create in the package, keyed by their path relative to it, with their targets. */
+  symlinks?: Map<string, string>
 }
 
 // What one call to importIndexedDir is importing, threaded to the helpers that
@@ -73,7 +75,10 @@ export function importIndexedDir (
   // handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.) and
   // atomically swaps in a complete directory.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, symlinkDirs(opts, filenames, { writtenDir: newDir, finalDir: newDir }))) {
+  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, {
+    links: symlinkDirs(opts, filenames, { writtenDir: newDir, finalDir: newDir }),
+    symlinks: opts.symlinks,
+  })) {
     return
   }
   // Staging path: create in temp dir, then atomically rename.
@@ -86,7 +91,10 @@ export function importIndexedDir (
       { importFile: importer.importFile, importFileAtomic: importer.importFile },
       stage,
       filenames,
-      symlinkDirs(opts, filenames, { writtenDir: stage, finalDir: newDir })
+      {
+        links: symlinkDirs(opts, filenames, { writtenDir: stage, finalDir: newDir }),
+        symlinks: opts.symlinks,
+      }
     )
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
@@ -125,18 +133,18 @@ export function importIndexedDir (
 // then puts the completion marker on top of it — after which the directory
 // looks finished to every later install and is never repaired.
 function importIntoSharedDir (dirImport: IndexedDirImport): void {
-  const { importer, newDir, filenames } = dirImport
+  const { importer, newDir, filenames, opts } = dirImport
   fs.mkdirSync(path.dirname(newDir), { recursive: true })
   let created = false
   try {
     fs.mkdirSync(newDir)
     created = true
   } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
   }
   if (created) {
     try {
-      tryImportIndexedDir(importer, newDir, filenames)
+      tryImportIndexedDir(importer, newDir, filenames, { symlinks: opts.symlinks })
       return
     } catch (err: unknown) {
       if (retryWithFixedFileMap(err, dirImport)) return
@@ -145,7 +153,7 @@ function importIntoSharedDir (dirImport: IndexedDirImport): void {
       // replacement for it.
     }
   }
-  if (allFilesMatch(newDir, filenames)) return
+  if (allFilesMatch(newDir, filenames) && allSymlinksMatch(newDir, opts.symlinks)) return
   try {
     repairIndexedDir(dirImport)
   } catch (err: unknown) {
@@ -158,7 +166,7 @@ function importIntoSharedDir (dirImport: IndexedDirImport): void {
 // entry. Files the package does not declare are left alone: a build output
 // belongs to whoever put it there, and a slot other installs are reading is
 // not somewhere to delete from speculatively.
-function repairIndexedDir ({ importer, newDir, filenames }: IndexedDirImport): void {
+function repairIndexedDir ({ importer, newDir, filenames, opts }: IndexedDirImport): void {
   makeFileMapDirs(newDir, filenames, { clearBlockers: true })
   let packageJsonSrc: string | undefined
   for (const [f, src] of filenames) {
@@ -167,6 +175,11 @@ function repairIndexedDir ({ importer, newDir, filenames }: IndexedDirImport): v
       continue
     }
     replaceFileIfDifferent(importer.importFile, src, path.join(newDir, f))
+  }
+  for (const [f, target] of opts.symlinks ?? []) {
+    const dir = path.posix.dirname(f)
+    if (dir !== '.') clearDirentBlockingDir(newDir, dir)
+    replaceSymlinkIfDifferent(target, path.join(newDir, f))
   }
   if (packageJsonSrc !== undefined) {
     replaceFileIfDifferent(importer.importFile, packageJsonSrc, path.join(newDir, 'package.json'))
@@ -199,6 +212,23 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
   }
 }
 
+function replaceSymlinkIfDifferent (target: string, dest: string): void {
+  if (symlinkMatches(dest, target)) return
+  fs.mkdirSync(path.dirname(dest), { recursive: true })
+  const tmp = pathTemp(dest)
+  fs.symlinkSync(target, tmp)
+  try {
+    clearDirBlockingFile(dest)
+    renameFileWithRetry(tmp, dest)
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {} // eslint-disable-line:no-empty
+    if (symlinkMatches(dest, target)) return
+    throw err
+  }
+}
+
 // Whether a package directory can go at `dir` now: nothing is there, or
 // what is there is already a directory.
 //
@@ -211,7 +241,7 @@ function dirFitsAt (dir: string): boolean {
   try {
     return lstatWithRetry(dir).isDirectory()
   } catch (err) {
-    return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
+    return isError(err) && 'code' in err && err.code === 'ENOENT'
   }
 }
 
@@ -226,7 +256,7 @@ function clearDirBlockingFile (dest: string): void {
   try {
     stats = lstatWithRetry(dest)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
   if (stats.isDirectory()) {
@@ -246,7 +276,7 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
     try {
       stats = lstatWithRetry(dir)
     } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') return
       throw err
     }
     if (stats.isDirectory()) continue
@@ -266,7 +296,7 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
 // failure.
 function retryWithFixedFileMap (err: unknown, dirImport: IndexedDirImport): boolean {
   const { importer, newDir, filenames, opts } = dirImport
-  if (!util.types.isNativeError(err) || !('code' in err)) return false
+  if (!isError(err) || !('code' in err)) return false
   if (err.code === 'EEXIST') {
     const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
     if (conflictingFileNames.size === 0) return false
@@ -305,13 +335,13 @@ function tryExclusiveImport (
   importer: Importer,
   newDir: string,
   filenames: Map<string, string>,
-  links?: SymlinkDirs
+  entries: ImportedEntries
 ): boolean {
   fs.mkdirSync(path.dirname(newDir), { recursive: true })
   try {
     fs.mkdirSync(newDir)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return false
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return false
     throw err
   }
   // We exclusively created newDir, so no other process writes into it directly
@@ -320,7 +350,7 @@ function tryExclusiveImport (
   // back to staging, so the next attempt — including this process's own method
   // fallbacks (clone → hardlink → copy) — can fast-path again.
   try {
-    tryImportIndexedDir(importer, newDir, filenames, links)
+    tryImportIndexedDir(importer, newDir, filenames, entries)
     return true
   } catch {
     try {
@@ -341,6 +371,24 @@ function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
     if (!fileMatches(dir, f, src)) return false
   }
   return true
+}
+
+function allSymlinksMatch (dir: string, symlinks: Map<string, string> | undefined): boolean {
+  for (const [f, target] of symlinks ?? []) {
+    if (!symlinkMatches(path.join(dir, f), target)) {
+      globalInfo(`Re-importing "${dir}" because symlink "${f}" does not point to "${target}"`)
+      return false
+    }
+  }
+  return true
+}
+
+function symlinkMatches (dest: string, target: string): boolean {
+  try {
+    return fs.readlinkSync(dest) === target
+  } catch {
+    return false
+  }
 }
 
 function fileMatches (dir: string, f: string, src: string): boolean {
@@ -422,11 +470,19 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
   return { sanitizedFilenames, invalidFilenames }
 }
 
+// Besides the indexed files, what an import writes into the package.
+interface ImportedEntries {
+  // Present when the source is a local directory whose own symlinks are kept.
+  links?: SymlinkDirs
+  // The symlinks a cached build created, keyed by path, with their targets.
+  symlinks?: Map<string, string>
+}
+
 function tryImportIndexedDir (
   { importFile, importFileAtomic }: Importer,
   newDir: string,
   filenames: Map<string, string>,
-  links?: SymlinkDirs
+  { links, symlinks }: ImportedEntries = {}
 ): void {
   makeFileMapDirs(newDir, filenames)
   // Write package.json last so it acts as a completion marker.
@@ -440,6 +496,11 @@ function tryImportIndexedDir (
       continue
     }
     importEntry(importFile, src, path.join(newDir, f), links)
+  }
+  for (const [f, target] of symlinks ?? []) {
+    const dest = path.join(newDir, f)
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.symlinkSync(target, dest)
   }
   if (packageJsonSrc !== undefined) {
     importEntry(importFileAtomic, packageJsonSrc, path.join(newDir, 'package.json'), links)
@@ -506,7 +567,7 @@ function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): bo
   } catch (err: unknown) {
     // Creating a symlink on Windows needs a privilege that a junction does
     // not, and a file has no junction to fall back to.
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EPERM') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EPERM') throw err
     if (!isDir) return false
     fs.symlinkSync(path.join(links.finalDir, path.relative(links.writtenDir, resolved)), dest, 'junction')
   }
@@ -517,7 +578,7 @@ function realpathOrSelf (file: string): string {
   try {
     return fs.realpathSync(file)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return file
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return file
     throw err
   }
 }
@@ -526,7 +587,7 @@ function isDirectory (file: string): boolean {
   try {
     return fs.statSync(file).isDirectory()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -585,7 +646,7 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
   try {
     renameEvenAcrossDevices(src, dest)
   } catch (err: unknown) {
-    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
+    switch (isError(err) && 'code' in err && err.code) {
       case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
         return
@@ -604,7 +665,7 @@ function renameEvenAcrossDevices (src: string, dest: string): void {
   try {
     gfs.renameSync(src, dest)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
+    if (!(isError(err) && 'code' in err && err.code === 'EXDEV')) throw err
     fsx.copySync(src, dest)
   }
 }

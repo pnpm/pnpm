@@ -96,6 +96,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
@@ -166,6 +167,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -269,6 +271,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -359,6 +362,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -436,6 +440,7 @@ async fn frozen_lockfile_errors_when_an_importer_reference_has_no_snapshot() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

@@ -391,10 +391,21 @@ jobs:
         run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
 
   doc:
-    name: Rust CI / Doc
+    name: Rust CI / Doc / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # rustdoc resolves intra-doc links only in the code compiled for the
+    # target, so a link from shared docs to a `#[cfg(unix)]` item breaks on
+    # Windows alone. Windows gets its own row, as it does in Clippy.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-4vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -587,10 +598,20 @@ jobs:
         run: git diff --exit-code .cargo/config.toml
 
   dylint:
-    name: Rust CI / Dylint
+    name: Rust CI / Dylint / ${{ matrix.os_label }}
     needs: changes
     if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Windows gets its own row for the same reason Clippy does: a Linux-only
+    # run never compiles `#[cfg(windows)]` code, so its findings go unseen.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-4vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Verify change detection
         if: ${{ needs.changes.result != 'success' }}
@@ -639,8 +660,8 @@ jobs:
         uses: $/.github/actions/rustup
         with:
           # Disable Swatinem/rust-cache: it strips `target/` aggressively
-          # before saving, which would wipe the `target/dylint`
-          # `libperfectionist.so` we want to preserve. The `actions/cache`
+          # before saving, which would wipe the perfectionist library
+          # under `target/dylint` we want to preserve. The `actions/cache`
           # steps above handle caching instead.
           restore-cache: false
 
