@@ -30,6 +30,11 @@ jobs:
 
     name: ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
     runs-on: ${{matrix.platform}}
+    env:
+      # pnpm 10 never used the global virtual store in CI. With it, pnpm 12 adds
+      # an ESM loader to NODE_OPTIONS, and on Node.js older than 22.15 that stops
+      # ts-node from running the build scripts.
+      PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: 'false'
 
     steps:
     - name: Configure Git
@@ -39,13 +44,11 @@ jobs:
         git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-    - name: Install pnpm
-      uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
+    - name: Install pnpm and Node
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
-        standalone: true
-    - name: Setup Node
-      run: pnpm env use -g ${{ join(matrix.node, '.') }}
-      timeout-minutes: 1
+        runtime: node@${{ join(matrix.node, '.') }}
+        install: false
     - name: Install npm@8
       run: pnpm add --global npm@8
       timeout-minutes: 1
