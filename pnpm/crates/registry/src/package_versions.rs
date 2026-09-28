@@ -48,6 +48,9 @@ struct VersionSlot {
     /// Hydration cache. `Some(None)` records a fragment that failed
     /// to decode so the parse error is paid (and warned about) once.
     parsed: OnceLock<Option<Arc<PackageVersion>>>,
+    /// [`PackageVersions::is_deprecated`] probe cache. Stays empty when
+    /// the fragment could not be read, so a failed mirror read is
+    /// retried. A populated `parsed` takes precedence over it.
     deprecated: OnceLock<bool>,
 }
 

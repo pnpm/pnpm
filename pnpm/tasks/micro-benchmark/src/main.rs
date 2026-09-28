@@ -1,3 +1,4 @@
+mod version_pick;
 mod workspace_resolution;
 mod workspace_sort;
 
@@ -288,6 +289,7 @@ pub fn main() -> Result<(), String> {
     bench_concurrent_tarballs(&mut criterion, &mut server);
     bench_packument(&mut criterion, &packument);
     bench_lockfile(&mut criterion, &lockfile_dir);
+    version_pick::bench_version_pick(&mut criterion);
     workspace_resolution::bench_workspace_resolution(&mut criterion);
     workspace_sort::bench_workspace_sort(&mut criterion);
 
