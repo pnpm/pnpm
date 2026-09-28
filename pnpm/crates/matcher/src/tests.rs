@@ -204,3 +204,11 @@ fn wildcard_matcher_preserves_literal_star_semantics() {
         );
     }
 }
+
+#[test]
+fn question_wildcard_handles_long_near_matches() {
+    let pattern = format!("*{}x", "?".repeat(256));
+    let input = format!("{}y", "a".repeat(8192));
+
+    assert!(!WildcardMatcher::new(&pattern).matches(&input));
+}

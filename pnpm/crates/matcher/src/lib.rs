@@ -11,6 +11,8 @@
 
 use std::sync::Arc;
 
+use regex::Regex;
+
 /// Compile a list of patterns into a matcher returning the index of the
 /// first matching include, or `None` when nothing matches.
 ///
@@ -209,7 +211,7 @@ pub struct WildcardMatcher {
     /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
     segments: Arc<[String]>,
     had_wildcard: bool,
-    question_pattern: Option<Arc<[char]>>,
+    question_pattern: Option<Regex>,
 }
 
 impl WildcardMatcher {
@@ -224,10 +226,17 @@ impl WildcardMatcher {
         let question_pattern = pattern
             .contains('?')
             .then(|| {
-                pattern
-                    .chars()
-                    .collect::<Vec<_>>()
-                    .into()
+                let mut regex_pattern = String::from("\\A");
+                for character in pattern.chars() {
+                    match character {
+                        '*' => regex_pattern.push_str("(?s:.*)"),
+                        '?' => regex_pattern.push_str("(?s:.)"),
+                        literal => regex_pattern.push_str(&regex::escape(&literal.to_string())),
+                    }
+                }
+                regex_pattern.push_str("\\z");
+                Regex::new(&regex_pattern)
+                    .expect("escaped wildcard patterns are valid regular expressions")
             });
         WildcardMatcher { segments: segments.into(), had_wildcard, question_pattern }
     }
@@ -236,7 +245,7 @@ impl WildcardMatcher {
     #[must_use]
     pub fn matches(&self, input: &str) -> bool {
         if let Some(pattern) = &self.question_pattern {
-            return matches_question_pattern(pattern, input);
+            return pattern.is_match(input);
         }
         if !self.had_wildcard {
             return self.segments[0] == input;
@@ -253,49 +262,6 @@ impl WildcardMatcher {
         // middle segments greedily.
         contains_in_order(middle, &self.segments[1..self.segments.len() - 1])
     }
-}
-
-fn matches_question_pattern(pattern: &[char], input: &str) -> bool {
-    let mut pattern_index = 0;
-    let mut input_index = 0;
-    let mut star_pattern_index = None;
-    let mut star_input_index = 0;
-
-    while input_index < input.len() {
-        match pattern.get(pattern_index) {
-            Some('?') => {
-                pattern_index += 1;
-                input_index = next_char_index(input, input_index);
-            }
-            Some('*') => {
-                star_pattern_index = Some(pattern_index);
-                pattern_index += 1;
-                star_input_index = input_index;
-            }
-            Some(&literal) if input[input_index..].starts_with(literal) => {
-                pattern_index += 1;
-                input_index = next_char_index(input, input_index);
-            }
-            _ => {
-                let Some(star) = star_pattern_index else { return false };
-                star_input_index = next_char_index(input, star_input_index);
-                input_index = star_input_index;
-                pattern_index = star + 1;
-            }
-        }
-    }
-
-    pattern[pattern_index..]
-        .iter()
-        .all(|character| *character == '*')
-}
-
-fn next_char_index(input: &str, index: usize) -> usize {
-    let character = input[index..]
-        .chars()
-        .next()
-        .expect("input index must point at a character");
-    index + character.len_utf8()
 }
 
 /// Whether `segments` all occur in `input`, in order and without overlap.
