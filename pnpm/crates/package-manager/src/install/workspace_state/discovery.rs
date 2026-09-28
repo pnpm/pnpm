@@ -70,18 +70,43 @@ pub fn check_deps_status_before_run_at(
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
     let lockfile_root = lockfile_root_for(&config, workspace_dir_opt.as_deref(), manifest_dir);
-    // pnpm reports "cannot check" straight from the missing workspace
-    // state, before any project discovery — a fresh project (the common
-    // out-of-sync case) must not pay for the workspace-projects walk
-    // only to reach the same verdict inside the check. Projects are walked
-    // only when the manifest itself gives an install nothing to do.
-    match pnpm_workspace_state::load_workspace_state(&lockfile_root) {
+    deps_status_from_state(
+        &GateInputs {
+            config: &config,
+            manifest: &manifest,
+            workspace_manifest: workspace_manifest.as_ref(),
+            workspace_root: &workspace_root,
+            lockfile_root: &lockfile_root,
+        },
+        selected_project_dirs,
+    )
+}
+
+/// What the verify-deps gate read before it consults the workspace state.
+struct GateInputs<'a> {
+    config: &'a Config,
+    manifest: &'a PackageManifest,
+    workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
+    workspace_root: &'a Path,
+    lockfile_root: &'a Path,
+}
+
+/// pnpm reports "cannot check" straight from the missing workspace state,
+/// before any project discovery — a fresh project (the common out-of-sync
+/// case) must not pay for the workspace-projects walk only to reach the
+/// same verdict inside the check. Projects are walked only when the
+/// manifest itself gives an install nothing to do.
+fn deps_status_from_state(
+    inputs: &GateInputs<'_>,
+    selected_project_dirs: &[&Path],
+) -> Option<crate::RunDepsStatus> {
+    match pnpm_workspace_state::load_workspace_state(inputs.lockfile_root) {
         Ok(Some(workspace_state)) => check_discovered_deps(
-            &config,
-            &manifest,
-            workspace_manifest.as_ref(),
-            &workspace_root,
-            &lockfile_root,
+            inputs.config,
+            inputs.manifest,
+            inputs.workspace_manifest,
+            inputs.workspace_root,
+            inputs.lockfile_root,
             &workspace_state,
             selected_project_dirs,
         ),
@@ -90,10 +115,10 @@ pub fn check_deps_status_before_run_at(
         // `node_modules` behind.
         Ok(None)
             if projects_have_nothing_to_install(
-                &config,
-                &manifest,
-                workspace_manifest.as_ref(),
-                &workspace_root,
+                inputs.config,
+                inputs.manifest,
+                inputs.workspace_manifest,
+                inputs.workspace_root,
             ) =>
         {
             Some(crate::RunDepsStatus::UpToDate)

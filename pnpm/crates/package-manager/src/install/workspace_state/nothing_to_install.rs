@@ -1,8 +1,10 @@
-use super::super::{
-    Config, PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, load_workspace_projects,
-    project_requires_lifecycle_scripts,
+use super::{
+    super::{
+        Config, PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, load_workspace_projects,
+        project_requires_lifecycle_scripts,
+    },
+    build_project_manifests_list,
 };
-use super::build_project_manifests_list;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 
 /// Whether an install of these never-installed projects would have
