@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { checkDepsStatus as checkDepsStatusFn } from '@pnpm/deps.status'
 import type { runPnpmCli as runPnpmCliFn } from '@pnpm/exec.pnpm-cli-runner'
@@ -75,6 +79,37 @@ test('installs when dependency status is unavailable for an unexpected reason', 
 
   expect(runPnpmCli).toHaveBeenCalledWith(['install'], {
     cwd: process.cwd(),
+    reporter: undefined,
+  })
+})
+
+test('ignore-workspace does not read an enclosing workspace manifest', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-ignore-workspace-'))
+  const project = path.join(root, 'project')
+  fs.mkdirSync(project)
+  fs.writeFileSync(path.join(root, 'pnpm-workspace.yml'), 'packages:\n  - .\n')
+  checkDepsStatus.mockResolvedValue({
+    upToDate: undefined,
+    issue: 'Cannot check whether dependencies are outdated',
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    dir: project,
+    excludeLinksFromLockfile: false,
+    ignoreWorkspace: true,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'left-out',
+    },
+    rootProjectManifestDir: project,
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], {
+    cwd: project,
     reporter: undefined,
   })
 })

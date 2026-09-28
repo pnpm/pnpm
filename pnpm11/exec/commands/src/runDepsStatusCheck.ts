@@ -21,7 +21,7 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd'>> {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd' | 'ignoreWorkspace'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
@@ -119,7 +119,9 @@ async function installNotRequired (
 }
 
 async function dependencyFreeProjectLeftOut (opts: RunDepsStatusCheckOptions): Promise<boolean> {
-  if (opts.workspaceDir != null || hasRuntimeDependencies(opts)) return false
+  // `--ignore-workspace` skips workspace discovery. Walking again would
+  // throw on a misnamed ancestor manifest before the command runs.
+  if (opts.workspaceDir != null || opts.ignoreWorkspace || hasRuntimeDependencies(opts)) return false
   return leftOutOfEnclosingWorkspace(opts.dir)
 }
 
