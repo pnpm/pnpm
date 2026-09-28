@@ -102,7 +102,7 @@ impl Walker<'_> {
         let node = &self.tree.dependencies_tree[node_id];
         match &node.children {
             TreeChildren::Realized(children) => (self.realized_provider_children(children), None),
-            TreeChildren::Lazy => self.lazy_provider_children(LazyProviders {
+            TreeChildren::Lazy => self.lazy_provider_children(&LazyProviders {
                 pkg_id: std::sync::Arc::<str>::clone(&node.resolved_package_id),
                 depth: node.depth,
             }),
@@ -130,7 +130,7 @@ impl Walker<'_> {
     /// the whole children map.
     pub(super) fn lazy_provider_children(
         &mut self,
-        lazy: LazyProviders,
+        lazy: &LazyProviders,
     ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
         let children = self.tree.children_by_id
             .get(&lazy.pkg_id)
