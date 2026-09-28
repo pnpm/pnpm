@@ -250,7 +250,7 @@ fn file_backed_deprecation_probe_does_not_hydrate() {
                 .unwrap()
                 .parsed
                 .get()
-                .is_none()
+                .is_none(),
         );
     }
     assert!(
@@ -258,7 +258,7 @@ fn file_backed_deprecation_probe_does_not_hydrate() {
             .get("1.0.0")
             .unwrap()
             .deprecated
-            .is_some()
+            .is_some(),
     );
 }
 
@@ -280,6 +280,6 @@ fn unreadable_mirror_probe_does_not_cache_a_false_result() {
             .unwrap()
             .deprecated
             .get()
-            .is_none()
+            .is_none(),
     );
 }
