@@ -222,6 +222,7 @@ fn unparsed_argv_steps_over_short_option_values() {
         (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], "/tmp/separate"),
         (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], "/tmp/clustered"),
         (&["pnpm", "-rC/tmp/attached-cluster", "install", "--undeclared"], "/tmp/attached-cluster"),
+        (&["pnpm", r"-rCC:\project", "install", "--undeclared"], r"C:\project"),
     ] {
         let argv = argv
             .iter()
@@ -232,6 +233,40 @@ fn unparsed_argv_steps_over_short_option_values() {
             SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
         assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
         assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
+    }
+}
+
+#[test]
+fn unparsed_argv_names_a_command_by_its_own_name() {
+    for (alias, command) in
+        [("c", "config"), ("ic", "ci"), ("clean-install", "ci"), ("rt", "runtime")]
+    {
+        let input =
+            SwitchInput::from_unparsed_argv(&["pnpm", alias, "--undeclared"].map(OsString::from))
+                .expect("the command name is unambiguous");
+        assert_eq!(input.command.as_deref(), Some(command), "{alias}");
+    }
+    let input = SwitchInput::from_unparsed_argv(&["pnpm", "install-clean", "--undeclared"].map(
+        OsString::from,
+    ))
+    .expect("the command name is unambiguous");
+    assert_eq!(input.frozen_lockfile, Some(true));
+}
+
+#[test]
+fn unparsed_argv_reads_global_in_a_short_cluster() {
+    for (argv, expected) in [
+        (&["pnpm", "add", "-gE", "pkg", "--undeclared"][..], true),
+        (&["pnpm", "add", "-Eg", "pkg", "--undeclared"], true),
+        (&["pnpm", "-Cg", "add", "pkg", "--undeclared"], false),
+        (&["pnpm", "add", "pkg", "--undeclared"], false),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        assert_eq!(argv_requests_global(&argv), expected, "{argv:?}");
     }
 }
 

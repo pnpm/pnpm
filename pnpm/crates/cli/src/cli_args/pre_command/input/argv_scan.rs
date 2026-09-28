@@ -92,7 +92,7 @@ impl SwitchInput {
         options: &ArgTable,
     ) -> Option<usize> {
         if !token.starts_with('-') {
-            self.command.get_or_insert_with(|| token.to_string());
+            self.command.get_or_insert_with(|| canonical_command_name(token));
             return Some(1);
         }
         self.absorb_clustered_dir(token, next, options);
@@ -195,9 +195,41 @@ fn short_cluster_value<'a>(shorts: &'a str, options: &ArgTable) -> Option<Option
     Some(None)
 }
 
-/// Whether `-g` / `--global` was typed before any `--` separator.
+/// The command's own name for `name`, which may be one of its aliases.
+fn canonical_command_name(name: &str) -> String {
+    crate::cli_args::grammar()
+        .find_subcommand(name)
+        .map_or(name, clap::Command::get_name)
+        .to_string()
+}
+
+/// Whether `--global` or `-g` was typed before any `--` separator,
+/// including `-g` inside a short cluster such as `-gE`.
 pub(in crate::cli_args::pre_command) fn argv_requests_global(argv: &[OsString]) -> bool {
-    typed_tokens(argv).any(|token| token == "-g" || token == "--global")
+    let options = every_option();
+    typed_tokens(argv)
+        .any(|token| {
+            token == "--global"
+                || token
+                    .strip_prefix('-')
+                    .filter(|shorts| !shorts.starts_with('-'))
+                    .is_some_and(|shorts| {
+                        cluster_options(shorts, &options).any(|short| short == 'g')
+                    })
+        })
+}
+
+/// The letters of a short cluster that name options: up to and including
+/// the first one that takes a value, whose value is the rest of the token.
+fn cluster_options<'a>(shorts: &'a str, options: &'a ArgTable) -> impl Iterator<Item = char> + 'a {
+    let mut value_follows = false;
+    shorts
+        .chars()
+        .take_while(move |&short| {
+            let named = !value_follows;
+            value_follows = options.short_consumes_value(short) != Some(false);
+            named
+        })
 }
 
 /// Whether `--location project` was typed before any `--` separator.
