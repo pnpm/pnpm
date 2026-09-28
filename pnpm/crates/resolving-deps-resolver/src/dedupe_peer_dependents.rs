@@ -18,10 +18,15 @@
 //! equal size would otherwise collapse into whichever happened to be
 //! visited first, producing machine-dependent lockfiles.
 
+pub(crate) use survivor_names::PeerSuffixes;
+
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::BTreeMap;
 
 use pnpm_deps_path::DepPath;
+use survivor_names::rename_survivors;
+
+mod survivor_names;
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
@@ -32,9 +37,14 @@ use crate::{
 /// Collapse peer-dependent duplicate variants in `graph` into their
 /// largest compatible sibling, rewriting every collapsed depPath in the
 /// graph's child edges and in each importer's `direct` map.
-pub fn dedupe_peer_dependents(
+///
+/// A collapse retargets the peers of the nodes that depended on the
+/// collapsed variant, and a depPath's peer suffix names its peers, so
+/// those nodes are renamed after the peers they now resolve to.
+pub(crate) fn dedupe_peer_dependents(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
+    peer_suffixes: &PeerSuffixes<'_>,
 ) {
     let duplicates = collect_duplicates(graph);
     if duplicates.is_empty() {
@@ -55,6 +65,7 @@ pub fn dedupe_peer_dependents(
     // edge and importer direct dep was rewritten above). Drop them so they
     // don't surface in the lockfile as orphans.
     prune_unreachable(graph, direct_by_importer);
+    rename_survivors(graph, direct_by_importer, &dep_paths_map, peer_suffixes);
 }
 
 /// Group the graph's depPaths by their `pkgIdWithPatchHash` and keep the
