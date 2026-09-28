@@ -1,5 +1,20 @@
 # pnpm
 
+## 10.34.6
+
+### Patch Changes
+
+- e7888e5: `pnpm self-update` now resolves and verifies pnpm through registry, authentication, proxy, and TLS settings from trusted non-project configuration. Project configuration and the default project pnpmfile can no longer redirect the pnpm download or disable engine identity verification.
+- 46bc7c9: pnpm no longer tells you to update itself with Corepack or with `pnpm add -g`:
+
+  - The update notification now suggests `pnpm self-update`, or the [standalone install script](https://pnpm.io/installation) when pnpm is running under Corepack. It used to suggest `corepack use pnpm@<version>`, or `pnpm add -g pnpm` / `pnpm add -g @pnpm/exe` when pnpm was not installed by the standalone script — but `pnpm add -g` refuses to install pnpm and points at `pnpm self-update` anyway, and `@pnpm/exe` is not published for pnpm v12 or newer, where the unscoped `pnpm` package is itself the native executable.
+  - `pnpm self-update` under Corepack now points at the standalone install script too, instead of telling you to update pnpm with Corepack.
+
+- 46bc7c9: Updated `adm-zip` to v0.6.0, which fixes [a memory-exhaustion vulnerability](https://github.com/advisories/GHSA-xcpc-8h2w-3j85) where a crafted ZIP file could make it allocate 4 GB of memory. `adm-zip` is used to extract the Node.js, Bun, and Deno archives that pnpm downloads on Windows.
+- Updated the embedded Node.js release keys to the current canonical `nodejs/release-keys` list.
+- Updated the embedded npm registry signing keys to the set currently advertised by npm.
+- 702ad5f: Update the embedded Node.js release keys with the new key added to [nodejs/release-keys](https://github.com/nodejs/release-keys) (Stewart X Addison, `655F3B5C1FB3FA8D1A0CA6BDE4A7D232B936D2FD`).
+
 ## 10.34.5
 
 ### Patch Changes

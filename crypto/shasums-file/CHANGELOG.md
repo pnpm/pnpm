@@ -1,5 +1,12 @@
 # @pnpm/crypto.shasums-file
 
+## 1001.0.7
+
+### Patch Changes
+
+- Updated the embedded Node.js release keys to the current canonical `nodejs/release-keys` list.
+- 702ad5f: Update the embedded Node.js release keys with the new key added to [nodejs/release-keys](https://github.com/nodejs/release-keys) (Stewart X Addison, `655F3B5C1FB3FA8D1A0CA6BDE4A7D232B936D2FD`).
+
 ## 1001.0.6
 
 ### Patch Changes

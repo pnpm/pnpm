@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 1001.0.44
+
+### Patch Changes
+
+- @pnpm/package-is-installable@1000.0.23
+
 ## 1001.0.43
 
 ### Patch Changes

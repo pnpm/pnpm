@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.21
+
+### Patch Changes
+
+- Updated dependencies [e7888e5]
+  - @pnpm/cli-utils@1001.3.17
+  - @pnpm/config@1004.11.7
+  - @pnpm/workspace.find-packages@1000.0.72
+  - @pnpm/store-connection-manager@1002.3.26
+  - @pnpm/get-context@1001.2.12
+
 ## 1008.0.20
 
 ### Patch Changes

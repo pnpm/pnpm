@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 1001.1.31
+
+### Patch Changes
+
+- Updated dependencies [46bc7c9]
+  - @pnpm/fetching.binary-fetcher@1005.0.7
+  - @pnpm/node.fetcher@1001.0.34
+  - @pnpm/default-resolver@1002.3.15
+
 ## 1001.1.30
 
 ### Patch Changes

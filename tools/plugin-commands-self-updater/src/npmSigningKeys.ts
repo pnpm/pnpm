@@ -2,7 +2,7 @@
 // GENERATED — npm's public registry signing keys, mirrored from
 // https://registry.npmjs.org/-/npm/v1/keys
 //
-// Refresh with: node tools/plugin-commands-self-updater/scripts/update-npm-signing-keys.mjs --update
+// Refresh with: node deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
 // The release workflow runs `--check` and fails if these drift from npm, so a
 // rotated key cannot silently break (or weaken) signature verification.
 export const NPM_SIGNING_KEYS = [

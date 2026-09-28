@@ -1,5 +1,19 @@
 # @pnpm/cli-utils
 
+## 1001.3.17
+
+### Patch Changes
+
+- e7888e5: `pnpm self-update` now resolves and verifies pnpm through registry, authentication, proxy, and TLS settings from trusted non-project configuration. Project configuration and the default project pnpmfile can no longer redirect the pnpm download or disable engine identity verification.
+- Updated dependencies [e7888e5]
+- Updated dependencies [46bc7c9]
+  - @pnpm/config@1004.11.7
+  - @pnpm/default-reporter@1002.1.21
+  - @pnpm/cli-meta@1000.0.18
+  - @pnpm/store-connection-manager@1002.3.26
+  - @pnpm/package-is-installable@1000.0.23
+  - @pnpm/config.deps-installer@1000.1.10
+
 ## 1001.3.16
 
 ### Patch Changes

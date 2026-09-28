@@ -1,5 +1,12 @@
 # @pnpm/env.system-node-version
 
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [46bc7c9]
+  - @pnpm/cli-meta@1000.0.18
+
 ## 1000.0.17
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/node.resolver
 
+## 1001.0.30
+
+### Patch Changes
+
+- Updated dependencies [e7888e5]
+- Updated dependencies
+- Updated dependencies [702ad5f]
+  - @pnpm/config@1004.11.7
+  - @pnpm/crypto.shasums-file@1001.0.7
+
 ## 1001.0.29
 
 ### Patch Changes
