@@ -1584,3 +1584,130 @@ fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
 
     drop(root);
 }
+
+/// A left-out project whose only dependency is a required peer still
+/// installs before pnpm run when auto-install-peers is on.
+#[test]
+fn run_in_a_left_out_project_with_a_required_peer_installs_it() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\nautoInstallPeers: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(member.join("package.json"), json!({ "name": "a", "version": "1.0.0" }).to_string())
+        .expect("write the member manifest");
+    fs::write(member.join("index.js"), "module.exports = 1\n").expect("write the member entry");
+    let scripts = workspace.join("scripts");
+    fs::create_dir_all(&scripts).expect("create the left-out project");
+    let marker = scripts.join("ran.txt");
+    fs::write(
+        scripts.join("package.json"),
+        json!({
+            "name": "scripts",
+            "peerDependencies": { "a": "file:../pkgs/a" },
+            "scripts": {
+                "hi": r#"node -e "require('a'); require('fs').writeFileSync('ran.txt','ok')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the left-out manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(&scripts)
+        .with_args(["run", "hi"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap_or_default(),
+        "ok",
+        "the script must write its marker",
+    );
+    assert!(
+        scripts.join("node_modules").exists(),
+        "pnpm run must install a required peer:\n{stderr}",
+    );
+    assert!(
+        scripts.join("pnpm-lock.yaml").exists(),
+        "pnpm run must write a lockfile when it installs a required peer:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// An optional peer is not fetched on its own, so pnpm run in a left-out
+/// project that declares only that peer writes nothing.
+#[test]
+fn run_in_a_left_out_project_with_only_an_optional_peer_writes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\nautoInstallPeers: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(member.join("package.json"), json!({ "name": "a", "version": "1.0.0" }).to_string())
+        .expect("write the member manifest");
+    let scripts = workspace.join("scripts");
+    fs::create_dir_all(&scripts).expect("create the left-out project");
+    let marker = scripts.join("ran.txt");
+    fs::write(
+        scripts.join("package.json"),
+        json!({
+            "peerDependencies": { "a": "1.0.0" },
+            "peerDependenciesMeta": { "a": { "optional": true } },
+            "scripts": {
+                "hi": r#"node -e "require('fs').writeFileSync('ran.txt','ok')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the left-out manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(&scripts)
+        .with_args(["run", "hi"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap_or_default(),
+        "ok",
+        "the script must write its marker",
+    );
+    assert!(
+        !scripts.join("node_modules").exists(),
+        "pnpm run must not install a project that declares only an optional peer:\n{stderr}",
+    );
+    assert!(
+        !scripts.join("pnpm-lock.yaml").exists(),
+        "pnpm run must not write a lockfile for a project that declares only an optional peer:\n{stderr}",
+    );
+
+    drop(root);
+}

@@ -114,6 +114,98 @@ test('ignore-workspace does not read an enclosing workspace manifest', async () 
   })
 })
 
+test('a required peer in a left-out project is installed when auto-install-peers is on', async () => {
+  const project = leftOutProject()
+  checkDepsStatus.mockResolvedValue({
+    upToDate: undefined,
+    issue: 'Cannot check whether dependencies are outdated',
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    dir: project,
+    autoInstallPeers: true,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'left-out',
+      peerDependencies: { a: '1.0.0' },
+    },
+    rootProjectManifestDir: project,
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], {
+    cwd: project,
+    reporter: undefined,
+  })
+})
+
+test('an optional peer in a left-out project is not installed', async () => {
+  const project = leftOutProject()
+  checkDepsStatus.mockResolvedValue({
+    upToDate: undefined,
+    issue: 'Cannot check whether dependencies are outdated',
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    dir: project,
+    autoInstallPeers: true,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'left-out',
+      peerDependencies: { a: '1.0.0' },
+      peerDependenciesMeta: { a: { optional: true } },
+    },
+    rootProjectManifestDir: project,
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
+})
+
+test('a required peer in a left-out project is not installed when auto-install-peers is off', async () => {
+  const project = leftOutProject()
+  checkDepsStatus.mockResolvedValue({
+    upToDate: undefined,
+    issue: 'Cannot check whether dependencies are outdated',
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    dir: project,
+    autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'left-out',
+      peerDependencies: { a: '1.0.0' },
+    },
+    rootProjectManifestDir: project,
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
+})
+
+function leftOutProject (): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-left-out-peer-'))
+  const project = path.join(root, 'scripts')
+  fs.mkdirSync(project)
+  fs.writeFileSync(path.join(project, 'package.json'), '{"name":"left-out"}\n')
+  fs.writeFileSync(path.join(root, 'package.json'), '{"name":"root","private":true}\n')
+  fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'pkgs/*'\n")
+  return project
+}
+
 test('installs only the selected projects when a filter is set', async () => {
   checkDepsStatus.mockResolvedValue({
     upToDate: false,

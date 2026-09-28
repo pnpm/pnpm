@@ -126,14 +126,22 @@ async function dependencyFreeProjectLeftOut (opts: RunDepsStatusCheckOptions): P
 }
 
 function hasRuntimeDependencies (opts: RunDepsStatusCheckOptions): boolean {
-  if (manifestHasRuntimeDependencies(opts.rootProjectManifest)) return true
-  return opts.allProjects?.some(project => manifestHasRuntimeDependencies(project.manifest)) ?? false
+  if (manifestHasInstallableDependencies(opts.rootProjectManifest, opts.autoInstallPeers)) return true
+  return opts.allProjects?.some(project => manifestHasInstallableDependencies(project.manifest, opts.autoInstallPeers)) ?? false
 }
 
-function manifestHasRuntimeDependencies (manifest: ProjectManifest | undefined): boolean {
+function manifestHasInstallableDependencies (
+  manifest: ProjectManifest | undefined,
+  autoInstallPeers: boolean | undefined
+): boolean {
   if (manifest == null) return false
-  return [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
-    .some(group => group != null && Object.keys(group).length > 0)
+  if ([manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
+    .some(group => group != null && Object.keys(group).length > 0)) return true
+  // Required peers are fetched when auto-install-peers is on. Optional
+  // peers are not, and neither are peers when that setting is off.
+  if (autoInstallPeers !== true || manifest.peerDependencies == null) return false
+  return Object.keys(manifest.peerDependencies)
+    .some(name => manifest.peerDependenciesMeta?.[name]?.optional !== true)
 }
 
 /**

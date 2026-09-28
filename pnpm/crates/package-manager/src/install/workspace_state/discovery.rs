@@ -125,7 +125,10 @@ fn deps_status_from_state(
 }
 
 /// A project the enclosing workspace's `packages` patterns do not select,
-/// whose manifest declares no dependencies an install would fetch.
+/// whose manifest declares nothing an install would fetch.
+///
+/// Required `peerDependencies` count when `autoInstallPeers` is enabled,
+/// because that install fetches them. Optional peers do not.
 fn dependency_free_project_left_out(
     dir: &Path,
     config: &Config,
@@ -134,12 +137,46 @@ fn dependency_free_project_left_out(
 ) -> bool {
     if workspace_dir.is_some()
         || config.workspace_search_skipped
-        || crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
+        || manifest_installs_dependencies(config, manifest)
     {
         return false;
     }
     pnpm_workspace::left_out_of_enclosing_workspace(dir).unwrap_or(false)
 }
+
+fn manifest_installs_dependencies(config: &Config, manifest: &PackageManifest) -> bool {
+    crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
+        || (config.auto_install_peers && manifest_has_required_peers(manifest))
+}
+
+fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
+    let Some(peers) = manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let meta = manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object);
+    peers
+        .keys()
+        .any(|name| !peer_dependency_is_optional(meta, name))
+}
+
+fn peer_dependency_is_optional(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+    name: &str,
+) -> bool {
+    meta.and_then(|meta| meta.get(name))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|entry| entry.get("optional"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+}
+
 /// The directory the verify-deps-before-run gate serializes its installs
 /// over: the workspace root, or `dir` outside a workspace. Every gate in one
 /// workspace shares it, whichever project it runs in.
