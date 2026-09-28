@@ -226,7 +226,7 @@ impl WildcardMatcher {
         let question_pattern = pattern
             .contains('?')
             .then(|| {
-                let mut regex_pattern = String::from("\\A");
+                let mut regex_pattern = String::from(r"\A");
                 for character in pattern.chars() {
                     match character {
                         '*' => regex_pattern.push_str("(?s:.*)"),
@@ -234,7 +234,7 @@ impl WildcardMatcher {
                         literal => regex_pattern.push_str(&regex::escape(&literal.to_string())),
                     }
                 }
-                regex_pattern.push_str("\\z");
+                regex_pattern.push_str(r"\z");
                 Regex::new(&regex_pattern)
                     .expect("escaped wildcard patterns are valid regular expressions")
             });
