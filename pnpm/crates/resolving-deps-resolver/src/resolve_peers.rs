@@ -324,6 +324,11 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
 /// `peersCache` + `purePkgs` are shared across importers, then the
 /// in-crate `dedupe_injected_deps` pass runs once with all importers'
 /// direct deps in scope.
+///
+/// Peer-dependent dedupe runs first. An injected copy can resolve an
+/// optional peer from its consumer that the target project's own deps
+/// lack, and collapsing those variants first lets the injected copy's
+/// children match the project's deps (pnpm/pnpm#16354).
 pub fn resolve_peers_workspace(
     tree: &mut ResolvedTree,
     importers: &[ImporterPeerInput],
@@ -348,6 +353,9 @@ pub fn resolve_peers_workspace(
     walker.patch_pending_peer_edges();
     let mut finished =
         finish_workspace_graph(&walker, &importers, lockfile_dir, dedupe_peer_dependents_enabled);
+    if dedupe_peer_dependents_enabled {
+        finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
+    }
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
             &mut finished.graph,
@@ -358,9 +366,6 @@ pub fn resolve_peers_workspace(
                 .collect(),
             lockfile_dir,
         );
-    }
-    if dedupe_peer_dependents_enabled {
-        finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
