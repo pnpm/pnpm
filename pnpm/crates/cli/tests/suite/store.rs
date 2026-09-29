@@ -654,6 +654,48 @@ fn store_prune_honors_dlx_cache_max_age() {
     }
 }
 
+/// The dlx cache holds hard links into the store, so one prune must drop an
+/// expired entry and reclaim the packages only that entry used.
+#[test]
+fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
+    pacquet_at(&workspace)
+        .with_args(["dlx", "--package=is-positive@1.0.0", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let package_keys = || {
+        pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+            .expect("open store index")
+            .keys()
+            .expect("read store index keys")
+    };
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+    );
+
+    _utils::append_workspace_yaml_key(&workspace, "dlxCacheMaxAge", 0);
+    pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    let dlx_entries = fs::read_dir(npmrc_info.cache_dir.join("dlx")).map_or(0, Iterator::count);
+    assert_eq!(dlx_entries, 0, "store prune must remove the expired dlx cache entry");
+    assert!(
+        !package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+        "store prune must reclaim the packages of the expired dlx cache entry",
+    );
+}
+
 /// A group-writable, setgid store stands in for a multi-user store. Install
 /// must not replace `index.db` or drop group-write from store files.
 #[cfg(unix)]
