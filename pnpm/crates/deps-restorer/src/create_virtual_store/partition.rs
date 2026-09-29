@@ -10,6 +10,7 @@ use super::{
     SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
     StoreIndexKeysBySnapshot, snapshot_needs_build_marker,
 };
+use crate::AllowBuildPolicy;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_tarball::PrefetchResult;
@@ -47,15 +48,14 @@ pub(super) struct Partition<'a> {
 /// side-effects entries would make the build phase re-run approved
 /// scripts on every warm reinstall.
 ///
-/// `marker_rebuilds` withholds the side-effects row for a slot whose
-/// global-virtual-store build marker says it must be rebuilt — keeping
-/// the row would let the `is_built` gate skip the very build the marker
-/// is asking for.
+/// `rebuilds` withholds the side-effects row of a snapshot that must be
+/// built afresh — keeping the row would let the `is_built` gate skip the
+/// very build that is asked for.
 pub(super) fn partition_snapshots<'a>(
     snapshot_entries: &'a [SnapshotWithCacheKey<'a>],
     skipped_entries: &'a [SnapshotWithCacheKey<'a>],
     prefetch: &'a PrefetchResult,
-    marker_rebuilds: &HashSet<PackageKey>,
+    rebuilds: &Rebuilds<'_>,
     node_linker: NodeLinker,
 ) -> Partition<'a> {
     // The warm batch runs on rayon rather than per-snapshot tokio
@@ -76,13 +76,13 @@ pub(super) fn partition_snapshots<'a>(
     let mut rows = IndexRows::with_capacity_for(prefetch);
 
     for entry in skipped_entries {
-        rows.absorb(entry, prefetch, marker_rebuilds);
+        rows.absorb(entry, prefetch, rebuilds);
     }
 
     // Second pass: survivors, which additionally take the warm/cold
     // partition that decides which snapshots run the link work.
     for entry in snapshot_entries {
-        rows.absorb(entry, prefetch, marker_rebuilds);
+        rows.absorb(entry, prefetch, rebuilds);
         match rows.warm_entry(entry, prefetch) {
             Some(warm_entry) => warm.push(warm_entry),
             None => cold.push((entry.0, entry.1)),
@@ -99,6 +99,22 @@ pub(super) fn partition_snapshots<'a>(
         "phase complete",
     );
     rows.into_partition(warm, cold)
+}
+
+/// The snapshots whose cached build output the partition withholds.
+pub(super) struct Rebuilds<'a> {
+    /// The slots whose global-virtual-store build marker says they must
+    /// be rebuilt.
+    pub marker_rebuilds: &'a HashSet<PackageKey>,
+    /// Consulted for the packages `sideEffectsCacheExclude` names.
+    pub allow_build_policy: &'a AllowBuildPolicy,
+}
+
+impl Rebuilds<'_> {
+    fn requires(&self, snapshot_key: &PackageKey) -> bool {
+        self.marker_rebuilds.contains(snapshot_key)
+            || !self.allow_build_policy.caches_build(snapshot_key)
+    }
 }
 
 /// The store-index rows the build and bin phases read, accumulated
@@ -134,7 +150,7 @@ impl IndexRows {
         &mut self,
         entry: &SnapshotWithCacheKey<'_>,
         prefetch: &PrefetchResult,
-        marker_rebuilds: &HashSet<PackageKey>,
+        rebuilds: &Rebuilds<'_>,
     ) {
         let snapshot_key = entry.0;
         let Some(cache_key) = entry.2.as_deref() else { return };
@@ -146,7 +162,7 @@ impl IndexRows {
         }
         // Peer-variants of the same package share the same store-index
         // row → the same `Arc<_>`. Cheap to share.
-        if !marker_rebuilds.contains(snapshot_key)
+        if !rebuilds.requires(snapshot_key)
             && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
         {
             self.side_effects_maps_by_snapshot.insert(

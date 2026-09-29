@@ -153,6 +153,7 @@ fn create_config(
         isolate_local_directory_imports: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
+        side_effects_cache_exclude: None,
         side_effects_cache_read_setting: None,
         side_effects_cache_write_setting: None,
         fetch_retries: 2,

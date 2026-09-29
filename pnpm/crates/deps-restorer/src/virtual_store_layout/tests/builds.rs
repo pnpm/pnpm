@@ -195,3 +195,51 @@ fn link_hash_matches_the_shared_typescript_fixture() {
         );
     }
 }
+
+/// A package `sideEffectsCacheExclude` names is built in every project,
+/// so its global-virtual-store slot must not carry one project's build
+/// into another.
+#[test]
+fn side_effects_cache_exclude_gives_each_project_its_own_slot() {
+    let excluded: PackageKey = "java@1.0.0".parse().unwrap();
+    let shared: PackageKey = "left-pad@1.0.0".parse().unwrap();
+    let registry = || {
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+                .parse()
+                .expect("parse integrity"),
+            revision: None,
+        })
+    };
+    let snapshots = HashMap::from([
+        (excluded.clone(), SnapshotEntry::default()),
+        (shared.clone(), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (excluded.without_peer(), package_metadata(registry(), None)),
+        (shared.without_peer(), package_metadata(registry(), None)),
+    ]);
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let policy = crate::AllowBuildPolicy::default()
+        .with_side_effects_cache_exclude(&["java".to_string()])
+        .expect("valid pattern");
+    let layout_in = |lockfile_dir: &str| {
+        VirtualStoreLayout::new(
+            &config,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            Some(&policy),
+            Some(Path::new(lockfile_dir)),
+        )
+    };
+
+    let (in_project_a, in_project_b) = (layout_in("/home/user/a"), layout_in("/home/user/b"));
+
+    assert_ne!(in_project_a.slot_dir(&excluded), in_project_b.slot_dir(&excluded));
+    assert_eq!(in_project_a.slot_dir(&shared), in_project_b.slot_dir(&shared));
+}

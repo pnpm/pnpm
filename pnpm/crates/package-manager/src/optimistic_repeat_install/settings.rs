@@ -160,6 +160,11 @@ impl SettingsComparison<'_> {
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
         return_drift_if!(
             self,
+            "sideEffectsCacheExclude",
+            recorded.side_effects_cache_exclude != live.side_effects_cache_exclude,
+        );
+        return_drift_if!(
+            self,
             "hoistWorkspacePackages",
             recorded.hoist_workspace_packages != live.hoist_workspace_packages,
         );
@@ -355,6 +360,7 @@ pub(crate) fn current_settings(
         prefer_workspace_packages: Some(config.prefer_workspace_packages),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
+        side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // The CLI-merged effective value (yaml plus `--cpu` / `--os` /
         // `--libc`), like `included` above: a change through either
         // channel re-evaluates the skipped optionals on the next run.
