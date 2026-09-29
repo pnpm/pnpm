@@ -126,6 +126,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("shared-workspace-lockfile", false),
     ("shell-emulator", false),
     ("side-effects-cache", false),
+    ("side-effects-cache-exclude", false),
     ("side-effects-cache-readonly", false),
     ("symlink", false),
     ("sort", false),

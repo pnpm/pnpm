@@ -60,6 +60,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "script-shell",
     "shell-emulator",
     "side-effects-cache",
+    "side-effects-cache-exclude",
     "side-effects-cache-readonly",
     "state-dir",
     "store-dir",
