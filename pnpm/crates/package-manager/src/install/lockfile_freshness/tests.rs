@@ -112,6 +112,7 @@ importers:
             importer_id: ".",
             config,
             workspace_packages: None,
+            project_manifests: Box::leak(Box::default()),
             optional_exclusions: super::OptionalDependencyExclusions { ignored, allow_unresolved },
             parsed_overrides: None,
         }

@@ -118,6 +118,17 @@ pub(crate) fn has_local_file_dep_requiring_install(
         }))
 }
 
+/// Whether an injected workspace dependency rules the fast path out.
+///
+/// With a shared lockfile every project is an importer of the one lockfile,
+/// and the fast path already compares each project's manifest with it, so a
+/// change to an injected project's own dependencies is caught there. With
+/// per-project lockfiles the consumer's lockfile records the injected
+/// project's dependencies in its `file:` snapshot, which nothing else checks.
+fn injected_deps_block_fast_path(config: &pnpm_config::Config) -> bool {
+    !config.shared_workspace_lockfile
+}
+
 /// What the manifests' `file:` dependencies amount to.
 enum LocalTarballScan {
     /// One of them names a path that cannot be resolved, which only an
@@ -139,7 +150,7 @@ fn scan_local_tarball_deps(
             check.layout.included.includes_project_optional_dependencies(),
         ),
     ];
-    let workspace_packages = if check.config.inject_workspace_packages {
+    let workspace_packages = if injected_deps_block_fast_path(check.config) {
         workspace::collect_workspace_packages(check.project_manifests)
     } else {
         std::collections::HashMap::new()
@@ -181,6 +192,7 @@ fn scan_project_manifest_tarballs(
             field,
             group: *group,
             inject_workspace_packages: check.config.inject_workspace_packages,
+            injected_deps_block_fast_path: injected_deps_block_fast_path(check.config),
             workspace_packages,
             overrides,
         };
@@ -202,6 +214,8 @@ struct FieldTarballScan<'a> {
     field: &'a str,
     group: DependencyGroup,
     inject_workspace_packages: bool,
+    /// See [`injected_deps_block_fast_path`].
+    injected_deps_block_fast_path: bool,
     workspace_packages: &'a workspace::WorkspacePackageMap<'a>,
     overrides: &'a [VersionOverride],
 }
@@ -221,14 +235,16 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        if workspace::dependency_is_workspace_or_injected(
-            scan.workspace_packages,
-            scan.inject_workspace_packages,
-            scan.catalogs,
-            manifest.value(),
-            alias,
-            spec,
-        ) {
+        if scan.injected_deps_block_fast_path
+            && workspace::dependency_is_workspace_or_injected(
+                scan.workspace_packages,
+                scan.inject_workspace_packages,
+                scan.catalogs,
+                manifest.value(),
+                alias,
+                spec,
+            )
+        {
             return false;
         }
         match local_tarball_candidate(scan, alias, spec) {

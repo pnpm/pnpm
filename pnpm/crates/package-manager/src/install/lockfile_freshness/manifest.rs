@@ -21,6 +21,10 @@ pub(crate) struct ImporterSatisfactionCheck<'a> {
     pub(crate) importer_id: &'a str,
     pub(crate) config: &'a Config,
     pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    /// The workspace's project manifests as the install sees them, which an
+    /// embedder may hold only in memory. An injected project is read from
+    /// here before its directory on disk.
+    pub(crate) project_manifests: &'a super::ProjectManifestsByDir<'a>,
     pub(crate) optional_exclusions: OptionalDependencyExclusions<'a>,
     pub(crate) parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
 }

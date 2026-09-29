@@ -1,6 +1,7 @@
 pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
+pub(crate) use directory_deps::{ProjectManifestsByDir, project_manifests_by_dir};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
@@ -350,6 +351,8 @@ fn check_importer_freshness(
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
+    let project_manifests =
+        project_manifests_by_dir(inputs.manifests.iter().map(|(_, manifest)| *manifest));
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
     // serial fold keeps the first error in importer order, like the
@@ -362,7 +365,7 @@ fn check_importer_freshness(
                 lockfile,
                 inputs,
                 parsed_overrides,
-                &ignored_optional_matcher,
+                (&ignored_optional_matcher, &project_manifests),
                 importer_id,
                 manifest,
             )
@@ -379,7 +382,10 @@ fn check_single_importer(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    ignored_optional_matcher: &pnpm_matcher::Matcher,
+    (ignored_optional_matcher, project_manifests): (
+        &pnpm_matcher::Matcher,
+        &ProjectManifestsByDir<'_>,
+    ),
     importer_id: &str,
     manifest: &PackageManifest,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
@@ -396,6 +402,7 @@ fn check_single_importer(
         importer_id,
         config: inputs.config,
         workspace_packages: inputs.workspace_packages,
+        project_manifests,
         optional_exclusions: OptionalDependencyExclusions {
             ignored: ignored_optional_matcher,
             allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,

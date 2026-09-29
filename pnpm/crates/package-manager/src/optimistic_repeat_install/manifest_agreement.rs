@@ -132,12 +132,16 @@ pub(super) fn check_projects_content(
     let ignored_optional_matcher = pnpm_matcher::create_matcher(
         check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
+    let project_manifests = crate::install::project_manifests_by_dir(
+        check.project_manifests.iter().map(|(_, manifest)| *manifest),
+    );
     let content_check = ProjectContentCheck {
         workspace_root: check.workspace_root,
         config: check.config,
         wanted,
         linked_ctx: &linked_ctx,
         workspace_packages: workspace_packages.as_ref(),
+        project_manifests: &project_manifests,
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
     };
@@ -236,6 +240,7 @@ struct ProjectContentCheck<'a> {
     wanted: &'a Lockfile,
     linked_ctx: &'a LinkedPackagesContext<'a>,
     workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    project_manifests: &'a crate::install::ProjectManifestsByDir<'a>,
     ignored_optional_matcher: &'a pnpm_matcher::Matcher,
     parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
 }
@@ -254,6 +259,7 @@ fn project_content_check(
             importer_id: &importer_id,
             config: context.config,
             workspace_packages: context.workspace_packages,
+            project_manifests: context.project_manifests,
             optional_exclusions: crate::install::OptionalDependencyExclusions {
                 ignored: context.ignored_optional_matcher,
                 allow_unresolved: false,
@@ -349,12 +355,17 @@ fn linked_dep_is_up_to_date(
     dep: &pnpm_lockfile::ResolvedDependencySpec,
     current_spec: &str,
 ) -> bool {
-    if ref_is_local_directory(&dep.specifier) || matches!(dep.version, ImporterDepVersion::File(_))
-    {
+    if ref_is_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
         // `packages:` entry — up to date by construction.
         return matches!(dep.version, ImporterDepVersion::Link(_));
+    }
+    if matches!(dep.version, ImporterDepVersion::File(_)) {
+        // An injected workspace project: a `file:` copy, not a link. Its own
+        // dependencies were compared with its snapshot by the directory
+        // freshness check `check_importer_satisfies` ran before this one.
+        return true;
     }
     let link_target = dep.version.as_link_target();
     let is_linked = link_target.is_some();
