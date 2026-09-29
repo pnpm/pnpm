@@ -1,5 +1,5 @@
 use super::{
-    BlobStreamError, download_verified_to_temp, integrity_checker, parse_integrity,
+    BlobStreamError, download_to_cache_computing_sha512, integrity_checker, parse_integrity,
     stream_verified_to_cache,
 };
 use crate::Storage;
@@ -145,8 +145,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-    let (body, _integrity) =
-        stream_verified_to_cache(response, write, Some(&integrity), u64::MAX).unwrap();
+    let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
     let mut chunks = body.into_data_stream();
     // Pull the first chunk so the tee writes the body's start to the tmp file.
     chunks
@@ -184,7 +183,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 
     // An upstream that declares an oversize body is rejected up front, before
     // any bytes stream, so the caller turns it into an error response.
-    let err = stream_verified_to_cache(response, write, Some(&integrity), 3).unwrap_err();
+    let err = stream_verified_to_cache(response, write, &integrity, 3).unwrap_err();
     assert!(matches!(err, BlobStreamError::TooLarge { limit: 3, received } if received > 3));
 
     // The temp file the rejected writer held is removed (its `Drop`).
@@ -194,34 +193,40 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 }
 
 #[tokio::test]
-async fn download_without_expected_integrity_returns_computed_sha512() {
-    let bytes = b"compute-only integrity";
-    let response = throttled_response(spawn_response(bytes).await).await;
+async fn download_to_cache_returns_the_sha512_of_the_cached_bytes() {
+    let bytes = b"computed integrity";
+    let sha1 = {
+        let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
+        opts.input(bytes);
+        opts.result()
+    };
+    for expected in [None, Some(&sha1)] {
+        let response = throttled_response(spawn_response(bytes).await).await;
+        let tmp = TempDir::new().unwrap();
+        let cache = tmp.path().join("cache");
+        let storage =
+            Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+        let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+        let write =
+            storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-    let tmp = TempDir::new().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+        let computed = download_to_cache_computing_sha512(response, write, expected, u64::MAX)
+            .await
             .unwrap();
-    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let write =
-        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-    let (mut file, len, path, integrity) =
-        download_verified_to_temp(response, write, None, u64::MAX).await.unwrap();
-    let mut downloaded = Vec::new();
-    file.read_to_end(&mut downloaded).await.unwrap();
-
-    assert_eq!(len, bytes.len() as u64);
-    assert_eq!(downloaded, bytes);
-    assert_eq!(integrity.to_string(), sha512_integrity(bytes));
-    tokio::fs::remove_file(path).await.unwrap();
+        assert_eq!(computed.to_string(), sha512_integrity(bytes), "expected: {expected:?}");
+        assert_eq!(
+            tokio::fs::read(cache.join("~public/test/foo/foo-1.0.0.tgz")).await.unwrap(),
+            bytes,
+        );
+    }
 }
 
 #[tokio::test]
-async fn cache_stream_without_expected_integrity_returns_computed_sha512() {
-    let bytes = b"compute-only cached integrity";
+async fn download_to_cache_caches_nothing_when_the_expected_integrity_mismatches() {
+    let bytes = b"tampered";
+    let expected = parse_integrity(&sha512_integrity(b"original")).unwrap();
     let response = throttled_response(spawn_response(bytes).await).await;
-
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
     let storage =
@@ -230,16 +235,14 @@ async fn cache_stream_without_expected_integrity_returns_computed_sha512() {
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-    let (body, integrity) = stream_verified_to_cache(response, write, None, u64::MAX).unwrap();
-    let mut chunks = body.into_data_stream();
-    let mut downloaded = Vec::new();
-    while let Some(chunk) = chunks.next().await {
-        downloaded.extend_from_slice(&chunk.unwrap());
-    }
+    let err = download_to_cache_computing_sha512(response, write, Some(&expected), u64::MAX)
+        .await
+        .unwrap_err();
 
-    assert_eq!(downloaded, bytes);
-    assert_eq!(integrity.await.unwrap().to_string(), sha512_integrity(bytes));
-    assert_eq!(tokio::fs::read(cache.join("~public/test/foo/foo-1.0.0.tgz")).await.unwrap(), bytes);
+    assert!(matches!(err, BlobStreamError::Integrity(_)));
+    let package_dir = cache.join("~public/test").join("foo");
+    assert!(blob_tmp_entries(&package_dir).is_empty());
+    assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 }
 
 async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {

@@ -14,10 +14,10 @@ struct MissingIntegrityTarball {
     expected_shasum: Option<Integrity>,
 }
 
-/// How many versions of one packument a single read will download to pin
-/// integrity. The candidate set is the upstream's to choose, so without a cap
-/// one client request fans out into a tarball fetch per version it declares
-/// unpinned.
+/// How many versions of one packument a single upstream fetch will download to
+/// pin integrity. The candidate set is the upstream's to choose, so without a
+/// cap one client request fans out into a tarball fetch per version it
+/// declares unpinned.
 const MAX_PINNED_VERSIONS_PER_PACKUMENT: usize = 64;
 
 struct PackumentIntegrityResolver<'a> {
@@ -28,8 +28,10 @@ struct PackumentIntegrityResolver<'a> {
     ttl: Duration,
 }
 
-/// Pins a computed `dist.integrity` into every version of `bytes` that lacks a
-/// usable one, so a client that requires integrity can install it.
+/// Pins a computed `dist.integrity` into every version of a freshly fetched
+/// packument that lacks a usable one, so a client that requires integrity can
+/// install it. Reads of the cached copy do not retry versions that could not be
+/// pinned; the next refresh does.
 ///
 /// Pinning is per version and never fails the document. A version the upstream
 /// cannot serve, or whose bytes do not match what it declared, keeps the
@@ -60,7 +62,7 @@ impl PackumentIntegrityResolver<'_> {
         let _guard = self.package_lock().await;
         let bytes = self.read_current_packument(bytes).await?;
         let mut doc: Value = serde_json::from_slice(&bytes)?;
-        let candidates = missing_integrity_tarballs_in_document(&doc, self.name, self.osv_index())?;
+        let candidates = missing_integrity_tarballs_in_document(&doc, self.name, self.osv_index());
         if candidates.is_empty() {
             return Ok(bytes);
         }
@@ -155,21 +157,13 @@ impl PackumentIntegrityResolver<'_> {
             &candidate.filename,
         )
         .await?;
-        let download = match candidate.expected_shasum.as_ref() {
-            Some(shasum) => {
-                streaming::download_verified_to_cache_with_expected_integrity(
-                    response,
-                    write,
-                    shasum,
-                    MAX_TARBALL_BYTES,
-                )
-                .await
-            }
-            None => {
-                streaming::download_verified_to_cache(response, write, None, MAX_TARBALL_BYTES)
-                    .await
-            }
-        };
+        let download = streaming::download_to_cache_computing_sha512(
+            response,
+            write,
+            candidate.expected_shasum.as_ref(),
+            MAX_TARBALL_BYTES,
+        )
+        .await;
         download.map_err(|err| {
             tarball_stream_error_for_package(err, self.name.as_str(), &candidate.filename)
         })
@@ -188,16 +182,19 @@ fn missing_integrity_tarballs(
     osv_index: Option<&std::sync::Arc<pnpr_osv::OsvIndex>>,
 ) -> Result<Vec<MissingIntegrityTarball>, RegistryError> {
     let doc: Value = serde_json::from_slice(bytes)?;
-    missing_integrity_tarballs_in_document(&doc, name, osv_index)
+    Ok(missing_integrity_tarballs_in_document(&doc, name, osv_index))
 }
 
+/// A version whose dist pnpr cannot classify, or whose tarball basename another
+/// version also declares, is left out rather than failing the document: the
+/// tarball route refuses it on its own.
 fn missing_integrity_tarballs_in_document(
     doc: &Value,
     name: &CanonicalPackageName,
     osv_index: Option<&std::sync::Arc<pnpr_osv::OsvIndex>>,
-) -> Result<Vec<MissingIntegrityTarball>, RegistryError> {
+) -> Vec<MissingIntegrityTarball> {
     let Some(versions) = doc.get("versions").and_then(Value::as_object) else {
-        return Ok(Vec::new());
+        return Vec::new();
     };
     let mut filenames = HashSet::new();
     let mut duplicate_filenames = HashSet::new();
@@ -208,8 +205,18 @@ fn missing_integrity_tarballs_in_document(
         }) {
             continue;
         }
-        let Some(candidate) = packument_tarball(manifest, name, version)? else {
-            continue;
+        let candidate = match packument_tarball(manifest, name, version) {
+            Ok(Some(candidate)) => candidate,
+            Ok(None) => continue,
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    package = %name.as_str(),
+                    %version,
+                    "leaving the version unpinned",
+                );
+                continue;
+            }
         };
         if !filenames.insert(candidate.filename.clone()) {
             duplicate_filenames.insert(candidate.filename.clone());
@@ -218,17 +225,8 @@ fn missing_integrity_tarballs_in_document(
             candidates.push(candidate);
         }
     }
-    if let Some(candidate) = candidates
-        .iter()
-        .find(|candidate| duplicate_filenames.contains(&candidate.filename))
-    {
-        return Err(tarball_integrity_error(
-            name.as_str(),
-            &candidate.filename,
-            "packument declares the same tarball basename for multiple versions".to_string(),
-        ));
-    }
-    Ok(candidates)
+    candidates.retain(|candidate| !duplicate_filenames.contains(&candidate.filename));
+    candidates
 }
 
 fn packument_tarball(

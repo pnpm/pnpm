@@ -427,6 +427,125 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
     );
 }
 
+/// Pinning runs when pnpr fetches a packument, not on every read of the cached
+/// copy, so a version that could not be pinned costs one upstream request per
+/// refresh rather than one per read.
+#[tokio::test]
+async fn cached_packument_reads_do_not_refetch_unpinnable_tarballs() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    for _ in 0..3 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/foo")
+                    .header("accept", "application/vnd.npm.install-v1+json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let resolved: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert!(resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none());
+    }
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+/// One version's dist that pnpr cannot use must not make the rest of the
+/// package unresolvable. The tarball route still refuses that version.
+#[tokio::test]
+async fn version_with_malformed_dist_does_not_break_the_packument() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"the-pinnable-tarball";
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+    packument["versions"]["1.0.0"]["dist"]["shasum"] = json!(sha1_hex_of(bytes));
+    packument["versions"]["0.1.0"] = json!({
+        "name": "foo",
+        "version": "0.1.0",
+        "dist": {
+            "tarball": format!("{}/foo/-/foo-0.1.0.tgz", upstream.url()),
+            "integrity": "not-a-valid-sri",
+        }
+    });
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let malformed_tarball = upstream
+        .mock("GET", "/foo/-/foo-0.1.0.tgz")
+        .with_status(200)
+        .with_body("unverified")
+        .expect(0)
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .header("accept", "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
+
+    let response = app
+        .oneshot(
+            Request::get("/foo/-/foo-0.1.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    malformed_tarball.assert_async().await;
+}
+
 /// A computed integrity is only worth anything if it can be stored with the
 /// cached packument, so pnpr makes no attempt for an upstream that caches
 /// nothing.
@@ -689,7 +808,7 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
         .with_body(bytes)
-        .expect(3)
+        .expect(2)
         .create_async()
         .await;
 

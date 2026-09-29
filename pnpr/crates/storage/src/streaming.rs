@@ -1,12 +1,14 @@
 //! Streaming helpers for the blob path.
 //!
-//! Three flows live here:
+//! Four flows live here:
 //!
 //! * [`stream_verified_to_cache`] streams an upstream response to the client
 //!   while teeing it into the cache, promoting the entry only if the SRI
 //!   matches the full body.
 //! * [`download_verified_to_temp`] hashes an upstream response into a
 //!   temp file for mirror-less pass-through.
+//! * [`download_to_cache_computing_sha512`] caches an upstream response and
+//!   returns the SHA-512 integrity it computed over the bytes.
 //! * [`stream_file`] yields an already verified file to the response.
 
 use crate::BlobWrite;
@@ -15,7 +17,7 @@ use futures_util::{Stream, StreamExt, stream};
 use pnpm_network::ThrottledResponse;
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 use std::{io, path::PathBuf, pin::Pin};
-use tokio::{fs::File, io::AsyncReadExt, sync::oneshot};
+use tokio::{fs::File, io::AsyncReadExt};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a
@@ -35,36 +37,6 @@ fn ensure_supported_hash(integrity: &Integrity) -> Result<(), ssri::Error> {
         ));
     }
     Ok(())
-}
-
-enum HashState {
-    Verify(IntegrityChecker, Integrity),
-    VerifyAndCompute(IntegrityChecker, IntegrityOpts),
-    Compute(IntegrityOpts),
-}
-
-impl HashState {
-    fn input(&mut self, chunk: &[u8]) {
-        match self {
-            Self::Verify(checker, _) => checker.input(chunk),
-            Self::VerifyAndCompute(checker, opts) => {
-                checker.input(chunk);
-                opts.input(chunk);
-            }
-            Self::Compute(opts) => opts.input(chunk),
-        }
-    }
-
-    fn result(self) -> Result<Integrity, ssri::Error> {
-        match self {
-            Self::Verify(checker, target) => checker.result().map(|_| target),
-            Self::VerifyAndCompute(checker, opts) => {
-                checker.result()?;
-                Ok(opts.result())
-            }
-            Self::Compute(opts) => Ok(opts.result()),
-        }
-    }
 }
 
 pub fn integrity_checker(integrity: &Integrity) -> Result<IntegrityChecker, ssri::Error> {
@@ -89,14 +61,12 @@ pub enum BlobStreamError {
 /// temporary cache file. Headers and earlier chunks may already have reached
 /// the client, so clients must still verify the received bytes. Dropping the
 /// connection also abandons the temporary file through [`BlobWrite`]'s `Drop`.
-/// The integrity receiver resolves after the complete stream is hashed and is
-/// dropped if the stream fails or is cancelled.
 pub fn stream_verified_to_cache(
     response: ThrottledResponse,
     write: BlobWrite,
-    integrity: Option<&Integrity>,
+    integrity: &Integrity,
     max_bytes: u64,
-) -> Result<(Body, oneshot::Receiver<Integrity>), BlobStreamError> {
+) -> Result<Body, BlobStreamError> {
     // Reject an upstream that already declares an oversize body up front, so it
     // surfaces as an error response instead of a failure mid-stream.
     if let Some(received) = response.content_length()
@@ -104,25 +74,17 @@ pub fn stream_verified_to_cache(
     {
         return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
-    let hash_state = match integrity {
-        Some(i) => {
-            let checker = integrity_checker(i).map_err(BlobStreamError::Integrity)?;
-            HashState::Verify(checker, i.clone())
-        }
-        None => HashState::Compute(IntegrityOpts::new().algorithm(Algorithm::Sha512)),
-    };
-    let (integrity_sender, integrity_receiver) = oneshot::channel();
+    let checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
     let state = TeeState {
         url: redact_url(response.url()),
         upstream: Box::pin(response.bytes_stream()),
         write: Some(write),
-        hash_state,
-        integrity_sender: Some(integrity_sender),
+        checker,
         written: 0,
         max_bytes,
     };
     let body = stream::unfold(Some(state), |state| async move { next_tee_chunk(state?).await });
-    Ok((Body::from_stream(body), integrity_receiver))
+    Ok(Body::from_stream(body))
 }
 
 /// Advance the tee by one upstream chunk.
@@ -157,7 +119,7 @@ async fn forward_chunk(
         return Some((Err(io::Error::other(format!("blob exceeds {limit} bytes"))), None));
     }
     state.write = cache_chunk(state.write.take(), &chunk).await;
-    state.hash_state.input(&chunk);
+    state.checker.input(&chunk);
     state.written = received;
     Some((Ok(chunk), Some(state)))
 }
@@ -179,11 +141,8 @@ async fn cache_chunk(write: Option<BlobWrite>, chunk: &[u8]) -> Option<BlobWrite
 /// The upstream ended: promote the blob to the cache only if it matched the
 /// integrity it was fetched under.
 async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
-    match state.hash_state.result() {
-        Ok(integrity) => {
-            if let Some(sender) = state.integrity_sender.take() {
-                let _ = sender.send(integrity);
-            }
+    match state.checker.result() {
+        Ok(_) => {
             finalize(state.write.take()).await;
             None
         }
@@ -230,8 +189,7 @@ struct TeeState {
     url: String,
     upstream: Pin<Box<dyn Stream<Item = io::Result<Bytes>> + Send>>,
     write: Option<BlobWrite>,
-    hash_state: HashState,
-    integrity_sender: Option<oneshot::Sender<Integrity>>,
+    checker: IntegrityChecker,
     written: u64,
     max_bytes: u64,
 }
@@ -239,128 +197,105 @@ struct TeeState {
 pub async fn download_verified_to_temp(
     response: ThrottledResponse,
     mut write: BlobWrite,
-    integrity: Option<&Integrity>,
-    max_bytes: u64,
-) -> Result<(File, u64, PathBuf, Integrity), BlobStreamError> {
-    let (_len, integrity) =
-        match download_verified(response, &mut write, integrity, false, max_bytes).await {
-            Ok(res) => res,
-            Err(err) => {
-                write.abandon().await;
-                return Err(err);
-            }
-        };
-    write
-        .into_temp_file()
-        .await
-        .map_err(BlobStreamError::Io)
-        .map(|(f, l, p)| (f, l, p, integrity))
-}
-
-pub async fn download_verified_to_cache(
-    response: ThrottledResponse,
-    write: BlobWrite,
-    integrity: Option<&Integrity>,
-    max_bytes: u64,
-) -> Result<Integrity, BlobStreamError> {
-    download_to_cache(response, write, integrity, false, max_bytes).await
-}
-
-pub async fn download_verified_to_cache_with_expected_integrity(
-    response: ThrottledResponse,
-    write: BlobWrite,
     integrity: &Integrity,
     max_bytes: u64,
-) -> Result<Integrity, BlobStreamError> {
-    download_to_cache(response, write, Some(integrity), true, max_bytes).await
+) -> Result<(File, u64, PathBuf), BlobStreamError> {
+    if let Err(err) = download_verified(response, &mut write, integrity, max_bytes).await {
+        write.abandon().await;
+        return Err(err);
+    }
+    write.into_temp_file().await.map_err(BlobStreamError::Io)
 }
 
-async fn download_to_cache(
+/// Download an upstream response into the cache and return the SHA-512
+/// integrity of its bytes. When `expected` is given, the bytes must also match
+/// it, or nothing is cached.
+pub async fn download_to_cache_computing_sha512(
     response: ThrottledResponse,
     mut write: BlobWrite,
-    integrity: Option<&Integrity>,
-    compute_sha512: bool,
+    expected: Option<&Integrity>,
     max_bytes: u64,
 ) -> Result<Integrity, BlobStreamError> {
-    let (_, integrity) =
-        match download_verified(response, &mut write, integrity, compute_sha512, max_bytes).await {
-            Ok(result) => result,
-            Err(err) => {
-                write.abandon().await;
-                return Err(err);
-            }
-        };
+    let computed = match download_computing_sha512(response, &mut write, expected, max_bytes).await
+    {
+        Ok(computed) => computed,
+        Err(err) => {
+            write.abandon().await;
+            return Err(err);
+        }
+    };
     write.finalize().await.map_err(BlobStreamError::Io)?;
-    Ok(integrity)
+    Ok(computed)
 }
 
 async fn download_verified(
     response: ThrottledResponse,
     write: &mut BlobWrite,
-    integrity: Option<&Integrity>,
-    compute_sha512: bool,
+    integrity: &Integrity,
     max_bytes: u64,
-) -> Result<(u64, Integrity), BlobStreamError> {
-    let url = response.url().to_string();
-    ensure_content_length(response.content_length(), max_bytes)?;
-    let mut upstream = Box::pin(response.bytes_stream());
-    let mut hash_state = hash_state(integrity, compute_sha512)?;
-    let mut written = 0u64;
-    while let Some(chunk_result) = upstream.next().await {
-        let chunk =
-            chunk_result.map_err(|source| BlobStreamError::Upstream { url: url.clone(), source })?;
-        let received = ensure_chunk_size(written, chunk.len() as u64, max_bytes)?;
-        write.write_all(&chunk).await.map_err(BlobStreamError::Io)?;
-        hash_state.input(&chunk);
-        written = received;
-    }
-
-    let integrity = hash_state.result().map_err(BlobStreamError::Integrity)?;
-    Ok((written, integrity))
+) -> Result<u64, BlobStreamError> {
+    let mut checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
+    let written = download(response, write, max_bytes, |chunk| checker.input(chunk)).await?;
+    checker.result().map_err(BlobStreamError::Integrity)?;
+    Ok(written)
 }
 
-fn hash_state(
-    integrity: Option<&Integrity>,
-    compute_sha512: bool,
-) -> Result<HashState, BlobStreamError> {
-    match integrity {
-        Some(integrity) => {
-            let checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
-            if compute_sha512 {
-                Ok(HashState::VerifyAndCompute(
-                    checker,
-                    IntegrityOpts::new().algorithm(Algorithm::Sha512),
-                ))
-            } else {
-                Ok(HashState::Verify(checker, integrity.clone()))
-            }
+async fn download_computing_sha512(
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
+    expected: Option<&Integrity>,
+    max_bytes: u64,
+) -> Result<Integrity, BlobStreamError> {
+    let mut checker = expected
+        .map(integrity_checker)
+        .transpose()
+        .map_err(BlobStreamError::Integrity)?;
+    let mut sha512 = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    download(response, write, max_bytes, |chunk| {
+        if let Some(checker) = checker.as_mut() {
+            checker.input(chunk);
         }
-        None => Ok(HashState::Compute(IntegrityOpts::new().algorithm(Algorithm::Sha512))),
+        sha512.input(chunk);
+    })
+    .await?;
+    if let Some(checker) = checker {
+        checker.result().map_err(BlobStreamError::Integrity)?;
     }
+    Ok(sha512.result())
 }
 
-fn ensure_content_length(
-    content_length: Option<u64>,
+/// Write every chunk of `response` to `write`, feeding each to `hash`, and
+/// return the byte count.
+async fn download(
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
     max_bytes: u64,
-) -> Result<(), BlobStreamError> {
-    if let Some(received) = content_length
+    mut hash: impl FnMut(&[u8]),
+) -> Result<u64, BlobStreamError> {
+    let url = response.url().to_string();
+    if let Some(received) = response.content_length()
         && received > max_bytes
     {
         return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
-    Ok(())
-}
-
-fn ensure_chunk_size(
-    written: u64,
-    chunk_size: u64,
-    max_bytes: u64,
-) -> Result<u64, BlobStreamError> {
-    let received = written.saturating_add(chunk_size);
-    if received > max_bytes {
-        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
+    let mut upstream = Box::pin(response.bytes_stream());
+    let mut written = 0u64;
+    while let Some(chunk_result) = upstream.next().await {
+        let chunk = match chunk_result {
+            Ok(chunk) => chunk,
+            Err(source) => return Err(BlobStreamError::Upstream { url, source }),
+        };
+        let received = written.saturating_add(chunk.len() as u64);
+        if received > max_bytes {
+            return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
+        }
+        if let Err(err) = write.write_all(&chunk).await {
+            return Err(BlobStreamError::Io(err));
+        }
+        hash(&chunk);
+        written = received;
     }
-    Ok(received)
+    Ok(written)
 }
 
 /// Stream a cached file as a response body. Caller is responsible for

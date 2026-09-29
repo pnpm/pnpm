@@ -46,7 +46,7 @@ pub(super) async fn load_upstream_packument(
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    let cached = if upstream.caches()
+    if upstream.caches()
         && let Some(bytes) = timed(
             "packument:cache_read",
             name.as_str(),
@@ -54,29 +54,24 @@ pub(super) async fn load_upstream_packument(
         )
         .await?
     {
-        Some(bytes)
-    } else {
-        None
-    };
-    let bytes = if let Some(bytes) = cached {
-        Some(bytes)
-    } else {
-        let fetched = timed(
-            "packument:upstream_fetch",
-            name.as_str(),
-            upstream.fetch_packument(name, &CacheValidators::default()),
-        )
-        .await;
-        match fetched {
-            Ok(fetched) => {
-                cache_upstream_packument(state, namespace, upstream, name, fetched).await?
-            }
-            Err(err) => {
-                recover_stale_upstream_packument(state, namespace, upstream, name, err).await?
-            }
+        return Ok(Some(bytes));
+    }
+    let fetched = match timed(
+        "packument:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_packument(name, &CacheValidators::default()),
+    )
+    .await
+    {
+        Ok(fetched) => fetched,
+        Err(err) => {
+            return recover_stale_upstream_packument(state, namespace, upstream, name, err).await;
         }
     };
-    let Some(bytes) = bytes else { return Ok(None) };
+    let Some(bytes) = cache_upstream_packument(state, namespace, upstream, name, fetched).await?
+    else {
+        return Ok(None);
+    };
     super::upstream_integrity::complete_missing_tarball_integrities(
         state, namespace, upstream, name, ttl, bytes,
     )
