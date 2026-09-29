@@ -416,28 +416,27 @@ pub fn default_user_agent() -> String {
     )
 }
 
-/// Default `childConcurrency`: `min(4, availableParallelism())`. Read at
-/// runtime so `cargo test` and overrides via yaml still resolve to a
-/// usable value on 1-core sandboxes.
+/// Default `childConcurrency`: `5`, the limit pnpm's install and build
+/// entry points use. It does not scale with the host's core count; only
+/// [`default_workspace_concurrency`] does.
 pub fn default_child_concurrency() -> u32 {
-    default_child_concurrency_with_parallelism(available_parallelism())
+    5
+}
+
+/// Default `workspaceConcurrency`, the default for `workspace-concurrency`:
+/// `min(4, availableParallelism())`.
+///
+/// Read at runtime so `cargo test` and overrides via yaml still resolve to a
+/// usable value on 1-core sandboxes.
+#[must_use]
+pub fn default_workspace_concurrency() -> u32 {
+    default_workspace_concurrency_with_parallelism(available_parallelism())
 }
 
 /// Internal helper exposed for tests so they can pin the
 /// `parallelism` input directly rather than reading it from the host.
-pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
+pub fn default_workspace_concurrency_with_parallelism(parallelism: u32) -> u32 {
     parallelism.min(4)
-}
-
-/// Default `workspaceConcurrency`, the default for `workspace-concurrency`.
-///
-/// Identical in value to `default_child_concurrency` — both settings
-/// resolve through the same default-concurrency formula — but exposed
-/// under its own name so the [`crate::Config::workspace_concurrency`]
-/// field default reads at its own call site.
-#[must_use]
-pub fn default_workspace_concurrency() -> u32 {
-    default_child_concurrency()
 }
 
 /// Available CPU parallelism. Floors at 1.
@@ -463,7 +462,7 @@ pub fn resolve_child_concurrency(option: Option<i32>) -> u32 {
 /// parallelism input injected rather than read from the OS.
 pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, parallelism: u32) -> u32 {
     match option {
-        None => default_child_concurrency_with_parallelism(parallelism),
+        None => default_workspace_concurrency_with_parallelism(parallelism),
         Some(n) if n > 0 => n as u32,
         // `unsigned_abs` instead of `(-n) as u32` — the latter
         // panics in debug builds on `n == i32::MIN` (negation
