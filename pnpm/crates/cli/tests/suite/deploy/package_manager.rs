@@ -188,9 +188,9 @@ fn deploy_does_not_turn_the_dev_engines_pin_of_the_workspace_root_into_a_package
     drop((root, mock_instance));
 }
 
-/// `devEngines.packageManager` is a development-time contract: npm exits with
-/// `EBADDEVENGINES` before running any script of a manifest that declares one
-/// naming another package manager. A deploy directory is installed by
+/// `devEngines.packageManager` is a development-time contract. With the default
+/// `onFail`, npm exits with `EBADDEVENGINES` before running any script of a
+/// manifest that declares one naming another package manager. A deploy directory is installed by
 /// whichever package manager its consumer uses, so the root's entry must not
 /// be copied into it.
 #[test]

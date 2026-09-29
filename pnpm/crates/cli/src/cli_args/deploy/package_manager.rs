@@ -10,9 +10,9 @@ const DEV_ENGINES: &str = "devEngines";
 /// that pins no package manager itself.
 ///
 /// The root's `devEngines` is never copied. It is a development-time contract
-/// that package managers enforce by default, and npm refuses to run any script
-/// of a manifest whose `devEngines.packageManager` names another package
-/// manager.
+/// that package managers enforce. With the default `onFail`, npm refuses to run
+/// any script of a manifest whose `devEngines.packageManager` names another
+/// package manager.
 pub(super) fn inherit_package_manager(manifest: &mut Value, engine_pin_manifest: Option<&Value>) {
     let Some(package_manager) =
         engine_pin_manifest.and_then(Value::as_object).and_then(declared_package_manager)

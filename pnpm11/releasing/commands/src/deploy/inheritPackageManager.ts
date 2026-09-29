@@ -6,9 +6,9 @@ import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
  * that pins no package manager itself.
  *
  * The root's `devEngines` is never copied. It is a development-time contract
- * that package managers enforce by default, and npm refuses to run any script
- * of a manifest whose `devEngines.packageManager` names another package
- * manager.
+ * that package managers enforce. With the default `onFail`, npm refuses to run
+ * any script of a manifest whose `devEngines.packageManager` names another
+ * package manager.
  */
 export function inheritPackageManager (
   manifest: ProjectManifest,
