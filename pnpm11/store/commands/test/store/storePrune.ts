@@ -447,8 +447,8 @@ test('prune reclaims the packages of an expired dlx cache entry', async () => {
     pnpm_config_registry: REGISTRY,
     pnpm_config_package_import_method: 'hardlink',
   }
-  await execa('node', [pnpmBin, 'dlx', '--package=is-negative@2.1.0', 'node', '-e', ''], { env })
-  await execa('node', [pnpmBin, 'dlx', '--package=is-positive@1.0.0', 'node', '-e', ''], { env })
+  await execa('node', [pnpmBin, 'dlx', '--package=is-negative@2.1.0', 'node', '-e', '0'], { env })
+  await execa('node', [pnpmBin, 'dlx', '--package=is-positive@1.0.0', 'node', '-e', '0'], { env })
 
   const dlxCacheDir = path.join(cacheDir, 'dlx')
   const expiredEntry = fs.readdirSync(dlxCacheDir).find((name) =>

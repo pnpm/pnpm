@@ -663,7 +663,7 @@ fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
     } = CommandTempCwd::init().add_mocked_registry();
     _utils::append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
     pacquet_at(&workspace)
-        .with_args(["dlx", "--package=is-positive@1.0.0", "node", "-e", ""])
+        .with_args(["dlx", "--package=is-positive@1.0.0", "node", "-e", "0"])
         .assert()
         .success();
 
