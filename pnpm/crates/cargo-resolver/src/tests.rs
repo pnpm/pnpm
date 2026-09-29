@@ -1146,6 +1146,18 @@ fn ignores_path_dependencies_the_lockfile_does_not_lock() {
     verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap();
 }
 
+#[test]
+fn rejects_a_registry_edge_for_a_path_dependency() {
+    let metadata = METADATA.replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null");
+
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app requires",
+    );
+}
+
 fn with_app_dependency(dependency: &str) -> String {
     METADATA.replace(
         r#""req": "^1.0"

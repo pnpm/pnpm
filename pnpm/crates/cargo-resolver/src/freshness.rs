@@ -14,7 +14,7 @@ use std::str::FromStr;
 ///
 /// `metadata` is the output of `cargo metadata --no-deps`. Path dependencies
 /// carry no requirement a lockfile could contradict, so they need no edge of
-/// their own and account for any edge with their name.
+/// their own and account for any source-less edge with their name.
 /// Sources are not compared, because a `[patch]` legitimately locks a
 /// dependency from a source other than the one its manifest names.
 pub fn verify_lockfile(metadata: &str, lockfile: &str) -> Result<()> {
@@ -55,7 +55,10 @@ fn verify_no_stale_edge(member: &MetadataPackage, locked_member: &Package) -> Re
                 .iter()
                 .any(|dependency| {
                     dependency.name == edge.name.as_str()
-                        && (dependency.source.is_none() || dependency.req.matches(&edge.version))
+                        && match dependency.source {
+                            None => edge.source.is_none(),
+                            Some(_) => dependency.req.matches(&edge.version),
+                        }
                 })
         });
     match stale {
