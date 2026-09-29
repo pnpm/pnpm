@@ -1,0 +1,226 @@
+{
+  "docs": {
+    "Introduction": [
+      "motivation",
+      "feature-comparison",
+      "installation"
+    ],
+    "Usage": [
+      "pnpm-cli",
+      "configuring",
+      "filtering",
+      "scripts"
+    ],
+    "CLI commands": [
+      {
+        "type": "category",
+        "label": "Manage dependencies",
+        "items": [
+          "cli/add",
+          "cli/install",
+          "cli/update",
+          "cli/remove",
+          "cli/link",
+          "cli/unlink",
+          "cli/import",
+          "cli/rebuild",
+          "cli/prune",
+          "cli/clean",
+          "cli/ci",
+          "cli/fetch",
+          "cli/install-test",
+          "cli/dedupe"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Patch dependencies",
+        "items": [
+          "cli/patch",
+          "cli/patch-commit",
+          "cli/patch-remove"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Review dependencies",
+        "items": [
+          "cli/audit",
+          "cli/sbom",
+          "cli/list",
+          "cli/outdated",
+          "cli/why",
+          "cli/licenses",
+          "cli/peers",
+          "cli/view",
+          "cli/search",
+          "cli/docs",
+          "cli/bugs"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Run scripts",
+        "items": [
+          "cli/run",
+          "cli/tasks",
+          "cli/pipeline",
+          "cli/test",
+          "cli/exec",
+          "cli/pnx",
+          "cli/create",
+          "cli/start",
+          "cli/approve-builds",
+          "cli/ignored-builds"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Releasing",
+        "items": [
+          "cli/change",
+          "cli/lane",
+          "cli/version",
+          "cli/publish",
+          "cli/stage",
+          "cli/pack",
+          "cli/dist-tag",
+          "cli/deprecate",
+          "cli/unpublish"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Registry",
+        "items": [
+          "cli/login",
+          "cli/logout",
+          "cli/whoami",
+          "cli/access",
+          "cli/owner",
+          "cli/team",
+          "cli/star",
+          "cli/ping"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Manage environments",
+        "items": [
+          "cli/runtime",
+          "cli/shim",
+          "cli/env"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Inspect the store",
+        "items": [
+          "cli/cat-file",
+          "cli/cat-index",
+          "cli/find-hash"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Manage cache",
+        "items": [
+          "cli/cache-list",
+          "cli/cache-list-registries",
+          "cli/cache-view",
+          "cli/cache-delete",
+          "cli/cache-path",
+          "cli/cache-prune"
+        ]
+      },
+      {
+        "type": "category",
+        "label": "Misc.",
+        "items": [
+          "cli/self-update",
+          "cli/with",
+          "cli/pack-app",
+          "cli/recursive",
+          "cli/store",
+          "cli/root",
+          "cli/bin",
+          "cli/prefix",
+          "cli/setup",
+          "cli/init",
+          "cli/deploy",
+          "cli/doctor",
+          "cli/pm",
+          "cli/pkg",
+          "cli/repo",
+          "cli/set-script",
+          "cli/config",
+          "cli/help"
+        ]
+      }
+    ],
+    "Configuration": [
+      "package_json",
+      {
+        "type": "category",
+        "label": "Settings (pnpm-workspace.yaml)",
+        "link": {
+          "type": "doc",
+          "id": "settings"
+        },
+        "items": [
+          "settings/dependency-resolution",
+          "settings/node-modules",
+          "settings/store",
+          "settings/network",
+          "settings/peer-dependencies",
+          "settings/cli",
+          "settings/build",
+          "settings/versioning",
+          "settings/other"
+        ]
+      },
+      "npmrc",
+      "pnpmfile"
+    ],
+    "Features": [
+      "package-sources",
+      "registries",
+      "registry-revisions",
+      "workspaces",
+      "workspace-task-orchestration",
+      "cargo",
+      "python",
+      "catalogs",
+      "config-dependencies",
+      "aliases",
+      "completion",
+      "git_branch_lockfiles",
+      "finders",
+      "global-packages",
+      "global-virtual-store",
+      "package-managers",
+      "versioning"
+    ],
+    "Recipes": [
+      "using-changesets",
+      "continuous-integration",
+      "supply-chain-security",
+      "typescript",
+      "git",
+      "git-worktrees",
+      "docker",
+      "podman"
+    ],
+    "Advanced": [
+      "migration",
+      "errors",
+      "logos",
+      "limitations",
+      "symlinked-node-modules-structure",
+      "how-peers-are-resolved",
+      "lockfile",
+      "uninstall",
+      "pnpm-vs-npm"
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+name: Sync released documentation
+
+on:
+  # Only signed, published release tags supply Markdown; no code or artifacts
+  # from the triggering run execute here. The token is limited to the push step.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published release tag to sync or retry
+        required: true
+        type: string
+      docs_commit:
+        description: Optional full SHA of a docs-only correction based on that tag
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    environment: docs-sync
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate the published release and select its documentation
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DOCS_COMMIT: ${{ inputs.docs_commit }}
+        run: |
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          gpg --batch --quiet --import .github/release-keys/*.asc
+          node .github/scripts/prepare-docs-sync.mjs
+      - name: Check out the documentation snapshot
+        if: steps.source.outputs.publish == 'true'
+        env:
+          DOCS_COMMIT: ${{ steps.source.outputs.docs_commit }}
+        run: git worktree add --detach "$RUNNER_TEMP/docs-source" "$DOCS_COMMIT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.source.outputs.publish == 'true'
+        with:
+          repository: pnpm/pnpm.io
+          ref: main
+          path: website
+          persist-credentials: false
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        if: steps.source.outputs.publish == 'true'
+        with:
+          runtime: node@22
+          install: false
+      - name: Install the website dependencies
+        if: steps.source.outputs.publish == 'true'
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+      - name: Sync and verify the released pages
+        if: steps.source.outputs.publish == 'true'
+        working-directory: website
+        env:
+          LINE: ${{ steps.source.outputs.line }}
+          VERSION: ${{ steps.source.outputs.version }}
+          RELEASE_COMMIT: ${{ steps.source.outputs.release_commit }}
+          DOCS_COMMIT: ${{ steps.source.outputs.docs_commit }}
+        run: |
+          node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" "$LINE" "$VERSION" "$RELEASE_COMMIT" "$DOCS_COMMIT"
+          pnpm build
+          pnpm check-urls
+      - name: Publish the generated documentation commit
+        if: steps.source.outputs.publish == 'true'
+        working-directory: website
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN }}
+          VERSION: ${{ steps.source.outputs.version }}
+          LINE: ${{ steps.source.outputs.line }}
+        run: |
+          test -n "$GH_TOKEN" || { echo '::error::Configure DOCS_SYNC_TOKEN in the docs-sync environment'; exit 1; }
+          git add docs pnpr-docs versioned_docs versioned_docs_archived versioned_sidebars versioned_sidebars_archived sidebars.json sidebars-pnpr.json static/docs-assets docs-sync.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'pnpm docs sync'
+          git config user.email 'pnpm-docs-sync@users.noreply.github.com'
+          git commit -m "docs: sync ${LINE} documentation for ${VERSION}" -m "Generated from pnpm/pnpm. Written by release automation."
+          gh auth setup-git
+          git push origin HEAD:main

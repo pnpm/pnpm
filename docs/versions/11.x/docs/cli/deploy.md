@@ -1,0 +1,104 @@
+---
+id: deploy
+title: "pnpm deploy"
+---
+
+Deploy a package from a workspace. During deployment, the files of the deployed package are copied to the target directory. All dependencies of the deployed package, including dependencies from the workspace, are installed inside an isolated `node_modules` directory at the target directory. The target directory will contain a portable package that can be copied to a server and executed without additional steps.
+
+:::note
+
+Since v11.26.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile, and the peer dependencies it declares are bound to the deployed graph's own resolution.
+
+Where a peer resolves to more than one version in that graph, the binding is ambiguous, and the deploy fails with `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER` naming the package, the peer, and the competing versions. Pin the peer to one version with an [`overrides`](../settings/dependency-resolution.md#overrides) entry, or turn `injectWorkspacePackages` on, which is the setting that decides between the candidates.
+
+Before v11.26.0 the command refused every non-injected workspace up front. `--legacy`, or `forceLegacyDeploy: true`, still selects the older implementation.
+
+:::
+
+:::note
+
+When the [`enableGlobalVirtualStore`](../settings/node-modules.md#enableglobalvirtualstore) option is set, `pnpm deploy` ignores it and always creates a localized virtual store within the deploy directory. This keeps the deploy directory self-contained and portable.
+
+:::
+
+Usage:
+
+```
+pnpm --filter=<deployed project name> deploy <target directory>
+```
+
+In case you build your project before deployment, also use the `--prod` option to skip `devDependencies` installation.
+
+```
+pnpm --filter=<deployed project name> --prod deploy <target directory>
+```
+
+Usage in a docker image. After building everything in your monorepo, do this in a second image that uses your monorepo base image as a build context or in an additional build stage:
+
+```Dockerfile
+# syntax=docker/dockerfile:1.4
+
+FROM workspace as pruned
+RUN pnpm --filter <your package name> --prod deploy pruned
+
+FROM node:22-alpine
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY --from=pruned /app/pruned .
+
+ENTRYPOINT ["node", "index.js"]
+```
+
+## Options
+
+### --dev, -D
+
+Only `devDependencies` are installed.
+
+### --no-optional
+
+`optionalDependencies` are not installed.
+
+### --prod, -P
+
+Packages in `devDependencies` won't be installed.
+
+### --filter &lt;package_selector\>
+
+[Read more about filtering.](../filtering.md)
+
+### --legacy
+
+Force legacy deploy implementation.
+
+By default, `pnpm deploy` will try creating a dedicated lockfile from a shared lockfile for deployment. The `--legacy` flag disables this behavior and also allows using the deploy command without the `inject-workspace-packages=true` setting.
+
+## Files included in the deployed project
+
+By default, all the files of the project are copied during deployment but this can be modified in _one_ of the following ways which are resolved in order:
+
+1. The project's `package.json` may contain a "files" field to list the files and directories that should be copied.
+2. If there is an `.npmignore` file in the application directory then any files listed here are ignored.
+3. If there is a `.gitignore` file in the application directory then any files listed here are ignored.
+
+Since v11.28.0, symlinks that point to files or directories included in the deployed project are kept as symlinks.
+
+## The deployed project
+
+Since v11.28.0:
+
+* The `packageManager` and `devEngines.packageManager` fields of the workspace root `package.json` are copied into the deployed `package.json`, unless the deployed project pins a package manager itself.
+* The virtual store is created at [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir), resolved against the deploy directory. A deploy from a shared lockfile records `virtualStoreDir` in the deployed `pnpm-workspace.yaml`. With the global virtual store enabled or an absolute `virtualStoreDir`, the deploy uses `node_modules/.pnpm`.
+* The `prepare` script of the deployed project is not run.
+* `--package-import-method` passed on the command line is respected.
+
+## Configuration
+
+### forceLegacyDeploy
+
+* Default: **false**
+* Type: **Boolean**
+
+By default, `pnpm deploy` will try creating a dedicated lockfile from a shared lockfile for deployment. If this setting is set to `true`, the legacy `deploy` behavior will be used.

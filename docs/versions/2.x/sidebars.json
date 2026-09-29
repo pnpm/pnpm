@@ -1,0 +1,118 @@
+{
+  "version-2.x/docs": [
+    {
+      "type": "category",
+      "label": "Introduction",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-2.x/motivation"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/installation"
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Usage",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-cli"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpx-cli"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/configuring"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/hooks"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/aliases"
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "CLI commands",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-install"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-install-pkg"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-dislink"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-store"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-recursive"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-server"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/pnpm-import"
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Recipes",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-2.x/continuous-integration"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/workspace"
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Advanced",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-2.x/benchmark"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/limitations"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/about-package-store"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/symlinked-node-modules-structure"
+        },
+        {
+          "type": "doc",
+          "id": "version-2.x/how-peers-are-resolved"
+        }
+      ]
+    }
+  ]
+}

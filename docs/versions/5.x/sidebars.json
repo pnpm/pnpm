@@ -1,0 +1,253 @@
+{
+  "version-5.x/docs": [
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "Introduction",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-5.x/motivation"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/installation"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "Usage",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-5.x/pnpm-cli"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/pnpx-cli"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/configuring"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/filtering"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "CLI commands",
+      "items": [
+        {
+          "collapsed": true,
+          "type": "category",
+          "label": "Manage dependencies",
+          "items": [
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/add"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/install"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/update"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/remove"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/link"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/unlink"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/import"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/rebuild"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/prune"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/install-test"
+            }
+          ]
+        },
+        {
+          "collapsed": true,
+          "type": "category",
+          "label": "Review dependencies",
+          "items": [
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/audit"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/list"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/outdated"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/why"
+            }
+          ]
+        },
+        {
+          "collapsed": true,
+          "type": "category",
+          "label": "Run scripts",
+          "items": [
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/run"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/test"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/start"
+            }
+          ]
+        },
+        {
+          "collapsed": true,
+          "type": "category",
+          "label": "Misc.",
+          "items": [
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/publish"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/recursive"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/server"
+            },
+            {
+              "type": "doc",
+              "id": "version-5.x/cli/store"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "Configuration",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-5.x/package_json"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/npmrc"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/pnpm-workspace_yaml"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/pnpmfile"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "Features",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-5.x/workspaces"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/aliases"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/completion"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "Recipes",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-5.x/using-changesets"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/continuous-integration"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/only-allow-pnpm"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/git"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "type": "category",
+      "label": "Advanced",
+      "items": [
+        {
+          "type": "doc",
+          "id": "version-5.x/logos"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/benchmark"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/limitations"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/symlinked-node-modules-structure"
+        },
+        {
+          "type": "doc",
+          "id": "version-5.x/how-peers-are-resolved"
+        }
+      ]
+    }
+  ]
+}
