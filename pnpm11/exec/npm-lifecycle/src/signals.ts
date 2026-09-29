@@ -315,7 +315,8 @@ export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
  * The group is probed the way the kernel counts it, with a signal of 0. A
  * member that has exited but is not reaped yet still counts there, which
  * happens when pnpm is a container's PID 1 and inherits the orphans, so on
- * Linux such zombies are told apart through `/proc`.
+ * Linux such zombies are told apart through `/proc`. A member that reads as
+ * a zombie while its other threads still run counts as live.
  */
 export async function waitForProcessGroup (leader: number, opts?: WaitForProcessGroupOptions): Promise<void> {
   const poll = async (): Promise<void> => {
@@ -342,24 +343,42 @@ function hasLiveMembers (group: number, processTable: string): boolean {
 }
 
 /**
- * Whether `/proc` lists a process of `group` that is not a zombie. An entry
- * whose state cannot be read is not counted: it has exited since the
- * listing, or it belongs to another user under a restricted process table,
- * and either way it is not a member pnpm started and can observe.
+ * Whether `/proc` lists a live process of `group`. A member in state `Z`
+ * counts only when its `task` directory lists more than one thread. Linux
+ * reports `Z` for a process whose main thread has exited while its other
+ * threads still run, and a real zombie lists only its own thread. A member
+ * whose task directory cannot be read is not counted. An entry whose state
+ * cannot be read is not counted: it has exited since the listing, or it
+ * belongs to another user under a restricted process table, and either way
+ * it is not a member pnpm started and can observe.
  */
 function hasLiveMembersInProc (group: number, processTable: string): boolean {
   return fs.readdirSync(processTable).some((entry) => {
     if (!/^\d+$/.test(entry)) return false
+    const procDir = path.join(processTable, entry)
     let stat: string
     try {
-      stat = fs.readFileSync(path.join(processTable, entry, 'stat'), 'utf8')
+      stat = fs.readFileSync(path.join(procDir, 'stat'), 'utf8')
     } catch {
       return false
     }
     // The fields after the parenthesized command name: state, parent, group, ...
     const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
-    return fields[0] !== 'Z' && Number(fields[2]) === group
+    if (Number(fields[2]) !== group) return false
+    return fields[0] !== 'Z' || hasOtherThreads(procDir)
   })
+}
+
+/**
+ * Whether `entry` lists a thread besides its own under `task`. A directory
+ * that cannot be read counts as no other threads.
+ */
+function hasOtherThreads (entry: string): boolean {
+  try {
+    return fs.readdirSync(path.join(entry, 'task')).length > 1
+  } catch {
+    return false
+  }
 }
 
 function errorCode (err: unknown): unknown {
