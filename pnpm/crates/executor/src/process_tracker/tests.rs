@@ -1,5 +1,6 @@
 use super::{
-    ProcessTracker, RunningExecution, group_is_running, group_watchdog::GroupWatchdog, spawn_child,
+    ProcessTracker, RunningExecution, group_is_running, group_watchdog::GroupWatchdog,
+    process_table::is_unsettled, spawn_child,
 };
 use std::{
     fs,
@@ -234,6 +235,18 @@ fn a_process_table_that_shows_no_member_leaves_the_group_running() {
     let _ = leader.kill();
     let _ = leader.wait();
     assert!(running, "the kernel still counts the group's leader");
+}
+
+/// A member may start another process and exit between the listing and the
+/// read of its own entry, and that reading misses the new process, so a
+/// second reading that shows other zombies keeps the wait going.
+#[test]
+fn readings_that_differ_leave_the_group_running() {
+    let mut readings = [Some(vec![7]), Some(vec![8, 7])].into_iter();
+
+    let running = is_unsettled(|| readings.next().flatten());
+
+    assert!(running, "the second reading shows a zombie the first one missed");
 }
 
 /// Only the table of pnpm's own pid namespace has pnpm as its `self`. An

@@ -13,7 +13,12 @@ use std::{fs, io, path::Path, process};
 /// shows no member at all, as when `hidepid=invisible` hides them, cannot
 /// rule it out.
 pub(super) fn has_running_member(table: &Path, leader: i32) -> bool {
-    only_zombies(table, leader).is_none_or(|zombies| only_zombies(table, leader) != Some(zombies))
+    is_unsettled(|| only_zombies(table, leader))
+}
+
+/// Whether two readings in a row from `read` fail to show the same zombies.
+pub(super) fn is_unsettled(mut read: impl FnMut() -> Option<Vec<u32>>) -> bool {
+    read().is_none_or(|zombies| read() != Some(zombies))
 }
 
 /// The members of the group led by `leader` that `table` shows, if it shows
