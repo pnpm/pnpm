@@ -34,6 +34,7 @@ on:
       # Integration test targets never link into the benchmarked binaries.
       - '!pnpm/crates/*/tests/**'
       - '!pnpr/crates/*/tests/**'
+      - '!pnpr/docs/**'
       - '!pnpr/*.md'
       - '!pnpr/crates/*/*.md'
       - '!pnpr/docker/*.md'
@@ -62,6 +63,7 @@ on:
       # Integration test targets never link into the benchmarked binaries.
       - '!pnpm/crates/*/tests/**'
       - '!pnpr/crates/*/tests/**'
+      - '!pnpr/docs/**'
       - '!pnpr/*.md'
       - '!pnpr/crates/*/*.md'
       - '!pnpr/docker/*.md'

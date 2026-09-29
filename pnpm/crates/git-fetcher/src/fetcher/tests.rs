@@ -312,7 +312,7 @@ fn failing_fetcher<'a>(
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: source_cache,

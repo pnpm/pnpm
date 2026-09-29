@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="157.45312 164 224.76563 323.35938" width="224.76563" height="323.35938">
+  <defs>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -4 10 8" markerWidth="10" markerHeight="8" color="#7f8080">
+      <g>
+        <path d="M 8 0 L 0 -3 L 0 3 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+  </defs>
+  <g id="Canvas_1" stroke-dasharray="none" fill="none" stroke-opacity="1" fill-opacity="1" stroke="none">
+    <title>Canvas 1</title>
+    <rect fill="white" x="157.45312" y="164" width="224.76563" height="323.35938"/>
+    <g id="Canvas_1_Layer_1">
+      <title>Layer 1</title>
+      <g id="Graphic_2">
+        <text transform="translate(167.45312 174)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">node_modules</tspan>
+        </text>
+      </g>
+      <g id="Graphic_3">
+        <text transform="translate(197 205.33594)" fill="#0096ff">
+          <tspan font-family="Monaco" font-size="16" fill="#0096ff" x="0" y="16">express</tspan>
+        </text>
+      </g>
+      <g id="Graphic_4">
+        <text transform="translate(197 236.67188)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">.pnpm</tspan>
+        </text>
+      </g>
+      <g id="Graphic_5">
+        <text transform="translate(227 268.0078)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">express@4.17.3</tspan>
+        </text>
+      </g>
+      <g id="Graphic_6">
+        <text transform="translate(257 299.34375)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">node_modules</tspan>
+        </text>
+      </g>
+      <g id="Graphic_7">
+        <text transform="translate(287 330.6797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">express</tspan>
+        </text>
+      </g>
+      <g id="Graphic_8">
+        <text transform="translate(287 362.01562)" fill="#0096ff">
+          <tspan font-family="Monaco" font-size="16" fill="#0096ff" x="0" y="16">cookie</tspan>
+        </text>
+      </g>
+      <g id="Graphic_9">
+        <text transform="translate(227 393.35156)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">cookie@0.4.2</tspan>
+        </text>
+      </g>
+      <g id="Graphic_10">
+        <text transform="translate(257 424.6875)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">node_modules</tspan>
+        </text>
+      </g>
+      <g id="Graphic_11">
+        <text transform="translate(287 456.02344)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">cookie</tspan>
+        </text>
+      </g>
+      <g id="Line_20">
+        <path d="M 192 216.0039 L 182 216.0039 L 180.75 216.125 L 179.5 216.125 L 179.5 341.34766 L 272.1 341.34766" marker-end="url(#FilledArrow_Marker)" stroke="#7f8080" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_21">
+        <path d="M 282 372.6836 L 272 372.6836 L 217.5 373 L 218 457.5 L 218 466.6914 L 272.1 466.6914" marker-end="url(#FilledArrow_Marker)" stroke="#7f8080" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+    </g>
+  </g>
+</svg>

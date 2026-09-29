@@ -185,3 +185,12 @@ The release commit itself is created by `create-release-pr.yml` and merged
 through GitHub, so it carries GitHub's web-flow signature rather than a
 maintainer's. The signed tag covers the tree, but the full commit chain is not
 yet maintainer-signed end to end.
+
+## Website documentation
+
+After a successful Release workflow, the separate Sync documentation
+workflow copies the tagged pnpm v11, v12, or pnpr documentation to pnpm/pnpm.io and checks the
+website build before pushing it. Check that workflow as part of finishing a
+release. A failed docs sync can be retried independently of package publication.
+See [DOCUMENTATION.md](DOCUMENTATION.md#publication) for retries, documentation-only
+corrections, and the initial credential setup.

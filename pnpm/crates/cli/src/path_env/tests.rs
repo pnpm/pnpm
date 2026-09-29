@@ -24,3 +24,17 @@ fn the_directories_come_first_in_the_order_given() {
         assert!(path.ends_with(&inherited), "{path}");
     }
 }
+
+/// <https://github.com/pnpm/pnpm/issues/16308>
+#[cfg(unix)]
+#[test]
+fn a_path_variable_in_another_case_is_left_to_the_child() {
+    use super::set_command_path;
+    use std::{ffi::OsStr, process::Command};
+
+    let mut cmd = Command::new("true");
+    set_command_path(&mut cmd, OsStr::new("/store/bin"));
+
+    let envs: Vec<_> = cmd.get_envs().collect();
+    assert_eq!(envs, [(OsStr::new("PATH"), Some(OsStr::new("/store/bin")))]);
+}

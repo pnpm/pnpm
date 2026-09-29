@@ -135,6 +135,136 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
     drop((root, mock_instance));
 }
 
+/// `lib`'s injected resolution matches its own importer, dev dependencies
+/// included, so the injected workspace links it into `app`. The deploy binds
+/// the peer to that shared resolution, even though `other` brings a second
+/// version of the peer into the deployed graph.
+#[test]
+fn injected_workspace_deploy_binds_the_peer_of_a_deduped_workspace_package() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_ambiguous_peer_workspace(&workspace);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .unwrap()
+        .replace("injectWorkspacePackages: false", "injectWorkspacePackages: true");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "@pnpm.e2e/peer-a": "*" },
+            "devDependencies": { "@pnpm.e2e/peer-a": "1.0.0" },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let workspace_lockfile = Lockfile::load_wanted_from_dir(&workspace).unwrap().unwrap();
+    let lib: PkgName = "lib".parse().unwrap();
+    let lib_version =
+        &workspace_lockfile.importers["packages/app"].dependencies.as_ref().unwrap()[&lib].version;
+    assert_eq!(lib_version.to_string(), "link:../lib");
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let lib_real = fs::canonicalize(deploy_dir.join("node_modules/lib")).unwrap();
+    let peer = lib_real
+        .parent()
+        .unwrap()
+        .join("@pnpm.e2e/peer-a");
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(fs::canonicalize(&peer).unwrap().join("package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["version"], "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// A dev dependency that links outside the workspace cannot name a deployed
+/// snapshot, so it never blocks the deploy: not as an unrelated dev dependency
+/// of `lib`, not as `lib`'s peer, and not as the peer of `tool`, which the
+/// deploy does not include.
+#[test]
+fn injected_workspace_deploy_ignores_external_dev_links_of_linked_workspace_packages() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_peer_workspace(&workspace);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .unwrap()
+        .replace("injectWorkspacePackages: false", "injectWorkspacePackages: true");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    let external = root.path().join("external");
+    fs::create_dir_all(&external).unwrap();
+    fs::write(
+        external.join("package.json"),
+        serde_json::json!({ "name": "external", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    let external_link = format!("link:{}", external.display());
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "@pnpm.e2e/peer-a": "*", "external": "*" },
+            "devDependencies": {
+                "@pnpm.e2e/peer-a": "1.0.0",
+                "external": external_link,
+                "other-external": external_link,
+            },
+        }),
+    );
+    write_project(
+        &workspace,
+        "tool",
+        &serde_json::json!({
+            "name": "tool",
+            "version": "1.0.0",
+            "peerDependencies": { "external": "*" },
+            "devDependencies": { "external": external_link },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    assert!(deploy_dir.join("node_modules/lib").exists());
+
+    drop((root, mock_instance));
+}
+
 /// The remedy `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER` suggests: collapsing the peer to
 /// one version makes the binding unambiguous, so the deploy goes through
 /// without injecting the workspace or falling back to the legacy implementation.
