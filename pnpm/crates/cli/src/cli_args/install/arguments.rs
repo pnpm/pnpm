@@ -112,6 +112,13 @@ pub struct InstallFetchArgs {
 }
 
 #[derive(Debug, Default, Clone, clap::Args)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "CLI argument group for install materialization options"
+    )
+)]
 pub struct InstallMaterializationArgs {
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
@@ -123,6 +130,15 @@ pub struct InstallMaterializationArgs {
     /// platforms, use `--os` / `--cpu` / `--libc`.
     #[clap(long)]
     pub force: bool,
+    /// Bypass per-snapshot installability checks (`cpu`, `os`, `libc`,
+    /// `engines`) so packages for foreign platforms are materialized instead
+    /// of skipped.
+    #[clap(long = "ignore-platform-checks")]
+    pub ignore_platform_checks: bool,
+    /// Re-materialize every package slot, bypassing repeat-install fast
+    /// paths, up-to-date checks, and recorded skip sets.
+    #[clap(long = "reinstall")]
+    pub reinstall: bool,
     /// Run the install already requested by `verifyDepsBeforeRun` without
     /// independently short-circuiting it as up to date.
     #[clap(long, hide = true)]

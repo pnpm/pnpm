@@ -128,6 +128,13 @@ pub struct AddTargetArgs {
 }
 
 #[derive(Debug, Clone, clap::Args)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "CLI argument group for add install options"
+    )
+)]
 pub struct AddInstallArgs {
     #[clap(flatten)]
     pub dedupe: crate::cli_args::install_options::AutoDedupeArgs,
@@ -154,4 +161,12 @@ pub struct AddInstallArgs {
     /// platforms, use `--os` / `--cpu` / `--libc`.
     #[clap(long)]
     pub force: bool,
+    /// Install packages whose `cpu`, `os`, `libc`, or `engines` don't match
+    /// the host instead of skipping them.
+    #[clap(long = "ignore-platform-checks")]
+    pub ignore_platform_checks: bool,
+    /// Relink every package the lockfile names, including packages an
+    /// earlier install already materialized.
+    #[clap(long)]
+    pub reinstall: bool,
 }

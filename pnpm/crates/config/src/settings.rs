@@ -920,6 +920,24 @@ pub struct Config {
     /// `storeIndexFormat` setting. See [`StoreIndexFormat`].
     pub store_index_format: StoreIndexFormat,
 
+    /// pnpm's `--ignore-platform-checks`. Materialize every snapshot the
+    /// lockfile names, even ones whose `cpu` / `os` / `libc` / `engines`
+    /// don't match the host; see
+    /// [`installs_incompatible_packages`](Self::installs_incompatible_packages).
+    ///
+    /// CLI-only (merged from `--ignore-platform-checks` on `pnpm install` /
+    /// `pnpm add` / `pnpm deploy` at the dispatch); not a
+    /// `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub ignore_platform_checks: bool,
+
+    /// pnpm's `--reinstall`. Re-materialize every slot, changed or not;
+    /// see [`reinstalls_every_package`](Self::reinstalls_every_package).
+    ///
+    /// CLI-only (merged from `--reinstall` on `pnpm install` / `pnpm add` /
+    /// `pnpm deploy` at the dispatch); not a `pnpm-workspace.yaml` /
+    /// `.npmrc` setting.
+    pub reinstall: bool,
+
     /// pnpm's `--force`. Refetch every package and re-materialize every
     /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
     /// so an `engines` mismatch on a required package warns instead of
@@ -1888,10 +1906,11 @@ pub struct Config {
 impl Config {
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
-    /// under [`force_ignores_platform`](Self::force_ignores_platform).
+    /// under [`force_ignores_platform`](Self::force_ignores_platform) or
+    /// `--ignore-platform-checks`.
     /// Every installability gate reads this rather than `force` alone.
     pub fn installs_incompatible_packages(&self) -> bool {
-        self.force && self.force_ignores_platform
+        self.ignore_platform_checks || (self.force && self.force_ignores_platform)
     }
 
     /// [`engine_strict`](Self::engine_strict) as an install applies it.

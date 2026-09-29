@@ -173,6 +173,8 @@ fn create_config(
         strict_store_pkg_content_check: true,
         frozen_store: false,
         store_index_format: StoreIndexFormat::Sqlite,
+        ignore_platform_checks: false,
+        reinstall: false,
         force: false,
         isolate_local_directory_imports: false,
         side_effects_cache: true,

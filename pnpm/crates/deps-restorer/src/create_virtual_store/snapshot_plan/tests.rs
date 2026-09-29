@@ -214,6 +214,7 @@ impl PlanFixture {
             policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
                 skipped: &SkippedSnapshots::default(),
                 link_dependencies: true,
+                reinstall: force,
                 force,
                 is_hoisted: false,
                 include_optional: true,

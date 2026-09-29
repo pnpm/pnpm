@@ -261,10 +261,23 @@ impl AddArgs {
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
         config.cli.included_dependency_groups = Some(self.included_groups(config));
-        if self.install.force {
-            config.cli_settings.insert("force".to_string());
+        self.apply_materialization_config(config);
+    }
+
+    fn apply_materialization_config(&self, config: &mut Config) {
+        let install = &self.install;
+        for (set, key) in [
+            (install.force, "force"),
+            (install.ignore_platform_checks, "ignorePlatformChecks"),
+            (install.reinstall, "reinstall"),
+        ] {
+            if set {
+                config.cli_settings.insert(key.to_string());
+            }
         }
-        config.force = self.install.force || config.force;
+        config.force = install.force || config.force;
+        config.ignore_platform_checks = install.ignore_platform_checks || config.ignore_platform_checks;
+        config.reinstall = install.reinstall || config.reinstall;
     }
 
     /// The dependency groups the install that follows the manifest edit

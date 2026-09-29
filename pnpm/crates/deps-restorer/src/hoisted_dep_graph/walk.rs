@@ -370,7 +370,7 @@ pub(super) fn package_is_reusable(
     let expected_version = resolved.metadata.version
         .clone()
         .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
-    !state.opts.force
+    !state.opts.reinstall
         && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
         && state.opts.current_hoisted_locations.is_some_and(|locations| {
             locations
