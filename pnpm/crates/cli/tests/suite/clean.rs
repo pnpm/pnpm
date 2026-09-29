@@ -266,34 +266,43 @@ fn clean_works_in_a_workspace() {
     drop(root);
 }
 
+/// Under a global virtual store the custom directory is the shared store's
+/// root, and `clean` removes it too.
 #[test]
 fn clean_removes_custom_virtual_store_dir_inside_the_project() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    for global_virtual_store in [false, true] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "virtualStoreDir: .pnpm-store\npackages:\n  - .\n",
-    )
-    .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
-    let node_modules = workspace.join("node_modules");
-    fs::create_dir_all(&node_modules).expect("create node_modules");
-    seed_package(&node_modules, "lodash");
-    let virtual_store = workspace.join(".pnpm-store");
-    fs::create_dir_all(&virtual_store).expect("create custom virtual store");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!(
+                "enableGlobalVirtualStore: {global_virtual_store}\nvirtualStoreDir: .pnpm-store\npackages:\n  - .\n"
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+        let node_modules = workspace.join("node_modules");
+        fs::create_dir_all(&node_modules).expect("create node_modules");
+        seed_package(&node_modules, "lodash");
+        let virtual_store = workspace.join(".pnpm-store");
+        fs::create_dir_all(&virtual_store).expect("create custom virtual store");
 
-    let output = pacquet
-        .with_args(["clean"])
-        .output()
-        .expect("run pacquet clean");
-    assert!(output.status.success(), "pacquet clean should succeed");
+        let output = pacquet
+            .with_args(["clean"])
+            .output()
+            .expect("run pacquet clean");
+        assert!(output.status.success(), "pacquet clean should succeed");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Removing .pnpm-store"), "expected custom store removal: {stdout}");
-    assert!(!virtual_store.exists(), "custom virtual store should be removed");
-    assert!(!node_modules.join("lodash").exists(), "packages removed");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("Removing .pnpm-store"),
+            "expected custom store removal (global virtual store: {global_virtual_store}): {stdout}",
+        );
+        assert!(!virtual_store.exists(), "custom virtual store should be removed");
+        assert!(!node_modules.join("lodash").exists(), "packages removed");
 
-    drop(root);
+        drop(root);
+    }
 }
 
 #[test]
