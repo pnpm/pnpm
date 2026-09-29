@@ -643,7 +643,7 @@ function matchesEpicSelectors (selectors: EpicSelector[], dir: string, name: str
 }
 
 /**
- * Compiles a selector where `*` matches any run of characters and every other
+ * Compiles a selector where `*` and `?` match wildcards and every other
  * character is literal, mirroring `@pnpm/config.matcher`'s wildcard semantics
  * so epic membership globs behave like pnpm's other package selectors.
  */
@@ -651,10 +651,10 @@ function wildcardMatch (pattern: string): (input: string) => boolean {
   if (pattern === '*') return () => true
   let source = '^'
   for (const character of pattern) {
-    source += character === '*' ? '.*' : character.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    source += character === '*' ? '.*' : character === '?' ? '.' : character.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
   }
   source += '$'
-  const regexp = new RegExp(source)
+  const regexp = new RegExp(source, 'u')
   return (input) => regexp.test(input)
 }
 

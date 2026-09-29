@@ -514,6 +514,23 @@ test('epic membership resolves directory globs and honors negations', () => {
   expect(plan.releases.find((release) => release.name === '@scope/a')!.newVersion).toBe('1200.0.0')
 })
 
+test('epic membership supports question mark single character wildcards', () => {
+  const projects = [
+    { rootDir: '/ws/pnpm', manifest: { name: 'pnpm', version: '11.0.0' } },
+    { rootDir: '/ws/pkgs/web', manifest: { name: 'web', version: '1100.0.0' } },
+    { rootDir: '/ws/pkgs/deb', manifest: { name: 'deb', version: '1100.0.0' } },
+    { rootDir: '/ws/pkgs/eb', manifest: { name: 'eb', version: '1100.0.0' } },
+  ]
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects,
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: './pnpm', packages: ['?eb'] }] },
+  })
+  expect(plan.releases.map((release) => release.name).sort()).toStrictEqual(['deb', 'pnpm', 'web'])
+})
+
 test('epic selectors are order-dependent: a later include overrides an earlier negation', () => {
   const projects = [
     { rootDir: '/ws/pnpm', manifest: { name: 'pnpm', version: '11.0.0' } },
