@@ -10,7 +10,7 @@ use super::{
     modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
     project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now, relocated_state},
-    update_workspace_state,
+    update_workspace_state, wanted_lockfile_file_has_content,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -146,13 +146,17 @@ fn first_lockfile_or_setting_drift(
     if let Some(reason) = lockfile_conflict_drift(check, state.last_validated_timestamp) {
         return Some(reason);
     }
+    let mut ignored_workspace_state_settings = vec!["dev", "optional", "production"];
+    if install_would_run_frozen(check) {
+        ignored_workspace_state_settings.push("autoDedupe");
+    }
     if let Some(setting) = first_setting_drift(
         state,
         config,
         node_linker,
         included,
         supported_architectures,
-        &["dev", "optional", "production"],
+        &ignored_workspace_state_settings,
     ) {
         return Some(format!("The value of the {setting} setting has changed"));
     }
@@ -163,6 +167,20 @@ fn first_lockfile_or_setting_drift(
         return Some("Catalogs cache outdated".to_string());
     }
     None
+}
+
+/// Whether the `pnpm install` this gate spawns would run with a frozen
+/// lockfile, the way `InstallArgs::resolve_frozen_lockfile` decides it: on CI
+/// an install whose lockfile is present and non-empty is frozen unless
+/// `preferFrozenLockfile` is off, and an absent or empty lockfile re-resolves
+/// either way. A frozen install never re-resolves, so it cannot record the
+/// dedupe baseline a pending `autoDedupe` setting asks for: the gate would
+/// spawn an install before every script and never settle
+/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+fn install_would_run_frozen(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let config = check.config;
+    config.frozen_lockfile.unwrap_or(config.ci && config.prefer_frozen_lockfile)
+        && wanted_lockfile_file_has_content(check.workspace_root, config)
 }
 
 /// A `moved` tree leaves its patches to the content proof, as the install

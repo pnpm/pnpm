@@ -100,6 +100,7 @@ use modules_dirs::{
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     early_repeat_verdict, project_structure_matches, settle_repeat_install,
+    wanted_lockfile_file_has_content,
 };
 
 use std::{
