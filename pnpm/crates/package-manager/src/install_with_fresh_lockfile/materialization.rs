@@ -305,11 +305,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     engine_name: plan.engine_name.take(),
                     deferred_engine_name: plan.deferred_engine_name.take(),
                 },
-                projects: crate::install_with_fresh_lockfile::on_disk::OnDiskProjects {
-                    materialization_lockfile: scope.lockfile(built_lockfile),
-                    importer_manifests: &self.resolved.importer_manifests,
-                    project_anchor_importer_ids: &scope.project_anchor_importer_ids,
-                },
+                projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
             &mut plan.skipped,
             &mut self.resources.lockfile_verification_gate,

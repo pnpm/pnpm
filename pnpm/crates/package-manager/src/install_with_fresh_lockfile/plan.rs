@@ -94,6 +94,18 @@ impl FinalScope {
     pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
         self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
     }
+
+    pub(super) fn on_disk_projects<'l>(
+        &'l self,
+        built: &'l Lockfile,
+        importer_manifests: &'l BTreeMap<String, &'l PackageManifest>,
+    ) -> super::on_disk::OnDiskProjects<'l> {
+        super::on_disk::OnDiskProjects {
+            materialization_lockfile: self.lockfile(built),
+            importer_manifests,
+            project_anchor_importer_ids: &self.project_anchor_importer_ids,
+        }
+    }
 }
 /// The lockfiles the materialization plan reads: the one the selected
 /// importers materialize, and the full one the skip set's closure walks.
