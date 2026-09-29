@@ -500,8 +500,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions 
 // not moved can still need replacing. Keep these in step with pacquet's
 // `is_sh_shim_hardened`.
 const SH_SHIM_HARDENED_LINES = [
-  '  target=$(command -p readlink "$link")\n',
-  String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n',
+  '  target=$(run_helper readlink "$link")\n',
+  String.raw`basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')` + '\n',
   '    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
   '    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
   '    */node_modules/*|*/node_modules) ;;\n',

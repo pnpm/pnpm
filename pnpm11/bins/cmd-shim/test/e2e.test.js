@@ -447,14 +447,14 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
   })
 
-  // Where no default path is compiled in, as on Nix, command -p searches the
-  // caller's PATH. No test host behaves that way, so the shim's command -p is
-  // rewritten to the plain command such a shell amounts to.
-  test('skips node_modules and relative PATH entries when command -p searches PATH', async () => {
+  // The default path command -p searches can lack the helpers, as inside a Nix
+  // build sandbox. No test host is set up that way, so each command -p in the
+  // shim is rewritten to a command that searches a directory that does not exist.
+  test('skips node_modules and relative PATH entries when the default path lacks the helpers', async () => {
     const tempDir = temporaryDirectory()
     const binDir = await makeShimmedTool(tempDir)
     const shim = path.join(binDir, 'tsc')
-    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'command '))
+    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const decoyDir = plantHijackTreeAndDecoys(tempDir)
     const callersPath = [path.dirname(process.execPath), process.env.PATH].join(path.delimiter)
     const run = (PATH, cwd) => spawnSync(path.join(binDir, 'tsc-link'), [], {
@@ -510,7 +510,8 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
     const shim = path.join(tempDir, 'tool')
     await cmdShim(target, shim, { createCmdFile: false })
 
-    const conversion = fs.readFileSync(shim, 'utf8')
+    const body = fs.readFileSync(shim, 'utf8')
+    const conversion = body
       .split('\n')
       .find((line) => line.startsWith('basedir=$('))
     assert.ok(conversion, 'the header must assign basedir from the shim path')
@@ -518,11 +519,13 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
     // preserves backslashes can make an echo-based header pass the path
     // assertion below, so also require the printf conversion form.
     assert.ok(
-      conversion.includes(String.raw`command -p printf '%s\n' "$link"`),
-      'the basedir conversion must use command -p printf so backslashes stay literal'
+      conversion.includes(String.raw`run_helper printf '%s\n' "$link"`),
+      'the basedir conversion must use printf so backslashes stay literal'
     )
+    const runHelper = body.slice(body.indexOf('run_helper() {\n'), body.indexOf('\n}\n', body.indexOf('run_helper() {\n')) + 3)
+    assert.ok(runHelper.startsWith('run_helper() {\n'), 'the header must define run_helper')
 
-    const script = `link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
+    const script = `${runHelper}link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
     const r = spawnSync('/bin/sh', ['-c', script], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -547,12 +550,12 @@ describeOnPosix('sh shim picks its Windows path converter', () => {
   }
 
   const runPlatformBranch = (shimBody, uname, systemConverter, callersPath) => {
-    const caseHead = 'case `command -p uname -a` in'
+    const caseHead = 'case `run_helper uname -a` in'
     const start = shimBody.indexOf(caseHead)
     assert.notEqual(start, -1, 'the header must select a platform')
     const end = shimBody.indexOf('\nesac\n', start) + '\nesac\n'.length
     const branch = shimBody.slice(start, end)
-      .replaceAll('`command -p uname -a`', '"$fake_uname"')
+      .replaceAll('`run_helper uname -a`', '"$fake_uname"')
       .replaceAll('command -p cygpath', '"$system_converter"')
       .replaceAll('command -p wslpath', '"$system_converter"')
     const script = `basedir=${BASEDIR}\nbasedir_win="$basedir"\nexe=""\nmsys=""\n${branch}\nprintf '%s\\n%s' "$basedir_win" "$exe"`
