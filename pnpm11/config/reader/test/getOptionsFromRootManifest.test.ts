@@ -936,3 +936,37 @@ test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnus
   const options = getOptionsFromPnpmSettings(process.cwd(), { allowUnusedPatches })
   expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
 })
+
+test('getOptionsFromPnpmSettings() rejects non-array ignoredOptionalDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    ignoredOptionalDependencies: 'foo' as unknown as string[],
+  })).toThrow(/The "ignoredOptionalDependencies" setting should be an array of strings, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects non-string items in ignoredOptionalDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    ignoredOptionalDependencies: ['foo', 123 as unknown as string],
+  })).toThrow(/The "ignoredOptionalDependencies" setting should be an array of strings, but got array/)
+})
+
+test('getOptionsFromPnpmSettings() rejects non-array requiredScripts', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    requiredScripts: 'test' as unknown as string[],
+  })).toThrow(/The "requiredScripts" setting should be an array of strings, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects non-string items in requiredScripts', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    requiredScripts: ['build', null as unknown as string],
+  })).toThrow(/The "requiredScripts" setting should be an array of strings, but got array/)
+})
+
+test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and requiredScripts', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    ignoredOptionalDependencies: ['foo', '@bar/*'],
+    requiredScripts: ['build', 'test'],
+  })
+  expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
+  expect(options.requiredScripts).toStrictEqual(['build', 'test'])
+})
+
