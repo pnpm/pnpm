@@ -323,6 +323,52 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
     drop((root, npmrc_info));
 }
 
+/// `pmOnFail=ignore` keeps pnpm from switching to the version a project
+/// pins, and a git dependency's pin is no exception: the running pnpm
+/// prepares it. Provisioning the pinned pnpm cannot work on a system that
+/// only runs a pnpm built for it, such as NixOS.
+///
+/// The pinned version is not in the mock registry, so both the provisioning
+/// and a nested install that switched versions on its own would fail.
+#[test]
+fn a_git_dependency_pinning_another_pnpm_is_prepared_by_the_running_pnpm_with_pm_on_fail_ignore() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "pins-pnpm");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"pins-pnpm","version":"1.0.0","main":"index.js","packageManager":"pnpm@9.0.0","scripts":{"prepare":"node record-user-agent.js"}}"#,
+    );
+    repo.write_file(
+        "record-user-agent.js",
+        "require('fs').writeFileSync('prepared-by.txt', process.env.npm_config_user_agent || '')\n",
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+
+    write_dependencies(&workspace, &[("pins-pnpm", &spec)]);
+    allow_builds(&workspace, &[&format!("pins-pnpm@{spec}")]);
+
+    let output = pnpm_at(&workspace)
+        .with_args(["install", "--pm-on-fail=ignore"])
+        .with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url())
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+        .with_env("XDG_DATA_HOME", root.path().join("data"))
+        .with_env("XDG_STATE_HOME", root.path().join("state"))
+        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+        .output()
+        .expect("run pnpm install");
+    dbg!(&output);
+    assert_success(&output);
+
+    let user_agent = fs::read_to_string(workspace.join("node_modules/pins-pnpm/prepared-by.txt"))
+        .expect("the dependency's prepare script should have run");
+    let running_pnpm = format!("pnpm/{} ", pnpm_config::PNPM_VERSION);
+    assert!(user_agent.starts_with(&running_pnpm), "prepared by {user_agent:?}");
+
+    drop((root, npmrc_info));
+}
+
 /// TS: `git-hosted repository is not added to the store if it fails to
 /// be built` (`fromRepo.ts:354`).
 ///

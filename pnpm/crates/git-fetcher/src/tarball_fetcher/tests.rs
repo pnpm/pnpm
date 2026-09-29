@@ -55,7 +55,7 @@ async fn passes_through_package_without_scripts() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -110,7 +110,7 @@ async fn filters_files_outside_files_field() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -164,7 +164,7 @@ async fn rejects_build_when_not_allowed() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -213,7 +213,7 @@ async fn surfaces_prepare_script_failure() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -275,7 +275,7 @@ async fn path_field_packs_only_subdirectory() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -339,7 +339,7 @@ async fn materialized_temp_dir_does_not_corrupt_cas() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -392,7 +392,7 @@ async fn writes_index_row_when_writer_provided() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -486,7 +486,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -545,7 +545,7 @@ async fn fast_path_queues_synthesized_index_row() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -634,7 +634,7 @@ async fn sub_path_never_takes_fast_path() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -721,7 +721,7 @@ async fn fast_path_skipped_preparation_caches_only_explicit_denials() {
                 shell: None,
                 node_execpath: None,
                 npm_execpath: None,
-                pnpm_execpath: None,
+                running_pnpm: crate::RunningPnpm::default(),
             },
             store: crate::GitStoreContext {
                 dir: &store_dir,
@@ -778,7 +778,7 @@ async fn tarball_path_traversal_attack_is_rejected() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
@@ -835,7 +835,7 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         store: crate::GitStoreContext {
             dir: &store_dir,
