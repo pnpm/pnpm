@@ -96,7 +96,26 @@ export function mergeLockfileChanges (ours: LockfileObject, theirs: LockfileObje
 
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)] as ProjectId[]))) {
     newLockfile.importers[importerId] = {
+      ...ours.importers[importerId],
+      ...theirs.importers[importerId],
       specifiers: {},
+    }
+    const ourDependenciesMeta = ours.importers[importerId]?.dependenciesMeta
+    const theirDependenciesMeta = theirs.importers[importerId]?.dependenciesMeta
+    if (ourDependenciesMeta || theirDependenciesMeta) {
+      const dependenciesMeta = mergeDict(
+        ourDependenciesMeta ?? {},
+        theirDependenciesMeta ?? {},
+        (ourMeta, theirMeta) => ({
+          ...ourMeta,
+          ...theirMeta,
+        })
+      )
+      if (Object.keys(dependenciesMeta).length > 0) {
+        newLockfile.importers[importerId].dependenciesMeta = dependenciesMeta
+      } else {
+        delete newLockfile.importers[importerId].dependenciesMeta
+      }
     }
     for (const key of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
       newLockfile.importers[importerId][key] = mergeDict(

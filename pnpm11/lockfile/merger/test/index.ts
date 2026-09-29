@@ -551,3 +551,42 @@ test('preserves foreign top-level keys', () => {
   expect(merged.otherTool).toBe(true)
 })
 
+test('preserves dependenciesMeta and publishDirectory of importers', () => {
+  const ours: LockfileObject = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: '1.0.0', bar: '1.0.0' },
+        specifiers: { foo: '1.0.0', bar: '1.0.0' },
+        dependenciesMeta: {
+          foo: { injected: true },
+          bar: { injected: false },
+        },
+        publishDirectory: 'dist',
+      },
+    },
+    lockfileVersion: '6.0',
+  }
+
+  const theirs: LockfileObject = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { foo: '1.1.0', bar: '1.0.0', baz: '2.0.0' },
+        specifiers: { foo: '1.1.0', bar: '1.0.0', baz: '2.0.0' },
+        dependenciesMeta: {
+          bar: { injected: true, patch: 'bar.patch' },
+          baz: { injected: true },
+        },
+      },
+    },
+    lockfileVersion: '6.0',
+  }
+
+  const mergedLockfile = mergeLockfileChanges(ours, theirs)
+
+  expect(mergedLockfile.importers['.' as ProjectId].dependenciesMeta).toStrictEqual({
+    foo: { injected: true },
+    bar: { injected: true, patch: 'bar.patch' },
+    baz: { injected: true },
+  })
+  expect(mergedLockfile.importers['.' as ProjectId].publishDirectory).toBe('dist')
+})
