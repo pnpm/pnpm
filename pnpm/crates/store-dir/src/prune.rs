@@ -107,14 +107,11 @@ impl StoreDir {
             return Ok(());
         }
 
-        // Without a registry, no pnpm that registers projects has used this
-        // store, so nothing tells which slots are still referenced. A registry
-        // whose entries were all stale is swept: none of its projects exist.
-        if !path_exists(&self.projects()) {
+        let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
+        if projects.is_empty() {
             eprintln!("No registered projects for global virtual store");
             return Ok(());
         }
-        let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
         eprintln!(
             "Checking {} registered project(s) for global virtual store usage",
             projects.len(),
