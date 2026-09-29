@@ -318,6 +318,7 @@ fn set_yaml_setting(
     key: &str,
     value: Value,
 ) -> miette::Result<()> {
+    let given_key = key;
     let key = if config_file_name == GLOBAL_CONFIG_YAML_FILENAME {
         validate_yaml_config_key(key)?
     } else {
@@ -337,6 +338,23 @@ fn set_yaml_setting(
     }
     validate_macos_backup_value(&key, &cast)?;
     update_manifest_field(config_path, &key, &cast).map_err(miette::Report::new)?;
+    if cast.is_null() {
+        clear_other_spellings(config_path, &key, given_key)?;
+    }
+    Ok(())
+}
+
+/// A hand-edited file may carry a spelling pnpm did not write, and that is the
+/// one the reader's warning names, so a removal also clears the spelling the
+/// user gave and the kebab-case one.
+fn clear_other_spellings(config_path: &Path, key: &str, given_key: &str) -> miette::Result<()> {
+    let kebab_key = naming_cases::to_kebab_case(key);
+    for spelling in [given_key, kebab_key.as_str()] {
+        if spelling != key {
+            update_manifest_field(config_path, spelling, &Value::Null)
+                .map_err(miette::Report::new)?;
+        }
+    }
     Ok(())
 }
 

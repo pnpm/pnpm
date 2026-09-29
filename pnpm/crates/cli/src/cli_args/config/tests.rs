@@ -551,6 +551,33 @@ fn delete_clears_a_machine_level_key_from_the_project_manifest() {
     );
 }
 
+/// The reader refuses a machine-level key under any spelling, so a delete
+/// clears the kebab-case spelling a hand-edited manifest may carry too.
+#[test]
+fn delete_clears_every_spelling_of_a_machine_level_key() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    std::fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "state-dir: /tmp/kebab\nstateDir: /tmp/camel\nstoreDir: ~/store\n",
+    )
+    .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "stateDir",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+        Some(json!({ "storeDir": "~/store" })),
+    );
+}
+
 // --- config delete ---------------------------------------------------------
 
 #[test]
