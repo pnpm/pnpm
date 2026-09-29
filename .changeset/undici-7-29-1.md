@@ -1,8 +1,5 @@
 ---
-"@pnpm/fetching.tarball-fetcher": patch
-"@pnpm/fetching.pick-fetcher": patch
 "@pnpm/network.fetch": patch
-"@pnpm/releasing.commands": patch
 "pnpm": patch
 ---
 
