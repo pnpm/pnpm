@@ -1,23 +1,16 @@
 {
   "docs": [
     {
-      "collapsed": true,
-      "type": "category",
-      "label": "Introduction",
-      "items": [
-        {
-          "type": "doc",
-          "id": "motivation"
-        },
-        {
-          "type": "doc",
-          "id": "feature-comparison"
-        },
-        {
-          "type": "doc",
-          "id": "installation"
-        }
-      ]
+      "type": "doc",
+      "id": "motivation"
+    },
+    {
+      "type": "doc",
+      "id": "feature-comparison"
+    },
+    {
+      "type": "doc",
+      "id": "installation"
     },
     {
       "collapsed": true,
