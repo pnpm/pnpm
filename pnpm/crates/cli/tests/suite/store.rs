@@ -513,6 +513,32 @@ fn store_add_waits_for_the_store_operation_lock() {
     assert!(output.contains("Acquired the store add operation lock"), "{output}");
 }
 
+#[cfg(unix)]
+#[test]
+fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let runtime_dir = workspace.join("runtime");
+
+    pacquet
+        .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])
+        .env("XDG_RUNTIME_DIR", &runtime_dir)
+        .assert()
+        .success();
+
+    let lock_dirs: Vec<_> = fs::read_dir(&runtime_dir)
+        .expect("read XDG_RUNTIME_DIR")
+        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry").path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("pnpm-store-operation-locks-"))
+        })
+        .collect();
+    assert_eq!(lock_dirs.len(), 1, "{lock_dirs:?}");
+    assert!(lock_dirs[0].join("all-stores.lock").is_file());
+}
+
 #[test]
 fn store_add_fails_when_a_package_cannot_be_fetched() {
     let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();

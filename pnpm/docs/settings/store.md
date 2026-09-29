@@ -38,6 +38,14 @@ Putting it in the home directory there would either fail on a read-only home or
 land on another volume, which copies every package instead of hard-linking it
 ([#13525](https://github.com/pnpm/pnpm/issues/13525)).
 
+pnpm keeps the locks that coordinate processes sharing a store outside the
+store, in a per-user directory. On Linux and macOS that directory is
+**$XDG_RUNTIME_DIR** when the variable holds an absolute path, and **/tmp**
+otherwise. On Windows it is **~/AppData/Local**. A sandbox that blocks writes to
+`/tmp` can set `XDG_RUNTIME_DIR` to a directory it allows. Processes that use
+the same store should see the same `XDG_RUNTIME_DIR`, since pnpm processes only
+wait for each other when they share the lock directory.
+
 :::important
 
 The pnpm store is intended to be shared only between mutually trusted users, jobs, and processes. If you configure a shared `storeDir`, protect it with filesystem permissions so untrusted users cannot write to it. The store is part of pnpm's trust domain: packages may be hard linked from it, and the store index (`index.db`) records the hashes used to verify cached files.

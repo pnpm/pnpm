@@ -13,6 +13,11 @@ pub fn secure_temp_lock_dir(name: &str) -> io::Result<PathBuf> {
 /// Create or validate a process-shared lock directory in a stable location
 /// for the current user. Unlike the temporary directory, this location does
 /// not vary with per-process temporary-directory settings.
+///
+/// On Unix the location is `$XDG_RUNTIME_DIR` when it holds an absolute
+/// path, the per-user runtime directory the XDG Base Directory spec defines
+/// for locks, and `/tmp` otherwise. Processes coordinate only while they
+/// agree on it.
 pub fn secure_user_lock_dir(name: &str) -> io::Result<PathBuf> {
     secure_lock_dir(user_lock_root()?, name)
 }
@@ -34,12 +39,21 @@ fn secure_lock_dir(mut directory: PathBuf, name: &str) -> io::Result<PathBuf> {
 
 #[cfg(all(unix, not(target_os = "android")))]
 fn user_lock_root() -> io::Result<PathBuf> {
-    Ok(PathBuf::from("/tmp"))
+    Ok(xdg_runtime_dir(std::env::var_os("XDG_RUNTIME_DIR"))
+        .unwrap_or_else(|| PathBuf::from("/tmp")))
 }
 
 #[cfg(target_os = "android")]
 fn user_lock_root() -> io::Result<PathBuf> {
-    Ok(android_user_lock_root(std::env::var_os("HOME")))
+    Ok(xdg_runtime_dir(std::env::var_os("XDG_RUNTIME_DIR"))
+        .unwrap_or_else(|| android_user_lock_root(std::env::var_os("HOME"))))
+}
+
+/// The XDG Base Directory spec tells applications to ignore a relative
+/// `XDG_RUNTIME_DIR`.
+#[cfg(unix)]
+fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    value.map(PathBuf::from).filter(|path| path.is_absolute())
 }
 
 #[cfg(any(target_os = "android", all(test, unix)))]
