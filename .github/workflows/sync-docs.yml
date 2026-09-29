@@ -130,6 +130,7 @@ jobs:
       - name: Copy only documentation into the clean checkout
         run: node .github/scripts/copy-docs-artifact.mjs generated-documentation website
       - name: Commit the generated documentation
+        id: commit
         working-directory: website
         env:
           MAIN_SYNC: ${{ needs.sync.outputs.main_sync }}
@@ -147,7 +148,9 @@ jobs:
             title="docs: sync ${LINE} documentation for ${VERSION}"
           fi
           git commit -m "$title" -m "Generated from pnpm/pnpm commit ${DOCS_COMMIT}. Written by release automation."
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
       - name: Push the verified documentation commit
+        if: steps.commit.outputs.changed == 'true'
         working-directory: website
         env:
           GH_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN }}
