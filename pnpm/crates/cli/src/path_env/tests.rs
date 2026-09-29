@@ -1,5 +1,5 @@
-use super::prepend_dirs_to_path;
-use std::path::PathBuf;
+use super::{prepend_dirs_to_path, set_command_path};
+use std::{ffi::OsStr, path::PathBuf, process::Command};
 
 #[test]
 fn a_delimiter_in_a_directory_is_rejected() {
@@ -23,4 +23,15 @@ fn the_directories_come_first_in_the_order_given() {
     if !inherited.is_empty() {
         assert!(path.ends_with(&inherited), "{path}");
     }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/16308>
+#[cfg(unix)]
+#[test]
+fn a_path_variable_in_another_case_is_left_to_the_child() {
+    let mut cmd = Command::new("true");
+    set_command_path(&mut cmd, OsStr::new("/store/bin"));
+
+    let envs: Vec<_> = cmd.get_envs().collect();
+    assert_eq!(envs, [(OsStr::new("PATH"), Some(OsStr::new("/store/bin")))]);
 }

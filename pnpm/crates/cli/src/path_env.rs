@@ -64,10 +64,13 @@ pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPath
 /// environment names are case-insensitive, so a process that inherited
 /// `Path` and is then given `PATH` would carry both, and which one the
 /// child reads is unspecified. Every pnpm spawn site goes through here so
-/// none of them can forget that.
+/// none of them can forget that. Elsewhere names are case-sensitive, so a
+/// `Path` variable is a variable of its own and reaches the child.
 pub(crate) fn set_command_path(cmd: &mut Command, path: &OsStr) {
     cmd.env_remove("PATH");
-    cmd.env_remove("Path");
+    if cfg!(windows) {
+        cmd.env_remove("Path");
+    }
     cmd.env("PATH", path);
 }
 

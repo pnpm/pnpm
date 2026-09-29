@@ -446,8 +446,6 @@ fn prepare_lifecycle_path(
 
     // Set PATH via `extend_path`, with the original PATH coming from
     // the (already-filtered) parent env captured during `build_env`.
-    // Lookup is case-insensitive because Windows preserves the
-    // system casing (typically `Path`) on env keys.
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,
