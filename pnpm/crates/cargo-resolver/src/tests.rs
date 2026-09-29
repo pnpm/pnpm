@@ -1233,6 +1233,18 @@ fn accepts_an_unversioned_path_dependency_on_a_prerelease() {
 }
 
 #[test]
+fn accepts_an_unversioned_git_dependency_on_a_prerelease() {
+    let metadata =
+        METADATA.replace(CRATES_IO_SOURCE, "git+https://example.test/foo").replace("^1.0", "*");
+    let lockfile = PATH_FOO_LOCKFILE.replace(
+        r#"version = "1.0.0-alpha.1""#,
+        "version = \"1.0.0-alpha.1\"\nsource = \"git+https://example.test/foo#0123456789abcdef0123456789abcdef01234567\"",
+    );
+
+    verify_lockfile(&metadata, &lockfile).unwrap();
+}
+
+#[test]
 fn rejects_a_path_edge_outside_the_path_dependency_requirement() {
     let metadata = METADATA
         .replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null")

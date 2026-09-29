@@ -14,9 +14,7 @@ use std::str::FromStr;
 ///
 /// `metadata` is the output of `cargo metadata --no-deps`. Path dependencies
 /// need no edge of their own, and account for a source-less edge with their
-/// name whose version their requirement accepts. Cargo lets a path
-/// dependency without a version (`*`) match a prerelease, so `*` accepts
-/// any version.
+/// name whose version their requirement accepts.
 /// Sources are not compared, because a `[patch]` legitimately locks a
 /// dependency from a source other than the one its manifest names.
 pub fn verify_lockfile(metadata: &str, lockfile: &str) -> Result<()> {
@@ -103,13 +101,21 @@ impl EdgeClaims<'_> {
 fn accounts_for(declaration: &MetadataDependency, edge: &Dependency) -> bool {
     declaration.name == edge.name.as_str()
         && match declaration.source {
-            None => {
-                edge.source.is_none()
-                    && (declaration.req == VersionReq::STAR
-                        || declaration.req.matches(&edge.version))
-            }
-            Some(_) => declaration.req.matches(&edge.version),
+            None => edge.source.is_none() && accepts_version(declaration, &edge.version),
+            Some(_) => accepts_version(declaration, &edge.version),
         }
+}
+
+/// A path or git dependency declared without a version appears in the
+/// metadata as `*`. Cargo accepts any version for it, prereleases included,
+/// while semver's `*` rejects prereleases. A registry `*` is a requirement
+/// the manifest spells out, so it keeps semver's rule.
+fn accepts_version(declaration: &MetadataDependency, version: &Version) -> bool {
+    let unversioned = declaration.req == VersionReq::STAR
+        && declaration.source
+            .as_deref()
+            .is_none_or(|source| source.starts_with("git+"));
+    unversioned || declaration.req.matches(version)
 }
 
 fn verify_edge(
@@ -122,10 +128,7 @@ fn verify_edge(
         .filter(|edge| edge.name.as_str() == dependency.name)
         .map(|edge| &edge.version)
         .collect::<Vec<&Version>>();
-    if locked
-        .iter()
-        .any(|version| dependency.req.matches(version))
-    {
+    if locked.iter().any(|version| accepts_version(dependency, version)) {
         return Ok(());
     }
     let (name, requirement) = (&dependency.name, &dependency.req);
