@@ -82,8 +82,8 @@ use selectors::{
     tool_install_selectors,
 };
 use update_selectors::{
-    apply_runtime_range_bumps, can_update_to_latest, missing_file_source_warning,
-    needs_runtime_range_bump, update_selectors,
+    apply_pins, apply_runtime_range_bumps, is_plain_version_spec, missing_file_source_warning,
+    moves_past_declared_range, needs_runtime_range_bump, update_selectors,
 };
 
 use shims::{
@@ -214,12 +214,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 }
 
 /// `pnpm update -g`. Reinstalls each matching group (within its existing
-/// range, or to `--latest`), then swaps its hash symlink to the new dir.
+/// range, or to the version `--latest` / `--tag` names), then swaps its hash
+/// symlink to the new dir.
 pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     params: &[String],
     selected_hashes: Option<&HashSet<String>>,
-    latest: bool,
+    mode: GlobalUpdateMode<'_>,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<()> {
@@ -249,7 +250,6 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
     };
-    let mode = GlobalUpdateMode::from_latest_flag(latest);
     let up_to_date = target.update_groups::<Reporter>(
         &to_update,
         mode,
@@ -261,15 +261,35 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(super) enum GlobalUpdateMode {
+/// What `update -g` moves each dependency of a group to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GlobalUpdateMode<'a> {
+    /// The highest version inside the range the group records.
     DeclaredRange,
+    /// The version behind the `latest` dist-tag (`--latest`).
     Latest,
+    /// The version behind the given dist-tag (`--tag <tag>`).
+    Tag(&'a str),
 }
 
-impl GlobalUpdateMode {
-    const fn from_latest_flag(latest: bool) -> Self {
-        if latest { Self::Latest } else { Self::DeclaredRange }
+impl<'a> GlobalUpdateMode<'a> {
+    /// clap rejects `--latest` together with `--tag`, so at most one is set.
+    pub(crate) const fn from_flags(latest: bool, tag: Option<&'a str>) -> Self {
+        match tag {
+            Some(tag) => Self::Tag(tag),
+            None if latest => Self::Latest,
+            None => Self::DeclaredRange,
+        }
+    }
+
+    /// The same target as the version an outdated query compares against.
+    pub(crate) const fn target_version(self) -> crate::cli_args::outdated::TargetVersion<'a> {
+        use crate::cli_args::outdated::TargetVersion;
+        match self {
+            Self::DeclaredRange => TargetVersion::WithinRange,
+            Self::Latest => TargetVersion::Latest,
+            Self::Tag(tag) => TargetVersion::Tag(tag),
+        }
     }
 }
 

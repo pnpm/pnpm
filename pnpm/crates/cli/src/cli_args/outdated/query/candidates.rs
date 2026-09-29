@@ -5,6 +5,8 @@ use super::{
     TargetVersion, Version, dereference_catalog_protocol, min_version_of_spec,
     resolve_from_catalog,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 
 pub(super) struct OutdatedCandidate<'a> {
     pub(super) alias: &'a str,
@@ -109,6 +111,15 @@ pub(super) async fn outdated_dependency(
 ) -> miette::Result<Option<OutdatedPackage>> {
     let bare_specifier =
         dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
+    if matches!(query.target_version, TargetVersion::Tag(_))
+        && (candidate.is_engine || bare_specifier.starts_with("npm:"))
+    {
+        // The `--tag` rewrite leaves engine declarations and `npm:` aliases
+        // unchanged, so they are not offered an update that cannot apply.
+        // Querying `<alias>@<tag>` for an alias would also fetch the wrong
+        // packument.
+        return Ok(None);
+    }
     let resolved_package_name = if candidate.is_engine {
         candidate.alias.to_string()
     } else {
@@ -182,27 +193,68 @@ async fn resolve_outdated_target(
     bare_specifier: String,
     resolved_package_name: &str,
 ) -> miette::Result<Option<pnpm_resolving_resolver_base::LatestInfo>> {
-    run.resolver
-        .resolve_latest(
-            &LatestQuery {
-                wanted_dependency: ResolverWantedDependency {
-                    alias: Some(candidate.alias.to_string()),
-                    bare_specifier: Some(bare_specifier),
-                    optional: Some(candidate.group == DependencyGroup::Optional),
-                    ..ResolverWantedDependency::default()
-                },
-                compatible: matches!(query.target_version, TargetVersion::WithinRange),
+    // A tag target resolves the tag itself, whatever the declared range
+    // admits. A package that publishes no such tag drops out of the list the
+    // way one with no compatible target does.
+    let (bare_specifier, compatible) = match query.target_version {
+        TargetVersion::Tag(tag) => (tag.to_string(), true),
+        TargetVersion::Latest => (bare_specifier, false),
+        TargetVersion::WithinRange => (bare_specifier, true),
+    };
+    let result = run.resolver.resolve_latest(
+        &LatestQuery {
+            wanted_dependency: ResolverWantedDependency {
+                alias: Some(candidate.alias.to_string()),
+                bare_specifier: Some(bare_specifier),
+                optional: Some(candidate.group == DependencyGroup::Optional),
+                ..ResolverWantedDependency::default()
             },
-            &run.resolve_options,
-        )
-        .await
-        .map_err(|error| {
+            compatible,
+        },
+        &run.resolve_options,
+    )
+    .await;
+    match result {
+        Ok(latest) => Ok(latest),
+        Err(error) if tag_query_misses(query, &error) => Ok(None),
+        Err(error) => Err({
             let reason = pnpm_network::redact_url_credentials(&error.to_string());
             miette::miette!(
                 code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
                 r#"Failed to fetch metadata for "{resolved_package_name}": {reason}"#,
             )
-        })
+        }),
+    }
+}
+
+/// Whether a failed tag-target query means the package has no such tag
+/// rather than a registry problem: the resolver found the packument but no
+/// version the tag names.
+fn tag_query_misses(
+    query: &OutdatedQuery<'_>,
+    error: &pnpm_resolving_resolver_base::ResolveError,
+) -> bool {
+    matches!(query.target_version, TargetVersion::Tag(_))
+        && error.is::<pnpm_resolving_resolver_base::NoMatchingVersionError>()
+}
+
+/// Whether moving to `target` changes the dependency. A tag target may be
+/// older than the current version, and a declaration tracking another tag is
+/// rewritten to the requested one even when both name the same version.
+fn target_moves(
+    target_version: TargetVersion<'_>,
+    target: &Version,
+    current: &Version,
+    declared: &str,
+) -> bool {
+    match target_version {
+        TargetVersion::Tag(tag) => {
+            target != current
+                || (matches!(get_version_selector_type(declared), Some(VersionSelectorType::Tag))
+                    && declared != tag)
+        }
+        TargetVersion::Latest | TargetVersion::WithinRange => target > current,
+    }
 }
 
 fn outdated_target(
@@ -220,8 +272,9 @@ fn outdated_target(
         .get("deprecated")
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);
-    let is_newer = target > candidate.current;
-    if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
+    if !(target_moves(query.target_version, &target, &candidate.current, candidate.bare_specifier)
+        || (query.include_deprecated && deprecated.is_some()))
+    {
         return None;
     }
     let package_name = if candidate.is_engine {

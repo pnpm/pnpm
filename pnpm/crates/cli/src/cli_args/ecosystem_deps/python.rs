@@ -171,6 +171,7 @@ async fn resolve_dep_targets(
             .await?;
     let latest = match ctx.query.target_version {
         TargetVersion::WithinRange => None,
+        TargetVersion::Tag(_) => return Ok(None),
         TargetVersion::Latest => {
             let Some(latest) = ctx.index_cache.resolve_target_version(
                 ctx.config,
