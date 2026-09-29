@@ -936,4 +936,3 @@ test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnus
   const options = getOptionsFromPnpmSettings(process.cwd(), { allowUnusedPatches })
   expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
 })
-
