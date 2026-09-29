@@ -61,11 +61,11 @@ pub(super) fn cargo_workspace(index_url: &str, dependencies: &str, source: &str)
 }
 
 pub(super) fn install_in(root: &TempDir, args: &[&str]) {
-    install_command(root, args).assert().success();
+    let cargo_home = TempDir::new().expect("create isolated Cargo home");
+    install_command(root, &cargo_home, args).assert().success();
 }
 
-fn install_command(root: &TempDir, args: &[&str]) -> Command {
-    let cargo_home = TempDir::new().expect("create isolated Cargo home");
+fn install_command(root: &TempDir, cargo_home: &TempDir, args: &[&str]) -> Command {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
@@ -340,7 +340,8 @@ fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
     )
     .expect("write Cargo manifest");
 
-    let output = install_command(&root, &["install", "--frozen-lockfile"])
+    let cargo_home = TempDir::new().expect("create isolated Cargo home");
+    let output = install_command(&root, &cargo_home, &["install", "--frozen-lockfile"])
         .output()
         .expect("run pnpm install");
 
