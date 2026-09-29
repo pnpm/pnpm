@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Validate `allowBuilds` setting to reject invalid shapes and non-boolean/non-string values.
+pnpm now fails with `ERR_PNPM_INVALID_ALLOW_BUILDS` when `allowBuilds` is not an object or one of its values is not `true`, `false`, or a string. Such values used to be ignored silently.

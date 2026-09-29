@@ -113,7 +113,7 @@ export function getOptionsFromPnpmSettings (
   if (pnpmSettings.nodeDownloadMirrors != null) {
     assertStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
   }
-  if (settings.allowBuilds !== undefined) {
+  if (settings.allowBuilds != null) {
     assertValidAllowBuilds(settings.allowBuilds)
   }
   translateRegistrySettings(settings)

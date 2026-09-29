@@ -904,3 +904,9 @@ test('getOptionsFromPnpmSettings() accepts valid allowBuilds', () => {
   expect(options.allowBuilds).toStrictEqual(allowBuilds)
 })
 
+test('getOptionsFromPnpmSettings() treats a null allowBuilds as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: null as unknown as Record<string, boolean | string>,
+  })
+  expect(options.allowBuilds).toBeNull()
+})
