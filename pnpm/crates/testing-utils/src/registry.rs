@@ -105,7 +105,7 @@ impl TestRegistryInstance {
     fn get() -> &'static Self {
         static INSTANCE: LazyLock<TestRegistryInstance> = LazyLock::new(|| {
             TestRegistryInstance::start(
-                pnpr_fixtures::ensure_storage().to_path_buf(),
+                pnpr_fixtures::current().storage().to_path_buf(),
                 RegistryMode::Proxy,
             )
         });

@@ -90,6 +90,7 @@ impl MockInstanceOptions<'_> {
         let stderr = stderr.map_or_else(Stdio::null, |stderr| {
             File::create(stderr).expect("create file for stderr").into()
         });
+
         let process = pnpr_command(port, public_url)
             .stdin(Stdio::null())
             .stdout(stdout)
