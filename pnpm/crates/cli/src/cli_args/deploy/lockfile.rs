@@ -1,9 +1,9 @@
 use super::{
     Config, Context, DependencyGroup, DeployError, DeployWorkspaceConfig, DirectoryResolution,
-    HashMap, HashSet, Lockfile, LockfileResolution, Map, PackageKey, PackageManifest,
-    PackageMetadata, Path, PkgName, PkgNameVerPeer, Project, ProjectInfo, ProjectPathKey,
-    ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec, SelectedProject,
-    SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
+    HashMap, HashSet, LinkedWorkspaceProject, Lockfile, LockfileResolution, Map, PackageKey,
+    PackageManifest, PackageMetadata, Path, PkgName, PkgNameVerPeer, Project, ProjectInfo,
+    ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
+    SelectedProject, SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
     create_file_url_key, deploy_peer_edges, deploy_workspace_settings, is_ancestor_path,
     lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
@@ -242,7 +242,7 @@ fn convert_deploy_packages(
 /// packages whose peers [`bind_singleton_peers`] still has to resolve.
 struct DeploySnapshots {
     snapshots: HashMap<PkgNameVerPeer, SnapshotEntry>,
-    linked_workspace_projects: HashMap<PkgNameVerPeer, ProjectInfo>,
+    linked_workspace_projects: HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
 }
 
 fn convert_deploy_snapshots(
@@ -269,7 +269,16 @@ fn convert_deploy_snapshots(
         if let Some(project) = selected.project_info(&project_root)
             && !project.peer_dependencies.is_empty()
         {
-            linked_workspace_projects.insert(package_key.clone(), project.clone());
+            linked_workspace_projects.insert(
+                package_key.clone(),
+                LinkedWorkspaceProject::new(
+                    project.clone(),
+                    lockfile,
+                    project_snapshot,
+                    ctx,
+                    &bases,
+                )?,
+            );
         }
         snapshots.insert(
             package_key,

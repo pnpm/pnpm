@@ -1,8 +1,57 @@
 use super::{
     Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey,
-    PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, SnapshotDepRef,
-    SnapshotEntry, Value, VecDeque, convert_package_key,
+    PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, ResolveBases,
+    SnapshotDepRef, SnapshotEntry, Value, VecDeque, convert_importer_dep_map_to_snapshot_deps,
+    convert_package_key,
 };
+
+/// A workspace package the deployed graph links rather than injects.
+pub(super) struct LinkedWorkspaceProject {
+    project: ProjectInfo,
+    /// The project's dev dependencies, recorded only in an injected workspace.
+    /// There a workspace package is linked rather than injected only when its
+    /// injected resolution matched its own importer, dev dependencies
+    /// included, so a peer it also lists as a dev dependency was bound to
+    /// exactly that.
+    deduped_peer_resolutions: Option<HashMap<PkgName, SnapshotDepRef>>,
+}
+
+impl LinkedWorkspaceProject {
+    pub(super) fn new(
+        project: ProjectInfo,
+        lockfile: &Lockfile,
+        importer: &ProjectSnapshot,
+        ctx: &ConvertCtx<'_>,
+        bases: &ResolveBases,
+    ) -> miette::Result<Self> {
+        let injected_workspace =
+            lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
+        let deduped_peer_resolutions = if injected_workspace {
+            convert_importer_dep_map_to_snapshot_deps(
+                importer.dev_dependencies.as_ref(),
+                ctx,
+                bases,
+            )?
+        } else {
+            None
+        };
+        Ok(LinkedWorkspaceProject { project, deduped_peer_resolutions })
+    }
+
+    /// The reference `peer` binds to through the deduped resolutions, if the
+    /// deployed graph has it.
+    fn deduped_peer_binding(
+        &self,
+        snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
+        peer: &PkgName,
+    ) -> Option<SnapshotDepRef> {
+        let reference = self.deduped_peer_resolutions.as_ref()?.get(peer)?;
+        reference
+            .resolve(peer)
+            .is_some_and(|key| snapshots.contains_key(&key))
+            .then(|| reference.clone())
+    }
+}
 
 /// A linked workspace package has no package snapshot in the shared lockfile,
 /// so the importer its deployed snapshot is synthesized from carries no peer
@@ -12,7 +61,7 @@ use super::{
 /// package would have made, and it cannot be recovered afterwards.
 pub(super) fn bind_singleton_peers(
     lockfile: &mut Lockfile,
-    linked_workspace_projects: &HashMap<PkgNameVerPeer, ProjectInfo>,
+    linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
 ) -> miette::Result<()> {
     if linked_workspace_projects.is_empty() {
         return Ok(());
@@ -36,16 +85,16 @@ pub(super) fn bind_singleton_peers(
 fn collect_peer_bindings(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     candidates: &HashMap<PkgName, HashSet<PkgNameVerPeer>>,
-    linked_workspace_projects: &HashMap<PkgNameVerPeer, ProjectInfo>,
+    linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
 ) -> miette::Result<Vec<(PkgNameVerPeer, PkgName, SnapshotDepRef)>> {
     let mut bindings = Vec::new();
-    for (package_key, project) in linked_workspace_projects {
+    for (package_key, linked) in linked_workspace_projects {
         if !snapshots.contains_key(package_key) {
             continue;
         }
-        for peer in &project.peer_dependencies {
+        for peer in &linked.project.peer_dependencies {
             if let Some(binding) =
-                singleton_peer_binding(snapshots, candidates, package_key, project, peer)?
+                singleton_peer_binding(snapshots, candidates, package_key, linked, peer)?
             {
                 bindings.push((package_key.clone(), peer.clone(), binding));
             }
@@ -100,9 +149,10 @@ fn singleton_peer_binding(
     snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
     candidates: &HashMap<PkgName, HashSet<PkgNameVerPeer>>,
     package_key: &PkgNameVerPeer,
-    project: &ProjectInfo,
+    linked: &LinkedWorkspaceProject,
     peer: &PkgName,
 ) -> miette::Result<Option<SnapshotDepRef>> {
+    let project = &linked.project;
     // Either map already binding the peer counts: re-binding one the
     // package declares as an optional dependency would copy it into the
     // required map and quietly promote it.
@@ -123,6 +173,9 @@ fn singleton_peer_binding(
         });
     if bound {
         return Ok(None);
+    }
+    if let Some(reference) = linked.deduped_peer_binding(snapshots, peer) {
+        return Ok(Some(reference));
     }
     // A peer the deployed graph does not provide at all stays unresolved,
     // exactly as it is in the workspace this deploy was taken from.
