@@ -41,8 +41,8 @@ land on another volume, which copies every package instead of hard-linking it
 pnpm keeps the locks that coordinate processes sharing a store outside the
 store, in a per-user directory. On Linux and macOS that directory is
 **$XDG_RUNTIME_DIR** when it is an absolute path to a directory the user owns
-and can write to, and other users cannot write to. Otherwise the directory is
-**/tmp**. On Windows it is **~/AppData/Local**. A sandbox that blocks writes to
+and can create files in (write and search permission), and other users cannot
+write to. Otherwise the directory is **/tmp**. On Windows it is **~/AppData/Local**. A sandbox that blocks writes to
 `/tmp` can set `XDG_RUNTIME_DIR` to a directory it allows. Processes that use
 the same store should see the same `XDG_RUNTIME_DIR`, since pnpm processes only
 wait for each other when they share the lock directory.
