@@ -1629,9 +1629,55 @@ test.each([
   const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
   expect(deployedManifest.packageManager).toBe('pnpm@10.18.0')
   expect(deployedManifest.devEngines).toStrictEqual({
-    packageManager: { name: 'pnpm', version: '^10.18.0', onFail: 'download' },
     runtime: { name: 'node', version: '*' },
   })
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/16403
+test.each([
+  { mode: 'native', forceLegacyDeploy: false },
+  { mode: 'legacy', forceLegacyDeploy: true },
+])('$mode deploy does not copy the devEngines of the workspace root', async ({ forceLegacyDeploy }) => {
+  const workspaceRootManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '12.8.1', onFail: 'error' as const },
+    },
+  }
+  preparePackages([
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest: { name: 'root', version: '1.0.0', private: true },
+    enginePinManifest: workspaceRootManifest,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler({ ...opts, dev: true, production: true })
+  await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
+  // `devEngines.packageManager` is a development-time contract npm enforces by
+  // default, so a deploy directory must not carry it. The pin it names is kept
+  // as the `packageManager` field, which only corepack reads.
+  expect(deployedManifest.packageManager).toBe('pnpm@12.8.1')
+  expect(deployedManifest.devEngines).toBeUndefined()
 })
 
 test.each([
