@@ -94,11 +94,15 @@ Ignore all advisories with no resolution.
 
 Since v11, unfixable advisories are tracked by GHSA rather than CVE.
 
+Their IDs are saved in `pnpm-workspace.yaml` the same way as with [`--ignore`](#--ignore-vulnerability).
+
 ### --ignore &lt;vulnerability\>
 
 Added in: v10.11.0
 
 Ignore a vulnerability by its GitHub advisory ID (GHSA). Before v11 this flag accepted CVE identifiers.
+
+The ID is saved in `pnpm-workspace.yaml`, which is created if missing, and no audit report is printed. It is added to [`audit.ignore`](#auditignore) if that list is already set, otherwise to `auditConfig.ignoreGhsas`.
 
 ## Configuration
 

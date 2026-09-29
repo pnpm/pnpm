@@ -204,6 +204,14 @@ pnpm add --allow-build=!core-js my-bundler
 
 writes `allowBuilds: { core-js: false }`, so the package is never asked about again. Global installs (`pnpm add -g`) record the denial too.
 
+### --registry
+
+Specify the registry to use for this installation:
+
+```sh
+pnpm add --registry=https://registry.npmjs.org/ lodash
+```
+
 ### --filter &lt;package_selector\>
 
 [Read more about filtering.](../filtering.md)

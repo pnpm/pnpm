@@ -106,6 +106,8 @@ A [git-hosted dependency](./package-sources.md#git-repository) that has to be bu
 
 pnpm provides that package manager when the dependency pinned a version, or when the host cannot satisfy what the dependency needs — so a repository built with Yarn now installs on a machine that has only pnpm, while a host that already has a suitable one keeps using its own.
 
+A pnpm pin is an exception when [`pmOnFail`](./settings/cli.md#pmonfail) is set to anything other than `download`. The running pnpm then prepares the dependency. The nested install applies the same `pmOnFail` to the dependency's pin, so `ignore` prepares it silently, `warn` prints a warning, and `error` fails the install.
+
 ## What changes for a project coming from v11
 
 | Command | v11 | v12 |

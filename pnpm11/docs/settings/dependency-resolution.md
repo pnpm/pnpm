@@ -162,7 +162,7 @@ Settings in this section tune the [`pnpm update`](../cli/update.md) and [`pnpm o
 
 #### update.ignoreDeps
 
-Sometimes you can't update a dependency. For instance, the latest version of the dependency started to use ESM but your project is not yet in ESM. Annoyingly, such a package will be always printed out by the `pnpm outdated` command and updated, when running `pnpm update --latest`. However, you may list packages that you don't want to upgrade in the `ignoreDeps` field:
+Sometimes you can't update a dependency. For instance, the latest version of the dependency started to use ESM but your project is not yet in ESM. Annoyingly, such a package will always be printed out by the `pnpm outdated` command and updated, when running `pnpm update --latest`. However, you may list packages that you don't want to upgrade in the `ignoreDeps` field:
 
 ```yaml
 update:
@@ -233,6 +233,28 @@ supportedArchitectures:
 ```
 
 Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+:::note
+
+Copying `node_modules` between platforms can cause native-module load errors,
+such as `invalid ELF header` or `not a valid Win32 application`. For packages
+that publish platform-specific optional dependencies, list the target operating
+systems, CPUs, and C libraries in `supportedArchitectures` before installing.
+The lockfile can contain separate entries for each platform variant.
+
+This setting does not cross-compile native addons. If a package builds its addon
+in an install script, install or rebuild it on the target platform.
+
+:::
+
+### optional
+
+* Default: **true**
+* Type: **Boolean**
+
+Set to `false` to skip optional dependencies during installation, including
+transitive optional dependencies. Equivalent to
+[`pnpm install --no-optional`](../cli/install.md#--no-optional).
 
 ### ignoredOptionalDependencies
 

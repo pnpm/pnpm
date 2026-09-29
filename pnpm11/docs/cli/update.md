@@ -19,6 +19,10 @@ When used without arguments, updates all dependencies.
 |`pnpm up foo@2`       | Updates `foo` to the latest version on v2                                |
 |`pnpm up "@babel/*"` | Updates all dependencies under the `@babel` scope                        |
 
+Since v11.27.1, a dependency whose specifier comes from a [`packageExtensions`](../settings/dependency-resolution.md#packageextensions) entry, a [`readPackage`](../pnpmfile.md#hooks) hook, or an [`override`](../settings/dependency-resolution.md#overrides) is not written to `package.json`. The lockfile keeps that specifier. `pnpm update` and `pnpm audit --fix=update` still move it inside the range.
+
+An exact pin from one of those sources is left as it is. When that pin is a vulnerable version, `pnpm audit --fix=update` warns and points at `pnpm audit --fix`, which writes an override. An override is applied after `packageExtensions` and `readPackage`, so it replaces a specifier those supply.
+
 Since v11.25.0, [`--patches`](#--patches) changes no version and no declared range, refreshing only
 which registry artifact each locked version resolves to. That still rewrites
 lockfile metadata — the `integrity`, the `revision`, and the package snapshot
@@ -89,6 +93,8 @@ pnpm --recursive update typescript@latest
 ### --latest, -L
 
 Update the dependencies to their latest stable version as determined by their `latest` tags (potentially upgrading the packages across major versions) as long as the version range specified in `package.json` is lower than the `latest` tag (i.e. it will not downgrade prereleases).
+
+Since v11.27.1, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
 ### --patches
 

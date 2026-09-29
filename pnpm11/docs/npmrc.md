@@ -121,7 +121,9 @@ This is useful for registries (such as GitHub Packages) that issue tokens per or
 
 ### &lt;URL&gt;&#58;tokenHelper
 
-A token helper is an executable which outputs an auth token. This can be used in situations where the authToken is not a constant value but is something that refreshes regularly, where a script or other tool can use an existing refresh token to obtain a new access token.
+A token helper is an executable that prints a token to stdout. pnpm sends it as `Authorization: Bearer <token>`. If the output starts with one or more ASCII letters and a space, such as `Bearer my-token`, `Basic …`, or `Token abc`, pnpm uses that string as the header value and does not add `Bearer` again. This is for a token that refreshes, where a script can use a refresh token to obtain a new access token.
+
+`_authToken`, documented above, is only the token. pnpm always adds `Bearer` in front of it. A token helper can print that same raw token, or a full header value that already starts with ASCII letters and a space.
 
 The configuration for the path to the helper must be an absolute path, with no arguments. In order to be secure, it is only permitted to set this value in the user `.npmrc`. Otherwise a project could place a value in a project's local `.npmrc` and run arbitrary executables.
 

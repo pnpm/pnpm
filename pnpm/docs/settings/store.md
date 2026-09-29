@@ -108,6 +108,19 @@ The read-only store open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0. On 
 
 When set to `false`, pnpm won't read or generate a `pnpm-lock.yaml` file.
 
+### frozenLockfile
+
+* Default:
+  * For non-CI: **false**
+  * For CI: **true**, if a lockfile is present
+* Type: **Boolean**
+
+When set to `true`, pnpm fails the installation if the lockfile needs updating
+or is missing.
+
+In [CI environments](../cli/install.md#--frozen-lockfile), this setting defaults
+to `true` when a lockfile is present.
+
 ### preferFrozenLockfile
 
 * Default: **true**

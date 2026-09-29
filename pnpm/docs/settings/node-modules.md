@@ -23,7 +23,7 @@ Defines what linker should be used for installing Node packages.
 
 * **isolated** - dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
 * **hoisted** - a flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or Yarn Classic. One of Yarn's libraries is used for hoisting, when this setting is used. Legitimate reasons to use this setting:
-  1. Your tooling doesn't work well with symlinks. A React Native project will most probably only work if you use a hoisted `node_modules`.
+  1. Your tooling doesn't work well with symlinks.
   1. Your project is deployed to a serverless hosting provider. Some serverless providers (for instance, AWS Lambda) don't support symlinks. An alternative solution for this problem is to bundle your application before deployment.
   1. If you want to publish your package with [`"bundledDependencies"`].
   1. If you are running Node.js with the [--preserve-symlinks] flag.

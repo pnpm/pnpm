@@ -96,6 +96,8 @@ With `registry`, no `CHANGELOG.md` is committed: each release's section is compo
 
 With `repository`, a `CHANGELOG.md` is committed in every package.
 
+Private packages always use `repository` storage, as they are never published.
+
 ```yaml title="pnpm-workspace.yaml"
 versioning:
   changelog:

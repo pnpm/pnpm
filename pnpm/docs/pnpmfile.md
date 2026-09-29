@@ -116,9 +116,18 @@ Two entries describe registry routing and credentials:
 
 * `registriesByScope` maps a scope (`@acme`, or `default` for the main
   registry) to the registry URL packages of that scope are fetched from.
-  Rewriting the map redirects those fetches.
+  Rewriting the map redirects those fetches, except for the routes given on
+  the command line.
 * `configByUri` maps a registry URI to its credentials, the way pnpm 11
   reports them.
+
+#### Settings given on the command line
+
+Since v12.8.0, a setting given on the command line takes precedence over the
+hook. The hook still receives the command-line value, but pnpm puts it back
+after the hook returns, so changing it in the hook has no effect. This covers
+flags such as `--registry`, `--config.@acme:registry`, `--store-dir`, `--state-dir`,
+`--config.<key>` overrides, and setting flags such as `--no-optional`.
 
 #### Which commands load the pnpmfile
 

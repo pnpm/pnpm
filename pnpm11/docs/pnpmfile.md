@@ -105,6 +105,14 @@ export const hooks = {
 }
 ```
 
+#### Settings given on the command line
+
+Since v11.28.1, a setting given on the command line takes precedence over the
+hook. The hook still receives the command-line value, but pnpm puts it back
+after the hook returns, so changing it in the hook has no effect. This covers
+flags such as `--registry`, `--@acme:registry`, `--store-dir`, and setting flags
+such as `--node-linker`.
+
 ### `hooks.afterAllResolved(lockfile, context): lockfile | Promise<lockfile>`
 
 Allows you to mutate the lockfile output before it is serialized.

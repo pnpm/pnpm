@@ -34,6 +34,11 @@ Usage example:
 pnpm -r publish
 ```
 
+By default, recursive `run`, `exec`, and `test` execute projects in
+topological order: dependencies run before their dependents. Use `--no-sort`
+to disable graph ordering, or `--parallel` to start tasks without waiting for
+dependencies.
+
 ## Options
 
 ### --link-workspace-packages
@@ -55,7 +60,7 @@ may override that if necessary.
 
 ### --workspace-concurrency
 
-* Default: **4**
+* Default: **the smaller of 4 and the number of available CPU cores**
 * Type: **Number**
 
 Set the maximum number of tasks to run simultaneously. For unlimited concurrency

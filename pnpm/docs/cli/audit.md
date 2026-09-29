@@ -94,11 +94,15 @@ Ignore all advisories with no resolution.
 
 Since v11, unfixable advisories are tracked by GHSA rather than CVE.
 
+Their IDs are saved in `pnpm-workspace.yaml` the same way as with [`--ignore`](#--ignore-vulnerability).
+
 ### --ignore &lt;vulnerability\>
 
 Added in: v10.11.0
 
 Ignore a vulnerability by its GitHub advisory ID (GHSA). Before v11 this flag accepted CVE identifiers.
+
+The ID is saved in `pnpm-workspace.yaml`, which is created if missing, and no audit report is printed. It is added to [`audit.ignore`](#auditignore) if that list is already set, otherwise to `auditConfig.ignoreGhsas`. pnpm 12 still reads `auditConfig.ignoreGhsas`, so the advisory stays ignored either way.
 
 ## Configuration
 
@@ -153,7 +157,7 @@ audit:
 
 :::info
 
-Before v11.16.0, these settings were named `auditLevel` and `auditConfig.ignoreGhsas`. The deprecated names keep working until the next major version; when both are set, the `audit` section takes precedence and a warning is printed.
+Before v11.16.0, these settings were named `auditLevel` and `auditConfig.ignoreGhsas`. These deprecated names are still supported in pnpm v12; when both are set, the `audit` section takes precedence and a warning is printed.
 
 Before v11, `auditConfig.ignoreCves` was used to filter advisories by CVE identifier. That setting is no longer recognized.
 

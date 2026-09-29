@@ -111,7 +111,7 @@ If `--depth>0` is requested but the request can't be narrowed to a single instal
 |---|---|
 | `pnpm add -g <pkg>` | Install a package globally |
 | `pnpm remove -g <pkg>` | Remove a globally installed package (if it was bundled into an install group, the whole group is removed) |
-| `pnpm update -g [pkg]` | Update global packages (re-installs into new isolated directories) |
+| `pnpm update -g [pkg]` | Update global packages (re-installs a package into a new isolated directory when its resolved dependency graph changed) |
 | `pnpm list -g` | List all globally installed packages |
 
 :::note

@@ -15,7 +15,7 @@ pnpm also no longer reads settings from the `pnpm` field of `package.json`. Sett
 Project-level settings go in `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
-nodeVersion: "22"
+nodeVersion: "22.22.3"
 saveExact: true
 ```
 

@@ -8,7 +8,7 @@ Aliases: `i`
 `pnpm install` is used to install all dependencies for a project.
 
 In a CI environment, installation fails if a lockfile is present but needs an
-update.
+update. To allow lockfile updates in CI, run `pnpm install --no-frozen-lockfile`.
 
 Inside a [workspace], `pnpm install` installs all dependencies in all the
 projects. If you want to disable this behavior, set the `recursive-install`
@@ -160,6 +160,10 @@ exports.isCI = !!(
 ```
 
 [CI environments]: https://github.com/watson/ci-info#supported-ci-tools
+
+### --no-frozen-lockfile
+
+Allows lockfile updates during installation. This is the inverse of `--frozen-lockfile`.
 
 ### --merge-git-branch-lockfiles
 

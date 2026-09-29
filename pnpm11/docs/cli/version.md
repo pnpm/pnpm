@@ -39,6 +39,8 @@ pnpm version -r
 
 This assembles a release plan from the `.changeset/*.md` intent files and applies it: every package named by an intent is bumped, and so is every package that depends on it through a `workspace:` range. It then writes changelogs and records the consumed intents in `.changeset/ledger.yaml`.
 
+Private packages (`"private": true`) are bumped without checking the registry for their [first release](../versioning.md#first-releases), and their changelog is always written to the committed `CHANGELOG.md`, even when [`versioning.changelog.storage`](../settings/versioning.md#versioningchangelogstorage) is `registry`.
+
 Preview the plan without touching anything:
 
 ```sh
