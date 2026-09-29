@@ -52,11 +52,8 @@ pub(crate) fn apply_published_by_policy(
 }
 
 /// Filter a packument to versions published at or before `cutoff`,
-/// then rewrite each `dist-tag` to the highest within-cutoff version
-/// that still belongs to the tag's original "family" (same major
-/// for non-`latest` tags, no newer than the original target, matching
-/// prerelease/release status, and preferring non-deprecated versions
-/// when both are present).
+/// then rewrite each `dist-tag` to the best within-cutoff version no
+/// newer than the original target, as [`best_tag_candidate`] ranks them.
 ///
 /// The result is memoized on `meta` (see [`DerivedPackuments`]) and
 /// shared between callers, so it is handed back behind an [`Arc`]:
@@ -207,6 +204,10 @@ pub(super) type TagCandidate<'a> = (Version, &'a String, OnceCell<bool>);
 
 /// The version a dropped dist-tag moves to: the highest candidate of the
 /// tag's own major and prerelease-ness, preferring a non-deprecated one.
+/// `latest` may also move to another major. A tag that pointed at a stable
+/// version may move to a prerelease of its major that precedes it, which
+/// ranks above any stable version of a lower major: when `1.0.0` is too
+/// new, `1.0.0-beta.4` is what `latest` named before it, not `0.0.1`.
 /// `bound_dist_tags` keeps the tag from moving forward past the version it
 /// pointed at.
 pub(super) fn best_tag_candidate<'a>(
@@ -216,31 +217,69 @@ pub(super) fn best_tag_candidate<'a>(
     original: &Version,
     bound_dist_tags: bool,
 ) -> Option<&'a String> {
-    let original_is_prerelease = !original.pre_release.is_empty();
     let deprecated = |slot: &TagCandidate<'a>| -> bool {
         *slot.2.get_or_init(|| filtered_versions.is_deprecated(slot.1))
     };
     let eligible = candidates
         .iter()
-        .filter(|(candidate, _, _)| {
-            !(bound_dist_tags && candidate > original)
-                && (tag == "latest" || candidate.major == original.major)
-                && candidate.pre_release.is_empty() != original_is_prerelease
+        .filter_map(|slot| {
+            let candidate = &slot.0;
+            if bound_dist_tags && candidate > original {
+                return None;
+            }
+            Some((slot, tag_candidate_tier(tag, original, candidate)?))
         });
-    let mut best: Option<&TagCandidate<'a>> = None;
-    for slot in eligible {
-        let (candidate, _, _) = slot;
-        let Some(best_slot) = best else {
-            best = Some(slot);
+    let mut best: Option<(&TagCandidate<'a>, TagCandidateTier)> = None;
+    for (slot, tier) in eligible {
+        let Some((best_slot, best_tier)) = best else {
+            best = Some((slot, tier));
             continue;
         };
         let best_deprecated = deprecated(best_slot);
         let candidate_deprecated = deprecated(slot);
-        let candidate_wins = (*candidate > best_slot.0 && best_deprecated == candidate_deprecated)
-            || (best_deprecated && !candidate_deprecated);
+        let candidate_wins = if best_deprecated == candidate_deprecated {
+            (tier, &slot.0) > (best_tier, &best_slot.0)
+        } else {
+            best_deprecated
+        };
         if candidate_wins {
-            best = Some(slot);
+            best = Some((slot, tier));
         }
     }
-    best.map(|slot| slot.1)
+    best.map(|(slot, _)| slot.1)
+}
+
+/// How well a candidate stands in for a dropped dist-tag target, worst
+/// first. [`best_tag_candidate`] compares the tier before the version.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TagCandidateTier {
+    /// Same prerelease-ness as the target, on a lower major (`latest` only).
+    LowerMajor,
+    /// A prerelease of the stable target's major, below the target.
+    PrereleaseOfMajor,
+    /// Same prerelease-ness as the target, on its major or a higher one
+    /// (`latest` only for a different major).
+    SameLane,
+}
+
+fn tag_candidate_tier(
+    tag: &str,
+    original: &Version,
+    candidate: &Version,
+) -> Option<TagCandidateTier> {
+    let original_is_prerelease = !original.pre_release.is_empty();
+    let candidate_is_prerelease = !candidate.pre_release.is_empty();
+    if candidate_is_prerelease == original_is_prerelease {
+        return if candidate.major == original.major {
+            Some(TagCandidateTier::SameLane)
+        } else if tag != "latest" {
+            None
+        } else if candidate.major > original.major {
+            Some(TagCandidateTier::SameLane)
+        } else {
+            Some(TagCandidateTier::LowerMajor)
+        };
+    }
+    (candidate_is_prerelease && candidate.major == original.major && candidate < original)
+        .then_some(TagCandidateTier::PrereleaseOfMajor)
 }

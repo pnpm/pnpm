@@ -866,6 +866,65 @@ fn filter_latest_fallback_does_not_exceed_original_tag_target() {
 }
 
 #[test]
+fn filter_latest_fallback_prefers_prerelease_of_new_major_over_lower_major() {
+    let mut pkg = make_package(
+        "acme",
+        &[("0.0.1", None), ("1.0.0-beta.3", None), ("1.0.0-beta.4", None), ("1.0.0", None)],
+        &[("latest", "1.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.1", "2026-01-01T00:00:00.000Z"),
+        ("1.0.0-beta.3", "2026-03-01T00:00:00.000Z"),
+        ("1.0.0-beta.4", "2026-04-01T00:00:00.000Z"),
+        ("1.0.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("1.0.0-beta.4"));
+}
+
+#[test]
+fn filter_latest_fallback_prefers_stable_of_same_major_over_prerelease() {
+    let mut pkg = make_package(
+        "acme",
+        &[("1.4.0", None), ("1.5.0-rc.1", None), ("1.5.0", None), ("2.0.0-alpha.1", None)],
+        &[("latest", "1.5.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("1.4.0", "2026-01-01T00:00:00.000Z"),
+        ("1.5.0-rc.1", "2026-03-01T00:00:00.000Z"),
+        ("2.0.0-alpha.1", "2026-03-02T00:00:00.000Z"),
+        ("1.5.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("1.4.0"));
+}
+
+#[test]
+fn filter_latest_fallback_prefers_non_deprecated_lower_major_over_deprecated_prerelease() {
+    let mut pkg = make_package(
+        "acme",
+        &[("0.0.1", None), ("1.0.0-beta.1", Some("broken")), ("1.0.0", None)],
+        &[("latest", "1.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.1", "2026-01-01T00:00:00.000Z"),
+        ("1.0.0-beta.1", "2026-03-01T00:00:00.000Z"),
+        ("1.0.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("0.0.1"));
+}
+
+#[test]
 fn filter_custom_dist_tag_fallback_does_not_exceed_original_target() {
     let mut pkg = make_package(
         "nightly-fallback",
