@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Published pnpm v11 or v12 release tag to sync or retry
+        description: Published pnpm v11, v12, or pnpr release tag to sync or retry
         required: true
         type: string
       docs_commit:
@@ -85,7 +85,7 @@ jobs:
           LINE: ${{ steps.source.outputs.line }}
         run: |
           test -n "$GH_TOKEN" || { echo '::error::Configure DOCS_SYNC_TOKEN in the docs-sync environment'; exit 1; }
-          git add docs versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets/11.x static/docs-assets/12.x docs-sync.json
+          git add docs pnpr-docs sidebars-pnpr.json versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets docs-sync.json
           if git diff --cached --quiet; then exit 0; fi
           git config user.name 'pnpm docs sync'
           git config user.email 'pnpm-docs-sync@users.noreply.github.com'

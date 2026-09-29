@@ -30,7 +30,8 @@ The pacquet-side version policy is in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#versio
 
 ## Website documentation
 
-User documentation lives in `pnpm/docs/` for v12 and `pnpm11/docs/` for v11. Update
+User documentation lives in `pnpm/docs/` for v12, `pnpm11/docs/` for v11,
+and `pnpr/docs/` for the registry. Update
 the affected version's docs and sidebar in the same PR as a behavior change.
 See [DOCUMENTATION.md](./DOCUMENTATION.md) for local previews and release publishing.
 The blog and website application remain in pnpm/pnpm.io.

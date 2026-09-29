@@ -10,8 +10,8 @@ function fixture (t, tag = 'v12.8.2') {
   const repo = mkdtempSync(path.join(os.tmpdir(), 'pnpm-docs-release-'))
   t.after(() => rmSync(repo, { recursive: true, force: true }))
   const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-  const version = tag.slice(1)
-  for (const [product, current] of [['pnpm/npm/pnpm', '12.8.2'], ['pnpm11/pnpm', '11.28.2']]) {
+  const version = tag.startsWith('pnpr@') ? tag.slice(5) : tag.slice(1)
+  for (const [product, current] of [['pnpm/npm/pnpm', '12.8.2'], ['pnpm11/pnpm', '11.28.2'], ['pnpr/npm/pnpr', '0.1.0-alpha.14']]) {
     mkdirSync(path.join(repo, product), { recursive: true })
     const productVersion = version.split('.')[0] === current.split('.')[0] ? version : current
     writeFileSync(path.join(repo, product, 'package.json'), JSON.stringify({ version: productVersion }))
@@ -33,7 +33,7 @@ function fixture (t, tag = 'v12.8.2') {
     },
     publicationState: spec => {
       assert.equal(verified, true)
-      assert.equal(spec, `pnpm@${version}`)
+      assert.equal(spec, `${tag.startsWith('pnpr@') ? '@pnpm/pnpr' : 'pnpm'}@${version}`)
       return 'published'
     },
   }
@@ -54,9 +54,9 @@ test('selects only the signed and published release snapshot', t => {
 test('ignores verification runs and releases outside stable v11 and v12', () => {
   assert.equal(prepareDocsSync({ eventName: 'workflow_run', event: { workflow_run: { head_branch: 'main' } } }), undefined)
   assert.equal(prepareDocsSync({ eventName: 'workflow_dispatch', releaseTag: 'v12.9.0-beta.1' }), undefined)
-  for (const tag of ['pnpr@0.1.0-alpha.15', 'v10.30.0', 'v13.0.0']) {
+  for (const tag of ['v10.30.0', 'v13.0.0']) {
     assert.equal(prepareDocsSync({ eventName: 'workflow_run', event: { workflow_run: { head_branch: tag } } }), undefined)
-    assert.throws(() => prepareDocsSync({ eventName: 'workflow_dispatch', releaseTag: tag }), /v11 or v12/)
+    assert.throws(() => prepareDocsSync({ eventName: 'workflow_dispatch', releaseTag: tag }), /v11 and v12/)
   }
 })
 
@@ -84,4 +84,17 @@ test('v11 corrections use the TypeScript product documentation', t => {
   f.git('commit', '--quiet', '-m', 'docs: v11 correction')
   const result = prepareDocsSync({ ...f.options, eventName: 'workflow_dispatch', releaseTag: 'v11.28.3', docsRef: f.git('rev-parse', 'HEAD') })
   assert.equal(result.line, '11.x')
+})
+
+
+test('pnpr alpha releases and corrections select only the registry documentation', t => {
+  const f = fixture(t, 'pnpr@0.1.0-alpha.15')
+  assert.equal(prepareDocsSync(f.options).line, 'pnpr')
+  mkdirSync(path.join(f.repo, 'pnpr/docs'), { recursive: true })
+  writeFileSync(path.join(f.repo, 'pnpr/docs/installation.md'), 'correction')
+  f.git('add', '.')
+  f.git('commit', '--quiet', '-m', 'docs: registry correction')
+  const result = prepareDocsSync({ ...f.options, eventName: 'workflow_dispatch', releaseTag: 'pnpr@0.1.0-alpha.15', docsRef: f.git('rev-parse', 'HEAD') })
+  assert.equal(result.line, 'pnpr')
+  assert.equal(result.docs_commit, f.git('rev-parse', 'HEAD'))
 })

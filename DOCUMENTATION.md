@@ -1,16 +1,16 @@
 # Website documentation
 
-`pnpm/docs/` and `pnpm11/docs/` are the sources for the v12 and v11
-documentation published on [pnpm.io](https://pnpm.io). Change documentation in
+`pnpm/docs/`, `pnpm11/docs/`, and `pnpr/docs/` are the sources for the v12, v11,
+and registry documentation published on [pnpm.io](https://pnpm.io). Change documentation in
 the same pull request as the behavior it describes. The website, blog, v10 and
-archived documentation, pnpr docs, translations, and deployment remain in
+archived documentation, translations, and deployment remain in
 [pnpm/pnpm.io](https://github.com/pnpm/pnpm.io).
 
 ## Editing
 
 The Markdown lives directly under `pnpm/docs/` for v12 and `pnpm11/docs/` for
-v11. Each directory includes its `sidebars.json` and documentation assets under
-`static/`. Update both trees when a fix affects both versions. The sources were
+v11, with registry documentation under `pnpr/docs/`. Each directory includes
+its `sidebars.json` and documentation assets under `static/`. Update both CLI trees when a fix affects both versions. The sources were
 imported from pnpm/pnpm.io commit `987689309ca8fcd56f7f41ebf3ab83cff2a062c6`.
 
 Use `/img/...` URLs for assets stored under a line's `static/img/` directory.
@@ -28,7 +28,7 @@ pnpm --dir ../pnpm.io check-urls
 ```
 
 Adjust the paths to your checkouts. `--preview` replaces the website's generated
-documentation copies with the local v11 and v12 sources. Run it again after
+documentation copies with the local v11, v12, and pnpr sources. Run it again after
 editing sources. It does not publish or advance release state.
 The Documentation workflow performs the same build and URL checks for PRs.
 It pins the website revision for reproducibility; update that revision when
@@ -39,8 +39,9 @@ adopting website tooling changes. Release publication uses the website's current
 
 After the Release workflow succeeds, Sync released documentation verifies the
 signed tag and npm publication, then imports only that version's documentation
-from the tagged commit. Only stable v11 and v12 releases trigger a sync. Other
-release lines, pnpr releases, and CLI prereleases do not update these docs.
+from the tagged commit. Stable v11 and v12 releases update their
+respective CLI documentation. Pnpr releases, including alpha releases, update
+only the registry documentation. Other CLI releases do not trigger a sync.
 
 The sync builds and checks the site, then commits the generated copies to
 pnpm/pnpm.io. Its Deploy workflow publishes the website. `docs-sync.json` in
@@ -55,7 +56,8 @@ build against the new website commit. The workflow never force-pushes.
 
 For a correction that should ship before the next package release, branch from
 the published release tag, change only the corresponding `pnpm/docs/` or
-`pnpm11/docs/` directory, and make the commit available in pnpm/pnpm. Dispatch the sync with that `release_tag` and the
+`pnpm11/docs/` directory, or `pnpr/docs/` for registry documentation. Make the
+commit available in pnpm/pnpm. Dispatch the sync with that `release_tag` and the
 full `docs_commit` SHA. Also carry the correction into the development branch.
 The workflow rejects corrections containing code changes or changes to another
 version's documentation. This keeps unreleased features off the public site.
@@ -63,7 +65,7 @@ version's documentation. This keeps unreleased features off the public site.
 ## Initial rollout
 
 1. Land the pnpm/pnpm.io tooling, builder patch and generated copies first.
-   Its v11 and v12 edit links will point at the corresponding product docs in
+   Its v11, v12, and pnpr edit links will point at the corresponding product docs in
    pnpm/pnpm.
 2. Land the product docs and the Documentation and Sync released documentation
    workflows in pnpm/pnpm. The sync starts with releases whose tags include the
@@ -78,6 +80,7 @@ version's documentation. This keeps unreleased features off the public site.
    when updating translation sources, as before.
 
 Version names and publication paths are managed by pnpm/pnpm.io. Its
-`scripts/docs-sources.mjs` maps `11.x` to `pnpm11/docs` and `12.x` to `pnpm/docs`.
+`scripts/docs-sources.mjs` maps `11.x` to `pnpm11/docs`, `12.x` to `pnpm/docs`,
+and `pnpr` to `pnpr/docs`.
 The sources here have no additional version directories. A future v10 migration
 can be made separately on `release/10` if needed.
