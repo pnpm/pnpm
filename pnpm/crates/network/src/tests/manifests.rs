@@ -16,8 +16,8 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
     std::fs::write(&empty_bundle, b"").expect("write empty ca bundle");
     env.set("SSL_CERT_FILE", &empty_bundle);
     env.set("SSL_CERT_DIR", &empty_bundle);
-    // An extra root of any kind keeps the platform verifier alive, so
-    // the fallback would go untested with the developer's own value.
+    // Keep the developer's own `NODE_EXTRA_CA_CERTS` out of the build
+    // under test.
     env.set("NODE_EXTRA_CA_CERTS", "");
 
     assert!(
