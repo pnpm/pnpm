@@ -58,6 +58,9 @@ impl GraphProject for SyntheticRef<'_> {
     fn manifest_version(&self) -> Option<&str> {
         Some("1.0.0")
     }
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> Vec<Vec<(String, String)>> {
+        vec![self.0.dependencies.clone()]
+    }
 }
 
 fn synthetic_workspace() -> Vec<SyntheticProject> {
