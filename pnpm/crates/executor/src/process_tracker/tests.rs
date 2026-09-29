@@ -4,8 +4,8 @@ use super::{
 use std::{
     fs,
     io::{BufRead, BufReader, Read},
-    os::unix::process::CommandExt,
-    process::{Child, Command, Stdio},
+    os::unix::{fs::symlink, process::CommandExt},
+    process::{self, Child, Command, Stdio},
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},
@@ -148,13 +148,14 @@ fn cancellation_terminates_descendants_of_tracked_children() {
 
 /// The kernel counts a zombie among its group's members until the zombie is
 /// reaped, so the group stays real for the probe. Only the process table
-/// shows that nothing in it is still running.
+/// shows that nothing in it is still running, also for a command the kernel
+/// cut short in the middle of a character.
 #[test]
 fn a_group_holding_only_zombies_is_not_running() {
     let mut leader = spawn_group_leader();
     let group = group_of(&leader);
     let table = process_table(&[
-        (group, b"sleep", b'Z', group),
+        (group, b"sleep \xE3\x81", b'Z', group),
         (group + 1, b"node (dev) x", b'Z', group),
         (group + 2, b"sh", b'S', group + 2),
     ]);
@@ -184,6 +185,24 @@ fn a_live_member_keeps_the_group_running() {
     assert!(running, "the group holds a live member");
 }
 
+/// A process whose `stat` cannot be read, as another user's under
+/// `hidepid=1`, may still be running, so it counts while the kernel has it
+/// in the group.
+#[test]
+fn a_member_whose_stat_cannot_be_read_keeps_the_group_running() {
+    let mut leader = spawn_group_leader();
+    let group = group_of(&leader);
+    let table = process_table(&[]);
+    let unreadable = group.to_string();
+    fs::create_dir(table.path().join(unreadable)).expect("list the leader without its stat");
+
+    let running = group_is_running(group, Some(table.path()));
+
+    let _ = leader.kill();
+    let _ = leader.wait();
+    assert!(running, "nothing shows that the leader has exited");
+}
+
 /// A table that cannot be listed cannot tell a zombie from a live member,
 /// so it leaves the answer to the kernel's count.
 #[test]
@@ -198,16 +217,39 @@ fn a_process_table_that_cannot_be_listed_leaves_the_group_running() {
     assert!(running, "the kernel still counts the group's leader");
 }
 
+/// Only the table of pnpm's own pid namespace has pnpm as its `self`. An
+/// empty directory in place of `/proc` has no `self`, and another
+/// namespace's table numbers the processes and their groups differently,
+/// so neither can rule a member out.
+#[test]
+fn a_process_table_of_another_namespace_leaves_the_group_running() {
+    let mut leader = spawn_group_leader();
+    let group = group_of(&leader);
+    let empty = tempfile::tempdir().expect("create a directory");
+    let foreign = process_table(&[(group, b"sleep", b'Z', group)]);
+    let own = foreign.path().join("self");
+    fs::remove_file(&own).expect("unlink the table's `self`");
+    symlink((process::id() + 1).to_string(), own).expect("make another process the `self`");
+
+    let running = [empty.path(), foreign.path()].map(|table| group_is_running(group, Some(table)));
+
+    let _ = leader.kill();
+    let _ = leader.wait();
+    assert_eq!(running, [true, true], "the kernel still counts the group's leader");
+}
+
 fn group_of(leader: &Child) -> i32 {
     i32::try_from(leader.id()).expect("the pid fits in a pid_t")
 }
 
-/// A process table laid out as Linux lays out `/proc`, listing each
-/// `(pid, command, state, group)`. A `stat` line is the kernel's: the pid,
-/// the command in parentheses, the state, the parent, and the process
-/// group.
+/// A process table laid out as Linux lays out `/proc` for this process,
+/// its `self`, listing each `(pid, command, state, group)`. A `stat` line
+/// is the kernel's: the pid, the command in parentheses, the state, the
+/// parent, and the process group.
 fn process_table(processes: &[(i32, &[u8], u8, i32)]) -> TempDir {
     let table = tempfile::tempdir().expect("create the process table");
+    symlink(process::id().to_string(), table.path().join("self"))
+        .expect("make this process the `self`");
     for &(pid, command, state, group) in processes {
         let entry = table.path().join(pid.to_string());
         fs::create_dir(&entry).expect("create a process entry");
