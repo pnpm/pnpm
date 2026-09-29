@@ -1673,10 +1673,7 @@ test.each([
   await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
 
   const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
-  // `devEngines.packageManager` is a development-time contract npm enforces by
-  // default, so a deploy directory must not carry it. The pin it names is kept
-  // as the `packageManager` field, which only corepack reads.
-  expect(deployedManifest.packageManager).toBe('pnpm@12.8.1')
+  expect(deployedManifest.packageManager).toBeUndefined()
   expect(deployedManifest.devEngines).toBeUndefined()
 })
 

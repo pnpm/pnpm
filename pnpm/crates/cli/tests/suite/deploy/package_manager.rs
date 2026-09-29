@@ -124,11 +124,10 @@ fn deploy_keeps_the_package_manager_pin_of_the_deployed_project() {
 }
 
 /// A root that pins its package manager only through
-/// `devEngines.packageManager` — the shape the reported workspace has — still
-/// pins the deploy directory: the exact version it names becomes the
-/// `packageManager` field, the one corepack reads.
+/// `devEngines.packageManager`, the shape of the reported workspace, leaves
+/// the deployed manifest with no package manager pin at all.
 #[test]
-fn deploy_turns_an_exact_dev_engines_pin_of_the_workspace_root_into_a_package_manager_pin() {
+fn deploy_does_not_turn_the_dev_engines_pin_of_the_workspace_root_into_a_package_manager_pin() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -178,7 +177,7 @@ fn deploy_turns_an_exact_dev_engines_pin_of_the_workspace_root_into_a_package_ma
             .success();
 
         let manifest = read_deployed_manifest(&workspace.join(target));
-        assert_eq!(manifest["packageManager"], "pnpm@10.18.0", "{target}: {manifest:#}");
+        assert!(manifest.get("packageManager").is_none(), "{target}: {manifest:#}");
         assert_eq!(
             manifest["devEngines"],
             serde_json::json!({ "runtime": { "name": "node", "version": "*" } }),
