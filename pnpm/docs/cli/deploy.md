@@ -91,10 +91,9 @@ Since v12.4.1, the legacy implementation prefers the versions the source workspa
 
 Since v12.7.0:
 
-* The `packageManager` field of the workspace root `package.json` is copied
-  into the deployed `package.json`, unless the deployed project pins a package
-  manager itself.
-* Since v12.9.0, the workspace root's `devEngines` is not copied.
+* The `packageManager` and `devEngines.packageManager` fields of the workspace
+  root `package.json` are not copied into the deployed `package.json`. Versions
+  v12.7.0 through v12.8.x copied them.
 * The virtual store is placed at [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir),
   resolved against the deploy directory. With the global virtual store enabled
   or an absolute `virtualStoreDir`, it stays at `node_modules/.pnpm`.
