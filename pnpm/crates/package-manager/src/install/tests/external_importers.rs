@@ -10,13 +10,14 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
 use std::{
+    fmt::Write,
     fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tempfile::tempdir;
 
-struct Capsules {
+struct CapsuleLayout {
     root: PathBuf,
     capsule: PathBuf,
     capsules: PathBuf,
@@ -30,7 +31,7 @@ enum Mode {
     Rebuild,
 }
 
-fn capsules(root: &Path, registry_url: &str) -> Capsules {
+fn capsules(root: &Path, registry_url: &str) -> CapsuleLayout {
     let capsules = root.join("caps");
     let capsule = capsules.join("cap-a");
     let aspect = root.join("core/aspect");
@@ -49,7 +50,7 @@ fn capsules(root: &Path, registry_url: &str) -> Capsules {
     config.virtual_store_dir = modules_dir.join(".pnpm");
     config.modules_dir = modules_dir;
     config.registry = registry_url.to_string();
-    Capsules { root: root.to_path_buf(), capsule, capsules, config: config.leak() }
+    CapsuleLayout { root: root.to_path_buf(), capsule, capsules, config: config.leak() }
 }
 
 fn capsule_manifest(capsule: &Path) -> PackageManifest {
@@ -75,7 +76,7 @@ fn project(root_dir: &Path, manifest: serde_json::Value) -> pnpm_workspace::Proj
 /// capsule and a project nested in it are always declared, so the
 /// in-memory project list is used even when the capsules dir is not.
 async fn run_capsule(
-    setup: &Capsules,
+    setup: &CapsuleLayout,
     declare_capsules_dir: bool,
     mode: Mode,
 ) -> Result<(), InstallError> {
@@ -141,7 +142,7 @@ async fn run_capsule(
     .await
 }
 
-fn assert_capsules_dir_linked(setup: &Capsules) {
+fn assert_capsules_dir_linked(setup: &CapsuleLayout) {
     let link = setup.capsules.join("node_modules/core-aspect");
     assert!(
         fs::symlink_metadata(&link).is_ok_and(|meta| meta.file_type().is_symlink()),
@@ -150,7 +151,7 @@ fn assert_capsules_dir_linked(setup: &Capsules) {
     assert!(link.join("package.json").exists());
 }
 
-fn read_lockfile(setup: &Capsules) -> String {
+fn read_lockfile(setup: &CapsuleLayout) -> String {
     fs::read_to_string(setup.capsule.join("pnpm-lock.yaml")).unwrap()
 }
 
@@ -249,10 +250,12 @@ async fn lockfile_only_escaping_importers_are_never_linked() {
             absolute.display().to_string(),
             "C:/x".to_string(),
         ];
-        let extra_importers: String = hostile_keys
+        let extra_importers = hostile_keys
             .iter()
-            .map(|key| format!("\n  {key:?}:\n{dotdot_block}\n"))
-            .collect();
+            .fold(String::new(), |mut acc, key| {
+                write!(acc, "\n  {key:?}:\n{dotdot_block}\n").unwrap();
+                acc
+            });
         let hostile = lockfile.replacen("\n  ..:\n", &format!("{extra_importers}\n  ..:\n"), 1);
         fs::write(setup.capsule.join("pnpm-lock.yaml"), &hostile).unwrap();
 
