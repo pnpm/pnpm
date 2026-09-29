@@ -4,7 +4,7 @@ use crate::{
 };
 use cargo_lock::{Dependency, Lockfile, Package};
 use miette::{IntoDiagnostic, Report, Result, WrapErr};
-use semver::Version;
+use semver::{Version, VersionReq};
 use std::str::FromStr;
 
 /// Check that, for every registry or git dependency a workspace member
@@ -13,8 +13,10 @@ use std::str::FromStr;
 /// its declared dependencies accounts for.
 ///
 /// `metadata` is the output of `cargo metadata --no-deps`. Path dependencies
-/// carry no requirement a lockfile could contradict, so they need no edge of
-/// their own and account for any source-less edge with their name.
+/// need no edge of their own, and account for a source-less edge with their
+/// name whose version their requirement accepts. Cargo lets a path
+/// dependency without a version (`*`) match a prerelease, so `*` accepts
+/// any version.
 /// Sources are not compared, because a `[patch]` legitimately locks a
 /// dependency from a source other than the one its manifest names.
 pub fn verify_lockfile(metadata: &str, lockfile: &str) -> Result<()> {
@@ -101,7 +103,11 @@ impl EdgeClaims<'_> {
 fn accounts_for(declaration: &MetadataDependency, edge: &Dependency) -> bool {
     declaration.name == edge.name.as_str()
         && match declaration.source {
-            None => edge.source.is_none(),
+            None => {
+                edge.source.is_none()
+                    && (declaration.req == VersionReq::STAR
+                        || declaration.req.matches(&edge.version))
+            }
             Some(_) => declaration.req.matches(&edge.version),
         }
 }

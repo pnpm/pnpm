@@ -1209,6 +1209,43 @@ fn rejects_a_registry_edge_for_a_path_dependency() {
     );
 }
 
+const PATH_FOO_LOCKFILE: &str = r#"version = 4
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "foo",
+]
+
+[[package]]
+name = "foo"
+version = "1.0.0-alpha.1"
+"#;
+
+#[test]
+fn accepts_an_unversioned_path_dependency_on_a_prerelease() {
+    let metadata = METADATA
+        .replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null")
+        .replace("^1.0", "*");
+
+    verify_lockfile(&metadata, PATH_FOO_LOCKFILE).unwrap();
+}
+
+#[test]
+fn rejects_a_path_edge_outside_the_path_dependency_requirement() {
+    let metadata = METADATA
+        .replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null")
+        .replace("^1.0", "^2");
+
+    let error = verify_lockfile(&metadata, PATH_FOO_LOCKFILE).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Cargo.lock locks foo 1.0.0-alpha.1 for app, which no dependency of app accounts for",
+    );
+}
+
 fn with_app_dependency(dependency: &str) -> String {
     METADATA.replace(
         r#""req": "^1.0"
