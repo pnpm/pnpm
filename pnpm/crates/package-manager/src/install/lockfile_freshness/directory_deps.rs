@@ -6,7 +6,25 @@ use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use spec::spec_satisfies_snapshot_dep;
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+
+/// Project manifests keyed by their lexically normalized project directory.
+pub(crate) type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
+
+pub(crate) fn project_manifests_by_dir<'a>(
+    manifests: impl IntoIterator<Item = &'a PackageManifest>,
+) -> ProjectManifestsByDir<'a> {
+    manifests
+        .into_iter()
+        .filter_map(|manifest| {
+            let dir = manifest.path().parent()?;
+            Some((pnpm_fs::lexical_normalize(dir), manifest))
+        })
+        .collect()
+}
 
 struct LocalDepContext<'a> {
     name: &'a str,
@@ -128,9 +146,10 @@ fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let mut local_manifest = pnpm_workspace::safe_read_project_manifest_only(dep.dir)
-        .ok()
-        .flatten()
+    let mut local_manifest = check.workspace.manifests_by_dir
+        .get(&pnpm_fs::lexical_normalize(dep.dir))
+        .map(|manifest| (*manifest).clone())
+        .or_else(|| pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten())
         .or_else(|| workspace_manifest_for_unbuilt_publish_dir(dep))
         .ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {

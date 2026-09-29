@@ -8,9 +8,11 @@ use super::{
     },
     file_mtime, modified_at_or_after, mtime_ms,
 };
-use pnpm_lockfile::StalenessReason;
 use pnpm_modules_yaml::IncludedDependencies;
 use rayon::prelude::*;
+use settings_drift::check_settings_match_lockfile;
+
+mod settings_drift;
 
 /// One project manifest's stat outcome, paired with the inputs the
 /// content re-check needs.
@@ -78,21 +80,6 @@ pub(crate) fn modified_manifests_match_lockfile(
     Ok(loaded_current)
 }
 
-/// The reason a failed lockfile settings check reports. The patch-hash
-/// checks compare the lockfile against itself rather than against a setting,
-/// so they are named apart.
-fn settings_drift_reason(error: &crate::install::FreshnessCheckError) -> &'static str {
-    match error {
-        crate::install::FreshnessCheckError::Stale(StalenessReason::InconsistentPatchHashes) => {
-            r#"the lockfile has patch hashes that disagree with its own "patchedDependencies""#
-        }
-        crate::install::FreshnessCheckError::Stale(StalenessReason::UncheckablePatchHashes) => {
-            "the lockfile cannot be checked for stale patch hashes"
-        }
-        _ => "a lockfile setting drifted from the current configuration",
-    }
-}
-
 /// The full content check of the modified projects against the wanted
 /// lockfile, once its settings are known not to have drifted.
 pub(super) fn check_projects_content(
@@ -103,25 +90,7 @@ pub(super) fn check_projects_content(
 ) -> Result<(), &'static str> {
     let parsed_overrides = crate::install::parse_config_overrides(check.config, check.catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
-    if let Err(error) = crate::install::check_lockfile_settings_drift(
-        wanted,
-        check.config,
-        check.catalogs,
-        crate::install::CheckLockfileSettingsDriftOptions {
-            parsed_overrides: parsed_overrides.as_deref(),
-            // `pnpmfileChecksum` is not compared here: every caller already
-            // compared the pnpmfile list and trusted their contents by their
-            // mtimes (`pnpmfiles_drift`). The move proof refuses active
-            // pnpmfiles because their mtimes cannot prove content. Computing
-            // the checksum would cost a Node worker on the path that exists to avoid
-            // starting one.
-            pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
-            dedupe_peers,
-        },
-    ) {
-        tracing::debug!(target: "pacquet::install", %error, "repeat-install content check: lockfile settings drift");
-        return Err(settings_drift_reason(&error));
-    }
+    check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref(), dedupe_peers)?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
     let workspace_packages = crate::install::workspace_packages_for_freshness(
@@ -132,12 +101,18 @@ pub(super) fn check_projects_content(
     let ignored_optional_matcher = pnpm_matcher::create_matcher(
         check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
+    let project_manifests = crate::install::project_manifests_by_dir(
+        check.project_manifests.iter().map(|(_, manifest)| *manifest),
+    );
     let content_check = ProjectContentCheck {
         workspace_root: check.workspace_root,
         config: check.config,
         wanted,
         linked_ctx: &linked_ctx,
-        workspace_packages: workspace_packages.as_ref(),
+        workspace: crate::install::WorkspaceProjects {
+            packages: workspace_packages.as_ref(),
+            manifests_by_dir: &project_manifests,
+        },
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
     };
@@ -235,7 +210,7 @@ struct ProjectContentCheck<'a> {
     config: &'a Config,
     wanted: &'a Lockfile,
     linked_ctx: &'a LinkedPackagesContext<'a>,
-    workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    workspace: crate::install::WorkspaceProjects<'a>,
     ignored_optional_matcher: &'a pnpm_matcher::Matcher,
     parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
 }
@@ -253,7 +228,7 @@ fn project_content_check(
             manifest: project.manifest,
             importer_id: &importer_id,
             config: context.config,
-            workspace_packages: context.workspace_packages,
+            workspace: context.workspace,
             optional_exclusions: crate::install::OptionalDependencyExclusions {
                 ignored: context.ignored_optional_matcher,
                 allow_unresolved: false,
@@ -349,12 +324,17 @@ fn linked_dep_is_up_to_date(
     dep: &pnpm_lockfile::ResolvedDependencySpec,
     current_spec: &str,
 ) -> bool {
-    if ref_is_local_directory(&dep.specifier) || matches!(dep.version, ImporterDepVersion::File(_))
-    {
+    if ref_is_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
         // `packages:` entry — up to date by construction.
         return matches!(dep.version, ImporterDepVersion::Link(_));
+    }
+    if matches!(dep.version, ImporterDepVersion::File(_)) {
+        // An injected workspace project: a `file:` copy, not a link. Its own
+        // dependencies were compared with its snapshot by the directory
+        // freshness check `check_importer_satisfies` ran before this one.
+        return true;
     }
     let link_target = dep.version.as_link_target();
     let is_linked = link_target.is_some();
