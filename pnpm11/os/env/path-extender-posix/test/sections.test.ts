@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -6,6 +7,7 @@ import { describe, expect, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 
 import {
+  addDirToPosixEnvPath,
   type AddDirToPosixEnvPathOpts,
   findSection,
   replaceSection,
@@ -336,6 +338,47 @@ esac`)
 
       expect(result.changeType).toBe('skipped')
     } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  // cspell:ignore ZDOTDIR
+  test('sourcing the zsh block moves PNPM_HOME to the start of PATH (pnpm/pnpm#7799)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    const savedConfigDir = process.env.ZDOTDIR
+    const previousZshVersion = process.env.ZSH_VERSION
+    process.env.ZDOTDIR = dir
+    process.env.ZSH_VERSION = '5.9'
+    const pnpmBin = '/home/user/.local/share/pnpm/bin'
+    try {
+      const { newSettings } = await addDirToPosixEnvPath(path.dirname(pnpmBin), {
+        configSectionName: 'pnpm',
+        proxyVarName: 'PNPM_HOME',
+        proxyVarSubDir: 'bin',
+        position: 'start',
+      })
+      const cases = [
+        [`/usr/local/bin:${pnpmBin}:/usr/bin`, `${pnpmBin}:/usr/local/bin:${pnpmBin}:/usr/bin`],
+        [`${pnpmBin}:/usr/bin`, `${pnpmBin}:/usr/bin`],
+        ['/usr/bin', `${pnpmBin}:/usr/bin`],
+      ]
+      for (const [inherited, expected] of cases) {
+        const script = `PATH="${inherited}"\n${newSettings}\n${newSettings}\nprintf '%s' "$PATH"\n`
+        const result = spawnSync('sh', ['-c', script], { encoding: 'utf8' })
+        expect(result.stderr).toBe('')
+        expect(result.stdout).toBe(expected)
+      }
+    } finally {
+      if (savedConfigDir == null) {
+        delete process.env.ZDOTDIR
+      } else {
+        process.env.ZDOTDIR = savedConfigDir
+      }
+      if (previousZshVersion == null) {
+        delete process.env.ZSH_VERSION
+      } else {
+        process.env.ZSH_VERSION = previousZshVersion
+      }
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })
