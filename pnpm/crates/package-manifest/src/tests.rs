@@ -9,8 +9,9 @@ use super::{
     BINDING_GYP, BundleDependencies, InitAuthor, InitOptions, PackageManifest,
     PackageManifestError, apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
     convert_engines_runtime_to_dependencies, extract_license, files_build_triggers,
-    manifest_opts_out_of_gyp_build, manifest_requires_build, node_version_from_engines_runtime,
-    parse_manifest_bytes, pkg_requires_build, safe_read_package_json_from_dir,
+    is_markdown_readme_file_name, is_readme_file_name, manifest_opts_out_of_gyp_build,
+    manifest_requires_build, node_version_from_engines_runtime, parse_manifest_bytes,
+    pkg_requires_build, safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
@@ -24,6 +25,21 @@ fn manifest_from_json(value: serde_json::Value) -> (PackageManifest, tempfile::T
     let path = dir.path().join("package.json");
     std::fs::write(&path, value.to_string()).unwrap();
     (PackageManifest::from_path(path).unwrap(), dir)
+}
+
+#[test]
+fn recognizes_npm_readme_file_names() {
+    for name in ["README", "README.md", "readme.markdown", "README.mdown", "README.a", "README."] {
+        assert!(is_readme_file_name(name), "{name}");
+    }
+    for name in ["readme", "README.txt", "README.md.bak", "NOTREADME.md", "README.am", "README.aa"]
+    {
+        assert!(!is_readme_file_name(name), "{name}");
+    }
+    assert!(!is_markdown_readme_file_name("README"));
+    for name in ["README.md", "readme.markdown", "README.mdown", "README.a", "README."] {
+        assert!(is_markdown_readme_file_name(name), "{name}");
+    }
 }
 
 mod behavior;

@@ -60,6 +60,34 @@ pub enum BundleDependencies {
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
 
+/// Whether a filename has a README extension accepted by npm.
+///
+/// npm's `package-json` uses the optional-letter pattern
+/// `/.m?a?r?k?d?o?w?n?$/i` for `README.*` candidates.
+/// Suffix letters must occur in `markdown` order without repeats.
+#[must_use]
+pub fn is_markdown_readme_file_name(file_name: &str) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    let Some(rest) = lower.strip_prefix("readme.") else {
+        return false;
+    };
+    let extension = rest
+        .rsplit('.')
+        .next()
+        .unwrap_or_default();
+    let mut markdown = "markdown".chars();
+    extension
+        .chars()
+        .all(|character| markdown.any(|expected| expected == character))
+}
+
+/// Whether a filename is a bare `README` or a README with an npm-compatible Markdown extension.
+/// npm's case-sensitive bare fallback accepts only exact `README`.
+#[must_use]
+pub fn is_readme_file_name(file_name: &str) -> bool {
+    file_name == "README" || is_markdown_readme_file_name(file_name)
+}
+
 /// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.
 /// JSON5 numbers must be finite and values may be nested at most 128 levels.
 ///

@@ -294,8 +294,29 @@ fn publish_config_is_removed_when_emptied() {
 
 #[test]
 fn readme_is_embedded_when_requested() {
+    for readme_file_name in ["README.md", "README", "readme.markdown"] {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join(readme_file_name), "# Hello").unwrap();
+        let catalogs = empty_catalogs();
+        let opts = CreateExportableManifestOptions {
+            catalogs: &catalogs,
+            workspace_dir: None,
+            modules_dir: None,
+            skip_manifest_obfuscation: false,
+            embed_readme: true,
+            workspace_packages: None,
+        };
+        let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+        assert_eq!(out["readme"], json!("# Hello"), "{readme_file_name}");
+    }
+}
+
+#[test]
+fn readme_md_is_preferred_over_other_readme_candidates() {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+    fs::write(dir.path().join("README.md"), "# Preferred").unwrap();
+    fs::write(dir.path().join("readme.markdown"), "# Markdown").unwrap();
+    fs::write(dir.path().join("README"), "# Bare").unwrap();
     let catalogs = empty_catalogs();
     let opts = CreateExportableManifestOptions {
         catalogs: &catalogs,
@@ -306,7 +327,43 @@ fn readme_is_embedded_when_requested() {
         workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
-    assert_eq!(out["readme"], json!("# Hello"));
+    assert_eq!(out["readme"], json!("# Preferred"));
+}
+
+#[test]
+fn readme_md_is_preferred_over_bare_readme() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("README.md"), "# Preferred").unwrap();
+    fs::write(dir.path().join("README"), "# Bare").unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+        workspace_packages: None,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert_eq!(out["readme"], json!("# Preferred"));
+}
+
+#[test]
+fn markdown_readme_is_preferred_over_bare_readme() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("README"), "# Bare").unwrap();
+    fs::write(dir.path().join("readme.markdown"), "# Markdown").unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+        workspace_packages: None,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert_eq!(out["readme"], json!("# Markdown"));
 }
 
 #[test]

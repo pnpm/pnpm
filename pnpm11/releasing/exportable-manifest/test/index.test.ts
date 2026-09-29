@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { preparePackages } from '@pnpm/prepare'
-import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, isReadmeFileName, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -168,20 +168,83 @@ test('the original publishConfig is not mutated', async () => {
   })
 })
 
-test('readme added to published manifest', async () => {
-  await withTempProjectReadme('readme content', async (projectDir) => {
-    expect(await createExportableManifest(projectDir, {
+test.each(['README.md', 'README', 'readme.markdown'])(
+  'readme added to published manifest from %s',
+  async (readmeFileName) => {
+    await withTempProjectReadme('readme content', async (projectDir) => {
+      expect(await createExportableManifest(projectDir, {
+        name: 'foo',
+        version: '1.0.0',
+      }, {
+        ...defaultOpts,
+        embedReadme: true,
+      })).toStrictEqual({
+        name: 'foo',
+        version: '1.0.0',
+        readme: 'readme content',
+      })
+    }, readmeFileName)
+  }
+)
+
+test.each(['README', 'README.md', 'README.markdown', 'README.mdown', 'README.a', 'README.'])(
+  'recognizes npm README filename %s',
+  (name) => {
+    expect(isReadmeFileName(name)).toBe(true)
+  }
+)
+
+// cspell:disable-next-line
+test.each(['readme', 'README.txt', 'README.md.bak', 'NOTREADME.md', 'README.am', 'README.aa'])(
+  'rejects non-README filename %s',
+  (name) => {
+    expect(isReadmeFileName(name)).toBe(false)
+  }
+)
+
+test('README.md is preferred over other README candidates', async () => {
+  await withTempProjectReadme('preferred', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'readme.markdown'), 'markdown fallback', 'utf8')
+    await fs.promises.writeFile(path.join(projectDir, 'README'), 'bare fallback', 'utf8')
+
+    const manifest = await createExportableManifest(projectDir, {
       name: 'foo',
       version: '1.0.0',
     }, {
       ...defaultOpts,
       embedReadme: true,
-    })).toStrictEqual({
+    })
+    expect(manifest.readme).toBe('preferred')
+  })
+})
+
+test('README.md is preferred over bare README', async () => {
+  await withTempProjectReadme('preferred', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'README'), 'bare fallback', 'utf8')
+    const manifest = await createExportableManifest(projectDir, {
       name: 'foo',
       version: '1.0.0',
-      readme: 'readme content',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
     })
+    expect(manifest.readme).toBe('preferred')
   })
+})
+
+test('a Markdown README is preferred over bare README', async () => {
+  await withTempProjectReadme('bare fallback', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'readme.markdown'), 'markdown fallback', 'utf8')
+
+    const manifest = await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })
+    expect(manifest.readme).toBe('markdown fallback')
+  }, 'README')
 })
 
 ;(process.platform === 'win32' ? test.skip : test)('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
@@ -208,10 +271,14 @@ test('readme added to published manifest', async () => {
   }
 })
 
-async function withTempProjectReadme<T> (readmeContent: string, fn: (projectDir: string) => Promise<T>): Promise<T> {
+async function withTempProjectReadme<T> (
+  readmeContent: string,
+  fn: (projectDir: string) => Promise<T>,
+  readmeFileName = 'README.md'
+): Promise<T> {
   const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
   try {
-    await fs.promises.writeFile(path.join(projectDir, 'README.md'), readmeContent, 'utf8')
+    await fs.promises.writeFile(path.join(projectDir, readmeFileName), readmeContent, 'utf8')
     return await fn(projectDir)
   } finally {
     await fs.promises.rm(projectDir, { recursive: true, force: true })

@@ -41,6 +41,7 @@ use pnpm_catalogs_resolver::{
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
+use pnpm_package_manifest::is_markdown_readme_file_name;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
 use std::{collections::HashMap, fs, io, path::Path};
@@ -95,9 +96,9 @@ pub struct CreateExportableManifestOptions<'a> {
     /// Keep `packageManager` and publish-lifecycle scripts in the
     /// packed manifest; only the `pnpm` field is stripped.
     pub skip_manifest_obfuscation: bool,
-    /// Embed the project's `README.md` into the manifest's `readme`
-    /// field when one is present and the manifest doesn't already
-    /// declare `readme`.
+    /// Embed the project's README into the manifest's `readme` field
+    /// when one is present and the manifest doesn't already declare
+    /// `readme`.
     pub embed_readme: bool,
     /// Workspace packages lookup used when a dependency is not in `node_modules`.
     pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
@@ -335,24 +336,32 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
     }
 }
 
-/// Read a root `README.md` (case-insensitive) for embedding. Only a
-/// regular file is embedded — a symlink is skipped so it can't leak
-/// the contents of a target outside the project.
+/// Read a root README accepted by npm for embedding. Only a regular
+/// file is embedded — a symlink is skipped so it can't leak the
+/// contents of a target outside the project.
 pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
+    let mut markdown_fallback = None;
+    let mut bare_fallback = None;
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {
             continue;
         }
-        if entry
-            .file_name()
-            .to_string_lossy()
-            .eq_ignore_ascii_case("readme.md")
-        {
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        if file_name.eq_ignore_ascii_case("readme.md") {
             return read_regular_file(&entry.path());
         }
+        if is_markdown_readme_file_name(file_name.as_ref()) {
+            markdown_fallback.get_or_insert_with(|| entry.path());
+        } else if file_name == "README" {
+            bare_fallback.get_or_insert_with(|| entry.path());
+        }
     }
-    Ok(None)
+    match markdown_fallback.or(bare_fallback) {
+        Some(path) => read_regular_file(&path),
+        None => Ok(None),
+    }
 }
 
 /// Read a file, refusing to follow a symlink at the final path component so a

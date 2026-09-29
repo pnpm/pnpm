@@ -16,6 +16,18 @@ import { type ExportedManifest, transform } from './transform/index.js'
 
 export { type ExportedManifest }
 
+// npm's case-sensitive bare fallback accepts only exact `README`.
+const README_FILE_NAME_PATTERN = /^README$/
+const README_MARKDOWN_EXTENSION_PATTERN = /\.m?a?r?k?d?o?w?n?$/i
+
+export function isMarkdownReadmeFileName (fileName: string): boolean {
+  return /^readme\./i.test(fileName) && README_MARKDOWN_EXTENSION_PATTERN.test(fileName)
+}
+
+export function isReadmeFileName (fileName: string): boolean {
+  return README_FILE_NAME_PATTERN.test(fileName) || isMarkdownReadmeFileName(fileName)
+}
+
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
   'prepack',
@@ -99,16 +111,18 @@ export async function createExportableManifest (
 }
 
 // `O_NOFOLLOW` makes the open itself refuse a symlink at the final path component, closing the
-// TOCTOU window between the `readdir` type check and the read: a symlink swapped in for README.md
-// after the check can't redirect the read outside the project and leak its target into the
-// published manifest. Windows lacks the flag (and requires privileges to create symlinks), so it
-// falls back to a plain read.
+// TOCTOU window between the `readdir` type check and the read: a symlink swapped in for the
+// selected README after the check can't redirect the read outside the project and leak its target
+// into the published manifest. Windows lacks the flag (and requires privileges to create symlinks),
+// so it falls back to a plain read.
 const README_READ_FLAGS = fs.constants.O_RDONLY | (process.platform === 'win32' ? 0 : fs.constants.O_NOFOLLOW)
 
 export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
   const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
-  // Only embed a regular README.md file — a symlink is skipped (see README_READ_FLAGS).
-  const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
+  const readmeEntry =
+    entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name)) ??
+    entries.find((entry) => entry.isFile() && isMarkdownReadmeFileName(entry.name)) ??
+    entries.find((entry) => entry.isFile() && README_FILE_NAME_PATTERN.test(entry.name))
   if (readmeEntry == null) return undefined
   let handle: fs.promises.FileHandle | undefined
   try {
