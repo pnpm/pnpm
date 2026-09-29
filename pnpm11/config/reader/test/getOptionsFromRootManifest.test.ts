@@ -330,6 +330,52 @@ test('getOptionsFromPnpmSettings() rejects string patchedDependencies', () => {
   }))
 })
 
+test('getOptionsFromPnpmSettings() rejects non-string allowedDeprecatedVersions values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowedDeprecatedVersions: {
+      foo: null,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_ALLOWED_DEPRECATED_VERSIONS',
+    message: 'The value of allowedDeprecatedVersions.foo should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects array allowedDeprecatedVersions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowedDeprecatedVersions: [] as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_ALLOWED_DEPRECATED_VERSIONS',
+    message: 'The allowedDeprecatedVersions field should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects null allowedDeprecatedVersions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowedDeprecatedVersions: null as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_ALLOWED_DEPRECATED_VERSIONS',
+    message: 'The allowedDeprecatedVersions field should be an object, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects string allowedDeprecatedVersions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowedDeprecatedVersions: 'foo' as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_ALLOWED_DEPRECATED_VERSIONS',
+    message: 'The allowedDeprecatedVersions field should be an object, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid allowedDeprecatedVersions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowedDeprecatedVersions: {
+      foo: '1.0.0',
+    },
+  })).not.toThrow()
+})
+
 test('getOptionsFromPnpmSettings() accepts nodeDownloadMirrors with string values', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     nodeDownloadMirrors: {

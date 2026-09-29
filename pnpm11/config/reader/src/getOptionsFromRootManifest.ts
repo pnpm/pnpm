@@ -110,6 +110,9 @@ export function getOptionsFromPnpmSettings (
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+  if (settings.allowedDeprecatedVersions !== undefined) {
+    assertValidAllowedDeprecatedVersions(settings.allowedDeprecatedVersions)
+  }
   if (pnpmSettings.nodeDownloadMirrors != null) {
     assertStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
   }
@@ -600,6 +603,17 @@ function assertValidPatchedDependencies (patchedDependencies: unknown): asserts 
   for (const [dep, patchFile] of Object.entries(patchedDependencies)) {
     if (typeof patchFile !== 'string') {
       throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The value of patchedDependencies.${dep} should be a string, but got ${renderReceivedType(patchFile)}`)
+    }
+  }
+}
+
+function assertValidAllowedDeprecatedVersions (allowedDeprecatedVersions: unknown): asserts allowedDeprecatedVersions is Record<string, string> {
+  if (allowedDeprecatedVersions == null || typeof allowedDeprecatedVersions !== 'object' || Array.isArray(allowedDeprecatedVersions)) {
+    throw new PnpmError('INVALID_ALLOWED_DEPRECATED_VERSIONS', `The allowedDeprecatedVersions field should be an object, but got ${renderReceivedType(allowedDeprecatedVersions)}`)
+  }
+  for (const [pkg, version] of Object.entries(allowedDeprecatedVersions)) {
+    if (typeof version !== 'string') {
+      throw new PnpmError('INVALID_ALLOWED_DEPRECATED_VERSIONS', `The value of allowedDeprecatedVersions.${pkg} should be a string, but got ${renderReceivedType(version)}`)
     }
   }
 }
