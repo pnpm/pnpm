@@ -170,13 +170,16 @@ fn a_group_holding_only_zombies_is_not_running() {
     assert!(!running, "only zombies are left in the group");
 }
 
-/// A command may hold `)` and, cut short in the middle of a character,
-/// bytes that are not UTF-8. Neither hides a live member.
+/// A command may hold `)` followed by what reads as the fields of a zombie
+/// of the group, and, cut short in the middle of a character, bytes that
+/// are not UTF-8. Neither hides a live member.
 #[test]
 fn a_live_member_keeps_the_group_running() {
     let mut leader = spawn_group_leader();
     let group = group_of(&leader);
-    let table = process_table(&[(group, b"node) Z 1 0 0 (\xE3\x81", b'S', group)]);
+    let mut command = format!("node) Z 1 {group} {group} (").into_bytes();
+    command.extend_from_slice(b"\xE3\x81");
+    let table = process_table(&[(group, &command, b'S', group)]);
 
     let running = group_is_running(group, Some(table.path()));
 
@@ -187,12 +190,12 @@ fn a_live_member_keeps_the_group_running() {
 
 /// A process whose `stat` cannot be read, as another user's under
 /// `hidepid=1`, may still be running, so it counts while the kernel has it
-/// in the group.
+/// in the group, even next to a zombie of the group.
 #[test]
 fn a_member_whose_stat_cannot_be_read_keeps_the_group_running() {
     let mut leader = spawn_group_leader();
     let group = group_of(&leader);
-    let table = process_table(&[]);
+    let table = process_table(&[(group + 1, b"sh", b'Z', group)]);
     let unreadable = group.to_string();
     fs::create_dir(table.path().join(unreadable)).expect("list the leader without its stat");
 
@@ -211,6 +214,22 @@ fn a_process_table_that_cannot_be_listed_leaves_the_group_running() {
     let root = tempfile::tempdir().expect("create a directory");
 
     let running = group_is_running(group_of(&leader), Some(&root.path().join("proc")));
+
+    let _ = leader.kill();
+    let _ = leader.wait();
+    assert!(running, "the kernel still counts the group's leader");
+}
+
+/// A process that `hidepid=invisible` hides, as another user's, is not
+/// listed at all, so a table that shows no member of the group cannot tell
+/// such a process from none.
+#[test]
+fn a_process_table_that_shows_no_member_leaves_the_group_running() {
+    let mut leader = spawn_group_leader();
+    let group = group_of(&leader);
+    let table = process_table(&[(group + 1, b"sh", b'S', group + 1)]);
+
+    let running = group_is_running(group, Some(table.path()));
 
     let _ = leader.kill();
     let _ = leader.wait();

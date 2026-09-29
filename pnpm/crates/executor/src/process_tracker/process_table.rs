@@ -4,13 +4,11 @@
 
 use std::{fs, io, path::Path, process};
 
-/// Whether `table` lists a process of the group led by `leader` that has
-/// not exited, or cannot rule one out because it cannot be listed to the
-/// end or is not the table of pnpm's own pid namespace.
-///
-/// A process whose `stat` cannot be read, as another user's under
-/// `hidepid=1`, counts as running while the kernel still has it in the
-/// group, since nothing shows that it has exited.
+/// Whether the group led by `leader` may still hold a process that has not
+/// exited. Only a `table` that shows members of the group, all of them
+/// zombies, rules that out. One that cannot be listed to the end, is not
+/// the table of pnpm's own pid namespace, or shows no member at all, as
+/// when `hidepid=invisible` hides them, cannot.
 pub(super) fn has_running_member(table: &Path, leader: i32) -> bool {
     let Ok(mut pids) = process_ids(table) else { return true };
     if !is_own_namespace(table) {
@@ -19,9 +17,12 @@ pub(super) fn has_running_member(table: &Path, leader: i32) -> bool {
     // The script and whatever it started hold the newest ids, so a member
     // that is still running turns up within the first few reads.
     pids.sort_unstable();
-    pids.into_iter()
+    let mut members = pids
+        .into_iter()
         .rev()
-        .any(|pid| is_running_member(table, pid, leader))
+        .filter_map(|pid| member_is_running(table, pid, leader))
+        .peekable();
+    members.peek().is_none() || members.any(|running| running)
 }
 
 fn process_ids(table: &Path) -> io::Result<Vec<u32>> {
@@ -43,11 +44,16 @@ fn is_own_namespace(table: &Path) -> bool {
     fs::read_link(table.join("self")).is_ok_and(|id| id == Path::new(&process::id().to_string()))
 }
 
-fn is_running_member(table: &Path, pid: u32, leader: i32) -> bool {
+/// Whether the process `pid` is running, if it belongs to the group led by
+/// `leader`. A process whose `stat` cannot be read, as another user's under
+/// `hidepid=1`, counts as running while the kernel still has it in the
+/// group, since nothing shows that it has exited.
+fn member_is_running(table: &Path, pid: u32, leader: i32) -> Option<bool> {
     let Ok(stat) = fs::read(table.join(pid.to_string()).join("stat")) else {
-        return is_in_group(pid, leader);
+        return is_in_group(pid, leader).then_some(true);
     };
-    state_and_group(&stat).is_some_and(|(state, group)| state != b'Z' && group == leader)
+    let (state, group) = state_and_group(&stat)?;
+    (group == leader).then_some(state != b'Z')
 }
 
 fn is_in_group(pid: u32, leader: i32) -> bool {
