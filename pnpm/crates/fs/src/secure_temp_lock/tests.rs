@@ -20,14 +20,23 @@ fn android_lock_root_uses_home_when_available() {
 }
 
 #[test]
-fn xdg_runtime_dir_is_used_only_when_absolute() {
+fn xdg_runtime_dir_is_used_only_when_an_owned_absolute_directory() {
+    let owned = tempfile::tempdir().unwrap();
+    assert_eq!(xdg_runtime_dir(Some(owned.path().into())), Some(owned.path().to_path_buf()));
     assert_eq!(xdg_runtime_dir(None), None);
     assert_eq!(xdg_runtime_dir(Some(std::ffi::OsString::new())), None);
-    assert_eq!(xdg_runtime_dir(Some(std::ffi::OsString::from("run/user/1000"))), None);
-    assert_eq!(
-        xdg_runtime_dir(Some(std::ffi::OsString::from("/run/user/1000"))),
-        Some(std::path::PathBuf::from("/run/user/1000")),
-    );
+    assert!(std::path::Path::new(".").is_dir());
+    assert_eq!(xdg_runtime_dir(Some(".".into())), None);
+    assert_eq!(xdg_runtime_dir(Some(owned.path().join("missing").into())), None);
+}
+
+#[test]
+fn xdg_runtime_dir_owned_by_another_user_is_ignored() {
+    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    assert_eq!(xdg_runtime_dir(Some("/".into())), None);
 }
 
 #[cfg(unix)]

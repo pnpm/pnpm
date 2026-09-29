@@ -519,6 +519,7 @@ fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
     let CommandTempCwd { pacquet, workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let runtime_dir = workspace.join("runtime");
+    fs::create_dir(&runtime_dir).expect("create XDG_RUNTIME_DIR");
 
     pacquet
         .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])

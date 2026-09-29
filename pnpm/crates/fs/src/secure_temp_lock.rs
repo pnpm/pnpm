@@ -15,9 +15,9 @@ pub fn secure_temp_lock_dir(name: &str) -> io::Result<PathBuf> {
 /// not vary with per-process temporary-directory settings.
 ///
 /// On Unix the location is `$XDG_RUNTIME_DIR` when it holds an absolute
-/// path, the per-user runtime directory the XDG Base Directory spec defines
-/// for locks, and `/tmp` otherwise. Processes coordinate only while they
-/// agree on it.
+/// path to a directory the current user owns, the per-user runtime directory
+/// the XDG Base Directory spec defines for locks, and `/tmp` otherwise.
+/// Processes coordinate only while they agree on it.
 pub fn secure_user_lock_dir(name: &str) -> io::Result<PathBuf> {
     secure_lock_dir(user_lock_root()?, name)
 }
@@ -50,10 +50,18 @@ fn user_lock_root() -> io::Result<PathBuf> {
 }
 
 /// The XDG Base Directory spec tells applications to ignore a relative
-/// `XDG_RUNTIME_DIR`.
+/// `XDG_RUNTIME_DIR`. One owned by another user is inherited through `su`
+/// or `sudo --preserve-env`, and this user cannot create locks in it.
 #[cfg(unix)]
 fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
-    value.map(PathBuf::from).filter(|path| path.is_absolute())
+    use std::os::unix::fs::MetadataExt as _;
+
+    let path = PathBuf::from(value?);
+    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
+    let effective_user = unsafe { libc::geteuid() };
+    let owned = fs::metadata(&path)
+        .is_ok_and(|metadata| metadata.is_dir() && metadata.uid() == effective_user);
+    (path.is_absolute() && owned).then_some(path)
 }
 
 #[cfg(any(target_os = "android", all(test, unix)))]
