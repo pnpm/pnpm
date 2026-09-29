@@ -186,6 +186,15 @@ pub(super) fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> boo
     fs::metadata(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
         .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
 }
+/// The wanted lockfile's counterpart of
+/// [`current_lockfile_file_has_content`]. An install asked to freeze still
+/// re-resolves when `pnpm-lock.yaml` is absent or empty, the way
+/// `InstallArgs::resolve_frozen_lockfile` decides it, so a caller reasoning
+/// about whether an install can re-resolve has to know this.
+pub(super) fn wanted_lockfile_file_has_content(workspace_root: &Path, config: &Config) -> bool {
+    fs::metadata(workspace_root.join(config.wanted_lockfile_name()))
+        .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+}
 /// Project count + per-project (key, name, version) match between the
 /// cached state and today's walk. The key is the project's root dir;
 /// `build_workspace_state` and pnpm both use it as the map key, so a
