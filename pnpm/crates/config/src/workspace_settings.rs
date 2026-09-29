@@ -1,7 +1,8 @@
 use super::{
     Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, Path, PathBuf, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    collect_explicit_settings, fs, note_declared_registries, resolve_configured_state_dir,
+    collect_explicit_settings, default_pnpm_home_dir, fs, note_declared_registries,
+    resolve_configured_state_dir,
 };
 
 impl Config {
@@ -108,6 +109,17 @@ impl Config {
         // clones it. `tools` therefore comes from the global `config.yaml`
         // and `PNPM_CONFIG_TOOLS` only.
         settings.tools = None;
+        // A shim decides which program a global command runs, so a
+        // repository that named one would be choosing which binary runs in
+        // place of the user's globally installed one. `globalShims`
+        // therefore comes from the global `config.yaml`, a
+        // `pnpm-workspace.yaml` in the pnpm home itself, and
+        // `PNPM_CONFIG_GLOBAL_SHIMS` only. A global command anchors its
+        // config at the pnpm home, so that manifest is trusted here and
+        // only a project's own is dropped.
+        if default_pnpm_home_dir::<Sys>().as_deref() != Some(base_dir) {
+            settings.global_shims = None;
+        }
         // Noted rather than assigned, so an `enableGlobalVirtualStore` /
         // `virtualStoreDir` set in the global `config.yaml` still counts as
         // "explicitly set" when the workspace yaml leaves it unset.
