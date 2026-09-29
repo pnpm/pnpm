@@ -447,6 +447,29 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
   })
 
+  // The bash 3.2 that macOS ships as sh answers command -p -v from PATH, so a
+  // caller's PATH without the helpers must still leave them to the default
+  // path. No test host runs that bash, so the shim's command -p -v is rewritten
+  // to the command -v it amounts to there.
+  test('keeps the default path helpers when command -p -v searches PATH', async () => {
+    const tempDir = temporaryDirectory()
+    const binDir = await makeShimmedTool(tempDir)
+    const shim = path.join(binDir, 'tsc')
+    const body = fs.readFileSync(shim, 'utf8')
+    assert.ok(body.includes('command -p -v '), 'precondition: the shim probes the default path')
+    writeExecutable(shim, body.replaceAll('command -p -v ', 'command -v '))
+    const nodeDir = path.join(tempDir, 'node-only')
+    fs.mkdirSync(nodeDir)
+    fs.symlinkSync(process.execPath, path.join(nodeDir, 'node'))
+
+    const r = spawnSync(path.join(binDir, 'tsc-link'), [], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PATH: nodeDir },
+    })
+    assert.equal(r.stdout.trim(), 'tsc-output', r.stderr)
+  })
+
   // The default path command -p searches can lack the helpers, as inside a Nix
   // build sandbox. No test host is set up that way, so each command -p in the
   // shim is rewritten to a command that searches a directory that does not exist.

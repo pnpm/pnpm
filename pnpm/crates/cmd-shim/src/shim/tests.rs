@@ -1089,6 +1089,40 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_the_default_
     );
 }
 
+/// The bash 3.2 that macOS ships as `sh` answers `command -p -v` from `PATH`,
+/// so a caller's `PATH` without the helpers must still leave them to the
+/// default path. No test host runs that bash, so the shim's `command -p -v` is
+/// rewritten to the `command -v` it amounts to there.
+#[cfg(unix)]
+#[test]
+fn shim_execution_keeps_the_default_path_helpers_when_command_p_v_searches_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let bin_dir = plant_shimmed_tool(tmp.path());
+    let shim = bin_dir.join("tsc");
+    let body = std::fs::read_to_string(&shim).unwrap();
+    assert!(body.contains("command -p -v "), "precondition: the shim probes the default path");
+    write_executable(&shim, &body.replace("command -p -v ", "command -v "));
+    let node_dir = tmp.path().join("node-only");
+    std::fs::create_dir_all(&node_dir).unwrap();
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+        .map(|dir| dir.join("node"))
+        .find(|node| node.is_file())
+        .expect("node on PATH");
+    std::os::unix::fs::symlink(node, node_dir.join("node")).unwrap();
+
+    let output = std::process::Command::new(bin_dir.join("tsc-link"))
+        .env("PATH", &node_dir)
+        .output()
+        .expect("run the shim");
+
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end(),
+        "tsc-output",
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
 /// A shim generated on Windows runs under both MSYS/Cygwin and WSL, which
 /// read different path forms, so the install shell must not pick one. MSYS
 /// moves a `/mnt/c/...` value under its own install directory before the
