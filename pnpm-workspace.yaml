@@ -54,6 +54,7 @@ packages:
   - pnpm/npm/napi
   - pnpm/npm/pnpm
   - pnpm/tasks/registry-mock
+  - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpr/npm/pnpr
   - '!**/example/**'
   - '!**/test/**'
@@ -282,6 +283,7 @@ catalog:
   '@types/zkochan__table': npm:@types/table@6.3.2
   '@typescript-eslint/utils': ^8.70.1
   '@typescript/native-preview': 7.0.0-dev.20260707.2
+  '@webcontainer/api': ^1.6.4
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
   '@yarnpkg/fslib': ^3.1.5
@@ -421,6 +423,7 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^3.0.0
   pidtree: ^1.0.0
+  playwright-core: ^1.63.0
   preferred-pm: ^5.0.1
   pretty-bytes: ^7.2.0
   pretty-ms: ^9.3.1
