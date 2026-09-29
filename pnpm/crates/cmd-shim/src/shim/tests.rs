@@ -126,7 +126,7 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
 exe=""
 msys=""
 
-case `command -p uname -a` in"#
+case `run_helper uname -a` in"#
         ),
         "header must track a Windows-form basedir for WSL2/Cygwin, body was:\n{body}",
     );
@@ -134,9 +134,9 @@ case `command -p uname -a` in"#
     // `shim_execution_ignores_helpers_from_the_callers_path` can only decoy the
     // helpers outside the platform branch. This is what pins the rest.
     for helper in [
-        "command -p readlink",
-        "command -p sed",
-        "command -p uname",
+        "run_helper readlink",
+        "run_helper sed",
+        "run_helper uname",
         "command -p cygpath",
         "command -p wslpath",
     ] {
@@ -146,7 +146,7 @@ case `command -p uname -a` in"#
     // POSIX echo processes `\n` / `\t` before sed can convert the backslashes.
     assert!(
         body.contains(
-            r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#
+            r#"basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')"#
         ),
         "header must print $link with printf so a Windows-form path keeps its backslashes, body was:\n{body}",
     );
@@ -201,9 +201,18 @@ fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
         .find(|line| line.starts_with("basedir=$("))
         .expect("header must assign basedir from the shim path");
     assert_eq!(conversion, SH_SHIM_PATH_PRINTF_LINE);
+    let run_helper = body
+        .find("run_helper() {\n")
+        .and_then(|start| {
+            body[start..]
+                .find("\n}\n")
+                .map(|end| &body[start..start + end + 3])
+        })
+        .expect("header must define run_helper");
 
-    let script =
-        format!("link='C:\\node_modules\\.bin\\tsc'\n{conversion}\nprintf '%s' \"$basedir\"");
+    let script = format!(
+        "{run_helper}link='C:\\node_modules\\.bin\\tsc'\n{conversion}\nprintf '%s' \"$basedir\"",
+    );
     let output = std::process::Command::new("/bin/sh")
         .arg("-c")
         .arg(&script)
@@ -945,13 +954,13 @@ fn run_platform_branch(
     system_converter: &Path,
     callers_path: &Path,
 ) -> (String, String) {
-    const CASE_HEAD: &str = "case `command -p uname -a` in";
+    const CASE_HEAD: &str = "case `run_helper uname -a` in";
     let start = body.find(CASE_HEAD).expect("the header must select a platform");
     let end = start
         + body[start..].find("\nesac\n").expect("the platform branch must close")
         + "\nesac\n".len();
     let branch = body[start..end]
-        .replace("`command -p uname -a`", r#""$fake_uname""#)
+        .replace("`run_helper uname -a`", r#""$fake_uname""#)
         .replace("command -p cygpath", r#""$system_converter""#)
         .replace("command -p wslpath", r#""$system_converter""#);
     let script = format!(
@@ -1014,17 +1023,18 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
     assert_eq!(status.code(), None);
 }
 
-/// Where no default path is compiled in, as on Nix, `command -p` searches the
-/// caller's `PATH`. No test host behaves that way, so the shim's `command -p` is
-/// rewritten to the plain `command` such a shell amounts to.
+/// The default path `command -p` searches can lack the helpers, as inside a Nix
+/// build sandbox. No test host is set up that way, so each `command -p` in the
+/// shim is rewritten to a `command` that searches a directory that does not exist.
 #[cfg(unix)]
 #[test]
-fn shim_execution_skips_node_modules_and_relative_path_entries_when_command_p_searches_path() {
+fn shim_execution_skips_node_modules_and_relative_path_entries_when_the_default_path_lacks_the_helpers()
+ {
     let tmp = tempfile::tempdir().unwrap();
     let bin_dir = plant_shimmed_tool(tmp.path());
     let shim = bin_dir.join("tsc");
     let body = std::fs::read_to_string(&shim).unwrap();
-    write_executable(&shim, &body.replace("command -p ", "command "));
+    write_executable(&shim, &body.replace("command -p ", "PATH=/nonexistent command "));
     let decoy_dir = plant_hijack_tree_and_decoys(tmp.path());
     let callers_path = std::env::var("PATH").unwrap_or_default();
     let run = |path: String, cwd: &Path| {
