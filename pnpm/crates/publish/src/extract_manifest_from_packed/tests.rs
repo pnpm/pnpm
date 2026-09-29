@@ -258,17 +258,32 @@ fn publish_manifest_keeps_a_readme_already_in_the_manifest() {
 }
 
 #[test]
-fn publish_manifest_skips_fallback_readme_when_manifest_has_readme() {
+fn publish_manifest_replaces_invalid_utf8_in_the_readme() {
     let dir = TempDir::new().unwrap();
     let path = write_tarball_bytes(
         &dir,
         &[
-            ("package/package.json", br#"{"name":"foo","version":"1.0.0","readme":"embedded"}"#),
-            ("package/README", b"\xff"),
+            ("package/package.json", br#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README", b"text\xff"),
         ],
     );
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
-    assert_eq!(manifest["readme"], "embedded");
+    assert_eq!(manifest["readme"], "text\u{FFFD}");
+}
+
+#[test]
+fn publish_manifest_picks_the_lowest_name_among_markdown_readmes() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/README.mdown", "# Mdown"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.markdown", "# Markdown"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Markdown");
 }
 
 #[test]

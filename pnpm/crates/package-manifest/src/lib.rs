@@ -60,32 +60,56 @@ pub enum BundleDependencies {
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
 
-/// Whether a filename has a README extension accepted by npm.
-///
-/// npm's `package-json` uses the optional-letter pattern
-/// `/.m?a?r?k?d?o?w?n?$/i` for `README.*` candidates.
-/// Suffix letters must occur in `markdown` order without repeats.
+/// How npm ranks a package-root file as the package's README. A higher
+/// variant wins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReadmeKind {
+    /// Exactly `README`. npm matches the bare name case-sensitively.
+    Bare,
+    /// `README.*` whose extension npm's `/.m?a?r?k?d?o?w?n?$/i` accepts,
+    /// other than `README.md`.
+    Markdown,
+    /// `README.md` in any case.
+    ReadmeMd,
+}
+
+/// Classify a filename as a README candidate, or `None` if npm would not
+/// use it as the package's README.
 #[must_use]
-pub fn is_markdown_readme_file_name(file_name: &str) -> bool {
+pub fn readme_kind(file_name: &str) -> Option<ReadmeKind> {
     let lower = file_name.to_ascii_lowercase();
-    let Some(rest) = lower.strip_prefix("readme.") else {
-        return false;
-    };
-    let extension = rest
+    if lower == "readme.md" {
+        return Some(ReadmeKind::ReadmeMd);
+    }
+    if file_name == "README" {
+        return Some(ReadmeKind::Bare);
+    }
+    let extension = lower
+        .strip_prefix("readme.")?
         .rsplit('.')
         .next()
         .unwrap_or_default();
+    // Suffix letters must occur in `markdown` order without repeats.
     let mut markdown = "markdown".chars();
     extension
         .chars()
         .all(|character| markdown.any(|expected| expected == character))
+        .then_some(ReadmeKind::Markdown)
 }
 
-/// Whether a filename is a bare `README` or a README with an npm-compatible Markdown extension.
-/// npm's case-sensitive bare fallback accepts only exact `README`.
+/// Whether README `candidate` should replace the `current` selection. A
+/// higher [`ReadmeKind`] wins. Equal kinds keep the lower filename, so the
+/// choice does not depend on directory or archive order, and an equal
+/// filename replaces, so the last duplicate archive entry wins as it would
+/// on extraction.
 #[must_use]
-pub fn is_readme_file_name(file_name: &str) -> bool {
-    file_name == "README" || is_markdown_readme_file_name(file_name)
+pub fn is_preferred_readme(
+    candidate: (ReadmeKind, &str),
+    current: Option<(ReadmeKind, &str)>,
+) -> bool {
+    current.is_none_or(|current| {
+        (candidate.0, std::cmp::Reverse(candidate.1)) >= (current.0, std::cmp::Reverse(current.1))
+    })
 }
 
 /// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.

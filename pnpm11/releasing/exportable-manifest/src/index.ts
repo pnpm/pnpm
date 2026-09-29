@@ -16,16 +16,40 @@ import { type ExportedManifest, transform } from './transform/index.js'
 
 export { type ExportedManifest }
 
-// npm's case-sensitive bare fallback accepts only exact `README`.
-const README_FILE_NAME_PATTERN = /^README$/
-const README_MARKDOWN_EXTENSION_PATTERN = /\.m?a?r?k?d?o?w?n?$/i
+const README_RANK = {
+  bare: 1,
+  markdown: 2,
+  readmeMd: 3,
+} as const
 
-export function isMarkdownReadmeFileName (fileName: string): boolean {
-  return /^readme\./i.test(fileName) && README_MARKDOWN_EXTENSION_PATTERN.test(fileName)
+export interface ReadmeCandidate {
+  fileName: string
+  rank: ReadmeRank
 }
 
-export function isReadmeFileName (fileName: string): boolean {
-  return README_FILE_NAME_PATTERN.test(fileName) || isMarkdownReadmeFileName(fileName)
+/** How npm ranks a package-root file as the package's README. A higher rank wins. */
+export type ReadmeRank = typeof README_RANK[keyof typeof README_RANK]
+
+/**
+ * Rank a filename as a README candidate, or return `undefined` if npm would not use it as the
+ * package's README. npm matches the bare `README` case-sensitively and accepts `README.*` whose
+ * extension matches `/.m?a?r?k?d?o?w?n?$/i`.
+ */
+export function getReadmeRank (fileName: string): ReadmeRank | undefined {
+  if (/^readme\.md$/i.test(fileName)) return README_RANK.readmeMd
+  if (fileName === 'README') return README_RANK.bare
+  if (/^readme\./i.test(fileName) && /\.m?a?r?k?d?o?w?n?$/i.test(fileName)) return README_RANK.markdown
+  return undefined
+}
+
+/**
+ * Whether README `candidate` should replace the `current` selection. A higher rank wins. Equal
+ * ranks keep the lower filename, so the choice does not depend on directory or archive order, and
+ * an equal filename replaces, so the last duplicate archive entry wins as it would on extraction.
+ */
+export function isPreferredReadme (candidate: ReadmeCandidate, current: ReadmeCandidate | undefined): boolean {
+  if (current == null || candidate.rank > current.rank) return true
+  return candidate.rank === current.rank && candidate.fileName <= current.fileName
 }
 
 const PREPUBLISH_SCRIPTS = [
@@ -119,14 +143,17 @@ const README_READ_FLAGS = fs.constants.O_RDONLY | (process.platform === 'win32' 
 
 export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
   const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
-  const readmeEntry =
-    entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name)) ??
-    entries.find((entry) => entry.isFile() && isMarkdownReadmeFileName(entry.name)) ??
-    entries.find((entry) => entry.isFile() && README_FILE_NAME_PATTERN.test(entry.name))
-  if (readmeEntry == null) return undefined
+  let readme: ReadmeCandidate | undefined
+  for (const entry of entries) {
+    const rank = getReadmeRank(entry.name)
+    if (rank == null || !entry.isFile()) continue
+    const candidate = { fileName: entry.name, rank }
+    if (isPreferredReadme(candidate, readme)) readme = candidate
+  }
+  if (readme == null) return undefined
   let handle: fs.promises.FileHandle | undefined
   try {
-    handle = await fs.promises.open(path.join(projectDir, readmeEntry.name), README_READ_FLAGS)
+    handle = await fs.promises.open(path.join(projectDir, readme.fileName), README_READ_FLAGS)
     return await handle.readFile('utf8')
   } catch (err: unknown) {
     // ELOOP: the entry is a symlink after all (a concurrent swap) — skip it, as the isFile() check intended.

@@ -349,6 +349,42 @@ fn readme_md_is_preferred_over_bare_readme() {
 }
 
 #[test]
+fn lowest_markdown_readme_name_is_embedded() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("README.mdown"), "# Mdown").unwrap();
+    fs::write(dir.path().join("README.markdown"), "# Markdown").unwrap();
+    fs::write(dir.path().join("README.a"), "# A").unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+        workspace_packages: None,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert_eq!(out["readme"], json!("# A"));
+}
+
+#[test]
+fn readme_with_invalid_utf8_is_embedded_lossily() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("README"), b"text\xff").unwrap();
+    let catalogs = empty_catalogs();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: true,
+        workspace_packages: None,
+    };
+    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    assert_eq!(out["readme"], json!("text\u{FFFD}"));
+}
+
+#[test]
 fn markdown_readme_is_preferred_over_bare_readme() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("README"), "# Bare").unwrap();

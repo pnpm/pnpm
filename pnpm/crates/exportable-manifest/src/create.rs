@@ -41,10 +41,14 @@ use pnpm_catalogs_resolver::{
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::is_markdown_readme_file_name;
+use pnpm_package_manifest::{ReadmeKind, is_preferred_readme, readme_kind};
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
-use std::{collections::HashMap, fs, io, path::Path};
+use std::{
+    collections::HashMap,
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
@@ -340,26 +344,28 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
 /// file is embedded — a symlink is skipped so it can't leak the
 /// contents of a target outside the project.
 pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
-    let mut markdown_fallback = None;
-    let mut bare_fallback = None;
+    let mut selected: Option<(ReadmeKind, String, PathBuf)> = None;
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
+        let file_name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
+        let Some(kind) = readme_kind(&file_name) else {
+            continue;
+        };
         if !entry.file_type()?.is_file() {
             continue;
         }
-        let file_name = entry.file_name();
-        let file_name = file_name.to_string_lossy();
-        if file_name.eq_ignore_ascii_case("readme.md") {
-            return read_regular_file(&entry.path());
-        }
-        if is_markdown_readme_file_name(file_name.as_ref()) {
-            markdown_fallback.get_or_insert_with(|| entry.path());
-        } else if file_name == "README" {
-            bare_fallback.get_or_insert_with(|| entry.path());
+        let current = selected
+            .as_ref()
+            .map(|(kind, name, _)| (*kind, name.as_str()));
+        if is_preferred_readme((kind, &file_name), current) {
+            selected = Some((kind, file_name, entry.path()));
         }
     }
-    match markdown_fallback.or(bare_fallback) {
-        Some(path) => read_regular_file(&path),
+    match selected {
+        Some((_, _, path)) => read_regular_file(&path),
         None => Ok(None),
     }
 }
@@ -382,12 +388,20 @@ fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
         Err(err) if err.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
         Err(err) => return Err(err),
     };
-    io::read_to_string(file).map(Some)
+    read_lossy(file).map(Some)
 }
 
 #[cfg(not(unix))]
 fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
-    fs::read_to_string(path).map(Some)
+    read_lossy(fs::File::open(path)?).map(Some)
+}
+
+/// README text is published as-is; invalid UTF-8 is replaced rather than
+/// failing the publish.
+fn read_lossy(mut reader: impl io::Read) -> io::Result<String> {
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes)?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// Clone `map` without the entries named in `keys`, preserving the

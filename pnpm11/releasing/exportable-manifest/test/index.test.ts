@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { preparePackages } from '@pnpm/prepare'
-import { createExportableManifest, isReadmeFileName, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, getReadmeRank, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -190,7 +190,7 @@ test.each(['README.md', 'README', 'readme.markdown'])(
 test.each(['README', 'README.md', 'README.markdown', 'README.mdown', 'README.a', 'README.'])(
   'recognizes npm README filename %s',
   (name) => {
-    expect(isReadmeFileName(name)).toBe(true)
+    expect(getReadmeRank(name)).toBeDefined()
   }
 )
 
@@ -198,7 +198,7 @@ test.each(['README', 'README.md', 'README.markdown', 'README.mdown', 'README.a',
 test.each(['readme', 'README.txt', 'README.md.bak', 'NOTREADME.md', 'README.am', 'README.aa'])(
   'rejects non-README filename %s',
   (name) => {
-    expect(isReadmeFileName(name)).toBe(false)
+    expect(getReadmeRank(name)).toBeUndefined()
   }
 )
 
@@ -230,6 +230,22 @@ test('README.md is preferred over bare README', async () => {
     })
     expect(manifest.readme).toBe('preferred')
   })
+})
+
+test('the lowest Markdown README name is embedded', async () => {
+  await withTempProjectReadme('mdown', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'README.markdown'), 'markdown', 'utf8')
+    await fs.promises.writeFile(path.join(projectDir, 'README.a'), 'a', 'utf8')
+
+    const manifest = await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })
+    expect(manifest.readme).toBe('a')
+  }, 'README.mdown')
 })
 
 test('a Markdown README is preferred over bare README', async () => {

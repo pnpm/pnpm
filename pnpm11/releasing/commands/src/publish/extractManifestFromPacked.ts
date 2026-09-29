@@ -3,10 +3,11 @@ import path from 'node:path'
 import { createGunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
-import { type ExportedManifest, isMarkdownReadmeFileName, isReadmeFileName } from '@pnpm/releasing.exportable-manifest'
+import { type ExportedManifest, getReadmeRank, isPreferredReadme, type ReadmeCandidate } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'
 
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const
+const README_MD_RANK = getReadmeRank('README.md')
 
 export type TarballSuffix = typeof TARBALL_SUFFIXES[number]
 export type TarballPath = `${string}${TarballSuffix}`
@@ -26,42 +27,32 @@ export async function extractManifestFromPacked<Output = ExportedManifest> (tarb
  * metadata even though it isn't stored in the packed `package.json`.
  */
 export async function extractPublishManifestFromPacked (tarballPath: TarballPath): Promise<ExportedManifest> {
-  const file = await fs.promises.open(tarballPath, 'r')
-  try {
-    const { manifest, readme, fallbackReadmeIndex } = await extractEntriesFromPacked(tarballPath, true, file)
-    const parsed = JSON.parse(manifest) as ExportedManifest
-    if (parsed.readme == null) {
-      const selectedReadme = readme ?? (fallbackReadmeIndex == null
-        ? undefined
-        : await readPackedEntry(file, tarballPath, fallbackReadmeIndex))
-      if (selectedReadme != null) parsed.readme = selectedReadme
-    }
-    return parsed
-  } finally {
-    await file.close()
+  const { manifest, readme } = await extractEntriesFromPacked(tarballPath, true)
+  const parsed = JSON.parse(manifest) as ExportedManifest
+  if (parsed.readme == null && readme != null) {
+    parsed.readme = readme.text
   }
+  return parsed
 }
 
 interface PackedEntries {
   manifest: string
-  readme?: string
-  fallbackReadmeIndex?: number
+  readme?: PackedReadme
+}
+
+interface PackedReadme extends ReadmeCandidate {
+  text: string
 }
 
 /**
- * Scan the tarball for `package/package.json` and, when `wantReadme` is set, a root README
- * recognized by npm. The manifest-only path (`wantReadme` false) resolves as soon as the
- * manifest entry is read and stops decompressing the rest of the archive; the publish path scans
- * on until it finds the preferred README.md or reaches the end.
+ * Read `package/package.json` from the tarball and, when `wantReadme` is set, the package-root
+ * README npm would pick. Rejects with `PublishArchiveMissingManifestError` when the archive has no
+ * manifest, and with the stream error when the archive cannot be read.
  */
-async function extractEntriesFromPacked (
-  tarballPath: TarballPath,
-  wantReadme: boolean,
-  file?: fs.promises.FileHandle
-): Promise<PackedEntries> {
+async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: boolean): Promise<PackedEntries> {
   const extract = tar.extract()
   const gunzip = createGunzip()
-  const tarballStream = file?.createReadStream({ start: 0, autoClose: false }) ?? fs.createReadStream(tarballPath)
+  const tarballStream = fs.createReadStream(tarballPath)
 
   let cleanedUp = false
 
@@ -77,51 +68,38 @@ async function extractEntriesFromPacked (
   const promise = new Promise<PackedEntries>((resolve, reject) => {
     let settled = false
     let manifest: string | undefined
-    let readme: string | undefined
-    let fallbackReadmeIndex: number | undefined
-    let fallbackIsMarkdown = false
-    let entryIndex = 0
+    let readme: PackedReadme | undefined
 
     function handleError (error: unknown): void {
       cleanup()
       reject(error)
     }
 
-    function settle (archiveFinished = false): void {
+    function settle (): void {
       if (settled) return
       settled = true
-      // Destroying a FileHandle read stream closes the descriptor needed by the fallback pass.
-      if (!archiveFinished) cleanup()
+      cleanup()
       if (manifest == null) {
         reject(new PublishArchiveMissingManifestError(tarballPath))
         return
       }
-      resolve({ manifest, readme, fallbackReadmeIndex })
+      resolve({ manifest, readme })
     }
 
     tarballStream.once('error', handleError)
     gunzip.once('error', handleError)
 
     extract.on('entry', (header, stream, next) => {
-      const currentIndex = entryIndex++
       const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
       const isManifest = normalizedPath === 'package/package.json'
-      const readmeFileName = normalizedPath.startsWith('package/')
-        ? normalizedPath.slice('package/'.length)
-        : ''
-      const isReadme = wantReadme &&
-        header.type === 'file' &&
-        !readmeFileName.includes('/') &&
-        isReadmeFileName(readmeFileName)
-      const isPreferredReadme = isReadme && /^readme\.md$/i.test(readmeFileName)
-      const isMarkdownReadme = isReadme && isMarkdownReadmeFileName(readmeFileName)
+      const readmeCandidate = wantReadme && !isManifest && header.type === 'file'
+        ? getRootReadmeCandidate(normalizedPath)
+        : undefined
+      const wantedReadme = readmeCandidate != null && isPreferredReadme(readmeCandidate, readme)
+        ? readmeCandidate
+        : undefined
 
-      if (isReadme && !isPreferredReadme && readme == null &&
-        (fallbackReadmeIndex == null || (isMarkdownReadme && !fallbackIsMarkdown))) {
-        fallbackReadmeIndex = currentIndex
-        fallbackIsMarkdown = isMarkdownReadme
-      }
-      if (!isManifest && !isPreferredReadme) {
+      if (!isManifest && wantedReadme == null) {
         stream.once('end', next)
         stream.resume()
         return
@@ -134,12 +112,14 @@ async function extractEntriesFromPacked (
 
       stream.once('end', () => {
         const text = Buffer.concat(chunks).toString()
-        if (isManifest) {
+        if (wantedReadme == null) {
           manifest = text
         } else {
-          readme = text
+          readme = { ...wantedReadme, text }
         }
-        if (manifest != null && (!wantReadme || readme != null)) {
+        // Stop early once every wanted entry has been captured, so the rest of the tarball isn't
+        // decompressed. Nothing outranks a README.md.
+        if (manifest != null && (!wantReadme || readme?.rank === README_MD_RANK)) {
           settle()
           return
         }
@@ -149,7 +129,7 @@ async function extractEntriesFromPacked (
       stream.once('error', handleError)
     })
 
-    extract.once('finish', () => settle(true))
+    extract.once('finish', settle)
     extract.once('error', handleError)
   })
 
@@ -158,60 +138,12 @@ async function extractEntriesFromPacked (
   return promise
 }
 
-function readPackedEntry (file: fs.promises.FileHandle, tarballPath: TarballPath, targetIndex: number): Promise<string> {
-  const extract = tar.extract()
-  const gunzip = createGunzip()
-  const tarballStream = file.createReadStream({ start: 0, autoClose: false })
-
-  return new Promise((resolve, reject) => {
-    let entryIndex = 0
-    let settled = false
-
-    function cleanup (): void {
-      extract.destroy()
-      gunzip.destroy()
-      tarballStream.destroy()
-    }
-
-    function handleError (error: unknown): void {
-      if (settled) return
-      settled = true
-      cleanup()
-      reject(error)
-    }
-
-    tarballStream.once('error', handleError)
-    gunzip.once('error', handleError)
-    extract.once('error', handleError)
-    extract.once('finish', () => {
-      handleError(new PnpmError('PUBLISH_ARCHIVE_README_MISSING', `The archive ${tarballPath} no longer contains the selected README entry`))
-    })
-
-    extract.on('entry', (header, stream, next) => {
-      if (entryIndex++ !== targetIndex) {
-        stream.once('end', next)
-        stream.resume()
-        return
-      }
-      if (header.type !== 'file') {
-        handleError(new PnpmError('PUBLISH_ARCHIVE_README_MISSING', `The archive ${tarballPath} no longer contains the selected README entry`))
-        return
-      }
-      const chunks: Buffer[] = []
-      stream.on('data', (chunk) => {
-        chunks.push(chunk as Buffer)
-      })
-      stream.once('end', () => {
-        if (settled) return
-        settled = true
-        cleanup()
-        resolve(Buffer.concat(chunks).toString())
-      })
-      stream.once('error', handleError)
-    })
-
-    tarballStream.pipe(gunzip).pipe(extract)
-  })
+function getRootReadmeCandidate (normalizedPath: string): ReadmeCandidate | undefined {
+  if (!normalizedPath.startsWith('package/')) return undefined
+  const fileName = normalizedPath.slice('package/'.length)
+  if (fileName.includes('/')) return undefined
+  const rank = getReadmeRank(fileName)
+  return rank == null ? undefined : { fileName, rank }
 }
 
 export class PublishArchiveMissingManifestError extends PnpmError {

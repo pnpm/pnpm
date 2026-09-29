@@ -4,13 +4,13 @@
 
 use std::{
     fs::File,
-    io::{self, Read, Seek},
+    io::{self, Read},
     path::Path,
 };
 
 use flate2::read::GzDecoder;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_package_manifest::{is_markdown_readme_file_name, is_readme_file_name, parse_manifest};
+use pnpm_package_manifest::{ReadmeKind, is_preferred_readme, parse_manifest, readme_kind};
 use serde_json::Value;
 
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
@@ -69,11 +69,8 @@ pub fn extract_publish_manifest_from_packed(
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let PackedEntries {
-        manifest_text,
-        preferred_readme,
-        fallback_candidate,
-    } = scan_packed_entries(&mut archive).map_err(read_err)?;
+    let PackedEntries { manifest_text, readme } =
+        scan_packed_entries(&mut archive).map_err(read_err)?;
 
     let manifest_text = manifest_text.ok_or_else(|| {
         ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
@@ -85,99 +82,71 @@ pub fn extract_publish_manifest_from_packed(
             tarball_path: tarball_path.to_owned(),
             source,
         })?;
-    if let Some(readme) = preferred_readme {
-        attach_readme(&mut manifest, readme);
-    } else if let Some(candidate) = fallback_candidate
-        && manifest_needs_readme(&manifest)
+    if let Some(readme) = readme
+        && manifest.get("readme").is_none_or(Value::is_null)
+        && let Some(object) = manifest.as_object_mut()
     {
-        let file = archive.into_inner().into_inner();
-        let readme = read_readme_candidate(file, candidate.index).map_err(read_err)?;
-        attach_readme(&mut manifest, readme);
+        // A packed README fills a manifest's missing `readme`, as npm's
+        // publish document carries it.
+        object.insert("readme".to_string(), Value::String(readme.text));
     }
     Ok(manifest)
 }
 
 struct PackedEntries {
     manifest_text: Option<String>,
-    preferred_readme: Option<String>,
-    fallback_candidate: Option<ReadmeCandidate>,
+    readme: Option<PackedReadme>,
 }
 
+struct PackedReadme {
+    kind: ReadmeKind,
+    name: String,
+    text: String,
+}
+
+/// Read `package/package.json` and the package-root README npm would pick.
+/// Only a README entry that beats the current selection is read, and the
+/// scan stops once the manifest and a `README.md` have both been read.
 fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Result<PackedEntries> {
     let mut manifest_text = None;
-    let mut preferred_readme = None;
-    let mut fallback_candidate = None;
-    for (index, entry) in archive.entries()?.enumerate() {
+    let mut readme: Option<PackedReadme> = None;
+    for entry in archive.entries()? {
         let mut entry = entry?;
         let normalized = normalize_entry_path(&entry.path()?);
         if normalized == "package/package.json" {
-            manifest_text = Some(read_entry_text(&mut entry)?);
-            continue;
-        }
-        if entry.header().entry_type().is_file()
-            && let Some(readme_name) = root_readme_name(&normalized)
+            let mut text = String::new();
+            entry.read_to_string(&mut text)?;
+            manifest_text = Some(text);
+        } else if entry.header().entry_type().is_file()
+            && let Some(name) = root_file_name(&normalized)
+            && let Some(kind) = readme_kind(name)
+            && is_preferred_readme(
+                (kind, name),
+                readme
+                    .as_ref()
+                    .map(|current| (current.kind, current.name.as_str())),
+            )
         {
-            if readme_name.eq_ignore_ascii_case("readme.md") {
-                preferred_readme = Some(read_entry_text(&mut entry)?);
-            } else if preferred_readme.is_none() {
-                select_readme_candidate(&mut fallback_candidate, readme_name, index);
-            }
+            let mut bytes = Vec::new();
+            entry.read_to_end(&mut bytes)?;
+            let text = String::from_utf8_lossy(&bytes).into_owned();
+            readme = Some(PackedReadme { kind, name: name.to_owned(), text });
+        }
+        if manifest_text.is_some()
+            && readme
+                .as_ref()
+                .is_some_and(|readme| readme.kind == ReadmeKind::ReadmeMd)
+        {
+            break;
         }
     }
-    Ok(PackedEntries { manifest_text, preferred_readme, fallback_candidate })
+    Ok(PackedEntries { manifest_text, readme })
 }
 
-struct ReadmeCandidate {
-    priority: u8,
-    index: usize,
-}
-
-fn select_readme_candidate(candidate: &mut Option<ReadmeCandidate>, name: &str, index: usize) {
-    let priority = if is_markdown_readme_file_name(name) { 2 } else { 1 };
-    if candidate
-        .as_ref()
-        .is_none_or(|current| priority > current.priority)
-    {
-        *candidate = Some(ReadmeCandidate { priority, index });
-    }
-}
-
-fn read_readme_candidate(mut file: File, index: usize) -> io::Result<String> {
-    file.rewind()?;
-    let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let mut entries = archive.entries()?;
-    let mut entry = entries
-        .nth(index)
-        .ok_or_else(|| {
-            io::Error::new(io::ErrorKind::UnexpectedEof, "selected README entry is missing")
-        })??;
-    read_entry_text(&mut entry)
-}
-
-fn read_entry_text<Reader: Read>(entry: &mut tar::Entry<'_, Reader>) -> io::Result<String> {
-    let mut text = String::new();
-    entry.read_to_string(&mut text)?;
-    Ok(text)
-}
-
-/// A packed README fills a manifest's missing `readme`, as npm's publish
-/// document carries it.
-fn attach_readme(manifest: &mut Value, readme: String) {
-    if manifest_needs_readme(manifest)
-        && let Some(object) = manifest.as_object_mut()
-    {
-        object.insert("readme".to_string(), Value::String(readme));
-    }
-}
-
-fn manifest_needs_readme(manifest: &Value) -> bool {
-    manifest.get("readme").is_none_or(Value::is_null)
-}
-
-/// Return the package-root README filename when npm would recognize it.
-fn root_readme_name(normalized: &str) -> Option<&str> {
-    let name = normalized.strip_prefix("package/")?;
-    (!name.contains('/') && is_readme_file_name(name)).then_some(name)
+fn root_file_name(normalized: &str) -> Option<&str> {
+    normalized
+        .strip_prefix("package/")
+        .filter(|name| !name.contains('/'))
 }
 
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`
