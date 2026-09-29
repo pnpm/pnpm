@@ -52,8 +52,11 @@ pub(crate) fn apply_published_by_policy(
 }
 
 /// Filter a packument to versions published at or before `cutoff`,
-/// then rewrite each `dist-tag` to the best within-cutoff version no
-/// newer than the original target, as [`best_tag_candidate`] ranks them.
+/// then rewrite each `dist-tag` to the highest within-cutoff version no
+/// newer than the original target that keeps the tag's major (any major
+/// for `latest`) and prerelease-ness, preferring non-deprecated versions.
+/// A stable target may also fall back to a prerelease of its major, which
+/// ranks above a stable version of a lower major.
 ///
 /// The result is memoized on `meta` (see [`DerivedPackuments`]) and
 /// shared between callers, so it is handed back behind an [`Arc`]:
