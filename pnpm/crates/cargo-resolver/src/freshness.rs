@@ -1,66 +1,85 @@
-use crate::{metadata::parse_metadata, model::MetadataDependency};
-use cargo_lock::Lockfile;
+use crate::{
+    metadata::parse_metadata,
+    model::{MetadataDependency, MetadataPackage},
+};
+use cargo_lock::{Lockfile, Package};
 use miette::{IntoDiagnostic, Report, Result, WrapErr};
 use semver::Version;
-use std::{collections::BTreeMap, str::FromStr};
+use std::str::FromStr;
 
-/// Check that `lockfile` locks, for every registry or git dependency a
-/// workspace member declares, a version its requirement accepts.
+/// Check that, for every registry or git dependency a workspace member
+/// declares, `lockfile` records an edge from that member to a version the
+/// requirement accepts.
 ///
 /// `metadata` is the output of `cargo metadata --no-deps`. Path dependencies
 /// carry no requirement a lockfile could contradict, so they are skipped.
+/// Sources are not compared, because a `[patch]` legitimately locks a
+/// dependency from a source other than the one its manifest names.
 pub fn verify_lockfile(metadata: &str, lockfile: &str) -> Result<()> {
     let metadata = parse_metadata(metadata)?;
     let lockfile = Lockfile::from_str(lockfile).into_diagnostic().wrap_err("parse Cargo.lock")?;
-    let locked_versions = locked_versions_by_name(&lockfile);
     metadata.packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
-        .flat_map(|member| {
-            member.dependencies
-                .iter()
-                .filter(|dependency| dependency.source.is_some())
-                .map(move |dependency| (member.name.as_str(), dependency))
-        })
-        .try_for_each(|(member, dependency)| {
-            let locked = locked_versions
-                .get(dependency.name.as_str())
-                .map_or(&[][..], Vec::as_slice);
-            if locked
-                .iter()
-                .any(|version| dependency.req.matches(version))
-            {
-                Ok(())
-            } else {
-                Err(unsatisfied(member, dependency, locked))
-            }
-        })
+        .try_for_each(|member| verify_member(member, &lockfile))
 }
 
-fn locked_versions_by_name(lockfile: &Lockfile) -> BTreeMap<&str, Vec<&Version>> {
-    let mut locked_versions = BTreeMap::<&str, Vec<&Version>>::new();
-    for package in &lockfile.packages {
-        locked_versions
-            .entry(package.name.as_str())
-            .or_default()
-            .push(&package.version);
+fn verify_member(member: &MetadataPackage, lockfile: &Lockfile) -> Result<()> {
+    let locked_member = lockfile.packages
+        .iter()
+        .find(|package| {
+            package.source.is_none()
+                && package.name.as_str() == member.name
+                && package.version == member.version
+        })
+        .ok_or_else(|| {
+            outdated(&format!(
+                "Cargo.lock does not lock the workspace member {} {}",
+                member.name, member.version,
+            ))
+        })?;
+    member.dependencies
+        .iter()
+        .filter(|dependency| dependency.source.is_some())
+        .try_for_each(|dependency| verify_edge(&member.name, dependency, locked_member))
+}
+
+fn verify_edge(
+    member: &str,
+    dependency: &MetadataDependency,
+    locked_member: &Package,
+) -> Result<()> {
+    let locked = locked_member.dependencies
+        .iter()
+        .filter(|edge| edge.name.as_str() == dependency.name)
+        .map(|edge| &edge.version)
+        .collect::<Vec<&Version>>();
+    if locked
+        .iter()
+        .any(|version| dependency.req.matches(version))
+    {
+        return Ok(());
     }
-    locked_versions
-}
-
-fn unsatisfied(member: &str, dependency: &MetadataDependency, locked: &[&Version]) -> Report {
     let (name, requirement) = (&dependency.name, &dependency.req);
     if locked.is_empty() {
-        return miette::miette!(
-            "{member} depends on {name} {requirement}, which Cargo.lock does not lock"
-        );
+        return Err(outdated(&format!(
+            "{member} depends on {name} {requirement}, but Cargo.lock locks no {name} for {member}",
+        )));
     }
     let versions = locked
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ");
+    Err(outdated(&format!(
+        "{member} depends on {name} {requirement}, but Cargo.lock locks {name} {versions}",
+    )))
+}
+
+fn outdated(message: &str) -> Report {
     miette::miette!(
-        "{member} depends on {name} {requirement}, but Cargo.lock locks {name} {versions}"
+        code = "ERR_PNPM_OUTDATED_LOCKFILE",
+        help = "Run `cargo update --workspace` to bring Cargo.lock in line with Cargo.toml.",
+        "{message}"
     )
 }

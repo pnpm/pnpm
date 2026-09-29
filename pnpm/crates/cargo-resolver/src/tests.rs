@@ -1087,7 +1087,51 @@ fn rejects_a_dependency_the_lockfile_does_not_lock() {
 
     let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
 
-    assert_eq!(error.to_string(), "app depends on baz ^1.0, which Cargo.lock does not lock");
+    assert_eq!(error.to_string(), "app depends on baz ^1.0, but Cargo.lock locks no baz for app");
+}
+
+#[test]
+fn rejects_a_direct_dependency_locked_only_transitively() {
+    let metadata = METADATA.replace(
+        r#""req": "^1.0"
+    }]"#,
+        &format!(
+            r#""req": "^1.0"
+    }}, {{
+      "name": "bar",
+      "source": "{CRATES_IO_SOURCE}",
+      "req": "^2"
+    }}]"#,
+        ),
+    );
+
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(error.to_string(), "app depends on bar ^2, but Cargo.lock locks no bar for app");
+}
+
+#[test]
+fn rejects_a_lockfile_without_the_workspace_member() {
+    let metadata = METADATA.replace(r#""name": "app""#, r#""name": "renamed""#);
+
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(error.to_string(), "Cargo.lock does not lock the workspace member renamed 0.1.0");
+}
+
+#[test]
+fn reports_a_stale_lockfile_as_outdated() {
+    let metadata = METADATA.replace("^1.0", "=1.0.5");
+
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_OUTDATED_LOCKFILE"),
+    );
 }
 
 #[test]

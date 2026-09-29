@@ -351,6 +351,7 @@ fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
         &stderr,
         "app depends on demo =1.0.1, but Cargo.lock locks demo 1.0.0",
     );
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_OUTDATED_LOCKFILE");
     assert_eq!(fs::read(root.path().join("Cargo.lock")).expect("read Cargo.lock"), lockfile);
 }
 
