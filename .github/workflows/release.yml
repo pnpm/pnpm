@@ -673,6 +673,20 @@ jobs:
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
+      - name: Smoke-test Linux ppc64le startup
+        if: matrix.target == 'powerpc64le-unknown-linux-gnu'
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        # Run against a modern libc: optional symbols absent from the build
+        # sysroot must still be callable when the runtime provides them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user libc6-ppc64el-cross libgcc-s1-ppc64el-cross
+          actual=$(qemu-ppc64le -L /usr/powerpc64le-linux-gnu target/powerpc64le-unknown-linux-gnu/release/pnpm --version)
+          echo "$actual"
+          test "$actual" = "$VERSION"
+
       - name: Download node-gyp payload
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
