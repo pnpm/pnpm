@@ -173,7 +173,7 @@ pub(crate) struct RequiredRound {
     /// Peer providers that existed before this pass began. Retaining only
     /// this compact lookup lets the importer-scoped tree be dropped after
     /// the peer walk instead of keeping one full tree per workspace importer.
-    provider_pkg_ids: HashMap<crate::NodeId, String>,
+    provider_pkg_ids: HashMap<crate::NodeId, Arc<str>>,
     discovery: PeerDiscoveryResult,
     /// Whether the round walked the whole direct forest (as opposed to
     /// only the direct deps added since the previous walk). A full walk

@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
-    ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, Resolver, SeededPackage,
-    SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey,
-    async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
+    ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
+    SeededPackage, SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency,
+    WantedKey, async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
     current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
     extract_peer_dependencies, is_exotic_resolved_via, is_update_target, lock_recoverable,
     node_alias, node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
@@ -270,7 +270,7 @@ pub(super) fn seed_pending(
     // package's children, which this level's settlement decides — see
     // [`fn@super::level_walk::install_owner_peer_dependencies`]. Seeding only has to fill
     // a package nothing has resolved yet.
-    if register_seeded_package(
+    let (id, created) = register_seeded_package(
         ctx,
         SeededPackage {
             id: &resolved.id,
@@ -281,11 +281,12 @@ pub(super) fn seed_pending(
             is_link: identity.is_link,
             is_leaf: identity.is_leaf,
         },
-    )? {
-        emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
+    )?;
+    if created {
+        emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
 
-    let ancestry = edge.pending_ancestry(&resolved.id, resolved.current_is_optional);
+    let ancestry = edge.pending_ancestry(&id, resolved.current_is_optional);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -294,7 +295,7 @@ pub(super) fn seed_pending(
         peer_shadowed,
         claim: None,
         prior_key: resolved.prior_key,
-        identity: super::PendingNodeIdentity { id: resolved.id, alias, node_id: identity.node_id },
+        identity: super::PendingNodeIdentity { id, alias, node_id: identity.node_id },
         ancestry,
     })))
 }
@@ -348,15 +349,18 @@ pub(in super::super) fn node_id_for(is_leaf: bool, id: &str) -> NodeId {
 /// Cycle break: a direct self-edge and the second lap of a longer cycle are
 /// dropped; the first re-entry is kept so the cycle-closing edge reaches the
 /// lockfile snapshot.
-pub(in super::super) fn closes_cycle(ancestor_ids: &Arc<Vec<String>>, id: &str) -> bool {
+pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> bool {
     ancestor_ids
         .last()
-        .is_some_and(|parent| parent == id || parent_ids_contain_sequence(ancestor_ids, parent, id))
+        .is_some_and(|parent| {
+            &**parent == id || parent_ids_contain_sequence(ancestor_ids, parent, id)
+        })
 }
 
-/// Build (or look up) the [`ResolvedPackage`] envelope, answering whether this
-/// occurrence is the one that created it. The first visitor populates it;
-/// later visitors AND-fold the `optional` flag so a single non-optional path
+/// Build (or look up) the [`ResolvedPackage`] envelope, answering with the
+/// package table's `Arc` of the id and whether this occurrence is the one
+/// that created the envelope. The first visitor populates it; later
+/// visitors AND-fold the `optional` flag so a single non-optional path
 /// flips it back to `false`.
 ///
 /// The envelope's peer split follows the occurrence that owns the package's
@@ -366,7 +370,7 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &Arc<Vec<String>>, id: &str) 
 pub(super) fn register_seeded_package(
     ctx: &TreeCtx,
     seeded: SeededPackage<'_>,
-) -> Result<bool, ResolveDependencyTreeError> {
+) -> Result<(Arc<str>, bool), ResolveDependencyTreeError> {
     let SeededPackage {
         id,
         result,
@@ -380,7 +384,7 @@ pub(super) fn register_seeded_package(
     if let Some(existing) = packages.get_mut(id) {
         ensure_same_registry_revision(existing, result)?;
         existing.optional = existing.optional && current_is_optional;
-        return Ok(false);
+        return Ok((Arc::clone(&existing.id), false));
     }
     // A workspace-link node carries no peer dependencies: peer matching is the
     // linked importer's responsibility, not the parent's.
@@ -398,15 +402,15 @@ pub(super) fn register_seeded_package(
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
         Arc::<str>::clone(&shared_id),
-        ResolvedPackage {
-            id: shared_id,
+        ResolvedPackage::new(ResolvedPackageInput {
+            id: Arc::<str>::clone(&shared_id),
             result: Arc::clone(result),
             peer_dependencies,
             optional: current_is_optional,
             is_leaf,
-        },
+        }),
     );
-    Ok(true)
+    Ok((shared_id, true))
 }
 
 /// A `workspace:` edge the resolver did not name carries its identity in the
@@ -469,7 +473,7 @@ pub(super) fn reject_exotic_subdep(
 pub(super) fn drop_failed_optional_edge(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
-    ancestor_ids: &Arc<Vec<String>>,
+    ancestor_ids: &[Arc<str>],
     opts: &ResolveOptions,
     err: ResolveDependencyTreeError,
 ) -> Result<(), ResolveDependencyTreeError> {
@@ -509,11 +513,15 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
 }
 
 impl ChildEdge<'_> {
-    fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+    fn pending_ancestry(
+        &self,
+        id: &Arc<str>,
+        current_is_optional: bool,
+    ) -> super::PendingNodeAncestry {
         let next_ancestors = self.ancestor_ids
             .iter()
             .cloned()
-            .chain(std::iter::once(id.to_owned()))
+            .chain(std::iter::once(Arc::clone(id)))
             .collect();
         super::PendingNodeAncestry {
             parent_ancestors: Arc::clone(self.ancestor_ids),

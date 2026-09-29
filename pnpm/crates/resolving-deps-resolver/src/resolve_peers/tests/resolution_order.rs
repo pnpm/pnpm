@@ -123,7 +123,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
                     true,
                 ),
             );
-            DirectDep { alias: alias.to_string(), node_id, id: pkg_id.to_string() }
+            DirectDep { alias: alias.to_string(), node_id, id: pkg_id.into() }
         };
         let importer = |id: &str, direct: Vec<DirectDep>| ImporterPeerInput {
             id: id.to_string(),

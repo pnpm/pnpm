@@ -3,7 +3,7 @@ use super::{
     ChildParentRefs, ChildrenWalk, DeferredChildren, DepPath, HashMap, MissingSummary, NodeEntry,
     NodeId, NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs,
     PeersCacheItem, SettledPeers, SharedChain, WalkResult, WalkedNode, Walker, chain_with_pkg_id,
-    merge_realize_undo, pkg_name_version,
+    merge_realize_undo,
 };
 
 impl Walker<'_> {}
@@ -89,7 +89,7 @@ impl Walker<'_> {
         };
         let pkg = self.owned_package(&pkg_id);
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
-        let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
+        let pkg_name = Arc::clone(pkg.name());
         NodeEntry { pkg, pkg_name, depth, installable, provider_children, preview_undo }
     }
 
@@ -111,7 +111,7 @@ impl Walker<'_> {
         };
         let realize_undo = merge_realize_undo(entry.preview_undo.take(), realize_undo);
         let chains = ChildChains {
-            names: walk.chain_names.pushed(entry.pkg_name.clone()),
+            names: walk.chain_names.pushed(Arc::clone(&entry.pkg_name)),
             node_ids: walk.parent_node_ids.pushed(node_id.clone()),
             pkg_ids: chain_with_pkg_id(walk.parent_pkg_ids, &entry.pkg.id),
         };
@@ -250,8 +250,8 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         parent_refs: &ParentRefs,
-        parent_chain_names: &SharedChain<String>,
-        parent_pkg_ids_chain: &SharedChain<String>,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
     ) -> Option<NodeOutput> {
         if let Some((tree_node_depth, dep_path)) = self.context_free_dep_path(node_id) {
             self.remember_resolved_node(node_id, &dep_path);

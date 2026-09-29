@@ -3,7 +3,10 @@
 use crate::{
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
-    resolved_tree::{DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
+    resolved_tree::{
+        DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedPackageInput, ResolvedTree,
+        TreeChildren,
+    },
 };
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
@@ -61,17 +64,17 @@ pub(super) fn package_with_peer_dependencies(
             ((*name).to_string(), PeerDep { version: (*version).to_string(), optional: *optional })
         })
         .collect();
-    ResolvedPackage {
+    ResolvedPackage::new(ResolvedPackageInput {
         id: format!("{name}@{version}").into(),
         result: Arc::new(resolve_result(name, version)),
         peer_dependencies,
         optional: false,
         is_leaf,
-    }
+    })
 }
 
 pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedPackage {
-    ResolvedPackage {
+    ResolvedPackage::new(ResolvedPackageInput {
         id: Arc::from(id.to_string()),
         result: Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
@@ -93,7 +96,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
         peer_dependencies: BTreeMap::new(),
         optional: false,
         is_leaf: true,
-    }
+    })
 }
 
 pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {

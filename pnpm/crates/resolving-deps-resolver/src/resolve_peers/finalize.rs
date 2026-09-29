@@ -19,13 +19,10 @@ use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     node_id::NodeId,
     resolve_peers::{
-        context::{
-            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names, pkg_name,
-            pkg_name_version,
-        },
+        context::{SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names},
         walker::{MissingPeerInfo, Walker},
     },
-    resolved_tree::ResolvedPackage,
+    resolved_tree::{ResolvedPackage, pkg_name_version},
 };
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pnpm_resolving_resolver_base::ResolveResult;
@@ -78,7 +75,7 @@ pub(super) struct WalkedNode<'a> {
 
 pub(super) struct WalkedNodeAncestry<'a> {
     pub(super) parent_node_ids: &'a SharedChain<NodeId>,
-    pub(super) parent_pkg_ids_chain: &'a SharedChain<String>,
+    pub(super) parent_pkg_ids_chain: &'a SharedChain<Arc<str>>,
     pub(super) depth: i32,
 }
 
@@ -179,7 +176,7 @@ impl Walker<'_> {
             .or_insert(DependenciesGraphNode {
                 dep_path: node.dep_path.clone(),
                 resolved_package_id: node.pkg.id.to_string(),
-                resolve_result: Arc::clone(&node.pkg.result),
+                resolve_result: Arc::clone(node.pkg.result()),
                 depth: node.ancestry.depth,
                 installable: node.installable,
                 is_pure: node.peers.is_pure,
@@ -417,7 +414,7 @@ impl Walker<'_> {
         DependenciesGraphNode {
             dep_path,
             resolved_package_id: pkg_id.to_string(),
-            resolve_result: Arc::clone(&pkg.result),
+            resolve_result: Arc::clone(pkg.result()),
             depth,
             installable: record.installable,
             is_pure: record.is_pure,

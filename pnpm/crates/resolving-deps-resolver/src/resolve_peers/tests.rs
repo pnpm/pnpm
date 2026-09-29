@@ -43,7 +43,7 @@ fn named_registry_peer_tree(peer_spec: &str) -> (ResolvedTree, DepPath) {
         direct: vec![DirectDep {
             alias: "consumer".to_string(),
             node_id: consumer.clone(),
-            id: "consumer@1.0.0".to_string(),
+            id: "consumer@1.0.0".into(),
         }],
         packages: HashMap::from_iter([
             ("types@1.0.0".into(), package("types", "1.0.0", &[], true)),
@@ -93,7 +93,7 @@ fn cyclic_alias_peer_tree(direct_aliases: [&str; 3]) -> ResolvedTree {
                 "vite-plus" => (&vite_plus, "vite-plus@1.0.0"),
                 _ => unreachable!("unknown direct dependency alias {alias}"),
             };
-            DirectDep { alias: alias.to_string(), node_id: node_id.clone(), id: id.to_string() }
+            DirectDep { alias: alias.to_string(), node_id: node_id.clone(), id: id.into() }
         })
         .collect();
 
@@ -201,17 +201,17 @@ mod locked_peer_provider_preferences {
                 DirectDep {
                     alias: "peer".to_string(),
                     node_id: ids.current_peer.clone(),
-                    id: "peer@1.0.0".to_string(),
+                    id: "peer@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "retainer".to_string(),
                     node_id: ids.retainer.clone(),
-                    id: "retainer@1.0.0".to_string(),
+                    id: "retainer@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "wrapper".to_string(),
                     node_id: ids.wrapper.clone(),
-                    id: "wrapper@1.0.0".to_string(),
+                    id: "wrapper@1.0.0".into(),
                 },
             ],
             packages: HashMap::from_iter([
@@ -436,7 +436,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
                 true,
             ),
         );
-        direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.to_string() });
+        direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.into() });
     };
     add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
     if let Some(w_version) = shape.importer_w_version {

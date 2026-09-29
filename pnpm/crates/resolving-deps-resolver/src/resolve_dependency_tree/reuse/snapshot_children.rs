@@ -1,15 +1,15 @@
 use super::{
-    Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId, ParentPkgAliases,
-    PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext, ResolveDependencyTreeError,
-    Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeCtx, UpdateReuseScope,
-    WantedDependency, future, is_current_children_owner, lazy_children, record_children,
-    resolve_node,
+    AncestorPkgIds, Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId,
+    ParentPkgAliases, PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext,
+    ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeCtx,
+    UpdateReuseScope, WantedDependency, future, is_current_children_owner, lazy_children,
+    record_children, resolve_node,
 };
 
 /// The per-node context [`reused_children`] walks one reused node's snapshot
 /// children against.
 pub(super) struct ReusedChildren<'a> {
-    pub(super) id: &'a str,
+    pub(super) id: &'a Arc<str>,
     pub(super) key: &'a PkgNameVerPeer,
     pub(super) snapshot: Option<&'a SnapshotEntry>,
     pub(super) child_refs: &'a [(String, PkgNameVerPeer)],
@@ -17,22 +17,26 @@ pub(super) struct ReusedChildren<'a> {
 }
 
 pub(super) struct ReusedNodeAncestry<'a> {
-    pub(super) ancestor_ids: &'a Arc<Vec<String>>,
-    pub(super) next_ancestors: Arc<Vec<String>>,
+    pub(super) ancestor_ids: &'a AncestorPkgIds,
+    pub(super) next_ancestors: AncestorPkgIds,
     pub(super) depth: i32,
     pub(super) current_is_optional: bool,
     pub(super) parent_pkg_aliases: &'a Arc<ParentPkgAliases>,
 }
 
 impl<'a> ReusedNodeAncestry<'a> {
-    pub(super) fn new(edge: &super::ChildEdge<'a>, id: &str, current_is_optional: bool) -> Self {
+    pub(super) fn new(
+        edge: &super::ChildEdge<'a>,
+        id: &Arc<str>,
+        current_is_optional: bool,
+    ) -> Self {
         Self {
             ancestor_ids: edge.ancestor_ids,
             next_ancestors: Arc::new(
                 edge.ancestor_ids
                     .iter()
                     .cloned()
-                    .chain(std::iter::once(id.to_owned()))
+                    .chain(std::iter::once(Arc::clone(id)))
                     .collect(),
             ),
             depth: edge.depth,
@@ -139,7 +143,7 @@ pub(super) fn record_reused_children(
             .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
-            pkg_id: Arc::from(dep.id),
+            pkg_id: dep.id,
             optional,
         });
         realized.insert(dep.alias, dep.node_id);

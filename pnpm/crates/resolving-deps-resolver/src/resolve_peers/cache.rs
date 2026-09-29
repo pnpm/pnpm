@@ -104,8 +104,8 @@ struct EdgeRealization<'a> {
 pub(super) struct CacheHitContext<'a> {
     pub(super) node_id: &'a NodeId,
     pub(super) tree_node_depth: i32,
-    pub(super) parent_chain_names: &'a SharedChain<String>,
-    pub(super) parent_pkg_ids_chain: &'a SharedChain<String>,
+    pub(super) parent_chain_names: &'a SharedChain<Arc<str>>,
+    pub(super) parent_pkg_ids_chain: &'a SharedChain<Arc<str>>,
     pub(super) preview_undo: Option<UndoRealize>,
 }
 
@@ -342,14 +342,14 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         output: &NodeOutput,
-        parent_chain_names: &SharedChain<String>,
-        parent_pkg_ids_chain: &SharedChain<String>,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
     ) {
         if output.missing_peers.is_empty() {
             return;
         }
         let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
-        let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.to_string());
+        let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id);
         for (peer_name, info) in output.missing_peers.iter() {
             if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                 continue;

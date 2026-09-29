@@ -20,17 +20,9 @@ fn same_package_child_does_not_shadow_inherited_parent_and_bubbles_by_name() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "x".to_string(), node_id: x1.clone(), id: "x@1.0.0".to_string() },
-            DirectDep {
-                alias: "p".to_string(),
-                node_id: p_root.clone(),
-                id: "p@1.0.0".to_string(),
-            },
-            DirectDep {
-                alias: "mid".to_string(),
-                node_id: mid.clone(),
-                id: "mid@1.0.0".to_string(),
-            },
+            DirectDep { alias: "x".to_string(), node_id: x1.clone(), id: "x@1.0.0".into() },
+            DirectDep { alias: "p".to_string(), node_id: p_root.clone(), id: "p@1.0.0".into() },
+            DirectDep { alias: "mid".to_string(), node_id: mid.clone(), id: "mid@1.0.0".into() },
         ],
         packages: HashMap::from_iter([
             ("x@1.0.0".into(), package("x", "1.0.0", &[], true)),
@@ -81,13 +73,9 @@ fn pruned_hoisted_provider_falls_back_to_root_resolution() {
             DirectDep {
                 alias: "consumer".to_string(),
                 node_id: consumer.clone(),
-                id: "consumer@1.0.0".to_string(),
+                id: "consumer@1.0.0".into(),
             },
-            DirectDep {
-                alias: "prov".to_string(),
-                node_id: prov.clone(),
-                id: "prov@1.0.0".to_string(),
-            },
+            DirectDep { alias: "prov".to_string(), node_id: prov.clone(), id: "prov@1.0.0".into() },
         ],
         packages: HashMap::from_iter([
             ("prov@1.0.0".into(), package("prov", "1.0.0", &[], true)),

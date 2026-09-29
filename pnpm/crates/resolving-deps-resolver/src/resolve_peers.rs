@@ -189,9 +189,9 @@ impl HoistMissingScope {
     /// ancestor chain is covered by another importer's shared walk.
     fn suppresses_chain(
         &self,
-        ancestor_pkg_ids: &SharedChain<String>,
+        ancestor_pkg_ids: &SharedChain<Arc<str>>,
         peer_name: &str,
-        memo: &mut ChainSuffixMemo<String>,
+        memo: &mut ChainSuffixMemo<Arc<str>>,
     ) -> bool {
         if self.locked_peer_names.contains(peer_name) {
             return false;
@@ -203,7 +203,7 @@ impl HoistMissingScope {
     /// chain alive (see [`SharedChain::any_memoized`]).
     fn suppresses_iter<'a>(
         &self,
-        ancestor_pkg_ids: impl Iterator<Item = &'a String>,
+        ancestor_pkg_ids: impl Iterator<Item = &'a Arc<str>>,
         peer_name: &str,
     ) -> bool {
         if self.locked_peer_names.contains(peer_name) {
