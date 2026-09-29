@@ -16,8 +16,8 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
     std::fs::write(&empty_bundle, b"").expect("write empty ca bundle");
     env.set("SSL_CERT_FILE", &empty_bundle);
     env.set("SSL_CERT_DIR", &empty_bundle);
-    // An extra root of any kind keeps the platform verifier alive, so
-    // the fallback would go untested with the developer's own value.
+    // Keep the developer's own `NODE_EXTRA_CA_CERTS` out of the build
+    // under test.
     env.set("NODE_EXTRA_CA_CERTS", "");
 
     assert!(
@@ -55,6 +55,39 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
         &NetworkSettings::default(),
     )
     .expect("a configured ca builds without a system trust store");
+
+    let _ = std::fs::remove_file(&empty_bundle);
+}
+
+#[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
+#[test]
+fn node_extra_ca_certs_do_not_hide_an_empty_system_trust_store() {
+    use super::{Arc, NoProxyMatcher};
+    use crate::{
+        client_builder::{ClientBuildInputs, build_platform_client},
+        native_dns_resolver,
+    };
+
+    let env = EnvGuard::snapshot(["SSL_CERT_FILE", "SSL_CERT_DIR"]);
+    let empty_bundle =
+        std::env::temp_dir().join(format!("pacquet-empty-ca-extra-{}.pem", std::process::id()));
+    std::fs::write(&empty_bundle, b"").expect("write empty ca bundle");
+    env.set("SSL_CERT_FILE", &empty_bundle);
+    env.set("SSL_CERT_DIR", &empty_bundle);
+
+    let settings = NetworkSettings::default();
+    let inputs = ClientBuildInputs {
+        settings: &settings,
+        https: None,
+        http: None,
+        no_proxy: Arc::new(NoProxyMatcher::from(None)),
+        extra_ca_certs: crate::certificates::parse_ca_bundle(TEST_CA_PEM.as_bytes()),
+        redirect_guard: None,
+        dns_resolver: native_dns_resolver(),
+    };
+    let platform = build_platform_client(&inputs, &TlsConfig::default(), false)
+        .expect("default TLS config applies cleanly");
+    assert!(platform.is_err(), "an extra root must not stand in for the system trust store");
 
     let _ = std::fs::remove_file(&empty_bundle);
 }
