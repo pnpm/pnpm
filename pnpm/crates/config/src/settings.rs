@@ -1252,7 +1252,7 @@ pub struct Config {
     /// [`resolve_child_concurrency`](crate::defaults::resolve_child_concurrency) so the yaml value can be
     /// negative (interpreted as `parallelism - |value|`).
     ///
-    /// Default: `min(4, availableParallelism())`.
+    /// Default: `5`.
     /// Chunks run sequentially (children before parents); only
     /// members within a chunk are parallelized.
     #[default(_code = "default_child_concurrency()")]
