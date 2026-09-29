@@ -22,6 +22,14 @@ struct PackumentIntegrityResolver<'a> {
     ttl: Duration,
 }
 
+/// Pins a computed `dist.integrity` into every version of `bytes` that lacks
+/// one, so a client that requires integrity can install it.
+///
+/// Pinning is per version and never fails the document: a version the upstream
+/// cannot serve, or whose bytes do not match what it declared, keeps the
+/// metadata the upstream published for it. Clients still cannot install such a
+/// version, but they can install every other version of the package, which
+/// withholding the whole packument would prevent.
 pub(super) async fn complete_missing_tarball_integrities(
     state: &AppState,
     namespace: &str,
@@ -36,10 +44,12 @@ pub(super) async fn complete_missing_tarball_integrities(
 
 impl PackumentIntegrityResolver<'_> {
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
+        if !self.upstream.caches() {
+            return Ok(bytes);
+        }
         if missing_integrity_tarballs(&bytes, self.name, self.osv_index())?.is_empty() {
             return Ok(bytes);
         }
-        self.require_cache_for_integrity_pin(&bytes)?;
         let _guard = self.package_lock().await;
         let bytes = self.read_current_packument(bytes).await?;
         let mut doc: Value = serde_json::from_slice(&bytes)?;
@@ -47,30 +57,14 @@ impl PackumentIntegrityResolver<'_> {
         if candidates.is_empty() {
             return Ok(bytes);
         }
-        self.compute_integrities(&mut doc, candidates).await?;
+        if !self.compute_integrities(&mut doc, candidates).await {
+            return Ok(bytes);
+        }
         self.persist_packument(doc).await
     }
 
     fn osv_index(&self) -> Option<&std::sync::Arc<pnpr_osv::OsvIndex>> {
         self.state.inner.osv_index.as_ref()
-    }
-
-    fn require_cache_for_integrity_pin(&self, bytes: &[u8]) -> Result<(), RegistryError> {
-        if self.upstream.caches() {
-            return Ok(());
-        }
-        let candidate = missing_integrity_tarballs(bytes, self.name, self.osv_index())?
-            .into_iter()
-            .next()
-            .expect("caller found a missing integrity");
-        Err(tarball_integrity_error(
-            self.name.as_str(),
-            &candidate.filename,
-            format!(
-                "cannot pin computed integrity for version {:?} because this upstream disables caching",
-                candidate.version,
-            ),
-        ))
     }
 
     async fn package_lock(&self) -> tokio::sync::MutexGuard<'_, ()> {
@@ -85,23 +79,41 @@ impl PackumentIntegrityResolver<'_> {
             .unwrap_or(fallback))
     }
 
+    /// Pins the integrity of every candidate the upstream can serve, and
+    /// reports whether any was pinned. A candidate that cannot be hashed is
+    /// left untouched, because the version keeps whatever the upstream
+    /// declared for it, and the tarball route verifies those bytes against
+    /// that declaration when a client asks for them.
     async fn compute_integrities(
         &self,
         doc: &mut Value,
         candidates: Vec<MissingIntegrityTarball>,
-    ) -> Result<(), RegistryError> {
+    ) -> bool {
+        let mut pinned = false;
         for candidate in candidates {
-            let integrity = self.compute_integrity(&candidate).await?;
-            let dist = doc
-                .get_mut("versions")
-                .and_then(Value::as_object_mut)
-                .and_then(|versions| versions.get_mut(&candidate.version))
-                .and_then(|manifest| manifest.get_mut("dist"))
-                .and_then(Value::as_object_mut)
-                .expect("candidate came from a version dist object");
-            dist.insert("integrity".to_string(), Value::String(integrity.to_string()));
+            match self.compute_integrity(&candidate).await {
+                Ok(integrity) => {
+                    let dist = doc
+                        .get_mut("versions")
+                        .and_then(Value::as_object_mut)
+                        .and_then(|versions| versions.get_mut(&candidate.version))
+                        .and_then(|manifest| manifest.get_mut("dist"))
+                        .and_then(Value::as_object_mut)
+                        .expect("candidate came from a version dist object");
+                    dist.insert("integrity".to_string(), Value::String(integrity.to_string()));
+                    pinned = true;
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        ?err,
+                        package = %self.name.as_str(),
+                        version = %candidate.version,
+                        "keeping the upstream's declared integrity for a version pnpr could not pin"
+                    );
+                }
+            }
         }
-        Ok(())
+        pinned
     }
 
     async fn compute_integrity(

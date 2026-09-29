@@ -290,8 +290,154 @@ async fn missing_integrity_is_computed_cached_and_returned_in_the_packument() {
     tarball_mock.assert_async().await;
 }
 
+/// npm keeps publishing a version's metadata after the tarball itself is
+/// withdrawn, and the fixture graph hits several such versions. Computing the
+/// missing integrity must not make the whole packument unreadable, or every
+/// install that resolves any of these packages fails.
 #[tokio::test]
-async fn cache_disabled_upstream_refuses_unpinned_tarballs() {
+async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"the-one-tarball-that-exists";
+    let mut packument = foo_packument(&upstream.url());
+    for version in ["0.3.0", "0.1.0"] {
+        packument["versions"][version] = json!({
+            "name": "foo",
+            "version": version,
+            "dist": {
+                "tarball": format!("{}/foo/-/foo-{version}.tgz", upstream.url()),
+                "shasum": "0000000000000000000000000000000000000000",
+            }
+        });
+    }
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("shasum");
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    // Only 1.0.0 is downloadable; the withdrawn versions 404, as npm answers.
+    for version in ["0.3.0", "0.1.0"] {
+        upstream
+            .mock("GET", format!("/foo/-/foo-{version}.tgz").as_str())
+            .with_status(404)
+            .expect(1)
+            .create_async()
+            .await;
+    }
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), storage.clone()));
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .header("accept", "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
+
+    let response = app
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    packument_mock.assert_async().await;
+}
+
+/// A version whose tarball 404s cannot be pinned, so it is served with the
+/// `dist.shasum` the upstream declared, exactly as a registry that never
+/// computes integrity would.
+#[tokio::test]
+async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("shasum");
+    packument["versions"]["0.1.0"] = json!({
+        "name": "foo",
+        "version": "0.1.0",
+        "dist": {
+            "tarball": format!("{}/foo/-/foo-0.1.0.tgz", upstream.url()),
+            "shasum": "0000000000000000000000000000000000000000",
+        }
+    });
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-0.1.0.tgz")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        .oneshot(
+            Request::get("/foo")
+                .header("accept", "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(
+        resolved["versions"]["0.1.0"]["dist"]["shasum"],
+        "0000000000000000000000000000000000000000"
+    );
+    assert!(
+        resolved["versions"]["0.1.0"]["dist"].get("integrity").is_none(),
+        "an unfetchable tarball has no bytes to hash, so no integrity may be invented"
+    );
+}
+
+/// A computed integrity is only worth anything if it can be stored with the
+/// cached packument, so pnpr makes no attempt for an upstream that caches
+/// nothing. The version keeps the (absent) integrity the upstream published,
+/// and its tarball then fails closed rather than going out unpinned.
+#[tokio::test]
+async fn cache_disabled_upstream_serves_the_packument_it_declared() {
     let mut upstream = mockito::Server::new_async().await;
     let mut packument = foo_packument(&upstream.url());
     packument["versions"]["1.0.0"]["dist"]
@@ -306,7 +452,7 @@ async fn cache_disabled_upstream_refuses_unpinned_tarballs() {
         .mock("GET", "/foo")
         .with_status(200)
         .with_body(packument.to_string())
-        .expect(1)
+        .expect(2)
         .create_async()
         .await;
     let tarball_mock = upstream
@@ -320,9 +466,23 @@ async fn cache_disabled_upstream_refuses_unpinned_tarballs() {
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
 
-    let response = router(config)
+    let app = router(config);
+    let response = app
+        .clone()
         .oneshot(
             Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert!(resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none());
+
+    let response = app
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -390,6 +550,10 @@ async fn shasum_only_tarball_gets_a_computed_sha512_integrity() {
     tarball_mock.assert_async().await;
 }
 
+/// Bytes that contradict the upstream's own `dist.shasum` are never cached and
+/// never served. The packument itself stays readable, because the offending
+/// version is unusable on its own and withholding the document would take every
+/// other version of the package down with it.
 #[tokio::test]
 async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
     let mut upstream = mockito::Server::new_async().await;
@@ -413,13 +577,15 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
         .with_body(bytes)
-        .expect(1)
+        .expect(3)
         .create_async()
         .await;
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().to_path_buf();
-    let response = router(config_for(&upstream.url(), cache.clone()))
+    let app = router(config_for(&upstream.url(), cache.clone()));
+    let response = app
+        .clone()
         .oneshot(
             Request::get("/foo")
                 .body(Body::empty())
@@ -428,7 +594,30 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(
+        resolved["versions"]["1.0.0"]["dist"]["shasum"],
+        sha1_hex_of(b"different tarball bytes")
+    );
+    assert!(
+        resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none(),
+        "an integrity over bytes that contradict the declared shasum must not be pinned"
+    );
+    assert!(tarball_cache_entries(&public_cache_pkg(&cache, "foo")).is_empty());
+
+    let response = app
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        to_bytes(response.into_body(), usize::MAX).await.is_err(),
+        "the tarball stream must abort rather than deliver bytes that contradict the declared shasum"
+    );
     assert!(tarball_cache_entries(&public_cache_pkg(&cache, "foo")).is_empty());
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;
