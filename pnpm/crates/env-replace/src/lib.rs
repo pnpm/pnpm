@@ -109,6 +109,34 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     (output, unresolved)
 }
 
+/// Error returned when [`env_replace`] encounters a placeholder that has no
+/// value and no default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnresolvedEnvVar {
+    pub placeholder: String,
+}
+
+impl std::fmt::Display for UnresolvedEnvVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to replace env in config: {}", self.placeholder)
+    }
+}
+
+impl std::error::Error for UnresolvedEnvVar {}
+
+/// Replace every `${VAR}` (or `${VAR-default}` / `${VAR:-default}`) placeholder
+/// in `text` with the env value resolved from [`Sys::var`].
+/// Returns an error on the first placeholder that has no value and no default.
+///
+/// [`Sys::var`]: EnvVar::var
+pub fn env_replace<Sys: EnvVar>(text: &str) -> Result<String, UnresolvedEnvVar> {
+    let (substituted, unresolved) = env_replace_lossy::<Sys>(text);
+    if let Some(placeholder) = unresolved.into_iter().next() {
+        return Err(UnresolvedEnvVar { placeholder });
+    }
+    Ok(substituted)
+}
+
 /// The `${...}` placeholders of `text`, as byte ranges, leaving out the ones
 /// a backslash escapes.
 ///

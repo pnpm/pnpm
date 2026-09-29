@@ -1,7 +1,7 @@
 use super::{
-    EnvVar, GetHomeDir, Path, WorkspaceSettings, has_env_placeholder, join_fragment, registries,
-    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
-    substitute_optional_string_map, substitute_registry_entries,
+    EnvVar, GetHomeDir, LoadWorkspaceYamlError, Path, WorkspaceSettings, has_env_placeholder,
+    join_fragment, registries, substitute_json_string, substitute_optional_inner_string,
+    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
 };
 
 impl WorkspaceSettings {
@@ -9,18 +9,19 @@ impl WorkspaceSettings {
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config).
-    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
-        self.substitute_env_scalars::<Sys>();
-        substitute_optional_string::<Sys>(&mut self.user_agent);
-        substitute_optional_string::<Sys>(&mut self.pnpr_server);
-        substitute_optional_string::<Sys>(&mut self.registry);
-        substitute_optional_string::<Sys>(&mut self.https_proxy);
-        substitute_optional_string::<Sys>(&mut self.http_proxy);
-        substitute_optional_string::<Sys>(&mut self.proxy);
-        substitute_json_string::<Sys>(&mut self.no_proxy);
-        substitute_json_string::<Sys>(&mut self.noproxy);
-        substitute_registry_entries::<Sys>(&mut self.registries);
-        substitute_optional_string_map::<Sys>(&mut self.named_registries);
+    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) -> Result<(), LoadWorkspaceYamlError> {
+        self.substitute_env_scalars::<Sys>()?;
+        substitute_optional_string::<Sys>(&mut self.user_agent)?;
+        substitute_optional_string::<Sys>(&mut self.pnpr_server)?;
+        substitute_optional_string::<Sys>(&mut self.registry)?;
+        substitute_optional_string::<Sys>(&mut self.https_proxy)?;
+        substitute_optional_string::<Sys>(&mut self.http_proxy)?;
+        substitute_optional_string::<Sys>(&mut self.proxy)?;
+        substitute_json_string::<Sys>(&mut self.no_proxy)?;
+        substitute_json_string::<Sys>(&mut self.noproxy)?;
+        substitute_registry_entries::<Sys>(&mut self.registries)?;
+        substitute_optional_string_map::<Sys>(&mut self.named_registries)?;
+        Ok(())
     }
 
     /// Expand `${VAR}` in ordinary string settings, but drop
@@ -33,8 +34,8 @@ impl WorkspaceSettings {
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config) and filtered values do not.
-    pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) {
-        self.substitute_env_scalars::<Sys>();
+    pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) -> Result<(), LoadWorkspaceYamlError> {
+        self.substitute_env_scalars::<Sys>()?;
 
         if self.registry.as_deref().is_some_and(has_env_placeholder) {
             self.registry = None;
@@ -66,6 +67,7 @@ impl WorkspaceSettings {
                 *no_proxy = None;
             }
         }
+        Ok(())
     }
 
     /// Rewrite a leading `~/` in `storeDir`, `globalDir`, and `globalBinDir`
@@ -99,21 +101,24 @@ impl WorkspaceSettings {
         }
     }
 
-    pub(super) fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
-        substitute_optional_string::<Sys>(&mut self.scope);
-        substitute_optional_string::<Sys>(&mut self.store_dir);
-        substitute_optional_string::<Sys>(&mut self.state_dir);
-        substitute_optional_string::<Sys>(&mut self.modules_dir);
-        substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
-        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
-        substitute_optional_string::<Sys>(&mut self.global_dir);
-        substitute_optional_string::<Sys>(&mut self.global_bin_dir);
-        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
-        substitute_optional_string::<Sys>(&mut self.lockfile_dir);
-        substitute_optional_string::<Sys>(&mut self.patches_dir);
-        substitute_optional_string::<Sys>(&mut self.cache_dir);
-        substitute_optional_inner_string::<Sys>(&mut self.script_shell);
-        substitute_optional_inner_string::<Sys>(&mut self.node_options);
+    pub(super) fn substitute_env_scalars<Sys: EnvVar>(
+        &mut self,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        substitute_optional_string::<Sys>(&mut self.scope)?;
+        substitute_optional_string::<Sys>(&mut self.store_dir)?;
+        substitute_optional_string::<Sys>(&mut self.state_dir)?;
+        substitute_optional_string::<Sys>(&mut self.modules_dir)?;
+        substitute_optional_string::<Sys>(&mut self.virtual_store_dir)?;
+        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir)?;
+        substitute_optional_string::<Sys>(&mut self.global_dir)?;
+        substitute_optional_string::<Sys>(&mut self.global_bin_dir)?;
+        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file)?;
+        substitute_optional_string::<Sys>(&mut self.lockfile_dir)?;
+        substitute_optional_string::<Sys>(&mut self.patches_dir)?;
+        substitute_optional_string::<Sys>(&mut self.cache_dir)?;
+        substitute_optional_inner_string::<Sys>(&mut self.script_shell)?;
+        substitute_optional_inner_string::<Sys>(&mut self.node_options)?;
+        Ok(())
     }
 
     /// Resolve a path-like `scriptShell` against the workspace root, the

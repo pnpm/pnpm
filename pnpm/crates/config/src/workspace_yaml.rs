@@ -1,6 +1,8 @@
 pub mod package_configs;
+pub mod parse_settings;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
+pub(crate) use parse_settings::parse_settings;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
@@ -9,7 +11,6 @@ pub use sections::{
     SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
     decided_allow_builds,
 };
-pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
@@ -29,7 +30,6 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
-use pipe_trait::Pipe;
 use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
