@@ -27,6 +27,9 @@ Besides moving `pnpm-lock.yaml` to the newly resolved versions, `pnpm update` wr
 * A dependency declared through the [`catalog:` protocol](../catalogs.md) is not rewritten in `package.json`. The catalog entry it points at is updated instead, in `pnpm-workspace.yaml`.
 * A dependency declared through the [`jsr:` protocol](../package-sources.md) keeps its `jsr:` prefix, and its range moves like an npm range.
 * A dependency declared through a dist-tag, such as `"foo": "latest"`, keeps tracking the tag. The tag stays in `package.json` and only the lockfile moves to the version behind it — with `--latest` as well.
+* Since v11.27.1 and v12.6.0, a dependency whose specifier comes from a [`packageExtensions`](../settings/dependency-resolution.md#packageextensions) entry, a [`readPackage`](../pnpmfile.md#hooks) hook, or an [`override`](../settings/dependency-resolution.md#overrides) is not written to `package.json`. The lockfile keeps that specifier. `pnpm update` and `pnpm audit --fix=update` still move it inside the range.
+
+An exact pin from one of those sources is left as it is. When that pin is a vulnerable version, `pnpm audit --fix=update` warns and points at `pnpm audit --fix`, which writes an override. An override is applied after `packageExtensions` and `readPackage`, so it replaces a specifier those supply.
 
 Pass [`--no-save`](#--no-save) to update the lockfile only and leave the declared ranges alone.
 
@@ -101,6 +104,8 @@ pnpm --recursive update typescript@latest
 ### --latest, -L
 
 Update the dependencies to their latest stable version as determined by their `latest` tags (potentially upgrading the packages across major versions) as long as the version range specified in `package.json` is lower than the `latest` tag (i.e. it will not downgrade prereleases).
+
+Since v11.27.1 and v12.6.0, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
 ### --patches
 

@@ -133,6 +133,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
   * [update.githubActions](./settings/dependency-resolution.md#updategithubactions)
   * [update.githubActionsServer](./settings/dependency-resolution.md#updategithubactionsserver)
 * [supportedArchitectures](./settings/dependency-resolution.md#supportedarchitectures)
+* [optional](./settings/dependency-resolution.md#optional)
 * [ignoredOptionalDependencies](./settings/dependency-resolution.md#ignoredoptionaldependencies)
 * [forceIgnoresPlatform](./settings/dependency-resolution.md#forceignoresplatform)
 * [minimumReleaseAge](./settings/dependency-resolution.md#minimumreleaseage)
@@ -195,6 +196,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 [Full reference →](./settings/store.md#lockfile-settings)
 
 * [lockfile](./settings/store.md#lockfile)
+* [frozenLockfile](./settings/store.md#frozenlockfile)
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)
 * [gitBranchLockfile](./settings/store.md#gitbranchlockfile)
@@ -248,6 +250,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 
 * [[no-]color](./settings/cli.md#no-color)
 * [loglevel](./settings/cli.md#loglevel)
+* [reporter](./settings/cli.md#reporter)
 * [useBetaCli](./settings/cli.md#usebetacli)
 * [recursiveInstall](./settings/cli.md#recursiveinstall)
 * [engineStrict](./settings/cli.md#enginestrict)
@@ -337,6 +340,8 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 * [includeWorkspaceRoot](./workspaces.md#includeworkspaceroot)
 * [ignoreWorkspaceCycles](./workspaces.md#ignoreworkspacecycles)
 * [disallowWorkspaceCycles](./workspaces.md#disallowworkspacecycles)
+* [workspaceConcurrency](./workspaces.md#workspaceconcurrency)
+* [ignoreWorkspaceRootCheck](./workspaces.md#ignoreworkspacerootcheck)
 * [failIfNoMatch](./workspaces.md#failifnomatch)
 
 ### Settings documented elsewhere

@@ -36,9 +36,9 @@ Add-MpPreference -ExclusionPath $(pnpm store path)
 
 ### On POSIX systems
 
-:::warning Not supported on Intel macOS
+:::warning Not supported on Intel macOS and arm64 musl Linux
 
-The standalone script does not run on Intel Macs (`darwin-x64`). Install pnpm through [npm](#using-npm) instead. See [#11423](https://github.com/pnpm/pnpm/issues/11423) for context.
+The standalone script and `@pnpm/exe` do not run on Intel Macs (`darwin-x64`) or on arm64 musl Linux, such as Alpine on ARM. Install the `pnpm` package, which runs on your system Node.js, with `npm install -g pnpm@latest-11` instead. On arm64 musl Linux you can also use pnpm 12, which has a native binary for it. See [#11423](https://github.com/pnpm/pnpm/issues/11423) and [#10443](https://github.com/pnpm/pnpm/issues/10443) for context.
 
 :::
 
@@ -54,7 +54,7 @@ wget -qO- https://get.pnpm.io/install.sh | env PNPM_VERSION=latest-11 sh -
 
 :::info Linux runtime requirements
 
-The install script picks a glibc or musl build based on your system's libc, and a separate musl build is provided for Alpine and other musl-based distros. The glibc build requires glibc 2.27 or newer plus `libatomic.so.1` — both are present on most full distros but may be missing from minimal container images. If you see `error while loading shared libraries: libatomic.so.1`, install it with your distro's package manager:
+The install script picks a glibc or musl build based on your system's libc. A separate musl build is provided for Alpine and other musl-based distros on x64. The glibc build requires glibc 2.27 or newer plus `libatomic.so.1` — both are present on most full distros but may be missing from minimal container images. If you see `error while loading shared libraries: libatomic.so.1`, install it with your distro's package manager:
 
 - Debian/Ubuntu: `apt-get install -y libatomic1`
 - Fedora/RHEL: `dnf install -y libatomic`

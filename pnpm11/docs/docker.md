@@ -49,11 +49,17 @@ Let pnpm install Node.js automatically from [`devEngines.runtime`](./package_jso
 ```dockerfile
 FROM ghcr.io/pnpm/pnpm:11
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 CMD ["pnpm", "start"]
 ```
+
+If your project has a `pnpm-workspace.yaml`, copy it before running
+`pnpm install`. It contains project settings and, in a workspace, the package
+patterns. Omitting it can change how dependencies are installed or make a frozen
+install fail. Omit it from the `COPY` instruction only if your project has no
+such file.
 
 ### When to use this image
 
@@ -69,7 +75,12 @@ The recipes further down this page start from this image and let pnpm install No
 * Leverage multi-stage if possible and makes sense.
 * Leverage BuildKit cache mounts.
 
-The recipes below use the official pnpm image, which already sets `PNPM_HOME=/pnpm` and puts `/pnpm/bin` on `PATH`, so the store the cache mounts target is at `/pnpm/store`.
+The recipes below use the official pnpm image, which already sets `PNPM_HOME=/pnpm` and puts `/pnpm/bin` on `PATH`, so the default store is at `/pnpm/store`.
+
+When the base image has a runtime installed with `pnpm runtime set node 24 -g`,
+keep the build cache at a separate location, such as `/var/cache/pnpm`. Mounting
+a cache over `/pnpm/store` hides the managed runtime for the duration of the
+`RUN` instruction. The examples below set `--store-dir` to the cache mount.
 
 ### Example 1: Build a bundle in a Docker container
 
@@ -92,10 +103,10 @@ COPY . /app
 WORKDIR /app
 
 FROM base AS prod-deps
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/var/cache/pnpm pnpm install --store-dir /var/cache/pnpm --prod --frozen-lockfile
 
 FROM base AS build
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/var/cache/pnpm pnpm install --store-dir /var/cache/pnpm --frozen-lockfile
 RUN pnpm run build
 
 FROM base
@@ -160,7 +171,7 @@ RUN pnpm runtime set node 24 -g
 FROM base AS build
 COPY . /usr/src/app
 WORKDIR /usr/src/app
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/var/cache/pnpm pnpm install --store-dir /var/cache/pnpm --frozen-lockfile
 RUN pnpm run -r build
 RUN pnpm deploy --filter=app1 --prod /prod/app1
 RUN pnpm deploy --filter=app2 --prod /prod/app2
@@ -199,7 +210,7 @@ RUN pnpm runtime set node 24 -g
 FROM base AS prod
 
 WORKDIR /app
-COPY pnpm-lock.yaml /app
+COPY pnpm-lock.yaml /app/
 RUN pnpm fetch --prod
 
 COPY . /app

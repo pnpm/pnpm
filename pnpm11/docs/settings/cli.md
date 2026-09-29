@@ -28,6 +28,11 @@ Controls colors in the output.
 Any logs at or higher than the given level will be shown.
 You can instead pass `--silent` to turn off all output logs.
 
+### reporter
+
+Selects the log reporter. See [`--reporter`](../cli/install.md#--reportername)
+for the available reporters and terminal-dependent defaults.
+
 ### useBetaCli
 
 * Default: **false**

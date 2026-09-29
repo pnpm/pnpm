@@ -34,7 +34,7 @@ pnpm run "/<regex>/"
 Run all scripts that start with `watch:`:
 
 ```sh
-pnpm run "/^watch:.*/"
+pnpm run "/^watch:/"
 ```
 
 The selector must be written as a regular expression literal — that is, wrapped in slashes — and quoted, so the shell does not mangle it. A plain string is always treated as a literal script name, and a script whose name matches the argument exactly takes precedence over regex matching.
@@ -146,6 +146,12 @@ In a recursive run this serializes scripts across workspace projects as well as 
 For `pnpm run`, `-s` is the shorthand for `--sequential`. Everywhere else in the CLI, `-s` remains the shorthand for `--reporter=silent`. The long form `--silent` is unaffected in all commands.
 
 :::
+
+### --workspace-concurrency
+
+Set the maximum number of workspace tasks to run simultaneously. See
+[`pnpm recursive --workspace-concurrency`](./recursive.md#--workspace-concurrency)
+for defaults and how zero and negative values are interpreted.
 
 ### --stream
 

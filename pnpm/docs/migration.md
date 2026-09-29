@@ -33,9 +33,10 @@ The following changes are not automatable and need human attention:
 - **`ignorePatchFailures`** has been removed. Failed patches now always throw; fix the patch or remove the dependency.
 - **`executionEnv.nodeVersion`** in a workspace subpackage's `package.json#pnpm` is removed. Declare the runtime in that subpackage's `devEngines.runtime` instead.
 - **`npm_config_*` environment variables** are no longer read. Rename them to `pnpm_config_*` wherever they are set (CI configs, shell profiles, Docker images).
+- **Docker images need to copy `pnpm-workspace.yaml`** if the project has one. Copy it before `pnpm install` so project settings and workspace package patterns are available (see [Working with Docker](./docker.md)).
 - **`pnpm link <pkg-name>`** no longer resolves packages from the global store. Use a relative or absolute path (`pnpm link ./foo`).
 - **`pnpm install -g`** (with no arguments) is no longer supported. Use `pnpm add -g <pkg>` instead.
 - **`pnpm server`** has been removed with no replacement.
 - **Script names shadow built-in commands**. If your `package.json` defines a script named `clean`, `setup`, `deploy`, or `rebuild`, `pnpm <name>` now runs the script instead of the built-in command. Use [`pnpm pm <name>`](./cli/pm.md) to force the built-in.
 
-For the full list of breaking changes, see the [v11 changelog](https://github.com/pnpm/pnpm/blob/main/pnpm/CHANGELOG.md).
+For the full list of breaking changes, see the [v11 changelog](https://github.com/pnpm/pnpm/releases/tag/v11.0.0).

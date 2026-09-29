@@ -53,6 +53,16 @@ ENTRYPOINT ["node", "index.js"]
 
 ## Options
 
+### --force
+
+Allow deployment to a non-empty target directory. Without this flag, pnpm fails
+with `ERR_PNPM_DEPLOY_DIR_NOT_EMPTY` if the target directory is not empty.
+
+### --ignore-scripts
+
+Skip lifecycle scripts during deployment, including dependency build scripts.
+See [`pnpm install --ignore-scripts`](./install.md#--ignore-scripts).
+
 ### --dev, -D
 
 Only `devDependencies` are installed.

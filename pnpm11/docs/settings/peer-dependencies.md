@@ -127,6 +127,10 @@ peerDependencyRules:
   - "@eslint/*"
 ```
 
+`ignoreMissing` matches the peer package name or a glob. It does not support
+the `parent>peer` or `parent@range>peer` selectors accepted by
+[`allowedVersions`](#peerdependencyrulesallowedversions).
+
 #### peerDependencyRules.allowedVersions
 
 Unmet peer dependency warnings will not be printed for peer dependencies of the specified range.
@@ -162,3 +166,7 @@ peerDependencyRules:
 ```
 
 The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+`allowAny` matches the peer package name or a glob. It does not support
+the `parent>peer` or `parent@range>peer` selectors accepted by
+[`allowedVersions`](#peerdependencyrulesallowedversions).

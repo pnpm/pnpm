@@ -157,7 +157,7 @@ pnpm cannot guarantee that scripts will be run in topological order if there are
 
 If you see the message `There are cyclic workspace dependencies`, please inspect workspace dependencies declared in `dependencies`, `optionalDependencies` and `devDependencies`.
 
-## Usage examples
+## Workspaces in the wild
 
 Here are a few of the most popular open source projects that use the workspace feature of pnpm:
 
@@ -195,6 +195,7 @@ Here are a few of the most popular open source projects that use the workspace f
 | [Stimulus Components](https://github.com/stimulus-components/stimulus-components) | ![](https://img.shields.io/github/stars/stimulus-components/stimulus-components) | 2024-10-26 | [`8e100d5b2c02ad5bf0b965822880a60f543f5ec3`](https://github.com/stimulus-components/stimulus-components/commit/8e100d5b2c02ad5bf0b965822880a60f543f5ec3) |
 | [Serenity/JS](https://github.com/serenity-js/serenity-js) | ![](https://img.shields.io/github/stars/serenity-js/serenity-js) | 2025-01-01 | [`43dbe6f440d8dd81811da303e542381a17d06b4d`](https://github.com/serenity-js/serenity-js/commit/43dbe6f440d8dd81811da303e542381a17d06b4d) |
 | [kysely](https://github.com/kysely-org/kysely) | ![](https://img.shields.io/github/stars/kysely-org/kysely) | 2025-07-29 | [`5ac19105ddb17af310c67e004c11fa3345454b66`](https://github.com/kysely-org/kysely/commit/5ac19105ddb17af310c67e004c11fa3345454b66) |
+| [Mermaid](https://github.com/mermaid-js/mermaid) | ![](https://img.shields.io/github/stars/mermaid-js/mermaid) | 2022-09-22 | [`db31f61368c2414f3bd5f5841bf217d75ba60a5e`](https://github.com/mermaid-js/mermaid/commit/db31f61368c2414f3bd5f5841bf217d75ba60a5e) |
 
 ## Configuration
 
@@ -330,6 +331,26 @@ See [Workspace task orchestration](./workspace-task-orchestration.md#cycles).
 * Type: **Boolean**
 
 When set to `true`, installation will fail if the workspace has cycles.
+
+### workspaceConcurrency
+
+* Default: **4**
+* Type: **Number**
+
+Controls how many workspace tasks run at once. See
+[`--workspace-concurrency`](./cli/recursive.md#--workspace-concurrency) for details.
+
+### ignoreWorkspaceRootCheck
+
+* Default: **false**
+* Type: **Boolean**
+
+Allow adding dependencies to the workspace root without passing
+`--ignore-workspace-root-check` or `-w`.
+
+```yaml title="pnpm-workspace.yaml"
+ignoreWorkspaceRootCheck: true
+```
 
 ### failIfNoMatch
 

@@ -48,6 +48,8 @@ Because a recursive run can bump many packages to different versions, no git com
 
 Since v11.16.0, the first release of a package publishes the version written in its manifest verbatim, instead of bumping off it. `pnpm version -r` and `pnpm change status` check the registry for each release's current version; when that version is not yet published, the package debuts at it and its pending change intents apply only from the next release. A newly added package seeded at `1100.0.0` with a `minor` intent is therefore published as `1100.0.0` rather than skipping straight to `1100.1.0`.
 
+Private packages (`"private": true`) are never published, so they skip this registry check: their pending change intents are always applied on top of the version in their manifest.
+
 ## Configuration
 
 Release behavior is configured under the `versioning` key of `pnpm-workspace.yaml`:
@@ -111,6 +113,8 @@ Membership is matched with pnpm's package selectors: name globs, `./`-prefixed d
 By default (`versioning.changelog.storage: registry`) no `CHANGELOG.md` is committed. Each release's section is composed at publish time and packed into the published tarball on top of the previously published version's changelog. Consumed change intents are garbage-collected by a later `pnpm version -r` only once the registry confirms the version was published with its section.
 
 Set `versioning.changelog.storage: repository` to keep committed `CHANGELOG.md` files in every package instead.
+
+Private packages are never published, so no tarball could carry their changelog. Their releases always use `repository` storage, whatever is configured: the section is prepended to the package's committed `CHANGELOG.md`, and the release counts as consumed without a registry confirmation. An intent file that also names other projects is still deleted only once all of them have released.
 
 ## The ledger
 

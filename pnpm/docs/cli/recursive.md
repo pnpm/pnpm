@@ -34,6 +34,11 @@ Usage example:
 pnpm -r publish
 ```
 
+By default, recursive `run`, `exec`, and `test` execute projects in
+topological order: dependencies run before their dependents. Use `--no-sort`
+to disable graph ordering, or `--parallel` to start tasks without waiting for
+dependencies.
+
 ## Options
 
 ### --link-workspace-packages

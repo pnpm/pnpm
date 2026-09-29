@@ -69,6 +69,8 @@ Release plan:
 
 The cause of each bump is one of `intent` (a change intent named the package), `dependencies` (a dependent was pulled in by propagation), `fixed` (a [fixed group](../versioning.md#fixed-groups) companion), or `epic` (an [epic](../versioning.md#epics) re-base).
 
+Private packages (`"private": true`) are never checked against the registry for a [first release](../versioning.md#first-releases), so their pending change intents always show up as bumps, and a workspace of only private packages needs no registry access to plan a release.
+
 ### check
 
 Added in: v11.26.0

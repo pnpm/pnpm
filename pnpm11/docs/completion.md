@@ -14,6 +14,9 @@ You can do this by removing the section of code that contains `__tabtab` in your
 Unlike other popular package managers, which usually require plugins, pnpm
 supports command line tab-completion for Bash, Zsh, Fish, and similar shells.
 
+`pnpm completion <shell>` prints completion code to standard output. Supported
+shell names are `bash`, `fish`, `pwsh`, and `zsh`.
+
 To setup autocompletion for Bash, run:
 
 ```text
@@ -29,7 +32,7 @@ pnpm completion fish > ~/.config/fish/completions/pnpm.fish
 
 ## g-plane/pnpm-shell-completion
 
-[pnpm-shell-completion] is a shell plugin maintained by Pig Fang on Github.
+[pnpm-shell-completion] is a shell plugin maintained by Pig Fang on GitHub.
 
 Features:
 

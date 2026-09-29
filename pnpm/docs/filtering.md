@@ -218,7 +218,7 @@ pnpm --filter ...foo --filter bar --filter baz... test
 
 ## --filter-prod &lt;filtering_pattern>
 
-Acts the same a `--filter` but omits `devDependencies` when selecting dependency projects
+Acts the same as `--filter` but omits `devDependencies` when selecting dependency projects
 from the workspace.
 
 ## --test-pattern &lt;glob>
