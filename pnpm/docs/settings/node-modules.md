@@ -105,9 +105,9 @@ Or you can set the virtual store to `.pnpm` and add it to `.gitignore`. This
 will make stacktraces cleaner as paths to dependencies will be one directory
 higher.
 
-**NOTE:** the virtual store cannot be shared between several projects. Every
-project should have its own virtual store (except for in workspaces where the
-root is shared).
+**NOTE:** without a global virtual store, the virtual store cannot be shared
+between several projects. Every project should have its own virtual store
+(except for in workspaces where the root is shared).
 
 When [`enableGlobalVirtualStore`](#enableglobalvirtualstore) is on,
 `virtualStoreDir` sets the location of the global virtual store, which several
