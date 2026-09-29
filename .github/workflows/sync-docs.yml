@@ -1,7 +1,7 @@
-name: Sync released documentation
+name: Sync documentation
 
 on:
-  # Only signed, published release tags supply Markdown; no code or artifacts
+  # Automatic runs use signed, published release tags; no code or artifacts
   # from the triggering run execute here. The token is limited to the push step.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [Release]
@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Published pnpm v11, v12, or pnpr release tag to sync or retry
-        required: true
+        description: Optional published release tag; leave empty to publish all docs from main
+        required: false
         type: string
       docs_commit:
         description: Optional full SHA of a docs-only correction based on that tag
@@ -26,13 +26,19 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    environment: docs-sync
+    outputs:
+      publish: ${{ steps.source.outputs.publish }}
+      main_sync: ${{ steps.source.outputs.main_sync }}
+      docs_commit: ${{ steps.source.outputs.docs_commit }}
+      line: ${{ steps.source.outputs.line }}
+      version: ${{ steps.source.outputs.version }}
+      website_commit: ${{ steps.website.outputs.commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate the published release and select its documentation
+      - name: Select the main or released documentation snapshot
         id: source
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -55,6 +61,11 @@ jobs:
           ref: main
           path: website
           persist-credentials: false
+      - name: Record the website revision before executing website code
+        if: steps.source.outputs.publish == 'true'
+        id: website
+        working-directory: website
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         if: steps.source.outputs.publish == 'true'
         with:
@@ -64,31 +75,83 @@ jobs:
         if: steps.source.outputs.publish == 'true'
         working-directory: website
         run: pnpm install --frozen-lockfile
-      - name: Sync and verify the released pages
+      - name: Sync and verify the pages
         if: steps.source.outputs.publish == 'true'
         working-directory: website
         env:
+          MAIN_SYNC: ${{ steps.source.outputs.main_sync }}
           LINE: ${{ steps.source.outputs.line }}
           VERSION: ${{ steps.source.outputs.version }}
           RELEASE_COMMIT: ${{ steps.source.outputs.release_commit }}
           DOCS_COMMIT: ${{ steps.source.outputs.docs_commit }}
         run: |
-          node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" "$LINE" "$VERSION" "$RELEASE_COMMIT" "$DOCS_COMMIT"
+          if [ "$MAIN_SYNC" = true ]; then
+            node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" --preview
+          else
+            node scripts/sync-docs.mjs "$RUNNER_TEMP/docs-source" "$LINE" "$VERSION" "$RELEASE_COMMIT" "$DOCS_COMMIT"
+          fi
           pnpm build
           pnpm check-urls
-      - name: Publish the generated documentation commit
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: steps.source.outputs.publish == 'true'
+        with:
+          name: generated-documentation
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            website/docs
+            website/pnpr-docs
+            website/versioned_docs/version-11.x
+            website/sidebars.json
+            website/sidebars-pnpr.json
+            website/versioned_sidebars/version-11.x-sidebars.json
+            website/static/docs-assets
+            website/docs-sync.json
+
+  publish:
+    needs: sync
+    if: needs.sync.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: docs-sync
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pnpm/pnpm.io
+          ref: ${{ needs.sync.outputs.website_commit }}
+          path: website
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: generated-documentation
+          path: generated-documentation
+      - name: Copy only documentation into the clean checkout
+        run: node .github/scripts/copy-docs-artifact.mjs generated-documentation website
+      - name: Commit the generated documentation
         working-directory: website
         env:
-          GH_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN }}
-          VERSION: ${{ steps.source.outputs.version }}
-          LINE: ${{ steps.source.outputs.line }}
+          MAIN_SYNC: ${{ needs.sync.outputs.main_sync }}
+          DOCS_COMMIT: ${{ needs.sync.outputs.docs_commit }}
+          VERSION: ${{ needs.sync.outputs.version }}
+          LINE: ${{ needs.sync.outputs.line }}
         run: |
-          test -n "$GH_TOKEN" || { echo '::error::Configure DOCS_SYNC_TOKEN in the docs-sync environment'; exit 1; }
           git add docs pnpr-docs sidebars-pnpr.json versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets docs-sync.json
           if git diff --cached --quiet; then exit 0; fi
           git config user.name 'pnpm docs sync'
           git config user.email 'pnpm-docs-sync@users.noreply.github.com'
-          git commit -m "docs: sync ${LINE} documentation for ${VERSION}" -m "Generated from pnpm/pnpm. Written by release automation."
+          if [ "$MAIN_SYNC" = true ]; then
+            title="docs: sync product documentation from main"
+          else
+            title="docs: sync ${LINE} documentation for ${VERSION}"
+          fi
+          git commit -m "$title" -m "Generated from pnpm/pnpm commit ${DOCS_COMMIT}. Written by release automation."
+      - name: Push the verified documentation commit
+        working-directory: website
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_SYNC_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN" || { echo '::error::Configure DOCS_SYNC_TOKEN in the docs-sync environment'; exit 1; }
           gh auth setup-git
           git push origin HEAD:main

@@ -3,7 +3,7 @@ id: users
 title: Who's using pnpm?
 ---
 
-pnpm is used by many folks. Are you using it too? [Add your company](https://github.com/pnpm/pnpm.io/edit/main/docs/users.md) to this page.
+pnpm is used by many folks. Are you using it too? [Add your company](https://github.com/pnpm/pnpm/edit/main/pnpm/docs/users.md) to this page.
 
 <div style="display: flex; flex-flow: row wrap; align-items: center; justify-content: center">
   <a href="https://alova.js.org" title="Alova"><img src="/img/users/alova.svg" alt="Alova" width="150" style="padding: 20px" /></a>

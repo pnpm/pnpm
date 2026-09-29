@@ -52,7 +52,7 @@ Example `.pnpmfile.mjs` (changes the dependencies of a dependency):
 ```js
 function readPackage(pkg, context) {
   // Override the manifest of foo@1.x after downloading it from the registry
-  if (pkg.name === 'foo' && pkg.version.startsWith('1.')) {
+  if (pkg.name === 'foo' && pkg.version?.startsWith('1.')) {
     // Replace bar@x.x.x with bar@2.0.0
     pkg.dependencies = {
       ...pkg.dependencies,
@@ -62,7 +62,7 @@ function readPackage(pkg, context) {
   }
 
   // This will change any packages using baz@x.x.x to use baz@1.2.3
-  if (pkg.dependencies.baz) {
+  if (pkg.dependencies?.baz) {
     pkg.dependencies.baz = '1.2.3';
   }
 
@@ -152,7 +152,7 @@ Unlike `hooks.readPackage`, which modifies how dependencies are resolved during 
 function beforePacking(pkg) {
   // Remove development-only fields from published package
   delete pkg.devDependencies
-  delete pkg.scripts.test
+  delete pkg.scripts?.test
 
   // Add publication metadata
   pkg.publishedAt = new Date().toISOString()

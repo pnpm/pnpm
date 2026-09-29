@@ -10,8 +10,8 @@ archived documentation, translations, and deployment remain in
 
 The Markdown lives directly under `pnpm/docs/` for v12 and `pnpm11/docs/` for
 v11, with registry documentation under `pnpr/docs/`. Each directory includes
-its `sidebars.json` and documentation assets under `static/`. Update both CLI trees when a fix affects both versions. The sources were
-imported from pnpm/pnpm.io commit `987689309ca8fcd56f7f41ebf3ab83cff2a062c6`.
+its `sidebars.json` and documentation assets under `static/`. Update both CLI
+trees when a fix affects both versions.
 
 Use `/img/...` URLs for assets stored under a line's `static/img/` directory.
 The publisher places them under `/docs-assets/<line>/img/` and rewrites the
@@ -37,22 +37,35 @@ adopting website tooling changes. Release publication uses the website's current
 
 ## Publication
 
-After the Release workflow succeeds, Sync released documentation verifies the
+After the Release workflow succeeds, Sync documentation verifies the
 signed tag and npm publication, then imports only that version's documentation
 from the tagged commit. Stable v11 and v12 releases update their
 respective CLI documentation. Pnpr releases, including alpha releases, update
 only the registry documentation. Other CLI releases do not trigger a sync.
 
-The sync builds and checks the site, then commits the generated copies to
+The sync builds and checks the site without the publication credential. A
+separate job copies only documentation files into a clean checkout, then commits
+the generated copies to
 pnpm/pnpm.io. Its Deploy workflow publishes the website. `docs-sync.json` in
 that repository records the release version and both source commits. Older
 releases cannot replace newer copies, and rerunning a release cannot undo a
 later documentation correction.
 
-A sync failure does not undo package publication. Rerun Sync released
-documentation with `release_tag` to retry, without publishing packages again.
+A sync failure does not undo package publication. Rerun Sync documentation
+with `release_tag` to retry, without publishing packages again. Release retries
+use the currently trusted keys in `.github/release-keys/`; removing a key also
+disables retries for tags signed with it. Historical keys are not automatically
+re-trusted. Use the manual publication from `main` described below if needed.
 Concurrent website changes may cause the final push to fail; rerun the sync to
 build against the new website commit. The workflow never force-pushes.
+
+To publish directly from `main` without a release, open **Actions → Sync
+documentation → Run workflow**, select `main`, and leave both inputs empty.
+This builds, checks, and publishes all three products' current documentation,
+including docs for unreleased changes. It requires the same `DOCS_SYNC_TOKEN`
+setup as automatic publication. The generated website commit records the source
+SHA. This manual override leaves the last-release tracking in `docs-sync.json`
+unchanged; subsequent newer releases resume updating their respective docs.
 
 For a correction that should ship before the next package release, branch from
 the published release tag, change only the corresponding `pnpm/docs/` or
@@ -67,7 +80,7 @@ version's documentation. This keeps unreleased features off the public site.
 1. Land the pnpm/pnpm.io tooling, builder patch and generated copies first.
    Its v11, v12, and pnpr edit links will point at the corresponding product docs in
    pnpm/pnpm.
-2. Land the product docs and the Documentation and Sync released documentation
+2. Land the product docs and the Documentation and Sync documentation
    workflows in pnpm/pnpm. The sync starts with releases whose tags include the
    documentation sources; older tags cannot provide them.
 3. Create a `docs-sync` environment in pnpm/pnpm with `DOCS_SYNC_TOKEN`, a token

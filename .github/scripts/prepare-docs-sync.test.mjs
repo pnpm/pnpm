@@ -17,6 +17,7 @@ function fixture (t, tag = 'v12.8.2') {
     writeFileSync(path.join(repo, product, 'package.json'), JSON.stringify({ version: productVersion }))
   }
   git('init', '--quiet')
+  git('config', 'commit.gpgsign', 'false')
   git('config', 'user.name', 'Test')
   git('config', 'user.email', 'test@example.com')
   git('add', '.')
@@ -97,4 +98,23 @@ test('pnpr alpha releases and corrections select only the registry documentation
   const result = prepareDocsSync({ ...f.options, eventName: 'workflow_dispatch', releaseTag: 'pnpr@0.1.0-alpha.15', docsRef: f.git('rev-parse', 'HEAD') })
   assert.equal(result.line, 'pnpr')
   assert.equal(result.docs_commit, f.git('rev-parse', 'HEAD'))
+})
+
+test('manual publication from main needs no release or npm publication', t => {
+  const f = fixture(t)
+  assert.deepEqual(prepareDocsSync({
+    eventName: 'workflow_dispatch',
+    githubRef: 'refs/heads/main',
+    git: f.git,
+    publicationState: () => assert.fail('main publication must not query npm'),
+  }), { publish: true, main_sync: true, docs_commit: f.sha })
+})
+
+test('manual publication without a release is restricted to main and its checked-out snapshot', () => {
+  for (const githubRef of [undefined, 'refs/heads/feature', 'refs/tags/v12.8.2']) {
+    assert.throws(() => prepareDocsSync({ eventName: 'workflow_dispatch', githubRef }), /must run from main/)
+  }
+  assert.throws(() => prepareDocsSync({
+    eventName: 'workflow_dispatch', githubRef: 'refs/heads/main', docsRef: 'a'.repeat(40),
+  }), /docs_commit requires a release_tag/)
 })

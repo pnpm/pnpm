@@ -3,7 +3,12 @@ import { appendFileSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export function prepareDocsSync ({ event, eventName, releaseTag, docsRef: correction, git = runGit, publicationState = readPublicationState }) {
+export function prepareDocsSync ({ event, eventName, githubRef, releaseTag, docsRef: correction, git = runGit, publicationState = readPublicationState }) {
+  if (eventName === 'workflow_dispatch' && !releaseTag) {
+    if (githubRef !== 'refs/heads/main') throw new Error('Manual publication without a release tag must run from main')
+    if (correction) throw new Error('docs_commit requires a release_tag')
+    return { publish: true, main_sync: true, docs_commit: git('rev-parse', 'HEAD') }
+  }
   const automatic = eventName === 'workflow_run'
   const tag = automatic ? event.workflow_run.head_branch : releaseTag
   const match = /^(v|pnpr@)(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag ?? '')
@@ -54,6 +59,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const result = prepareDocsSync({
     event: JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')),
     eventName: process.env.GITHUB_EVENT_NAME,
+    githubRef: process.env.GITHUB_REF,
     releaseTag: process.env.RELEASE_TAG,
     docsRef: process.env.DOCS_COMMIT,
   })

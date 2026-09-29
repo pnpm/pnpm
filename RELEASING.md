@@ -188,7 +188,7 @@ yet maintainer-signed end to end.
 
 ## Website documentation
 
-After a successful Release workflow, the separate Sync released documentation
+After a successful Release workflow, the separate Sync documentation
 workflow copies the tagged pnpm v11, v12, or pnpr documentation to pnpm/pnpm.io and checks the
 website build before pushing it. Check that workflow as part of finishing a
 release. A failed docs sync can be retried independently of package publication.
