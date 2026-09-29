@@ -49,6 +49,22 @@ fn xdg_runtime_dir_that_others_can_rename_entries_in_is_ignored() {
 }
 
 #[test]
+fn xdg_runtime_dir_its_owner_cannot_write_to_is_ignored() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let set_mode = |mode| {
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(mode)).unwrap();
+    };
+    set_mode(0o500);
+    assert_eq!(xdg_runtime_dir(Some(root.path().into())), None);
+    set_mode(0o600);
+    assert_eq!(xdg_runtime_dir(Some(root.path().into())), None);
+    set_mode(0o700);
+    assert_eq!(xdg_runtime_dir(Some(root.path().into())), Some(root.path().to_path_buf()));
+}
+
+#[test]
 fn xdg_runtime_dir_owned_by_another_user_is_ignored() {
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
     if unsafe { libc::geteuid() } == 0 {
