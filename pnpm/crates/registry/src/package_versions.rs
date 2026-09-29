@@ -48,6 +48,10 @@ struct VersionSlot {
     /// Hydration cache. `Some(None)` records a fragment that failed
     /// to decode so the parse error is paid (and warned about) once.
     parsed: OnceLock<Option<Arc<PackageVersion>>>,
+    /// [`PackageVersions::is_deprecated`] probe cache. Stays empty when
+    /// the fragment could not be read, so a failed mirror read is
+    /// retried. A populated `parsed` takes precedence over it.
+    deprecated: OnceLock<bool>,
 }
 
 /// A mirror file held open for on-demand fragment reads, counted
@@ -180,6 +184,7 @@ impl Clone for VersionSlot {
     fn clone(&self) -> Self {
         VersionSlot {
             source: self.source.clone(),
+            deprecated: self.deprecated.clone(),
             parsed: match self.parsed.get() {
                 Some(value) => OnceLock::from(value.clone()),
                 None => OnceLock::new(),
@@ -192,6 +197,7 @@ impl VersionSlot {
     fn from_parsed(manifest: PackageVersion) -> Self {
         VersionSlot {
             source: FragmentSource::None,
+            deprecated: OnceLock::new(),
             parsed: OnceLock::from(Some(Arc::new(manifest))),
         }
     }
@@ -265,12 +271,15 @@ impl PackageVersions {
         if let Some(parsed) = slot.parsed.get() {
             return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
         }
-        let Some(json) = slot.source.json() else { return false };
-        if !json.contains(r#""deprecated""#) {
-            return false;
+        if let Some(deprecated) = slot.deprecated.get() {
+            return *deprecated;
         }
-        serde_json::from_str::<DeprecatedProbe>(&json)
-            .is_ok_and(|probe| probe.deprecated.is_some())
+        let Some(json) = slot.source.json() else { return false };
+        *slot.deprecated.get_or_init(|| {
+            json.contains(r#""deprecated""#)
+                && serde_json::from_str::<DeprecatedProbe>(&json)
+                    .is_ok_and(|probe| probe.deprecated.is_some())
+        })
     }
 
     /// Version strings in lexical order. Never hydrates.
@@ -357,6 +366,7 @@ impl PackageVersions {
                                 len,
                             },
                             parsed: OnceLock::new(),
+                            deprecated: OnceLock::new(),
                         },
                     )
                 })
@@ -382,6 +392,7 @@ impl PackageVersions {
                         VersionSlot {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
+                            deprecated: OnceLock::new(),
                         },
                     )
                 })
@@ -452,6 +463,7 @@ impl<'de> Deserialize<'de> for PackageVersions {
                         VersionSlot {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
+                            deprecated: OnceLock::new(),
                         },
                     )
                 })

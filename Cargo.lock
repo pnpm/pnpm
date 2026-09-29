@@ -5495,6 +5495,7 @@ dependencies = [
  "pnpm-registry",
  "pnpm-reporter",
  "pnpm-resolving-deps-resolver",
+ "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
  "pnpm-tarball",
