@@ -31,34 +31,24 @@ pub fn workspace_root() -> &'static Path {
     WORKSPACE_ROOT.as_path()
 }
 
-/// The verdaccio-shaped storage built from the in-repo package fixtures
-/// (`pnpr/.fixtures/packages`) — the same storage pacquet's tests serve.
-/// We don't serve directly from here — see [`runtime_storage`] for why — but
-/// we seed [`runtime_storage`] from it on every launch.
-#[must_use]
-pub fn registry_mock_storage() -> &'static Path {
-    pnpr_fixtures::ensure_storage()
-}
-
-/// Stable cache path we hand to `pnpr --storage` (instead
-/// of [`registry_mock_storage`]). Two reasons it has to be separate
-/// and stable:
+/// Root the per-generation runtime storage directories live under.
 ///
-/// 1. `pnpr` writes proxy-mode cache entries (the ~2.3k
-///    unscoped npm packages the benchmark lockfile pulls) into
-///    `--storage`. If we pointed at the generated fixture storage
-///    we'd mix proxy-cache entries into it and lose them whenever the
-///    fixtures are rebuilt.
-/// 2. CI caches this path across runs
-///    (`.github/workflows/pnpm-integrated-benchmark.yml`). Without
-///    that, cold-cache scenarios pay a full 2.3k-packument fetch
-///    from npmjs on every run.
+/// The mock cannot point `pnpr` at the generated fixture storage itself.
+/// `pnpr` writes proxy-mode cache entries (the ~2.3k unscoped npm packages
+/// the benchmark lockfile pulls) into `--storage`, and those would be mixed
+/// into the generated tree and lost whenever the fixtures are rebuilt. CI
+/// also caches this root across runs
+/// (`.github/workflows/pacquet-integrated-benchmark.yml`); without that,
+/// cold-cache scenarios pay a full 2.3k-packument fetch from npmjs every
+/// run.
 ///
-/// The path can be overridden via the `PNPM_REGISTRY_STORAGE` env
-/// var. Defaults to `$HOME/.cache/pnpm-registry/storage`.
+/// `PNPM_REGISTRY_STORAGE` overrides the root, not one generation's
+/// directory within it.
+///
+/// Defaults to `$HOME/.cache/pnpm-registry/storage`.
 #[must_use]
-pub fn runtime_storage() -> &'static Path {
-    static STORAGE: LazyLock<PathBuf> = LazyLock::new(|| {
+pub fn runtime_storage_root() -> &'static Path {
+    static ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
         std::env::var_os("PNPM_REGISTRY_STORAGE")
             .map(PathBuf::from)
             .or_else(|| {
@@ -69,7 +59,7 @@ pub fn runtime_storage() -> &'static Path {
                             .join("storage")
                     })
             })
-            .expect("locate runtime storage dir: set PNPM_REGISTRY_STORAGE or ensure $HOME is set")
+            .expect("locate runtime storage root: set PNPM_REGISTRY_STORAGE or ensure $HOME is set")
     });
-    STORAGE.as_path()
+    ROOT.as_path()
 }

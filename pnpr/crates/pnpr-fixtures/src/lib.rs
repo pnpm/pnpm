@@ -23,18 +23,54 @@ const GENERATED_DIR: &str = "pnpr-fixtures";
 const COMPLETE_FILE: &str = ".complete";
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-#[must_use]
-pub fn ensure_storage() -> &'static Path {
-    static STORAGE: LazyLock<PathBuf> = LazyLock::new(|| {
-        let workspace = workspace_root();
-        let packages = workspace.join(PACKAGES_DIR);
-        let generated = target_dir(&workspace).join(GENERATED_DIR);
-        let fingerprint = fixture_fingerprint(&packages);
+/// One content-addressed generation of the in-repo package fixtures.
+///
+/// The fingerprint digests every fixture file, so two generations share
+/// one only when the fixture tree is byte-identical. That is what lets a
+/// consumer hang a directory off the fingerprint and know it can only
+/// ever hold the files that produced it.
+#[derive(Debug, Clone)]
+pub struct FixtureGeneration {
+    fingerprint: String,
+    storage: PathBuf,
+}
+
+impl FixtureGeneration {
+    /// Build, or reuse, the verdaccio-shaped storage for the fixtures in
+    /// `packages`, published under `generated` the way [`current`] does for
+    /// the committed fixtures.
+    #[must_use]
+    pub fn of(packages: &Path, generated: &Path) -> Self {
+        let fingerprint = fixture_fingerprint(packages);
         let storage = generated.join("storage").join(&fingerprint);
-        ensure_storage_for_fingerprint(&packages, &generated, &storage);
-        storage
+        ensure_storage_for_fingerprint(packages, generated, &storage);
+        Self { fingerprint, storage }
+    }
+
+    #[must_use]
+    pub fn fingerprint(&self) -> &str {
+        &self.fingerprint
+    }
+
+    #[must_use]
+    pub fn storage(&self) -> &Path {
+        &self.storage
+    }
+}
+
+/// The generation the committed fixtures under `pnpr/.fixtures/packages`
+/// describe, with its storage built. Process-global and cached: the
+/// fixture tree does not change under a running process.
+#[must_use]
+pub fn current() -> &'static FixtureGeneration {
+    static CURRENT: LazyLock<FixtureGeneration> = LazyLock::new(|| {
+        let workspace = workspace_root();
+        FixtureGeneration::of(
+            &workspace.join(PACKAGES_DIR),
+            &target_dir(&workspace).join(GENERATED_DIR),
+        )
     });
-    STORAGE.as_path()
+    &CURRENT
 }
 
 #[must_use]
@@ -45,7 +81,7 @@ pub fn packages_dir() -> PathBuf {
 /// Build verdaccio-shaped storage from the raw package fixtures in `packages`
 /// into `out`, replacing any existing contents. Used by the `pnpr-prepare`
 /// binary so the JS test harness can serve the moved fixtures; pacquet's own
-/// tests use [`ensure_storage`] (process-global, cached) instead.
+/// tests use [`current`] (process-global, cached) instead.
 pub fn build_storage_at(packages: &Path, out: &Path) {
     build_storage_at_with_substitutions(packages, out, &[]);
 }
