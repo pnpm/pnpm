@@ -6,32 +6,32 @@ import { fileURLToPath } from 'node:url'
 export function prepareDocsSync ({ event, eventName, releaseTag, docsRef: correction, git = runGit, publicationState = readPublicationState }) {
   const automatic = eventName === 'workflow_run'
   const tag = automatic ? event.workflow_run.head_branch : releaseTag
-  const match = /^(v|pnpr@)(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag ?? '')
+  const match = /^v((?:11|12)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag ?? '')
   if (!match) {
     if (automatic) return undefined
-    throw new Error('Expected a release tag such as v12.8.2 or pnpr@0.1.0-alpha.15')
+    throw new Error('Expected a pnpm v11 or v12 release tag such as v12.8.2')
   }
-  const [, prefix, version] = match
-  if (prefix === 'v' && version.includes('-')) return undefined
+  const [, version] = match
+  if (version.includes('-')) return undefined
   const releaseCommit = git('rev-parse', '--verify', `refs/tags/${tag}^{commit}`)
   if (automatic && releaseCommit !== event.workflow_run.head_sha) throw new Error('Release tag does not match the completed workflow')
   git('verify-tag', tag)
-  const manifests = prefix === 'pnpr@' ? ['pnpr/npm/pnpr/package.json'] : ['pnpm/npm/pnpm/package.json', 'pnpm11/pnpm/package.json']
+  const manifests = ['pnpm/npm/pnpm/package.json', 'pnpm11/pnpm/package.json']
   if (!manifests.some(file => JSON.parse(git('show', `${releaseCommit}:${file}`)).version === version)) {
     throw new Error(`Tag ${tag} does not match a committed product version`)
   }
-  const packageName = prefix === 'pnpr@' ? '@pnpm/pnpr' : 'pnpm'
-  const publication = publicationState(`${packageName}@${version}`)
-  if (publication !== 'published') throw new Error(`${packageName}@${version} has not been published`)
-  const line = prefix === 'pnpr@' ? 'pnpr' : `${version.split('.')[0]}.x`
+  const publication = publicationState(`pnpm@${version}`)
+  if (publication !== 'published') throw new Error(`pnpm@${version} has not been published`)
+  const line = `${version.split('.')[0]}.x`
   const docsRef = automatic ? releaseCommit : correction || releaseCommit
   if (!/^[a-f0-9]{40}$/.test(docsRef)) throw new Error('Documentation corrections require a full commit SHA')
   const docsCommit = git('rev-parse', '--verify', `${docsRef}^{commit}`)
   if (docsCommit !== releaseCommit) {
     git('merge-base', '--is-ancestor', releaseCommit, docsCommit)
+    const docsPath = line === '11.x' ? 'pnpm11/docs' : 'pnpm/docs'
     const changed = git('diff', '--name-only', releaseCommit, docsCommit).split('\n').filter(Boolean)
-    if (!changed.length || changed.some(file => !file.startsWith(`docs/versions/${line}/`))) {
-      throw new Error(`Corrections must be based on ${tag} and change only docs/versions/${line}/`)
+    if (!changed.length || changed.some(file => !file.startsWith(`${docsPath}/`))) {
+      throw new Error(`Corrections must be based on ${tag} and change only ${docsPath}/`)
     }
   }
   return { publish: true, line, version, release_commit: releaseCommit, docs_commit: docsCommit }
