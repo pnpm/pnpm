@@ -1,7 +1,10 @@
 use crate::capabilities::FsWalkFiles;
 use pnpm_fs::is_subdir;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Component, Path, PathBuf},
+};
 
 /// One bin entry resolved from a package's `package.json`.
 ///
@@ -105,13 +108,96 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
         if !is_safe_bin_name(&bin_name) {
             continue;
         }
-        let bin_path = pkg_path.join(&bin_relative_path);
-        if !is_subdir(pkg_path, &bin_path) {
+        let Some(bin_path) = resolve_bin_path(pkg_path, &bin_relative_path) else {
             continue;
-        }
+        };
         commands.push(Command { name: bin_name, path: bin_path });
     }
     commands
+}
+
+/// Resolve the on-disk path for a declared bin entry.
+///
+/// Returns `None` when `bin_relative_path` attempts directory traversal outside
+/// `pkg_path`. Resolves `node_modules` specifiers from the package's real
+/// location when the file is absent directly under `pkg_path`.
+fn resolve_bin_path(pkg_path: &Path, bin_relative_path: &str) -> Option<PathBuf> {
+    let bin_path = pkg_path.join(bin_relative_path);
+    if !is_subdir(pkg_path, &bin_path) {
+        return None;
+    }
+    let Some(node_modules_specifier) = get_node_modules_specifier(bin_relative_path) else {
+        return Some(bin_path);
+    };
+    if bin_path.is_file() {
+        return Some(bin_path);
+    }
+    let candidate = resolve_from_node_modules_ancestors(pkg_path, &node_modules_specifier);
+    Some(candidate.unwrap_or(bin_path))
+}
+
+/// Extract the package-relative path after `node_modules/` if present.
+///
+/// Returns `None` when the path does not target `node_modules`, contains
+/// directory navigation (`.` or `..`), or names an incomplete scoped package.
+fn get_node_modules_specifier(bin_relative_path: &str) -> Option<PathBuf> {
+    let path = Path::new(bin_relative_path);
+    let mut components = path.components().peekable();
+    while matches!(components.peek(), Some(Component::CurDir)) {
+        components.next();
+    }
+    if components.next()?.as_os_str() != "node_modules" {
+        return None;
+    }
+    let remaining: Vec<_> = components.collect();
+    if !is_valid_specifier_components(&remaining) {
+        return None;
+    }
+    let mut specifier = PathBuf::new();
+    for component in remaining {
+        specifier.push(component);
+    }
+    Some(specifier)
+}
+
+fn is_valid_specifier_components(components: &[Component]) -> bool {
+    if components.is_empty() {
+        return false;
+    }
+    for component in components {
+        let Component::Normal(part) = component else {
+            return false;
+        };
+        if part
+            .to_str()
+            .is_none_or(|s| s.starts_with('.'))
+        {
+            return false;
+        }
+    }
+    let Some(first) = components[0].as_os_str().to_str() else {
+        return false;
+    };
+    !first.starts_with('@') || components.len() >= 2
+}
+
+/// Search ancestor `node_modules` directories from `pkg_path`'s canonical
+/// location for `specifier`.
+fn resolve_from_node_modules_ancestors(pkg_path: &Path, specifier: &Path) -> Option<PathBuf> {
+    let real_pkg_path = dunce::canonicalize(pkg_path).unwrap_or_else(|_| pkg_path.to_path_buf());
+    let mut current = Some(real_pkg_path.as_path());
+    while let Some(dir) = current {
+        let candidate = if dir.file_name() == Some(OsStr::new("node_modules")) {
+            dir.join(specifier)
+        } else {
+            dir.join("node_modules").join(specifier)
+        };
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        current = dir.parent();
+    }
+    None
 }
 
 /// The `<command>` / `<relative path>` pairs a `bin` field declares. A string

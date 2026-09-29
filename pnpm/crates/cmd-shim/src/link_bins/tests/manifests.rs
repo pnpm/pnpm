@@ -105,3 +105,37 @@ fn link_bins_propagates_read_manifest_error_via_di() {
     .expect_err("read_manifest error must propagate");
     assert!(matches!(err, LinkBinsError::ReadManifest { .. }));
 }
+
+#[test]
+fn link_bins_links_bin_pointing_to_node_modules_dependency_in_virtual_store() {
+    let tmp = tempdir().unwrap();
+    let virtual_store_dir = tmp.path().join(".pnpm/meta-tool@1.0.0/node_modules");
+    let real_meta_dir = virtual_store_dir.join("meta-tool");
+    let dep_dir = virtual_store_dir.join("dep-tool");
+    create_dir_all(&dep_dir).unwrap();
+    create_dir_all(&real_meta_dir).unwrap();
+    write_file(
+        real_meta_dir.join("package.json"),
+        json!({
+            "name": "meta-tool",
+            "version": "1.0.0",
+            "bin": {
+                "meta-tool": "node_modules/dep-tool/cli.js"
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    write_file(dep_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let modules_dir = tmp.path().join("node_modules");
+    let meta_link = modules_dir.join("meta-tool");
+    create_dir_all(&modules_dir).unwrap();
+    pnpm_fs::symlink_dir(&real_meta_dir, &meta_link).unwrap();
+
+    let bins_dir = modules_dir.join(".bin");
+    link_bins::<Host>(&modules_dir, &bins_dir, &LinkBinsOptions::default()).unwrap();
+
+    let shim = bins_dir.join("meta-tool");
+    assert!(shim.exists(), "shim for meta-tool must exist");
+}

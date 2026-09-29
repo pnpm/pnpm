@@ -501,3 +501,67 @@ fn bin_field_takes_precedence_over_directories_bin() {
     assert_eq!(commands.len(), 1, "bin field wins, directories.bin is ignored");
     assert_eq!(commands[0].name, "tool");
 }
+
+#[test]
+fn resolves_node_modules_bin_path_from_virtual_store_layout() {
+    let tmp = tempdir().unwrap();
+    let virtual_store_dir = tmp.path().join(".pnpm/meta-tool@1.0.0/node_modules");
+    let real_pkg_dir = virtual_store_dir.join("meta-tool");
+    let dep_dir = virtual_store_dir.join("@scope/cli/dist");
+    let pkg_dir = tmp.path().join("node_modules/meta-tool");
+
+    create_dir_all(&dep_dir).unwrap();
+    create_dir_all(&real_pkg_dir).unwrap();
+    create_dir_all(pkg_dir.parent().unwrap()).unwrap();
+    pnpm_fs::symlink_dir(&real_pkg_dir, &pkg_dir).unwrap();
+    let cli_path = dep_dir.join("cli.js");
+    write_file(&cli_path, "#!/usr/bin/env node\n").unwrap();
+
+    let manifest = json!({
+        "name": "meta-tool",
+        "version": "1.0.0",
+        "bin": {
+            "meta-tool": "node_modules/@scope/cli/dist/cli.js"
+        }
+    });
+
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg_dir);
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].name, "meta-tool");
+    assert_eq!(commands[0].path, dunce::canonicalize(&cli_path).unwrap());
+}
+
+#[test]
+fn resolves_node_modules_bin_path_from_bundled_dependency() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("tool");
+    let dep_cli = pkg_dir.join("node_modules/dep-tool/cli.js");
+    create_dir_all(dep_cli.parent().unwrap()).unwrap();
+    write_file(&dep_cli, "#!/usr/bin/env node\n").unwrap();
+
+    let manifest = json!({
+        "name": "tool",
+        "version": "1.0.0",
+        "bin": {
+            "tool": "node_modules/dep-tool/cli.js"
+        }
+    });
+
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg_dir);
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].name, "tool");
+    assert_eq!(commands[0].path, dep_cli);
+}
+
+#[test]
+fn rejects_directory_traversal_in_node_modules_bin_path() {
+    let manifest = json!({
+        "name": "tool",
+        "version": "1.0.0",
+        "bin": {
+            "tool": "node_modules/../../evil.js"
+        }
+    });
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/p"));
+    assert!(commands.is_empty());
+}
