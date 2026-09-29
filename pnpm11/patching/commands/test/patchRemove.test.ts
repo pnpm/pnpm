@@ -170,7 +170,28 @@ testOnNonWindows('patch-remove rejects symlinked .pnpm_patches outside modules d
     code: 'ERR_PNPM_PATCHES_DIR_OUTSIDE_PROJECT',
   })
 
+  expect(fs.existsSync(goodPatch)).toBe(true)
+  expect(updatePatchedDependenciesMock).not.toHaveBeenCalled()
   expect(fs.existsSync(path.join(outsideDir, 'good'))).toBe(true)
+})
+
+testOnNonWindows('patch-remove does not delete directories outside .pnpm_patches when patch key contains path traversal', async () => {
+  const projectDir = path.join(tempRoot, 'project-traversal')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  const outsideVictim = path.join(tempRoot, 'victim')
+  const patchFile = path.join(projectDir, 'patches/traversal.patch')
+  fs.mkdirSync(path.dirname(patchFile), { recursive: true })
+  fs.writeFileSync(patchFile, 'patch', 'utf8')
+  fs.mkdirSync(pnpmPatches, { recursive: true })
+  fs.mkdirSync(outsideVictim, { recursive: true })
+  fs.writeFileSync(path.join(outsideVictim, 'important.txt'), 'data', 'utf8')
+
+  await patchRemove.handler(createOptions(projectDir, {
+    '../../victim': 'patches/traversal.patch',
+  }), ['../../victim'])
+
+  expect(fs.existsSync(path.join(outsideVictim, 'important.txt'))).toBe(true)
 })
 
 function createOptions (
