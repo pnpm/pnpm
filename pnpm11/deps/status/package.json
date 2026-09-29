@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.status",
-  "version": "1100.1.25",
+  "version": "1100.1.26",
   "description": "Check dependencies status",
   "keywords": [
     "pnpm",
@@ -39,6 +39,7 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@pnpm/installing.context": "workspace:*",

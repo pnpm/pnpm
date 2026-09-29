@@ -28,8 +28,6 @@ use std::{
 /// Per-name entry in the propagating [`ParentRefs`] map.
 #[derive(Debug, Clone)]
 pub(super) struct ParentRef {
-    /// Shared with [`ResolvedPackage::version()`]: a ref is cloned into
-    /// every descendant's map that shadows or re-pins it.
     pub(super) version: Arc<str>,
     /// `None` for top-level deps that were already installed. Pacquet
     /// doesn't surface those yet — `None` only appears on the

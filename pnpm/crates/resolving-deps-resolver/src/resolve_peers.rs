@@ -32,6 +32,7 @@
 
 pub(crate) use context::{SharedChain, split_peer_suffix_segments};
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
+pub(crate) use finalize::merge_additional_edges;
 pub(crate) use provider_peers::{
     CandidatePeerRanges, peers_accept_provided_versions, resolved_name_and_version,
 };
@@ -46,7 +47,7 @@ mod walker;
 
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
-    dedupe_peer_dependents::dedupe_peer_dependents,
+    dedupe_peer_dependents::{PeerSuffixes, dedupe_peer_dependents},
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
@@ -55,7 +56,8 @@ use context::{
     ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
 };
 use discovery::PeerDiscoveryCaches;
-use pnpm_deps_path::DepPath;
+use finalize::FinalDepPaths;
+use pnpm_deps_path::{DepPath, PeerId};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -322,6 +324,11 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
 /// `peersCache` + `purePkgs` are shared across importers, then the
 /// in-crate `dedupe_injected_deps` pass runs once with all importers'
 /// direct deps in scope.
+///
+/// Peer-dependent dedupe runs first. An injected copy can resolve an
+/// optional peer from its consumer that the target project's own deps
+/// lack, and collapsing those variants first lets the injected copy's
+/// children match the project's deps (pnpm/pnpm#16354).
 pub fn resolve_peers_workspace(
     tree: &mut ResolvedTree,
     importers: &[ImporterPeerInput],
@@ -344,7 +351,11 @@ pub fn resolve_peers_workspace(
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir);
+    let mut finished =
+        finish_workspace_graph(&walker, &importers, lockfile_dir, dedupe_peer_dependents_enabled);
+    if dedupe_peer_dependents_enabled {
+        finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
+    }
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
             &mut finished.graph,
@@ -355,9 +366,6 @@ pub fn resolve_peers_workspace(
                 .collect(),
             lockfile_dir,
         );
-    }
-    if dedupe_peer_dependents_enabled {
-        dedupe_peer_dependents(&mut finished.graph, &mut finished.direct_dependencies_by_importer);
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
@@ -416,6 +424,17 @@ struct FinishedWorkspaceGraph {
     graph: DependenciesGraph,
     direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
     paths_by_node_id: HashMap<NodeId, DepPath>,
+    peer_ids: HashMap<DepPath, Vec<PeerId>>,
+}
+
+impl FinishedWorkspaceGraph {
+    fn dedupe_peer_dependents(&mut self, peers_suffix_max_length: usize) {
+        dedupe_peer_dependents(
+            &mut self.graph,
+            &mut self.direct_dependencies_by_importer,
+            &PeerSuffixes { peer_ids: &self.peer_ids, max_length: peers_suffix_max_length },
+        );
+    }
 }
 
 /// Recompute depPaths with full peer suffixes once, after every importer
@@ -425,8 +444,13 @@ fn finish_workspace_graph(
     walker: &Walker<'_>,
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
+    record_peer_ids: bool,
 ) -> FinishedWorkspaceGraph {
-    let final_dep_paths = walker.build_final_dep_paths();
+    let FinalDepPaths {
+        by_node_id: final_dep_paths,
+        peer_ids,
+        ..
+    } = walker.build_final_dep_paths(record_peer_ids);
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {
@@ -450,6 +474,7 @@ fn finish_workspace_graph(
         graph: walker.build_final_graph(&final_dep_paths),
         direct_dependencies_by_importer,
         paths_by_node_id: walker.final_paths_by_node_id(&final_dep_paths),
+        peer_ids,
     }
 }
 

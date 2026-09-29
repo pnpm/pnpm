@@ -94,6 +94,7 @@ mod relocation;
 mod settle;
 use modules_dirs::{
     direct_dependency_link_dangling, first_project_missing_modules_dir,
+    first_selected_project_missing_from_current_lockfile,
     first_selected_project_missing_modules_dir, modules_dirs_present,
 };
 use settle::{
@@ -530,7 +531,7 @@ fn lockfile_inputs_block_fast_path(
     None
 }
 
-fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
+pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     let value = manifest.value();
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
         .into_iter()

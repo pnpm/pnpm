@@ -8,8 +8,6 @@ pub(in super::super) struct ChildrenOwner {
     pub(super) update_active: bool,
     pub(super) depth: i32,
     pub(in super::super) importer_order: usize,
-    /// The occurrence's ancestor chain, shared with the walk that built
-    /// it; ranked by content, root first.
     pub(super) parent_path: AncestorPkgIds,
     pub(in super::super) importer_id: String,
 }

@@ -18,17 +18,22 @@ use serde_json::json;
 use std::{fs, path::Path};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
-    write_named_manifest_with_dependency_groups(
-        workspace,
-        "verify-deps-project",
-        marker,
-        json!({}),
-    );
+    write_named_manifest(workspace, "verify-deps-project", marker);
 }
 
-#[cfg(unix)]
+/// The fixture manifest with a `link:` dependency on a local package, so a
+/// never-installed project has something to install without a registry.
 fn write_named_manifest(workspace: &Path, name: &str, marker: &Path) {
-    write_named_manifest_with_dependency_groups(workspace, name, marker, json!({}));
+    let linked = workspace.join("linked-dep");
+    fs::create_dir_all(&linked).expect("create the linked package");
+    fs::write(linked.join("package.json"), json!({ "name": "linked-dep" }).to_string())
+        .expect("write the linked package manifest");
+    write_named_manifest_with_dependency_groups(
+        workspace,
+        name,
+        marker,
+        json!({ "dependencies": { "linked-dep": "link:./linked-dep" } }),
+    );
 }
 
 #[cfg(unix)]
@@ -368,12 +373,14 @@ fn error_action_follows_the_dependency_state() {
         .assert()
         .success();
 
-    // Deleting pnpm-lock.yaml in a dependency-less project leaves no
-    // current lockfile to stand in for it, so the check fails like
-    // pnpm's RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND — and the pre-run check
-    // must not recreate the file (pnpm's run path never restores the
-    // lockfile; only the install command does).
+    // Deleting pnpm-lock.yaml and the current lockfile leaves nothing to
+    // stand in for it, so the check fails like pnpm's
+    // RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND — and the pre-run check must not
+    // recreate the file (pnpm's run path never restores the lockfile; only
+    // the install command does).
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    fs::remove_file(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("remove the current lockfile");
     let output = pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .output()
@@ -618,6 +625,48 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
         .success();
     assert!(marker_a.exists(), "project-a script must run under recursive");
     assert!(marker_b.exists(), "project-b script must run under recursive");
+
+    drop(root);
+}
+
+/// A filtered install leaves the other projects out of the current lockfile.
+/// A lockfile that is only newer, such as one a Docker `COPY` wrote, must not
+/// make the run gate treat it as outdated (pnpm/pnpm#16322).
+#[cfg(unix)]
+#[test]
+fn filtered_install_accepts_a_touched_lockfile_with_unchanged_contents() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root package.json");
+
+    let project_a = workspace.join("packages/project-a");
+    let project_b = workspace.join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    let marker_a = project_a.join("marker-a.txt");
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    write_named_manifest(&project_b, "project-b", &project_b.join("marker-b.txt"));
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    bump_mtime(&workspace.join("pnpm-lock.yaml"));
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run");
 
     drop(root);
 }
@@ -1067,12 +1116,7 @@ fn filtered_exec_installs_only_the_selected_projects() {
     for name in ["project", "other"] {
         let project = workspace.join("packages").join(name);
         fs::create_dir_all(&project).expect("create workspace project");
-        write_named_manifest_with_dependency_groups(
-            &project,
-            name,
-            &project.join("marker.txt"),
-            json!({}),
-        );
+        write_named_manifest(&project, name, &project.join("marker.txt"));
     }
 
     let output = pacquet_in(&workspace)
@@ -1521,4 +1565,368 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
         .success();
 
     drop((root, mock_instance));
+}
+
+/// `pnpm run` in a dependency-free project that the workspace patterns
+/// leave out runs the script and writes nothing in that directory
+/// ([pnpm/pnpm#16313](https://github.com/pnpm/pnpm/issues/16313)).
+#[test]
+fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - pkgs/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(member.join("package.json"), json!({ "name": "a", "version": "1.0.0" }).to_string())
+        .expect("write the member manifest");
+    let scripts = workspace.join("scripts");
+    fs::create_dir_all(&scripts).expect("create the left-out project");
+    let marker = scripts.join("ran.txt");
+    fs::write(
+        scripts.join("package.json"),
+        json!({
+            "scripts": {
+                "hi": r#"node -e "require('fs').writeFileSync('ran.txt','ok')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the left-out manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(&scripts)
+        .with_args(["run", "hi"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap_or_default(),
+        "ok",
+        "the script must write its marker",
+    );
+    assert!(
+        !scripts.join("node_modules").exists(),
+        "pnpm run must not install a project that declares no dependencies:\n{stderr}",
+    );
+    assert!(
+        !scripts.join("pnpm-lock.yaml").exists(),
+        "pnpm run must not write a lockfile for a project that declares no dependencies:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// A left-out project whose only dependency is a required peer still
+/// installs before pnpm run when auto-install-peers is on.
+#[test]
+fn run_in_a_left_out_project_with_a_required_peer_installs_it() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\nautoInstallPeers: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(member.join("package.json"), json!({ "name": "a", "version": "1.0.0" }).to_string())
+        .expect("write the member manifest");
+    fs::write(member.join("index.js"), "module.exports = 1\n").expect("write the member entry");
+    let scripts = workspace.join("scripts");
+    fs::create_dir_all(&scripts).expect("create the left-out project");
+    let marker = scripts.join("ran.txt");
+    fs::write(
+        scripts.join("package.json"),
+        json!({
+            "name": "scripts",
+            "peerDependencies": { "a": "file:../pkgs/a" },
+            "scripts": {
+                "hi": r#"node -e "require('a'); require('fs').writeFileSync('ran.txt','ok')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the left-out manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(&scripts)
+        .with_args(["run", "hi"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap_or_default(),
+        "ok",
+        "the script must write its marker",
+    );
+    assert!(
+        scripts.join("node_modules").exists(),
+        "pnpm run must install a required peer:\n{stderr}",
+    );
+    assert!(
+        scripts.join("pnpm-lock.yaml").exists(),
+        "pnpm run must write a lockfile when it installs a required peer:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// An optional peer is not fetched on its own, so pnpm run in a left-out
+/// project that declares only that peer writes nothing.
+#[test]
+fn run_in_a_left_out_project_with_only_an_optional_peer_writes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\nautoInstallPeers: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(member.join("package.json"), json!({ "name": "a", "version": "1.0.0" }).to_string())
+        .expect("write the member manifest");
+    let scripts = workspace.join("scripts");
+    fs::create_dir_all(&scripts).expect("create the left-out project");
+    let marker = scripts.join("ran.txt");
+    fs::write(
+        scripts.join("package.json"),
+        json!({
+            "peerDependencies": { "a": "1.0.0" },
+            "peerDependenciesMeta": { "a": { "optional": true } },
+            "scripts": {
+                "hi": r#"node -e "require('fs').writeFileSync('ran.txt','ok')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the left-out manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(&scripts)
+        .with_args(["run", "hi"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap_or_default(),
+        "ok",
+        "the script must write its marker",
+    );
+    assert!(
+        !scripts.join("node_modules").exists(),
+        "pnpm run must not install a project that declares only an optional peer:\n{stderr}",
+    );
+    assert!(
+        !scripts.join("pnpm-lock.yaml").exists(),
+        "pnpm run must not write a lockfile for a project that declares only an optional peer:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// `pnpm run` in a never-installed project outside any workspace that has
+/// nothing to install runs the script and writes nothing.
+#[test]
+fn run_in_a_project_with_nothing_to_install_writes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_named_manifest_with_dependency_groups(&workspace, "scripts-only", &marker, json!({}));
+
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+    assert!(!workspace.join("node_modules").exists(), "pnpm run must not install");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "pnpm run must not write a lockfile");
+
+    drop(root);
+}
+
+/// An install lifecycle script is work for the install, so the first
+/// `pnpm run` still installs and runs it.
+#[cfg(unix)]
+#[test]
+fn run_installs_a_project_whose_only_install_work_is_a_lifecycle_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    let prepared = workspace.join("prepared.txt");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "prepare-only",
+            "scripts": {
+                "hello": format!(r#"touch "{}""#, marker.display()),
+                "prepare": format!(r#"touch "{}""#, prepared.display()),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+    assert!(prepared.exists(), "the gate must install and run the prepare script");
+
+    drop(root);
+}
+
+/// With `ignoreScripts`, the install would not run a lifecycle script, so
+/// the script alone does not start one.
+#[test]
+fn ignored_lifecycle_scripts_do_not_start_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "prepare-only", "scripts": { "prepare": "exit 1" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["--config.ignore-scripts=true", "exec", "node", "-e", "0"])
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules").exists(), "the gate must not install");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "the gate must not write a lockfile");
+
+    drop(root);
+}
+
+/// `pnpm:devPreinstall` runs only from the workspace root, so a member that
+/// declares it gives the install nothing to do.
+#[test]
+fn a_member_dev_preinstall_does_not_start_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - pkgs/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(
+        member.join("package.json"),
+        json!({ "name": "a", "scripts": { "pnpm:devPreinstall": "exit 1" } }).to_string(),
+    )
+    .expect("write the member manifest");
+
+    pacquet
+        .with_args(["exec", "node", "-e", "0"])
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules").exists(), "the gate must not install");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "the gate must not write a lockfile");
+
+    drop(root);
+}
+
+/// A pnpmfile's `readPackage` hook can add dependencies to a manifest that
+/// declares none, so a pnpmfile counts as install work.
+#[test]
+fn a_pnpmfile_starts_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "scripts-only",
+        &workspace.join("marker.txt"),
+        json!({}),
+    );
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
+        .expect("write .pnpmfile.cjs");
+
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "the gate must install");
+
+    drop(root);
+}
+
+/// Under separate lockfiles the install loads a pnpmfile from the project's
+/// own lockfile directory, so one there counts as install work too.
+#[test]
+fn a_pnpmfile_beside_a_separate_lockfile_starts_an_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    write_named_manifest_with_dependency_groups(
+        &member,
+        "a",
+        &member.join("marker.txt"),
+        json!({}),
+    );
+    fs::write(member.join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
+        .expect("write .pnpmfile.cjs");
+
+    pacquet_in(&member)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(member.join("pnpm-lock.yaml").exists(), "the gate must install");
+
+    drop(root);
+}
+
+/// A `lockfileDir` pinned away from the project leaves the importers to the
+/// install, so the gate keeps it.
+#[test]
+fn a_pinned_lockfile_dir_starts_an_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create the project");
+    write_named_manifest_with_dependency_groups(
+        &project,
+        "scripts-only",
+        &project.join("marker.txt"),
+        json!({}),
+    );
+
+    let output = pacquet_in(&project)
+        .with_args([&format!("--config.lockfile-dir={}", workspace.display()), "run", "hello"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert!(stderr.contains("Done in"), "the gate must install:\n{stderr}");
+
+    drop(root);
 }

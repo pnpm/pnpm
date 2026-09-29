@@ -1,7 +1,9 @@
 use super::{OptimisticRepeatInstallCheck, manifest_has_runtime_deps, manifest_string_field};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
+use pnpm_lockfile::{
+    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
@@ -48,6 +50,41 @@ pub(super) fn first_selected_project_missing_modules_dir(
         selected.contains(&lexical_normalize(root_dir))
     })
 }
+/// The id of the first selected project that declares dependencies but that
+/// the current lockfile does not list among its importers.
+///
+/// After a filtered install, a modules directory does not prove that the
+/// install materialized a project: only the importers the current lockfile
+/// lists were. The current lockfile is read only when a selected project needs
+/// the proof.
+pub(super) fn first_selected_project_missing_from_current_lockfile(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    selected_project_dirs: &[&Path],
+) -> Option<String> {
+    let selected: HashSet<PathBuf> = selected_project_dirs
+        .iter()
+        .map(|dir| lexical_normalize(dir))
+        .collect();
+    let mut needing_install = check.project_manifests
+        .iter()
+        .filter(|(root_dir, manifest)| {
+            selected.contains(&lexical_normalize(root_dir)) && manifest_has_runtime_deps(manifest)
+        })
+        .peekable();
+    needing_install.peek()?;
+    let current = Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+        .ok()
+        .flatten();
+    needing_install
+        .find(|(root_dir, _)| {
+            let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
+            !current
+                .as_ref()
+                .is_some_and(|current| current.importers.contains_key(&importer_id))
+        })
+        .map(|(root_dir, manifest)| project_id(root_dir, manifest))
+}
+
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.
 fn first_missing_modules_dir(

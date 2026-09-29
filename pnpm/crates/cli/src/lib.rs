@@ -120,26 +120,47 @@ fn run_cli() -> miette::Result<()> {
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     let (command, argv) = prepare_cli_argv(argv);
-    let mut args = match parse_cli_args(command, argv.clone()) {
-        Ok(args) => args,
-        Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            return print_version(&argv, &child_argv, &config_overrides);
-        }
-        Err(err) => err.exit(),
+    let Some(mut args) = parse_or_answer(command, &argv, &child_argv, &config_overrides)? else {
+        return Ok(());
     };
     configure_cli_args(&mut args)?;
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
-    // An up-to-date `pacquet install` finishes here, without paying for
-    // the runtime, the HTTP client, or any worker threads.
-    if args.finished_via_install_fast_path(&config_overrides) {
-        return Ok(());
-    }
     if args.run_completion_if_requested()? {
         return Ok(());
     }
+    configure_rayon_pool();
+    // An up-to-date `pacquet install` finishes here, without paying for
+    // the runtime or the HTTP client.
+    if args.finished_via_install_fast_path(&config_overrides) {
+        return Ok(());
+    }
     run_cli_command(args, &config_overrides, builtin_command_forced)
+}
+
+/// Parse argv into a command to run, or `None` when the command line was
+/// already answered without one: the version was printed, or the pnpm the
+/// project pins took a command line clap rejected.
+fn parse_or_answer(
+    command: clap::Command,
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<Option<CliArgs>> {
+    match parse_cli_args(command, argv.to_vec()) {
+        Ok(args) => Ok(Some(args)),
+        Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
+            print_version(argv, child_argv, config_overrides).map(|()| None)
+        }
+        Err(err) if err.kind() == clap::error::ErrorKind::UnknownArgument => {
+            if dispatched_unparsed_to_pinned_pnpm(argv, child_argv, config_overrides)? {
+                return Ok(None);
+            }
+            err.exit()
+        }
+        Err(err) => err.exit(),
+    }
 }
 
 /// Parse argv, recording whether `--dir` or `-r` came from the command line.
@@ -214,7 +235,26 @@ fn dispatched_to_pinned_pnpm(
     config_overrides: &ConfigOverrides,
     child_argv: &[OsString],
 ) -> miette::Result<bool> {
-    let Some(plan) = cli_args::pre_command::pre_command_plan(args, config_overrides)? else {
+    let plan = cli_args::pre_command::pre_command_plan(args, config_overrides)?;
+    execute_pre_command_plan(plan, child_argv)
+}
+
+/// Whether the pnpm the project pins took a command line this one rejected.
+/// A newer or older pnpm may accept an option this one does not know.
+fn dispatched_unparsed_to_pinned_pnpm(
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<bool> {
+    let plan = cli_args::pre_command::switch_plan_for_unparsed_argv(argv, config_overrides)?;
+    execute_pre_command_plan(plan, child_argv)
+}
+
+fn execute_pre_command_plan(
+    plan: Option<cli_args::pre_command::PreCommandPlan>,
+    child_argv: &[OsString],
+) -> miette::Result<bool> {
+    let Some(plan) = plan else {
         return Ok(false);
     };
     block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
@@ -297,19 +337,13 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
     argv
 }
 
-/// Size rayon's global pool at `2 × available_parallelism`. The link
-/// phase is dominated by clonefile / hardlink syscalls that block the
-/// calling thread on the kernel's metadata journal, not by CPU work,
-/// so oversubscribing CPUs gives more in-flight syscalls and a higher
-/// effective throughput. Empirically sweeping 4-200 threads on a
-/// 1352-package warm install on macOS APFS, 2× was the knee — fewer
-/// threads underutilize the journal, way more (100+) loses to context
-/// switching and per-thread fixed costs (`user` time scales linearly
-/// past 50 without any wall-time payoff).
+/// Size rayon's global pool with [`rayon_pool_size`].
 ///
-/// Runs after the repeat-install fast path has declined, so commands
-/// that never reach a parallel phase (`--help`, the "Already up to
-/// date" short-circuit) skip the worker-thread spawn cost entirely.
+/// Must run before anything touches rayon. The first parallel iterator
+/// builds the global pool at rayon's default size, after which this
+/// call can no longer size it, so debug builds assert that it did. The
+/// repeat-install fast path uses rayon for workspace discovery.
+///
 /// Deliberately NOT communicated via the `RAYON_NUM_THREADS`
 /// environment variable: a process-env write would leak into every
 /// child the install spawns (lifecycle scripts, `node --version`,
@@ -324,6 +358,32 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 /// runner can spin up far more rayon threads than the kernel will
 /// actually schedule onto our cores (Copilot review on [#292]).
 ///
+/// [#292]: https://github.com/pnpm/pacquet/pull/292
+fn configure_rayon_pool() {
+    if std::env::var_os("RAYON_NUM_THREADS").is_some() {
+        return;
+    }
+    let parallelism = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let built = rayon::ThreadPoolBuilder::new()
+        .num_threads(rayon_pool_size(parallelism, RAYON_THREADS_PER_CORE))
+        .build_global();
+    let configured = built.is_ok();
+    debug_assert!(configured, "rayon's global pool was built before it was configured: {built:?}");
+}
+
+/// `threads_per_core × parallelism`, kept between [`MIN_RAYON_THREADS`]
+/// and [`MAX_RAYON_THREADS`]. See [`RAYON_THREADS_PER_CORE`] for the
+/// multiplier. The link phase is dominated by clonefile /
+/// hardlink syscalls that block the calling thread on the kernel's
+/// metadata journal, not by CPU work, so oversubscribing CPUs gives
+/// more in-flight syscalls and a higher effective throughput.
+/// Empirically sweeping 4-200 threads on a 1352-package warm install
+/// on macOS APFS, 2× was the knee — fewer threads underutilize the
+/// journal, way more (100+) loses to context switching and per-thread
+/// fixed costs (`user` time scales linearly past 50 without any
+/// wall-time payoff). That knee holds up to the ceiling below. Past 16
+/// threads, 2× no longer pays off.
+///
 /// **Floor of 4 threads is intentional.** A 1-2-CPU CI runner left
 /// at `2 × parallelism` would be capped to 2-4 rayon threads, and
 /// at that point we go back to the original "one rayon thread is
@@ -331,28 +391,31 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 /// can't even start" pattern that the 2× tuning is trying to
 /// avoid. The kernel metadata journal is the bottleneck even on
 /// small hosts, so a small intentional oversubscription
-/// (max(4, 2 × parallelism)) is a better trade than respecting the
+/// (`max(4, 2 × parallelism)`) is a better trade than respecting the
 /// quota literally — Copilot's follow-up flagged the tension; we're
 /// keeping the floor and documenting it explicitly.
 ///
-/// Best-effort: if another part of the binary already initialised the
-/// pool, leave it alone.
-///
-/// [#292]: https://github.com/pnpm/pacquet/pull/292
-fn configure_rayon_pool() {
-    if std::env::var_os("RAYON_NUM_THREADS").is_some() {
-        return;
-    }
-    let n = std::thread::available_parallelism()
-        .map_or(1, std::num::NonZeroUsize::get)
-        .saturating_mul(2)
-        // `.max(4)` is an intentional minimum: even on quota-limited
-        // 1-2-CPU runners, dropping below 4 puts us back into the
-        // "rayon worker stalls on `clonefile` while the next snapshot
-        // can't start" regime. See the function-level doc.
-        .max(4);
-    let _ = rayon::ThreadPoolBuilder::new().num_threads(n).build_global();
+/// **Ceiling of 16 threads.** Past 16, the extra workers add system
+/// time without shortening the install. A warm-install sweep (nuxt, next, nitro
+/// fixtures) found no machine where 2× beat 16 threads: a 32-vCPU
+/// Linux runner kept its wall time and halved its system time, a
+/// 16-vCPU Windows runner got 10% faster, and a 10-core M1 Max, the
+/// one host where 2× beat 8 threads, was unchanged at 16
+/// (pnpm/tasks#51). A ceiling of 8 cut Linux system time further and
+/// sped up Windows, but cost that Mac 19%.
+fn rayon_pool_size(parallelism: usize, threads_per_core: usize) -> usize {
+    parallelism.saturating_mul(threads_per_core).clamp(MIN_RAYON_THREADS, MAX_RAYON_THREADS)
 }
+
+/// Two threads per core, except on Windows, where the sweeps mostly
+/// favoured one (pnpm/tasks#52). Warm frozen installs were 4-5% faster
+/// at 1× on 4- and 8-vCPU runners. A fresh install of the 1352-package
+/// benchmark fixture took 3.9 s at 1× and 4.5 s at 2× on a 4-vCPU
+/// runner, and was even on an 8-vCPU one. A 16-vCPU runner was fastest
+/// at 4 threads, below what this multiplier gives it.
+const RAYON_THREADS_PER_CORE: usize = if cfg!(windows) { 1 } else { 2 };
+const MIN_RAYON_THREADS: usize = 4;
+const MAX_RAYON_THREADS: usize = 16;
 
 #[cfg(test)]
 mod tests;
@@ -390,7 +453,6 @@ fn run_cli_command(
 ) -> miette::Result<()> {
     // Arm Windows process-tree cleanup until the command succeeds.
     let job_guard = pnpm_executor::arm_process_tree_cleanup();
-    configure_rayon_pool();
     let result =
         block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
     if result.is_ok()
