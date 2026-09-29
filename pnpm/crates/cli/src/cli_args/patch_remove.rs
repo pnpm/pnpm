@@ -1,6 +1,8 @@
 use crate::{
     State,
-    cli_args::patch_state::{StateFileError, clean_patch_state_and_edit_dirs},
+    cli_args::patch_state::{
+        StateFileError, clean_patch_state_and_edit_dirs, validate_patch_state_dir,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -101,6 +103,8 @@ impl PatchRemoveArgs {
         )?;
         let targets = collect_removal_targets(&patches_to_remove, &patched_dependencies, &ctx)?;
         let remaining = remaining_patch_files(&patched_dependencies, &patches_to_remove, &ctx)?;
+
+        validate_patch_state_dir(&state.config.modules_dir).map_err(PatchRemoveError::StateFile)?;
 
         unlink_removed_patches(&targets, &remaining)?;
         for target in &targets {

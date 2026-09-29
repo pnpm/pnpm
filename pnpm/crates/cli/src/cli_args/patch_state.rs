@@ -127,10 +127,7 @@ pub(crate) fn write_edit_dir_state(
         .map_err(|source| StateFileError::Write { path, source })
 }
 
-pub(crate) fn clean_patch_state_and_edit_dirs(
-    modules_dir: &Path,
-    patches: &[String],
-) -> Result<(), StateFileError> {
+pub(crate) fn validate_patch_state_dir(modules_dir: &Path) -> Result<(), StateFileError> {
     let state_dir = modules_dir.join(STATE_DIR);
     reject_state_symlink_if_exists(&state_dir)?;
     if let (Ok(real_modules_dir), Ok(real_state_dir)) =
@@ -142,6 +139,15 @@ pub(crate) fn clean_patch_state_and_edit_dirs(
             reason: "must stay under the modules directory",
         });
     }
+    Ok(())
+}
+
+pub(crate) fn clean_patch_state_and_edit_dirs(
+    modules_dir: &Path,
+    patches: &[String],
+) -> Result<(), StateFileError> {
+    validate_patch_state_dir(modules_dir)?;
+    let state_dir = modules_dir.join(STATE_DIR);
     let mut dirs_to_remove = remove_matching_state_entries(modules_dir, &state_dir, patches)?;
     for patch in patches {
         dirs_to_remove.insert(state_dir.join(patch));
@@ -206,13 +212,12 @@ fn save_or_remove_state_file(
 fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
     let canonical_state_dir = dunce::canonicalize(state_dir).ok();
     for dir in dirs {
-        let is_under_state = (dir != state_dir && is_subdir(state_dir, dir))
-            || canonical_state_dir
-                .as_ref()
-                .is_some_and(|parent| {
-                    dunce::canonicalize(dir)
-                        .is_ok_and(|child| child != *parent && is_subdir(parent, &child))
-                });
+        let is_under_state = if let Some(parent) = &canonical_state_dir {
+            dunce::canonicalize(dir)
+                .is_ok_and(|child| child != *parent && is_subdir(parent, &child))
+        } else {
+            dir != state_dir && is_subdir(state_dir, dir)
+        };
         if is_under_state
             && dir.exists()
             && let Err(source) = fs::remove_dir_all(dir)
