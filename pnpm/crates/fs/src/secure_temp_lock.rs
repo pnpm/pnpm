@@ -52,16 +52,15 @@ fn user_lock_root() -> io::Result<PathBuf> {
 /// The XDG Base Directory spec tells applications to ignore a relative
 /// `XDG_RUNTIME_DIR`. One owned by another user is inherited through `su`
 /// or `sudo --preserve-env`, and this user cannot create locks in it. One
-/// that other users can write to without the sticky bit lets them rename a
-/// held lock directory away, so the next process locks a fresh one. One
-/// its owner cannot write to or search cannot hold the lock directory.
+/// that other users can write to lets them rename a held lock directory
+/// away, or pre-create one this user then refuses. One its owner cannot
+/// write to or search cannot hold the lock directory.
 #[cfg(unix)]
 fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
     use std::os::unix::fs::MetadataExt as _;
 
     const OWNER_WRITE_AND_SEARCH: u32 = 0o300;
     const GROUP_OR_OTHER_WRITE: u32 = 0o022;
-    const STICKY: u32 = 0o1000;
     let path = PathBuf::from(value?);
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
     let effective_user = unsafe { libc::geteuid() };
@@ -71,7 +70,7 @@ fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
             metadata.is_dir()
                 && metadata.uid() == effective_user
                 && mode & OWNER_WRITE_AND_SEARCH == OWNER_WRITE_AND_SEARCH
-                && (mode & GROUP_OR_OTHER_WRITE == 0 || mode & STICKY != 0)
+                && mode & GROUP_OR_OTHER_WRITE == 0
         });
     (path.is_absolute() && usable).then_some(path)
 }

@@ -31,7 +31,7 @@ fn xdg_runtime_dir_is_used_only_when_an_owned_absolute_directory() {
 }
 
 #[test]
-fn xdg_runtime_dir_that_others_can_rename_entries_in_is_ignored() {
+fn xdg_runtime_dir_that_others_can_write_to_is_ignored() {
     use std::os::unix::fs::PermissionsExt as _;
 
     let root = tempfile::tempdir().unwrap();
@@ -43,7 +43,7 @@ fn xdg_runtime_dir_that_others_can_rename_entries_in_is_ignored() {
     set_mode(0o770);
     assert_eq!(xdg_runtime_dir(Some(root.path().into())), None);
     set_mode(0o1777);
-    assert_eq!(xdg_runtime_dir(Some(root.path().into())), Some(root.path().to_path_buf()));
+    assert_eq!(xdg_runtime_dir(Some(root.path().into())), None);
     set_mode(0o755);
     assert_eq!(xdg_runtime_dir(Some(root.path().into())), Some(root.path().to_path_buf()));
 }
