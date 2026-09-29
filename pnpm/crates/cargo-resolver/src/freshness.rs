@@ -2,7 +2,7 @@ use crate::{
     metadata::parse_metadata,
     model::{MetadataDependency, MetadataPackage},
 };
-use cargo_lock::{Lockfile, Package};
+use cargo_lock::{Dependency, Lockfile, Package};
 use miette::{IntoDiagnostic, Report, Result, WrapErr};
 use semver::Version;
 use std::str::FromStr;
@@ -47,27 +47,63 @@ fn verify_member(member: &MetadataPackage, lockfile: &Lockfile) -> Result<()> {
     verify_no_stale_edge(member, locked_member)
 }
 
+/// Fail when a locked edge of `locked_member` has no declared dependency of
+/// its own. One declaration resolves to a single version, so it accounts for
+/// at most one edge, while several declarations may share an edge.
 fn verify_no_stale_edge(member: &MetadataPackage, locked_member: &Package) -> Result<()> {
-    let stale = locked_member.dependencies
-        .iter()
-        .find(|edge| {
-            !member.dependencies
-                .iter()
-                .any(|dependency| {
-                    dependency.name == edge.name.as_str()
-                        && match dependency.source {
-                            None => edge.source.is_none(),
-                            Some(_) => dependency.req.matches(&edge.version),
-                        }
-                })
-        });
-    match stale {
+    let mut claims = EdgeClaims {
+        declarations: &member.dependencies,
+        edges: &locked_member.dependencies,
+        claimed_edge: vec![None; member.dependencies.len()],
+    };
+    let stale = (0..claims.edges.len()).find(|&edge| {
+        !claims.claim(edge, &mut vec![false; claims.declarations.len()])
+    });
+    match stale.map(|edge| &claims.edges[edge]) {
         None => Ok(()),
         Some(edge) => Err(outdated(&format!(
-            "Cargo.lock locks {} {} for {}, which no dependency of {} requires",
+            "Cargo.lock locks {} {} for {}, which no dependency of {} accounts for",
             edge.name, edge.version, member.name, member.name,
         ))),
     }
+}
+
+/// An assignment of locked edges to distinct declarations that accept them,
+/// grown one edge at a time along augmenting paths.
+struct EdgeClaims<'a> {
+    declarations: &'a [MetadataDependency],
+    edges: &'a [Dependency],
+    claimed_edge: Vec<Option<usize>>,
+}
+
+impl EdgeClaims<'_> {
+    fn claim(&mut self, edge: usize, visited: &mut [bool]) -> bool {
+        for declaration in 0..self.declarations.len() {
+            if visited[declaration]
+                || !accounts_for(&self.declarations[declaration], &self.edges[edge])
+            {
+                continue;
+            }
+            visited[declaration] = true;
+            let free = match self.claimed_edge[declaration] {
+                None => true,
+                Some(previous) => self.claim(previous, visited),
+            };
+            if free {
+                self.claimed_edge[declaration] = Some(edge);
+                return true;
+            }
+        }
+        false
+    }
+}
+
+fn accounts_for(declaration: &MetadataDependency, edge: &Dependency) -> bool {
+    declaration.name == edge.name.as_str()
+        && match declaration.source {
+            None => edge.source.is_none(),
+            Some(_) => declaration.req.matches(&edge.version),
+        }
 }
 
 fn verify_edge(

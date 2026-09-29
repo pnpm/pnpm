@@ -1111,7 +1111,7 @@ fn rejects_an_edge_no_dependency_requires() {
 
     assert_eq!(
         error.to_string(),
-        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app requires",
+        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app accounts for",
     );
 }
 
@@ -1146,6 +1146,57 @@ fn ignores_path_dependencies_the_lockfile_does_not_lock() {
     verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap();
 }
 
+const TWO_FOO_LOCKFILE: &str = r#"version = 4
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "foo 1.0.0",
+ "foo 2.0.0",
+]
+
+[[package]]
+name = "foo"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "foo"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+"#;
+
+#[test]
+fn accepts_one_declaration_per_locked_edge() {
+    let metadata = with_app_dependency(&format!(
+        r#""name": "foo", "source": "{CRATES_IO_SOURCE}", "req": "^2", "rename": "foo2""#,
+    ));
+
+    verify_lockfile(&metadata, TWO_FOO_LOCKFILE).unwrap();
+}
+
+#[test]
+fn rejects_two_edges_one_declaration_accounts_for() {
+    let metadata = METADATA.replace("^1.0", ">=1, <3");
+
+    let error = verify_lockfile(&metadata, TWO_FOO_LOCKFILE).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Cargo.lock locks foo 2.0.0 for app, which no dependency of app accounts for",
+    );
+}
+
+#[test]
+fn accepts_declarations_that_share_one_edge() {
+    let metadata = with_app_dependency(&format!(
+        r#""name": "foo", "source": "{CRATES_IO_SOURCE}", "req": "^1.1", "kind": "dev""#,
+    ));
+
+    verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap();
+}
+
 #[test]
 fn rejects_a_registry_edge_for_a_path_dependency() {
     let metadata = METADATA.replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null");
@@ -1154,7 +1205,7 @@ fn rejects_a_registry_edge_for_a_path_dependency() {
 
     assert_eq!(
         error.to_string(),
-        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app requires",
+        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app accounts for",
     );
 }
 
