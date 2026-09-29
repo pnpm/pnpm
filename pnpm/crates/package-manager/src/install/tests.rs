@@ -39,6 +39,8 @@ mod workspace;
 
 mod hooks;
 
+mod external_importers;
+
 use super::{Install, InstallError, ProjectMutation};
 use crate::{
     PolicyExcludes, install::apply_materialization::completion::report_verified_file_integrity,
