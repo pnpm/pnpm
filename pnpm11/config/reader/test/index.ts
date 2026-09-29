@@ -6908,3 +6908,202 @@ test('getConfig() does not fall back to a valid older variable when the canonica
     })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
   })
 })
+
+test('allowBuilds and trustPolicyExclude from pnpm-workspace.yaml are injected into extraEnv as pnpm_config_* for child processes', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      esbuild: true,
+      'dd-trace': false,
+    },
+    trustPolicyExclude: [
+      'undici-types@6.21.0',
+      'semver@5.7.2 || 6.3.1',
+    ],
+    trustPolicy: 'no-downgrade',
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_allow_builds'] ?? 'null')).toStrictEqual({
+    esbuild: true,
+    'dd-trace': false,
+  })
+
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_trust_policy_exclude'] ?? 'null')).toStrictEqual([
+    'undici-types@6.21.0',
+    'semver@5.7.2 || 6.3.1',
+  ])
+
+  expect(config.extraEnv?.['pnpm_config_trust_policy']).toBeUndefined()
+})
+
+test('caller-provided pnpm_config_* env vars in opts.env are forwarded to extraEnv for child processes', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { esbuild: true },
+    trustPolicyExclude: ['undici-types@6.21.0'],
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_allow_builds: '{"user-provided":true}',
+      pnpm_config_trust_policy_exclude: '["user-provided@1.0.0"]',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.extraEnv?.['pnpm_config_allow_builds']).toBe('{"user-provided":true}')
+  expect(config.extraEnv?.['pnpm_config_trust_policy_exclude']).toBe('["user-provided@1.0.0"]')
+})
+
+test('pnpm_config_* env vars already present in process.env are not duplicated in extraEnv', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { esbuild: true },
+    trustPolicyExclude: ['undici-types@6.21.0'],
+  })
+
+  await withEnv({
+    pnpm_config_allow_builds: '{"from-process-env":true}',
+    pnpm_config_trust_policy_exclude: '["from-process-env@1.0.0"]',
+  }, async () => {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.extraEnv?.['pnpm_config_allow_builds']).toBeUndefined()
+    expect(config.extraEnv?.['pnpm_config_trust_policy_exclude']).toBeUndefined()
+  })
+})
+
+test('nodeDownloadMirrors is not injected into extraEnv for child processes', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    nodeDownloadMirrors: {
+      release: 'https://user:secret@mirror.example.com/release/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.extraEnv?.['pnpm_config_node_download_mirrors']).toBeUndefined()
+})
+
+test('PNPM_CONFIG_ALLOW_BUILDS env var is parsed into config.allowBuilds', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_ALLOW_BUILDS: '{"esbuild":true,"dd-trace":false}',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.allowBuilds).toStrictEqual({
+    esbuild: true,
+    'dd-trace': false,
+  })
+})
+
+test('scalar trustPolicyExclude from pnpm-workspace.yaml is injected into extraEnv as JSON array for child processes', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicyExclude: 'undici-types@6.21.0',
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_trust_policy_exclude'] ?? 'null')).toStrictEqual([
+    'undici-types@6.21.0',
+  ])
+})
+
+test('conflicting env var spellings in opts.env forward the effective parsed value to extraEnv', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_ALLOW_BUILDS: '{"esbuild":false}',
+      pnpm_config_allow_builds: '{"esbuild":true}',
+      PNPM_CONFIG_TRUST_POLICY_EXCLUDE: '["upper@1.0.0"]',
+      pnpm_config_trust_policy_exclude: '["lower@1.0.0"]',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_allow_builds'] ?? 'null')).toStrictEqual(config.allowBuilds)
+  expect(JSON.parse(config.extraEnv?.['pnpm_config_trust_policy_exclude'] ?? 'null')).toStrictEqual(config.trustPolicyExclude)
+})
+
+test('CLI override of inherited process.env setting is forwarded to extraEnv', async () => {
+  prepareEmpty()
+
+  await withEnv({
+    pnpm_config_allow_builds: '{"esbuild":true}',
+  }, async () => {
+    const { config } = await getConfig({
+      cliOptions: {
+        'allow-builds': { esbuild: false },
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(JSON.parse(config.extraEnv?.['pnpm_config_allow_builds'] ?? 'null')).toStrictEqual({
+      esbuild: false,
+    })
+  })
+})
