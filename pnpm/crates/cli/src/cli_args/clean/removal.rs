@@ -21,7 +21,7 @@ use std::{
 /// alongside the regular package directories. Any other dotfile (e.g.
 /// `.cache`) is left in place.
 pub(super) const PNPM_HIDDEN_ENTRIES: &[&str] =
-    &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
+    &[".bin", ".bin-symlinks", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
 
 /// Hidden entries removed from the shared workspace `node_modules` when a
 /// narrowed clean targets the root importer: `.pnpm` and `.modules.yaml` back
@@ -29,7 +29,7 @@ pub(super) const PNPM_HIDDEN_ENTRIES: &[&str] =
 /// `.pnpm-workspace-state-v1.json` is removed so subsequent installs do not
 /// short-circuit over the cleaned project.
 pub(super) const PNPM_NARROWED_SHARED_HIDDEN_ENTRIES: &[&str] =
-    &[".bin", ".pnpm-workspace-state-v1.json"];
+    &[".bin", ".bin-symlinks", ".pnpm-workspace-state-v1.json"];
 
 pub(super) struct CleanRun<'a> {
     pub(super) config: &'a Config,

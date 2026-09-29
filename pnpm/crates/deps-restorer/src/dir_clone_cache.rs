@@ -43,7 +43,7 @@
 //! `ENOTSUP`, ...) disable the cache for the rest of the process.
 
 use crate::{
-    AllowBuildPolicy, VirtualStoreLayout,
+    AllowBuildPolicy, GlobalLayoutOptions, VirtualStoreLayout,
     import_indexed_dir::{ImportIndexedDirOpts, marker_present},
     safe_join_modules_dir::safe_join_modules_dir,
 };
@@ -146,6 +146,7 @@ impl<'install> DirCloneCache<'install> {
                 cache_dir,
                 virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
                 engine,
+                preserve_bin_name: cfg!(unix) && config.preserve_bin_name,
                 snapshots,
                 packages,
                 gating: crate::BuildGating {
@@ -364,6 +365,7 @@ struct CanonicalLayoutInputs<'install> {
     cache_dir: PathBuf,
     virtual_store_dir_max_length: usize,
     engine: EngineNameSource,
+    preserve_bin_name: bool,
     snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
     gating: crate::BuildGating<'install>,
@@ -377,15 +379,16 @@ impl CanonicalLayoutInputs<'_> {
             EngineNameSource::Ready(name) => name.clone(),
             EngineNameSource::Pending(slot) => slot.wait().clone(),
         };
-        VirtualStoreLayout::global(
-            self.cache_dir.clone(),
-            self.virtual_store_dir_max_length,
-            engine.as_deref(),
-            self.snapshots,
-            self.packages,
-            self.gating,
-            self.lockfile_dir,
-            &self.platform,
-        )
+        VirtualStoreLayout::global_with_options(GlobalLayoutOptions {
+            package_store_dir: self.cache_dir.clone(),
+            virtual_store_dir_max_length: self.virtual_store_dir_max_length,
+            engine: engine.as_deref(),
+            snapshots: self.snapshots,
+            packages: self.packages,
+            gating: self.gating,
+            lockfile_dir: self.lockfile_dir,
+            platform: &self.platform,
+            preserve_bin_name: self.preserve_bin_name,
+        })
     }
 }

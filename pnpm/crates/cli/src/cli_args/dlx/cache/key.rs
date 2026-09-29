@@ -15,6 +15,8 @@ pub(in crate::cli_args::dlx) struct CacheKeyInputs<'a> {
     pub allow_build: &'a [AllowBuildSelector<'a>],
     pub supported_architectures: Option<&'a SupportedArchitectures>,
     pub engine: Option<&'a str>,
+    /// See [`pnpm_cmd_shim::bin_layout_fingerprint`].
+    pub bin_layout: &'a str,
     pub policy: CachePolicyInputs<'a>,
 }
 
@@ -99,8 +101,8 @@ pub(in crate::cli_args::dlx) struct TrustPolicyInput<'a> {
 
 /// Build the `dlx` cache key from the sorted package specs, sorted
 /// registries, normalized `--allow-build` selectors, each non-empty
-/// `supportedArchitectures` axis, active resolution/security policies, and
-/// the Node.js engine name.
+/// `supportedArchitectures` axis, active resolution/security policies, the
+/// Node.js engine name, and the bin layout.
 ///
 /// Keys on the raw specs (after `catalog:` expansion) and uses
 /// [`create_short_hash`]; the `dlx` caches are not shared across major CLI
@@ -125,6 +127,7 @@ pub(in crate::cli_args::dlx) fn create_cache_key(inputs: &CacheKeyInputs<'_>) ->
     // `null` when no `node` is found, which still differs from a key that
     // records no engine at all.
     args.push(json!({ "engine": inputs.engine }));
+    args.push(json!({ "binLayout": inputs.bin_layout }));
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 

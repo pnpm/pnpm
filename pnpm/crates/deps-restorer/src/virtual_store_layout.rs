@@ -94,6 +94,18 @@ pub struct VirtualStoreLayout {
     staging_token: String,
 }
 
+pub(crate) struct GlobalLayoutOptions<'a> {
+    pub(crate) package_store_dir: PathBuf,
+    pub(crate) virtual_store_dir_max_length: usize,
+    pub(crate) engine: Option<&'a str>,
+    pub(crate) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    pub(crate) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub(crate) gating: BuildGating<'a>,
+    pub(crate) lockfile_dir: Option<&'a Path>,
+    pub(crate) platform: &'a PlatformSelector,
+    pub(crate) preserve_bin_name: bool,
+}
+
 impl VirtualStoreLayout {
     pub(crate) fn relocated(&self, root: &Path) -> Self {
         Self { package_store_dir: root.to_path_buf(), ..self.clone() }
@@ -198,16 +210,17 @@ impl VirtualStoreLayout {
                 staging_token: new_staging_token(),
             };
         }
-        Self::global(
+        Self::global_with_options(GlobalLayoutOptions {
             package_store_dir,
             virtual_store_dir_max_length,
             engine,
             snapshots,
             packages,
-            BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
+            gating: BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
-            &selected_platform(config),
-        )
+            platform: &selected_platform(config),
+            preserve_bin_name: cfg!(unix) && config.preserve_bin_name,
+        })
     }
 
     /// [`Self::new`], with the derived suffix map cached on disk.
@@ -245,6 +258,7 @@ impl VirtualStoreLayout {
             BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
             &platform,
+            cfg!(unix) && config.preserve_bin_name,
         );
         let fingerprint = hasher.fingerprint(snapshots);
         let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
@@ -305,6 +319,31 @@ impl VirtualStoreLayout {
         lockfile_dir: Option<&Path>,
         platform: &PlatformSelector,
     ) -> Self {
+        Self::global_with_options(GlobalLayoutOptions {
+            package_store_dir,
+            virtual_store_dir_max_length,
+            engine,
+            snapshots,
+            packages,
+            gating,
+            lockfile_dir,
+            platform,
+            preserve_bin_name: false,
+        })
+    }
+
+    pub(crate) fn global_with_options(options: GlobalLayoutOptions<'_>) -> Self {
+        let GlobalLayoutOptions {
+            package_store_dir,
+            virtual_store_dir_max_length,
+            engine,
+            snapshots,
+            packages,
+            gating,
+            lockfile_dir,
+            platform,
+            preserve_bin_name,
+        } = options;
         let Some(snapshots) = snapshots else {
             return VirtualStoreLayout {
                 engine_name: engine.map(str::to_owned),
@@ -315,8 +354,15 @@ impl VirtualStoreLayout {
                 staging_token: new_staging_token(),
             };
         };
-        let mut hasher =
-            GvsHasher::new(snapshots, packages, engine, gating, lockfile_dir, platform);
+        let mut hasher = GvsHasher::new(
+            snapshots,
+            packages,
+            engine,
+            gating,
+            lockfile_dir,
+            platform,
+            preserve_bin_name,
+        );
         VirtualStoreLayout {
             engine_name: engine.map(str::to_owned),
             package_store_dir,

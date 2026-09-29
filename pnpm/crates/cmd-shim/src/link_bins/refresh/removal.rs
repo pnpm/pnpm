@@ -1,5 +1,5 @@
-use super::{FsReadDir, HashSet, LinkBinsError, Path};
-use crate::link_bins::shim_writer::remove_if_exists;
+use super::{FsReadDir, HashSet, LinkBinsError, Path, PathBuf};
+use crate::link_bins::shim_writer::{remove_bin_alias, remove_if_exists};
 
 pub(super) fn remove_unclaimed(
     name: &str,
@@ -8,9 +8,17 @@ pub(super) fn remove_unclaimed(
 ) -> Result<(), LinkBinsError> {
     for name in removable_names(name, provided, cfg!(windows)) {
         let path = bins_dir.join(name);
-        remove_if_exists(&path).map_err(|error| LinkBinsError::RemoveStaleBin { path, error })?;
+        remove_stale_entry(path)?;
     }
     Ok(())
+}
+
+/// Remove a stale `.bin` entry together with the `preserveBinName` alias it
+/// executes, if one is there.
+fn remove_stale_entry(path: PathBuf) -> Result<(), LinkBinsError> {
+    remove_if_exists(&path)
+        .and_then(|()| remove_bin_alias(&path))
+        .map_err(|error| LinkBinsError::RemoveStaleBin { path, error })
 }
 
 /// Remove any pnpm-created shim or symlink in `bins_dir` whose command name is
@@ -55,7 +63,7 @@ pub fn prune_stale_bins_with<Sys: FsReadDir>(
             && !is_symlink_or_junction(bins_dir)
             && is_pnpm_bin_entry(&path)
         {
-            remove_if_exists(&path).map_err(|error| LinkBinsError::RemoveStaleBin { path, error })?;
+            remove_stale_entry(path)?;
         }
     }
     Ok(())

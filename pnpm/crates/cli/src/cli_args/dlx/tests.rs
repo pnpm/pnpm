@@ -30,6 +30,7 @@ impl<'a> CacheKeyInputs<'a> {
             allow_build: &[],
             supported_architectures: None,
             engine: None,
+            bin_layout: "",
             policy: CachePolicyInputs::default(),
         }
     }
@@ -120,6 +121,19 @@ fn create_cache_key_is_order_independent_and_deterministic() {
     let versioned = ["a@1".to_string()];
     let key_versioned = create_cache_key(&CacheKeyInputs::new(&versioned, &registries));
     assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
+}
+
+#[test]
+fn create_cache_key_changes_with_bin_layout() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let key_without = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
+    let key_with = create_cache_key(&CacheKeyInputs {
+        bin_layout: "preserve",
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+
+    assert_ne!(key_without, key_with, "the bin layout must be part of the cache identity");
 }
 
 #[test]

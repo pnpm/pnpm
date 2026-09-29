@@ -53,6 +53,7 @@ pub(super) const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "prefer-frozen-lockfile",
     "prefer-offline",
     "prefer-symlinked-executables",
+    "preserve-bin-name",
     "progress",
     "publish-wait-timeout",
     "block-exotic-subdeps",

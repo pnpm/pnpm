@@ -11,6 +11,8 @@ use super::{
 };
 use crate::cli_args::add::{AllowBuildSelector, parse_allow_build_selectors};
 use key::{CacheKeyInputs, CachePolicyInputs};
+use pnpm_cmd_shim::bin_layout_fingerprint;
+use pnpm_deps_restorer::shim_link_options;
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 
 /// Install the packages into a fresh prepare directory and point the
@@ -288,12 +290,14 @@ pub(super) fn command_cache_dir(
     let resolved_architectures =
         supported_architectures.apply_to(config.supported_architectures.clone());
     let engine = detect_node_major().map(|major| engine_name(major, None, None));
+    let bin_layout = bin_layout_fingerprint(&shim_link_options(config, config.node_linker));
     let cache_key = create_cache_key(&CacheKeyInputs {
         pkgs,
         registries: &registries,
         allow_build,
         supported_architectures: resolved_architectures.as_ref(),
         engine: engine.as_deref(),
+        bin_layout: &bin_layout,
         policy: CachePolicyInputs::from_config(config),
     });
     dlx_command_cache_dir(config, &cache_key)

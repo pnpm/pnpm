@@ -184,6 +184,7 @@ pub(super) struct DeployWorkspaceSettings {
     pub(super) lockfile: DeployLockfileSettings,
     pub(super) patched_dependencies: Option<indexmap::IndexMap<String, String>>,
     pub(super) peers: DeployPeerSettings,
+    pub(super) preserve_bin_name: bool,
     pub(super) store: DeployStoreSettings,
 }
 
@@ -198,6 +199,7 @@ impl DeployWorkspaceSettings {
             lockfile: DeployLockfileSettings::from_config(config),
             patched_dependencies: None,
             peers: DeployPeerSettings::from_config(config),
+            preserve_bin_name: cfg!(unix) && config.preserve_bin_name,
             store: DeployStoreSettings::from_config(config),
         }
     }
@@ -259,6 +261,9 @@ impl DeployWorkspaceSettings {
         self.peers.insert_into_manifest(&mut manifest);
         self.lockfile.insert_into_manifest(&mut manifest);
         self.store.insert_into_manifest(&mut manifest);
+        if self.preserve_bin_name {
+            manifest.insert("preserveBinName".to_string(), Value::Bool(true));
+        }
         if let Some(patched_dependencies) = &self.patched_dependencies {
             manifest.insert(
                 "patchedDependencies".to_string(),

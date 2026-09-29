@@ -56,17 +56,33 @@ pub fn calc_graph_node_hash<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
+    calc_graph_node_hash_with_layout(graph, cache, dep_path, engine, build_required, project, None)
+}
+
+pub fn calc_graph_node_hash_with_layout<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    dep_path: &Key,
+    engine: Option<&str>,
+    build_required: BuildRequired<'_, Key>,
+    project: Option<&str>,
+    layout: Option<&str>,
+) -> String
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
     let NodeHashFields { engine: engine_value, built } =
         node_hash_fields(dep_path, engine, build_required);
     let deps_hash = calc_dep_graph_hash(graph, cache, dep_path);
     // The object-hash serialization of
-    // `{ engine, deps }`, plus `built` and `project` when they apply, with
-    // `sort = false`: keys stay in the order written here, which is the
-    // order `hash_object_without_sorting` reads them out of a
+    // `{ engine, deps }`, plus `built`, `project`, and `layout` when they
+    // apply, with `sort = false`: keys stay in the order written here, which
+    // is the order `hash_object_without_sorting` reads them out of a
     // `preserve_order` `serde_json` map.
     let mut buf = Vec::with_capacity(256);
     buf.extend_from_slice(b"object:");
-    let field_count = 2 + usize::from(built) + usize::from(project.is_some());
+    let field_count =
+        2 + usize::from(built) + usize::from(project.is_some()) + usize::from(layout.is_some());
     buf.extend_from_slice(field_count.to_string().as_bytes());
     buf.push(b':');
     serialize_str(&mut buf, "engine");
@@ -88,6 +104,12 @@ where
         serialize_str(&mut buf, "project");
         buf.push(b':');
         serialize_str(&mut buf, project);
+        buf.push(b',');
+    }
+    if let Some(layout) = layout {
+        serialize_str(&mut buf, "layout");
+        buf.push(b':');
+        serialize_str(&mut buf, layout);
         buf.push(b',');
     }
     digest_hex(&buf)
