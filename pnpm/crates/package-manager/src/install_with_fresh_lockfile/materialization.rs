@@ -290,6 +290,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     &self.shape,
                     &self.stores.caches,
                     &plan.layout,
+                    plan.dir_clone_cache.as_ref(),
                     allow_build_policy,
                 ),
                 include_transitive_optional_dependencies: self.shape
@@ -321,6 +322,7 @@ pub(super) fn fresh_install_context<'b>(
     shape: &'b InstallShape,
     caches: &'b resolver_setup::StoreCaches,
     layout: &'b VirtualStoreLayout,
+    dir_clone_cache: Option<&'b pnpm_deps_restorer::DirCloneCache<'b>>,
     allow_build_policy: &'b AllowBuildPolicy,
 ) -> pnpm_deps_restorer::InstallContext<'b> {
     pnpm_deps_restorer::InstallContext {
@@ -337,6 +339,6 @@ pub(super) fn fresh_install_context<'b>(
 
         logged_methods: install.drivers.logged_methods,
         git_source_cache: &caches.git_source_cache,
-        dir_clone_cache: None,
+        dir_clone_cache,
     }
 }

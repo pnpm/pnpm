@@ -93,6 +93,53 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
     drop(mock_instance);
 }
 
+/// A hoisted install that re-resolves an existing lockfile, as
+/// `autoDedupe` does on every install, must clone from the canonical
+/// slot just like the frozen hoisted install does.
+#[test]
+fn hoisted_re_resolve_is_served_from_the_canonical_slot() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace);
+    let mut yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: hoisted\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
+    let hoisted_manifest = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep/package.json");
+
+    pacquet(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let canonical_manifest =
+        canonical_pkg_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0").join("package.json");
+    assert!(canonical_manifest.exists(), "the frozen install must populate the canonical slot");
+
+    // Unlink-then-write so the plant never reaches a store file the
+    // slot might share an inode with.
+    fs::remove_file(&canonical_manifest).expect("unlink the canonical manifest");
+    fs::write(&canonical_manifest, r#"{"planted":true}"#).expect("plant the canonical manifest");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("wipe node_modules");
+    pacquet(&workspace)
+        .with_args(["install", "--no-prefer-frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(&hoisted_manifest).expect("read the hoisted manifest"),
+        r#"{"planted":true}"#,
+        "the re-resolving hoisted install must clone the canonical slot",
+    );
+
+    drop(mock_instance);
+}
+
 /// An explicit `packageImportMethod` promises a specific on-disk form
 /// a clone of the canonical copy could not deliver.
 #[test]
