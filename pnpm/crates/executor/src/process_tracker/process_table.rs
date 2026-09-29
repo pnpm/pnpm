@@ -2,26 +2,33 @@
 //! process, named by its id, whose `stat` file holds the process's state
 //! and process group among its fields.
 
-use std::{fs, path::Path};
+use std::{fs, io, path::Path};
 
 /// Whether `table` lists a process of the group led by `leader` that has
-/// not exited, or cannot be listed at all and so cannot rule one out.
+/// not exited, or cannot be listed to the end and so cannot rule one out.
 ///
 /// An entry whose `stat` cannot be read is not counted. Its process exited
 /// after the listing, or it belongs to another user under a restricted
 /// table, and either way it is not a member pnpm could wait for.
 pub(super) fn has_running_member(table: &Path, leader: i32) -> bool {
-    let Ok(entries) = fs::read_dir(table) else { return true };
-    let mut pids: Vec<u32> = entries
-        .flatten()
-        .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
-        .collect();
+    let Ok(mut pids) = process_ids(table) else { return true };
     // The script and whatever it started hold the newest ids, so a member
     // that is still running turns up within the first few reads.
     pids.sort_unstable();
     pids.into_iter()
         .rev()
         .any(|pid| is_running_member(&table.join(pid.to_string()), leader))
+}
+
+fn process_ids(table: &Path) -> io::Result<Vec<u32>> {
+    let mut pids = Vec::new();
+    for entry in fs::read_dir(table)? {
+        let name = entry?.file_name();
+        if let Some(Ok(pid)) = name.to_str().map(str::parse) {
+            pids.push(pid);
+        }
+    }
+    Ok(pids)
 }
 
 fn is_running_member(entry: &Path, leader: i32) -> bool {
