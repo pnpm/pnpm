@@ -204,6 +204,13 @@ newer version. The check is skipped in CI and with `--offline` or
 
 Create symlinks to executables in `node_modules/.bin` instead of command shims. This setting is ignored on Windows, where only command shims work.
 
+### preserveBinName
+
+* Default: **false**
+* Type: **Boolean**
+
+Keep the command shims in `node_modules/.bin` and have each one run the bin through a symlink named after the command, in `node_modules/.bin-symlinks`. A Node.js bin then sees the command name it was invoked with in `process.argv[1]`. This setting takes precedence over `preferSymlinkedExecutables`, and is ignored on Windows.
+
 ### ignoreCompatibilityDb
 
 * Default: **false**

@@ -145,6 +145,8 @@ impl WorkspaceSettings {
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
             runtime: as_set(config, "runtime"),
 
+            preserve_bin_name: Some(config.preserve_bin_name),
+
             frozen_lockfile: config.frozen_lockfile,
             provenance: config.provenance,
             git_branch_lockfile: Some(config.use_git_branch_lockfile),

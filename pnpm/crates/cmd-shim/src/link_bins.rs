@@ -1,4 +1,5 @@
 pub use discovery::collect_packages_in_modules_dir;
+pub use layout::bin_layout_fingerprint;
 pub use options::LinkBinsOptions;
 pub use prepared::{PreparedPackageBins, link_bins_of_packages_precomputed};
 pub use refresh::{DirectoryBinPlan, prune_stale_bins, prune_stale_bins_with};
@@ -6,6 +7,7 @@ pub use relocatable::bin_dir_is_relocatable;
 pub use selection::choose_bins;
 pub use shim_writer::remove_bin;
 pub use source::{BinOrigin, PackageBinSource};
+pub use target_cache::ShimTargetCache;
 
 use crate::{
     bin_resolver::{
@@ -27,10 +29,10 @@ use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     io,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 /// Error type for [`link_bins_of_packages`].
@@ -120,6 +122,14 @@ pub enum LinkBinsError {
         error: io::Error,
     },
 
+    #[display("Failed to create bin alias directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_CMD_SHIM_CREATE_ALIAS_DIR))]
+    CreateAliasDir {
+        dir: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[display("Failed to symlink executable {src:?} -> {dst:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_SYMLINK_BIN))]
     SymlinkBin {
@@ -128,74 +138,6 @@ pub enum LinkBinsError {
         #[error(source)]
         error: io::Error,
     },
-}
-
-/// Memo of per-target probe work shared across [`link_bins_of_packages_cached`]
-/// calls: the script-runtime (shebang) probe and the executable-bit fix-up,
-/// both keyed by the target's symlink-resolved path. Many importers linking
-/// the same virtual-store package repeat both against one underlying file,
-/// so a caller that links several `node_modules/.bin` dirs in one pass
-/// shares a cache and pays each probe once.
-///
-/// The memo assumes the targets' contents and permissions do not change
-/// while it is alive. Scope a cache to a single linking pass — in
-/// particular, do not carry one across a lifecycle-script (build) phase,
-/// which may rewrite target files.
-#[derive(Debug, Default, Clone)]
-pub struct ShimTargetCache(Arc<ShimTargetCacheState>);
-
-#[derive(Debug, Default)]
-struct ShimTargetCacheState {
-    runtimes: Mutex<HashMap<PathBuf, Option<ScriptRuntime>>>,
-    executable_ensured: Mutex<HashSet<PathBuf>>,
-}
-
-impl ShimTargetCache {
-    /// [`search_script_runtime`] with the result memoized under
-    /// `probe_path`. Errors are not cached, so a transient failure does
-    /// not poison later lookups.
-    ///
-    /// Concurrency note: the lock is not held across the probe, so two
-    /// workers racing on one key may both probe. That's benign — the
-    /// probe is idempotent and the memo converges — and it keeps a slow
-    /// read from serializing every other target's probe behind it. Same
-    /// trade as the store's `verifiedFilesCache`.
-    fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
-        if let Some(runtime) = self.0.runtimes
-            .lock()
-            .expect("runtime memo lock")
-            .get(probe_path)
-        {
-            return Ok(runtime.clone());
-        }
-        let runtime = search_script_runtime::<Sys>(probe_path)?;
-        self.0.runtimes
-            .lock()
-            .expect("runtime memo lock")
-            .insert(probe_path.to_path_buf(), runtime.clone());
-        Ok(runtime)
-    }
-
-    /// [`ensure_target_executable`] at most once per `probe_path`.
-    fn ensure_target_executable_once<Sys: FsEnsureExecutableBits>(
-        &self,
-        probe_path: &Path,
-        installed_modules_dir: Option<&Path>,
-    ) -> Result<(), LinkBinsError> {
-        if self.0.executable_ensured
-            .lock()
-            .expect("executable memo lock")
-            .contains(probe_path)
-        {
-            return Ok(());
-        }
-        ensure_target_executable::<Sys>(probe_path, installed_modules_dir)?;
-        self.0.executable_ensured
-            .lock()
-            .expect("executable memo lock")
-            .insert(probe_path.to_path_buf());
-        Ok(())
-    }
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -382,25 +324,28 @@ where
             // On Unix the symlink branch never writes a shim, so no bin
             // needs a NODE_PATH — skip `shim_node_path`'s per-package
             // canonicalize entirely.
-            let node_path =
-                if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {
-                    Vec::new()
-                } else {
-                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
-                };
+            let node_path = if !options.preserve_bin_name
+                && options.prefer_symlinked_executables
+                && cfg!(any(unix, target_os = "wasi"))
+            {
+                Vec::new()
+            } else {
+                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
+            };
+            let alias_path = paths.alias_path(&command.name);
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
+                    alias_path: alias_path.as_deref(),
                     probe_path: &target_probe_path(pkg, &command.path),
                     shim_path: &paths.bins_dir.join(&command.name),
-                    node_path: &node_path,
-                    options,
                     windows: WindowsShimPolicy::for_package(pkg_name),
                     paths: &paths,
                     precalculated_runtime: command.precalculated_runtime
                         .as_ref()
                         .filter(|_| !pkg.build_pending),
+                    layout: ShimLayout { node_path: &node_path, options },
                 },
                 cache,
             )
@@ -412,13 +357,17 @@ where
 #[cfg(test)]
 mod tests;
 
+#[cfg(unix)]
+mod alias_dir;
+
 mod shim_writer;
-use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+use shim_writer::{ShimLayout, ShimSpec, remove_stale_bin, write_shim};
 
 mod executable;
 use executable::{
     bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
-    link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
+    link_bin_alias, link_node_bin, link_symlinked_executable, symlink_already_points_at,
+    target_requires_shim,
 };
 
 mod conflicts;
@@ -434,7 +383,11 @@ mod refresh;
 mod exclusions;
 use exclusions::ExcludedBins;
 
+mod layout;
+
 mod linking_paths;
+
+mod target_cache;
 use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;

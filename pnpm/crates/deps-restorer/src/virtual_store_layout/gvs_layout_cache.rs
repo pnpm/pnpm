@@ -1,3 +1,6 @@
+use super::GvsHasher;
+use crate::AllowBuildPolicy;
+use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use sha2::Digest as _;
 use std::{
@@ -17,6 +20,51 @@ pub(super) const CACHE_FORMAT_VERSION: &str = "1";
 /// practice by npm's 214-character name limit plus a version and a
 /// 64-character digest.
 const MAX_ENTRY_BYTES: u64 = 4096;
+
+/// The suffixes for these inputs, taken from the on-disk cache when it holds
+/// an entry for them and computed otherwise.
+///
+/// The module documentation says what the key covers and what the loader
+/// refuses to trust.
+pub(super) fn cached_suffixes(
+    config: &Config,
+    engine: Option<&str>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    allow_build_policy: Option<&AllowBuildPolicy>,
+    lockfile_dir: Option<&Path>,
+) -> HashMap<PackageKey, String> {
+    let mut hasher = GvsHasher::new(
+        snapshots,
+        packages,
+        engine,
+        cfg!(unix) && config.preserve_bin_name,
+        allow_build_policy,
+        lockfile_dir,
+    );
+    let fingerprint = hasher.fingerprint(snapshots);
+    let cache_file = lockfile_dir.map(|lockfile_dir| CacheFile {
+        cache_dir: &config.cache_dir,
+        lockfile_dir,
+        fingerprint: &fingerprint,
+    });
+    if let Some(cache_file) = cache_file
+        && let Some(gvs_suffixes) = load(cache_file, Expected { snapshots, packages })
+    {
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "gvs.layout_cache_hit",
+            entries = gvs_suffixes.len(),
+            "phase complete",
+        );
+        return gvs_suffixes;
+    }
+    let gvs_suffixes = hasher.suffixes(snapshots);
+    if let Some(cache_file) = cache_file {
+        store(cache_file, &gvs_suffixes);
+    }
+    gvs_suffixes
+}
 
 /// One file per lockfile directory, not one per fingerprint.
 ///

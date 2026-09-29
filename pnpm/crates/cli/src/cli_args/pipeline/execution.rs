@@ -380,6 +380,7 @@ fn sync_injected_deps_if_configured(
             modules_dir_name: config.modules_dir_name(),
             extend_node_path: config.extend_node_path,
             ignored_directories: config.managed_directories(),
+            link_options: pnpm_deps_restorer::shim_link_options(config, config.node_linker),
         },
     })?;
     Ok(())

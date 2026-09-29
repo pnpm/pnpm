@@ -89,6 +89,12 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF))]
     VirtualStoreDirMaxLengthDiff,
 
+    #[display(
+        r#"This modules directory was created using a different preserve-bin-name value. Run "pnpm install" to recreate the modules directory."#
+    )]
+    #[diagnostic(code(ERR_PNPM_PRESERVE_BIN_NAME_DIFF))]
+    PreserveBinNameDiff,
+
     /// pnpm-only: upstream keeps such a tree on a mutation and leaves the
     /// previous linker's packages behind.
     #[display(

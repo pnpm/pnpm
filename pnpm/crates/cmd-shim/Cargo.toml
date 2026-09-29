@@ -32,6 +32,9 @@ shell-words = { workspace = true }
 [target.'cfg(target_family = "wasm")'.dependencies]
 shell-words = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [target.'cfg(windows)'.dev-dependencies]
 pnpm-fs = { workspace = true, features = ["test"] }
 

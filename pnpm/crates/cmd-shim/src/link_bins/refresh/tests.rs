@@ -243,6 +243,25 @@ fn prune_stale_bins_removes_unclaimed_shims_and_keeps_claimed_commands() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn prune_stale_bins_removes_the_alias_of_a_pruned_bin() {
+    let temp = tempfile::tempdir().unwrap();
+    let modules = temp.path().join("node_modules");
+    let bins = modules.join(".bin");
+    package(&modules, "keep", "keep");
+    package(&modules, "stale", "stale");
+    let options = LinkBinsOptions { preserve_bin_name: true, ..LinkBinsOptions::default() };
+    link_bins::<Host>(&modules, &bins, &options).unwrap();
+    let aliases = modules.join(".bin-symlinks");
+    assert!(fs::symlink_metadata(aliases.join("stale")).is_ok());
+
+    super::prune_stale_bins(&bins, &HashSet::from(["keep".to_owned()])).unwrap();
+
+    assert!(fs::symlink_metadata(aliases.join("stale")).is_err());
+    assert!(fs::symlink_metadata(aliases.join("keep")).is_ok());
+}
+
 #[test]
 fn prune_stale_bins_does_not_traverse_symlinked_bins_dir() {
     let temp = tempfile::tempdir().unwrap();

@@ -6,6 +6,7 @@ pub(crate) use registry_prefixes::{
 };
 
 mod agent_skills;
+mod bin_layout;
 mod equivalence;
 mod install_policy;
 mod registry_prefixes;
@@ -214,7 +215,7 @@ impl SettingsComparison<'_> {
             "linkWorkspacePackages",
             recorded.link_workspace_packages != live.link_workspace_packages,
         );
-        None
+        self.bin_layout_drift()
     }
     fn resolution_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -352,7 +353,7 @@ pub(crate) fn current_settings(
         supported_architectures: supported_architectures.and_then(|value| {
             serde_json::to_value(value).ok()
         }),
-        ..current_policy_settings(config)
+        ..bin_layout::bin_layout_settings(config, current_policy_settings(config))
     }
 }
 
