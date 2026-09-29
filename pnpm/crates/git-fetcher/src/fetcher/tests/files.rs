@@ -20,7 +20,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -98,7 +98,7 @@ async fn fetcher_skips_build_when_ignore_scripts() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
