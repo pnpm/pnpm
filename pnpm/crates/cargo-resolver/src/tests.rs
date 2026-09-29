@@ -1092,22 +1092,27 @@ fn rejects_a_dependency_the_lockfile_does_not_lock() {
 
 #[test]
 fn rejects_a_direct_dependency_locked_only_transitively() {
-    let metadata = METADATA.replace(
-        r#""req": "^1.0"
-    }]"#,
-        &format!(
-            r#""req": "^1.0"
-    }}, {{
-      "name": "bar",
-      "source": "{CRATES_IO_SOURCE}",
-      "req": "^2"
-    }}]"#,
-        ),
-    );
+    let metadata = with_app_dependency(&format!(
+        r#""name": "bar", "source": "{CRATES_IO_SOURCE}", "req": "^2""#,
+    ));
 
     let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
 
     assert_eq!(error.to_string(), "app depends on bar ^2, but Cargo.lock locks no bar for app");
+}
+
+#[test]
+fn rejects_an_edge_no_dependency_requires() {
+    let metadata = METADATA.replace(r#""name": "foo""#, r#""name": "bar""#).replace("^1.0", "^2");
+    let lockfile = locked_foo_and_bar()
+        .replace("dependencies = [\n \"foo\",\n]", "dependencies = [\n \"bar\",\n \"foo\",\n]");
+
+    let error = verify_lockfile(&metadata, &lockfile).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Cargo.lock locks foo 1.1.0 for app, which no dependency of app requires",
+    );
 }
 
 #[test]
@@ -1136,9 +1141,15 @@ fn reports_a_stale_lockfile_as_outdated() {
 
 #[test]
 fn ignores_path_dependencies_the_lockfile_does_not_lock() {
-    let metadata = METADATA
-        .replace(r#""name": "foo""#, r#""name": "baz""#)
-        .replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null");
+    let metadata = with_app_dependency(r#""name": "baz", "source": null, "req": "*""#);
 
     verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap();
+}
+
+fn with_app_dependency(dependency: &str) -> String {
+    METADATA.replace(
+        r#""req": "^1.0"
+    }]"#,
+        &format!(r#""req": "^1.0" }}, {{ {dependency} }}]"#),
+    )
 }

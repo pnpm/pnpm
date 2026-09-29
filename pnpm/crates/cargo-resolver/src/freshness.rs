@@ -9,10 +9,12 @@ use std::str::FromStr;
 
 /// Check that, for every registry or git dependency a workspace member
 /// declares, `lockfile` records an edge from that member to a version the
-/// requirement accepts.
+/// requirement accepts, and that the member has no locked edge that none of
+/// its declared dependencies accounts for.
 ///
 /// `metadata` is the output of `cargo metadata --no-deps`. Path dependencies
-/// carry no requirement a lockfile could contradict, so they are skipped.
+/// carry no requirement a lockfile could contradict, so they need no edge of
+/// their own and account for any edge with their name.
 /// Sources are not compared, because a `[patch]` legitimately locks a
 /// dependency from a source other than the one its manifest names.
 pub fn verify_lockfile(metadata: &str, lockfile: &str) -> Result<()> {
@@ -41,7 +43,28 @@ fn verify_member(member: &MetadataPackage, lockfile: &Lockfile) -> Result<()> {
     member.dependencies
         .iter()
         .filter(|dependency| dependency.source.is_some())
-        .try_for_each(|dependency| verify_edge(&member.name, dependency, locked_member))
+        .try_for_each(|dependency| verify_edge(&member.name, dependency, locked_member))?;
+    verify_no_stale_edge(member, locked_member)
+}
+
+fn verify_no_stale_edge(member: &MetadataPackage, locked_member: &Package) -> Result<()> {
+    let stale = locked_member.dependencies
+        .iter()
+        .find(|edge| {
+            !member.dependencies
+                .iter()
+                .any(|dependency| {
+                    dependency.name == edge.name.as_str()
+                        && (dependency.source.is_none() || dependency.req.matches(&edge.version))
+                })
+        });
+    match stale {
+        None => Ok(()),
+        Some(edge) => Err(outdated(&format!(
+            "Cargo.lock locks {} {} for {}, which no dependency of {} requires",
+            edge.name, edge.version, member.name, member.name,
+        ))),
+    }
 }
 
 fn verify_edge(
