@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Updated `undici` to 7.29.1, which fixes a denial of service in WebSocket decompression [GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v).
+pnpm now ships `undici` 7.29.1, so security scans of pnpm no longer report [GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v).
