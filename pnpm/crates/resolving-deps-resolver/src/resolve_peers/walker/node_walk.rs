@@ -89,7 +89,7 @@ impl Walker<'_> {
         };
         let pkg = self.owned_package(&pkg_id);
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
-        let pkg_name = Arc::clone(&pkg.name);
+        let pkg_name = Arc::clone(pkg.name());
         NodeEntry { pkg, pkg_name, depth, installable, provider_children, preview_undo }
     }
 

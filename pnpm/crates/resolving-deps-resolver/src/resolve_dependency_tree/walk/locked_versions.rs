@@ -211,7 +211,7 @@ pub(super) fn ensure_same_registry_revision(
     existing: &ResolvedPackage,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<(), ResolveDependencyTreeError> {
-    if registry_revisions_conflict(&existing.result.resolution, &result.resolution) {
+    if registry_revisions_conflict(&existing.result().resolution, &result.resolution) {
         let name_ver =
             result.package.name_ver.as_ref().expect("registry result has name and version");
         return Err(ResolveDependencyTreeError::RevisionConflict {

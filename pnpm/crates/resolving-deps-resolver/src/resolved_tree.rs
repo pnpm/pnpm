@@ -1,3 +1,4 @@
+pub use package_identity::ResolvedPackageInput;
 pub(crate) use package_identity::{pkg_name, pkg_name_version};
 
 mod package_identity;
@@ -79,8 +80,7 @@ pub type AncestorPkgIds = Arc<Vec<Arc<str>>>;
 pub struct DirectDep {
     /// Local install name in `node_modules`. For an npm-alias entry
     /// (`"foo": "npm:bar@^1"`) this is `"foo"`; the resolved
-    /// package's real name is recoverable from
-    /// [`ResolvedPackage::result`].
+    /// package's real name is [`ResolvedPackage::name()`].
     pub alias: String,
     /// Per-occurrence node identifier. Use this to look up the
     /// corresponding [`DependenciesTreeNode`] in
@@ -101,24 +101,23 @@ pub struct DirectDep {
 /// occurrence tree node with its own children edges; leaves collapse
 /// onto one shared tree node (see [`DependenciesTree`]). Either way,
 /// [`ResolvedPackage`] is the dedup-shared *envelope*, not a tree node.
+///
+/// The resolution and the name and version rendered from it are set
+/// only by [`Self::new`] and read through [`Self::result()`],
+/// [`Self::name()`] and [`Self::version()`], so the rendered pair
+/// cannot drift from the resolution.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
     pub id: Arc<str>,
-    /// The package's real name, rendered once from [`Self::result`]:
-    /// the peer walk reads it at every occurrence it visits, and
-    /// rendering a scoped name allocates.
-    pub name: Arc<str>,
-    /// The version peer ranges are checked against: the resolved
-    /// `name_ver` version, else the fetched manifest's `version`, else
-    /// the resolution id. Rendered once, like [`Self::name`].
-    pub version: Arc<str>,
+    name: Arc<str>,
+    version: Arc<str>,
     /// Held as `Arc` so cloning a [`ResolvedPackage`] (which the
     /// per-occurrence tree walk does on every snapshot, and which
     /// the peer-resolution pass does when it carves
     /// `DependenciesGraphNode`s out of the resolved tree) is an
     /// `Arc::clone` instead of a deep copy of every `String` field
     /// on `ResolveResult` (id, alias, `resolved_via`, `name_ver`, ...).
-    pub result: std::sync::Arc<ResolveResult>,
+    result: std::sync::Arc<ResolveResult>,
     /// `peerDependencies` from the package's manifest, with names that
     /// also appear in the package's own `dependencies` /
     /// `optionalDependencies` filtered out. `BTreeMap` keeps iteration

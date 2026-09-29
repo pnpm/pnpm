@@ -29,7 +29,7 @@ use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage},
+    resolved_tree::{AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput},
 };
 
 use super::{
@@ -567,13 +567,13 @@ fn register_reused_package(
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
         Arc::<str>::clone(&shared_id),
-        ResolvedPackage::new(
-            Arc::<str>::clone(&shared_id),
-            Arc::clone(result),
+        ResolvedPackage::new(ResolvedPackageInput {
+            id: Arc::<str>::clone(&shared_id),
+            result: Arc::clone(result),
             peer_dependencies,
-            current_is_optional,
+            optional: current_is_optional,
             is_leaf,
-        ),
+        }),
     );
     (shared_id, true)
 }

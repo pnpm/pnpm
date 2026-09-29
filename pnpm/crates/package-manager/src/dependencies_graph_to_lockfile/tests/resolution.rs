@@ -6,7 +6,8 @@ use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{ImporterDepVersion, LockfileResolution, PackageKey, PkgName};
 use pnpm_resolving_deps_resolver::{
     ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
-    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, resolve_peers,
+    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedPackageInput, ResolvedTree,
+    TreeChildren, resolve_peers,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::json;
@@ -119,31 +120,31 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         packages: HashMap::from_iter([
             (
                 Arc::<str>::clone(&outer_id),
-                ResolvedPackage::new(
-                    Arc::<str>::clone(&outer_id),
-                    Arc::new(make_resolve_result(
+                ResolvedPackage::new(ResolvedPackageInput {
+                    id: Arc::<str>::clone(&outer_id),
+                    result: Arc::new(make_resolve_result(
                         "outer",
                         "1.0.0",
                         json!({ "name": "outer", "version": "1.0.0" }),
                     )),
-                    BTreeMap::new(),
-                    false,
-                    false,
-                ),
+                    peer_dependencies: BTreeMap::new(),
+                    optional: false,
+                    is_leaf: false,
+                }),
             ),
             (
                 Arc::<str>::clone(&inner_id),
-                ResolvedPackage::new(
-                    Arc::<str>::clone(&inner_id),
-                    Arc::new(make_resolve_result(
+                ResolvedPackage::new(ResolvedPackageInput {
+                    id: Arc::<str>::clone(&inner_id),
+                    result: Arc::new(make_resolve_result(
                         "inner",
                         "1.0.0",
                         json!({ "name": "inner", "version": "1.0.0" }),
                     )),
-                    BTreeMap::new(),
-                    true,
-                    true,
-                ),
+                    peer_dependencies: BTreeMap::new(),
+                    optional: true,
+                    is_leaf: true,
+                }),
             ),
         ]),
         dependencies_tree: HashMap::from_iter([(

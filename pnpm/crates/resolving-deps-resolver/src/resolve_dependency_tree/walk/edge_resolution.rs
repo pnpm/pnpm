@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
-    ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, Resolver, SeededPackage,
-    SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey,
-    async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
+    ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
+    SeededPackage, SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency,
+    WantedKey, async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
     current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
     extract_peer_dependencies, is_exotic_resolved_via, is_update_target, lock_recoverable,
     node_alias, node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
@@ -402,13 +402,13 @@ pub(super) fn register_seeded_package(
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
         Arc::<str>::clone(&shared_id),
-        ResolvedPackage::new(
-            Arc::<str>::clone(&shared_id),
-            Arc::clone(result),
+        ResolvedPackage::new(ResolvedPackageInput {
+            id: Arc::<str>::clone(&shared_id),
+            result: Arc::clone(result),
             peer_dependencies,
-            current_is_optional,
+            optional: current_is_optional,
             is_leaf,
-        ),
+        }),
     );
     Ok((shared_id, true))
 }

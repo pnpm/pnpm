@@ -1,20 +1,35 @@
-//! The rendered name and version a [`ResolvedPackage`] carries.
+//! The resolution a [`ResolvedPackage`] wraps, and the name and version
+//! rendered from it once.
 
 use super::{PeerDep, ResolvedPackage};
 use pnpm_resolving_resolver_base::ResolveResult;
 use std::{collections::BTreeMap, sync::Arc};
 
+/// The inputs of [`ResolvedPackage::new`], named so that a construction
+/// site reads as the package it builds. `result` is the resolution the
+/// package wraps; the other fields are the package's fields of the same
+/// name.
+#[derive(Debug)]
+pub struct ResolvedPackageInput {
+    pub id: Arc<str>,
+    pub result: Arc<ResolveResult>,
+    pub peer_dependencies: BTreeMap<String, PeerDep>,
+    pub optional: bool,
+    pub is_leaf: bool,
+}
+
 impl ResolvedPackage {
-    /// Build the envelope, rendering [`Self::name`] and [`Self::version`]
-    /// from `result` once.
+    /// Build the envelope, rendering [`Self::name()`] and
+    /// [`Self::version()`] from the input's `result` once.
     #[must_use]
-    pub fn new(
-        id: Arc<str>,
-        result: Arc<ResolveResult>,
-        peer_dependencies: BTreeMap<String, PeerDep>,
-        optional: bool,
-        is_leaf: bool,
-    ) -> Self {
+    pub fn new(input: ResolvedPackageInput) -> Self {
+        let ResolvedPackageInput {
+            id,
+            result,
+            peer_dependencies,
+            optional,
+            is_leaf,
+        } = input;
         let (name, version) = pkg_name_version(&result);
         ResolvedPackage {
             id,
@@ -25,6 +40,31 @@ impl ResolvedPackage {
             optional,
             is_leaf,
         }
+    }
+
+    /// The resolution this envelope wraps. Read-only: [`Self::name()`]
+    /// and [`Self::version()`] were rendered from it, so replacing or
+    /// mutating it would leave them stale.
+    #[must_use]
+    pub fn result(&self) -> &Arc<ResolveResult> {
+        &self.result
+    }
+
+    /// The package's real name, rendered once from [`Self::result()`]:
+    /// the peer walk reads it at every occurrence it visits, and
+    /// rendering a scoped name allocates. Shared through the `Arc`,
+    /// which derefs to the `&str`.
+    #[must_use]
+    pub fn name(&self) -> &Arc<str> {
+        &self.name
+    }
+
+    /// The version peer ranges are checked against: the resolved
+    /// `name_ver` version, else the fetched manifest's `version`, else
+    /// the resolution id. Rendered once, like [`Self::name()`].
+    #[must_use]
+    pub fn version(&self) -> &Arc<str> {
+        &self.version
     }
 }
 

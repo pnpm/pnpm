@@ -136,7 +136,7 @@ impl Walker<'_> {
         let peer_tree_node = self.tree.dependencies_tree.get(peer_node_id)?;
         let peer_pkg = self.tree.packages.get(&peer_tree_node.resolved_package_id)?;
         if !satisfies_with_prereleases(
-            &peer_pkg.version,
+            peer_pkg.version(),
             &get_peer_version_range(&peer_dep.version),
         ) {
             return None;
@@ -147,7 +147,7 @@ impl Walker<'_> {
         Some((
             peer_name.to_string(),
             ParentRef {
-                version: Arc::clone(&peer_pkg.version),
+                version: Arc::clone(peer_pkg.version()),
                 node_id: Some(peer_node_id.clone()),
                 alias: Some(peer_name.to_string()),
                 depth: peer_tree_node.depth,

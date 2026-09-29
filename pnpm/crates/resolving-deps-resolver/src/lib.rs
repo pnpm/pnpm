@@ -100,7 +100,7 @@ pub use resolve_workspace::{
 };
 pub use resolved_tree::{
     ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
-    ResolvedTree, TreeChildren,
+    ResolvedPackageInput, ResolvedTree, TreeChildren,
 };
 
 mod dedupe_injected_deps;

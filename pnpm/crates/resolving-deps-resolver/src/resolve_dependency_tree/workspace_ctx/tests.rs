@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     DirectDep, NodeId,
-    resolved_tree::{DependenciesTreeNode, TreeChildren},
+    resolved_tree::{DependenciesTreeNode, ResolvedPackageInput, TreeChildren},
 };
 
 #[test]
@@ -283,13 +283,13 @@ fn importer_scoped_update_owner_wins_before_discovery_order() {
 }
 
 fn snapshot_package(pkg_id: &str) -> super::ResolvedPackage {
-    super::ResolvedPackage::new(
-        Arc::from(pkg_id.to_string()),
-        std::sync::Arc::new(manifest_result(serde_json::json!({}))),
-        BTreeMap::new(),
-        false,
-        false,
-    )
+    super::ResolvedPackage::new(ResolvedPackageInput {
+        id: Arc::from(pkg_id.to_string()),
+        result: std::sync::Arc::new(manifest_result(serde_json::json!({}))),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: false,
+    })
 }
 
 #[test]
@@ -383,13 +383,13 @@ fn insert_named_package(workspace: &WorkspaceTreeCtx, name: &str, version: &str)
     result.id = (&name_ver).into();
     result.package.name_ver = Some(name_ver);
     let pkg_id = format!("{name}@{version}");
-    let package = super::ResolvedPackage::new(
-        Arc::from(pkg_id.clone()),
-        std::sync::Arc::new(result),
-        BTreeMap::new(),
-        false,
-        false,
-    );
+    let package = super::ResolvedPackage::new(ResolvedPackageInput {
+        id: Arc::from(pkg_id.clone()),
+        result: std::sync::Arc::new(result),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: false,
+    });
     lock_recoverable(&workspace.tree.packages).insert(Arc::from(pkg_id), package);
 }
 
@@ -486,11 +486,9 @@ fn record_package(workspace: &WorkspaceTreeCtx, pkg_id: &str, peer_names: &[&str
             )
         })
         .collect();
-    lock_recoverable(&workspace.tree.packages)
-        .insert(
-            Arc::from(pkg_id.to_string()),
-            super::ResolvedPackage { peer_dependencies, ..snapshot_package(pkg_id) },
-        );
+    let mut package = snapshot_package(pkg_id);
+    package.peer_dependencies = peer_dependencies;
+    lock_recoverable(&workspace.tree.packages).insert(Arc::from(pkg_id.to_string()), package);
     let mut all_peers = lock_recoverable(&workspace.tree.all_peer_dep_names);
     for name in peer_names {
         if all_peers.insert((*name).to_string()) {

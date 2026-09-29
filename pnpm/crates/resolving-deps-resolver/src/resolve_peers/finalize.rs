@@ -173,7 +173,7 @@ impl Walker<'_> {
             .or_insert(DependenciesGraphNode {
                 dep_path: node.dep_path.clone(),
                 resolved_package_id: node.pkg.id.to_string(),
-                resolve_result: Arc::clone(&node.pkg.result),
+                resolve_result: Arc::clone(node.pkg.result()),
                 depth: node.ancestry.depth,
                 installable: node.installable,
                 is_pure: node.peers.is_pure,
@@ -411,7 +411,7 @@ impl Walker<'_> {
         DependenciesGraphNode {
             dep_path,
             resolved_package_id: pkg_id.to_string(),
-            resolve_result: Arc::clone(&pkg.result),
+            resolve_result: Arc::clone(pkg.result()),
             depth,
             installable: record.installable,
             is_pure: record.is_pure,

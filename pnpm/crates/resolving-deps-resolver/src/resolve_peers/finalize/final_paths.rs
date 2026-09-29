@@ -116,7 +116,7 @@ impl Walker<'_> {
         let pair = || {
             let tree_node = &self.tree.dependencies_tree[peer_node_id];
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-            peer_id_pair(&pkg.result)
+            peer_id_pair(pkg.result())
         };
         if self.opts.dedupe_peers && self.tree.dependencies_tree.contains_key(peer_node_id) {
             return pair();
@@ -202,7 +202,7 @@ impl Walker<'_> {
         let mut graph: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
         for (pkg_id, edges) in edges_of_pkg {
             graph
-                .entry(self.tree.packages[pkg_id].name.to_string())
+                .entry(self.tree.packages[pkg_id].name().to_string())
                 .or_default()
                 .extend(edges);
         }

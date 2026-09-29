@@ -141,7 +141,7 @@ pub(super) fn index_peer_provider_edge(
     edge: &ChildEdge,
 ) {
     let Some(pkg) = tree.packages.get(&edge.pkg_id) else { return };
-    let real_name = &*pkg.name;
+    let real_name: &str = pkg.name();
     let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
     let real_name_is_peer = tree.all_peer_dep_names.contains(real_name);
     if !alias_is_peer && !real_name_is_peer {
