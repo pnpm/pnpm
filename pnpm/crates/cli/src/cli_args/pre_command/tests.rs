@@ -277,6 +277,7 @@ fn unparsed_argv_reads_the_project_location() {
         (&["pnpm", "config", "--location=project", "set", "key", "value"][..], true),
         (&["pnpm", "config", "--location", "global", "set", "key", "value"][..], false),
         (&["pnpm", "config", "set", "key", "value", "--", "--location=project"][..], false),
+        (&["pnpm", "config", "list", "--undeclared=value", "--location", "project"][..], true),
     ] {
         let argv = argv
             .iter()
@@ -286,6 +287,11 @@ fn unparsed_argv_reads_the_project_location() {
         let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
         assert_eq!(scan.project_location, expected, "{argv:?}");
     }
+
+    // `--location` may be the value of an undeclared option without `=`.
+    let argv =
+        ["pnpm", "config", "list", "--undeclared", "--location", "project"].map(OsString::from);
+    assert!(UnparsedArgv::scan(&argv).is_none());
 }
 
 #[test]

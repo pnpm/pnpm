@@ -51,8 +51,7 @@ impl UnparsedArgv {
         if self.absorb_scope_flag(token, next, options) && self.after_undeclared_option {
             return None;
         }
-        self.after_undeclared_option =
-            token.starts_with('-') && declared_option_width(token, options).is_none();
+        self.after_undeclared_option = may_take_undeclared_value(token, options);
         self.switch.absorb_unparsed_token(token, next, options)
     }
 
@@ -191,6 +190,15 @@ fn every_option() -> ArgTable {
     let mut options = ArgTable::top_level(&cli);
     options.absorb_subcommands(&cli);
     options
+}
+
+/// Whether `token` is an option no command declares that might take the
+/// next token as its value. `--option=value` carries its value already.
+fn may_take_undeclared_value(token: &str, options: &ArgTable) -> bool {
+    let attached_long_value = token.starts_with("--") && token.contains('=');
+    token.starts_with('-')
+        && !attached_long_value
+        && declared_option_width(token, options).is_none()
 }
 
 /// How many argv tokens a declared option spans, or `None` for an option
