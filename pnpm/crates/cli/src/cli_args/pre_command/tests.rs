@@ -265,6 +265,11 @@ fn unparsed_argv_reads_global_in_a_short_cluster() {
         assert_eq!(scan.global, expected, "{argv:?}");
     }
 
+    // `--init-type` takes a value for `init` only, so after `install` it is
+    // undeclared and `--global` may be its value.
+    let argv = ["pnpm", "install", "--init-type", "--global", "--undeclared"].map(OsString::from);
+    assert!(UnparsedArgv::scan(&argv).is_none());
+
     // `-gE` may be the undeclared option's value.
     let argv = ["pnpm", "add", "pkg", "--undeclared", "-gE"].map(OsString::from);
     assert!(UnparsedArgv::scan(&argv).is_none());

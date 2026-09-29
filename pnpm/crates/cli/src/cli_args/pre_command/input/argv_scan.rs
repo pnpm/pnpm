@@ -18,12 +18,14 @@ pub(in crate::cli_args::pre_command) struct UnparsedArgv {
 }
 
 impl UnparsedArgv {
-    /// `None` when the command line cannot be read reliably: an option no
-    /// command declares comes before the command name, or right before a
-    /// flag that sets the command's scope, and whether that option takes
-    /// the next token is unknown. A non-UTF-8 token is `None` too.
+    /// `None` when the command line cannot be read reliably: an option
+    /// that no command declares comes before the command name, or one the
+    /// named command does not declare comes right before a flag that sets
+    /// its scope, and whether that option takes the next token is unknown.
+    /// A non-UTF-8 token is `None` too.
     pub(in crate::cli_args::pre_command) fn scan(argv: &[OsString]) -> Option<Self> {
-        let options = every_option();
+        let cli = with_boolean_negations(CliArgs::command());
+        let mut options = every_option(&cli);
         let mut scan = Self {
             switch: SwitchInput::unscanned(),
             global: false,
@@ -39,7 +41,11 @@ impl UnparsedArgv {
             let next = argv
                 .get(index + 1)
                 .map(OsString::as_os_str);
+            let named_command = scan.switch.command.is_some();
             index += scan.absorb(token, next, &options)?;
+            if let Some(command) = scan.switch.command.as_deref().filter(|_| !named_command) {
+                options = command_options(&cli, command);
+            }
         }
         if scan.switch.command.as_deref() == Some("ci") {
             scan.switch.frozen_lockfile = Some(true);
@@ -185,11 +191,20 @@ impl SwitchInput {
 
 /// Every option of every command, with the `--no-` spellings, so a
 /// token's width is known wherever on the command line it was typed.
-fn every_option() -> ArgTable {
-    let cli = with_boolean_negations(CliArgs::command());
-    let mut options = ArgTable::top_level(&cli);
-    options.absorb_subcommands(&cli);
+fn every_option(cli: &clap::Command) -> ArgTable {
+    let mut options = ArgTable::top_level(cli);
+    options.absorb_subcommands(cli);
     options
+}
+
+/// The options `command` accepts. An option only another command
+/// declares is undeclared here, so its width stays unknown.
+fn command_options(cli: &clap::Command, command: &str) -> ArgTable {
+    cli.find_subcommand(command)
+        .map_or_else(
+            || ArgTable::top_level(cli),
+            |subcommand| ArgTable::for_subcommand(cli, subcommand),
+        )
 }
 
 /// Whether `token` is an option no command declares that might take the
