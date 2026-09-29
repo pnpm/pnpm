@@ -89,6 +89,28 @@ testOnLinux('the wait ends once the group holds only a zombie, whatever else the
   }
 })
 
+testOnLinux('the wait goes on while a zombie of the group lists other threads', async () => {
+  const child = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
+  const group = child.pid!
+  try {
+    const table = writeProcessTable([{ pid: group, state: 'Z', group, tasks: [group, group + 1] }])
+    expect(await withDeadline(waitForProcessGroup(group, { processTable: table }), 500)).toBe('timed out')
+  } finally {
+    killProcessGroup(group)
+  }
+})
+
+testOnLinux('the wait ends when a zombie of the group lists only its own thread', async () => {
+  const child = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
+  const group = child.pid!
+  try {
+    const table = writeProcessTable([{ pid: group, state: 'Z', group, tasks: [group] }])
+    expect(await withDeadline(waitForProcessGroup(group, { processTable: table }), 5_000)).toBeUndefined()
+  } finally {
+    killProcessGroup(group)
+  }
+})
+
 testOnLinux('the wait goes on while the group holds a live member', async () => {
   const child = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
   const group = child.pid!
@@ -130,12 +152,16 @@ testOnPosix('a released watchdog leaves the group alone', async () => {
   }
 })
 
-/** A `stat` line is the kernel's: pid, command in parentheses, state, parent, process group. */
-function writeProcessTable (entries: Array<{ pid: number, state: string, group: number, readable?: boolean }>): string {
+/** A `stat` line is the kernel's: pid, command in parentheses, state, parent, process group. `tasks` are thread ids under `task`. */
+function writeProcessTable (entries: Array<{ pid: number, state: string, group: number, readable?: boolean, tasks?: number[] }>): string {
   const table = temporaryDirectory()
-  for (const { pid, state, group, readable = true } of entries) {
-    fs.mkdirSync(path.join(table, String(pid)))
-    fs.writeFileSync(path.join(table, String(pid), 'stat'), `${pid} (node) ${state} 1 ${group} ${group}\n`, { mode: readable ? 0o644 : 0o000 })
+  for (const { pid, state, group, readable = true, tasks } of entries) {
+    const procDir = path.join(table, String(pid))
+    fs.mkdirSync(procDir)
+    fs.writeFileSync(path.join(procDir, 'stat'), `${pid} (node) ${state} 1 ${group} ${group}\n`, { mode: readable ? 0o644 : 0o000 })
+    for (const tid of tasks ?? []) {
+      fs.mkdirSync(path.join(procDir, 'task', String(tid)), { recursive: true })
+    }
   }
   return table
 }
