@@ -204,8 +204,10 @@ async fn declared_project_above_the_lockfile_dir_installs_from_a_copied_lockfile
     }
 }
 
+/// Bit declares the capsules dir for one capsule per run, so a lockfile
+/// copied from that capsule reaches others that do not declare it.
 #[tokio::test]
-async fn undeclared_importer_above_the_lockfile_dir_is_never_linked() {
+async fn undeclared_importer_above_the_lockfile_dir_is_skipped() {
     let registry = TestRegistry::start();
     let lockfile = lockfile_with_capsules_dir_importer(registry.url()).await;
     for mode in [Mode::Install, Mode::Frozen, Mode::Rebuild] {
@@ -217,8 +219,7 @@ async fn undeclared_importer_above_the_lockfile_dir_is_never_linked() {
             fs::remove_dir_all(setup.capsules.join("node_modules")).unwrap();
         }
 
-        let result = run_capsule(&setup, false, mode).await;
-        eprintln!("{mode:?}: {result:?}");
+        run_capsule(&setup, false, mode).await.unwrap_or_else(|error| panic!("{mode:?}: {error}"));
         assert!(
             !setup.capsules.join("node_modules").exists(),
             "{mode:?} wrote into the undeclared capsules dir",
