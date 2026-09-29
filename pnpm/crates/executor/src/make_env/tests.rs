@@ -1,7 +1,7 @@
 use super::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, ROOT_PREINSTALL_ALREADY_RAN_ENV,
     VERIFY_DEPS_BEFORE_RUN_ENV, build_env, build_env_for_platform, escape_newlines,
-    is_delegation_marker, is_stamping_key, sanitize_env_key, stamp_package,
+    is_delegation_marker, is_stamping_key, path_value, sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -528,4 +528,17 @@ fn package_manager_environment_preserves_native_node_paths() {
         .expect("spawn shell");
     assert!(output.status.success());
     assert_eq!(output.stdout, [node.as_slice(), b"\n", node.as_slice(), b"\n"].concat());
+}
+
+/// Windows compares environment names case-insensitively, so its usual
+/// `Path` spelling supplies `PATH`. Elsewhere `Path` is a variable of its own.
+/// <https://github.com/pnpm/pnpm/issues/16308>
+#[test]
+fn path_value_reads_path_in_another_case_only_on_windows() {
+    let env = HashMap::from([("Path".to_string(), "/decoy/bin".to_string())]);
+    let expected = cfg!(windows).then(|| "/decoy/bin".to_string());
+    assert_eq!(path_value(&env), expected);
+
+    let env = HashMap::from([("PATH".to_string(), "/usr/bin".to_string())]);
+    assert_eq!(path_value(&env).as_deref(), Some("/usr/bin"));
 }
