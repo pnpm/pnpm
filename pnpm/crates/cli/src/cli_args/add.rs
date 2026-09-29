@@ -1,4 +1,6 @@
-pub use arguments::{AddIncludeArgs, AddInstallArgs, AddRequest, AddSaveArgs, AddTargetArgs};
+pub use arguments::{
+    AddDependencyOptions, AddIncludeArgs, AddInstallArgs, AddRequest, AddSaveArgs, AddTargetArgs,
+};
 
 pub(crate) use execution::{AddGroups, add_package, add_packages};
 
@@ -6,7 +8,6 @@ mod arguments;
 
 use crate::{
     State,
-    cargo_manifest::CargoDependencyKind,
     cli_args::{
         install::{included_dependency_groups, resolve_bool_override},
         lockfile_dir::LockfileDirArg,
@@ -40,153 +41,6 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
-
-#[derive(Debug, Clone, Args)]
-pub struct AddDependencyOptions {
-    /// Install the specified packages as regular dependencies.
-    #[clap(short = 'P', long)]
-    save_prod: bool,
-    /// Install the specified packages as devDependencies.
-    #[clap(short = 'D', long)]
-    save_dev: bool,
-    /// Install the specified packages as optionalDependencies.
-    #[clap(short = 'O', long)]
-    save_optional: bool,
-    /// Install crate: packages as Cargo build dependencies.
-    #[clap(long = "save-build")]
-    save_build: bool,
-    /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
-    #[clap(long, overrides_with = "no_save_peer")]
-    save_peer: bool,
-    /// Don't add the packages to peerDependencies, overriding a
-    /// `savePeer: true` setting.
-    #[clap(long = "no-save-peer", overrides_with = "save_peer")]
-    no_save_peer: bool,
-}
-
-impl AddDependencyOptions {
-    pub(crate) fn python_development(&self) -> miette::Result<bool> {
-        if self.save_build || self.save_optional || self.save_peer {
-            return Err(miette::miette!(
-                "pypi: dependencies do not support --save-build, --save-optional or --save-peer"
-            ));
-        }
-        if self.save_prod && self.save_dev {
-            return Err(miette::miette!(
-                "pypi: dependencies do not support combining --save-prod and --save-dev"
-            ));
-        }
-        Ok(self.save_dev)
-    }
-
-    pub(crate) fn save_build(&self) -> bool {
-        self.save_build
-    }
-
-    /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
-    fn with_save_peer_setting(self, save_peer: bool) -> Self {
-        Self {
-            save_peer: resolve_bool_override(self.save_peer, self.no_save_peer, save_peer),
-            ..self
-        }
-    }
-
-    /// Whether to add entry to `"dependencies"`.
-    fn save_prod(&self) -> bool {
-        let &AddDependencyOptions {
-            save_prod,
-            save_dev,
-            save_optional,
-            save_build,
-            save_peer,
-            no_save_peer: _,
-        } = self;
-        save_prod || (!save_dev && !save_optional && !save_build && !save_peer)
-    }
-
-    /// Whether to add entry to `"devDependencies"`.
-    fn save_dev(&self) -> bool {
-        let &AddDependencyOptions {
-            save_prod,
-            save_dev,
-            save_optional,
-            save_build,
-            save_peer,
-            no_save_peer: _,
-        } = self;
-        save_dev || (!save_prod && !save_optional && !save_build && save_peer)
-    }
-
-    /// Whether to add entry to `"optionalDependencies"`.
-    fn save_optional(&self) -> bool {
-        self.save_optional
-    }
-
-    /// Whether to add entry to `"peerDependencies"`.
-    fn save_peer(&self) -> bool {
-        self.save_peer
-    }
-
-    pub(crate) fn cargo_dependency_kind(
-        &self,
-        has_node_packages: bool,
-    ) -> miette::Result<CargoDependencyKind> {
-        if self.save_optional || self.save_peer {
-            return Err(miette::miette!(
-                "crate: dependencies do not support --save-optional or --save-peer"
-            ));
-        }
-        if self.save_build && has_node_packages {
-            return Err(miette::miette!(
-                "--save-build cannot be applied to Node.js packages in a mixed add"
-            ));
-        }
-        let selected = [self.save_prod, self.save_dev, self.save_build]
-            .into_iter()
-            .filter(|selected| *selected)
-            .count();
-        if selected > 1 {
-            return Err(miette::miette!(
-                "crate: dependencies can be added to only one dependency table at a time"
-            ));
-        }
-        Ok(if self.save_dev {
-            CargoDependencyKind::Development
-        } else if self.save_build {
-            CargoDependencyKind::Build
-        } else {
-            CargoDependencyKind::Normal
-        })
-    }
-
-    /// Convert the `--save-*` flags to an iterator of [`DependencyGroup`]
-    /// which selects which target group to save to.
-    fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
-        std::iter::empty()
-            .chain(self.save_prod().then_some(DependencyGroup::Prod))
-            .chain(self.save_dev().then_some(DependencyGroup::Dev))
-            .chain(self.save_optional().then_some(DependencyGroup::Optional))
-            .chain(self.save_peer().then_some(DependencyGroup::Peer))
-    }
-
-    /// The save target for the install layer: `Some` when a `--save-*`
-    /// flag names it explicitly, `None` when pnpm infers it per package
-    /// (an already-declared dependency is updated in the group it
-    /// occupies; a new one lands in `dependencies`).
-    pub(crate) fn save_target(&self) -> Option<Vec<DependencyGroup>> {
-        let &AddDependencyOptions {
-            save_prod,
-            save_dev,
-            save_optional,
-            save_build,
-            save_peer,
-            no_save_peer: _,
-        } = self;
-        (save_prod || save_dev || save_optional || save_build || save_peer).then(|| {
-            self.dependency_groups().collect()
-        })
-    }
-}
 
 #[derive(Debug, Clone, Args)]
 pub struct AddArgs {
@@ -237,14 +91,15 @@ impl AddArgs {
         Ok(())
     }
 
-    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
-        self.scripts.apply(config);
+    fn apply_save_types(&self, config: &mut Config) {
         if self.save.types || self.save.no_save_types {
             config.cli_settings.insert("saveTypes".to_string());
         }
         config.save_types =
             resolve_bool_override(self.save.types, self.save.no_save_types, config.save_types);
-        self.install.dedupe.apply(config);
+    }
+
+    fn apply_workspace_root_check(&self, config: &mut Config) {
         if self.target.ignore_workspace_root_check || self.target.no_ignore_workspace_root_check {
             config.cli_settings.insert("ignoreWorkspaceRootCheck".to_string());
         }
@@ -253,15 +108,41 @@ impl AddArgs {
             self.target.no_ignore_workspace_root_check,
             config.ignore_workspace_root_check,
         );
+    }
+
+    fn apply_optional_config(&self, config: &mut Config) {
         if self.install.optional || self.install.no_optional {
             config.cli_settings.insert("optional".to_string());
         }
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+    }
+
+    fn apply_materialization_config(&self, config: &mut Config) {
         if self.install.force {
             config.cli_settings.insert("force".to_string());
         }
-        config.force = self.install.force || config.force;
+        if self.install.ignore_platform_checks {
+            config.cli_settings.insert("ignorePlatformChecks".to_string());
+        }
+        if self.install.reinstall {
+            config.cli_settings.insert("reinstall".to_string());
+        }
+        config.ignore_platform_checks =
+            self.install.ignore_platform_checks || config.ignore_platform_checks;
+        config.reinstall = self.install.reinstall || self.install.force || config.reinstall;
+        config.force = self.install.force
+            || (config.ignore_platform_checks && config.reinstall)
+            || config.force;
+    }
+
+    pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        self.scripts.apply(config);
+        self.apply_save_types(config);
+        self.install.dedupe.apply(config);
+        self.apply_workspace_root_check(config);
+        self.apply_optional_config(config);
+        self.apply_materialization_config(config);
     }
 
     /// The dependency groups the install that follows the manifest edit

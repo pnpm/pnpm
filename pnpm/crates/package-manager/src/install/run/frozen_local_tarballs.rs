@@ -6,7 +6,7 @@ async fn detect_host(
     settled: &Settled<'_, '_>,
     lockfile: &pnpm_lockfile::Lockfile,
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
-    let needs_check = !settled.install.context.config.force
+    let needs_check = !settled.install.context.config.installs_incompatible_packages()
         && match (lockfile.snapshots.as_ref(), lockfile.packages.as_ref()) {
             (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
                 pnpm_deps_restorer::any_installability_constraint(snaps, pkgs)
@@ -22,8 +22,11 @@ async fn detect_host(
     .await
 }
 
-fn read_skipped_seed(modules_dir: &Path) -> pnpm_deps_restorer::SkippedSnapshots {
-    pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(modules_dir)
+fn resolve_skipped_seed(config: &pnpm_config::Config) -> pnpm_deps_restorer::SkippedSnapshots {
+    if config.reinstall || config.ignore_platform_checks || config.force {
+        return pnpm_deps_restorer::SkippedSnapshots::default();
+    }
+    pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&config.modules_dir)
         .ok()
         .flatten()
         .map(|modules| pnpm_deps_restorer::SkippedSnapshots::from_strings(modules.skipped.iter()))
@@ -45,11 +48,7 @@ async fn compute_frozen_skip_set(
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
     );
-    let seed = if settled.install.context.config.force {
-        pnpm_deps_restorer::SkippedSnapshots::default()
-    } else {
-        read_skipped_seed(&settled.install.context.config.modules_dir)
-    };
+    let seed = resolve_skipped_seed(settled.install.context.config);
     let workspace = &settled.projects.workspace;
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<pnpm_reporter::SilentReporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {

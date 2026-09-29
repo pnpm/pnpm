@@ -53,7 +53,7 @@ fn options_default_is_empty() {
     assert_eq!(opts.lockfile_dir, PathBuf::new());
     assert!(!opts.placement.auto_install_peers);
     assert!(opts.skipped.is_empty());
-    assert!(!opts.force);
+    assert!(!opts.reinstall);
     assert!(!opts.installability.engine_strict);
     assert!(opts.installability.current_node_version.is_empty());
     assert!(opts.installability.supported_architectures.is_none());

@@ -98,16 +98,33 @@ pub struct InstallFetchArgs {
 }
 
 #[derive(Debug, Default, Clone, clap::Args)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "CLI argument group for install materialization options"
+    )
+)]
 pub struct InstallMaterializationArgs {
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
+    /// Re-materialize every package slot the lockfile names, relinking
+    /// packages an earlier install already materialized. In pnpm v12,
+    /// `--force` does not bypass platform compatibility checks unless
+    /// configured via `forceIgnoresPlatform: true`; use
+    /// `--ignore-platform-checks` to bypass platform checks directly.
     #[clap(long)]
     pub force: bool,
+    /// Bypass per-snapshot installability checks (`cpu`, `os`, `libc`,
+    /// `engines`) so packages for foreign platforms are materialized instead
+    /// of skipped.
+    #[clap(long = "ignore-platform-checks")]
+    pub ignore_platform_checks: bool,
+    /// Re-materialize every package slot, bypassing repeat-install fast
+    /// paths, up-to-date checks, and recorded skip sets.
+    #[clap(long = "reinstall")]
+    pub reinstall: bool,
     /// Run the install already requested by `verifyDepsBeforeRun` without
     /// independently short-circuiting it as up to date.
     #[clap(long, hide = true)]

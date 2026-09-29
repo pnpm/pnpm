@@ -64,7 +64,7 @@ fn walker_rejects_invalid_hoisted_alias() {
         snapshots.insert(dep_key(alias, "1.0.0"), SnapshotEntry::default());
 
         let lockfile = lockfile_with(root_deps, packages, snapshots);
-        let opts = LockfileToHoistedDepGraphOptions { force: true, ..host_aware_opts() };
+        let opts = LockfileToHoistedDepGraphOptions { reinstall: true, ..host_aware_opts() };
         let err = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts)
             .expect_err("invalid alias must be rejected");
         match err {
