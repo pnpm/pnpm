@@ -2,7 +2,8 @@ use super::{
     Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PickPackageError,
     PreferredVersionsOverlay, RegistryResponseError, ResolveDependencyTreeError, ResolveError,
     ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey,
-    WorkspaceFinalWantedKey, link_file_deps_inside_package, lock_recoverable, render_specifier,
+    WorkspaceFinalWantedKey, cached_workspace_final, completed_resolved_wanted,
+    link_file_deps_inside_package, lock_recoverable, render_specifier, wanted_key_admission,
 };
 
 /// Convert a workspace directory resolution into the representation shared by
@@ -145,9 +146,14 @@ pub(super) async fn resolve_wanted_cached<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let cached =
-        lock_recoverable(&ctx.workspace.cache.resolved_by_wanted).get(&cache_key).map(Arc::clone);
-    if let Some(result) = cached {
+    if let Some(result) = completed_resolved_wanted(ctx, &cache_key) {
+        return Ok(result);
+    }
+    // Admit one resolver per wanted key; waiters re-check the cache
+    // after the holder finishes, so concurrent first callers run the
+    // resolver chain and manifest hooks once.
+    let _key_guard = wanted_key_admission(ctx, &cache_key).await;
+    if let Some(result) = completed_resolved_wanted(ctx, &cache_key) {
         return Ok(result);
     }
     let owned_opts = per_wanted_opts(opts, pick_overlay, &cache_key);
@@ -165,15 +171,9 @@ where
     .await?;
     let workspace_final_key =
         workspace_result_key(shared_workspace_key, canonical_workspace.as_deref(), &result.id);
-    if let Some(key) = workspace_final_key.as_ref()
-        && let Some(cached) =
-            lock_recoverable(&ctx.workspace.cache.resolved_workspace_final_by_wanted)
-                .get(key)
-                .map(Arc::clone)
-    {
-        // Both return paths record the project-scoped entry, so the lookup at
-        // the top of this function stays authoritative: a repeat of this edge
-        // costs one lookup rather than a shared-key rebuild and a re-render.
+    if let Some(cached) = cached_workspace_final(ctx, workspace_final_key.as_ref()) {
+        // Both return paths record the project-scoped entry, so the
+        // lookup at the top of this function stays authoritative.
         lock_recoverable(&ctx.workspace.cache.resolved_by_wanted)
             .entry(cache_key)
             .or_insert_with(|| Arc::clone(&cached));

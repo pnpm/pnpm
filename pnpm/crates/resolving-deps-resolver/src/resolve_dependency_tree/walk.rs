@@ -8,6 +8,10 @@
 
 pub(super) use warm_children::warm_children_resolutions;
 
+pub(super) use crate::resolve_dependency_tree::workspace_ctx::{
+    cached_workspace_final, completed_resolved_wanted, wanted_key_admission,
+};
+
 pub(crate) use child_seeds::parent_ids_contain_sequence;
 
 pub(super) use level_walk::{level_aliases, level_versions};
