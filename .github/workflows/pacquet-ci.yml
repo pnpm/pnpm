@@ -56,6 +56,8 @@ jobs:
             # The Markdown the rust filter excludes, so the spell check still
             # runs when only that Markdown changes.
             docs:
+              - 'pnpm/docs/**'
+              - 'pnpr/docs/**'
               - 'pnpm/*.md'
               - 'pnpm/plans/*.md'
               - 'pnpm/scripts/*.md'
@@ -68,6 +70,8 @@ jobs:
             rust:
               # Documentation only. Markdown under pnpr/.fixtures ships inside
               # registry fixtures, so it stays in.
+              - '!pnpm/docs/**'
+              - '!pnpr/docs/**'
               - '!pnpm/*.md'
               - '!pnpm/plans/*.md'
               - '!pnpm/scripts/*.md'

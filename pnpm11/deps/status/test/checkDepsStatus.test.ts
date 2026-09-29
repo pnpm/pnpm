@@ -1355,10 +1355,10 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
   })
 
   function mockUpToDateSingleProjectStats (lastValidatedTimestamp: number): void {
-    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
-      mtime: new Date(lastValidatedTimestamp - 10_000),
-      mtimeMs: lastValidatedTimestamp - 10_000,
-    } as Stats))
+    jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath) => {
+      const mtimeMs = lastValidatedTimestamp - (filePath.endsWith(`${path.sep}lock.yaml`) ? 5_000 : 10_000)
+      return { mtime: new Date(mtimeMs), mtimeMs } as Stats
+    })
     jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
     jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
       mtime: new Date(lastValidatedTimestamp - 20_000),
@@ -2146,8 +2146,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     expect(result.upToDate).toBe(true)
   })
 
-  it('does not report a packageExtension optionalDependency as outdated when optionals are excluded', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+  it.each([1_700_000_000_000, 1_700_000_000_001])('does not report a packageExtension optionalDependency as outdated when optionals are excluded (timestamp %s)', async (lastValidatedTimestamp) => {
     const packageExtensions = { 'foo@1': { optionalDependencies: { bar: 'file:../bar' } } }
     const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
     workspaceState.settings = { ...workspaceState.settings, packageExtensions }
