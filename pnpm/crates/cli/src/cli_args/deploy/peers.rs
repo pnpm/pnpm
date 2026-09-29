@@ -1,8 +1,8 @@
 use super::{
     Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey,
     PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, ResolveBases,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, Value, VecDeque,
-    convert_importer_dep_map_to_snapshot_deps, convert_package_key,
+    SnapshotDepRef, SnapshotEntry, Value, VecDeque, convert_importer_version_to_snapshot_ref,
+    convert_package_key,
 };
 
 /// A workspace package the deployed graph links rather than injects.
@@ -23,23 +23,27 @@ impl LinkedWorkspaceProject {
         importer: &ProjectSnapshot,
         ctx: &ConvertCtx<'_>,
         bases: &ResolveBases,
-    ) -> miette::Result<Self> {
+    ) -> Self {
         let injected_workspace =
             lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
         if !injected_workspace {
-            return Ok(LinkedWorkspaceProject { project, deduped_peer_resolutions: None });
+            return LinkedWorkspaceProject { project, deduped_peer_resolutions: None };
         }
-        // Only the peers are converted: an unrelated dev dependency may link
-        // outside the workspace, which the conversion rejects.
-        let peer_dev_dependencies = importer.dev_dependencies
+        // A reference the conversion rejects, such as a link outside the
+        // workspace, cannot name a deployed snapshot, since every snapshot key
+        // passed the same conversion. It is skipped rather than failing a
+        // deploy that may not even include this package.
+        let deduped_peer_resolutions = importer.dev_dependencies
             .iter()
             .flatten()
             .filter(|(name, _)| project.peer_dependencies.contains(name))
-            .map(|(name, spec)| (name.clone(), spec.clone()))
-            .collect::<ResolvedDependencyMap>();
-        let deduped_peer_resolutions =
-            convert_importer_dep_map_to_snapshot_deps(Some(&peer_dev_dependencies), ctx, bases)?;
-        Ok(LinkedWorkspaceProject { project, deduped_peer_resolutions })
+            .filter_map(|(name, spec)| {
+                convert_importer_version_to_snapshot_ref(name, &spec.version, ctx, bases)
+                    .ok()
+                    .map(|reference| (name.clone(), reference))
+            })
+            .collect::<HashMap<_, _>>();
+        LinkedWorkspaceProject { project, deduped_peer_resolutions: Some(deduped_peer_resolutions) }
     }
 
     /// The reference `peer` binds to through the deduped resolutions, if the

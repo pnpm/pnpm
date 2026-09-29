@@ -277,7 +277,7 @@ fn convert_deploy_snapshots(
                     project_snapshot,
                     ctx,
                     &bases,
-                )?,
+                ),
             );
         }
         snapshots.insert(

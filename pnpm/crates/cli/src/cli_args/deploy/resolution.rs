@@ -115,7 +115,7 @@ fn deploy_dependency_specifier(name: &PkgName, reference: &ImporterDepVersion) -
     }
 }
 
-pub(super) fn convert_importer_dep_map_to_snapshot_deps(
+fn convert_importer_dep_map_to_snapshot_deps(
     input: Option<&ResolvedDependencyMap>,
     ctx: &ConvertCtx,
     bases: &ResolveBases,
@@ -156,7 +156,7 @@ fn convert_importer_dep_version(
     Ok(version.clone())
 }
 
-fn convert_importer_version_to_snapshot_ref(
+pub(super) fn convert_importer_version_to_snapshot_ref(
     alias: &PkgName,
     version: &ImporterDepVersion,
     ctx: &ConvertCtx,

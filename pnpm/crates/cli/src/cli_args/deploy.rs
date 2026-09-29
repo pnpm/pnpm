@@ -39,7 +39,7 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use resolution::{
-    ResolveBases, convert_importer_dep_map_to_snapshot_deps, convert_package_key,
+    ResolveBases, convert_importer_version_to_snapshot_ref, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
     create_file_url_key, project_snapshot_to_snapshot_entry, validate_lockfile_local_path,
 };

@@ -196,10 +196,12 @@ fn injected_workspace_deploy_binds_the_peer_of_a_deduped_workspace_package() {
     drop((root, mock_instance));
 }
 
-/// Only the dev dependencies that are also peers take part in the binding, so
-/// an unrelated dev-only link outside the workspace does not block the deploy.
+/// A dev dependency that links outside the workspace cannot name a deployed
+/// snapshot, so it never blocks the deploy: not as an unrelated dev dependency
+/// of `lib`, not as `lib`'s peer, and not as the peer of `tool`, which the
+/// deploy does not include.
 #[test]
-fn injected_workspace_deploy_ignores_an_external_dev_link_of_a_linked_workspace_package() {
+fn injected_workspace_deploy_ignores_external_dev_links_of_linked_workspace_packages() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -228,11 +230,22 @@ fn injected_workspace_deploy_ignores_an_external_dev_link_of_a_linked_workspace_
             "name": "lib",
             "version": "1.0.0",
             "files": ["index.js"],
-            "peerDependencies": { "@pnpm.e2e/peer-a": "*" },
+            "peerDependencies": { "@pnpm.e2e/peer-a": "*", "external": "*" },
             "devDependencies": {
                 "@pnpm.e2e/peer-a": "1.0.0",
                 "external": external_link,
+                "other-external": external_link,
             },
+        }),
+    );
+    write_project(
+        &workspace,
+        "tool",
+        &serde_json::json!({
+            "name": "tool",
+            "version": "1.0.0",
+            "peerDependencies": { "external": "*" },
+            "devDependencies": { "external": external_link },
         }),
     );
 
