@@ -51,17 +51,26 @@ fn user_lock_root() -> io::Result<PathBuf> {
 
 /// The XDG Base Directory spec tells applications to ignore a relative
 /// `XDG_RUNTIME_DIR`. One owned by another user is inherited through `su`
-/// or `sudo --preserve-env`, and this user cannot create locks in it.
+/// or `sudo --preserve-env`, and this user cannot create locks in it. One
+/// that other users can write to without the sticky bit lets them rename a
+/// held lock directory away, so the next process locks a fresh one.
 #[cfg(unix)]
 fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
     use std::os::unix::fs::MetadataExt as _;
 
+    const GROUP_OR_OTHER_WRITE: u32 = 0o022;
+    const STICKY: u32 = 0o1000;
     let path = PathBuf::from(value?);
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
     let effective_user = unsafe { libc::geteuid() };
-    let owned = fs::metadata(&path)
-        .is_ok_and(|metadata| metadata.is_dir() && metadata.uid() == effective_user);
-    (path.is_absolute() && owned).then_some(path)
+    let usable = fs::metadata(&path)
+        .is_ok_and(|metadata| {
+            let mode = metadata.mode();
+            metadata.is_dir()
+                && metadata.uid() == effective_user
+                && (mode & GROUP_OR_OTHER_WRITE == 0 || mode & STICKY != 0)
+        });
+    (path.is_absolute() && usable).then_some(path)
 }
 
 #[cfg(any(target_os = "android", all(test, unix)))]
