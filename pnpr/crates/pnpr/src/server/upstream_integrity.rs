@@ -52,21 +52,25 @@ pub(super) async fn complete_missing_tarball_integrities(
 }
 
 impl PackumentIntegrityResolver<'_> {
+    /// The downloads run without the package lock, which is striped and shared
+    /// with hosted publishes. Only applying the pins to the cached packument,
+    /// which a concurrent refresh may have replaced meanwhile, runs under it.
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
         if !self.upstream.caches() {
             return Ok(bytes);
         }
-        if missing_integrity_tarballs(&bytes, self.name, self.osv_index())?.is_empty() {
+        let candidates = {
+            let doc: Value = serde_json::from_slice(&bytes)?;
+            missing_integrity_tarballs(&doc, self.name, self.osv_index())
+        };
+        let pins = self.compute_integrities(candidates).await;
+        if pins.is_empty() {
             return Ok(bytes);
         }
         let _guard = self.package_lock().await;
         let bytes = self.read_current_packument(bytes).await?;
         let mut doc: Value = serde_json::from_slice(&bytes)?;
-        let candidates = missing_integrity_tarballs_in_document(&doc, self.name, self.osv_index());
-        if candidates.is_empty() {
-            return Ok(bytes);
-        }
-        if !self.compute_integrities(&mut doc, candidates).await {
+        if !apply_pins(&mut doc, self.name, pins) {
             return Ok(bytes);
         }
         self.persist_packument(doc).await
@@ -88,28 +92,15 @@ impl PackumentIntegrityResolver<'_> {
             .unwrap_or(fallback))
     }
 
-    /// Reports whether any candidate was pinned, which is also whether the
-    /// document is worth writing back.
     async fn compute_integrities(
         &self,
-        doc: &mut Value,
         candidates: Vec<MissingIntegrityTarball>,
-    ) -> bool {
-        let mut pinned = false;
+    ) -> Vec<(MissingIntegrityTarball, Integrity)> {
+        let mut pins = Vec::new();
         let mut candidates = candidates.into_iter();
         for candidate in candidates.by_ref().take(MAX_PINNED_VERSIONS_PER_PACKUMENT) {
             match self.compute_integrity(&candidate).await {
-                Ok(integrity) => {
-                    let dist = doc
-                        .get_mut("versions")
-                        .and_then(Value::as_object_mut)
-                        .and_then(|versions| versions.get_mut(&candidate.version))
-                        .and_then(|manifest| manifest.get_mut("dist"))
-                        .and_then(Value::as_object_mut)
-                        .expect("candidate came from a version dist object");
-                    dist.insert("integrity".to_string(), Value::String(integrity.to_string()));
-                    pinned = true;
-                }
+                Ok(integrity) => pins.push((candidate, integrity)),
                 Err(err) => {
                     tracing::warn!(
                         ?err,
@@ -128,7 +119,7 @@ impl PackumentIntegrityResolver<'_> {
                 "leaving versions past the cap unpinned",
             );
         }
-        pinned
+        pins
     }
 
     async fn compute_integrity(
@@ -176,19 +167,41 @@ impl PackumentIntegrityResolver<'_> {
     }
 }
 
-fn missing_integrity_tarballs(
-    bytes: &[u8],
+/// Writes each pin into `doc` where its version still declares the same
+/// tarball without a usable integrity, and reports whether any was written.
+fn apply_pins(
+    doc: &mut Value,
     name: &CanonicalPackageName,
-    osv_index: Option<&std::sync::Arc<pnpr_osv::OsvIndex>>,
-) -> Result<Vec<MissingIntegrityTarball>, RegistryError> {
-    let doc: Value = serde_json::from_slice(bytes)?;
-    Ok(missing_integrity_tarballs_in_document(&doc, name, osv_index))
+    pins: Vec<(MissingIntegrityTarball, Integrity)>,
+) -> bool {
+    let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
+        return false;
+    };
+    let mut applied = false;
+    for (pinned, integrity) in pins {
+        let Some(manifest) = versions.get_mut(&pinned.version) else {
+            continue;
+        };
+        let still_missing = matches!(
+            packument_tarball(manifest, name, &pinned.version),
+            Ok(Some(current)) if current.needs_integrity && current.filename == pinned.filename,
+        );
+        if !still_missing {
+            continue;
+        }
+        let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        dist.insert("integrity".to_string(), Value::String(integrity.to_string()));
+        applied = true;
+    }
+    applied
 }
 
 /// A version whose dist pnpr cannot classify, or whose tarball basename another
 /// version also declares, is left out rather than failing the document: the
 /// tarball route refuses it on its own.
-fn missing_integrity_tarballs_in_document(
+fn missing_integrity_tarballs(
     doc: &Value,
     name: &CanonicalPackageName,
     osv_index: Option<&std::sync::Arc<pnpr_osv::OsvIndex>>,
@@ -196,37 +209,42 @@ fn missing_integrity_tarballs_in_document(
     let Some(versions) = doc.get("versions").and_then(Value::as_object) else {
         return Vec::new();
     };
-    let mut filenames = HashSet::new();
-    let mut duplicate_filenames = HashSet::new();
-    let mut candidates = Vec::new();
+    let mut tarballs = Vec::new();
+    let mut unclassified = 0usize;
     for (version, manifest) in versions {
-        if osv_index.is_some_and(|index| {
+        let screened = osv_index.is_some_and(|index| {
             is_osv_vulnerable_packument_version(doc, name.as_str(), version, index)
-        }) {
+        });
+        if screened {
             continue;
         }
-        let candidate = match packument_tarball(manifest, name, version) {
-            Ok(Some(candidate)) => candidate,
-            Ok(None) => continue,
-            Err(err) => {
-                tracing::warn!(
-                    ?err,
-                    package = %name.as_str(),
-                    %version,
-                    "leaving the version unpinned",
-                );
-                continue;
-            }
-        };
-        if !filenames.insert(candidate.filename.clone()) {
-            duplicate_filenames.insert(candidate.filename.clone());
-        }
-        if candidate.needs_integrity {
-            candidates.push(candidate);
+        match packument_tarball(manifest, name, version) {
+            Ok(Some(tarball)) => tarballs.push(tarball),
+            Ok(None) => {}
+            Err(_) => unclassified += 1,
         }
     }
-    candidates.retain(|candidate| !duplicate_filenames.contains(&candidate.filename));
-    candidates
+    if unclassified > 0 {
+        tracing::warn!(
+            package = %name.as_str(),
+            unclassified,
+            "leaving versions with an unusable dist unpinned",
+        );
+    }
+    unambiguous_candidates(tarballs)
+}
+
+fn unambiguous_candidates(tarballs: Vec<MissingIntegrityTarball>) -> Vec<MissingIntegrityTarball> {
+    let mut filenames = HashSet::new();
+    let shared: HashSet<String> = tarballs
+        .iter()
+        .filter(|tarball| !filenames.insert(tarball.filename.as_str()))
+        .map(|tarball| tarball.filename.clone())
+        .collect();
+    tarballs
+        .into_iter()
+        .filter(|tarball| tarball.needs_integrity && !shared.contains(&tarball.filename))
+        .collect()
 }
 
 fn packument_tarball(
@@ -329,3 +347,6 @@ fn legacy_shasum_integrity(
         )),
     }
 }
+
+#[cfg(test)]
+mod tests;
