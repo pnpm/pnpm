@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -51,4 +52,35 @@ test('rejects symlinks and incomplete artifacts before deleting published docs',
   rmSync(path.join(f.source, 'sidebars.json'))
   assert.throws(() => copyDocsArtifact(f.source, f.destination), /Missing documentation artifact/)
   assert.equal(readFileSync(path.join(f.destination, 'docs/removed.md'), 'utf8'), 'old')
+})
+
+test('the workflow enables pushing only after creating a documentation commit', t => {
+  const f = fixture(t)
+  f.write(f.source, 'static/docs-assets/12.x/img/logo.svg', '<svg/>')
+  const workflow = readFileSync(new URL('../workflows/sync-docs.yml', import.meta.url), 'utf8')
+  const commitStep = workflow.split('      - name: Commit the generated documentation\n')[1].split('      - name: Push the verified documentation commit\n')[0]
+  assert.match(commitStep, /        id: commit\n/)
+  assert.match(workflow, /      - name: Push the verified documentation commit\n        if: steps\.commit\.outputs\.changed == 'true'/)
+  const script = commitStep.split('        run: |\n')[1].trimEnd().split('\n').map(line => line.slice(10)).join('\n')
+  const git = (...args) => execFileSync('git', args, { cwd: f.source, encoding: 'utf8', stdio: 'pipe' }).trim()
+  git('init', '--quiet')
+  git('config', 'user.name', 'Test')
+  git('config', 'user.email', 'test@example.invalid')
+  git('config', 'commit.gpgsign', 'false')
+  git('add', '.')
+  git('commit', '--quiet', '-m', 'test: initial documentation')
+  const original = git('rev-parse', 'HEAD')
+  const output = path.join(f.source, 'workflow-output')
+  const run = () => execFileSync('bash', ['-e', '-c', script], {
+    cwd: f.source,
+    env: { ...process.env, GITHUB_OUTPUT: output, MAIN_SYNC: 'true', DOCS_COMMIT: original, LINE: '', VERSION: '', GH_TOKEN: '' },
+    stdio: 'pipe',
+  })
+  run()
+  assert.equal(git('rev-parse', 'HEAD'), original)
+  assert.equal(existsSync(output), false)
+  f.write(f.source, 'docs/index.md', 'updated')
+  run()
+  assert.notEqual(git('rev-parse', 'HEAD'), original)
+  assert.equal(readFileSync(output, 'utf8'), 'changed=true\n')
 })
