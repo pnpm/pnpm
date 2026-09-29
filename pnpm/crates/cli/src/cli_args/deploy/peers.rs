@@ -1,18 +1,18 @@
 use super::{
     Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, Lockfile, PackageKey,
     PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo, ProjectSnapshot, ResolveBases,
-    SnapshotDepRef, SnapshotEntry, Value, VecDeque, convert_importer_dep_map_to_snapshot_deps,
-    convert_package_key,
+    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, Value, VecDeque,
+    convert_importer_dep_map_to_snapshot_deps, convert_package_key,
 };
 
 /// A workspace package the deployed graph links rather than injects.
 pub(super) struct LinkedWorkspaceProject {
     project: ProjectInfo,
-    /// The project's dev dependencies, recorded only in an injected workspace.
-    /// There a workspace package is linked rather than injected only when its
-    /// injected resolution matched its own importer, dev dependencies
-    /// included, so a peer it also lists as a dev dependency was bound to
-    /// exactly that.
+    /// The project's dev dependencies that are also its peers, recorded only
+    /// in an injected workspace. There a workspace package is linked rather
+    /// than injected only when its injected resolution matched its own
+    /// importer, dev dependencies included, so a peer it also lists as a dev
+    /// dependency was bound to exactly that.
     deduped_peer_resolutions: Option<HashMap<PkgName, SnapshotDepRef>>,
 }
 
@@ -26,15 +26,19 @@ impl LinkedWorkspaceProject {
     ) -> miette::Result<Self> {
         let injected_workspace =
             lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
-        let deduped_peer_resolutions = if injected_workspace {
-            convert_importer_dep_map_to_snapshot_deps(
-                importer.dev_dependencies.as_ref(),
-                ctx,
-                bases,
-            )?
-        } else {
-            None
-        };
+        if !injected_workspace {
+            return Ok(LinkedWorkspaceProject { project, deduped_peer_resolutions: None });
+        }
+        // Only the peers are converted: an unrelated dev dependency may link
+        // outside the workspace, which the conversion rejects.
+        let peer_dev_dependencies = importer.dev_dependencies
+            .iter()
+            .flatten()
+            .filter(|(name, _)| project.peer_dependencies.contains(name))
+            .map(|(name, spec)| (name.clone(), spec.clone()))
+            .collect::<ResolvedDependencyMap>();
+        let deduped_peer_resolutions =
+            convert_importer_dep_map_to_snapshot_deps(Some(&peer_dev_dependencies), ctx, bases)?;
         Ok(LinkedWorkspaceProject { project, deduped_peer_resolutions })
     }
 

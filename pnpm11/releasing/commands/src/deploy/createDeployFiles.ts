@@ -152,7 +152,10 @@ export function createDeployFiles ({
       linkedWorkspaceProjects.set(depPath, {
         manifest,
         dedupedPeerResolutions: injectedWorkspace
-          ? convertResolvedDependencies(projectSnapshot.devDependencies, convertOptions)
+          ? convertResolvedDependencies(
+            pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
+            convertOptions
+          )
           : undefined,
       })
     }
@@ -413,7 +416,8 @@ function bindSingletonPeers (
 interface LinkedWorkspaceProject {
   manifest: ProjectManifest
   /**
-   * The project's dev dependencies, recorded only in an injected workspace.
+   * The project's dev dependencies that are also its peers, recorded only in
+   * an injected workspace.
    * There a workspace package is linked rather than injected only when its
    * injected resolution matched its own importer, dev dependencies included,
    * so a peer it also lists as a dev dependency was bound to exactly that.

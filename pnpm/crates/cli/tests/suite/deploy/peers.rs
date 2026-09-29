@@ -196,6 +196,62 @@ fn injected_workspace_deploy_binds_the_peer_of_a_deduped_workspace_package() {
     drop((root, mock_instance));
 }
 
+/// Only the dev dependencies that are also peers take part in the binding, so
+/// an unrelated dev-only link outside the workspace does not block the deploy.
+#[test]
+fn injected_workspace_deploy_ignores_an_external_dev_link_of_a_linked_workspace_package() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_peer_workspace(&workspace);
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .unwrap()
+        .replace("injectWorkspacePackages: false", "injectWorkspacePackages: true");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    let external = root.path().join("external");
+    fs::create_dir_all(&external).unwrap();
+    fs::write(
+        external.join("package.json"),
+        serde_json::json!({ "name": "external", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    let external_link = format!("link:{}", external.display());
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "@pnpm.e2e/peer-a": "*" },
+            "devDependencies": {
+                "@pnpm.e2e/peer-a": "1.0.0",
+                "external": external_link,
+            },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    assert!(deploy_dir.join("node_modules/lib").exists());
+
+    drop((root, mock_instance));
+}
+
 /// The remedy `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER` suggests: collapsing the peer to
 /// one version makes the binding unambiguous, so the deploy goes through
 /// without injecting the workspace or falling back to the legacy implementation.
