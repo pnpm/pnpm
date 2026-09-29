@@ -24,7 +24,8 @@ fn lists_the_node_scripts_run_first() {
     let second = root.path().join("second");
     write_node(&first);
     write_node(&second);
-    let path = env::join_paths([&first, &root.path().join("empty"), &second]).expect("join PATH");
+    let path =
+        env::join_paths([&first, &root.path().join("empty"), &first, &second]).expect("join PATH");
 
     let check = check_node_on_path(Some(&path));
 

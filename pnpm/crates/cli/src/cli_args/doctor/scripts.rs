@@ -9,6 +9,7 @@ use super::{CheckResult, install_probe::last_message};
 use pnpm_config::Config;
 use pnpm_executor::{current_pnpm_exe, select_shell, use_shell_emulator};
 use std::{
+    collections::HashSet,
     env,
     ffi::OsStr,
     fmt::Write as _,
@@ -33,6 +34,7 @@ const NO_VERIFY_DEPS: &str = "--config.verify-deps-before-run=false";
 
 /// The last lines of an `sh -x` trace worth reporting: the shim's lookup of
 /// `node` and the `exec` it ends with.
+#[cfg(unix)]
 const TRACE_LINES: usize = 20;
 
 /// A `node` entry of a `PATH` directory that a lookup skips, and why.
@@ -86,11 +88,12 @@ fn describe_usable_nodes(usable: &[PathBuf]) -> Option<String> {
 fn find_node_entries(dirs: &[PathBuf]) -> (Vec<PathBuf>, Vec<UnusableNode>) {
     let mut usable = Vec::new();
     let mut unusable = Vec::new();
+    let mut seen = HashSet::new();
     for candidate in dirs
         .iter()
         .map(|dir| dir.join(NODE_FILE_NAME))
     {
-        if candidate.symlink_metadata().is_err() {
+        if candidate.symlink_metadata().is_err() || !seen.insert(candidate.clone()) {
             continue;
         }
         match unusable_reason(&candidate) {
@@ -158,9 +161,12 @@ fn describe_program(program: &Path) -> String {
     }
 }
 
-/// The shell that `sh` stands for. macOS's `/bin/sh` starts whichever shell
+/// The shell that `sh` stands for, outside Windows. macOS's `/bin/sh` starts whichever shell
 /// `/private/var/select/sh` links to; elsewhere `sh` is usually a link.
 fn shell_behind(sh: &Path) -> Option<PathBuf> {
+    if cfg!(windows) {
+        return None;
+    }
     if cfg!(target_os = "macos") && sh == Path::new("/bin/sh") {
         return fs::read_link("/private/var/select/sh").ok();
     }
@@ -268,37 +274,37 @@ impl Probe<'_> {
     /// shows the `PATH` the shim searched and where `node` went missing.
     fn describe(&self, failure: String, dir: &Path) -> String {
         let mut detail = failure;
-        for line in self.trace_shim(dir) {
+        for line in trace_shim(self, dir) {
             let _ = write!(detail, "\n    {line}");
         }
         detail
     }
+}
 
-    #[cfg(unix)]
-    fn trace_shim(&self, dir: &Path) -> Vec<String> {
-        let Ok(output) = Command::new(self.pnpm)
-            .current_dir(dir)
-            .args([NO_VERIFY_DEPS, "exec", "/bin/sh", "-x"])
-            .arg(&self.shim)
-            .arg(self.base.join("trace-node"))
-            .output()
-        else {
-            return Vec::new();
-        };
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let lines: Vec<&str> = stderr.lines().collect();
-        let start = lines.len().saturating_sub(TRACE_LINES);
-        lines[start..]
-            .iter()
-            .map(|line| (*line).to_owned())
-            .collect()
-    }
+#[cfg(unix)]
+fn trace_shim(probe: &Probe<'_>, dir: &Path) -> Vec<String> {
+    let Ok(output) = Command::new(probe.pnpm)
+        .current_dir(dir)
+        .args([NO_VERIFY_DEPS, "exec", "/bin/sh", "-x"])
+        .arg(&probe.shim)
+        .arg(probe.base.join("trace-node"))
+        .output()
+    else {
+        return Vec::new();
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let lines: Vec<&str> = stderr.lines().collect();
+    let start = lines.len().saturating_sub(TRACE_LINES);
+    lines[start..]
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect()
+}
 
-    /// Windows runs the `.cmd` shim, which has no trace to show.
-    #[cfg(windows)]
-    fn trace_shim(&self, _dir: &Path) -> Vec<String> {
-        Vec::new()
-    }
+/// Windows runs the `.cmd` shim, which has no trace to show.
+#[cfg(windows)]
+fn trace_shim(_probe: &Probe<'_>, _dir: &Path) -> Vec<String> {
+    Vec::new()
 }
 
 fn read_probe_result(

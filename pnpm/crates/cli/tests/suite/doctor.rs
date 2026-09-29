@@ -40,7 +40,10 @@ fn runs_a_package_executable_from_a_script_in_the_current_project() {
     assert_eq!(scripts["status"], "pass");
     let detail = scripts["detail"].as_str().expect("detail");
     assert!(detail.starts_with("an install script ran "), "{detail}");
-    assert!(detail.contains(&format!("a script in {} ran ", workspace.display())), "{detail}");
+    // The project path is spelled as the child sees it: `/private/var` on
+    // macOS and the long user name on Windows, so match its last segment.
+    assert!(detail.contains(", a script in "), "{detail}");
+    assert!(detail.contains("workspace ran "), "{detail}");
     assert!(
         !workspace.join("node_modules").exists(),
         "the probe must not install into the project",
