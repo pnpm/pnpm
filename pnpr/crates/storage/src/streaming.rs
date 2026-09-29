@@ -7,8 +7,8 @@
 //!   matches the full body.
 //! * [`download_verified_to_temp`] hashes an upstream response into a
 //!   temp file for mirror-less pass-through.
-//! * [`download_to_cache_computing_sha512`] caches an upstream response and
-//!   returns the SHA-512 integrity it computed over the bytes.
+//! * [`download_computing_sha512`] stages an upstream response for the cache
+//!   and returns the SHA-512 integrity it computed over the bytes.
 //! * [`stream_file`] yields an already verified file to the response.
 
 use crate::BlobWrite;
@@ -207,25 +207,23 @@ pub async fn download_verified_to_temp(
     write.into_temp_file().await.map_err(BlobStreamError::Io)
 }
 
-/// Download an upstream response into the cache and return the SHA-512
-/// integrity of its bytes. When `expected` is given, the bytes must also match
-/// it, or nothing is cached.
-pub async fn download_to_cache_computing_sha512(
+/// Download an upstream response into `write` and return the SHA-512 integrity
+/// of its bytes alongside the still-unpromoted write, which the caller
+/// finalizes or abandons. When `expected` is given, the bytes must also match
+/// it, or the write is abandoned and an error returned.
+pub async fn download_computing_sha512(
     response: ThrottledResponse,
     mut write: BlobWrite,
     expected: Option<&Integrity>,
     max_bytes: u64,
-) -> Result<Integrity, BlobStreamError> {
-    let computed = match download_computing_sha512(response, &mut write, expected, max_bytes).await
-    {
-        Ok(computed) => computed,
+) -> Result<(BlobWrite, Integrity), BlobStreamError> {
+    match hash_download_as_sha512(response, &mut write, expected, max_bytes).await {
+        Ok(computed) => Ok((write, computed)),
         Err(err) => {
             write.abandon().await;
-            return Err(err);
+            Err(err)
         }
-    };
-    write.finalize().await.map_err(BlobStreamError::Io)?;
-    Ok(computed)
+    }
 }
 
 async fn download_verified(
@@ -240,7 +238,7 @@ async fn download_verified(
     Ok(written)
 }
 
-async fn download_computing_sha512(
+async fn hash_download_as_sha512(
     response: ThrottledResponse,
     write: &mut BlobWrite,
     expected: Option<&Integrity>,

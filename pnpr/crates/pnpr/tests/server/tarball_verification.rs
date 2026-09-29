@@ -324,15 +324,17 @@ async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
         .create_async()
         .await;
     // Only 1.0.0 is downloadable; the withdrawn versions 404, as npm answers.
+    let mut withdrawn = Vec::new();
     for version in ["0.3.0", "0.1.0"] {
-        upstream
+        let mock = upstream
             .mock("GET", format!("/foo/-/foo-{version}.tgz").as_str())
             .with_status(404)
             .expect(1)
             .create_async()
             .await;
+        withdrawn.push(mock);
     }
-    upstream
+    let tarball_mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
         .with_body(bytes)
@@ -368,6 +370,10 @@ async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
     packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+    for mock in withdrawn {
+        mock.assert_async().await;
+    }
 }
 
 #[tokio::test]
@@ -398,7 +404,7 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
         .expect(1)
         .create_async()
         .await;
-    upstream
+    let withdrawn = upstream
         .mock("GET", "/foo/-/foo-0.1.0.tgz")
         .with_status(404)
         .expect(1)
@@ -425,6 +431,7 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
         resolved["versions"]["0.1.0"]["dist"].get("integrity").is_none(),
         "an unfetchable tarball has no bytes to hash, so no integrity may be invented",
     );
+    withdrawn.assert_async().await;
 }
 
 /// Pinning runs when pnpr fetches a packument, not on every read of the cached
@@ -510,7 +517,7 @@ async fn version_with_malformed_dist_does_not_break_the_packument() {
         .expect(0)
         .create_async()
         .await;
-    upstream
+    let tarball_mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
         .with_body(bytes)
@@ -544,6 +551,7 @@ async fn version_with_malformed_dist_does_not_break_the_packument() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     malformed_tarball.assert_async().await;
+    tarball_mock.assert_async().await;
 }
 
 /// A computed integrity is only worth anything if it can be stored with the

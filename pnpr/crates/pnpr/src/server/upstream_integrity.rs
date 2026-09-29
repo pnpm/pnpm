@@ -14,6 +14,14 @@ struct MissingIntegrityTarball {
     expected_shasum: Option<Integrity>,
 }
 
+/// A downloaded tarball and its computed integrity, not yet promoted into the
+/// cache nor written into the packument.
+struct StagedPin {
+    tarball: MissingIntegrityTarball,
+    integrity: Integrity,
+    write: pnpr_storage::BlobWrite,
+}
+
 /// How many versions of one packument a single upstream fetch will download to
 /// pin integrity. The candidate set is the upstream's to choose, so without a
 /// cap one client request fans out into a tarball fetch per version it
@@ -53,8 +61,10 @@ pub(super) async fn complete_missing_tarball_integrities(
 
 impl PackumentIntegrityResolver<'_> {
     /// The downloads run without the package lock, which is striped and shared
-    /// with hosted publishes. Only applying the pins to the cached packument,
-    /// which a concurrent refresh may have replaced meanwhile, runs under it.
+    /// with hosted publishes. Promoting the staged tarballs and writing their
+    /// pins into the cached packument, which a concurrent refresh may have
+    /// replaced meanwhile, runs under it, so a published pin always describes
+    /// the cached bytes.
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
         if !self.upstream.caches() {
             return Ok(bytes);
@@ -70,10 +80,35 @@ impl PackumentIntegrityResolver<'_> {
         let _guard = self.package_lock().await;
         let bytes = self.read_current_packument(bytes).await?;
         let mut doc: Value = serde_json::from_slice(&bytes)?;
-        if !apply_pins(&mut doc, self.name, pins) {
+        if !self.publish_pins(&mut doc, pins).await {
             return Ok(bytes);
         }
         self.persist_packument(doc).await
+    }
+
+    /// Promotes each staged tarball and writes its pin into `doc` where the
+    /// pin still applies, abandons the rest, and reports whether any was
+    /// written.
+    async fn publish_pins(&self, doc: &mut Value, pins: Vec<StagedPin>) -> bool {
+        let mut published = false;
+        for StagedPin { tarball, integrity, write } in pins {
+            if !pin_still_applies(doc, self.name, &tarball) {
+                write.abandon().await;
+                continue;
+            }
+            if let Err(err) = write.finalize().await {
+                tracing::warn!(
+                    ?err,
+                    package = %self.name.as_str(),
+                    version = %tarball.version,
+                    "leaving the version unpinned",
+                );
+                continue;
+            }
+            set_integrity(doc, &tarball.version, &integrity);
+            published = true;
+        }
+        published
     }
 
     fn osv_index(&self) -> Option<&std::sync::Arc<pnpr_osv::OsvIndex>> {
@@ -95,12 +130,14 @@ impl PackumentIntegrityResolver<'_> {
     async fn compute_integrities(
         &self,
         candidates: Vec<MissingIntegrityTarball>,
-    ) -> Vec<(MissingIntegrityTarball, Integrity)> {
+    ) -> Vec<StagedPin> {
         let mut pins = Vec::new();
         let mut candidates = candidates.into_iter();
         for candidate in candidates.by_ref().take(MAX_PINNED_VERSIONS_PER_PACKUMENT) {
-            match self.compute_integrity(&candidate).await {
-                Ok(integrity) => pins.push((candidate, integrity)),
+            match self.stage_pin(&candidate).await {
+                Ok((write, integrity)) => {
+                    pins.push(StagedPin { tarball: candidate, integrity, write });
+                }
                 Err(err) => {
                     tracing::warn!(
                         ?err,
@@ -122,10 +159,10 @@ impl PackumentIntegrityResolver<'_> {
         pins
     }
 
-    async fn compute_integrity(
+    async fn stage_pin(
         &self,
         candidate: &MissingIntegrityTarball,
-    ) -> Result<Integrity, RegistryError> {
+    ) -> Result<(pnpr_storage::BlobWrite, Integrity), RegistryError> {
         let fetched = timed(
             "tarball:integrity_fetch",
             self.name.as_str(),
@@ -148,7 +185,7 @@ impl PackumentIntegrityResolver<'_> {
             &candidate.filename,
         )
         .await?;
-        let download = streaming::download_to_cache_computing_sha512(
+        let download = streaming::download_computing_sha512(
             response,
             write,
             candidate.expected_shasum.as_ref(),
@@ -167,35 +204,35 @@ impl PackumentIntegrityResolver<'_> {
     }
 }
 
-/// Writes each pin into `doc` where its version still declares the same
-/// tarball without a usable integrity, and reports whether any was written.
-fn apply_pins(
-    doc: &mut Value,
+/// Whether `doc` still declares `pinned`'s tarball, with the same basename
+/// and legacy shasum, and still without a usable integrity.
+fn pin_still_applies(
+    doc: &Value,
     name: &CanonicalPackageName,
-    pins: Vec<(MissingIntegrityTarball, Integrity)>,
+    pinned: &MissingIntegrityTarball,
 ) -> bool {
-    let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
+    let Some(manifest) = doc
+        .get("versions")
+        .and_then(|versions| versions.get(&pinned.version))
+    else {
         return false;
     };
-    let mut applied = false;
-    for (pinned, integrity) in pins {
-        let Some(manifest) = versions.get_mut(&pinned.version) else {
-            continue;
-        };
-        let still_missing = matches!(
-            packument_tarball(manifest, name, &pinned.version),
-            Ok(Some(current)) if current.needs_integrity && current.filename == pinned.filename,
-        );
-        if !still_missing {
-            continue;
-        }
-        let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
-            continue;
-        };
-        dist.insert("integrity".to_string(), Value::String(integrity.to_string()));
-        applied = true;
-    }
-    applied
+    matches!(
+        packument_tarball(manifest, name, &pinned.version),
+        Ok(Some(current)) if current.needs_integrity
+            && current.filename == pinned.filename
+            && current.expected_shasum == pinned.expected_shasum,
+    )
+}
+
+fn set_integrity(doc: &mut Value, version: &str, integrity: &Integrity) {
+    let dist = doc
+        .get_mut("versions")
+        .and_then(|versions| versions.get_mut(version))
+        .and_then(|manifest| manifest.get_mut("dist"))
+        .and_then(Value::as_object_mut)
+        .expect("pin_still_applies found the version's dist");
+    dist.insert("integrity".to_string(), Value::String(integrity.to_string()));
 }
 
 /// A version whose dist pnpr cannot classify, or whose tarball basename another

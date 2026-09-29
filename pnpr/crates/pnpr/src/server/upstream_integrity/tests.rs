@@ -1,26 +1,28 @@
-use super::{MissingIntegrityTarball, apply_pins};
+use super::{MissingIntegrityTarball, pin_still_applies, set_integrity};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use serde_json::{Value, json};
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 
-fn sha512(bytes: &[u8]) -> Integrity {
-    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+fn digest(algorithm: Algorithm, bytes: &[u8]) -> Integrity {
+    let mut opts = IntegrityOpts::new().algorithm(algorithm);
     opts.input(bytes);
     opts.result()
 }
 
-fn pin(version: &str, bytes: &[u8]) -> (MissingIntegrityTarball, Integrity) {
-    let candidate = MissingIntegrityTarball {
+fn pinned(version: &str, shasum_of: Option<&[u8]>) -> MissingIntegrityTarball {
+    MissingIntegrityTarball {
         version: version.to_string(),
         filename: format!("foo-{version}.tgz"),
         needs_integrity: true,
-        expected_shasum: None,
-    };
-    (candidate, sha512(bytes))
+        expected_shasum: shasum_of.map(|bytes| digest(Algorithm::Sha1, bytes)),
+    }
 }
 
-fn version(tarball: &str, integrity: Option<&str>) -> Value {
+fn version(tarball: &str, shasum_of: Option<&[u8]>, integrity: Option<&str>) -> Value {
     let mut dist = json!({ "tarball": format!("https://registry.test/foo/-/{tarball}") });
+    if let Some(bytes) = shasum_of {
+        dist["shasum"] = json!(digest(Algorithm::Sha1, bytes).to_hex().1);
+    }
     if let Some(integrity) = integrity {
         dist["integrity"] = json!(integrity);
     }
@@ -31,41 +33,35 @@ fn version(tarball: &str, integrity: Option<&str>) -> Value {
 /// the cache holds by the time the downloads finish, so a refresh in between
 /// keeps what it published.
 #[test]
-fn pins_apply_only_where_the_current_packument_still_lacks_them() {
+fn a_pin_applies_only_where_the_current_packument_still_lacks_it() {
     let name = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
-    let republished = sha512(b"republished").to_string();
-    let mut doc = json!({
+    let republished = digest(Algorithm::Sha512, b"republished").to_string();
+    let doc = json!({
         "name": "foo",
         "versions": {
-            "1.0.0": version("foo-1.0.0.tgz", None),
-            "2.0.0": version("foo-2.0.0.tgz", Some(&republished)),
-            "3.0.0": version("foo-3.0.0-renamed.tgz", None),
+            "1.0.0": version("foo-1.0.0.tgz", Some(b"one"), None),
+            "2.0.0": version("foo-2.0.0.tgz", None, Some(&republished)),
+            "3.0.0": version("foo-3.0.0-renamed.tgz", None, None),
+            "5.0.0": version("foo-5.0.0.tgz", Some(b"five, republished"), None),
         },
     });
 
-    let applied = apply_pins(
-        &mut doc,
-        &name,
-        vec![
-            pin("1.0.0", b"one"),
-            pin("2.0.0", b"two"),
-            pin("3.0.0", b"three"),
-            pin("4.0.0", b"four"),
-        ],
-    );
-
-    assert!(applied);
-    let versions = &doc["versions"];
-    assert_eq!(versions["1.0.0"]["dist"]["integrity"], sha512(b"one").to_string());
-    assert_eq!(versions["2.0.0"]["dist"]["integrity"], republished);
-    assert!(versions["3.0.0"]["dist"].get("integrity").is_none());
-    assert!(versions.get("4.0.0").is_none());
+    assert!(pin_still_applies(&doc, &name, &pinned("1.0.0", Some(b"one"))));
+    assert!(!pin_still_applies(&doc, &name, &pinned("2.0.0", None)), "gained an integrity");
+    assert!(!pin_still_applies(&doc, &name, &pinned("3.0.0", None)), "tarball renamed");
+    assert!(!pin_still_applies(&doc, &name, &pinned("4.0.0", None)), "version removed");
+    assert!(!pin_still_applies(&doc, &name, &pinned("5.0.0", Some(b"five"))), "shasum changed");
 }
 
 #[test]
-fn nothing_is_applied_when_every_pin_is_stale() {
-    let name = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
-    let mut doc = json!({ "name": "foo", "versions": {} });
+fn set_integrity_writes_the_pin_into_the_version_dist() {
+    let mut doc = json!({
+        "name": "foo",
+        "versions": { "1.0.0": version("foo-1.0.0.tgz", None, None) },
+    });
+    let integrity = digest(Algorithm::Sha512, b"one");
 
-    assert!(!apply_pins(&mut doc, &name, vec![pin("1.0.0", b"one")]));
+    set_integrity(&mut doc, "1.0.0", &integrity);
+
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["integrity"], integrity.to_string());
 }

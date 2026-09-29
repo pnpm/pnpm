@@ -1,5 +1,5 @@
 use super::{
-    BlobStreamError, download_to_cache_computing_sha512, integrity_checker, parse_integrity,
+    BlobStreamError, download_computing_sha512, integrity_checker, parse_integrity,
     stream_verified_to_cache,
 };
 use crate::Storage;
@@ -193,7 +193,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 }
 
 #[tokio::test]
-async fn download_to_cache_returns_the_sha512_of_the_cached_bytes() {
+async fn download_returns_the_sha512_of_the_staged_bytes() {
     let bytes = b"computed integrity";
     let sha1 = {
         let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
@@ -210,9 +210,9 @@ async fn download_to_cache_returns_the_sha512_of_the_cached_bytes() {
         let write =
             storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-        let computed = download_to_cache_computing_sha512(response, write, expected, u64::MAX)
-            .await
-            .unwrap();
+        let (write, computed) =
+            download_computing_sha512(response, write, expected, u64::MAX).await.unwrap();
+        write.finalize().await.unwrap();
 
         assert_eq!(computed.to_string(), sha512_integrity(bytes), "expected: {expected:?}");
         assert_eq!(
@@ -223,7 +223,7 @@ async fn download_to_cache_returns_the_sha512_of_the_cached_bytes() {
 }
 
 #[tokio::test]
-async fn download_to_cache_caches_nothing_when_the_expected_integrity_mismatches() {
+async fn download_stages_nothing_when_the_expected_integrity_mismatches() {
     let bytes = b"tampered";
     let expected = parse_integrity(&sha512_integrity(b"original")).unwrap();
     let response = throttled_response(spawn_response(bytes).await).await;
@@ -235,9 +235,10 @@ async fn download_to_cache_caches_nothing_when_the_expected_integrity_mismatches
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-    let err = download_to_cache_computing_sha512(response, write, Some(&expected), u64::MAX)
-        .await
-        .unwrap_err();
+    let Err(err) = download_computing_sha512(response, write, Some(&expected), u64::MAX).await
+    else {
+        panic!("bytes that contradict the expected integrity must be rejected");
+    };
 
     assert!(matches!(err, BlobStreamError::Integrity(_)));
     let package_dir = cache.join("~public/test").join("foo");
