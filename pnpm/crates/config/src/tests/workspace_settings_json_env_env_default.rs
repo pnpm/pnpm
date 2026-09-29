@@ -267,6 +267,64 @@ pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     assert_eq!(config.workspace_key_issues.refused, vec!["scope".to_owned()]);
 }
 
+/// `globalShims` is read only from the global config file, the pnpm home's
+/// own `pnpm-workspace.yaml`, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment
+/// variable. A project file's value is ignored, so a repository cannot grant
+/// itself the right to run its own binaries in place of the user's global
+/// ones. See the `globalShims` section of `docs/settings/other.md`.
+#[test]
+pub fn pnpm_workspace_yaml_cannot_set_global_shims() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "globalShims: false\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.global_shims.is_enabled("node"), "the built-in defaults must survive");
+    assert!(!config.global_shims.dispatches_nothing());
+}
+
+/// The record merges key-wise, so a single named entry is the other shape
+/// of the same leak rather than a separate setting.
+#[test]
+pub fn pnpm_workspace_yaml_cannot_add_a_global_shim_entry() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "globalShims: {typescript: true}\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.global_shims.is_enabled("typescript"));
+}
+
+/// A global command anchors its config at the pnpm home, so the manifest
+/// there is one of the trusted locations the `globalShims` docs name.
+#[test]
+pub fn pnpm_home_manifest_sets_global_shims() {
+    fake_env!(load_with_fake_env);
+    let pnpm_home = tempdir().expect("pnpm home tempdir");
+    fs::write(pnpm_home.path().join("pnpm-workspace.yaml"), "globalShims: {typescript: true}\n")
+        .expect("write to pnpm-workspace.yaml");
+    set_fake_env(&[("PNPM_HOME", pnpm_home.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(pnpm_home.path());
+
+    assert!(config.global_shims.is_enabled("typescript"));
+}
+
+#[test]
+pub fn global_config_yaml_sets_global_shims() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "globalShims: {typescript: true}\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert!(config.global_shims.is_enabled("typescript"));
+}
+
 #[test]
 pub fn global_config_yaml_supplies_the_login_scope_over_workspace_yaml() {
     fake_env!(load_with_fake_env);
