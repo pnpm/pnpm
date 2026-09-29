@@ -1,0 +1,14 @@
+### catalogMode
+
+Added in: v10.12.1
+
+* Default: **manual**
+* Type: **manual**, **strict**, **prefer**
+
+Controls if and how dependencies are added to the default catalog, when running `pnpm add`. There are three modes:
+
+- **strict** - only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+- **prefer** - prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+- **manual** (default) - does not automatically add dependencies to the catalog.
+
+Since v11.26.0, a specifier that names a location rather than a version is never moved into a catalog: local paths, local tarballs, tarball URLs, and `workspace:<path>` ranges stay in the `package.json` that declares them. Such a specifier is resolved relative to its own project, so one catalog entry could not mean the same directory for every project that references it.

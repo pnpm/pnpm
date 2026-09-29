@@ -2,7 +2,7 @@ pub use output::StreamedScript;
 
 use crate::{
     extend_path::extend_path,
-    make_env::{EnvBuild, EnvOptions, build_env, path_value},
+    make_env::{EnvBuild, EnvOptions, build_env, is_path_key, path_value},
     process_tracker::{SpawnedChild, spawn_child},
     script_exit::ScriptExit,
     script_working_dir::{
@@ -363,7 +363,7 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     // we set below, and `Command::env` deduplicates them with an
     // unspecified winner.
     let mut child_env = built.env;
-    child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
+    child_env.retain(|key, _| !is_path_key(key));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
     let status = if use_shell_emulator(opts.execution.shell_emulator, opts.execution.shell) {
@@ -446,8 +446,6 @@ fn prepare_lifecycle_path(
 
     // Set PATH via `extend_path`, with the original PATH coming from
     // the (already-filtered) parent env captured during `build_env`.
-    // Lookup is case-insensitive because Windows preserves the
-    // system casing (typically `Path`) on env keys.
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,

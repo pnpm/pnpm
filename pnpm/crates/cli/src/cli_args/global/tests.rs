@@ -204,7 +204,7 @@ fn detects_windows_drive_paths() {
 }
 
 #[test]
-fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
+fn latest_update_uses_the_latest_tag_only_for_plain_version_dependencies() {
     let dependencies = vec![
         ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
         ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
@@ -224,8 +224,8 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
             "remote-tarball-pkg@https://example.com/pkg.tgz",
             "aliased-pkg@npm:other-pkg@^2.0.0",
             "named-registry-pkg@gh:^3.0.0",
-            "foo",
-            "bar",
+            "foo@latest",
+            "bar@latest",
         ],
     );
     assert_eq!(
@@ -247,7 +247,10 @@ fn a_pinned_dependency_is_held_at_its_installed_version() {
     ];
     let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
 
-    assert_eq!(update_selectors(&dependencies, true, &pins), vec!["prerelease@2.0.0", "stable"]);
+    assert_eq!(
+        update_selectors(&dependencies, true, &pins),
+        vec!["prerelease@2.0.0", "stable@latest"],
+    );
 }
 
 #[test]

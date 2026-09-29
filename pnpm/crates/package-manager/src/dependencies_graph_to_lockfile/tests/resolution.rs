@@ -6,7 +6,8 @@ use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{ImporterDepVersion, LockfileResolution, PackageKey, PkgName};
 use pnpm_resolving_deps_resolver::{
     ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
-    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, resolve_peers,
+    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedPackageInput, ResolvedTree,
+    TreeChildren, resolve_peers,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::json;
@@ -114,12 +115,12 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         direct: vec![DirectDep {
             alias: "outer".to_string(),
             node_id: outer_node_id.clone(),
-            id: outer_id.to_string(),
+            id: Arc::<str>::clone(&outer_id),
         }],
         packages: HashMap::from_iter([
             (
                 Arc::<str>::clone(&outer_id),
-                ResolvedPackage {
+                ResolvedPackage::new(ResolvedPackageInput {
                     id: Arc::<str>::clone(&outer_id),
                     result: Arc::new(make_resolve_result(
                         "outer",
@@ -129,11 +130,11 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                     peer_dependencies: BTreeMap::new(),
                     optional: false,
                     is_leaf: false,
-                },
+                }),
             ),
             (
                 Arc::<str>::clone(&inner_id),
-                ResolvedPackage {
+                ResolvedPackage::new(ResolvedPackageInput {
                     id: Arc::<str>::clone(&inner_id),
                     result: Arc::new(make_resolve_result(
                         "inner",
@@ -143,7 +144,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
                     peer_dependencies: BTreeMap::new(),
                     optional: true,
                     is_leaf: true,
-                },
+                }),
             ),
         ]),
         dependencies_tree: HashMap::from_iter([(

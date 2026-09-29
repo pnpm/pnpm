@@ -385,3 +385,131 @@ impl pnpm_hooks::PnpmfileHooks for ReplacingHook {
         true
     }
 }
+
+/// Two level siblings (`foo` and `bar`) both depend on `shared`, so
+/// level 1 resolves the same wanted key twice inside one
+/// `try_join_all`. The fetch locker already coalesces the network;
+/// the per-key admission lock must also run the resolver chain and
+/// the manifest-hook pipeline once, with the waiter re-checking the
+/// completed cache after the holder finishes. A pnpmfile hook is the
+/// visible cost here: it is a JS bridge in real installs.
+#[tokio::test]
+async fn concurrent_first_misses_run_the_hook_pipeline_once() {
+    struct CountingHook {
+        calls: std::sync::Arc<Mutex<usize>>,
+    }
+    #[async_trait::async_trait]
+    impl pnpm_hooks::PnpmfileHooks for CountingHook {
+        async fn read_package(
+            &self,
+            pkg: serde_json::Value,
+            _ctx: pnpm_hooks::HookContext,
+        ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
+            if pkg.get("name").and_then(serde_json::Value::as_str) == Some("shared") {
+                *self.calls.lock().unwrap() += 1;
+            }
+            Ok(std::sync::Arc::new(pkg))
+        }
+
+        async fn after_all_resolved(
+            &self,
+            _lockfile: serde_json::Value,
+            _ctx: pnpm_hooks::HookContext,
+        ) -> Result<serde_json::Value, pnpm_hooks::HookError> {
+            Ok(serde_json::Value::Null)
+        }
+
+        async fn pre_resolution(
+            &self,
+            _ctx: pnpm_hooks::PreResolutionHookContext,
+            _logger: pnpm_hooks::PreResolutionHookLogger,
+        ) {
+        }
+
+        async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
+            true
+        }
+    }
+
+    let hook_calls: std::sync::Arc<Mutex<usize>> = std::sync::Arc::default();
+    let counted_hook =
+        std::sync::Arc::new(CountingHook { calls: std::sync::Arc::clone(&hook_calls) });
+
+    let mut table = HashMap::default();
+    for (name, deps) in [
+        ("foo", serde_json::json!({ "shared": "^1.0.0" })),
+        ("bar", serde_json::json!({ "shared": "^1.0.0" })),
+        ("shared", serde_json::json!({})),
+    ] {
+        table.insert(
+            (name.to_string(), "^1.0.0".to_string()),
+            fake_result(
+                name,
+                "1.0.0",
+                serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": deps }),
+            ),
+        );
+    }
+    // Yield inside `resolve` so the two level siblings genuinely
+    // interleave: the second caller misses the completed cache while
+    // the first one is still resolving.
+    struct YieldingResolver {
+        inner: StubResolver,
+    }
+    impl Resolver for YieldingResolver {
+        fn resolve<'a>(
+            &'a self,
+            wanted: &'a WantedDependency,
+            opts: &'a ResolveOptions,
+        ) -> ResolveFuture<'a> {
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                self.inner.resolve(wanted, opts).await
+            })
+        }
+
+        fn resolve_latest<'a>(
+            &'a self,
+            query: &'a LatestQuery,
+            opts: &'a ResolveOptions,
+        ) -> ResolveLatestFuture<'a> {
+            self.inner.resolve_latest(query, opts)
+        }
+    }
+    let resolver =
+        YieldingResolver { inner: StubResolver { table, calls: Mutex::new(Vec::new()) } };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0", "bar": "^1.0.0" }));
+
+    let _tree = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: Some(counted_hook),
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .expect("fan-in resolution should succeed");
+
+    assert_eq!(
+        *hook_calls.lock().unwrap(),
+        1,
+        "the manifest hooks must run once per wanted key, not once per concurrent first caller",
+    );
+    assert_eq!(
+        resolver.inner.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(name, _)| name == "shared")
+            .count(),
+        1,
+        "the resolver chain must run once for the shared key",
+    );
+}

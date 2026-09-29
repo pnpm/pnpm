@@ -54,8 +54,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<DowngradeCheck> {
     // Only `--latest` can pick a version outside the recorded range, and only a
-    // plain version spec is dropped for it. Everything else resolves within a
-    // range the installed version already satisfies.
+    // plain version spec is rewritten to `@latest`. Other specs keep their source.
     if !latest {
         return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
     }
@@ -115,12 +114,10 @@ fn resolved_direct_versions(install_dir: &Path) -> HashMap<String, Version> {
         .collect()
 }
 
-/// Only a plain version range may be dropped in favor of the bare alias.
+/// Only a plain version spec may be replaced with `@latest`.
 /// Every other spec form (`link:`, `file:`, a git or tarball URL, an `npm:`
-/// alias, a named registry) also says where the package comes from, so the
-/// alias alone would be resolved from the default registry: a different
-/// package gets installed, or the lookup 404s and aborts the groups that
-/// have not been updated yet.
+/// alias, a named registry) also says where the package comes from. Replacing
+/// it would look up a different package in the default registry.
 pub(super) fn is_plain_version_spec(spec: &str) -> bool {
     !spec.contains(':')
 }

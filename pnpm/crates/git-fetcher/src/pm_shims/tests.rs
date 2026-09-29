@@ -1,4 +1,4 @@
-use super::write_pm_shims;
+use super::{write_pm_shims, write_running_pnpm_shim};
 use crate::preferred_pm::{PreferredPm, WantedPm};
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -150,4 +150,15 @@ fn a_planted_entry_is_replaced() {
 
     assert!(shim_body(dir.path(), "npm").contains("dlx"));
     assert_eq!(fs::read_to_string(&elsewhere).unwrap(), "original\n");
+}
+
+/// The running pnpm is called directly, so nothing is provisioned for it.
+#[test]
+fn the_running_pnpm_is_called_without_dlx() {
+    let dir = tempdir().unwrap();
+    write_running_pnpm_shim(dir.path(), Path::new("/opt/pnpm")).expect("write the shim");
+
+    let body = shim_body(dir.path(), "pnpm");
+    assert!(body.contains("/opt/pnpm"), "{body}");
+    assert!(!body.contains("dlx"), "{body}");
 }

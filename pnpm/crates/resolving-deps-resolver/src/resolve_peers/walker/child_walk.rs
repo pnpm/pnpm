@@ -28,7 +28,7 @@ impl Walker<'_> {
                 .get(&**pkg_id)
                 .cloned()
                 .unwrap_or_default(),
-            parent_ids.pushed(pkg_id.to_string()),
+            parent_ids.pushed(Arc::clone(pkg_id)),
         ))
     }
 
@@ -144,12 +144,12 @@ impl Walker<'_> {
             );
         }
         if result.is_pure {
-            self.caches.pure_pkgs.insert(pkg_id.to_string(), result.dep_path.clone());
+            self.caches.pure_pkgs.insert(Arc::clone(pkg_id), result.dep_path.clone());
             return;
         }
         self.caches.retained_peer_node_ids.extend(result.all_resolved_peers.values().cloned());
         self.caches.peers_cache
-            .entry(pkg_id.to_string())
+            .entry(Arc::clone(pkg_id))
             .or_default()
             .push(PeersCacheItem {
                 owner_node_id: node_id.clone(),

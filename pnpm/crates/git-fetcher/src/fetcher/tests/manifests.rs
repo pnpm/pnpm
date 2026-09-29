@@ -22,7 +22,7 @@ async fn fetcher_handles_repo_without_package_json() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -75,7 +75,7 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -137,7 +137,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),

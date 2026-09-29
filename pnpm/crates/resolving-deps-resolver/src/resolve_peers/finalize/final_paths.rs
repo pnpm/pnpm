@@ -1,8 +1,20 @@
 use super::{
     BTreeMap, BTreeSet, DepPath, FinalPeerContext, HashMap, HashSet, NodeId, PeerId,
     PeerNameTarjan, PeerSccPass, Walker, create_peer_dep_graph_hash, link_path_to_peer_version,
-    peer_id_pair, pkg_name,
+    peer_id_pair,
 };
+
+/// The depPaths [`Walker::build_final_dep_paths`] settled on.
+#[derive(Default)]
+pub(crate) struct FinalDepPaths {
+    pub(crate) by_node_id: HashMap<NodeId, DepPath>,
+    /// The peer ids each peer-suffixed final depPath was built from, so a
+    /// pass that later retargets those peers can build the suffix again.
+    /// Empty unless [`Walker::build_final_dep_paths`] was asked for them.
+    pub(crate) peer_ids: HashMap<DepPath, Vec<PeerId>>,
+    record_peer_ids: bool,
+    visiting: HashSet<NodeId>,
+}
 
 impl Walker<'_> {
     /// Recompute every node's depPath with its resolved peers' *full*
@@ -10,38 +22,30 @@ impl Walker<'_> {
     /// SCCs, or self-loops) keep the `name@version` collapse; every other
     /// peer slot carries the peer's own depPath. The cycle detection
     /// runs synchronously over the already-walked graph.
-    pub(in super::super) fn build_final_dep_paths(&self) -> HashMap<NodeId, DepPath> {
+    pub(in super::super) fn build_final_dep_paths(&self, record_peer_ids: bool) -> FinalDepPaths {
         let (_, scc_of) = self.peer_sccs();
         let cyclic_peer_names = self.cyclic_peer_names();
-        let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
-        let mut visiting = HashSet::default();
+        let context = FinalPeerContext { scc_of: &scc_of, cyclic_peer_names: &cyclic_peer_names };
+        let mut final_dep_paths = FinalDepPaths { record_peer_ids, ..FinalDepPaths::default() };
         let mut node_ids: Vec<NodeId> = self.nodes.external_peers
             .keys()
             .cloned()
             .collect();
         node_ids.sort();
         for node_id in node_ids {
-            self.final_dep_path_for_node(
-                &node_id,
-                &scc_of,
-                &cyclic_peer_names,
-                &mut final_dep_paths,
-                &mut visiting,
-            );
+            self.final_dep_path_for_node(&node_id, context, &mut final_dep_paths);
         }
         final_dep_paths
     }
 
-    pub(super) fn final_dep_path_for_node(
+    fn final_dep_path_for_node(
         &self,
         node_id: &NodeId,
-        scc_of: &HashMap<NodeId, usize>,
-        cyclic_peer_names: &HashSet<String>,
-        final_dep_paths: &mut HashMap<NodeId, DepPath>,
-        visiting: &mut HashSet<NodeId>,
+        context: FinalPeerContext<'_>,
+        final_dep_paths: &mut FinalDepPaths,
     ) -> DepPath {
         let node_id = self.cache_owner_node_id(node_id);
-        if let Some(dep_path) = final_dep_paths.get(node_id) {
+        if let Some(dep_path) = final_dep_paths.by_node_id.get(node_id) {
             return dep_path.clone();
         }
         let Some(peers) = self.nodes.external_peers.get(node_id) else {
@@ -50,27 +54,23 @@ impl Walker<'_> {
         if peers.is_empty() {
             return self.provisional_dep_path_of(node_id);
         }
-        if !visiting.insert(node_id.clone()) {
+        if !final_dep_paths.visiting.insert(node_id.clone()) {
             return self.provisional_dep_path_of(node_id);
         }
         let peer_ids: Vec<PeerId> = peers
             .iter()
             .map(|(peer_alias, peer_node_id)| {
-                self.final_peer_id(
-                    node_id,
-                    peer_alias,
-                    peer_node_id,
-                    FinalPeerContext { scc_of, cyclic_peer_names },
-                    final_dep_paths,
-                    visiting,
-                )
+                self.final_peer_id(node_id, peer_alias, peer_node_id, context, final_dep_paths)
             })
             .collect();
         let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
         let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
         let dep_path = DepPath::from(format!("{}{}", self.tree.packages[pkg_id].id, suffix));
-        final_dep_paths.insert(node_id.clone(), dep_path.clone());
-        visiting.remove(node_id);
+        if final_dep_paths.record_peer_ids {
+            final_dep_paths.peer_ids.insert(dep_path.clone(), peer_ids);
+        }
+        final_dep_paths.by_node_id.insert(node_id.clone(), dep_path.clone());
+        final_dep_paths.visiting.remove(node_id);
         dep_path
     }
 
@@ -95,14 +95,13 @@ impl Walker<'_> {
     /// connected-component test: a peer is collapsed to `name@version`
     /// only when it shares a peer-graph SCC with `node_id` (a genuine
     /// cycle). Non-cyclic peers carry their full depPath.
-    pub(super) fn final_peer_id(
+    fn final_peer_id(
         &self,
         node_id: &NodeId,
         peer_alias: &str,
         peer_node_id: &NodeId,
         context: FinalPeerContext<'_>,
-        final_dep_paths: &mut HashMap<NodeId, DepPath>,
-        visiting: &mut HashSet<NodeId>,
+        final_dep_paths: &mut FinalDepPaths,
     ) -> PeerId {
         let peer_node_id = self.cache_owner_node_id(peer_node_id);
         if let NodeId::Leaf(id) = peer_node_id
@@ -116,7 +115,7 @@ impl Walker<'_> {
         let pair = || {
             let tree_node = &self.tree.dependencies_tree[peer_node_id];
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-            peer_id_pair(&pkg.result)
+            peer_id_pair(pkg.result())
         };
         if self.opts.dedupe_peers && self.tree.dependencies_tree.contains_key(peer_node_id) {
             return pair();
@@ -130,13 +129,7 @@ impl Walker<'_> {
         if context.cyclic_peer_names.contains(peer_alias) {
             return pair();
         }
-        PeerId::DepPath(self.final_dep_path_for_node(
-            peer_node_id,
-            context.scc_of,
-            context.cyclic_peer_names,
-            final_dep_paths,
-            visiting,
-        ))
+        PeerId::DepPath(self.final_dep_path_for_node(peer_node_id, context, final_dep_paths))
     }
 
     /// The upstream `pathsByNodeId`: every walked node's final
@@ -202,7 +195,7 @@ impl Walker<'_> {
         let mut graph: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
         for (pkg_id, edges) in edges_of_pkg {
             graph
-                .entry(pkg_name(&self.tree.packages[pkg_id].result))
+                .entry(self.tree.packages[pkg_id].name().to_string())
                 .or_default()
                 .extend(edges);
         }

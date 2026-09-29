@@ -26,6 +26,8 @@ mod in_memory_manifests;
 
 mod overrides;
 
+mod injected;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
@@ -663,6 +665,184 @@ fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
                 if issue.contains("does not have a modules directory")
         ),
         "without a filtered install every project with dependencies needs a modules directory",
+    );
+}
+
+/// A modules directory does not prove that the filtered install materialized
+/// a selected project. It must also be an importer of the current lockfile.
+#[test]
+fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    fs::write(
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
+    )
+    .unwrap();
+
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "Workspace package a has dependencies but was not installed"
+        ),
+        "a selected project the current lockfile does not list is outdated",
+    );
+
+    let root_only = [dir.path()];
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &root_only),
+        RunDepsStatus::UpToDate,
+        "a selected project without dependencies needs no importer",
+    );
+}
+
+const FILTERED_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+  packages/b:
+    dependencies:
+      bar:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  bar@1.0.0:
+    resolution: {integrity: sha512-bbb}
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  bar@1.0.0: {}
+
+  foo@1.0.0: {}
+";
+
+/// What `pnpm install --filter a` records as the current lockfile for
+/// [`FILTERED_WANTED_LOCKFILE`].
+const FILTERED_CURRENT_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  foo@1.0.0: {}
+";
+
+/// A lockfile that is newer than the last validation after a filtered
+/// install is compared against what that install materialized, not the
+/// whole workspace (<https://github.com/pnpm/pnpm/issues/16322>).
+#[test]
+fn a_filtered_state_accepts_a_newer_lockfile_that_did_not_change_the_selected_projects() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let mut project_dirs = Vec::new();
+    for (name, dependency) in [("a", "foo"), ("b", "bar")] {
+        let project_dir = workspace_root.join("packages").join(name);
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(
+            project_dir.join("package.json"),
+            format!(
+                r#"{{"name":"{name}","version":"1.0.0","dependencies":{{"{dependency}":"^1.0.0"}}}}"#,
+            ),
+        )
+        .unwrap();
+        project_dirs.push(project_dir);
+    }
+    fs::create_dir_all(project_dirs[0].join("node_modules")).unwrap();
+    let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+    fs::write(&lockfile_path, FILTERED_WANTED_LOCKFILE).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.virtual_store_dir).unwrap();
+    fs::write(
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        FILTERED_CURRENT_LOCKFILE,
+    )
+    .unwrap();
+    let config = config.leak();
+
+    let projects = [(workspace_root, "root"), (&project_dirs[0], "a"), (&project_dirs[1], "b")]
+        .into_iter()
+        .map(|(project_dir, name)| {
+            let entry = ProjectEntry {
+                name: Some(name.into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            };
+            (project_dir.to_string_lossy().into_owned(), entry)
+        })
+        .collect();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    set_filtered_install(workspace_root, true);
+
+    let manifests = [workspace_root, &project_dirs[0], &project_dirs[1]].map(|project_dir| {
+        PackageManifest::from_path(project_dir.join("package.json")).unwrap()
+    });
+    let project_manifests = [
+        (workspace_root.to_path_buf(), &manifests[0]),
+        (project_dirs[0].clone(), &manifests[1]),
+        (project_dirs[1].clone(), &manifests[2]),
+    ];
+    let selected = [project_dirs[0].as_path()];
+
+    set_mtime_ms(&lockfile_path, recorded_timestamp(workspace_root) + MTIME_STEP_MS);
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        RunDepsStatus::UpToDate,
+        "a touched lockfile with the same contents is current",
+    );
+
+    fs::write(
+        &lockfile_path,
+        FILTERED_WANTED_LOCKFILE.replace(
+            "  foo@1.0.0: {}",
+            "  foo@1.0.0:\n    dependencies:\n      bar: 1.0.0",
+        ),
+    )
+    .unwrap();
+    set_mtime_ms(&lockfile_path, recorded_timestamp(workspace_root) + MTIME_STEP_MS);
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "the installed dependencies are not up to date with the lockfile"
+        ),
+        "a lockfile change that reaches a materialized project is outdated",
     );
 }
 

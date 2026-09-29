@@ -131,22 +131,34 @@ export function createDeployFiles ({
     peerBearingProjects.set(project.rootDirRealPath, project.manifest)
   }
 
-  const linkedWorkspaceProjects = new Map<DepPath, ProjectManifest>()
+  const linkedWorkspaceProjects = new Map<DepPath, LinkedWorkspaceProject>()
+  const injectedWorkspace = lockfile.settings?.injectWorkspacePackages === true
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
     const projectRootDirRealPath = path.resolve(lockfileDir, importerPath)
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, {
+    const convertOptions: ConvertOptions = {
       allProjects,
       deployDir,
       lockfileDir,
       deployedProjectRealPath,
       projectRootDirRealPath,
-    })
+    }
+    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions)
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
     const manifest = peerBearingProjects.get(projectRootDirRealPath)
-    if (manifest != null) linkedWorkspaceProjects.set(depPath, manifest)
+    if (manifest != null) {
+      linkedWorkspaceProjects.set(depPath, {
+        manifest,
+        dedupedPeerResolutions: injectedWorkspace
+          ? convertResolvedDependencies(
+            pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
+            convertOptions
+          )
+          : undefined,
+      })
+    }
   }
 
   for (const field of DEPENDENCIES_FIELD) {
@@ -340,7 +352,7 @@ function filterDeployPackageSnapshots (
 function bindSingletonPeers (
   importer: ProjectSnapshot,
   packages: PackageSnapshots,
-  linkedWorkspaceProjects: Map<DepPath, ProjectManifest>
+  linkedWorkspaceProjects: Map<DepPath, LinkedWorkspaceProject>
 ): void {
   if (linkedWorkspaceProjects.size === 0) return
 
@@ -367,7 +379,7 @@ function bindSingletonPeers (
     collect(snapshot.optionalDependencies)
   }
 
-  for (const [depPath, manifest] of linkedWorkspaceProjects) {
+  for (const [depPath, { manifest, dedupedPeerResolutions }] of linkedWorkspaceProjects) {
     const snapshot = packages[depPath]
     if (snapshot == null) continue
     for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
@@ -377,6 +389,16 @@ function bindSingletonPeers (
       // binding it there would resurrect a dependency the flag excluded.
       if (declaresDependency(manifest, peerName)) continue
       if (declaresDependency(snapshot, peerName)) continue
+      const dedupedReference = dedupedPeerResolutions != null && Object.hasOwn(dedupedPeerResolutions, peerName)
+        ? dedupedPeerResolutions[peerName]
+        : undefined
+      if (dedupedReference != null) {
+        const dedupedDepPath = dp.refToRelative(dedupedReference, peerName)
+        if (dedupedDepPath != null && packages[dedupedDepPath] != null) {
+          snapshot.dependencies = { ...snapshot.dependencies, [peerName]: dedupedReference }
+          continue
+        }
+      }
       const candidates = references.get(peerName)
       // A peer the deployed graph does not provide at all stays unresolved,
       // exactly as it is in the workspace this deploy was taken from.
@@ -389,6 +411,18 @@ function bindSingletonPeers (
       snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }
     }
   }
+}
+
+interface LinkedWorkspaceProject {
+  manifest: ProjectManifest
+  /**
+   * The project's dev dependencies that are also its peers, recorded only in
+   * an injected workspace.
+   * There a workspace package is linked rather than injected only when its
+   * injected resolution matched its own importer, dev dependencies included,
+   * so a peer it also lists as a dev dependency was bound to exactly that.
+   */
+  dedupedPeerResolutions: ResolvedDependencies | undefined
 }
 
 /**

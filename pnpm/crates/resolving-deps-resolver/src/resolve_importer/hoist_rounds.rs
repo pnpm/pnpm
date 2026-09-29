@@ -294,7 +294,7 @@ impl ImporterHoistState {
     pub(super) fn append_resolved_peer_providers(
         &mut self,
         providers: &BTreeMap<String, crate::NodeId>,
-        provider_pkg_ids: &HashMap<crate::NodeId, String>,
+        provider_pkg_ids: &HashMap<crate::NodeId, Arc<str>>,
         missing_required: &BTreeMap<String, MissingPeerInfo>,
     ) {
         if !self.policy.peers.auto_install_peers {
@@ -312,7 +312,7 @@ impl ImporterHoistState {
             self.dependencies.direct.push(DirectDep {
                 alias: alias.clone(),
                 node_id: node_id.clone(),
-                id: pkg_id.clone(),
+                id: Arc::clone(pkg_id),
             });
             self.dependencies.hoisted_peer_provider_node_ids.insert(node_id.clone());
             self.dependencies.parent_pkg_aliases.insert(alias.clone());

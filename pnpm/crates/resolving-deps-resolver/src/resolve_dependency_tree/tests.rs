@@ -104,7 +104,7 @@ async fn canonical_snapshot_link_id_is_relative_to_lockfile_root() {
     .expect("resolve nested workspace link");
 
     let direct = tree.direct.first().expect("shared direct dependency");
-    assert_eq!(direct.id, "link:packages/shared");
+    assert_eq!(&*direct.id, "link:packages/shared");
     assert_eq!(direct.node_id, crate::NodeId::leaf("link:packages/shared"));
     assert!(tree.packages.contains_key("link:packages/shared"));
     assert!(!tree.packages.contains_key("link:../../../packages/shared"));

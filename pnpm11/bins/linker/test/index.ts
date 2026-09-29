@@ -31,7 +31,7 @@ const {
 
 const binsConflictLogger = logger('bins-conflict')
 const BASEDIR_ABS_LINE = 'basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?'
-const PRINTF_BASEDIR_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
+const PRINTF_BASEDIR_LINE = String.raw`basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
 const f = fixtures(import.meta.dirname)
@@ -219,7 +219,7 @@ exec node  "$basedir/../simple/index.js" "$@"
 
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toContain(`# cmd-shim-target=${target}\n`)
-  expect(content).toContain('  target=$(command -p readlink "$link")\n')
+  expect(content).toContain('  target=$(run_helper readlink "$link")\n')
 })
 
 test('linkBins() replaces a shim that still pipes the path through echo', async () => {
@@ -252,7 +252,7 @@ exec node  "$basedir/../simple/index.js" "$@"
 
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toContain(`# cmd-shim-target=${target}\n`)
-  expect(content).toContain('  target=$(command -p readlink "$link")\n')
+  expect(content).toContain('  target=$(run_helper readlink "$link")\n')
   expect(content).toContain(PRINTF_BASEDIR_LINE)
   expect(content).not.toContain('# outdated-echo-basedir')
 })
@@ -312,8 +312,7 @@ exec node  "$basedir/../simple/index.js" "$@"
   expect(content).not.toContain('# outdated-path-converters')
 })
 
-// Where no default path is compiled in, as on Nix, command -p searches the
-// caller's PATH, so a shim that resolves every helper through command -p still
+// A helper the default path lacks comes from the caller's PATH, so a shim still
 // needs the node_modules entries dropped from that PATH.
 test('linkBins() replaces a shim that resolves its helpers with node_modules on PATH', async () => {
   const binTarget = temporaryDirectory()
@@ -334,6 +333,35 @@ test('linkBins() replaces a shim that resolves its helpers with node_modules on 
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toContain(helperPathFilterLine)
   expect(content).not.toContain('# outdated-helper-path')
+})
+
+// The default path command -p searches can lack the helpers, as inside a Nix
+// build sandbox, so a shim that resolves them through command -p alone cannot
+// run there.
+test('linkBins() replaces a shim whose helpers have no PATH fallback', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const current = fs.readFileSync(binLocation, 'utf8')
+  expect(current).toContain('  target=$(run_helper readlink "$link")\n')
+  const outdated = current
+    .replaceAll('run_helper readlink', 'command -p readlink')
+    .replaceAll('run_helper printf', 'command -p printf')
+    .replaceAll('run_helper sed', 'command -p sed')
+    .replaceAll('run_helper uname', 'command -p uname')
+  fs.writeFileSync(binLocation, `${outdated}# outdated-helper-fallback\n`, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain('  target=$(run_helper readlink "$link")\n')
+  expect(content).toContain(PRINTF_BASEDIR_LINE)
+  expect(content).not.toContain('# outdated-helper-fallback')
 })
 
 // A shim whose relative target climbs from the lexical shim directory still

@@ -4,6 +4,9 @@
 
 [files]
 extend-exclude = [
+  # Generated SVG IDs and partial terminal-animation frames are not prose.
+  "pnpm/docs/static/img/logos/pnpm-light-no-text.svg",
+  "pnpm/docs/static/img/demos/pnpm-install.svg",
   "pnpm/crates/crypto-shasums-file/src/node_release_keys/*.asc",
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]

@@ -5,7 +5,7 @@
 pub(crate) use peer_specifier::split_peer_suffix_segments;
 pub(super) use peer_specifier::{
     ComparablePeerRange, importer_relative_link_dep_path, link_node_id_as_dep_path, peer_id_pair,
-    peer_segment_names, pkg_name, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
+    peer_segment_names, remap_link_node_id, satisfies_with_prereleases,
 };
 
 mod peer_specifier;
@@ -14,7 +14,7 @@ use peer_specifier::version_gte;
 use crate::{
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, walker::Walker},
-    resolved_tree::{ResolvedPackage, TreeChildren},
+    resolved_tree::{ResolvedPackage, TreeChildren, pkg_name},
 };
 use node_semver::{Range, Version};
 use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
@@ -28,7 +28,7 @@ use std::{
 /// Per-name entry in the propagating [`ParentRefs`] map.
 #[derive(Debug, Clone)]
 pub(super) struct ParentRef {
-    pub(super) version: String,
+    pub(super) version: Arc<str>,
     /// `None` for top-level deps that were already installed. Pacquet
     /// doesn't surface those yet — `None` only appears on the
     /// importer-level cycle-break fallback, where the `name@version`
@@ -64,7 +64,7 @@ pub(super) type ParentRefs = HashMap<String, ParentRef>;
 #[derive(Debug, Clone)]
 pub(super) struct ParentPkgInfo {
     pub(super) pkg_id: Option<Arc<str>>,
-    pub(super) version: Option<String>,
+    pub(super) version: Option<Arc<str>>,
     pub(super) depth: i32,
     pub(super) occurrence: u32,
 }
@@ -215,7 +215,7 @@ impl Walker<'_> {
                 .as_ref()
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
                 .map(|tn| std::sync::Arc::<str>::clone(&tn.resolved_package_id));
-            let version = pkg_id.is_none().then(|| parent_ref.version.clone());
+            let version = pkg_id.is_none().then(|| Arc::clone(&parent_ref.version));
             out.insert(
                 name.clone(),
                 ParentPkgInfo {
@@ -277,14 +277,12 @@ impl Walker<'_> {
         else {
             return false;
         };
-        let (parent_pkg_name, _) = pkg_name_version(&parent_pkg.result);
-
         let conflicting_peers =
             self.conflicting_peer_names(parent_refs, inherited_context, parent_pkg);
         if conflicting_peers.is_empty() {
             return false;
         }
-        self.descendant_binds_conflicting_peer(node_id, &parent_pkg_name, &conflicting_peers)
+        self.descendant_binds_conflicting_peer(node_id, parent_pkg.name(), &conflicting_peers)
     }
 
     /// The peers `parent_pkg` declares that the inherited provider's own
@@ -392,7 +390,7 @@ impl Walker<'_> {
         alias == pkg_name
             || self.tree.packages
                 .get(pkg_id)
-                .is_some_and(|pkg| pkg_name_version(&pkg.result).0 == pkg_name)
+                .is_some_and(|pkg| &**pkg.name() == pkg_name)
     }
 
     /// A node's children as `(alias, package id, node id)`, from its realized
@@ -464,9 +462,9 @@ pub(super) fn insert_parent_ref(
     pkg: &ResolvedPackage,
     depth: i32,
 ) {
-    let (real_name, version) = pkg_name_version(&pkg.result);
+    let real_name: &str = pkg.name();
     let parent_ref = ParentRef {
-        version,
+        version: Arc::clone(pkg.version()),
         node_id: Some(parent_node_id),
         alias: (direct_alias != real_name).then(|| direct_alias.to_string()),
         depth,
@@ -474,7 +472,7 @@ pub(super) fn insert_parent_ref(
     };
     update_parent_refs(refs, direct_alias, &parent_ref);
     if direct_alias != real_name {
-        update_parent_refs(refs, &real_name, &parent_ref);
+        update_parent_refs(refs, real_name, &parent_ref);
     }
 }
 

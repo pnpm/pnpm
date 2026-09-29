@@ -226,7 +226,10 @@ fn inject_workspace_packages_treats_unc_and_tilde_backslash_paths_as_workspace()
         "root",
         "1.0.0",
         r#""dependencies":{"pkg":"workspace:\\\\server\\share\\@scope\\pkg"}"#,
-        |config| config.inject_workspace_packages = true,
+        |config| {
+            config.inject_workspace_packages = true;
+            config.shared_workspace_lockfile = false;
+        },
     );
 
     let decision = check(

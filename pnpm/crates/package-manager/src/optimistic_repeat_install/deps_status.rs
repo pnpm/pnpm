@@ -5,9 +5,10 @@ use super::{
     OptimisticRepeatInstallCheck, Path, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
-    first_project_missing_modules_dir, first_selected_project_missing_modules_dir,
-    first_setting_drift, modified_manifests_match_lockfile, patches_modified_since,
-    pnpmfiles_drift, project_structure_matches,
+    first_project_missing_modules_dir, first_selected_project_missing_from_current_lockfile,
+    first_selected_project_missing_modules_dir, first_setting_drift,
+    modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
+    project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now, relocated_state},
     update_workspace_state,
 };
@@ -182,21 +183,8 @@ fn first_workspace_drift(
     if !project_structure_matches(state, project_manifests) {
         return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
-    // A filtered install legitimately leaves the projects it did not
-    // select without a modules directory, so a state that records one
-    // exempts them. The projects the gated command selected are still
-    // held to it: without that, a filtered run or exec could select a
-    // project the filtered install never materialized and run it without
-    // its dependencies (https://github.com/pnpm/pnpm/issues/11865).
-    let missing_modules_dir = if state.filtered_install {
-        first_selected_project_missing_modules_dir(check, state, selected_project_dirs)
-    } else {
-        first_project_missing_modules_dir(check, state)
-    };
-    if let Some(id) = missing_modules_dir {
-        return Some(format!(
-            "Workspace package {id} has dependencies but does not have a modules directory",
-        ));
+    if let Some(issue) = first_uninstalled_project(check, state, selected_project_dirs) {
+        return Some(issue);
     }
     if !is_workspace_install
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
@@ -208,6 +196,36 @@ fn first_workspace_drift(
         return Some("Patches were modified".to_string());
     }
     pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
+}
+
+/// The issue for the first project the gated command needs installed that
+/// is not.
+///
+/// A filtered install legitimately leaves the projects it did not select
+/// uninstalled, so a state that records one exempts them. The projects the
+/// gated command selected are still held to it: without that, a filtered run
+/// or exec could select a project the filtered install never materialized and
+/// run it without its dependencies
+/// (<https://github.com/pnpm/pnpm/issues/11865>). Their modules directories
+/// alone do not prove that, so they must also be importers of the current
+/// lockfile.
+fn first_uninstalled_project(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
+) -> Option<String> {
+    let missing_modules_dir = |id: String| {
+        format!("Workspace package {id} has dependencies but does not have a modules directory")
+    };
+    if !state.filtered_install {
+        return first_project_missing_modules_dir(check, state).map(missing_modules_dir);
+    }
+    first_selected_project_missing_modules_dir(check, state, selected_project_dirs)
+        .map(missing_modules_dir)
+        .or_else(|| {
+            first_selected_project_missing_from_current_lockfile(check, selected_project_dirs)
+                .map(|id| format!("Workspace package {id} has dependencies but was not installed"))
+        })
 }
 
 /// The verdict the gate can already reach from what the current lockfile

@@ -172,7 +172,7 @@ impl<'a> OnDiskInputs<'a> {
                 graph: self.link_lockfiles(&materialized.materialized_snapshots),
                 packages: pnpm_deps_restorer::LinkPackageData {
                     package_manifests: &materialized.package_manifests,
-                    requires_build_by_snapshot: None,
+                    requires_build_by_snapshot: Some(&materialized.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
                 },
                 prior: self.install.prior.link_state(),

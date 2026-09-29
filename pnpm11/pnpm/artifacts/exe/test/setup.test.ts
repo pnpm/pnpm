@@ -494,6 +494,21 @@ describe('alias bins', () => {
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
     })
 
+    // The default path command -p searches can lack readlink, as inside a Nix
+    // build sandbox. No test host is set up that way, so the alias's command -p
+    // is rewritten to a command that searches a directory that does not exist.
+    aliasTest(`${name} resolves a symlink with a readlink from PATH when the default path lacks one`, () => {
+      const sandbox = buildAliasSandbox()
+      const alias = path.join(sandbox, name)
+      fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
+      const binDir = path.join(sandbox, 'global-bin')
+      writeStub(path.join(binDir, 'pnpm'), 'decoy')
+      fs.symlinkSync(alias, path.join(binDir, name))
+
+      const result = runAlias(path.join(binDir, name), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
     // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
     // path, which has no slash for ${self%/*} to strip. Only a drive letter or a
     // UNC prefix marks one, since a backslash is an ordinary character in a Unix

@@ -111,7 +111,10 @@ importers:
             manifest,
             importer_id: ".",
             config,
-            workspace_packages: None,
+            workspace: super::WorkspaceProjects {
+                packages: None,
+                manifests_by_dir: Box::leak(Box::default()),
+            },
             optional_exclusions: super::OptionalDependencyExclusions { ignored, allow_unresolved },
             parsed_overrides: None,
         }

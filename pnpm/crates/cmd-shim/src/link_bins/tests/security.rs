@@ -385,7 +385,7 @@ fn a_reinstall_replaces_a_shim_that_converts_paths_with_a_helper_from_the_caller
         "precondition: the outdated shim carries a matching target marker",
     );
     assert!(
-        outdated.contains(r#"  target=$(command -p readlink "$link")"#),
+        outdated.contains(r#"  target=$(run_helper readlink "$link")"#),
         "precondition: the other helpers already resolve off the system path",
     );
     assert!(
@@ -447,5 +447,51 @@ fn a_reinstall_replaces_a_shim_that_resolves_helpers_with_node_modules_on_path()
         is_sh_shim_hardened(&body),
         "the reinstall must replace a shim that keeps node_modules on the helpers' PATH, \
          body was:\n{body}",
+    );
+}
+
+/// A shim can resolve every helper through `command -p` alone, which finds
+/// nothing where the default path lacks the helpers, as inside a Nix build
+/// sandbox. The target marker matches, so a warm reinstall has to notice the
+/// missing fallback and replace the shim.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_whose_helpers_have_no_path_fallback() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let outdated = generate_sh_shim(&target, &shim, None, &[], None)
+        .replace("run_helper readlink", "command -p readlink")
+        .replace("run_helper printf", "command -p printf")
+        .replace("run_helper sed", "command -p sed")
+        .replace("run_helper uname", "command -p uname");
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &shim, &target),
+        "precondition: the outdated shim carries a matching target marker",
+    );
+    assert!(
+        !is_sh_shim_hardened(&outdated),
+        "precondition: helpers without a fallback are not current",
+    );
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(is_shim_pointing_at(&body, &shim, &target), "the rewritten shim keeps its target");
+    assert!(
+        is_sh_shim_hardened(&body),
+        "the reinstall must replace a shim whose helpers have no PATH fallback, body was:\n{body}",
     );
 }

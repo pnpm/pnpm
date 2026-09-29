@@ -235,6 +235,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
     fn make_ctx<'a>(
         &'a self,
         layout: &'a VirtualStoreLayout,
+        dir_clone_cache: Option<&'a pnpm_deps_restorer::DirCloneCache<'a>>,
         allow_build_policy: &'a AllowBuildPolicy,
     ) -> pnpm_deps_restorer::InstallContext<'a> {
         fresh_install_context(
@@ -242,6 +243,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             &self.shape,
             &self.stores.caches,
             layout,
+            dir_clone_cache,
             allow_build_policy,
         )
     }
@@ -312,17 +314,13 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         let sink = self.resources.deps_requiring_build_sink.take();
         let writer = self.stores.take_writer();
         let store = self.make_store(writer, plan.dir_clone_cache.as_ref());
-        let ctx = self.make_ctx(&plan.layout, allow_build_policy);
+        let ctx = self.make_ctx(&plan.layout, plan.dir_clone_cache.as_ref(), allow_build_policy);
         let runtime = on_disk_runtime(
             plan.host_node.as_ref(),
             plan.engine_name.take(),
             plan.deferred_engine_name.take(),
         );
-        let projects = on_disk_projects(
-            scope.lockfile(built_lockfile),
-            &self.resolved.importer_manifests,
-            &scope.project_anchor_importer_ids,
-        );
+        let projects = scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests);
         let inputs = OnDiskInputs {
             install: self.install,
             ctx: &ctx,
@@ -352,23 +350,12 @@ fn on_disk_runtime(
     }
 }
 
-fn on_disk_projects<'a>(
-    materialization_lockfile: &'a Lockfile,
-    importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
-    project_anchor_importer_ids: &'a std::collections::HashSet<String>,
-) -> crate::install_with_fresh_lockfile::on_disk::OnDiskProjects<'a> {
-    crate::install_with_fresh_lockfile::on_disk::OnDiskProjects {
-        materialization_lockfile,
-        importer_manifests,
-        project_anchor_importer_ids,
-    }
-}
-
 pub(super) fn fresh_install_context<'b>(
     install: FreshInputs<'b>,
     shape: &'b InstallShape,
     caches: &'b resolver_setup::StoreCaches,
     layout: &'b VirtualStoreLayout,
+    dir_clone_cache: Option<&'b pnpm_deps_restorer::DirCloneCache<'b>>,
     allow_build_policy: &'b AllowBuildPolicy,
 ) -> pnpm_deps_restorer::InstallContext<'b> {
     pnpm_deps_restorer::InstallContext {
@@ -383,6 +370,6 @@ pub(super) fn fresh_install_context<'b>(
         allow_build_policy,
         logged_methods: install.drivers.logged_methods,
         git_source_cache: &caches.git_source_cache,
-        dir_clone_cache: None,
+        dir_clone_cache,
     }
 }

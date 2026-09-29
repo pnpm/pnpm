@@ -28,6 +28,14 @@ When a shared bug fix cannot be completed in both stacks in the same PR, call ou
 
 The pacquet-side version policy is in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#version-policy).
 
+## Website documentation
+
+User documentation lives in `pnpm/docs/` for v12, `pnpm11/docs/` for v11,
+and `pnpr/docs/` for the registry. Update
+the affected version's docs and sidebar in the same PR as a behavior change.
+See [DOCUMENTATION.md](./DOCUMENTATION.md) for local previews and release publishing.
+The blog and website application remain in pnpm/pnpm.io.
+
 ## Repository Structure
 
 The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:

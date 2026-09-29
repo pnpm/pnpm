@@ -16,8 +16,8 @@ use lockfile::{
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use package_manager::{inherit_package_manager, write_inherited_package_manager};
 use peers::{
-    bind_singleton_peers, deploy_peer_edges, omit_peers_of_excluded_dependencies,
-    prune_deploy_lockfile_graph,
+    LinkedWorkspaceProject, bind_singleton_peers, deploy_peer_edges,
+    omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_directory_fetcher::DirectoryFetcher;
@@ -39,9 +39,9 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use resolution::{
-    ResolveBases, convert_package_key, convert_package_metadata, convert_resolved_dependency_spec,
-    convert_snapshot, create_file_url_key, project_snapshot_to_snapshot_entry,
-    validate_lockfile_local_path,
+    ResolveBases, convert_importer_version_to_snapshot_ref, convert_package_key,
+    convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
+    create_file_url_key, project_snapshot_to_snapshot_entry, validate_lockfile_local_path,
 };
 use serde_json::{Map, Value};
 use std::{

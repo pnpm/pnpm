@@ -156,7 +156,7 @@ fn convert_importer_dep_version(
     Ok(version.clone())
 }
 
-fn convert_importer_version_to_snapshot_ref(
+pub(super) fn convert_importer_version_to_snapshot_ref(
     alias: &PkgName,
     version: &ImporterDepVersion,
     ctx: &ConvertCtx,

@@ -28,7 +28,7 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
+        Arc, LazyLock, Mutex,
         atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
     },
     time::Duration,
@@ -204,9 +204,14 @@ impl SlotJob {
         }
         let shared = Arc::clone(shared);
         let package_url = std::mem::take(&mut self.package_url);
-        let outcome =
-            tokio::task::spawn_blocking(move || self.import_slot::<Reporter>(&shared, &cas_paths))
-                .await;
+        let outcome = tokio::task::spawn_blocking(move || {
+            let import = || self.import_slot::<Reporter>(&shared, &cas_paths);
+            match early_link_pool() {
+                Some(pool) => pool.install(import),
+                None => import(),
+            }
+        })
+        .await;
         match outcome {
             Ok(Ok(())) => {}
             Ok(Err(error)) => tracing::debug!(
@@ -258,6 +263,40 @@ impl SlotJob {
         shared.materialized.fetch_add(1, Ordering::AcqRel);
         Ok::<(), String>(())
     }
+}
+
+/// Dedicated rayon pool for the imports that run while resolution is
+/// still going, sized by [`early_link_pool_size`].
+///
+/// The global pool is sized for the link phase, at up to two threads per
+/// core. On it, these imports compete with the resolver, which is the
+/// critical path until it finishes (pnpm/tasks#52). `None` if the pool
+/// cannot be built. The caller then runs the import on its own thread,
+/// and the import's parallel iterator runs on the global pool.
+fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
+        let parallelism =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(early_link_pool_size(rayon::current_num_threads(), parallelism))
+            .thread_name(|index| format!("early-link-{index}"))
+            .build()
+            .map_err(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "failed to build the early-materialization pool; falling back to the global rayon pool",
+                );
+            })
+            .ok()
+    });
+    POOL.as_ref()
+}
+
+/// One thread per core, never more than the global pool has. The global
+/// pool carries the CLI's ceiling, or the caller's `RAYON_NUM_THREADS`.
+fn early_link_pool_size(global_pool_threads: usize, parallelism: usize) -> usize {
+    global_pool_threads.min(parallelism).max(1)
 }
 
 /// Wait for the prefetch of `mem_cache_key` to land its CAS path map in

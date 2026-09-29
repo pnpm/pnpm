@@ -1,4 +1,4 @@
-use super::{EarlyMaterializer, lock};
+use super::{EarlyMaterializer, early_link_pool_size, lock};
 use pnpm_config::Config;
 use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_reporter::SilentReporter;
@@ -89,4 +89,11 @@ fn finalized_package(name: &str, version: &str) -> FinalizedPackage {
         }),
         children: Vec::new(),
     }
+}
+
+#[test]
+fn early_link_pool_is_one_per_core_within_the_global_pool() {
+    let global_and_cores = [(16, 8), (16, 32), (4, 2), (2, 10), (0, 0)];
+    let sizes = global_and_cores.map(|(global, cores)| early_link_pool_size(global, cores));
+    assert_eq!(sizes, [8, 16, 2, 2, 1]);
 }

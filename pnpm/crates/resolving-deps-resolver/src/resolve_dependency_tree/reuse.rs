@@ -29,7 +29,7 @@ use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{DirectDep, PeerDep, ResolvedPackage},
+    resolved_tree::{AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput},
 };
 
 use super::{
@@ -451,14 +451,15 @@ where
     let alias = node_alias(&wanted, &result, &id);
     let identity = reused_identity(ctx, &id, &result, &reused.key)?;
 
-    if register_reused_package(
+    let (id, created) = register_reused_package(
         ctx,
-        &id,
+        id,
         &result,
         identity.peer_dependencies,
         current_is_optional,
         identity.is_leaf,
-    ) {
+    );
+    if created {
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
 
@@ -547,34 +548,35 @@ where
 }
 
 /// Insert a reused package into the workspace's package table, answering
-/// whether this occurrence is the one that created it.
+/// with the table's `Arc` of the id and whether this occurrence is the one
+/// that created the entry.
 fn register_reused_package(
     ctx: &TreeCtx,
-    id: &str,
+    id: String,
     result: &Arc<pnpm_resolving_resolver_base::ResolveResult>,
     peer_dependencies: BTreeMap<String, PeerDep>,
     current_is_optional: bool,
     is_leaf: bool,
-) -> bool {
+) -> (Arc<str>, bool) {
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
-    if let Some(existing) = packages.get_mut(id) {
+    if let Some(existing) = packages.get_mut(id.as_str()) {
         existing.optional = existing.optional && current_is_optional;
-        return false;
+        return (Arc::clone(&existing.id), false);
     }
     record_peer_dep_names(ctx, &peer_dependencies);
-    ctx.workspace.record_package_write(id);
+    ctx.workspace.record_package_write(&id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
         Arc::<str>::clone(&shared_id),
-        ResolvedPackage {
-            id: shared_id,
+        ResolvedPackage::new(ResolvedPackageInput {
+            id: Arc::<str>::clone(&shared_id),
             result: Arc::clone(result),
             peer_dependencies,
             optional: current_is_optional,
             is_leaf,
-        },
+        }),
     );
-    true
+    (shared_id, true)
 }
 
 fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {

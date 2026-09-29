@@ -21,13 +21,16 @@ export async function storePrune (
   }
 
   try {
-    await opts.storeController.prune(opts.removeAlienFiles)
-
+    // The dlx cache holds hard links into the store and registers its
+    // installs as projects, so it is cleaned first to let this prune
+    // reclaim what the expired entries used.
     await cleanExpiredDlxCache({
       cacheDir: opts.cacheDir,
       dlxCacheMaxAge: opts.dlxCacheMaxAge,
       now: new Date(),
     })
+
+    await opts.storeController.prune(opts.removeAlienFiles)
 
     if (opts.globalPkgDir) {
       cleanOrphanedInstallDirs(opts.globalPkgDir)
