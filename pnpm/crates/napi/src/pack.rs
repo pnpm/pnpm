@@ -112,6 +112,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
+            bumped_workspace_packages: None,
         },
         output: pnpm_pack::PackOutputOptions {
             gzip_level: options.pack_gzip_level,
