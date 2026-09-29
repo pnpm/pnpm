@@ -66,3 +66,21 @@ fn throws_if_default_catalog_is_defined_multiple_times() {
 fn returns_empty_map_for_missing_workspace_manifest() {
     assert_eq!(get_catalogs_from_workspace_manifest(None).unwrap(), Catalogs::new());
 }
+
+#[test]
+fn declared_catalogs_override_inherited_ones_entry_by_entry() {
+    let manifest = WorkspaceManifest {
+        catalog: Some(catalog_from(&[("foo", "2.0.0")])),
+        inherited_catalogs: Catalogs::from([
+            ("default".to_string(), catalog_from(&[("foo", "1.0.0"), ("bar", "1.0.0")])),
+            ("react18".to_string(), catalog_from(&[("react", "^18.0.0")])),
+        ]),
+        ..WorkspaceManifest::default()
+    };
+
+    let expected = Catalogs::from([
+        ("default".to_string(), catalog_from(&[("bar", "1.0.0"), ("foo", "2.0.0")])),
+        ("react18".to_string(), catalog_from(&[("react", "^18.0.0")])),
+    ]);
+    assert_eq!(get_catalogs_from_workspace_manifest(Some(&manifest)).unwrap(), expected);
+}

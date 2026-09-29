@@ -29,7 +29,7 @@ use std::fs;
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
     Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy, build_resolution_verifiers,
-    configured_or_discovered_workspace_dir, lockfile_root_dir,
+    catalogs_manifest_dir, lockfile_root_dir,
 };
 use pnpm_config::Config;
 
@@ -249,9 +249,8 @@ impl InstallView<'_> {
             .path()
             .parent()
             .expect("manifest path always has a parent dir");
-        let Some(workspace_dir) =
-            configured_or_discovered_workspace_dir(self.context.config, manifest_dir)
-                .map_err(InstallError::FindWorkspaceDir)?
+        let Some(workspace_dir) = catalogs_manifest_dir(self.context.config, manifest_dir)
+            .map_err(InstallError::FindWorkspaceDir)?
         else {
             return Ok(None);
         };

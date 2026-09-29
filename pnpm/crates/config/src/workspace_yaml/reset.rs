@@ -238,6 +238,7 @@ impl WorkspaceSettings {
             "registries"
             | "namedRegistries"
             | "catalog"
+            | "extends"
             | "onlyBuiltDependencies"
             | "neverBuiltDependencies"
             | "ignoredBuiltDependencies"

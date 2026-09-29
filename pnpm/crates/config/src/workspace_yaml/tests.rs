@@ -37,6 +37,7 @@ const UNREPORTED_SETTINGS: &[&str] = &[
     "registries",
     "namedRegistries",
     "catalog",
+    "extends",
     "onlyBuiltDependencies",
     "neverBuiltDependencies",
     "ignoredBuiltDependencies",

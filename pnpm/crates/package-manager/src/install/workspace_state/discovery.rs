@@ -65,7 +65,9 @@ pub fn check_deps_status_before_run_at(
         return cannot_check_deps();
     };
     let workspace_manifest = workspace_manifest.flatten();
-    let config = gate_config(config, manifest_dir, &manifest);
+    let Some(config) = gate_config(config, manifest_dir, &manifest) else {
+        return cannot_check_deps();
+    };
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
@@ -131,21 +133,23 @@ pub fn deps_install_root(dir: &Path, config: &Config) -> std::path::PathBuf {
         .flatten()
         .unwrap_or_else(|| dir.to_path_buf())
 }
+/// `None` when the project's own catalogs are unreadable, which the
+/// install the gate then runs reports.
 fn gate_config<'a>(
     config: &'a Config,
     manifest_dir: &Path,
     manifest: &PackageManifest,
-) -> Cow<'a, Config> {
+) -> Option<Cow<'a, Config>> {
     if config.shares_one_lockfile() {
-        Cow::Borrowed(config)
+        Some(Cow::Borrowed(config))
     } else {
         let mut project_config = config.clone();
         let project_name = manifest
             .value()
             .get("name")
             .and_then(serde_json::Value::as_str);
-        project_config.anchor_dedicated_project(manifest_dir, project_name);
-        Cow::Owned(project_config)
+        project_config.anchor_dedicated_project(manifest_dir, project_name).ok()?;
+        Some(Cow::Owned(project_config))
     }
 }
 pub(super) fn cannot_check_deps() -> Option<crate::RunDepsStatus> {

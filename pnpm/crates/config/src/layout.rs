@@ -4,6 +4,7 @@ use super::{
     WorkspaceSettings, collect_explicit_settings, create_matcher, default_store_dir,
     esm_node_path_loader, get_branches_containing_head, get_current_branch, store_path,
 };
+use crate::ProjectCatalogsError;
 
 impl Config {
     /// Resolve relative patch file paths in
@@ -195,15 +196,25 @@ impl Config {
     /// config reading it, so a workspace-scale run spends no manifest
     /// read here: the plans that install several projects already hold
     /// every manifest they discovered.
-    pub fn anchor_dedicated_project(&mut self, project_dir: &Path, project_name: Option<&str>) {
+    ///
+    /// A project with a `pnpm-workspace.yaml` of its own also resolves
+    /// `catalog:` against that manifest's catalogs, as it does when it is
+    /// installed on its own; see [`Self::adopt_project_catalogs`].
+    pub fn anchor_dedicated_project(
+        &mut self,
+        project_dir: &Path,
+        project_name: Option<&str>,
+    ) -> Result<(), ProjectCatalogsError> {
         self.anchor_lockfile_paths(project_dir);
+        self.adopt_project_catalogs(project_dir)?;
         let Some(project_config) = project_name
             .and_then(|name| self.package_configs.as_ref()?.get(name))
             .cloned()
         else {
-            return;
+            return Ok(());
         };
         project_config.apply_to(self, project_dir);
+        Ok(())
     }
 
     /// The path, relative to a project's directory, of the modules

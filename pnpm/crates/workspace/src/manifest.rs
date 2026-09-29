@@ -9,10 +9,12 @@
 //! (`pnpm_config` is not a dependency of this crate, so it is not
 //! linked here.)
 
+mod extends;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_catalogs_types::{Catalog, Catalogs};
-use serde::Deserialize;
+use pnpm_catalogs_types::{Catalog, Catalogs, DEFAULT_CATALOG_NAME};
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{self, ErrorKind},
@@ -56,6 +58,56 @@ pub struct WorkspaceManifest {
     /// the explicit form over the top-level [`Self::catalog`] field.
     #[serde(default)]
     pub catalogs: Option<Catalogs>,
+
+    /// Other workspace manifests whose catalogs this one inherits: a
+    /// directory holding a `pnpm-workspace.yaml`, the path of one, or a
+    /// glob matching several. Relative paths start at this manifest's
+    /// directory.
+    #[serde(default)]
+    pub extends: Option<WorkspaceExtends>,
+
+    /// The catalogs of the manifests [`Self::extends`] names, which
+    /// [`read_workspace_manifest`] resolves. The catalogs this manifest
+    /// declares itself win over them.
+    #[serde(skip)]
+    pub inherited_catalogs: Catalogs,
+}
+
+/// The `extends` field of `pnpm-workspace.yaml`: one reference or a list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkspaceExtends {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl WorkspaceExtends {
+    /// The references, in the order they are listed.
+    #[must_use]
+    pub fn entries(&self) -> &[String] {
+        match self {
+            WorkspaceExtends::One(entry) => std::slice::from_ref(entry),
+            WorkspaceExtends::Many(entries) => entries,
+        }
+    }
+}
+
+impl WorkspaceManifest {
+    /// The catalogs this manifest declares itself, through `catalog` and
+    /// `catalogs`, without the ones it inherits. `catalogs.default` wins
+    /// over `catalog`; `pnpm_catalogs_config` rejects a manifest that
+    /// declares both.
+    #[must_use]
+    pub fn declared_catalogs(&self) -> Catalogs {
+        let mut catalogs = Catalogs::new();
+        if let Some(default) = &self.catalog {
+            catalogs.insert(DEFAULT_CATALOG_NAME.to_string(), default.clone());
+        }
+        if let Some(named) = &self.catalogs {
+            catalogs.extend(named.clone());
+        }
+        catalogs
+    }
 }
 
 /// Raised when `pnpm-workspace.yaml` parses as YAML but fails a shape
@@ -72,6 +124,10 @@ pub struct WorkspaceManifest {
 pub enum InvalidWorkspaceManifestError {
     #[display("Missing or empty package")]
     EmptyPackageEntry,
+    #[display(r#"The "extends" field lists an empty path"#)]
+    EmptyExtendsEntry,
+    #[display(r#"Invalid pattern "{pattern}" in the "extends" field: {message}"#)]
+    InvalidExtendsPattern { pattern: String, message: String },
 }
 
 /// Error type of [`read_workspace_manifest`].
@@ -92,6 +148,27 @@ pub enum ReadWorkspaceManifestError {
     },
     #[diagnostic(transparent)]
     Invalid(#[error(source)] InvalidWorkspaceManifestError),
+    #[display(
+        r#"Cannot find a pnpm-workspace.yaml file in "{}", which is referenced by the "extends" field of the workspace at "{}""#,
+        dir.display(),
+        referenced_by.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_EXTENDS_NOT_FOUND))]
+    ExtendsNotFound { dir: PathBuf, referenced_by: PathBuf },
+    #[display(
+        r#"Circular workspace "extends" reference detected. The workspace at "{}" eventually extends itself"#,
+        dir.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_EXTENDS_CYCLE))]
+    ExtendsCycle { dir: PathBuf },
+    #[display(
+        "The 'default' catalog was defined multiple times in {}. Use the 'catalog' field or 'catalogs.default', but not both.",
+        path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_CATALOGS_CONFIGURATION))]
+    ExtendedDefaultCatalogDefinedTwice { path: PathBuf },
+    #[display("Failed to look for workspace manifests matching {pattern}: {message}")]
+    WalkExtendsPattern { pattern: String, message: String },
 }
 
 /// Resolve `pnpm-workspace.yaml` `packages:` into the workspace package
@@ -103,12 +180,23 @@ pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
         .unwrap_or_else(|| vec![".".to_string()])
 }
 
-/// Read and validate the `pnpm-workspace.yaml` under `dir`.
+/// Read and validate the `pnpm-workspace.yaml` under `dir`, resolving the
+/// catalogs it inherits through `extends` into
+/// [`WorkspaceManifest::inherited_catalogs`].
 ///
 /// Returns `Ok(None)` when the file does not exist (`ENOENT` means "no
 /// manifest", not an error). Every other read or parse failure
 /// propagates.
 pub fn read_workspace_manifest(
+    dir: &Path,
+) -> Result<Option<WorkspaceManifest>, ReadWorkspaceManifestError> {
+    let Some(mut manifest) = read_declared_workspace_manifest(dir)? else { return Ok(None) };
+    manifest.inherited_catalogs = extends::inherited_catalogs(dir, &manifest)?;
+    Ok(Some(manifest))
+}
+
+/// [`read_workspace_manifest`] without resolving `extends`.
+fn read_declared_workspace_manifest(
     dir: &Path,
 ) -> Result<Option<WorkspaceManifest>, ReadWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
@@ -151,6 +239,19 @@ pub fn parse_workspace_manifest(
                 ));
             }
         }
+    }
+    if manifest.extends
+        .as_ref()
+        .is_some_and(|extends| {
+            extends
+                .entries()
+                .iter()
+                .any(String::is_empty)
+        })
+    {
+        return Err(ReadWorkspaceManifestError::Invalid(
+            InvalidWorkspaceManifestError::EmptyExtendsEntry,
+        ));
     }
 
     Ok(manifest)

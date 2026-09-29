@@ -121,6 +121,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     report_nested_workspace_manifests::<Reporter>(
         &selection.workspace_root,
         selection.selected_dirs.iter().map(PathBuf::as_path),
+        !cfg.shares_one_lockfile(),
     );
     let plan = if cfg.shares_one_lockfile() {
         InstallFamilyPlan::Shared(Box::new(selection))

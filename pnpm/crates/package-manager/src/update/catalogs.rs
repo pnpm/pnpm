@@ -155,9 +155,8 @@ pub(super) fn read_catalog_ctx(
         .parent()
         .expect("manifest path always has a parent dir")
         .to_path_buf();
-    let workspace_dir_opt =
-        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
-            .map_err(UpdateError::FindWorkspaceDir)?;
+    let workspace_dir_opt = crate::install::catalogs_manifest_dir(config, &manifest_dir)
+        .map_err(UpdateError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
         catalogs
     } else {
@@ -186,9 +185,8 @@ pub(super) fn read_catalog_ctx_with_catalogs(
         .parent()
         .expect("manifest path always has a parent dir")
         .to_path_buf();
-    let workspace_dir_opt =
-        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
-            .map_err(UpdateError::FindWorkspaceDir)?;
+    let workspace_dir_opt = crate::install::catalogs_manifest_dir(config, &manifest_dir)
+        .map_err(UpdateError::FindWorkspaceDir)?;
     let prefix = workspace_dir_opt
         .as_deref()
         .unwrap_or(&manifest_dir)

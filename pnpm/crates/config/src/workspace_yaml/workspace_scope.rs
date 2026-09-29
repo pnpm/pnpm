@@ -75,6 +75,7 @@ impl WorkspaceSettings {
         // repository's hooks on one machine and resolve a different graph.
         self.ignore_pnpmfile = None;
         self.catalogs = None;
+        self.extends = None;
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;

@@ -16,7 +16,7 @@ pub(in super::super) fn patch<'a>(
     let manifest_path = ctx.locations.manifest_path;
     let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
+        let config = installed_project_config(config.await?, manifest_path)?;
         let command_state = State::init(manifest_path.to_path_buf(), config, false)
             .wrap_err("initialize the state")?;
         match effective_reporter.load(Ordering::Relaxed).into() {
@@ -58,7 +58,7 @@ fn reresolving_state(
     let mut config = config.clone();
     config.patched_dependencies = Some(patched_dependencies);
     if keeps_project_lockfiles(&config) {
-        anchor_active_project(&mut config, manifest_path);
+        anchor_active_project(&mut config, manifest_path)?;
     }
     config.workspace_dir.get_or_insert_with(|| dir.to_path_buf());
     State::init(manifest_path.to_path_buf(), Config::leak(config), false)
@@ -77,7 +77,7 @@ pub(in super::super) fn patch_commit<'a>(
             Box::pin(async move {
                 let state = State::init(
                     manifest_path.to_path_buf(),
-                    installed_project_config($config, manifest_path),
+                    installed_project_config($config, manifest_path)?,
                     false,
                 )
                 .wrap_err("initialize the state")?;

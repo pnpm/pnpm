@@ -120,7 +120,9 @@ fn init_dedicated_project_state(
     http_client: Option<Arc<ThrottledClient>>,
 ) -> miette::Result<State> {
     let mut project_config = cfg.clone();
-    project_config.anchor_dedicated_project(project_dir, project_name);
+    project_config
+        .anchor_dedicated_project(project_dir, project_name)
+        .map_err(miette::Report::new)?;
     let project_config = Config::leak(project_config);
     let manifest_path = project_dir.join("package.json");
     match http_client {

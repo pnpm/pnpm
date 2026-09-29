@@ -1653,7 +1653,16 @@ pub struct Config {
     /// hook produced (existing + injected), so consumers use it as-is
     /// — the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
+    ///
+    /// A project of a workspace whose projects keep their own lockfiles
+    /// that has a `pnpm-workspace.yaml` of its own gets that manifest's
+    /// catalogs here instead; see [`Self::anchor_dedicated_project`].
     pub catalogs: Option<pnpm_catalogs_types::Catalogs>,
+
+    /// The directory of the project's own `pnpm-workspace.yaml` when
+    /// [`Self::catalogs`] holds that manifest's catalogs. `None` when the
+    /// catalogs are the workspace's. Read through [`Self::catalogs_dir`].
+    pub project_catalogs_dir: Option<PathBuf>,
 
     /// Name of the catalog `pnpm add` saves a new dependency into,
     /// set by `--save-catalog-name=<name>` (with `--save-catalog` a

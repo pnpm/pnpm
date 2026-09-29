@@ -9,7 +9,7 @@
 //! configured workspace concurrency.
 
 use crate::cli_args::{
-    catalogs::configured_catalogs,
+    catalogs::{configured_catalogs, use_own_project_catalogs},
     install::resolve_bool_override,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
@@ -141,6 +141,7 @@ impl PackArgs {
                 workspace_packages: None,
             };
             let mut options = self.pack_options(dir.to_path_buf(), config, shared);
+            use_own_project_catalogs(&mut options.manifest, config, dir)?;
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options).await
                 .map_err(miette::Report::new)
@@ -155,6 +156,7 @@ impl PackArgs {
         project: &pnpm_workspace::Project,
         mut options: PackOptions,
     ) -> miette::Result<pnpm_pack::PackResult> {
+        use_own_project_catalogs(&mut options.manifest, config, &project.root_dir)?;
         set_injected_changelog(&mut options, config, &project.root_dir).await?;
         api::<Reporter, Host>(&options).await
             .map_err(miette::Report::new)

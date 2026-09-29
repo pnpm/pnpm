@@ -110,7 +110,7 @@ impl AddPipeline {
             && !self.cfg.shares_one_lockfile()
             && self.cfg.workspace_dir.is_some()
         {
-            anchor_active_project(self.cfg, &self.manifest_path);
+            anchor_active_project(self.cfg, &self.manifest_path)?;
         }
         let cfg: &'static Config = self.cfg;
         let state = State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
@@ -183,7 +183,7 @@ fn prepare_ecosystem_add<Reporter: self::Reporter>(
     has_node_packages: bool,
 ) -> miette::Result<EcosystemAddSetup> {
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
-        anchor_dedicated_add_target(cfg, manifest_path);
+        anchor_dedicated_add_target(cfg, manifest_path)?;
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
@@ -220,13 +220,13 @@ fn unmatched_after_ecosystems(
 
 /// Anchor the dedicated-lockfile project the npm half of the add writes to,
 /// so its outputs land beside its own manifest.
-fn anchor_dedicated_add_target(cfg: &mut Config, manifest_path: &Path) {
+fn anchor_dedicated_add_target(cfg: &mut Config, manifest_path: &Path) -> miette::Result<()> {
     let manifest_dir = manifest_path
         .parent()
         .expect("manifest path always has a parent dir")
         .to_path_buf();
     let name = dedicated_project_name(cfg, &manifest_dir);
-    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref()).map_err(miette::Report::new)
 }
 
 async fn run_mixed_add<Reporter: self::Reporter + 'static>(
@@ -307,7 +307,7 @@ impl UpdatePipeline {
             && !self.cfg.shares_one_lockfile()
             && self.cfg.workspace_dir.is_some()
         {
-            anchor_active_project(self.cfg, &self.manifest_path);
+            anchor_active_project(self.cfg, &self.manifest_path)?;
         }
         let generate_changeset = if self.args.save.changeset {
             true
@@ -419,7 +419,7 @@ impl RemovePipeline {
                 // mutates only the active project, whose outputs anchor at the
                 // project dir.
                 if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() {
-                    anchor_active_project(cfg, &manifest_path);
+                    anchor_active_project(cfg, &manifest_path)?;
                 }
                 let cfg: &'static Config = cfg;
                 let state =

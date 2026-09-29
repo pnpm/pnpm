@@ -349,7 +349,7 @@ pub(in super::super) fn approve_builds<'a>(
     }
     let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
+        let config = installed_project_config(config.await?, manifest_path)?;
         match effective_reporter.load(Ordering::Relaxed).into() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 run_approve_builds!(DefaultReporter, config).await

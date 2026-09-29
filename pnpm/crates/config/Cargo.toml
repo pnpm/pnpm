@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpr-registry = { workspace = true }
 pnpm-matcher = { workspace = true }
+pnpm-catalogs-config = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config-dir = { workspace = true }
 pnpm-detect-libc = { workspace = true }

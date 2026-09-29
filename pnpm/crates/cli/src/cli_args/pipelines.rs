@@ -329,13 +329,16 @@ fn project_dependencies(
         .collect()
 }
 
-pub(in crate::cli_args) fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
+pub(in crate::cli_args) fn anchor_active_project(
+    cfg: &mut Config,
+    manifest_path: &Path,
+) -> miette::Result<()> {
     let manifest_dir = manifest_path
         .parent()
         .expect("manifest path always has a parent dir")
         .to_path_buf();
     let name = dedicated_project_name(cfg, &manifest_dir);
-    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref()).map_err(miette::Report::new)
 }
 
 /// The config through which a command finds the installed packages of the
@@ -345,13 +348,13 @@ pub(in crate::cli_args) fn anchor_active_project(cfg: &mut Config, manifest_path
 pub(in crate::cli_args) fn installed_project_config(
     config: &'static Config,
     manifest_path: &Path,
-) -> &'static Config {
+) -> miette::Result<&'static Config> {
     if !keeps_project_lockfiles(config) {
-        return config;
+        return Ok(config);
     }
     let mut config = config.clone();
-    anchor_active_project(&mut config, manifest_path);
-    Config::leak(config)
+    anchor_active_project(&mut config, manifest_path)?;
+    Ok(Config::leak(config))
 }
 
 pub(in crate::cli_args) fn keeps_project_lockfiles(config: &Config) -> bool {
