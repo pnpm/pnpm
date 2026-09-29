@@ -60,7 +60,7 @@ may override that if necessary.
 
 ### --workspace-concurrency
 
-* Default: **4**
+* Default: **the smaller of 4 and the number of available CPU cores**
 * Type: **Number**
 
 Set the maximum number of tasks to run simultaneously. For unlimited concurrency

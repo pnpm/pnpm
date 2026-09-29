@@ -334,7 +334,7 @@ When set to `true`, installation will fail if the workspace has cycles.
 
 ### workspaceConcurrency
 
-* Default: **4**
+* Default: **the smaller of 4 and the number of available CPU cores**
 * Type: **Number**
 
 Controls how many workspace tasks run at once. See
