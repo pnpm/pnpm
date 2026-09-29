@@ -191,6 +191,7 @@ impl WorkspaceSettings {
                 config.prefer_symlinked_executables = None;
                 config.apply_prefer_symlinked_executables_derivation();
             }
+            "preserveBinName" => config.preserve_bin_name = defaults.preserve_bin_name,
             "virtualStoreOnly" => {
                 config.virtual_store_only = defaults.virtual_store_only;
                 leave_virtual_store_only(config);

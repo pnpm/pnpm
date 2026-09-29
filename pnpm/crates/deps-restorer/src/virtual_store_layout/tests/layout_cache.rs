@@ -28,12 +28,22 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
                        engine: Option<&str>,
                        policy: Option<&crate::AllowBuildPolicy>,
                        dir: Option<&Path>| {
-        super::super::GvsHasher::new(snapshots, Some(packages), engine, policy, dir)
+        super::super::GvsHasher::new(snapshots, Some(packages), engine, false, policy, dir)
             .fingerprint(snapshots)
     };
     let baseline =
         fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir));
+    let preserve = super::super::GvsHasher::new(
+        &snapshots,
+        Some(&packages),
+        Some("linux;x64;22"),
+        true,
+        Some(&policy),
+        Some(&dir),
+    )
+    .fingerprint(&snapshots);
 
+    assert_ne!(baseline, preserve, "the bin layout must partition the cached suffix map");
     assert_eq!(
         baseline,
         fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir)),

@@ -21,6 +21,8 @@ pub(super) struct LinkingPaths<'a> {
     /// [`sh_shim_path`](Self::sh_shim_path) keeps the lexical drive either way.
     physical_bins_dir: Cow<'a, Path>,
     pub(super) relocatable_root: Option<PathBuf>,
+    pub(super) preserve_bin_name: bool,
+    pub(super) cleanup_aliases: bool,
     pub(super) project_node_path: Option<String>,
     pub(super) extra_node_paths: Cow<'a, [String]>,
 }
@@ -38,6 +40,8 @@ impl<'a> LinkingPaths<'a> {
                 Cow::Borrowed(bins_dir)
             },
             relocatable_root: None,
+            preserve_bin_name: options.preserve_bin_name,
+            cleanup_aliases: false,
             project_node_path: project_modules_dir(bins_dir, options)
                 .map(|dir| dir.to_string_lossy().into_owned()),
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
@@ -46,10 +50,12 @@ impl<'a> LinkingPaths<'a> {
             .as_deref()
             .filter(|_| cfg!(unix))
         else {
+            paths.cleanup_aliases = paths.has_bin_aliases();
             return Ok(paths);
         };
         let physical_root = resolve(root)?;
         if !is_subdir(&physical_root, &paths.physical_bins_dir) {
+            paths.cleanup_aliases = paths.has_bin_aliases();
             return Ok(paths);
         }
         paths.bins_dir.clone_from(&paths.physical_bins_dir);
@@ -61,6 +67,7 @@ impl<'a> LinkingPaths<'a> {
             .collect::<Vec<_>>()
             .into();
         paths.relocatable_root = Some(physical_root);
+        paths.cleanup_aliases = paths.has_bin_aliases();
         Ok(paths)
     }
 
@@ -90,6 +97,32 @@ impl<'a> LinkingPaths<'a> {
             Ok(below) => ancestor.join(below).join(name),
             Err(_) => self.physical_bins_dir.join(name),
         }))
+    }
+
+    fn has_bin_aliases(&self) -> bool {
+        !self.preserve_bin_name
+            && cfg!(unix)
+            && self.bins_dir.file_name() == Some(OsStr::new(".bin"))
+            && self.bins_dir
+                .parent()
+                .is_some_and(|parent| {
+                    match std::fs::symlink_metadata(parent.join(".bin-symlinks")) {
+                        Ok(_) => true,
+                        Err(error) => error.kind() != io::ErrorKind::NotFound,
+                    }
+                })
+    }
+
+    pub(super) fn alias_path(&self, name: &str) -> Option<PathBuf> {
+        if !self.preserve_bin_name
+            || !cfg!(unix)
+            || name == "node"
+            || self.bins_dir.file_name() != Some(OsStr::new(".bin"))
+        {
+            return None;
+        }
+        let parent = self.bins_dir.parent()?;
+        Some(parent.join(".bin-symlinks").join(name))
     }
 
     pub(super) fn target<'target>(

@@ -1,6 +1,6 @@
 use super::super::{
     Config, HashSet, IncludedDependencies, InstallError, Lockfile, Path, PathBuf,
-    check_modules_settings_diff,
+    check_modules_settings_diff, modules_state::preserve_bin_name_diff,
 };
 
 pub(super) fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {
@@ -20,10 +20,13 @@ pub(super) fn purge_inconsistent_modules_dir(
     // A plain install may recreate the drifted modules dir; `add` / `remove`
     // must surface the drift instead (upstream `validateModules` with
     // `forceNewModules = installsOnly`).
-    if !context.installs_only
-        && let Some(modules) = context.modules_manifest
-    {
-        check_modules_settings_diff(modules, context.config)?;
+    if let Some(modules) = context.modules_manifest {
+        if context.filtered_install && preserve_bin_name_diff(modules, context.config) {
+            return Err(InstallError::PreserveBinNameDiff);
+        }
+        if !context.installs_only {
+            check_modules_settings_diff(modules, context.config)?;
+        }
     }
     let (is_safe, target_dir) = purge_target(context.config, context.workspace_root);
     if !is_safe {
@@ -104,6 +107,7 @@ pub(super) fn is_pnpm_owned_entry(
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
 ) -> bool {
     file_name == ".bin"
+        || file_name == ".bin-symlinks"
         || file_name == ".modules.yaml"
         || config.virtual_store_dir
             .file_name()

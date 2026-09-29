@@ -20,7 +20,10 @@ use super::{
     validate_lockfile_local_path,
 };
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
+use super::{
+    DeployFiles, DeployWorkspaceConfig, workspace_manifest::deploy_workspace_manifest,
+    write_deploy_files,
+};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 use crate::cli_args::deploy::{
@@ -41,6 +44,17 @@ fn split_local_payload_preserves_parentheses_in_path_before_patch_suffix() {
         split_local_payload("../local(foo)/pkg(patch_hash=abc)(peer@1.0.0)"),
         ("../local(foo)/pkg", "(patch_hash=abc)(peer@1.0.0)"),
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn deploy_workspace_manifest_preserves_bin_name_setting() {
+    let mut config = Config::new();
+    config.preserve_bin_name = true;
+
+    let manifest = deploy_workspace_manifest(&config);
+
+    assert_eq!(manifest.get("preserveBinName"), Some(&json!(true)));
 }
 
 #[test]

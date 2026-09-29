@@ -1,7 +1,7 @@
 use super::{
     calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
-    calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
-    join_global_virtual_store_path,
+    calc_graph_node_hash_with_layout, calc_leaf_global_virtual_store_path,
+    format_global_virtual_store_path, join_global_virtual_store_path,
 };
 use crate::{build_required_dep_paths, dep_state::DepsGraphNode};
 use indexmap::IndexMap;
@@ -71,6 +71,37 @@ fn identical_leaves_hash_identically() {
     );
     assert_eq!(first, second, "deterministic for same input");
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
+}
+
+#[test]
+fn layout_changes_hash() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "leaf@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+    );
+    let mut cache_a = HashMap::new();
+    let mut cache_b = HashMap::new();
+    let without_layout = calc_graph_node_hash_with_layout(
+        &graph,
+        &mut cache_a,
+        &"leaf@1.0.0".to_string(),
+        None,
+        None,
+        None,
+        None,
+    );
+    let with_layout = calc_graph_node_hash_with_layout(
+        &graph,
+        &mut cache_b,
+        &"leaf@1.0.0".to_string(),
+        None,
+        None,
+        None,
+        Some("preserve-bin-name"),
+    );
+
+    assert_ne!(without_layout, with_layout);
 }
 
 #[test]

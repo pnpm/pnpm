@@ -67,6 +67,7 @@ fn create_config(
         hoist_patterns_before_virtual_store_only: None,
         extend_node_path: true,
         prefer_symlinked_executables: None,
+        preserve_bin_name: false,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
         skip_store_dir_resolution: false,
