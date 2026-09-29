@@ -163,6 +163,12 @@ fn a_group_holding_only_zombies_is_not_running() {
     let unreadable = (group + 3).to_string();
     fs::create_dir(table.path().join(unreadable))
         .expect("list a process whose stat cannot be read");
+    let only_thread = table
+        .path()
+        .join(group.to_string())
+        .join("task")
+        .join(group.to_string());
+    fs::create_dir_all(only_thread).expect("list the zombie's own thread");
 
     let running = group_is_running(group, Some(table.path()));
 
@@ -187,6 +193,28 @@ fn a_live_member_keeps_the_group_running() {
     let _ = leader.kill();
     let _ = leader.wait();
     assert!(running, "the group holds a live member");
+}
+
+/// A process whose main thread exited reads as a zombie while its other
+/// threads keep it running, and only its `task` directory lists them.
+#[test]
+fn a_member_whose_other_threads_run_keeps_the_group_running() {
+    let mut leader = spawn_group_leader();
+    let group = group_of(&leader);
+    let table = process_table(&[(group, b"node", b'Z', group)]);
+    let threads = table
+        .path()
+        .join(group.to_string())
+        .join("task");
+    for thread in [group, group + 1] {
+        fs::create_dir_all(threads.join(thread.to_string())).expect("list a thread");
+    }
+
+    let running = group_is_running(group, Some(table.path()));
+
+    let _ = leader.kill();
+    let _ = leader.wait();
+    assert!(running, "a thread of the member is still running");
 }
 
 /// A process whose `stat` cannot be read, as another user's under

@@ -66,11 +66,19 @@ fn is_own_namespace(table: &Path) -> bool {
 /// `hidepid=1`, counts as running while the kernel still has it in the
 /// group, since nothing shows that it has exited.
 fn member_is_running(table: &Path, pid: u32, leader: i32) -> Option<bool> {
-    let Ok(stat) = fs::read(table.join(pid.to_string()).join("stat")) else {
+    let entry = table.join(pid.to_string());
+    let Ok(stat) = fs::read(entry.join("stat")) else {
         return is_in_group(pid, leader).then_some(true);
     };
     let (state, group) = state_and_group(&stat)?;
-    (group == leader).then_some(state != b'Z')
+    (group == leader).then(|| state != b'Z' || has_other_threads(&entry))
+}
+
+/// Whether the process at `entry` has a thread besides its main one. A
+/// process whose main thread exited while others keep running reads as a
+/// zombie in its `stat`, but lists those threads under `task`.
+fn has_other_threads(entry: &Path) -> bool {
+    fs::read_dir(entry.join("task")).is_ok_and(|threads| threads.count() > 1)
 }
 
 fn is_in_group(pid: u32, leader: i32) -> bool {
