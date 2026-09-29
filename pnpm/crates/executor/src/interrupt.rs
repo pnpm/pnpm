@@ -36,9 +36,9 @@
 //! running the script may not pass it on: a `sh` that stays the script's
 //! parent dies from `SIGTERM` at once and holds a `SIGINT` until its child
 //! exits, which it never does unsignalled. Each child then gets a process
-//! group of its own, the relay signals the group, and pnpm waits for the
-//! group to empty after a relayed signal, so the script finishes shutting
-//! down before pnpm ends.
+//! group of its own, the relay signals the group, and pnpm waits until
+//! nothing in the group is still running after a relayed signal, so the
+//! script finishes shutting down before pnpm ends.
 
 use crate::ScriptExit;
 #[cfg(unix)]

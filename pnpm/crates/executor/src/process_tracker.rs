@@ -9,7 +9,9 @@ use tokio::sync::watch;
 #[cfg(unix)]
 use group_watchdog::GroupWatchdog;
 #[cfg(unix)]
-use std::{io::Read, os::unix::process::CommandExt, process::Stdio, ptr, time::Duration};
+use std::{
+    io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
+};
 
 /// Tracks the processes started by one command so a bailing task can stop
 /// other work that is still in flight.
@@ -234,33 +236,40 @@ impl SpawnedChild<'_> {
     }
 }
 
-/// Block until no process of the group led by `leader` is left.
-///
-/// Members that became pnpm's children, as they do when pnpm is a
-/// container's PID 1, are reaped along the way; the others are init's to
-/// reap, and disappear from the group on their own.
+/// Block until no process of the group led by `leader` is still running.
 #[cfg(unix)]
 fn wait_for_process_group(leader: u32) {
     let Ok(leader) = i32::try_from(leader) else { return };
-    let group = -leader;
-    loop {
-        // SAFETY: `group` names the process group pnpm created for the
-        // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
-        // signal 0 only probes; `ESRCH` says the group is empty.
-        let empty = unsafe {
-            while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
-            libc::kill(group, 0) != 0
-                && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
-        };
-        if empty {
-            return;
-        }
+    let table = cfg!(target_os = "linux").then(|| Path::new("/proc"));
+    while group_is_running(leader, table) {
         std::thread::sleep(Duration::from_millis(20));
     }
 }
 
 #[cfg(not(unix))]
 fn wait_for_process_group(_: u32) {}
+
+/// Whether the group led by `leader` holds a process that has not exited,
+/// once the members that are pnpm's own children are reaped.
+///
+/// A member that another process adopted stays in the group as a zombie
+/// until that process reaps it, and the kernel still counts it. When pnpm
+/// is a container's PID 1, the outer pnpm of a nested `pnpm run` adopts the
+/// script while it waits for the inner pnpm to exit. `table`, laid out as
+/// Linux lays out `/proc`, tells such zombies apart from the members that
+/// are still shutting down.
+#[cfg(unix)]
+fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
+    let group = -leader;
+    // SAFETY: `group` names the process group pnpm created for the
+    // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
+    // signal 0 only probes; `ESRCH` says the group is empty.
+    let empty = unsafe {
+        while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
+        libc::kill(group, 0) != 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+    };
+    !empty && table.is_none_or(|table| process_table::has_running_member(table, leader))
+}
 
 pub(crate) struct EmulatedCancellation<'tracker> {
     receiver: watch::Receiver<bool>,
@@ -442,6 +451,8 @@ fn taskkill_path() -> Option<std::path::PathBuf> {
 
 #[cfg(unix)]
 mod group_watchdog;
+#[cfg(unix)]
+mod process_table;
 
 #[cfg(all(test, unix))]
 mod tests;
