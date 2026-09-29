@@ -1,7 +1,8 @@
 mod named_registry;
 
 use super::{
-    InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices, dependencies_prompt_message,
+    InteractiveUpdateProject, PromptRow, TargetVersion, UpdatePrompt, collect_choices,
+    dependencies_prompt_message,
 };
 use crate::cli_args::update::UpdateArgs;
 use clap::Parser;
@@ -62,7 +63,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        true,
+        TargetVersion::Latest,
         &[DependencyGroup::Prod],
     )
     .await
@@ -126,7 +127,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        false,
+        TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
     )
     .await
@@ -198,7 +199,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        false,
+        TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
     )
     .await
@@ -262,7 +263,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        false,
+        TargetVersion::WithinRange,
         &[DependencyGroup::Prod],
     )
     .await
@@ -329,7 +330,7 @@ importers:
             Some(&lockfile),
             &config,
             &Arc::new(ThrottledClient::default()),
-            false,
+            TargetVersion::WithinRange,
             &[DependencyGroup::Prod],
         )
         .await
@@ -805,6 +806,120 @@ async fn interactively_update() {
     );
 }
 
+/// A tag target is an exact destination: a tag pointing below the
+/// installed version is offered and applied, the way a non-interactive
+/// `--tag` update downgrades.
+#[tokio::test]
+async fn interactive_tag_update_offers_a_downgrade() {
+    let fixture = UpdateFixture::new();
+
+    fixture.write_manifest(&json!({ MULTI_A: "2.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_A, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--tag", "next"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_A.to_string(), "2.0.0".to_string(), "1.0.0".to_string())],
+    );
+    assert!(
+        fixture
+            .lockfile_packages()
+            .contains(&format!("{MULTI_A}@1.0.0")),
+    );
+}
+
+/// A complete `npm:` alias names its package behind the manifest key, and
+/// the `--tag` rewrite leaves such declarations unchanged: the alias drops
+/// out of the tag report instead of being queried as `<alias>@<tag>` and
+/// offered an update that cannot apply.
+#[tokio::test]
+async fn interactive_tag_update_skips_aliased_dependencies() {
+    let fixture = UpdateFixture::new();
+
+    fixture.write_manifest(&json!({ "fooAlias": format!("npm:{MULTI_B}@2.0.0") }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_B, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    fixture.update(&["update", "--interactive", "--tag", "next"]).await;
+
+    let prompts = scripted.seen();
+    assert!(
+        prompts.is_empty(),
+        "the aliased dependency must not be offered: {} prompt(s) shown",
+        prompts.len(),
+    );
+    let packages = fixture.lockfile_packages();
+    assert!(
+        packages.contains(&format!("{MULTI_B}@2.0.0")),
+        "the aliased dependency keeps its installed version: {packages:?}",
+    );
+}
+
+#[tokio::test]
+async fn interactive_tag_update_offers_tag_change_when_resolved_version_matches() {
+    let fixture = UpdateFixture::new();
+
+    fixture.set_dist_tag(MULTI_A, "2.0.0", "next");
+    fixture.set_dist_tag(MULTI_A, "2.0.0", "canary");
+    fixture.write_manifest(&json!({ MULTI_A: "next" }));
+    fixture.update(&["update"]).await;
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--tag", "canary"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_A.to_string(), "2.0.0".to_string(), "2.0.0".to_string())],
+    );
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(fixture.project.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(manifest["dependencies"][MULTI_A], "canary");
+}
+
+#[tokio::test]
+async fn interactive_tag_update_no_save_offers_in_range_version() {
+    let fixture = UpdateFixture::new();
+
+    fixture.set_dist_tag(MULTI_A, "2.0.0", "latest");
+    fixture.write_manifest(&json!({ MULTI_A: "^2.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_A, "2.1.0", "latest");
+    fixture.set_dist_tag(MULTI_A, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--tag", "next", "--no-save"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_A.to_string(), "2.0.0".to_string(), "2.1.0".to_string())],
+    );
+    assert!(
+        fixture
+            .lockfile_packages()
+            .contains(&format!("{MULTI_A}@2.1.0")),
+    );
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(fixture.project.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(manifest["dependencies"][MULTI_A], "^2.0.0");
+}
+
 /// Ports `interactively update should ignore dependencies from the
 /// ignoreDependencies field`.
 #[tokio::test]
@@ -932,7 +1047,7 @@ async fn global_interactive_update_handles_an_empty_global_directory() {
     let selected = super::select_global_package_groups::<pnpm_reporter::SilentReporter>(
         config,
         &[],
-        true,
+        TargetVersion::Latest,
         UpdatePrompt::Scripted,
     )
     .await
@@ -975,7 +1090,7 @@ importers:
         Some(&lockfile),
         &config,
         &Arc::new(ThrottledClient::default()),
-        true,
+        TargetVersion::Latest,
         &[DependencyGroup::Prod],
     )
     .await

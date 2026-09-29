@@ -18,14 +18,14 @@ use workspace::{WorkspaceLinkTarget, workspace_specifier};
 mod latest;
 
 use latest::{
-    LatestResolverChain, LatestRewriteCtx, emit_latest_ignored, latest_specifier, tag_version,
+    LatestResolverChain, LatestRewriteCtx, emit_range_flag_ignored, latest_specifier, tag_version,
 };
 
 mod catalogs;
 use catalogs::CatalogCtx;
 
 mod rewrite;
-use rewrite::{MatchedRewriteInputs, record_matched_direct_update};
+use rewrite::{MatchedRewriteInputs, record_matched_direct_update, tag_rewrite};
 
 mod seed_policy;
 
@@ -67,6 +67,9 @@ use std::{
 ///   fetched and written into `package.json` before resolving, since the
 ///   tag reaches past the declared range. The follow-up install then
 ///   resolves the new range.
+/// * **`--tag <tag>`**: the same rewrite, except the dependency moves to
+///   the version behind the given dist-tag — exactly what a `<name>@<tag>`
+///   selector asks for, applied to every matched dependency.
 /// * **`--workspace`** ([`UpdateSelection::workspace_packages`]): each matched
 ///   direct dependency that a workspace project publishes is re-pointed
 ///   at the local copy through the `workspace:` protocol, with
@@ -79,12 +82,12 @@ use std::{
 /// the catalog entry rather than the manifest entry.
 ///
 /// Selector handling:
-/// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
-/// `--latest` match every package of that name **at any depth** (the
-/// match is applied against the lockfile's package names); selectors
-/// carrying a version (`foo@2`) or any selector under `--latest` match
-/// only direct dependencies, and the version (or fetched latest) is
-/// written into the manifest before resolving.
+/// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and neither
+/// `--latest` nor `--tag` match every package of that name **at any depth**
+/// (the match is applied against the lockfile's package names); selectors
+/// carrying a version (`foo@2`) or any selector under `--latest` / `--tag`
+/// match only direct dependencies, and the version (or the fetched tag
+/// version) is written into the manifest before resolving.
 #[must_use]
 pub struct Update<'a> {
     pub manifest: &'a mut PackageManifest,
@@ -103,6 +106,12 @@ pub enum UpdateError {
     #[display("Specs are not allowed to be used with --latest ({_0})")]
     #[diagnostic(code(ERR_PNPM_LATEST_WITH_SPEC))]
     LatestWithSpec(#[error(not(source))] String),
+
+    /// `--tag` was combined with a versioned selector (`foo@2`): the
+    /// selector's version and the flag's tag ask for two different targets.
+    #[display("Specs are not allowed to be used with --tag ({_0})")]
+    #[diagnostic(code(ERR_PNPM_TAG_WITH_SPEC))]
+    TagWithSpec(#[error(not(source))] String),
 
     /// Package selectors were given with `--depth 0` but none matched a
     /// direct dependency.
@@ -192,7 +201,7 @@ pub enum UpdateError {
 /// pnpm's mutation for an update: a full install of the projects it was
 /// pointed at when the user named nothing, and `installSome` once the
 /// update targets specific dependencies — either by selector or through
-/// `--latest`, which expands to every direct dependency's spec.
+/// `--latest` / `--tag`, which expand to every direct dependency's spec.
 ///
 /// `--workspace` does not enter into it: pnpm picks the mutation from the
 /// selectors the user passed, so a selector-less workspace-link update
@@ -215,7 +224,7 @@ impl Update<'_> {
         begin::<Reporter>(update, &owned);
         let site = UpdateSite::find::<Reporter>(update, manifest)?;
         let unsaved = site.hook_update_manifest(update, manifest).await?;
-        if !update.version.latest && update.selection.depth > 0 {
+        if !update.version.reaches_past_declared_range() && update.selection.depth > 0 {
             reject_versions_of_indirect_update_specs::<Reporter>(
                 &parse_selectors(update.selection.packages),
                 &[manifest],
@@ -230,7 +239,7 @@ impl Update<'_> {
             return nothing_to_update(
                 update.selection.depth,
                 update.selection.packages,
-                update.version.latest,
+                update.version.reaches_past_declared_range(),
             );
         };
         run_prepared_update::<Reporter>(update, owned, manifest, site, unsaved, prepared).await
@@ -289,7 +298,7 @@ pub struct UpdateOptions<'a> {
     /// materializing `node_modules`. Forwarded to the install.
     pub lockfile_only: bool,
     pub selection: UpdateSelection<'a>,
-    pub version: UpdateVersionOptions,
+    pub version: UpdateVersionOptions<'a>,
 }
 
 #[derive(Clone, Copy)]
@@ -314,26 +323,41 @@ pub struct UpdateSelection<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub struct UpdateVersionOptions {
+pub struct UpdateVersionOptions<'a> {
     /// `--latest` / `-L`: ignore the manifest range and bump matched
     /// direct dependencies to their `latest` dist-tag, rewriting
     /// `package.json`.
     pub latest: bool,
+    /// `--tag <tag>`: like `--latest`, but each matched direct dependency
+    /// moves to the version behind the given dist-tag rather than `latest`.
+    pub tag: Option<&'a str>,
     /// `--patches`: refresh registry revisions while retaining every locked
     /// package version and leaving manifest specifiers unchanged.
     pub patches: bool,
     /// `--save-exact` / `-E`: write the resolved version without a range
-    /// operator when rewriting the manifest under `--latest`. Only applies
-    /// to dependencies whose current specifier has no recoverable pin; an
-    /// existing `^`/`~`/exact range is preserved over this default.
+    /// operator when rewriting the manifest under `--latest` or `--tag`.
+    /// Only applies to dependencies whose current specifier has no
+    /// recoverable pin; an existing `^`/`~`/exact range is preserved over
+    /// this default.
     pub save_exact: bool,
     /// `--save` (default) / `--no-save`. When `false`, `package.json` on
     /// disk is left untouched, so its specifiers stay authoritative:
     /// `pnpm-lock.yaml` still updates, but only within the ranges the
     /// manifest keeps, since the importer entry has to keep satisfying the
     /// specifier it records. A requested version those ranges exclude is
-    /// skipped, and `--latest` degrades to a compatible bump.
+    /// skipped, and `--latest` / `--tag` degrade to a compatible bump.
     pub save: bool,
+}
+
+impl UpdateVersionOptions<'_> {
+    /// Whether the update reaches past the ranges the manifest declares:
+    /// `--latest` or `--tag` rewrite the manifest to a version the declared
+    /// range may exclude, so selector handling, seeding, and the `--no-save`
+    /// degradation all follow the same shape for both.
+    #[must_use]
+    pub fn reaches_past_declared_range(&self) -> bool {
+        self.latest || self.tag.is_some()
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

@@ -137,6 +137,11 @@ fn workspace_option_is_checked_before_anything_is_read() {
         .check_workspace_option(Some(workspace_root))
         .expect_err("--workspace with --latest");
     assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously");
+
+    let with_tag = update_args(&["--workspace", "--tag", "next"])
+        .check_workspace_option(Some(workspace_root))
+        .expect_err("--workspace with --tag");
+    assert_eq!(with_tag.to_string(), "Cannot use --tag with --workspace simultaneously");
 }
 
 #[test]
@@ -184,6 +189,7 @@ fn patches_is_a_selectorless_update_mode() {
     for args in [
         &["--patches", "foo"][..],
         &["--patches", "--latest"][..],
+        &["--patches", "--tag", "next"][..],
         &["--patches", "--interactive"][..],
         &["--patches", "--global"][..],
     ] {
@@ -191,9 +197,22 @@ fn patches_is_a_selectorless_update_mode() {
             update_args(args).check_patches_options().expect_err("--patches combination must fail");
         assert_eq!(
             error.to_string(),
-            "--patches cannot be combined with package selectors, --latest, --interactive, or --global",
+            "--patches cannot be combined with package selectors, --latest, --tag, --interactive, or --global",
         );
     }
+}
+
+#[test]
+fn tag_conflicts_with_latest() {
+    let result = UpdateArgsHarness::try_parse_from(["pacquet-test", "--latest", "--tag", "next"]);
+    assert!(result.is_err(), "--latest and --tag must conflict");
+}
+
+#[test]
+fn tag_parses_as_the_target_dist_tag() {
+    let args = update_args(&["--tag", "next"]);
+    assert_eq!(args.selection.tag.as_deref(), Some("next"));
+    assert!(!args.selection.latest);
 }
 
 #[test]

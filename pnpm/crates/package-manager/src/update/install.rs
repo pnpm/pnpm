@@ -191,7 +191,7 @@ pub(super) fn update_install<'i>(
 fn update_execution(update: &UpdateOptions<'_>) -> crate::InstallExecution {
     crate::InstallExecution {
         skip_runtimes: update.config.skip_runtimes,
-        mutation: update_mutation(update.selection.packages, update.version.latest),
+        mutation: update.mutation(),
         installs_only: true,
         node_linker: update.config.node_linker,
         lockfile_only: update.lockfile_only,
@@ -325,6 +325,10 @@ where
 }
 
 impl UpdateOptions<'_> {
+    fn mutation(self) -> crate::ProjectMutation {
+        update_mutation(self.selection.packages, self.version.reaches_past_declared_range())
+    }
+
     fn lockfile_policy(self) -> crate::InstallLockfilePolicy {
         crate::InstallLockfilePolicy {
             frozen: false,

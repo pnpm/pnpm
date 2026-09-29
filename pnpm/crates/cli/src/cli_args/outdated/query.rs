@@ -5,6 +5,8 @@ use super::{
     configured_catalogs, create_configured_registry_resolver, create_matcher, github_actions,
     parse_catalog_protocol, resolve_from_catalog,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 
 /// State shared by every importer inspected in one `outdated` (or
 /// `update --interactive`) run: one resolver and metadata cache, so a
@@ -50,10 +52,13 @@ impl OutdatedRun {
 /// Which registry version a dependency is compared against to decide
 /// whether it is outdated.
 #[derive(Debug, Clone, Copy)]
-pub enum TargetVersion {
+pub enum TargetVersion<'a> {
     /// The `latest` dist-tag — the absolute newest published version.
     /// pnpm's default for `outdated`.
     Latest,
+    /// The version behind the given dist-tag. `update --tag <tag>`'s
+    /// target.
+    Tag(&'a str),
     /// The highest version satisfying the manifest range. pnpm's
     /// `outdated --compatible`, and the version an in-range `update`
     /// would move to.
@@ -118,7 +123,7 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
 /// What counts as outdated for a [`collect_outdated`] run.
 pub struct OutdatedQuery<'a> {
     /// The registry version each dependency is compared against.
-    pub target_version: TargetVersion,
+    pub target_version: TargetVersion<'a>,
     /// Dependency groups to inspect.
     pub include_direct: &'a [DependencyGroup],
     /// When present, restricts the walk to dependency keys the matcher
@@ -262,6 +267,14 @@ async fn outdated_dependency(
 ) -> miette::Result<Option<OutdatedPackage>> {
     let bare_specifier =
         dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
+    // A tag target queries `<alias>@<tag>`, but a complete `npm:` alias
+    // names its package behind the manifest key: querying the alias would
+    // fetch the wrong packument. The `--tag` rewrite keeps such
+    // declarations unchanged anyway, so the dependency drops out of the
+    // tag report rather than being offered an update that cannot apply.
+    if matches!(query.target_version, TargetVersion::Tag(_)) && bare_specifier.starts_with("npm:") {
+        return Ok(None);
+    }
     let resolved_package_name =
         PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
             .0
@@ -342,27 +355,67 @@ async fn resolve_outdated_target(
     bare_specifier: String,
     resolved_package_name: &str,
 ) -> miette::Result<Option<pnpm_resolving_resolver_base::LatestInfo>> {
-    run.resolver
-        .resolve_latest(
-            &LatestQuery {
-                wanted_dependency: ResolverWantedDependency {
-                    alias: Some(candidate.alias.to_string()),
-                    bare_specifier: Some(bare_specifier),
-                    optional: Some(candidate.group == DependencyGroup::Optional),
-                    ..ResolverWantedDependency::default()
-                },
-                compatible: matches!(query.target_version, TargetVersion::WithinRange),
+    // A tag target resolves the tag itself: the dependency is offered when
+    // the version behind the tag moves, whatever the declared range admits.
+    // A package that publishes no such tag has nothing to be compared
+    // against, so it drops out of the list the way one with no compatible
+    // target does.
+    let (bare_specifier, compatible) = match query.target_version {
+        TargetVersion::Tag(tag) => (tag.to_string(), true),
+        TargetVersion::Latest => (bare_specifier, false),
+        TargetVersion::WithinRange => (bare_specifier, true),
+    };
+    let result = run.resolver.resolve_latest(
+        &LatestQuery {
+            wanted_dependency: ResolverWantedDependency {
+                alias: Some(candidate.alias.to_string()),
+                bare_specifier: Some(bare_specifier),
+                optional: Some(candidate.group == DependencyGroup::Optional),
+                ..ResolverWantedDependency::default()
             },
-            &run.resolve_options,
-        )
-        .await
-        .map_err(|error| {
+            compatible,
+        },
+        &run.resolve_options,
+    )
+    .await;
+    match result {
+        Ok(latest) => Ok(latest),
+        Err(error) if tag_query_misses(query, &error) => Ok(None),
+        Err(error) => Err({
             let reason = pnpm_network::redact_url_credentials(&error.to_string());
             miette::miette!(
                 code = "ERR_PNPM_OUTDATED_REGISTRY_ERROR",
                 r#"Failed to fetch metadata for "{resolved_package_name}": {reason}"#,
             )
-        })
+        }),
+    }
+}
+
+/// Whether a failed tag-target query means "the package has no such tag"
+/// rather than a registry problem: the resolver found the packument but no
+/// version the tag names.
+fn tag_query_misses(
+    query: &OutdatedQuery<'_>,
+    error: &pnpm_resolving_resolver_base::ResolveError,
+) -> bool {
+    matches!(query.target_version, TargetVersion::Tag(_))
+        && error.is::<pnpm_resolving_resolver_base::NoMatchingVersionError>()
+}
+
+fn target_moves(
+    target_version: TargetVersion<'_>,
+    target: &Version,
+    current: &Version,
+    declared: &str,
+) -> bool {
+    match target_version {
+        TargetVersion::Tag(tag) => {
+            target != current
+                || (matches!(get_version_selector_type(declared), Some(VersionSelectorType::Tag))
+                    && declared != tag)
+        }
+        TargetVersion::Latest | TargetVersion::WithinRange => target > current,
+    }
 }
 
 fn outdated_target(
@@ -380,8 +433,9 @@ fn outdated_target(
         .get("deprecated")
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);
-    let is_newer = target > candidate.current;
-    if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
+    if !(target_moves(query.target_version, &target, &candidate.current, candidate.bare_specifier)
+        || (query.include_deprecated && deprecated.is_some()))
+    {
         return None;
     }
     let package_name = target_manifest

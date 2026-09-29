@@ -24,13 +24,19 @@ use pnpm_resolving_resolver_base::{
 };
 use std::sync::Arc;
 
-/// `--latest` reaches past the declared range by design, which a manifest that
-/// keeps its specifiers can't record, so the update stays inside the range and
-/// says so once per project.
-pub(super) fn emit_latest_ignored<Reporter: self::Reporter>(manifest: &PackageManifest) {
+/// `--latest` and `--tag` reach past the declared range by design, which a
+/// manifest that keeps its specifiers can't record, so the update stays
+/// inside the range and says so once per project. `flag` is the flag as the
+/// user passed it (`--latest`, `--tag next`).
+pub(super) fn emit_range_flag_ignored<Reporter: self::Reporter>(
+    flag: &str,
+    manifest: &PackageManifest,
+) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
-        message: r#"Ignoring "--latest": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead."#.to_string(),
+        message: format!(
+            r#"Ignoring "{flag}": the manifest keeps its version ranges when updating without saving, so dependencies were updated within them instead."#,
+        ),
         prefix: package_manifest_prefix(manifest),
     }));
 }
