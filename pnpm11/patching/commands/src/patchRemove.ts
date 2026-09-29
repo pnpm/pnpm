@@ -11,6 +11,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { isSubdirectory } from './isSubdirectory.js'
+import { deleteEditDirState } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -71,6 +72,19 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     }
   }
 
+  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  const realModulesDir = await realpathIfExists(modulesDir)
+  const realPnpmPatches = await realpathIfExists(pnpmPatches)
+  if (
+    realModulesDir != null &&
+    realPnpmPatches != null &&
+    !isSubdirectory(realModulesDir, realPnpmPatches)
+  ) {
+    throw new PnpmError('PATCHES_DIR_OUTSIDE_PROJECT', 'The .pnpm_patches directory is outside the modules directory')
+  }
+
   const patchRemovalContext = await getPatchRemovalContext(opts)
   const patchesToRemoveTargets = await Promise.all(patchesToRemove.map(async (patch) => {
     const patchFile = patchedDependencies[patch]
@@ -94,10 +108,30 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       }
     } catch {}
   }))
+
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
+
+  await Promise.all(patchesToRemove.map(async (patch) => {
+    const editDir = path.join(pnpmPatches, patch)
+    if (!isSubdirectory(pnpmPatches, editDir)) {
+      return
+    }
+    const realEditDir = await realpathIfExists(editDir)
+    if (realEditDir != null && realPnpmPatches != null && !isSubdirectory(realPnpmPatches, realEditDir)) {
+      return
+    }
+    deleteEditDirState({ editDir, modulesDir, patchedPkg: patch })
+    await fs.rm(editDir, { recursive: true, force: true })
+  }))
+  try {
+    const files = await fs.readdir(pnpmPatches)
+    if (!files.length) {
+      await fs.rmdir(pnpmPatches)
+    }
+  } catch {}
 
   await install.handler({
     ...opts,

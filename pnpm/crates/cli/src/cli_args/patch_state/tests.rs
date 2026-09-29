@@ -1,8 +1,8 @@
 #[cfg(unix)]
 use super::edit_dir_key;
 use super::{
-    EditDirState, StateFileError, read_edit_dir_state, write_edit_dir_state,
-    write_state_file_atomically,
+    EditDirState, StateFileError, clean_patch_state_and_edit_dirs, read_edit_dir_state,
+    write_edit_dir_state, write_state_file_atomically,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -289,6 +289,114 @@ fn patch_state_errors_when_edit_dir_parent_is_not_a_directory() {
     let err = edit_dir_key(&file_parent.join("edit")).expect_err("file parent should fail");
 
     assert!(matches!(err, StateFileError::ResolveEditDir { .. }));
+}
+
+#[test]
+fn patch_state_clean_removes_matching_entry_and_edit_dir() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let first_edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    let second_edit_dir = modules_dir.join(".pnpm_patches").join("is-negative@1.0.0");
+    fs::create_dir_all(&first_edit_dir).expect("create first edit dir");
+    fs::create_dir_all(&second_edit_dir).expect("create second edit dir");
+
+    write_edit_dir_state(&modules_dir, &first_edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state(
+        &modules_dir,
+        &second_edit_dir,
+        &EditDirState {
+            patched_pkg: "is-negative@1.0.0".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        },
+    )
+    .unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["is-positive@1.0.0".to_string()]).unwrap();
+
+    assert!(!first_edit_dir.exists());
+    assert!(second_edit_dir.exists());
+    let remaining = read_edit_dir_state(&modules_dir, &second_edit_dir).unwrap();
+    assert_eq!(
+        remaining,
+        Some(EditDirState {
+            patched_pkg: "is-negative@1.0.0".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        }),
+    );
+    assert_eq!(read_edit_dir_state(&modules_dir, &first_edit_dir).unwrap(), None);
+}
+
+#[test]
+fn patch_state_clean_removes_state_file_and_state_dir_when_empty() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    fs::create_dir_all(&edit_dir).expect("create edit dir");
+
+    write_edit_dir_state(&modules_dir, &edit_dir, &sample_state()).unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["is-positive@1.0.0".to_string()]).unwrap();
+
+    assert!(!edit_dir.exists());
+    let state_file = modules_dir.join(".pnpm_patches").join("state.json");
+    assert!(!state_file.exists());
+    assert!(!modules_dir.join(".pnpm_patches").exists());
+}
+
+#[test]
+fn patch_state_clean_does_not_remove_entries_with_suffix_names() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let target_edit_dir = modules_dir.join(".pnpm_patches").join("foo");
+    let suffix_edit_dir = modules_dir.join(".pnpm_patches").join("my-foo");
+    fs::create_dir_all(&target_edit_dir).expect("create target edit dir");
+    fs::create_dir_all(&suffix_edit_dir).expect("create suffix edit dir");
+
+    write_edit_dir_state(
+        &modules_dir,
+        &target_edit_dir,
+        &EditDirState { patched_pkg: "foo".to_string(), apply_to_all: true, package_key: None },
+    )
+    .unwrap();
+    write_edit_dir_state(
+        &modules_dir,
+        &suffix_edit_dir,
+        &EditDirState { patched_pkg: "my-foo".to_string(), apply_to_all: true, package_key: None },
+    )
+    .unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["foo".to_string()]).unwrap();
+
+    assert!(!target_edit_dir.exists());
+    assert!(suffix_edit_dir.exists());
+    assert_eq!(
+        read_edit_dir_state(&modules_dir, &suffix_edit_dir).unwrap(),
+        Some(EditDirState {
+            patched_pkg: "my-foo".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        }),
+    );
+    assert_eq!(read_edit_dir_state(&modules_dir, &target_edit_dir).unwrap(), None);
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_state_clean_rejects_symlinked_state_dir() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(&modules_dir).expect("create modules dir");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    symlink(&outside, modules_dir.join(".pnpm_patches")).expect("create symlink");
+
+    let err = clean_patch_state_and_edit_dirs(&modules_dir, &["foo".to_string()]).unwrap_err();
+    assert!(matches!(err, StateFileError::UnsafePath { .. }));
+    assert!(outside.exists(), "outside directory was not removed");
 }
 
 struct CurrentDirGuard(std::path::PathBuf);
