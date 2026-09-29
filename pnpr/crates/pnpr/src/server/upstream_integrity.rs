@@ -16,9 +16,8 @@ struct MissingIntegrityTarball {
 
 /// How many versions of one packument a single read will download to pin
 /// integrity. The candidate set is the upstream's to choose, so without a cap
-/// one client request fans out into one tarball fetch per version the upstream
-/// declares unpinned. Versions past the cap keep the metadata the upstream
-/// published, like any other version that cannot be pinned.
+/// one client request fans out into a tarball fetch per version it declares
+/// unpinned.
 const MAX_PINNED_VERSIONS_PER_PACKUMENT: usize = 64;
 
 struct PackumentIntegrityResolver<'a> {
@@ -29,14 +28,15 @@ struct PackumentIntegrityResolver<'a> {
     ttl: Duration,
 }
 
-/// Pins a computed `dist.integrity` into every version of `bytes` that lacks
-/// one, so a client that requires integrity can install it.
+/// Pins a computed `dist.integrity` into every version of `bytes` that lacks a
+/// usable one, so a client that requires integrity can install it.
 ///
-/// Pinning is per version and never fails the document: a version the upstream
+/// Pinning is per version and never fails the document. A version the upstream
 /// cannot serve, or whose bytes do not match what it declared, keeps the
-/// metadata the upstream published for it. Clients still cannot install such a
-/// version, but they can install every other version of the package, which
-/// withholding the whole packument would prevent.
+/// metadata the upstream published for it: a client still cannot install that
+/// version, but it can install every other version of the package, which
+/// withholding the whole packument would prevent. The tarball route verifies
+/// those bytes against whatever the upstream did declare.
 pub(super) async fn complete_missing_tarball_integrities(
     state: &AppState,
     namespace: &str,
@@ -86,11 +86,8 @@ impl PackumentIntegrityResolver<'_> {
             .unwrap_or(fallback))
     }
 
-    /// Pins the integrity of every candidate the upstream can serve, and
-    /// reports whether any was pinned. A candidate that cannot be hashed is
-    /// left untouched, because the version keeps whatever the upstream
-    /// declared for it, and the tarball route verifies those bytes against
-    /// that declaration when a client asks for them.
+    /// Reports whether any candidate was pinned, which is also whether the
+    /// document is worth writing back.
     async fn compute_integrities(
         &self,
         doc: &mut Value,
@@ -116,7 +113,7 @@ impl PackumentIntegrityResolver<'_> {
                         ?err,
                         package = %self.name.as_str(),
                         version = %candidate.version,
-                        "keeping the upstream's declared integrity for a version pnpr could not pin",
+                        "leaving the version unpinned",
                     );
                 }
             }
@@ -126,7 +123,7 @@ impl PackumentIntegrityResolver<'_> {
             tracing::warn!(
                 package = %self.name.as_str(),
                 beyond_cap,
-                "leaving the remaining versions unpinned: the packument declares more unpinned versions than one read will fetch",
+                "leaving versions past the cap unpinned",
             );
         }
         pinned
@@ -287,7 +284,8 @@ fn needs_integrity(
 ) -> Result<bool, RegistryError> {
     match dist.get("integrity") {
         Some(Value::String(value)) => {
-            streaming::parse_integrity(value)
+            let parsed = value
+                .parse::<ssri::Integrity>()
                 .map_err(|err| {
                     tarball_integrity_error(
                         name.as_str(),
@@ -295,7 +293,10 @@ fn needs_integrity(
                         format!("malformed dist.integrity for version {version:?}: {err}"),
                     )
                 })?;
-            Ok(false)
+            // An SRI that parses to no hashes pins nothing, which is the shape
+            // a client reads as a missing integrity, so it is computed like an
+            // absent one rather than refused.
+            Ok(parsed.hashes.is_empty())
         }
         Some(Value::Null) | None => Ok(true),
         Some(_) => Err(tarball_integrity_error(

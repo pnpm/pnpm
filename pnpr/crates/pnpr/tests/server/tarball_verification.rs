@@ -290,10 +290,8 @@ async fn missing_integrity_is_computed_cached_and_returned_in_the_packument() {
     tarball_mock.assert_async().await;
 }
 
-/// npm keeps publishing a version's metadata after the tarball itself is
-/// withdrawn, and the fixture graph hits several such versions. Computing the
-/// missing integrity must not make the whole packument unreadable, or every
-/// install that resolves any of these packages fails.
+/// npm keeps publishing a version's metadata after withdrawing its tarball,
+/// and the benchmark fixture graph hits several such versions.
 #[tokio::test]
 async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
     let mut upstream = mockito::Server::new_async().await;
@@ -372,9 +370,6 @@ async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
     packument_mock.assert_async().await;
 }
 
-/// A version whose tarball 404s cannot be pinned, so it is served with the
-/// `dist.shasum` the upstream declared, exactly as a registry that never
-/// computes integrity would.
 #[tokio::test]
 async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
     let mut upstream = mockito::Server::new_async().await;
@@ -434,8 +429,7 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
 
 /// A computed integrity is only worth anything if it can be stored with the
 /// cached packument, so pnpr makes no attempt for an upstream that caches
-/// nothing. The version keeps the (absent) integrity the upstream published,
-/// and its tarball then fails closed rather than going out unpinned.
+/// nothing.
 #[tokio::test]
 async fn cache_disabled_upstream_serves_the_packument_it_declared() {
     let mut upstream = mockito::Server::new_async().await;
@@ -494,9 +488,7 @@ async fn cache_disabled_upstream_serves_the_packument_it_declared() {
 }
 
 /// The candidate set is the upstream's to choose, so one client request must
-/// not fan out into a tarball fetch per unpinned version it declares. The
-/// versions past the cap are left as the upstream published them, which keeps
-/// the packument readable instead of failing it on the upstream's own volume.
+/// not fan out into a tarball fetch per unpinned version it declares.
 #[tokio::test]
 async fn the_pinned_version_count_is_capped_per_packument() {
     const PINNED: usize = 64;
@@ -571,6 +563,50 @@ async fn the_pinned_version_count_is_capped_per_packument() {
     beyond_cap.assert_async().await;
 }
 
+/// An SRI that parses to no hashes pins nothing, which is the shape a client
+/// reads as a missing integrity, so pnpr computes one instead of treating the
+/// version as malformed.
+#[tokio::test]
+async fn an_integrity_string_that_pins_nothing_is_computed() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"empty-integrity-tarball";
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]["integrity"] = json!("");
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("shasum");
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        .oneshot(
+            Request::get("/foo")
+                .header("accept", "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
+}
+
 /// A pre-2017 npm publish carries only the legacy hex `dist.shasum`. pnpr
 /// computes a modern SRI and stores it with the cached packument and tarball.
 #[tokio::test]
@@ -629,9 +665,7 @@ async fn shasum_only_tarball_gets_a_computed_sha512_integrity() {
 }
 
 /// Bytes that contradict the upstream's own `dist.shasum` are never cached and
-/// never served. The packument itself stays readable, because the offending
-/// version is unusable on its own and withholding the document would take every
-/// other version of the package down with it.
+/// never served, but they must not cost the package its other versions.
 #[tokio::test]
 async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
     let mut upstream = mockito::Server::new_async().await;
@@ -761,14 +795,12 @@ async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
     tarball_mock.assert_async().await;
 }
 
+/// An integrity pnpr can neither use nor replace is a controlled failure: the
+/// tarball is never fetched. A value that parses to no hashes is not in this
+/// set, because it pins nothing and is computed instead.
 #[tokio::test]
 async fn invalid_tarball_integrities_are_controlled_failures() {
-    for (case, integrity) in [
-        ("malformed", "not-a-valid-sri"),
-        ("whitespace", " \t\n "),
-        ("zero-hash", ""),
-        ("unsupported", "md5-deadbeef"),
-    ] {
+    for (case, integrity) in [("malformed", "not-a-valid-sri"), ("unsupported", "md5-deadbeef")] {
         let mut upstream = mockito::Server::new_async().await;
         let packument = json!({
             "name": "foo",
