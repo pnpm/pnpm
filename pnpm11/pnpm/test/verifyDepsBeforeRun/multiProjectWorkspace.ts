@@ -649,6 +649,44 @@ test('filtered install', async () => {
   }
 })
 
+// https://github.com/pnpm/pnpm/issues/16322
+test('filtered install accepts a touched lockfile with unchanged contents', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/bar': '=100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm([...CONFIG, '--filter=foo', 'install', '--frozen-lockfile'])
+
+  const newerThanTheLastValidation = new Date(loadWorkspaceState(process.cwd())!.lastValidatedTimestamp + 10_000)
+  fs.utimesSync('pnpm-lock.yaml', newerThanTheLastValidation, newerThanTheLastValidation)
+
+  const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
+  expect(stdout.toString()).toContain('hello from foo')
+})
+
 test('filtered exec installs only the selected projects', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
@@ -864,11 +902,11 @@ test('no dependencies', async () => {
 
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  // attempting to execute a script without `pnpm install` should fail
+  // a never-installed workspace with nothing to install runs the script
   {
-    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
-    expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from root')
+    expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
   }
 
   await execPnpm([...CONFIG, 'install'])

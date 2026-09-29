@@ -7,6 +7,7 @@ import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrid
 import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import { refToRelative } from '@pnpm/deps.path'
 import { isError, PnpmError } from '@pnpm/error'
 import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -422,6 +423,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           workspaceState,
         }
       }
+      if (selectedProjectDirs != null) {
+        const notInstalled = await findProjectMissingFromCurrentLockfile(
+          allProjects.filter(project => selectedProjectDirs.has(path.resolve(project.rootDir)) && declaresDependencies(project)),
+          createCurrentLockfileLocator({ ...opts, workspaceDir })
+        )
+        if (notInstalled != null) {
+          return {
+            upToDate: false,
+            issue: `Workspace package ${notInstalled.manifest.name ?? notInstalled.rootDir} has dependencies but was not installed`,
+            workspaceState,
+          }
+        }
+      }
     }
 
     const issue = await patchesOrHooksAreModified({
@@ -499,7 +513,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
           const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
-          assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
+          assertLockfilesEqual(currentLockfile, wantedLockfile, {
+            wantedLockfileDir: workspaceDir,
+            filteredInstall: workspaceState.filteredInstall,
+          })
         }
         readWantedLockfileAndDir = async () => ({
           wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
@@ -519,7 +536,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
           const currentLockfile = await readCurrentLockfile(path.join(wantedLockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
-          assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
+          assertLockfilesEqual(currentLockfile, wantedLockfile, {
+            wantedLockfileDir,
+            filteredInstall: workspaceState.filteredInstall,
+          })
         }
 
         return {
@@ -655,7 +675,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (!wantedLockfileIsMissing && currentLockfileStats && modifiedAtOrAfter(wantedLockfileStats, currentLockfileStats.mtime.valueOf())) {
       const currentLockfile = await currentLockfilePromise
       const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
-      assertLockfilesEqual(currentLockfile, wantedLockfile, rootProjectManifestDir)
+      assertLockfilesEqual(currentLockfile, wantedLockfile, { wantedLockfileDir: rootProjectManifestDir })
     }
 
     if (!manifestStats) {
@@ -1191,6 +1211,71 @@ function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir:
 function missingModulesDirIssue (project: Project): string {
   const id = project.manifest.name ?? project.rootDir
   return `Workspace package ${id} has dependencies but does not have a modules directory`
+}
+
+function declaresDependencies (project: Project): boolean {
+  return DEPENDENCIES_FIELDS.some((field) => !isEmpty(project.manifest[field] ?? {}))
+}
+
+interface CurrentLockfileLocation {
+  virtualStoreDir: string
+  importerId: ProjectId
+}
+
+/**
+ * Where the install that last materialized `project` wrote the current
+ * lockfile, and the importer id it has there. The current lockfile always
+ * lives in the `.pnpm` directory of the root modules directory, whatever
+ * `virtualStoreDir` says.
+ */
+function createCurrentLockfileLocator (
+  opts: Pick<CheckDepsStatusOptions, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'> & { workspaceDir: string }
+): (project: Project) => CurrentLockfileLocation {
+  if (opts.sharedWorkspaceLockfile) {
+    const lockfileDir = opts.lockfileDir ?? opts.workspaceDir
+    const virtualStoreDir = path.join(path.resolve(lockfileDir, opts.modulesDir ?? 'node_modules'), '.pnpm')
+    return (project) => ({ virtualStoreDir, importerId: getLockfileImporterId(lockfileDir, project.rootDir) })
+  }
+  const modulesDirOf = createProjectModulesDirResolver(opts)
+  return (project) => ({
+    virtualStoreDir: path.join(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'), '.pnpm'),
+    importerId: '.' as ProjectId,
+  })
+}
+
+/**
+ * The first of `projects` that the current lockfile does not record as
+ * installed. After a filtered install, a modules directory does not prove
+ * that the install materialized a project. The current lockfile keeps every
+ * importer, so a project counts as installed only when the current lockfile
+ * records a package for each of its direct dependencies that is not a link.
+ */
+async function findProjectMissingFromCurrentLockfile (
+  projects: Project[],
+  locateCurrentLockfile: (project: Project) => CurrentLockfileLocation
+): Promise<Project | undefined> {
+  const currentLockfiles = new Map<string, Promise<LockfileObject | null>>()
+  for (const project of projects) {
+    const { virtualStoreDir, importerId } = locateCurrentLockfile(project)
+    if (!currentLockfiles.has(virtualStoreDir)) {
+      currentLockfiles.set(virtualStoreDir, readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false }))
+    }
+    // eslint-disable-next-line no-await-in-loop
+    const currentLockfile = await currentLockfiles.get(virtualStoreDir)
+    const importer = currentLockfile?.importers[importerId]
+    if (importer == null || !directDependenciesRecorded(importer, currentLockfile?.packages ?? {})) {
+      return project
+    }
+  }
+  return undefined
+}
+
+function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNullable<LockfileObject['packages']>): boolean {
+  return DEPENDENCIES_FIELDS.every((field) =>
+    Object.entries(importer[field] ?? {}).every(([alias, ref]) => {
+      const depPath = refToRelative(ref, alias)
+      return depPath == null || packages[depPath] != null
+    }))
 }
 
 function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {

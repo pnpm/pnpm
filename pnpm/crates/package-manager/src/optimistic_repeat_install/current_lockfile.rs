@@ -1,4 +1,4 @@
-use super::{Config, DependencyGroup, Lockfile};
+use super::{Config, DependencyGroup, Lockfile, Path};
 use pnpm_modules_yaml::IncludedDependencies;
 
 /// Assert the wanted lockfile equals the current one: with no current
@@ -13,6 +13,37 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
 ) -> Result<(), &'static str> {
     assert_current_lockfile_records(wanted, config, |current| {
         materialized_shape_matches(wanted, current, included, config.peer_edge_options())
+    })
+}
+
+/// [`assert_wanted_lockfile_equals_current`] for a current lockfile a
+/// filtered install wrote. That install materialized only the importers it
+/// selected, so the current lockfile must record the closure of the wanted
+/// lockfile rooted at the importers it lists.
+pub(crate) fn assert_wanted_lockfile_equals_filtered_current(
+    wanted: &Lockfile,
+    config: &Config,
+    included: IncludedDependencies,
+    workspace_root: &Path,
+) -> Result<(), &'static str> {
+    assert_current_lockfile_records(wanted, config, |current| {
+        let peer_edges = config.peer_edge_options();
+        if materialized_shape_matches(wanted, current, included, peer_edges) {
+            return true;
+        }
+        let importer_ids = current.importers
+            .keys()
+            .cloned()
+            .collect();
+        current
+            == &crate::materialization_closure(
+                wanted,
+                workspace_root,
+                &importer_ids,
+                &crate::GroupSelection::classify(wanted, included, peer_edges),
+                &crate::SkippedSnapshots::new(),
+            )
+            .lockfile
     })
 }
 

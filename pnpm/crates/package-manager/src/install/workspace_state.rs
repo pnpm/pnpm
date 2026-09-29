@@ -9,6 +9,8 @@ mod projects;
 
 mod discovery;
 
+mod nothing_to_install;
+
 use super::{
     BTreeMap, Catalogs, Clock, Config, DependencyGroup, Host, IncludedDependencies, LazyLockfile,
     MaybeLazyLockfile, NodeLinker, OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision,

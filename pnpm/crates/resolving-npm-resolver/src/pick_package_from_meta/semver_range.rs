@@ -95,20 +95,20 @@ pub(crate) fn semver_satisfies_loose(version: &str, range: &str) -> bool {
 /// range would reject, so its deprecation retry ranks candidates
 /// directly instead of re-running the range.
 pub(super) fn max_version<Raw: AsRef<str>>(versions: &[Raw]) -> Option<String> {
-    let mut best: Option<(Version, String)> = None;
+    let mut best: Option<(Version, &str)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
         match &best {
             Some((current, _)) if current >= &parsed => {}
-            _ => best = Some((parsed, version.as_ref().to_string())),
+            _ => best = Some((parsed, version.as_ref())),
         }
     }
-    best.map(|(_, raw)| raw)
+    best.map(|(_, raw)| raw.to_string())
 }
 
 pub(super) fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
     let parsed_range = cached_range(range)?;
-    let mut best: Option<(Version, String)> = None;
+    let mut best: Option<(Version, &str)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
         if !parsed.satisfies(&parsed_range) {
@@ -116,15 +116,15 @@ pub(super) fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> 
         }
         match &best {
             Some((current, _)) if current >= &parsed => {}
-            _ => best = Some((parsed, version.as_ref().to_string())),
+            _ => best = Some((parsed, version.as_ref())),
         }
     }
-    best.map(|(_, raw)| raw)
+    best.map(|(_, raw)| raw.to_string())
 }
 
 pub(super) fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
     let parsed_range = cached_range(range)?;
-    let mut best: Option<(Version, String)> = None;
+    let mut best: Option<(Version, &str)> = None;
     for version in versions {
         let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
         if !parsed.satisfies(&parsed_range) {
@@ -132,8 +132,8 @@ pub(super) fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> 
         }
         match &best {
             Some((current, _)) if current <= &parsed => {}
-            _ => best = Some((parsed, version.as_ref().to_string())),
+            _ => best = Some((parsed, version.as_ref())),
         }
     }
-    best.map(|(_, raw)| raw)
+    best.map(|(_, raw)| raw.to_string())
 }

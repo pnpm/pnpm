@@ -1075,6 +1075,10 @@
     - refresh-injected-copies-on-repeat-install
     - verify-deps-install-honors-filter
     - webcontainer-async-fs-errors
+"@pnpm/deps.status@1100.1.26":
+  dir: pnpm11/deps/status
+  intents:
+    - verify-deps-filtered-install-touched-lockfile
 "@pnpm/deps.status@1100.1.7":
   dir: pnpm11/deps/status
   intents:
@@ -1325,6 +1329,10 @@
     - shared-dir-lock
     - verify-deps-install-honors-filter
     - webcontainer-async-fs-errors
+"@pnpm/exec.commands@1101.1.6":
+  dir: pnpm11/exec/commands
+  intents:
+    - run-skips-install-when-nothing-to-install
 "@pnpm/exec.esm-node-path-loader@1100.0.0":
   dir: pnpm11/exec/esm-node-path-loader
   intents:
@@ -1956,6 +1964,10 @@
     - quiet-install-diagnostics
     - strict-dep-builds-repeat-install
     - webcontainer-async-fs-errors
+"@pnpm/installing.commands@1101.4.2":
+  dir: pnpm11/installing/commands
+  intents:
+    - recursive-install-filesystem-root
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -6128,6 +6140,16 @@ pacquet@12.8.0:
     - windows-setup-registry-type
     - windows-side-effects-cache-exec-bit
     - workspace-glob-managed-dir-other-drive
+pacquet@12.8.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - cap-rayon-pool
+    - dedupe-hashed-peer-suffix-converges
+    - frozen-injected-peer-link
+    - global-update-latest-saved-range
+    - local-directory-deps-keep-exec-bit
+    - run-skips-install-when-nothing-to-install
+    - verify-deps-filtered-install-touched-lockfile
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -6899,3 +6921,9 @@ pnpm@11.28.1:
     - windows-setup-registry-type
     - windows-side-effects-cache-mode
     - workspace-state-write-race
+pnpm@11.28.2:
+  dir: pnpm11/pnpm
+  intents:
+    - recursive-install-filesystem-root
+    - run-skips-install-when-nothing-to-install
+    - verify-deps-filtered-install-touched-lockfile

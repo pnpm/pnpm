@@ -194,45 +194,23 @@ fn check_single_directory_dep_freshness(
             check.optional_exclusions.allow_unresolved,
         )?;
     }
-    check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta, snapshot.dependencies.as_ref())
+    check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
 }
 
+/// Compares only the declared peer ranges with the recorded ones. The
+/// resolved peers in the snapshot are whatever the parent provides, such as
+/// a `link:` to a workspace project or a version outside the range (an unmet
+/// peer only warns), so they say nothing about whether the lockfile is stale.
 fn check_local_peer_deps_freshness(
     dep: &LocalDepContext<'_>,
     local_manifest: &PackageManifest,
     pkg_meta: &pnpm_lockfile::PackageMetadata,
-    snapshot_deps: Option<
-        &std::collections::HashMap<pnpm_lockfile::PkgName, pnpm_lockfile::SnapshotDepRef>,
-    >,
 ) -> Result<(), FreshnessCheckError> {
     let manifest_peers: std::collections::HashMap<&str, &str> = local_manifest
         .dependencies([DependencyGroup::Peer])
         .collect();
-
     check_recorded_peer_specs_match(dep, &manifest_peers, pkg_meta)?;
-    check_peer_dependencies_meta_freshness(dep, local_manifest, pkg_meta)?;
-
-    for (name, spec) in &manifest_peers {
-        let lockfile_dep = snapshot_deps.and_then(|deps| {
-            pnpm_lockfile::PkgName::parse(*name)
-                .ok()
-                .and_then(|n| deps.get(&n))
-        });
-        if let Some(lockfile_dep) = lockfile_dep
-            && !spec_satisfies_snapshot_dep(
-                dep.workspace_root,
-                dep.lockfile_dir,
-                dep.dir,
-                name,
-                spec,
-                lockfile_dep,
-            )
-        {
-            return Err(dep.outdated());
-        }
-    }
-
-    Ok(())
+    check_peer_dependencies_meta_freshness(dep, local_manifest, pkg_meta)
 }
 
 fn check_recorded_peer_specs_match(

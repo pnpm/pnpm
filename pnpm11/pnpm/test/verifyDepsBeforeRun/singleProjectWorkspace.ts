@@ -160,11 +160,11 @@ test('no dependencies', async () => {
 
   prepare(manifest)
 
-  // attempting to execute a script without the lockfile should fail
+  // a never-installed workspace with nothing to install runs the script
   {
-    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
-    expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from script')
+    expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
   }
 
   await execPnpm([...CONFIG, 'install'])

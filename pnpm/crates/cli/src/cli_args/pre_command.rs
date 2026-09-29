@@ -7,6 +7,7 @@
 //!
 //! Mirrors the block at the top of pnpm's `pnpm/src/main.ts`.
 
+pub(crate) use argv_plans::{pre_command_plan_for_version_flag, switch_plan_for_unparsed_argv};
 pub(crate) use execute::execute_plan;
 
 mod system_runtime_version;
@@ -87,30 +88,6 @@ pub(crate) fn pre_command_plan(
             check_runtimes: true,
             reporter: args.reporter_flags(),
             key_issues: key_issue_reporting(&args.command),
-        },
-        config_overrides,
-        SwitchProcessState::current(),
-    )
-}
-
-/// The `pnpm --version` path, which clap answers before a command is
-/// parsed. pnpm checks the package manager there too, but skips the runtime
-/// checks — printing the version must work in a project whose runtime pin
-/// the system cannot satisfy.
-pub(crate) fn pre_command_plan_for_version_flag(
-    argv: &[OsString],
-    config_overrides: &ConfigOverrides,
-) -> miette::Result<Option<PreCommandPlan>> {
-    pre_command_plan_from_input(
-        &PreCommandInput {
-            switch: SwitchInput::from_version_argv(argv),
-            global: false,
-            skip_pm_handling: false,
-            check_runtimes: false,
-            reporter: SwitchInput::reporter_flags_from_version_argv(argv),
-            // Printing the version must work in a project whose
-            // `pnpm-workspace.yaml` is broken, like the runtime checks above.
-            key_issues: KeyIssueReporting::WarnOnly,
         },
         config_overrides,
         SwitchProcessState::current(),
@@ -503,3 +480,5 @@ mod runtime;
 mod pin;
 
 mod execute;
+
+mod argv_plans;
