@@ -9,7 +9,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { caretRangeForPatched, createMinimumReleaseAgeExcludes, createOverrides } from '../../src/audit/fix.js'
+import { caretRangeForPatched, createMinimumReleaseAgeExcludes, createOverrides, patchedRangeForStyle } from '../../src/audit/fix.js'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
@@ -894,6 +894,24 @@ describe('caretRangeForPatched', () => {
 
   test('picks the minimum version from a complex range', () => {
     expect(caretRangeForPatched('>=1.0.0 <2.0.0')).toBe('^1.0.0')
+  })
+})
+
+describe('patchedRangeForStyle', () => {
+  test('converts a >= range to a caret range for the major style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'major')).toBe('^0.18.1')
+  })
+
+  test('returns the bare version for the patch style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'patch')).toBe('0.18.1')
+  })
+
+  test('returns a tilde-prefixed version for the minor style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'minor')).toBe('~0.18.1')
+  })
+
+  test('returns an =-prefixed version for the exact style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'exact')).toBe('=0.18.1')
   })
 })
 

@@ -209,3 +209,64 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
   expect(separatorNames.filter((s: string) => s.includes('critical') || s.includes('high') || s.includes('moderate') || s.includes('low'))).toHaveLength(1)
   expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
 })
+
+test('audit --fix -i respects saveExact when formatting choices and overrides', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  mockCheckbox.mockResolvedValue(['axios@<1.15.0'])
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    interactive: true,
+    saveExact: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  const choices = callArgs.choices as Array<{ name?: string; value?: string }>
+  const axiosChoice = choices.find((c) => c.value === 'axios@<1.15.0')
+  expect(axiosChoice?.name).toMatch(/\b1\.15\.0\b/)
+  expect(axiosChoice?.name).not.toContain('^1.15.0')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('1.15.0')
+})
+
+test('audit --fix -i respects savePrefix when formatting choices and overrides', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  mockCheckbox.mockResolvedValue(['axios@<1.15.0'])
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    interactive: true,
+    savePrefix: '~',
+  })
+
+  expect(exitCode).toBe(0)
+
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  const choices = callArgs.choices as Array<{ name?: string; value?: string }>
+  const axiosChoice = choices.find((c) => c.value === 'axios@<1.15.0')
+  expect(axiosChoice?.name).toContain('~1.15.0')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('~1.15.0')
+})

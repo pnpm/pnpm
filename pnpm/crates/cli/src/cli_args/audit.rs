@@ -4,6 +4,7 @@ pub(crate) use fix::{
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
 pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
+pub(crate) use pnpm_registry::RangeSpecStyle;
 pub(crate) use render::{
     blue, bold, color_severity, green, red, render_json_report, render_text_report,
 };
@@ -18,8 +19,8 @@ pub(crate) use request::{
     root_included,
 };
 pub(crate) use version_ranges::{
-    caret_range_for_patched, infer_patched_versions, is_range_subset, min_version_from_range,
-    patched_range_for_style, satisfies_including_prerelease, satisfies_safe,
+    infer_patched_versions, is_range_subset, min_version_from_range, patched_range_for_style,
+    satisfies_including_prerelease, satisfies_safe,
 };
 
 use crate::{
@@ -49,7 +50,6 @@ use pnpm_lockfile::{
 use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
     GuardExhaustionPolicy, PackageVersionGuard, PackageVersionGuardDecision,

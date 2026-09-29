@@ -14,7 +14,9 @@ use super::{
         sanitize_control_chars,
     },
     request::{Include, lockfile_to_audit_request},
-    version_ranges::{caret_range_for_patched, is_range_subset, satisfies_safe},
+    version_ranges::{
+        caret_range_for_patched, is_range_subset, patched_range_for_style, satisfies_safe,
+    },
 };
 use crate::cli_args::audit::fix::update::{
     InstalledPackages, classify_for_update, report_fixed_remaining,
