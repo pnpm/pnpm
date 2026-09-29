@@ -14,6 +14,13 @@ struct MissingIntegrityTarball {
     expected_shasum: Option<Integrity>,
 }
 
+/// How many versions of one packument a single read will download to pin
+/// integrity. The candidate set is the upstream's to choose, so without a cap
+/// one client request fans out into one tarball fetch per version the upstream
+/// declares unpinned. Versions past the cap keep the metadata the upstream
+/// published, like any other version that cannot be pinned.
+const MAX_PINNED_VERSIONS_PER_PACKUMENT: usize = 64;
+
 struct PackumentIntegrityResolver<'a> {
     state: &'a AppState,
     namespace: &'a str,
@@ -90,7 +97,8 @@ impl PackumentIntegrityResolver<'_> {
         candidates: Vec<MissingIntegrityTarball>,
     ) -> bool {
         let mut pinned = false;
-        for candidate in candidates {
+        let mut candidates = candidates.into_iter();
+        for candidate in candidates.by_ref().take(MAX_PINNED_VERSIONS_PER_PACKUMENT) {
             match self.compute_integrity(&candidate).await {
                 Ok(integrity) => {
                     let dist = doc
@@ -112,6 +120,14 @@ impl PackumentIntegrityResolver<'_> {
                     );
                 }
             }
+        }
+        let beyond_cap = candidates.count();
+        if beyond_cap > 0 {
+            tracing::warn!(
+                package = %self.name.as_str(),
+                beyond_cap,
+                "leaving the remaining versions unpinned: the packument declares more unpinned versions than one read will fetch",
+            );
         }
         pinned
     }

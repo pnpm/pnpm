@@ -493,6 +493,84 @@ async fn cache_disabled_upstream_serves_the_packument_it_declared() {
     tarball_mock.assert_async().await;
 }
 
+/// The candidate set is the upstream's to choose, so one client request must
+/// not fan out into a tarball fetch per unpinned version it declares. The
+/// versions past the cap are left as the upstream published them, which keeps
+/// the packument readable instead of failing it on the upstream's own volume.
+#[tokio::test]
+async fn the_pinned_version_count_is_capped_per_packument() {
+    const PINNED: usize = 64;
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"capped-tarball";
+    let mut packument = foo_packument(&upstream.url());
+    for index in 0..=PINNED {
+        let version = format!("0.0.{index}");
+        packument["versions"][&version] = json!({
+            "name": "foo",
+            "version": version,
+            "dist": {
+                "tarball": format!("{}/foo/-/foo-{version}.tgz", upstream.url()),
+                "shasum": sha1_hex_of(bytes),
+            }
+        });
+    }
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    for index in 0..PINNED {
+        upstream
+            .mock("GET", format!("/foo/-/foo-0.0.{index}.tgz").as_str())
+            .with_status(200)
+            .with_body(bytes)
+            .expect(1)
+            .create_async()
+            .await;
+    }
+    // The one version past the cap must never be fetched.
+    let beyond_cap = upstream
+        .mock("GET", format!("/foo/-/foo-0.0.{PINNED}.tgz").as_str())
+        .with_status(200)
+        .with_body(bytes)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        .oneshot(
+            Request::get("/foo")
+                .header("accept", "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    for index in 0..PINNED {
+        let version = format!("0.0.{index}");
+        assert_eq!(
+            resolved["versions"][&version]["dist"]["integrity"],
+            sha512_integrity(bytes),
+            "version {version} is within the cap and must be pinned",
+        );
+    }
+    let capped = format!("0.0.{PINNED}");
+    assert!(
+        resolved["versions"][&capped]["dist"].get("integrity").is_none(),
+        "the version past the cap keeps the integrity the upstream declared",
+    );
+    assert_eq!(resolved["versions"][&capped]["dist"]["shasum"], sha1_hex_of(bytes));
+    packument_mock.assert_async().await;
+    beyond_cap.assert_async().await;
+}
+
 /// A pre-2017 npm publish carries only the legacy hex `dist.shasum`. pnpr
 /// computes a modern SRI and stores it with the cached packument and tarball.
 #[tokio::test]
