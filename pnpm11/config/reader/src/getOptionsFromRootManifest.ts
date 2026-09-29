@@ -113,6 +113,9 @@ export function getOptionsFromPnpmSettings (
   if (pnpmSettings.nodeDownloadMirrors != null) {
     assertStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
   }
+  if (settings.allowBuilds !== undefined) {
+    assertValidAllowBuilds(settings.allowBuilds)
+  }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
@@ -600,6 +603,17 @@ function assertValidPatchedDependencies (patchedDependencies: unknown): asserts 
   for (const [dep, patchFile] of Object.entries(patchedDependencies)) {
     if (typeof patchFile !== 'string') {
       throw new PnpmError('INVALID_PATCHED_DEPENDENCY', `The value of patchedDependencies.${dep} should be a string, but got ${renderReceivedType(patchFile)}`)
+    }
+  }
+}
+
+function assertValidAllowBuilds (allowBuilds: unknown): asserts allowBuilds is Record<string, boolean | string> {
+  if (allowBuilds == null || typeof allowBuilds !== 'object' || Array.isArray(allowBuilds)) {
+    throw new PnpmError('INVALID_ALLOW_BUILDS', `The allowBuilds field should be an object, but got ${renderReceivedType(allowBuilds)}`)
+  }
+  for (const [pkg, value] of Object.entries(allowBuilds)) {
+    if (typeof value !== 'boolean' && typeof value !== 'string') {
+      throw new PnpmError('INVALID_ALLOW_BUILDS', `The value of allowBuilds.${pkg} should be a boolean or string, but got ${renderReceivedType(value)}`)
     }
   }
 }

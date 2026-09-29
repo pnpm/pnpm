@@ -877,3 +877,30 @@ test.each([0, -1, 1.5, '2'])('getOptionsFromPnpmSettings() rejects invalid task 
     tasks: { build: { concurrency } } as never,
   })).toThrow(/The "tasks\['build'\].concurrency" setting should be a positive integer/)
 })
+
+test('getOptionsFromPnpmSettings() rejects non-object allowBuilds', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: ['esbuild'] as unknown as Record<string, boolean | string>,
+  })).toThrow(/The allowBuilds field should be an object, but got array/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: 'all' as unknown as Record<string, boolean | string>,
+  })).toThrow(/The allowBuilds field should be an object, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects invalid allowBuilds value types', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: { esbuild: 123 as unknown as boolean },
+  })).toThrow(/The value of allowBuilds\.esbuild should be a boolean or string, but got number/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: { esbuild: null as unknown as boolean },
+  })).toThrow(/The value of allowBuilds\.esbuild should be a boolean or string, but got null/)
+})
+
+test('getOptionsFromPnpmSettings() accepts valid allowBuilds', () => {
+  const allowBuilds = { esbuild: true, 'node-gyp': false, other: 'set this to true or false' }
+  const options = getOptionsFromPnpmSettings(process.cwd(), { allowBuilds })
+  expect(options.allowBuilds).toStrictEqual(allowBuilds)
+})
+
