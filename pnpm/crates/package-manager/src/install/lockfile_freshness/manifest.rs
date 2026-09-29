@@ -20,13 +20,21 @@ pub(crate) struct ImporterSatisfactionCheck<'a> {
     pub(crate) manifest: &'a PackageManifest,
     pub(crate) importer_id: &'a str,
     pub(crate) config: &'a Config,
-    pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
-    /// The workspace's project manifests as the install sees them, which an
-    /// embedder may hold only in memory. An injected project is read from
-    /// here before its directory on disk.
-    pub(crate) project_manifests: &'a super::ProjectManifestsByDir<'a>,
+    pub(crate) workspace: WorkspaceProjects<'a>,
     pub(crate) optional_exclusions: OptionalDependencyExclusions<'a>,
     pub(crate) parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+}
+
+/// The workspace projects an importer's dependencies may point at.
+#[derive(Clone, Copy)]
+pub(crate) struct WorkspaceProjects<'a> {
+    /// Linkable projects by name and version, when links are left out of
+    /// the lockfile and have to be resolved against them.
+    pub(crate) packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    /// The project manifests as the install sees them, which an embedder may
+    /// hold only in memory. An injected project is read from here before its
+    /// directory on disk.
+    pub(crate) manifests_by_dir: &'a super::ProjectManifestsByDir<'a>,
 }
 
 /// Which of the project's `optionalDependencies` the comparison leaves out.
@@ -61,7 +69,7 @@ pub(crate) fn check_importer_satisfies(
     let normalized_manifest = normalized_freshness_manifest(
         check.manifest,
         check.config,
-        check.workspace_packages,
+        check.workspace.packages,
         importer,
         check.parsed_overrides,
         check.lockfile_dir,

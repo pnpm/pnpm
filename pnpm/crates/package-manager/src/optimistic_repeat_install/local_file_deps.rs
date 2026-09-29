@@ -150,16 +150,13 @@ fn scan_local_tarball_deps(
             check.layout.included.includes_project_optional_dependencies(),
         ),
     ];
-    let workspace_packages = if injected_deps_block_fast_path(check.config) {
-        workspace::collect_workspace_packages(check.project_manifests)
-    } else {
-        std::collections::HashMap::new()
-    };
+    let workspace_packages = injected_deps_block_fast_path(check.config)
+        .then(|| workspace::collect_workspace_packages(check.project_manifests));
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
         if !scan_project_manifest_tarballs(
             check,
-            &workspace_packages,
+            workspace_packages.as_ref(),
             project_dir,
             manifest,
             &fields,
@@ -174,7 +171,7 @@ fn scan_local_tarball_deps(
 
 fn scan_project_manifest_tarballs(
     check: &OptimisticRepeatInstallCheck<'_>,
-    workspace_packages: &workspace::WorkspacePackageMap<'_>,
+    workspace_packages: Option<&workspace::WorkspacePackageMap<'_>>,
     project_dir: &Path,
     manifest: &pnpm_package_manifest::PackageManifest,
     fields: &[(&str, DependencyGroup, bool); 3],
@@ -192,7 +189,6 @@ fn scan_project_manifest_tarballs(
             field,
             group: *group,
             inject_workspace_packages: check.config.inject_workspace_packages,
-            injected_deps_block_fast_path: injected_deps_block_fast_path(check.config),
             workspace_packages,
             overrides,
         };
@@ -214,9 +210,9 @@ struct FieldTarballScan<'a> {
     field: &'a str,
     group: DependencyGroup,
     inject_workspace_packages: bool,
-    /// See [`injected_deps_block_fast_path`].
-    injected_deps_block_fast_path: bool,
-    workspace_packages: &'a workspace::WorkspacePackageMap<'a>,
+    /// The workspace projects, when an injected one rules the fast path out
+    /// (see [`injected_deps_block_fast_path`]).
+    workspace_packages: Option<&'a workspace::WorkspacePackageMap<'a>>,
     overrides: &'a [VersionOverride],
 }
 
@@ -235,9 +231,9 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        if scan.injected_deps_block_fast_path
+        if let Some(workspace_packages) = scan.workspace_packages
             && workspace::dependency_is_workspace_or_injected(
-                scan.workspace_packages,
+                workspace_packages,
                 scan.inject_workspace_packages,
                 scan.catalogs,
                 manifest.value(),

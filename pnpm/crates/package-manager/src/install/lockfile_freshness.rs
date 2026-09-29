@@ -5,7 +5,8 @@ pub(crate) use directory_deps::{ProjectManifestsByDir, project_manifests_by_dir}
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
-    ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
+    ImporterSatisfactionCheck, OptionalDependencyExclusions, WorkspaceProjects,
+    check_importer_satisfies,
 };
 
 use rayon::prelude::*;
@@ -401,8 +402,10 @@ fn check_single_importer(
         manifest,
         importer_id,
         config: inputs.config,
-        workspace_packages: inputs.workspace_packages,
-        project_manifests,
+        workspace: WorkspaceProjects {
+            packages: inputs.workspace_packages,
+            manifests_by_dir: project_manifests,
+        },
         optional_exclusions: OptionalDependencyExclusions {
             ignored: ignored_optional_matcher,
             allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,

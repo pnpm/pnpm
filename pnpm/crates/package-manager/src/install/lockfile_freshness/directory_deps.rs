@@ -146,7 +146,7 @@ fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let mut local_manifest = check.project_manifests
+    let mut local_manifest = check.workspace.manifests_by_dir
         .get(&pnpm_fs::lexical_normalize(dep.dir))
         .map(|manifest| (*manifest).clone())
         .or_else(|| pnpm_workspace::safe_read_project_manifest_only(dep.dir).ok().flatten())
