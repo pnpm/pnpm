@@ -1,7 +1,7 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
     output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
-    read_lifecycle_manifest, run_lifecycle_hook, run_postinstall_hooks,
+    read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -838,6 +838,8 @@ fn gypfile_false_leaves_an_explicit_install_script_alone() {
 #[cfg(unix)]
 #[test]
 fn path_in_another_case_does_not_stand_in_for_path() {
+    use super::run_lifecycle_hook;
+
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
