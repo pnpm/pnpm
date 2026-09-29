@@ -249,8 +249,8 @@ fn wait_for_process_group(leader: u32) {
 #[cfg(not(unix))]
 fn wait_for_process_group(_: u32) {}
 
-/// Whether the group led by `leader` holds a process that has not exited,
-/// once the members that are pnpm's own children are reaped.
+/// Whether the group led by `leader` may still hold a process that has not
+/// exited, once the members that are pnpm's own children are reaped.
 ///
 /// A member that another process adopted stays in the group as a zombie
 /// until that process reaps it, and the kernel still counts it. When pnpm

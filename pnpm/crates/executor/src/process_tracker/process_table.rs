@@ -5,24 +5,36 @@
 use std::{fs, io, path::Path, process};
 
 /// Whether the group led by `leader` may still hold a process that has not
-/// exited. Only a `table` that shows members of the group, all of them
-/// zombies, rules that out. One that cannot be listed to the end, is not
-/// the table of pnpm's own pid namespace, or shows no member at all, as
-/// when `hidepid=invisible` hides them, cannot.
+/// exited. Only two readings in a row of `table` that show the same members
+/// of the group, all of them zombies, rule that out, since a member may
+/// start another process and exit while the table is read, and a reading
+/// whose listing came first misses the new one. A table that cannot be
+/// listed to the end, is not the table of pnpm's own pid namespace, or
+/// shows no member at all, as when `hidepid=invisible` hides them, cannot
+/// rule it out.
 pub(super) fn has_running_member(table: &Path, leader: i32) -> bool {
-    let Ok(mut pids) = process_ids(table) else { return true };
+    only_zombies(table, leader).is_none_or(|zombies| only_zombies(table, leader) != Some(zombies))
+}
+
+/// The members of the group led by `leader` that `table` shows, if it shows
+/// some and all of them are zombies.
+fn only_zombies(table: &Path, leader: i32) -> Option<Vec<u32>> {
+    let mut pids = process_ids(table).ok()?;
     if !is_own_namespace(table) {
-        return true;
+        return None;
     }
     // The script and whatever it started hold the newest ids, so a member
     // that is still running turns up within the first few reads.
     pids.sort_unstable();
-    let mut members = pids
-        .into_iter()
-        .rev()
-        .filter_map(|pid| member_is_running(table, pid, leader))
-        .peekable();
-    members.peek().is_none() || members.any(|running| running)
+    let mut zombies = Vec::new();
+    for pid in pids.into_iter().rev() {
+        match member_is_running(table, pid, leader) {
+            Some(true) => return None,
+            Some(false) => zombies.push(pid),
+            None => {}
+        }
+    }
+    (!zombies.is_empty()).then_some(zombies)
 }
 
 fn process_ids(table: &Path) -> io::Result<Vec<u32>> {
