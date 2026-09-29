@@ -969,4 +969,3 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
-

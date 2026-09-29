@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Validate `ignoredOptionalDependencies` and `requiredScripts` in workspace and manifest settings.
+pnpm now reports an `INVALID_SETTING` error when `ignoredOptionalDependencies` or `requiredScripts` in `pnpm-workspace.yaml` is not an array of strings.
