@@ -17,6 +17,7 @@ function findRuntimeNodeVersion (snapshotKeys: Iterable<string>): string | undef
   }
   return undefined
 }
+import { parseGitHostedTarballUrl } from '@pnpm/building.policy'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import type { DepPath } from '@pnpm/types'
@@ -88,17 +89,28 @@ export async function materializeThroughPackageProvider (
   }
   for (const node of Object.values(depGraph)) {
     const depPath = node.depPath
-    const resolution = node.resolution as { type?: string, tarball?: string, integrity?: string, directory?: string, repo?: string, commit?: string }
+    const resolution = node.resolution as { type?: string, tarball?: string, integrity?: string, gitHosted?: boolean, path?: string, directory?: string, repo?: string, commit?: string }
     let source: Pick<ProviderRequestNode, 'tarball' | 'integrity' | 'directory' | 'git'>
-    if (resolution.type == null && resolution.tarball && resolution.integrity) {
+    // A git-host dependency (GitHub/GitLab/Bitbucket shorthand) resolves to a download tarball whose
+    // integrity is only known after a fresh fetch (the lockfile has none), so hand it over as the
+    // commit-addressed git source it came from instead.
+    const hosted = resolution.type == null && resolution.gitHosted === true && resolution.path == null && resolution.tarball
+      ? parseGitHostedTarballUrl(resolution.tarball)
+      : undefined
+    const git = resolution.type === 'git' && resolution.repo && resolution.commit
+      ? { repo: resolution.repo, commit: resolution.commit }
+      : hosted != null && /^[0-9a-f]{40}$/.test(hosted.ref)
+        ? { repo: hosted.repo, commit: hosted.ref }
+        : undefined
+    if (git != null) {
+      if (node.prepare === true) {
+        throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider cannot install ${depPath}: git dependencies that need to be built (prepare) are not supported yet`)
+      }
+      source = { git }
+    } else if (resolution.type == null && resolution.tarball && resolution.integrity) {
       source = { tarball: resolution.tarball, integrity: resolution.integrity }
     } else if (resolution.type === 'directory' && resolution.directory != null) {
       source = { directory: path.resolve(opts.lockfileDir, resolution.directory) }
-    } else if (resolution.type === 'git' && resolution.repo && resolution.commit) {
-      if ((node as { prepare?: boolean }).prepare === true) {
-        throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider cannot install ${depPath}: git dependencies that need to be built (prepare) are not supported yet`)
-      }
-      source = { git: { repo: resolution.repo, commit: resolution.commit } }
     } else {
       throw new PnpmError('PACKAGE_PROVIDER_UNSUPPORTED', `The package provider does not support the resolution of ${depPath} (${resolution.type ?? 'tarball without integrity'})`)
     }

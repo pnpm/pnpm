@@ -186,12 +186,12 @@ function isGitRepoDepPath (depPath: string): boolean {
 function gitHostedTarballRepoKey (pkgIdWithPatchHash: string): string | undefined {
   const { name, nonSemverVersion } = dp.parse(pkgIdWithPatchHash)
   if (name == null || nonSemverVersion == null) return undefined
-  const repoUrl = gitHostedTarballRepoUrl(nonSemverVersion)
-  return repoUrl == null ? undefined : `${name}@${repoUrl}`
+  const source = parseGitHostedTarballUrl(nonSemverVersion)
+  return source == null ? undefined : `${name}@${source.repo}`
 }
 
-// Reconstructs the committish-free repository URL from the download URL of a
-// git host that pnpm fetches as a tarball instead of cloning. The patterns
+// Splits the download URL of a git host that pnpm fetches as a tarball instead
+// of cloning into the committish-free repository URL and the committish. The patterns
 // mirror the tarball templates in @pnpm/git-resolver (which come from
 // hosted-git-info, except GitLab's, which that package overrides). The host of
 // each known template is anchored so a look-alike download host (e.g.
@@ -201,22 +201,22 @@ function gitHostedTarballRepoKey (pkgIdWithPatchHash: string): string | undefine
 // pattern is rejected rather than falling through to the generic GitLab
 // pattern, so a malformed URL on a known host cannot be rewritten into that
 // host's trusted repo key either.
-function gitHostedTarballRepoUrl (tarballUrl: string): string | undefined {
+export function parseGitHostedTarballUrl (tarballUrl: string): { repo: string, ref: string } | undefined {
   // GitHub: https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>
   if (tarballUrl.startsWith('https://codeload.github.com/')) {
-    const match = /^https:\/\/codeload\.github\.com\/([^/]+)\/([^/]+)\/tar\.gz\//.exec(tarballUrl)
-    return match == null ? undefined : `git+https://github.com/${match[1]}/${match[2]}.git`
+    const match = /^https:\/\/codeload\.github\.com\/([^/]+)\/([^/]+)\/tar\.gz\/([^/]+)/.exec(tarballUrl)
+    return match == null ? undefined : { repo: `git+https://github.com/${match[1]}/${match[2]}.git`, ref: match[3] }
   }
   // Bitbucket: https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz
   if (tarballUrl.startsWith('https://bitbucket.org/')) {
-    const match = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\//.exec(tarballUrl)
-    return match == null ? undefined : `git+https://bitbucket.org/${match[1]}/${match[2]}.git`
+    const match = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\/([^/]*?)(?:\.tar\.gz|$)/.exec(tarballUrl)
+    return match == null ? undefined : { repo: `git+https://bitbucket.org/${match[1]}/${match[2]}.git`, ref: match[3] }
   }
   // GitLab (incl. self-hosted): https://<host>/<group…>/<repo>/-/archive/<ref>/…
   // The project path may contain nested groups, so match up to the
   // `/-/archive/<ref>/` marker rather than a fixed number of path segments.
-  const match = /^https:\/\/([^/]+)\/(.+?)\/-\/archive\/[^/]+\//.exec(tarballUrl)
-  return match == null ? undefined : `git+https://${match[1]}/${match[2]}.git`
+  const match = /^https:\/\/([^/]+)\/(.+?)\/-\/archive\/([^/]+)\//.exec(tarballUrl)
+  return match == null ? undefined : { repo: `git+https://${match[1]}/${match[2]}.git`, ref: match[3] }
 }
 
 function isDepPathAllowBuildKey (pkg: string): boolean {

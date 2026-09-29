@@ -1,5 +1,5 @@
 import { expect, it } from '@jest/globals'
-import { createAllowBuildFunction, isBuildExplicitlyDisallowed, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed, parseGitHostedTarballUrl, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import type { DepPath } from '@pnpm/types'
 
 function depPath (value: string): DepPath {
@@ -206,4 +206,12 @@ it('unapprovedIgnoredBuilds() reports nothing when nothing was recorded', () => 
   const allowBuild = createAllowBuildFunction({ allowBuilds: { foo: true } })
   expect(unapprovedIgnoredBuilds(undefined, allowBuild)).toStrictEqual([])
   expect(unapprovedIgnoredBuilds(new Set(), allowBuild)).toStrictEqual([])
+})
+
+it('parseGitHostedTarballUrl() splits git-host download URLs into repo and ref', () => {
+  const sha = '635149dc3c7bb03bd64cafe9da604cddd476ce60'
+  expect(parseGitHostedTarballUrl(`https://codeload.github.com/org/foo/tar.gz/${sha}`)).toStrictEqual({ repo: 'git+https://github.com/org/foo.git', ref: sha })
+  expect(parseGitHostedTarballUrl(`https://bitbucket.org/org/bar/get/${sha}.tar.gz`)).toStrictEqual({ repo: 'git+https://bitbucket.org/org/bar.git', ref: sha })
+  expect(parseGitHostedTarballUrl(`https://gitlab.com/group/sub/baz/-/archive/${sha}/baz-${sha}.tar.gz`)).toStrictEqual({ repo: 'git+https://gitlab.com/group/sub/baz.git', ref: sha })
+  expect(parseGitHostedTarballUrl('https://registry.npmjs.org/foo/-/foo-1.0.0.tgz')).toBeUndefined()
 })
