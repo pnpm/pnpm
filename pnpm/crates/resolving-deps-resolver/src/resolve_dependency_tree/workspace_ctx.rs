@@ -165,6 +165,15 @@ pub(super) struct WorkspaceResolutionCache {
     /// these too — this map is what a *different* importer hits.
     pub(super) resolved_workspace_final_by_wanted:
         Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Per-key admission locks for concurrent first callers of
+    /// [`resolve_wanted_cached`]. The resolver's fetch locker already
+    /// coalesces the network work; without this map those callers also
+    /// each repeat the resolver chain's remaining work and the manifest
+    /// hook pipeline (including pnpmfile, a JS bridge) for the same
+    /// key. The guard is never held across the map's own lock, and a
+    /// cancelled first caller releases it on drop so the next caller
+    /// retries cleanly.
+    pub(super) in_flight_by_wanted: Mutex<HashMap<WantedKey, Arc<tokio::sync::Mutex<()>>>>,
     /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     pub(super) share_workspace_resolutions: bool,
     /// Memoises `reuse::subtree_fully_reusable` per update scope and snapshot

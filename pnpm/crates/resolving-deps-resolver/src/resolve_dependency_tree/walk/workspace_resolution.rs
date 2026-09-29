@@ -150,6 +150,23 @@ where
     if let Some(result) = cached {
         return Ok(result);
     }
+    // Admit one resolver per wanted key. Waiters re-check the
+    // completed cache after the holder finishes, so a barrier of
+    // concurrent first callers runs the resolver chain and the
+    // manifest hooks (including pnpmfile) once, not once per waiter.
+    // The entry maps stay small: one lock per distinct key, and a
+    // lost race simply re-locks and finds the cache filled.
+    let key_lock = Arc::clone(
+        lock_recoverable(&ctx.workspace.cache.in_flight_by_wanted)
+            .entry(cache_key.clone())
+            .or_default(),
+    );
+    let _key_guard = key_lock.lock().await;
+    let cached =
+        lock_recoverable(&ctx.workspace.cache.resolved_by_wanted).get(&cache_key).map(Arc::clone);
+    if let Some(result) = cached {
+        return Ok(result);
+    }
     let owned_opts = per_wanted_opts(opts, pick_overlay, &cache_key);
     let opts = owned_opts.as_ref().unwrap_or(opts);
     let shared_workspace_key = shared_workspace_cache_key(ctx, &cache_key, wanted, opts);
