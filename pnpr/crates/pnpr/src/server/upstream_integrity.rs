@@ -108,7 +108,7 @@ impl PackumentIntegrityResolver<'_> {
                         ?err,
                         package = %self.name.as_str(),
                         version = %candidate.version,
-                        "keeping the upstream's declared integrity for a version pnpr could not pin"
+                        "keeping the upstream's declared integrity for a version pnpr could not pin",
                     );
                 }
             }

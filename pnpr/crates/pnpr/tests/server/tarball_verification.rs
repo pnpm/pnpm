@@ -424,11 +424,11 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
     let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         resolved["versions"]["0.1.0"]["dist"]["shasum"],
-        "0000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000",
     );
     assert!(
         resolved["versions"]["0.1.0"]["dist"].get("integrity").is_none(),
-        "an unfetchable tarball has no bytes to hash, so no integrity may be invented"
+        "an unfetchable tarball has no bytes to hash, so no integrity may be invented",
     );
 }
 
@@ -598,11 +598,11 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
     let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         resolved["versions"]["1.0.0"]["dist"]["shasum"],
-        sha1_hex_of(b"different tarball bytes")
+        sha1_hex_of(b"different tarball bytes"),
     );
     assert!(
         resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none(),
-        "an integrity over bytes that contradict the declared shasum must not be pinned"
+        "an integrity over bytes that contradict the declared shasum must not be pinned",
     );
     assert!(tarball_cache_entries(&public_cache_pkg(&cache, "foo")).is_empty());
 
@@ -616,7 +616,7 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         .unwrap();
     assert!(
         to_bytes(response.into_body(), usize::MAX).await.is_err(),
-        "the tarball stream must abort rather than deliver bytes that contradict the declared shasum"
+        "the tarball stream must abort rather than deliver bytes that contradict the declared shasum",
     );
     assert!(tarball_cache_entries(&public_cache_pkg(&cache, "foo")).is_empty());
     packument_mock.assert_async().await;
