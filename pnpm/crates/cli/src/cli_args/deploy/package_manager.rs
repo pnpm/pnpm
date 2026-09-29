@@ -1,6 +1,11 @@
-use crate::cli_args::package_manager::{exact_version, wanted_package_manager};
+use crate::cli_args::package_manager::exact_version;
 use miette::Context;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_package_manifest::{
+    PackageManifest,
+    package_manager_spec::{
+        dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
+    },
+};
 use serde_json::{Map, Value};
 use std::path::Path;
 
@@ -12,9 +17,9 @@ const DEV_ENGINES: &str = "devEngines";
 /// workspace uses.
 ///
 /// Only the `packageManager` field is inherited. The root's `devEngines` is a
-/// development-time contract that package managers enforce by default — npm
+/// development-time contract that package managers enforce by default. npm
 /// refuses to run any script of a manifest whose `devEngines.packageManager`
-/// names another package manager — so copying it into a deploy directory makes
+/// names another package manager, so copying it into a deploy directory makes
 /// that directory unusable outside the workspace. The pin it names is kept,
 /// as the `packageManager` field corepack reads.
 pub(super) fn inherit_package_manager(manifest: &mut Value, engine_pin_manifest: Option<&Value>) {
@@ -35,29 +40,39 @@ pub(super) fn inherit_package_manager(manifest: &mut Value, engine_pin_manifest:
 /// The `packageManager` spec a deployed manifest should declare, for a
 /// workspace root that declares one.
 ///
-/// The pin pnpm itself resolves is the one the deploy directory should pin,
-/// and `devEngines.packageManager` outranks `packageManager`, so an exact
-/// entry there is turned into the equivalent `packageManager` spec. A root
-/// that names no such entry, or names only a range that could never be
-/// installed, keeps whatever its `packageManager` field says.
+/// `devEngines.packageManager` outranks `packageManager` when pnpm resolves
+/// its own pin, so an exact pnpm version there becomes `pnpm@<version>`. A
+/// root `packageManager` naming that same version is kept as written instead,
+/// so the corepack integrity hash it may carry survives. A root with no exact
+/// pnpm entry keeps whatever its `packageManager` field says.
 fn inherited_package_manager(engine_pin_manifest: &Value) -> Option<Value> {
-    if let Some(package_manager) = dev_engines_package_manager_spec(engine_pin_manifest) {
-        return Some(Value::String(package_manager));
+    let declared = declared_package_manager(engine_pin_manifest.as_object()?);
+    let Some(version) = exact_pnpm_dev_engines_version(engine_pin_manifest) else {
+        return declared.cloned();
+    };
+    if let Some(declared) = declared.and_then(Value::as_str)
+        && let ("pnpm", Some(reference)) = split_spec(declared)
+        && version_without_build(reference) == version
+    {
+        return Some(Value::String(declared.to_string()));
     }
-    declared_package_manager(engine_pin_manifest.as_object()?).cloned()
+    Some(Value::String(format!("pnpm@{version}")))
 }
 
-/// The `<name>@<version>` spec the root's `devEngines.packageManager` pins to
-/// a single version, or `None` when the root declares no such entry or pins a
-/// range or a dist-tag.
+/// The version the root's pnpm `devEngines.packageManager` entry pins
+/// exactly, with any integrity hash it carries, or `None` when the root has
+/// no pnpm entry or it names a range or a dist-tag.
 ///
 /// Corepack installs the version named exactly, so a range names nothing it
-/// can honor.
-fn dev_engines_package_manager_spec(engine_pin_manifest: &Value) -> Option<String> {
-    engine_pin_manifest.get(DEV_ENGINES)?.get(PACKAGE_MANAGER)?;
-    let wanted = wanted_package_manager(engine_pin_manifest)?;
-    let version = exact_version(wanted.version.as_deref()?)?;
-    Some(format!("{}@{version}", wanted.name))
+/// can honor. An entry for another package manager is not the pin of a pnpm
+/// workspace.
+fn exact_pnpm_dev_engines_version(engine_pin_manifest: &Value) -> Option<&str> {
+    let (_, version) = dev_engines_package_managers(engine_pin_manifest)
+        .filter_map(engine_name_version)
+        .find(|(name, _)| *name == "pnpm")?;
+    let version = version?;
+    exact_version(version)?;
+    Some(version)
 }
 
 pub(super) fn write_inherited_package_manager(
