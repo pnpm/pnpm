@@ -193,6 +193,17 @@ describe('extractPublishManifestFromPacked', () => {
     expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Markdown')
   })
 
+  test('picks a lower-named README.MD that follows the manifest and README.md', async () => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README.md': '# First',
+      'package/README.MD': '# Upper',
+    })
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Upper')
+  })
+
   test('ignores non-file README entries in a tarball', async () => {
     prepareEmpty()
     const tarballPath: TarballPath = 'my-package.tgz'

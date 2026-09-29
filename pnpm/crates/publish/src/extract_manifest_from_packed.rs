@@ -10,7 +10,9 @@ use std::{
 
 use flate2::read::GzDecoder;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_package_manifest::{ReadmeKind, is_preferred_readme, parse_manifest, readme_kind};
+use pnpm_package_manifest::{
+    ReadmeKind, decode_readme, is_preferred_readme, parse_manifest, readme_kind,
+};
 use serde_json::Value;
 
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
@@ -105,8 +107,8 @@ struct PackedReadme {
 }
 
 /// Read `package/package.json` and the package-root README npm would pick.
-/// Only a README entry that beats the current selection is read, and the
-/// scan stops once the manifest and a `README.md` have both been read.
+/// Only a README entry that beats the current selection is read. The whole
+/// archive is scanned, so a later duplicate entry wins as on extraction.
 fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Result<PackedEntries> {
     let mut manifest_text = None;
     let mut readme: Option<PackedReadme> = None;
@@ -129,15 +131,8 @@ fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Resul
         {
             let mut bytes = Vec::new();
             entry.read_to_end(&mut bytes)?;
-            let text = String::from_utf8_lossy(&bytes).into_owned();
+            let text = decode_readme(bytes);
             readme = Some(PackedReadme { kind, name: name.to_owned(), text });
-        }
-        if manifest_text.is_some()
-            && readme
-                .as_ref()
-                .is_some_and(|readme| readme.kind == ReadmeKind::ReadmeMd)
-        {
-            break;
         }
     }
     Ok(PackedEntries { manifest_text, readme })

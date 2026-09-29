@@ -41,7 +41,7 @@ use pnpm_catalogs_resolver::{
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{ReadmeKind, is_preferred_readme, readme_kind};
+use pnpm_package_manifest::{ReadmeKind, decode_readme, is_preferred_readme, readme_kind};
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
 use std::{
@@ -388,20 +388,18 @@ fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
         Err(err) if err.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
         Err(err) => return Err(err),
     };
-    read_lossy(file).map(Some)
+    read_readme_bytes(file).map(Some)
 }
 
 #[cfg(not(unix))]
 fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
-    read_lossy(fs::File::open(path)?).map(Some)
+    read_readme_bytes(fs::File::open(path)?).map(Some)
 }
 
-/// README text is published as-is; invalid UTF-8 is replaced rather than
-/// failing the publish.
-fn read_lossy(mut reader: impl io::Read) -> io::Result<String> {
+fn read_readme_bytes(mut reader: impl io::Read) -> io::Result<String> {
     let mut bytes = Vec::new();
     reader.read_to_end(&mut bytes)?;
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
+    Ok(decode_readme(bytes))
 }
 
 /// Clone `map` without the entries named in `keys`, preserving the

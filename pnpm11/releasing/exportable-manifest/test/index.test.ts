@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { preparePackages } from '@pnpm/prepare'
-import { createExportableManifest, getReadmeRank, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, getReadmeRank, isPreferredReadme, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -201,6 +201,12 @@ test.each(['readme', 'README.txt', 'README.md.bak', 'NOTREADME.md', 'README.am',
     expect(getReadmeRank(name)).toBeUndefined()
   }
 )
+
+test('README ties break in UTF-16 code-unit order', () => {
+  const markdown = getReadmeRank('README.markdown')!
+  expect(isPreferredReadme({ fileName: 'README.\u{1F600}.md', rank: markdown }, { fileName: 'README.\uE000.md', rank: markdown })).toBe(true)
+  expect(isPreferredReadme({ fileName: 'README.\uE000.md', rank: markdown }, { fileName: 'README.\u{1F600}.md', rank: markdown })).toBe(false)
+})
 
 test('README.md is preferred over other README candidates', async () => {
   await withTempProjectReadme('preferred', async (projectDir) => {

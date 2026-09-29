@@ -224,13 +224,28 @@ fn publish_manifest_keeps_last_duplicate_readme_md() {
     let path = write_tarball(
         &dir,
         &[
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
             ("package/README.md", "# First"),
             ("package/README.md", "# Last"),
-            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
         ],
     );
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
     assert_eq!(manifest["readme"], "# Last");
+}
+
+#[test]
+fn publish_manifest_picks_a_lower_named_readme_md_after_the_manifest() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.md", "# Lower"),
+            ("package/README.MD", "# Upper"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Upper");
 }
 
 #[test]

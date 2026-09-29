@@ -67,6 +67,20 @@ fn prefers_higher_readme_kinds_then_lower_file_names() {
     ));
 }
 
+/// UTF-8 byte order puts U+E000 before U+1F600; UTF-16 code-unit order,
+/// which the TypeScript CLI uses, puts it after.
+#[test]
+fn breaks_readme_ties_in_utf16_order() {
+    assert!(is_preferred_readme(
+        (ReadmeKind::Markdown, "README.\u{1F600}.md"),
+        Some((ReadmeKind::Markdown, "README.\u{E000}.md"))
+    ));
+    assert!(!is_preferred_readme(
+        (ReadmeKind::Markdown, "README.\u{E000}.md"),
+        Some((ReadmeKind::Markdown, "README.\u{1F600}.md"))
+    ));
+}
+
 mod behavior;
 
 mod manifests;

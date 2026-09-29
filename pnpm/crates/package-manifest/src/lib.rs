@@ -98,18 +98,30 @@ pub fn readme_kind(file_name: &str) -> Option<ReadmeKind> {
 }
 
 /// Whether README `candidate` should replace the `current` selection. A
-/// higher [`ReadmeKind`] wins. Equal kinds keep the lower filename, so the
-/// choice does not depend on directory or archive order, and an equal
-/// filename replaces, so the last duplicate archive entry wins as it would
-/// on extraction.
+/// higher [`ReadmeKind`] wins. Equal kinds keep the filename that sorts
+/// lower by UTF-16 code units, the order the TypeScript CLI compares
+/// strings in, so the choice does not depend on directory or archive order.
+/// An equal filename replaces, so the last duplicate archive entry wins as
+/// it would on extraction.
 #[must_use]
 pub fn is_preferred_readme(
     candidate: (ReadmeKind, &str),
     current: Option<(ReadmeKind, &str)>,
 ) -> bool {
     current.is_none_or(|current| {
-        (candidate.0, std::cmp::Reverse(candidate.1)) >= (current.0, std::cmp::Reverse(current.1))
+        candidate.0
+            .cmp(&current.0)
+            .then_with(|| current.1.encode_utf16().cmp(candidate.1.encode_utf16()))
+            != std::cmp::Ordering::Less
     })
+}
+
+/// Decode README bytes for publish metadata, replacing invalid UTF-8
+/// rather than failing the publish.
+#[must_use]
+pub fn decode_readme(bytes: Vec<u8>) -> String {
+    String::from_utf8(bytes)
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
 }
 
 /// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.

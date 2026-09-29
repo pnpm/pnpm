@@ -7,7 +7,6 @@ import { type ExportedManifest, getReadmeRank, isPreferredReadme, type ReadmeCan
 import tar from 'tar-stream'
 
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const
-const README_MD_RANK = getReadmeRank('README.md')
 
 export type TarballSuffix = typeof TARBALL_SUFFIXES[number]
 export type TarballPath = `${string}${TarballSuffix}`
@@ -117,9 +116,9 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
         } else {
           readme = { ...wantedReadme, text }
         }
-        // Stop early once every wanted entry has been captured, so the rest of the tarball isn't
-        // decompressed. Nothing outranks a README.md.
-        if (manifest != null && (!wantReadme || readme?.rank === README_MD_RANK)) {
+        // The manifest-only path stops at the manifest so the rest of the tarball isn't
+        // decompressed. The README path scans on, so a later duplicate entry wins as on extraction.
+        if (manifest != null && !wantReadme) {
           settle()
           return
         }
