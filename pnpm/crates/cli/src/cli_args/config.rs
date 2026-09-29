@@ -21,7 +21,7 @@ use miette::Diagnostic;
 use pnpm_config::{
     Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, MacosBackupSettings,
     WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases, property_path, property_path::Segment,
-    protected_settings,
+    protected_settings, refused_keys,
 };
 use pnpm_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
@@ -161,6 +161,12 @@ pub enum ConfigError {
     )]
     SetUnsupportedYamlConfigKey { key: String },
 
+    /// A project's `pnpm-workspace.yaml` carries no machine-level state, so
+    /// writing such a key there would only leave behind one pnpm ignores.
+    #[display("The key {key:?} cannot be set in a project's pnpm-workspace.yaml")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING), help("{belongs}"))]
+    SetNotAProjectSetting { key: String, belongs: String },
+
     #[display("Invalid value for structured config key {key:?}: {reason}")]
     #[diagnostic(
         code(ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE),
@@ -292,13 +298,7 @@ fn config_set(
 
     match config_file_name {
         GLOBAL_CONFIG_YAML_FILENAME | WORKSPACE_MANIFEST_FILENAME => {
-            if config_file_name == GLOBAL_CONFIG_YAML_FILENAME {
-                key = validate_yaml_config_key(&key)?;
-            }
-            key = validate_workspace_key(&key)?;
-            let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
-            validate_macos_backup_value(&key, &cast)?;
-            update_manifest_field(&config_path, &key, &cast).map_err(miette::Report::new)?;
+            set_yaml_setting(config_file_name, &config_path, &key, value)?;
         }
         _ => {
             // INI file reached via `getConfigFileInfo` (auth/scoped/registry key
@@ -307,6 +307,36 @@ fn config_set(
             write_ini_setting(&config_path, &key, &value)?;
         }
     }
+    Ok(())
+}
+
+/// Write one setting to the global `config.yaml` or the project's
+/// `pnpm-workspace.yaml`, whichever `config_file_name` names.
+fn set_yaml_setting(
+    config_file_name: &str,
+    config_path: &Path,
+    key: &str,
+    value: Value,
+) -> miette::Result<()> {
+    let key = if config_file_name == GLOBAL_CONFIG_YAML_FILENAME {
+        validate_yaml_config_key(key)?
+    } else {
+        key.to_string()
+    };
+    let key = validate_workspace_key(&key)?;
+    let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
+    if config_file_name == WORKSPACE_MANIFEST_FILENAME
+        && !cast.is_null()
+        && refused_keys::is_refused_by_a_project_manifest(&key)
+    {
+        return Err(ConfigError::SetNotAProjectSetting {
+            belongs: refused_keys::where_refused_key_belongs(&key),
+            key,
+        }
+        .into());
+    }
+    validate_macos_backup_value(&key, &cast)?;
+    update_manifest_field(config_path, &key, &cast).map_err(miette::Report::new)?;
     Ok(())
 }
 
