@@ -1,7 +1,7 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
     output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
-    read_lifecycle_manifest, run_postinstall_hooks,
+    read_lifecycle_manifest, run_lifecycle_hook, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -829,4 +829,72 @@ fn gypfile_false_leaves_an_explicit_install_script_alone() {
         "scripts": { "install": "node install.js" },
     });
     assert_eq!(install_stage_script(&manifest, pkg_root).as_deref(), Some("node install.js"));
+}
+
+/// Environment names are case-sensitive on POSIX, so a `Path` variable is a
+/// variable of its own: it neither supplies the script's `PATH` nor gets
+/// dropped from the script's environment.
+/// <https://github.com/pnpm/pnpm/issues/16308>
+#[cfg(unix)]
+#[test]
+fn path_in_another_case_does_not_stand_in_for_path() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let dump_path = pkg_root.join("env.dump");
+    let script =
+        format!(r#"printf 'PATH=%s\nPath=%s\n' "$PATH" "$Path" > '{}'"#, dump_path.display());
+    let manifest = serde_json::json!({ "name": "path-case", "version": "1.0.0" });
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
+    let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: Some(std::path::Path::new("/bin/sh")),
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
+        dep_path: "/path-case@1.0.0",
+        pkg_root,
+        root_modules_dir: pkg_root,
+
+        unsafe_perm: true,
+
+        optional: false,
+    };
+    let script_env = |parent_env: &[(&str, &str)]| -> (String, String) {
+        let parent_env: HashMap<String, String> = parent_env
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect();
+        run_lifecycle_hook::<SilentReporter>("postinstall", &script, &opts, &manifest, &parent_env)
+            .expect("postinstall");
+        let dump = fs::read_to_string(&dump_path).expect("read env dump");
+        let value = |name: &str| {
+            dump.lines()
+                .find_map(|line| line.strip_prefix(name)?.strip_prefix('='))
+                .unwrap_or_else(|| panic!("no {name} line in dump:\n{dump}"))
+                .to_string()
+        };
+        (value("PATH"), value("Path"))
+    };
+
+    let (path, other_case) = script_env(&[("Path", "/decoy/bin")]);
+    assert!(!path.contains("/decoy/bin"), "Path supplied the script's PATH: {path}");
+    assert_eq!(other_case, "/decoy/bin");
+
+    let (path, other_case) = script_env(&[("PATH", "/usr/bin:/bin"), ("Path", "/decoy/bin")]);
+    assert!(path.ends_with(":/usr/bin:/bin"), "the script's PATH lost PATH: {path}");
+    assert!(!path.contains("/decoy/bin"), "Path supplied the script's PATH: {path}");
+    assert_eq!(other_case, "/decoy/bin");
 }

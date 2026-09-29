@@ -1,7 +1,7 @@
 use crate::{
     extend_path::extend_path,
     lifecycle::{StreamedScript, push_script_arg},
-    make_env::{EnvOptions, build_env, path_value},
+    make_env::{EnvOptions, build_env, is_path_key, path_value},
     process_tracker::{ProcessTracker, spawn_child},
     script_args::{ArgQuoting, build_command},
     script_exit::ScriptExit,
@@ -176,7 +176,7 @@ fn child_env(opts: &RunScript<'_>) -> HashMap<String, String> {
     );
 
     let mut child_env = built.env;
-    child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
+    child_env.retain(|key, _| !is_path_key(key));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
     child_env
 }

@@ -237,13 +237,19 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
     key.strip_prefix(prefix)
 }
 
-/// Look up the `PATH` value from `env` case-insensitively. On
-/// Windows the system variable is typically `Path`, not `PATH`;
-/// returning the value here lets the rest of [`build_env`] stay
-/// independent of casing.
+/// Whether `key` names the `PATH` variable. Windows compares environment
+/// names case-insensitively, and its system variable is typically `Path`.
+/// Elsewhere names are case-sensitive, so a `Path` variable is a variable
+/// of its own and must not stand in for `PATH`.
+pub(crate) fn is_path_key(key: &str) -> bool {
+    if cfg!(windows) { key.eq_ignore_ascii_case("PATH") } else { key == "PATH" }
+}
+
+/// Look up the `PATH` value from `env`, spelled as [`is_path_key`]
+/// accepts it, so the rest of [`build_env`] stays independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
     env.iter()
-        .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
+        .find_map(|(k, v)| is_path_key(k).then(|| v.clone()))
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
