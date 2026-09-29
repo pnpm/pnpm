@@ -500,7 +500,7 @@ async fn concurrent_first_misses_run_the_hook_pipeline_once() {
     assert_eq!(
         *hook_calls.lock().unwrap(),
         1,
-        "the manifest hooks must run once per wanted key, not once per concurrent first caller"
+        "the manifest hooks must run once per wanted key, not once per concurrent first caller",
     );
     assert_eq!(
         resolver.inner.calls
@@ -510,6 +510,6 @@ async fn concurrent_first_misses_run_the_hook_pipeline_once() {
             .filter(|(name, _)| name == "shared")
             .count(),
         1,
-        "the resolver chain must run once for the shared key"
+        "the resolver chain must run once for the shared key",
     );
 }
