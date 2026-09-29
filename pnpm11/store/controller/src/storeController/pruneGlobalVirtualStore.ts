@@ -7,7 +7,7 @@ import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
 
-import { getRegisteredProjects } from './projectRegistry.js'
+import { getProjectsRegistryDir, getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'
 
@@ -24,11 +24,14 @@ export async function pruneGlobalVirtualStore (storeDir: string): Promise<void> 
     return
   }
 
-  const projects = await getRegisteredProjects(storeDir)
-  if (projects.length === 0) {
+  // Without a registry, no pnpm that registers projects has used this store,
+  // so nothing tells which packages are still referenced. A registry whose
+  // entries were all stale is swept: none of its projects exist anymore.
+  if (!await pathExists(getProjectsRegistryDir(storeDir))) {
     globalInfo('No registered projects for global virtual store')
     return
   }
+  const projects = await getRegisteredProjects(storeDir)
 
   globalInfo(`Checking ${projects.length} registered project(s) for global virtual store usage`)
 

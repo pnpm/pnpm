@@ -669,6 +669,45 @@ describe('global virtual store prune', () => {
     rimrafSync(project2Dir)
   })
 
+  test('prune removes packages when every registered project is deleted', async () => {
+    prepareEmpty()
+    const storeDir = path.resolve('last-project-store')
+    const cacheDir = path.resolve('cache')
+    const projectDir = path.resolve('last-project')
+    fs.mkdirSync(projectDir, { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
+
+    await execa('node', [
+      pnpmBin,
+      'install',
+      `--store-dir=${storeDir}`,
+      `--cache-dir=${cacheDir}`,
+      `--registry=${REGISTRY}`,
+      '--config.enableGlobalVirtualStore=true',
+      '--config.ci=false',
+    ], { cwd: projectDir })
+
+    const isPositiveDir = path.join(storeDir, STORE_VERSION, 'links', '@', 'is-positive')
+    expect(fs.existsSync(isPositiveDir)).toBe(true)
+
+    rimrafSync(projectDir)
+
+    await store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      storeDir: path.join(storeDir, STORE_VERSION),
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+
+    expect(fs.existsSync(isPositiveDir)).toBe(false)
+  })
+
   test('prune preserves transitive dependencies and removes isolated ones', async () => {
     // Create project with three packages:
     // - @pnpm.e2e/pkg-with-1-dep has transitive dep @pnpm.e2e/dep-of-pkg-with-1-dep

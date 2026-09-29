@@ -54,9 +54,9 @@ impl StoreCommand {
             StoreCommand::Status => status::run::<Reporter>(config, dir).await,
             StoreCommand::Add(args) => add::run::<Reporter>(config, dir, &args.packages).await,
             StoreCommand::Prune => {
-                // The dlx cache holds hard links into the store and registers
-                // its installs as projects, so it is cleaned first to let this
-                // prune reclaim what the expired entries used.
+                // The dlx cache holds hard links into the store, so it is
+                // cleaned first to let this prune reclaim what the expired
+                // entries used.
                 clean_expired_dlx_cache(
                     &config.cache_dir,
                     config.dlx_cache_max_age,

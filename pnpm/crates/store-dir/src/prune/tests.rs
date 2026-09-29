@@ -32,10 +32,9 @@ fn prune_is_noop_without_links_dir() {
     store_dir.prune().expect("missing links/ must be a silent no-op");
 }
 
-/// `prune()` does nothing destructive when no projects are
-/// registered — pacquet doesn't know which slots are still
-/// referenced, so the safe stance is "keep everything". Mirrors
-/// upstream's `if (projects.length === 0) { return }` branch.
+/// `prune()` does nothing destructive when the store has no project
+/// registry — pacquet doesn't know which slots are still referenced,
+/// so the safe stance is "keep everything".
 #[test]
 fn prune_keeps_everything_when_no_projects() {
     let store = tempdir().unwrap();
@@ -43,6 +42,32 @@ fn prune_keeps_everything_when_no_projects() {
     let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
     store_dir.prune().expect("prune");
     assert!(slot.exists(), "no-project prune must leave slots intact");
+}
+
+/// A registry whose projects are all gone no longer protects anything, so
+/// their slots are swept like any other dead project's.
+#[test]
+fn prune_removes_slots_when_every_registered_project_is_gone() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let slot = make_slot(&store_dir.links(), "@", "dead-pkg", "1.0.0", "dead01");
+
+    let dead_project = tempdir().unwrap();
+    fs::create_dir_all(dead_project.path().join("node_modules")).unwrap();
+    symlink_dir(
+        &slot.join("node_modules").join("dead-pkg"),
+        &dead_project
+            .path()
+            .join("node_modules")
+            .join("dead-pkg"),
+    )
+    .unwrap();
+    register_project(&store_dir, dead_project.path()).expect("register dead");
+    drop(dead_project);
+
+    store_dir.prune().expect("prune");
+
+    assert!(!slot.exists(), "slot only referenced by a dead project must be swept");
 }
 
 #[test]
