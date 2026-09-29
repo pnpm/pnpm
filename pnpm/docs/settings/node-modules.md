@@ -109,6 +109,11 @@ higher.
 project should have its own virtual store (except for in workspaces where the
 root is shared).
 
+When [`enableGlobalVirtualStore`](#enableglobalvirtualstore) is on,
+`virtualStoreDir` sets the location of the global virtual store, which several
+projects can share. Each project still keeps its current lockfile and hidden
+hoisted dependencies in its own `node_modules/.pnpm`.
+
 ### virtualStoreDirMaxLength
 
 * Default:
@@ -287,7 +292,7 @@ Global installs (`pnpm add -g`) and `pnpm dlx` use the global virtual store by d
 
 :::
 
-When enabled, `node_modules` contains only symlinks to a central virtual store, rather than to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (use `pnpm store path` to find `<store-path>`).
+When enabled, `node_modules` contains only symlinks to a central virtual store, rather than to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (use `pnpm store path` to find `<store-path>`). Set [`virtualStoreDir`](#virtualstoredir) to place it elsewhere.
 
 In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. As a result, all projects on the system can symlink their dependencies from this shared location on disk. This approach is conceptually similar to how [NixOS manages packages], using dependency graph hashes to create isolated and shareable package directories in the Nix store.
 
