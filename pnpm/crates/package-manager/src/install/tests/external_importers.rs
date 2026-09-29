@@ -24,7 +24,7 @@ struct CapsuleLayout {
     config: &'static Config,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Mode {
     Install,
     Frozen,
@@ -232,55 +232,68 @@ async fn undeclared_importer_above_the_lockfile_dir_is_never_linked() {
 async fn lockfile_only_escaping_importers_are_never_linked() {
     let registry = TestRegistry::start();
     let lockfile = lockfile_with_capsules_dir_importer(registry.url()).await;
+    for mode in [Mode::Install, Mode::Frozen] {
+        install_with_escaping_importers(registry.url(), &lockfile, mode).await;
+    }
+}
+
+async fn install_with_escaping_importers(registry_url: &str, lockfile: &str, mode: Mode) {
+    let dir = tempdir().unwrap();
+    let setup = capsules(dir.path(), registry_url);
+    let absolute = setup.root.join("abs");
+    let hostile_keys = [
+        "../other".to_string(),
+        "../../etc".to_string(),
+        absolute.display().to_string(),
+        "C:/x".to_string(),
+    ];
+    fs::write(
+        setup.capsule.join("pnpm-lock.yaml"),
+        with_importers_like_dotdot(lockfile, &hostile_keys),
+    )
+    .unwrap();
+
+    let result = run_capsule(&setup, true, mode).await;
+    eprintln!("{mode:?}: {result:?}");
+    let code = result
+        .err()
+        .and_then(|error| miette::Diagnostic::code(&error).map(|code| code.to_string()));
+    assert!(
+        code.is_none_or(|code| code == "ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH"),
+        "{mode:?} failed with an unexpected error",
+    );
+    for escaped in [
+        setup.capsules.join("other/node_modules"),
+        setup.root.join("etc/node_modules"),
+        absolute.join("node_modules"),
+        setup.capsule.join("C:/x/node_modules"),
+    ] {
+        assert!(!escaped.exists(), "{mode:?} wrote {escaped:?}");
+    }
+    if matches!(mode, Mode::Frozen) {
+        let on_disk = read_lockfile(&setup);
+        let unread: Vec<_> = hostile_keys
+            .iter()
+            .filter(|key| !on_disk.contains(&format!("\n  {key:?}:\n")))
+            .collect();
+        assert!(unread.is_empty(), "the frozen install dropped {unread:?}");
+    }
+}
+
+/// `lockfile` with an importer per key, each a copy of the `..` importer.
+fn with_importers_like_dotdot(lockfile: &str, keys: &[String]) -> String {
     let dotdot_block = lockfile
         .split("\n  ..:\n")
         .nth(1)
         .unwrap()
         .split("\n\n")
         .next()
-        .unwrap()
-        .to_string();
-    for mode in [Mode::Install, Mode::Frozen] {
-        let dir = tempdir().unwrap();
-        let setup = capsules(dir.path(), registry.url());
-        let absolute = setup.root.join("abs");
-        let hostile_keys = [
-            "../other".to_string(),
-            "../../etc".to_string(),
-            absolute.display().to_string(),
-            "C:/x".to_string(),
-        ];
-        let extra_importers = hostile_keys
-            .iter()
-            .fold(String::new(), |mut acc, key| {
-                write!(acc, "\n  {key:?}:\n{dotdot_block}\n").unwrap();
-                acc
-            });
-        let hostile = lockfile.replacen("\n  ..:\n", &format!("{extra_importers}\n  ..:\n"), 1);
-        fs::write(setup.capsule.join("pnpm-lock.yaml"), &hostile).unwrap();
-
-        let result = run_capsule(&setup, true, mode).await;
-        eprintln!("{mode:?}: {result:?}");
-        if let Err(error) = &result {
-            let code = miette::Diagnostic::code(error).map(|code| code.to_string());
-            assert_eq!(code.as_deref(), Some("ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH"));
-        }
-        for escaped in [
-            setup.capsules.join("other/node_modules"),
-            setup.root.join("etc/node_modules"),
-            absolute.join("node_modules"),
-            setup.capsule.join("C:/x/node_modules"),
-        ] {
-            assert!(!escaped.exists(), "{mode:?} wrote {escaped:?}");
-        }
-        if matches!(mode, Mode::Frozen) {
-            let on_disk = read_lockfile(&setup);
-            for key in &hostile_keys {
-                assert!(
-                    on_disk.contains(&format!("\n  {key:?}:\n")),
-                    "{key} was read by the frozen install"
-                );
-            }
-        }
-    }
+        .unwrap();
+    let extra_importers = keys
+        .iter()
+        .fold(String::new(), |mut acc, key| {
+            write!(acc, "\n  {key:?}:\n{dotdot_block}\n").unwrap();
+            acc
+        });
+    lockfile.replacen("\n  ..:\n", &format!("{extra_importers}\n  ..:\n"), 1)
 }
