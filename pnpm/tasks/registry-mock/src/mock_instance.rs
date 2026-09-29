@@ -87,11 +87,9 @@ impl MockInstanceOptions<'_> {
         let stderr = stderr.map_or_else(Stdio::null, |stderr| {
             File::create(stderr).expect("create file for stderr").into()
         });
-        // Storage is built from the in-repo fixtures (see
-        // `registry_mock_storage`) and seeded into runtime storage by
-        // `pnpr_command`. pnpr runs in proxy mode
-        // against npmjs.org so off-fixture packages fall through to
-        // npm; see `pnpr_command` for the rationale.
+        // pnpr runs in proxy mode against npmjs.org so off-fixture
+        // packages fall through to npm; see `pnpr_command` for the
+        // storage and proxy-mode rationale.
         let process = pnpr_command(port, public_url)
             .stdin(Stdio::null())
             .stdout(stdout)

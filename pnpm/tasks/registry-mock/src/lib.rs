@@ -4,6 +4,7 @@ pub use pick_port::*;
 pub use pnpr_command::*;
 pub use registry_anchor::*;
 pub use registry_info::*;
+pub use seed_storage::{RuntimeStorage, seed_runtime_storage};
 
 mod dirs;
 mod mock_instance;

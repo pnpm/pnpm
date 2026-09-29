@@ -266,7 +266,11 @@ fn seed_scenario_fixture(
         matches!(registry_mode, RegistryMode::Verdaccio),
         "the peer-heavy benchmark requires --registry=verdaccio",
     );
-    work_env::seed_peer_heavy_registry(pnpm_registry_mock::runtime_storage());
+    work_env::seed_peer_heavy_registry(
+        pnpm_registry_mock::seed_runtime_storage()
+            .expect("seed registry-mock fixtures into runtime storage")
+            .path(),
+    );
 }
 
 fn prepared_work_env(work_env: &std::path::Path) -> std::path::PathBuf {

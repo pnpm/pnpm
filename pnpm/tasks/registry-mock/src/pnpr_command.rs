@@ -1,6 +1,4 @@
-use crate::{
-    port_to_url::port_to_url, runtime_storage, seed_storage::seed_runtime_storage, workspace_root,
-};
+use crate::{port_to_url::port_to_url, seed_storage::seed_runtime_storage, workspace_root};
 use std::{
     env,
     path::{Path, PathBuf},
@@ -84,14 +82,18 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
         "pnpr binary not found at {bin:?} — \
          run `cargo build -p pnpr` before invoking the mock",
     );
-    // Seed the runtime storage with the registry-mock fixtures
-    // before pnpr starts serving. Idempotent — existing
-    // files are left alone, so CI can cache the runtime path
-    // across runs and only npm-proxied entries get fetched fresh.
-    let seeded = seed_runtime_storage()
+    // The runtime storage is reconciled with the current fixture
+    // generation before pnpr starts serving, so the directory it is
+    // pointed at holds this generation's packuments and not a previous
+    // one's.
+    let storage = seed_runtime_storage()
         .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
-    if seeded > 0 {
-        eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
+    if storage.seeded_files() > 0 {
+        eprintln!(
+            "info: seeded {} fixture file(s) into {}",
+            storage.seeded_files(),
+            storage.path().display(),
+        );
     }
     let default_public_url;
     let public_url = if let Some(public_url) = public_url {
@@ -117,7 +119,7 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
     // mock needs — no `-c` override required. We only pin the runtime
     // bits the bundled config can't know about.
     cmd.arg("--storage")
-        .arg(runtime_storage())
+        .arg(storage.path())
         .arg("--packument-ttl-secs")
         .arg("31536000")
         .arg("--listen")
