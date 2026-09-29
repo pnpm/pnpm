@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
@@ -25,12 +26,16 @@ const EXPECTED_BASIC_AUTH = `Basic ${Buffer.from(
 // (rewritten by pnpr to its `public_url`) are pointed back at this proxy so
 // tarball fetches go through the same Basic-auth boundary.
 async function withBasicAuthRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
+  await withAuthedRegistry(EXPECTED_BASIC_AUTH, run)
+}
+
+async function withAuthedRegistry (expectedAuthorization: string, run: (registryUrl: string) => Promise<void>): Promise<void> {
   const upstreamBase = `http://localhost:${REGISTRY_MOCK_PORT}`
   const bearer = `Bearer ${getRegistryMockToken()}`
   let proxyBase = ''
   const server = http.createServer((req, res) => {
     void (async () => {
-      if (req.headers.authorization !== EXPECTED_BASIC_AUTH) {
+      if (req.headers.authorization !== expectedAuthorization) {
         res.writeHead(401, { 'www-authenticate': 'Basic realm="pnpr"' })
         res.end('Unauthorized')
         return
@@ -292,4 +297,37 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   await install(manifest, opts)
 
   project.has('@pnpm.e2e/needs-auth')
+})
+
+test('pnpm:devPreinstall token written to the user npmrc is used by the same install', async () => {
+  await withAuthedRegistry('Bearer good-token', async (registry) => {
+    const project = prepareEmpty()
+    const userNpmrc = path.join(process.cwd(), 'user.npmrc')
+    const authKey = `//${new URL(registry).host}/`
+    fs.writeFileSync(userNpmrc, `${authKey}:_authToken=stale-token\n`)
+    fs.writeFileSync(path.join(process.cwd(), 'refresh-auth.js'), [
+      "const fs = require('fs')",
+      `fs.writeFileSync(${JSON.stringify(userNpmrc)}, ${JSON.stringify(`${authKey}:_authToken=good-token\n`)})`,
+      '',
+    ].join('\n'))
+    const configByUri: Record<string, RegistryConfig> = {
+      [authKey]: { '@': { authToken: 'stale-token' } },
+    }
+    await addDependenciesToPackage({
+      scripts: {
+        'pnpm:devPreinstall': 'node refresh-auth.js',
+      },
+    }, ['@pnpm.e2e/needs-auth'], testDefaults({
+      configByUri,
+      npmrcAuthFile: userNpmrc,
+      registriesByScope: { default: registry },
+    }, {
+      configByUri,
+      registry,
+    }, {
+      configByUri,
+    }))
+
+    project.has('@pnpm.e2e/needs-auth')
+  })
 })

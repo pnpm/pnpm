@@ -77,42 +77,56 @@ impl AuthHeaders {
         parsed: &ParsedUrl<'_>,
         scope: &str,
     ) -> Option<Option<String>> {
-        let scoped_by_uri = self.scoped_by_scope.get(scope)?;
-        let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
-        let nerfed = parsed.nerf_dart();
-        let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(max_scoped_parts);
-        for i in (3..upper).rev() {
-            let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = scoped_by_uri.get(&key) {
-                return Some(self.token_helpers.resolve_entry(&key, scope, entry));
+        let matched = {
+            let creds = self.credentials.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let scoped_by_uri = creds.scoped_by_scope.get(scope)?;
+            let max_scoped_parts = creds.max_scoped_parts_by_scope.get(scope).copied()?;
+            let nerfed = parsed.nerf_dart();
+            let parts: Vec<&str> = nerfed.split('/').collect();
+            let upper = parts.len().min(max_scoped_parts);
+            let mut matched = None;
+            for i in (3..upper).rev() {
+                let key = format!("{}/", parts[..i].join("/"));
+                if let Some(entry) = scoped_by_uri.get(&key) {
+                    matched = Some((key, entry.clone()));
+                    break;
+                }
             }
-        }
-        None
+            matched
+        };
+        matched.map(|(key, entry)| self.token_helpers.resolve_entry(&key, scope, &entry))
     }
 
     pub(super) fn lookup_by_nerf(&self, parsed: &ParsedUrl<'_>) -> Option<Option<String>> {
-        if self.by_uri.is_empty() {
-            return None;
-        }
-        let nerfed = parsed.nerf_dart();
-        let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(self.max_parts);
-        // Walk from the longest meaningful prefix down to `//host/`.
-        // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
-        // `//host`; the loop slices through `parts[..i]` and re-joins,
-        // then appends a trailing slash. The exclusive upper bound at
-        // `min(parts.len(), max_parts)` drops the extra iteration that
-        // would always build a key ending in `//` (the trailing empty
-        // segment from `nerfed.split('/')` plus the appended `/`) and
-        // never match.
-        for i in (3..upper).rev() {
-            let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = self.by_uri.get(&key) {
-                return Some(self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
+        let matched = {
+            let creds = self.credentials.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if creds.by_uri.is_empty() {
+                return None;
             }
-        }
-        None
+            let nerfed = parsed.nerf_dart();
+            let parts: Vec<&str> = nerfed.split('/').collect();
+            let upper = parts.len().min(creds.max_parts);
+            // Walk from the longest meaningful prefix down to `//host/`.
+            // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
+            // `//host`; the loop slices through `parts[..i]` and re-joins,
+            // then appends a trailing slash. The exclusive upper bound at
+            // `min(parts.len(), max_parts)` drops the extra iteration that
+            // would always build a key ending in `//` (the trailing empty
+            // segment from `nerfed.split('/')` plus the appended `/`) and
+            // never match.
+            let mut matched = None;
+            for i in (3..upper).rev() {
+                let key = format!("{}/", parts[..i].join("/"));
+                if let Some(entry) = creds.by_uri.get(&key) {
+                    matched = Some((key, entry.clone()));
+                    break;
+                }
+            }
+            matched
+        };
+        matched.map(|(key, entry)| {
+            self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, &entry)
+        })
     }
 }
 
