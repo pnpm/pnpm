@@ -282,6 +282,7 @@ fn run_empty_start_script_hits_server_js_guard() {
 fn run_missing_script_hints_at_filter_after_script_name() {
     assert_filter_hint(&["--filter", "@local/b", "--watch"], "--filter");
     assert_filter_hint(&["-F", "@local/b"], "--filter");
+    assert_filter_hint(&["-F@local/b"], "--filter");
     assert_filter_hint(&["--filter-prod=@local/b"], "--filter-prod");
 }
 

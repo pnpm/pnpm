@@ -144,7 +144,7 @@ fn filter_option(args: &[String]) -> Option<&'static str> {
     args.iter()
         .take_while(|arg| *arg != "--")
         .find_map(|arg| {
-            if arg == "-F" || arg == "--filter" || arg.starts_with("--filter=") {
+            if arg.starts_with("-F") || arg == "--filter" || arg.starts_with("--filter=") {
                 Some("--filter")
             } else if arg == "--filter-prod" || arg.starts_with("--filter-prod=") {
                 Some("--filter-prod")
