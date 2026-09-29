@@ -1,5 +1,5 @@
-use super::{prepend_dirs_to_path, set_command_path};
-use std::{ffi::OsStr, path::PathBuf, process::Command};
+use super::prepend_dirs_to_path;
+use std::path::PathBuf;
 
 #[test]
 fn a_delimiter_in_a_directory_is_rejected() {
@@ -29,6 +29,9 @@ fn the_directories_come_first_in_the_order_given() {
 #[cfg(unix)]
 #[test]
 fn a_path_variable_in_another_case_is_left_to_the_child() {
+    use super::set_command_path;
+    use std::{ffi::OsStr, process::Command};
+
     let mut cmd = Command::new("true");
     set_command_path(&mut cmd, OsStr::new("/store/bin"));
 
