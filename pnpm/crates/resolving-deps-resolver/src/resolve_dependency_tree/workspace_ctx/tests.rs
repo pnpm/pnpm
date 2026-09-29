@@ -5,8 +5,6 @@ use std::{
     sync::Arc,
 };
 
-use crate::resolved_tree::ResolvedPackageInput;
-
 use super::{
     super::{lock_recoverable, test_support::manifest_result},
     WorkspaceTreeCtx,
@@ -14,7 +12,7 @@ use super::{
 };
 use crate::{
     DirectDep, NodeId,
-    resolved_tree::{DependenciesTreeNode, TreeChildren},
+    resolved_tree::{DependenciesTreeNode, ResolvedPackageInput, TreeChildren},
 };
 
 #[test]
