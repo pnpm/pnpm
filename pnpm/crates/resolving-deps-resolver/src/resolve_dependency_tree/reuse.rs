@@ -548,9 +548,8 @@ where
 }
 
 /// Insert a reused package into the workspace's package table, answering
-/// with the table's own copy of the id — every holder of the id shares
-/// that allocation — and whether this occurrence is the one that created
-/// the entry.
+/// with the table's `Arc` of the id and whether this occurrence is the one
+/// that created the entry.
 fn register_reused_package(
     ctx: &TreeCtx,
     id: String,

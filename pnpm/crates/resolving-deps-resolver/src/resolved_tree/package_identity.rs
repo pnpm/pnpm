@@ -1,14 +1,8 @@
-//! The resolution a [`ResolvedPackage`] wraps, and the name and version
-//! rendered from it once.
-
 use super::{PeerDep, ResolvedPackage};
 use pnpm_resolving_resolver_base::ResolveResult;
 use std::{collections::BTreeMap, sync::Arc};
 
-/// The inputs of [`ResolvedPackage::new`], named so that a construction
-/// site reads as the package it builds. `result` is the resolution the
-/// package wraps; the other fields are the package's fields of the same
-/// name.
+/// The inputs of [`ResolvedPackage::new`].
 #[derive(Debug)]
 pub struct ResolvedPackageInput {
     pub id: Arc<str>,
@@ -19,8 +13,8 @@ pub struct ResolvedPackageInput {
 }
 
 impl ResolvedPackage {
-    /// Build the envelope, rendering [`Self::name()`] and
-    /// [`Self::version()`] from the input's `result` once.
+    /// Build the package, rendering [`Self::name()`] and
+    /// [`Self::version()`] once.
     #[must_use]
     pub fn new(input: ResolvedPackageInput) -> Self {
         let ResolvedPackageInput {
@@ -42,26 +36,20 @@ impl ResolvedPackage {
         }
     }
 
-    /// The resolution this envelope wraps. Read-only: [`Self::name()`]
-    /// and [`Self::version()`] were rendered from it, so replacing or
-    /// mutating it would leave them stale.
     #[must_use]
     pub fn result(&self) -> &Arc<ResolveResult> {
         &self.result
     }
 
-    /// The package's real name, rendered once from [`Self::result()`]:
-    /// the peer walk reads it at every occurrence it visits, and
-    /// rendering a scoped name allocates. Shared through the `Arc`,
-    /// which derefs to the `&str`.
+    /// The package's real name (not an importer's alias), rendered once
+    /// from the resolution.
     #[must_use]
     pub fn name(&self) -> &Arc<str> {
         &self.name
     }
 
-    /// The version peer ranges are checked against: the resolved
-    /// `name_ver` version, else the fetched manifest's `version`, else
-    /// the resolution id. Rendered once, like [`Self::name()`].
+    /// The version peer ranges are checked against, rendered once from
+    /// the resolution.
     #[must_use]
     pub fn version(&self) -> &Arc<str> {
         &self.version

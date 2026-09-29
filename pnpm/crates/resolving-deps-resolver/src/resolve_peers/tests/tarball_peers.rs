@@ -4,9 +4,6 @@ use super::{
 };
 use crate::resolved_tree::{ResolvedPackage, ResolvedPackageInput};
 
-/// A leaf `provider` fetched from `tarball` and keyed by `id`. It carries no
-/// `name_ver`, so its name comes from the alias and its version from the
-/// fetched manifest.
 fn tarball_provider(id: &str, tarball: &str, version: &str) -> ResolvedPackage {
     let mut result = resolve_result("provider", version);
     result.id = PkgResolutionId::from(tarball.to_string());

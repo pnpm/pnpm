@@ -358,10 +358,10 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> boo
 }
 
 /// Build (or look up) the [`ResolvedPackage`] envelope, answering with the
-/// package table's own copy of the id — every holder of the id shares that
-/// allocation — and whether this occurrence is the one that created the
-/// envelope. The first visitor populates it; later visitors AND-fold the
-/// `optional` flag so a single non-optional path flips it back to `false`.
+/// package table's `Arc` of the id and whether this occurrence is the one
+/// that created the envelope. The first visitor populates it; later
+/// visitors AND-fold the `optional` flag so a single non-optional path
+/// flips it back to `false`.
 ///
 /// The envelope's peer split follows the occurrence that owns the package's
 /// children, which this level's settlement decides — see

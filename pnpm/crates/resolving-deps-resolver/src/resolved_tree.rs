@@ -69,9 +69,7 @@ pub struct ChildEdge {
 }
 
 /// The `pkgIdWithPatchHash` chain from an importer's direct dependency
-/// down to a node's parent, root first. Each id is the same allocation
-/// as the package's key in [`ResolvedTree::packages`], so extending the
-/// chain by one node copies pointers, not strings.
+/// down to a node's parent, root first.
 pub type AncestorPkgIds = Arc<Vec<Arc<str>>>;
 
 /// Ancestor package ids for a lazy occurrence. The dependency walk keeps its
@@ -123,10 +121,9 @@ pub struct DirectDep {
     /// [`ResolvedTree::dependencies_tree`].
     pub node_id: NodeId,
     /// `pkgIdWithPatchHash` of the resolved package — same value as
-    /// `dependencies_tree[node_id].resolved_package_id`, and the same
-    /// allocation as the package's key in [`ResolvedTree::packages`].
-    /// Carried at the edge for callers that only need the dedup key and
-    /// want to avoid the tree lookup.
+    /// `dependencies_tree[node_id].resolved_package_id`. Carried at
+    /// the edge for callers that only need the dedup key and want to
+    /// avoid the tree lookup.
     pub id: Arc<str>,
 }
 
@@ -137,11 +134,6 @@ pub struct DirectDep {
 /// occurrence tree node with its own children edges; leaves collapse
 /// onto one shared tree node (see [`DependenciesTree`]). Either way,
 /// [`ResolvedPackage`] is the dedup-shared *envelope*, not a tree node.
-///
-/// The resolution and the name and version rendered from it are set
-/// only by [`Self::new`] and read through [`Self::result()`],
-/// [`Self::name()`] and [`Self::version()`], so the rendered pair
-/// cannot drift from the resolution.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
     pub id: Arc<str>,
