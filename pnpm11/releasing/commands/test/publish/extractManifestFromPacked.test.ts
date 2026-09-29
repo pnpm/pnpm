@@ -102,14 +102,14 @@ describe('extractManifestFromPacked', () => {
 })
 
 describe('extractPublishManifestFromPacked', () => {
-  test('fills the manifest readme from the tarball README when the manifest lacks one', async () => {
+  test.each(['README.md', 'README', 'readme.markdown'])('fills the manifest readme from %s in the tarball', async (filename) => {
     prepareEmpty()
 
     const tarballPath: TarballPath = 'my-package.tgz'
 
     await createTarball(tarballPath, {
       'package/package.json': { name: 'hello-world', version: '0.0.0' },
-      'package/README.md': '# Hello',
+      [`package/${filename}`]: '# Hello',
     })
 
     expect(await extractPublishManifestFromPacked(tarballPath)).toStrictEqual({
@@ -117,6 +117,24 @@ describe('extractPublishManifestFromPacked', () => {
       version: '0.0.0',
       readme: '# Hello',
     })
+  })
+
+  test.each([
+    ['README', 'readme.markdown', 'readme.markdown'],
+    ['readme.markdown', 'README', 'readme.markdown'],
+    ['README', 'README.md', 'README.md'],
+    ['README.md', 'README', 'README.md'],
+    ['readme.markdown', 'README.md', 'README.md'],
+    ['README.md', 'readme.markdown', 'README.md'],
+  ])('selects the preferred README regardless of tarball entry order: %s, %s', async (first, second, expected) => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      [`package/${first}`]: first,
+      [`package/${second}`]: second,
+    })
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe(expected)
   })
 
   test('keeps a readme already declared in the manifest', async () => {

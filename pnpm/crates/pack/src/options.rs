@@ -37,7 +37,7 @@ pub struct PackManifestOptions {
     /// Directory holding `pnpm-workspace.yaml`, which a `file:` /
     /// `link:` catalog entry's relative path is measured from.
     pub catalogs_dir: Option<PathBuf>,
-    /// Embed the project's `README.md` into the published manifest.
+    /// Embed the project's README into the published manifest.
     pub embed_readme: bool,
     /// Node linker mode; `bundledDependencies` do not work with
     /// [`NodeLinker::Pnp`].

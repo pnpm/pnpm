@@ -14,7 +14,7 @@
 
 pub use create::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
-    read_readme_file,
+    read_readme_file, readme_file_priority,
 };
 pub use replace::{
     CannotResolveReason, CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError,

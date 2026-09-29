@@ -294,19 +294,29 @@ fn publish_config_is_removed_when_emptied() {
 
 #[test]
 fn readme_is_embedded_when_requested() {
+    for filename in ["README.md", "README", "readme.markdown"] {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join(filename), "# Hello").unwrap();
+        let catalogs = empty_catalogs();
+        let opts =
+            CreateExportableManifestOptions { embed_readme: true, ..default_opts(&catalogs) };
+        let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+        assert_eq!(out["readme"], json!("# Hello"), "{filename}");
+    }
+}
+
+#[test]
+fn markdown_readmes_take_precedence_over_plain_readme() {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+    fs::write(dir.path().join("README"), "plain").unwrap();
+    fs::write(dir.path().join("readme.markdown"), "markdown").unwrap();
+    fs::write(dir.path().join("README.md"), "md").unwrap();
     let catalogs = empty_catalogs();
-    let opts = CreateExportableManifestOptions {
-        catalogs: &catalogs,
-        workspace_dir: None,
-        modules_dir: None,
-        skip_manifest_obfuscation: false,
-        embed_readme: true,
-        workspace_packages: None,
-    };
-    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
-    assert_eq!(out["readme"], json!("# Hello"));
+    let opts = CreateExportableManifestOptions { embed_readme: true, ..default_opts(&catalogs) };
+    let manifest = json!({ "name": "foo", "version": "1.0.0" });
+    assert_eq!(build(dir.path(), &manifest, &opts)["readme"], "md");
+    fs::remove_file(dir.path().join("README.md")).unwrap();
+    assert_eq!(build(dir.path(), &manifest, &opts)["readme"], "markdown");
 }
 
 #[test]
@@ -322,23 +332,26 @@ fn readme_is_not_embedded_without_opt_in() {
 #[cfg(unix)]
 #[test]
 fn readme_symlink_is_not_embedded() {
-    // A symlinked README could point outside the project; it must be skipped so its
-    // target's contents can't be leaked into the published manifest.
-    let dir = tempdir().unwrap();
-    let secret = tempdir().unwrap();
-    fs::write(secret.path().join("secret"), "TOP SECRET").unwrap();
-    std::os::unix::fs::symlink(secret.path().join("secret"), dir.path().join("README.md")).unwrap();
-    let catalogs = empty_catalogs();
-    let opts = CreateExportableManifestOptions {
-        catalogs: &catalogs,
-        workspace_dir: None,
-        modules_dir: None,
-        skip_manifest_obfuscation: false,
-        embed_readme: true,
-        workspace_packages: None,
-    };
-    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
-    assert!(out.get("readme").is_none());
+    for filename in ["README.md", "README", "readme.markdown"] {
+        // A symlinked README could point outside the project; it must be skipped so its
+        // target's contents can't be leaked into the published manifest.
+        let dir = tempdir().unwrap();
+        let secret = tempdir().unwrap();
+        fs::write(secret.path().join("secret"), "TOP SECRET").unwrap();
+        std::os::unix::fs::symlink(secret.path().join("secret"), dir.path().join(filename))
+            .unwrap();
+        let catalogs = empty_catalogs();
+        let opts = CreateExportableManifestOptions {
+            catalogs: &catalogs,
+            workspace_dir: None,
+            modules_dir: None,
+            skip_manifest_obfuscation: false,
+            embed_readme: true,
+            workspace_packages: None,
+        };
+        let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+        assert!(out.get("readme").is_none());
+    }
 }
 
 #[test]

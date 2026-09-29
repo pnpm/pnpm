@@ -95,7 +95,7 @@ pub struct CreateExportableManifestOptions<'a> {
     /// Keep `packageManager` and publish-lifecycle scripts in the
     /// packed manifest; only the `pnpm` field is stripped.
     pub skip_manifest_obfuscation: bool,
-    /// Embed the project's `README.md` into the manifest's `readme`
+    /// Embed the project's README into the manifest's `readme`
     /// field when one is present and the manifest doesn't already
     /// declare `readme`.
     pub embed_readme: bool,
@@ -335,24 +335,37 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
     }
 }
 
-/// Read a root `README.md` (case-insensitive) for embedding. Only a
-/// regular file is embedded — a symlink is skipped so it can't leak
-/// the contents of a target outside the project.
+/// Read a root README for embedding. Only a regular file is embedded, so a
+/// symlink cannot leak the contents of a target outside the project.
 pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
+    let mut selected = None;
+    let mut selected_priority = 0;
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {
             continue;
         }
-        if entry
-            .file_name()
-            .to_string_lossy()
-            .eq_ignore_ascii_case("readme.md")
-        {
-            return read_regular_file(&entry.path());
+        let priority = readme_file_priority(&entry.file_name().to_string_lossy());
+        if priority > selected_priority {
+            selected = Some(entry.path());
+            selected_priority = priority;
         }
     }
-    Ok(None)
+    match selected {
+        Some(path) => read_regular_file(&path),
+        None => Ok(None),
+    }
+}
+
+/// Higher values take precedence; zero means the filename is not a supported README.
+#[must_use]
+pub fn readme_file_priority(filename: &str) -> u8 {
+    match filename.to_ascii_lowercase().as_str() {
+        "readme.md" => 3,
+        "readme.markdown" => 2,
+        "readme" => 1,
+        _ => 0,
+    }
 }
 
 /// Read a file, refusing to follow a symlink at the final path component so a
