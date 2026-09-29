@@ -74,3 +74,8 @@ pub fn runtime_storage() -> &'static Path {
     });
     STORAGE.as_path()
 }
+
+#[must_use]
+pub fn runtime_storage_root() -> &'static Path {
+    runtime_storage()
+}

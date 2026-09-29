@@ -1,48 +1,128 @@
-//! Seed the runtime storage with the fixture tarballs and metadata
-//! database that ship inside [`registry_mock_storage`].
+//! Reconcile the runtime storage a mock serves from with one fixture
+//! generation's storage.
 //!
-//! The runtime storage outlives the fixtures and may be served by mocks of
-//! other fixture builds at once, such as from another worktree. So each
-//! fixture build gets a hosted store of its own, [`runtime_hosted_storage`],
-//! while every build shares the proxy cache, [`runtime_cache`].
-//!
-//! Idempotent: a tarball that already exists at the destination is
-//! left alone. Tries `hard_link` first (zero disk overhead, instant);
-//! falls back to `copy` if hard-linking isn't supported on the
-//! target filesystem (cross-device, ACL, etc.).
-//!
-//! The metadata database is the exception. pnpr, and a benchmark scenario
-//! that seeds packages of its own, write to the database the mock serves, so
-//! it is copied rather than linked, once, and never replaced under a mock that
-//! has it open.
+//! `pnpr` is pointed at a runtime directory rather than at the generated
+//! fixture storage so the proxy-cache entries it writes there survive a
+//! fixture rebuild. That directory therefore holds content no seed owns,
+//! which the reconcile below has to leave alone.
 
-use crate::{registry_mock_storage, runtime_storage};
+use crate::runtime_storage_root;
+use pnpr_fixtures::FixtureGeneration;
 use std::{
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
 };
-
-/// The proxy cache's directory in a storage directory, as pnpr defaults it.
-const CACHE_DIR: &str = ".pnpr-cache";
 use walkdir::WalkDir;
 
-/// Mirror every file under `registry_mock_storage()` into
-/// [`runtime_hosted_storage`]. Returns the number of files newly seeded
-/// (existing files don't count).
-pub fn seed_runtime_storage() -> io::Result<usize> {
-    let src = registry_mock_storage();
-    let dest = runtime_hosted_storage();
-    let dest = dest.as_path();
-    if !src.exists() {
-        // `registry_mock_storage` builds the fixture storage on first
-        // call, so this is unreachable in practice; guard anyway and
-        // let pnpr's own startup surface any problem.
-        return Ok(0);
+/// Which fixture generation a runtime directory was seeded for. Written
+/// only once the seed completes, so its absence means the directory holds
+/// an unfinished generation.
+const GENERATION_FILE: &str = ".fixture-generation";
+const CACHE_DIR: &str = ".pnpr-cache";
+
+/// A runtime storage directory reconciled to one fixture generation, and
+/// so safe to hand `pnpr` as `--storage`.
+///
+/// [`seed_runtime_storage`] is the only constructor, so a directory
+/// reaches `pnpr` only once the generation being launched is in it. The
+/// mock therefore cannot be pointed at another generation's packuments
+/// without [`seed_runtime_storage`] doing so on purpose.
+#[derive(Debug)]
+pub struct RuntimeStorage {
+    path: PathBuf,
+    seeded_files: usize,
+}
+
+impl RuntimeStorage {
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
     }
+
+    /// How many files this launch added. Zero once a generation's
+    /// directory is seeded, which is every launch after its first.
+    #[must_use]
+    pub fn seeded_files(&self) -> usize {
+        self.seeded_files
+    }
+}
+
+/// Seed the committed fixtures' generation into its own directory under
+/// the runtime storage root.
+pub fn seed_runtime_storage() -> io::Result<RuntimeStorage> {
+    seed_generation(pnpr_fixtures::current(), runtime_storage_root())
+}
+
+#[must_use]
+pub fn runtime_config_dir() -> PathBuf {
+    runtime_storage_root().join(".registry-mock")
+}
+
+// Keying the directory by fingerprint is what keeps a launch from serving
+// another generation: seeding a directory shared by every generation adds
+// files and removes none, so a packument the fixtures have since changed
+// would survive on disk and `pnpr` would serve it as authoritative. A path
+// named for the fingerprint can only hold the files that fingerprint covers.
+/// Reconcile `root`'s directory for `generation` with that generation's
+/// storage, and return it once it holds that generation's files alongside
+/// whatever `pnpr` has cached there. The directory is `<root>/<fingerprint>`.
+///
+/// Reconciliation is additive and deletes nothing. The proxy cache and the
+/// packages a benchmark scenario seeds in are not the generation's to
+/// remove, so a repeat launch of one generation keeps both.
+///
+/// # Errors
+///
+/// Fails if the directory is marked for another generation, meaning
+/// `PNPM_REGISTRY_STORAGE` points at a directory that is not a runtime
+/// root — one already holding a per-generation subdirectory for other
+/// fixtures, where seeding would serve whichever generation wrote first.
+fn seed_generation(generation: &FixtureGeneration, root: &Path) -> io::Result<RuntimeStorage> {
+    let path = root.join(generation.fingerprint());
+    let marker = path.join(GENERATION_FILE);
+    if let Some(seeded_for) = read_generation_marker(&marker)? {
+        if seeded_for != generation.fingerprint() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "runtime storage {} is seeded for fixture generation {seeded_for}, not {}: \
+                     point PNPM_REGISTRY_STORAGE at a directory this mock owns",
+                    path.display(),
+                    generation.fingerprint(),
+                ),
+            ));
+        }
+        return Ok(RuntimeStorage { path, seeded_files: 0 });
+    }
+    let seeded_files = seed_files(generation, &path)?;
+    fs::write(&marker, generation.fingerprint())
+        .map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("write fixture generation marker at {}: {err}", marker.display()),
+            )
+        })?;
+    Ok(RuntimeStorage { path, seeded_files })
+}
+
+fn read_generation_marker(marker: &Path) -> io::Result<Option<String>> {
+    match fs::read_to_string(marker) {
+        Ok(seeded_for) => Ok(Some(seeded_for.trim_end().to_string())),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+fn seed_files(generation: &FixtureGeneration, dest: &Path) -> io::Result<usize> {
+    let src = generation.storage();
     fs::create_dir_all(dest)?;
-    let database = pnpr_fixtures::metadata_path(Path::new(""));
-    let mut seeded = usize::from(copy_database(&pnpr_fixtures::metadata_path(src))?);
+    let metadata = pnpr_fixtures::metadata_path(src);
+    let metadata_dest = pnpr_fixtures::metadata_path(dest);
+    if metadata.is_file() {
+        fs::create_dir_all(metadata_dest.parent().expect("metadata database has a parent"))?;
+        copy_into_new_file(&metadata, &metadata_dest)?;
+    }
+    let mut seeded = 0;
     for entry in WalkDir::new(src) {
         // Propagate traversal errors instead of silently dropping
         // them: a partial-mirror under a "success" return is much
@@ -55,93 +135,24 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
             .path()
             .strip_prefix(src)
             .expect("entry under src");
-        // Test registries over the fixture storage cache upstream packages
-        // in it. The mock caches in the shared runtime cache instead.
-        if rel.starts_with(CACHE_DIR) {
+        if rel.starts_with(CACHE_DIR) || entry.path() == metadata {
             continue;
         }
-        if seed_file(entry.path(), rel, &dest.join(rel), &database)? {
+        let dest_path = dest.join(rel);
+        if let Some(parent) = dest_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        // We don't pre-check `dest_path.exists()` — a TOCTOU window
+        // is wide enough on a shared CI worker (two pacquet
+        // processes racing past `GuardFile`) that the existence
+        // check could pass and then `hard_link` still trip
+        // `AlreadyExists`. Treat that as success directly inside
+        // `link_or_copy`.
+        if matches!(link_or_copy(entry.path(), &dest_path)?, LinkOutcome::Created) {
             seeded += 1;
         }
     }
     Ok(seeded)
-}
-
-/// The proxy cache every fixture build's mock shares, so a warm cache
-/// survives a change to the fixtures.
-#[must_use]
-pub fn runtime_cache() -> PathBuf {
-    runtime_storage().join(CACHE_DIR)
-}
-
-/// The hosted store the mock serves for the fixture build
-/// [`registry_mock_storage`] holds, named after that build.
-#[must_use]
-pub fn runtime_hosted_storage() -> PathBuf {
-    let build =
-        registry_mock_storage().file_name().expect("the fixture storage is named after its build");
-    runtime_storage().join(".registry-mock").join(build)
-}
-
-/// Where every mock's config is written, beside [`runtime_hosted_storage`]:
-/// the config's relative `./htpasswd`, and the tokens beside it, resolve
-/// here.
-#[must_use]
-pub fn runtime_config_dir() -> PathBuf {
-    runtime_hosted_storage()
-        .parent()
-        .expect("the hosted store has a directory")
-        .to_path_buf()
-}
-
-/// The metadata database of [`runtime_hosted_storage`].
-#[must_use]
-pub fn runtime_metadata_path() -> PathBuf {
-    pnpr_fixtures::metadata_path(&runtime_hosted_storage())
-}
-
-/// Seed the fixture file at `src`, at `rel` in the fixture storage, to
-/// `dest`, and report whether it was new there. The fixture database and its
-/// write-ahead log and shared memory are left to [`copy_database`].
-fn seed_file(src: &Path, rel: &Path, dest: &Path, database: &Path) -> io::Result<bool> {
-    if rel.parent() == database.parent() {
-        return Ok(false);
-    }
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    // We don't pre-check `dest.exists()` — a TOCTOU window is wide enough
-    // on a shared CI worker (two pacquet processes racing past `GuardFile`)
-    // that the existence check could pass and then `hard_link` still trip
-    // `AlreadyExists`. Treat that as success directly inside `link_or_copy`.
-    Ok(matches!(link_or_copy(src, dest)?, LinkOutcome::Created))
-}
-
-/// Copy the fixture database at `src` to [`runtime_metadata_path`] unless it
-/// is there already, and report whether it was copied. The copy lands under
-/// a temporary name and is linked into place, which fails rather than
-/// replace a database another seeder put there first, so a pnpr never opens
-/// half a database or has its database swapped under it.
-fn copy_database(src: &Path) -> io::Result<bool> {
-    static COPIES: AtomicU64 = AtomicU64::new(0);
-    let dest = runtime_metadata_path();
-    if dest.is_file() {
-        return Ok(false);
-    }
-    let parent = dest.parent().expect("the database has a directory");
-    fs::create_dir_all(parent)?;
-    let mut temp = dest.as_os_str().to_owned();
-    let copy = COPIES.fetch_add(1, Ordering::Relaxed);
-    temp.push(format!(".seed-{}-{copy}", std::process::id()));
-    let temp = PathBuf::from(temp);
-    fs::copy(src, &temp)?;
-    let linked = fs::hard_link(&temp, &dest);
-    let _ = fs::remove_file(&temp);
-    match linked {
-        Ok(()) => Ok(true),
-        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(false),
-        Err(err) => Err(err),
-    }
 }
 
 enum LinkOutcome {
@@ -153,12 +164,29 @@ fn link_or_copy(src: &Path, dest: &Path) -> io::Result<LinkOutcome> {
     match fs::hard_link(src, dest) {
         Ok(()) => Ok(LinkOutcome::Created),
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(LinkOutcome::AlreadyExists),
-        Err(_) => match fs::copy(src, dest) {
-            Ok(_) => Ok(LinkOutcome::Created),
-            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                Ok(LinkOutcome::AlreadyExists)
-            }
-            Err(err) => Err(err),
-        },
+        // Hard links fail across devices and under some ACLs. The copy claims
+        // the destination the way `hard_link` does, so both paths agree an
+        // existing file is left alone; `fs::copy` would truncate it instead.
+        Err(_) => copy_into_new_file(src, dest),
     }
 }
+
+fn copy_into_new_file(src: &Path, dest: &Path) -> io::Result<LinkOutcome> {
+    let mut source = fs::File::open(src)?;
+    let parent = dest.parent().expect("runtime storage file has a parent directory");
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    io::copy(&mut source, &mut temporary)?;
+    temporary
+        .as_file()
+        .set_permissions(source.metadata()?.permissions())?;
+    match temporary.persist_noclobber(dest) {
+        Ok(_) => Ok(LinkOutcome::Created),
+        Err(err) if err.error.kind() == io::ErrorKind::AlreadyExists => {
+            Ok(LinkOutcome::AlreadyExists)
+        }
+        Err(err) => Err(err.error),
+    }
+}
+
+#[cfg(test)]
+mod tests;

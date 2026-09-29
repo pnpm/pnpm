@@ -103,8 +103,8 @@ pub fn pnpr_command_with_home(
     );
     let seeded = seed_runtime_storage()
         .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
-    if seeded > 0 {
-        eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
+    if seeded.seeded_files() > 0 {
+        eprintln!("info: seeded {} fixture file(s) into runtime storage", seeded.seeded_files());
     }
     let default_public_url;
     let public_url = if let Some(public_url) = public_url {
@@ -120,7 +120,7 @@ pub fn pnpr_command_with_home(
     // the config file can't know about via CLI arguments.
     let (storage, database) = match home {
         Some(home) => (home.join("storage"), home.join("metadata.sqlite")),
-        None => (crate::runtime_hosted_storage(), crate::runtime_metadata_path()),
+        None => (seeded.path().to_path_buf(), pnpr_fixtures::metadata_path(seeded.path())),
     };
     let config = runtime_mock_config(&database)
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
@@ -129,7 +129,7 @@ pub fn pnpr_command_with_home(
         .arg("--storage")
         .arg(storage)
         .arg("--cache")
-        .arg(crate::runtime_cache())
+        .arg(crate::runtime_storage_root().join(".pnpr-cache"))
         .arg("--packument-ttl")
         .arg("31536000")
         .arg("--listen")
@@ -167,7 +167,7 @@ fn runtime_mock_config(database: &Path) -> io::Result<PathBuf> {
     let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
     let mut hasher = DefaultHasher::new();
     yaml.hash(&mut hasher);
-    let mut path = std::path::absolute(crate::runtime_hosted_storage())?.into_os_string();
+    let mut path = std::path::absolute(database)?.into_os_string();
     path.push(format!("-{:016x}.yaml", hasher.finish()));
     let path = PathBuf::from(path);
     if fs::read_to_string(&path).is_ok_and(|existing| existing == yaml) {
