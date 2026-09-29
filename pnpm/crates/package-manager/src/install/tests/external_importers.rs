@@ -256,13 +256,14 @@ async fn install_with_escaping_importers(registry_url: &str, lockfile: &str, mod
 
     let result = run_capsule(&setup, true, mode).await;
     eprintln!("{mode:?}: {result:?}");
-    let code = result
-        .err()
-        .and_then(|error| miette::Diagnostic::code(&error).map(|code| code.to_string()));
-    assert!(
-        code.is_none_or(|code| code == "ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH"),
-        "{mode:?} failed with an unexpected error",
-    );
+    if let Err(error) = &result {
+        let code = miette::Diagnostic::code(error).map(|code| code.to_string());
+        assert_eq!(
+            code.as_deref(),
+            Some("ERR_PNPM_PACKAGE_MANAGER_UNSAFE_IMPORTER_PATH"),
+            "{mode:?} failed with an unexpected error: {error}",
+        );
+    }
     for escaped in [
         setup.capsules.join("other/node_modules"),
         setup.root.join("etc/node_modules"),
