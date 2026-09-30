@@ -62,6 +62,20 @@ function createOverridesFromPruned (advisories: AuditAdvisory[], rangeSpecStyle:
 }
 
 export function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdvisory[] {
+  const result: AuditAdvisory[] = []
+  for (const moduleAdvisories of groupAdvisoriesByModule(advisories).values()) {
+    if (moduleAdvisories.length <= 1) {
+      result.push(...moduleAdvisories)
+      continue
+    }
+    result.push(...moduleAdvisories.filter((candidate, candidateIndex) =>
+      !moduleAdvisories.some((other, otherIndex) => isAdvisorySubsumed(candidate, candidateIndex, other, otherIndex))
+    ))
+  }
+  return result
+}
+
+function groupAdvisoriesByModule (advisories: AuditAdvisory[]): Map<string, AuditAdvisory[]> {
   const byModule = new Map<string, AuditAdvisory[]>()
   for (const advisory of advisories) {
     const list = byModule.get(advisory.module_name)
@@ -71,22 +85,7 @@ export function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdv
       byModule.set(advisory.module_name, [advisory])
     }
   }
-
-  const result: AuditAdvisory[] = []
-  for (const moduleAdvisories of byModule.values()) {
-    if (moduleAdvisories.length <= 1) {
-      result.push(...moduleAdvisories)
-      continue
-    }
-    for (let candidateIndex = 0; candidateIndex < moduleAdvisories.length; candidateIndex++) {
-      const candidate = moduleAdvisories[candidateIndex]
-      const subsumed = moduleAdvisories.some((other, otherIndex) => isAdvisorySubsumed(candidate, candidateIndex, other, otherIndex))
-      if (!subsumed) {
-        result.push(candidate)
-      }
-    }
-  }
-  return result
+  return byModule
 }
 
 function isAdvisorySubsumed (candidate: AuditAdvisory, candidateIndex: number, other: AuditAdvisory, otherIndex: number): boolean {
@@ -96,21 +95,17 @@ function isAdvisorySubsumed (candidate: AuditAdvisory, candidateIndex: number, o
   const candidateRange = candidate.vulnerable_versions.trim()
   const otherRange = other.vulnerable_versions.trim()
 
-  if (!semver.validRange(candidateRange) || !semver.validRange(otherRange)) return false
-  if (!semver.subset(candidateRange, otherRange)) return false
+  if (!semver.validRange(candidateRange) || !semver.validRange(otherRange) || !semver.subset(candidateRange, otherRange)) return false
 
   const minCandidate = semver.minVersion(candidate.patched_versions)
   const minOther = semver.minVersion(other.patched_versions)
   if (!minCandidate || !minOther || semver.lt(minOther, minCandidate)) return false
 
-  if (semver.subset(otherRange, candidateRange)) {
-    const comp = semver.compare(minOther, minCandidate)
-    if (comp > 0) return true
-    if (comp < 0) return false
-    return candidateIndex > otherIndex
-  }
+  if (!semver.subset(otherRange, candidateRange)) return true
 
-  return true
+  const comp = semver.compare(minOther, minCandidate)
+  if (comp !== 0) return comp > 0
+  return candidateIndex > otherIndex
 }
 
 
@@ -158,25 +153,30 @@ export async function createMinimumReleaseAgeExcludes (
   opts: CreateMinimumReleaseAgeExcludesOptions
 ): Promise<string[]> {
   const cutoff = (opts.now ?? Date.now()) - opts.minimumReleaseAge * 60 * 1000
-  const specs = await Promise.all(advisories.map(async (advisory): Promise<string | undefined> => {
-    const patchedVersions = advisory.patched_versions
-    if (!patchedVersions) return undefined
-    const minVersion = semver.minVersion(patchedVersions)
-    if (!minVersion) return undefined
-    const publishInfo = await opts.getPublishTimes(advisory.module_name)
-    if (publishInfo == null) return `${advisory.module_name}@${minVersion.version}`
-    const lowest = lowestNonDeprecatedVersion(publishInfo, patchedVersions)
-    if (lowest == null) return undefined
-    const lowestSpec = `${advisory.module_name}@${lowest.version}`
-    const publishTime: unknown = publishInfo.time[lowest.key]
-    // The time map comes from an untrusted registry response: only a strict
-    // ISO 8601 timestamp counts; anything else (including bare numbers and
-    // non-ISO strings the Date constructor would accept) is treated as unknown.
-    if (typeof publishTime !== 'string') return lowestSpec
-    const publishedAt = parseIsoTimestamp(publishTime)
-    return publishedAt == null || publishedAt > cutoff ? lowestSpec : undefined
-  }))
+  const specs = await Promise.all(advisories.map((advisory) => findMinimumReleaseAgeExclude(advisory, { cutoff, getPublishTimes: opts.getPublishTimes })))
   return mergePackageVersionSpecs(specs.filter((spec): spec is string => spec != null))
+}
+
+async function findMinimumReleaseAgeExclude (
+  advisory: AuditAdvisory,
+  { cutoff, getPublishTimes }: { cutoff: number, getPublishTimes: PublishTimesFetcher }
+): Promise<string | undefined> {
+  const patchedVersions = advisory.patched_versions
+  if (!patchedVersions) return undefined
+  const minVersion = semver.minVersion(patchedVersions)
+  if (!minVersion) return undefined
+  const publishInfo = await getPublishTimes(advisory.module_name)
+  if (publishInfo == null) return `${advisory.module_name}@${minVersion.version}`
+  const lowest = lowestNonDeprecatedVersion(publishInfo, patchedVersions)
+  if (lowest == null) return undefined
+  const lowestSpec = `${advisory.module_name}@${lowest.version}`
+  const publishTime: unknown = publishInfo.time[lowest.key]
+  // The time map comes from an untrusted registry response: only a strict
+  // ISO 8601 timestamp counts; anything else (including bare numbers and
+  // non-ISO strings the Date constructor would accept) is treated as unknown.
+  if (typeof publishTime !== 'string') return lowestSpec
+  const publishedAt = parseIsoTimestamp(publishTime)
+  return publishedAt == null || publishedAt > cutoff ? lowestSpec : undefined
 }
 
 // RFC 3339 / ISO 8601 date-time, e.g. 2020-01-01T00:00:00.000Z.

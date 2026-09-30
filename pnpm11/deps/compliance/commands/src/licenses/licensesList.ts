@@ -6,6 +6,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { compareVersions, findDependencyLicenses, type LicensePackage, mergeLicensePackagePaths } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectId } from '@pnpm/types'
 
@@ -45,20 +46,7 @@ export type LicensesCommandOptions = {
 Partial<Pick<Config, 'userConfig'>>
 
 export async function licensesList (opts: LicensesCommandOptions): Promise<LicensesCommandResult> {
-  const lockfiles = await Promise.all(
-    Array.from(importerIdsByLockfileDir(opts), async ([lockfileDir, includedImporterIds]) => {
-      const lockfile = await readWantedLockfile(lockfileDir, {
-        ignoreIncompatible: true,
-      })
-      if (lockfile == null) {
-        throw new PnpmError(
-          'LICENSES_NO_LOCKFILE',
-          `No ${WANTED_LOCKFILE} found in "${lockfileDir}": Cannot check a project without a lockfile`
-        )
-      }
-      return { lockfileDir, lockfile, includedImporterIds }
-    })
-  )
+  const lockfiles = await readSelectedLockfiles(opts)
 
   const include = {
     dependencies: opts.production !== false,
@@ -96,26 +84,57 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
       })
     })
   )
-  // A package installed by several projects is listed once. Two local
-  // packages can share a name and version but not their license.
-  const licensePackages = new Map<string, LicensePackage>()
-  for (const licensePackage of licensePackagesByLockfile.flat()) {
-    const key = `${licensePackage.name}@${licensePackage.registryName ?? ''}:${licensePackage.version}\u0000${licensePackage.license}`
-    const existing = licensePackages.get(key)
-    if (existing === undefined) {
-      licensePackages.set(key, licensePackage)
-    } else {
-      mergeLicensePackagePaths(existing, licensePackage)
-    }
-  }
+  const licensePackages = mergeLicensePackages(licensePackagesByLockfile.flat())
 
   if (licensePackages.size === 0)
     return { output: 'No licenses in packages found', exitCode: 0 }
 
-  const sortedLicensePackages = Array.from(licensePackages.values()).sort((pkg1, pkg2) =>
+  return renderLicences(sortByNameAndVersion(Array.from(licensePackages.values())), opts)
+}
+
+function sortByNameAndVersion (licensePackages: LicensePackage[]): LicensePackage[] {
+  return licensePackages.sort((pkg1, pkg2) =>
     pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
   )
-  return renderLicences(sortedLicensePackages, opts)
+}
+
+async function readSelectedLockfiles (opts: LicensesCommandOptions): Promise<Array<{
+  lockfileDir: string
+  lockfile: LockfileObject
+  includedImporterIds: ProjectId[]
+}>> {
+  return Promise.all(
+    Array.from(importerIdsByLockfileDir(opts), async ([lockfileDir, includedImporterIds]) => {
+      const lockfile = await readWantedLockfile(lockfileDir, {
+        ignoreIncompatible: true,
+      })
+      if (lockfile == null) {
+        throw new PnpmError(
+          'LICENSES_NO_LOCKFILE',
+          `No ${WANTED_LOCKFILE} found in "${lockfileDir}": Cannot check a project without a lockfile`
+        )
+      }
+      return { lockfileDir, lockfile, includedImporterIds }
+    })
+  )
+}
+
+/**
+ * A package installed by several projects is listed once. Two local
+ * packages can share a name and version but not their license.
+ */
+function mergeLicensePackages (licensePackages: LicensePackage[]): Map<string, LicensePackage> {
+  const merged = new Map<string, LicensePackage>()
+  for (const licensePackage of licensePackages) {
+    const key = `${licensePackage.name}@${licensePackage.registryName ?? ''}:${licensePackage.version}\u0000${licensePackage.license}`
+    const existing = merged.get(key)
+    if (existing === undefined) {
+      merged.set(key, licensePackage)
+    } else {
+      mergeLicensePackagePaths(existing, licensePackage)
+    }
+  }
+  return merged
 }
 
 /**

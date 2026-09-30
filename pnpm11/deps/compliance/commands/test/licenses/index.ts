@@ -186,17 +186,12 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
 
     expect(exitCode).toBe(0)
 
-    const parsedOutput = JSON.parse(output)
-    for (const license in parsedOutput) {
-      const packages = parsedOutput[license]
-      for (const pkg of packages) {
-        const pkgRoots = pkg['paths']
-        expect(pkgRoots).not.toHaveLength(0)
-        for (const pkgRoot of pkgRoots) {
-          const packageJsonPath = path.join(pkgRoot, 'package.json')
-          expect(fs.existsSync(packageJsonPath)).toBeTruthy()
-        }
-      }
+    const packages = Object.values(JSON.parse(output) as Record<string, Array<{ paths: string[] }>>).flat()
+    for (const pkg of packages) {
+      expect(pkg.paths).not.toHaveLength(0)
+    }
+    for (const pkgRoot of packages.flatMap((pkg) => pkg.paths)) {
+      expect(fs.existsSync(path.join(pkgRoot, 'package.json'))).toBeTruthy()
     }
   }
 })

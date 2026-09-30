@@ -146,42 +146,9 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   const registryName = rawSpecifier.substring(0, colon)
   if (!knownRegistryNames.has(registryName)) return null
 
-  const body = rawSpecifier.substring(colon + 1)
-  let pkgName: string
-  let versionSelector: string | undefined
-
-  if (semver.validRange(body) != null) {
-    // `<alias>:<version_selector>` — fall back to the dependency alias as
-    // the package name. Unresolvable without one.
-    if (!packageAlias) return null
-    pkgName = packageAlias
-    versionSelector = body
-  } else if (body[0] === '@') {
-    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
-    const index = body.lastIndexOf('@')
-    if (index === 0) {
-      pkgName = body
-    } else {
-      pkgName = body.substring(0, index)
-      versionSelector = body.substring(index + '@'.length)
-    }
-  } else if (packageAlias?.startsWith('@')) {
-    // `<alias>:<tag>` paired with a scoped alias — body is a version
-    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
-    // is always scoped and a bare body is a tag.
-    pkgName = packageAlias
-    versionSelector = body
-  } else {
-    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
-    const index = body.lastIndexOf('@')
-    if (index < 1) {
-      pkgName = body
-    } else {
-      pkgName = body.substring(0, index)
-      versionSelector = body.substring(index + '@'.length)
-    }
-    if (!pkgName) return null
-  }
+  const target = splitNamedRegistryBody(rawSpecifier.substring(colon + 1), packageAlias)
+  if (target == null) return null
+  const { pkgName, versionSelector } = target
 
   // The name is used in registry URLs and metadata cache file paths, so
   // anything that is not a valid npm package name must never make it through.
@@ -199,6 +166,43 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     ...parseRevisionSelector(selector, versionSelector ?? defaultTag),
     name: pkgName,
     registryName,
+  }
+}
+
+interface PackageNameAndSelector {
+  pkgName: string
+  versionSelector?: string
+}
+
+function splitNamedRegistryBody (body: string, packageAlias: string | undefined): PackageNameAndSelector | null {
+  if (semver.validRange(body) != null) {
+    // `<alias>:<version_selector>` — fall back to the dependency alias as
+    // the package name. Unresolvable without one.
+    if (!packageAlias) return null
+    return { pkgName: packageAlias, versionSelector: body }
+  }
+  if (body[0] === '@') {
+    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+    return splitPackageNameAndSelector(body)
+  }
+  if (packageAlias?.startsWith('@')) {
+    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
+    // is always scoped and a bare body is a tag.
+    return { pkgName: packageAlias, versionSelector: body }
+  }
+  // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+  const target = splitPackageNameAndSelector(body)
+  return target.pkgName ? target : null
+}
+
+/** Splits on the last `@` that is not the leading `@` of a scope. */
+function splitPackageNameAndSelector (body: string): PackageNameAndSelector {
+  const index = body.lastIndexOf('@')
+  if (index < 1) return { pkgName: body }
+  return {
+    pkgName: body.substring(0, index),
+    versionSelector: body.substring(index + '@'.length),
   }
 }
 

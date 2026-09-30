@@ -236,15 +236,7 @@ test('a 304 Not Modified renews the metadata file mtime so the publishedBy fresh
   // The touch is fire-and-forget, so poll briefly instead of asserting
   // immediately.
   const renewed = () => fs.statSync(metaPath).mtime.getTime() > aged.getTime() + 1000
-  await new Promise<void>((resolve) => {
-    const start = Date.now()
-    const timer = setInterval(() => {
-      if (renewed() || Date.now() - start > 5000) {
-        clearInterval(timer)
-        resolve()
-      }
-    }, 50)
-  })
+  await pollUntil(renewed, 50)
   expect(renewed()).toBe(true)
 })
 
@@ -419,15 +411,7 @@ test('a failed uncacheable metadata write removes the previous mirror', async ()
     })
     expect(result.name).toBe('is-positive')
 
-    await new Promise<void>((resolve) => {
-      const started = Date.now()
-      const timer = setInterval(() => {
-        if (!fs.existsSync(pkgMirror) || Date.now() - started > 5000) {
-          clearInterval(timer)
-          resolve()
-        }
-      }, 20)
-    })
+    await pollUntil(() => !fs.existsSync(pkgMirror), 20)
     expect(fs.existsSync(pkgMirror)).toBe(false)
   } finally {
     writeFile.mockRestore()
@@ -767,4 +751,17 @@ function matchCacheBypassHeaders (headers: Record<string, string>): boolean {
   return headers['if-none-match'] === undefined &&
     headers['if-modified-since'] === undefined &&
     headers['cache-control'] === 'no-cache'
+}
+
+/** Resolves once `condition` holds or 5 seconds have passed, checking every `intervalMs`. */
+async function pollUntil (condition: () => boolean, intervalMs: number): Promise<void> {
+  const started = Date.now()
+  return new Promise<void>((resolve) => {
+    const timer = setInterval(() => {
+      if (condition() || Date.now() - started > 5000) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, intervalMs)
+  })
 }

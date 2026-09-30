@@ -71,37 +71,31 @@ function isTrustDowngradeError (err: unknown): boolean {
   return isError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE'
 }
 
+export interface TrustDowngradeCheckOptions {
+  trustPolicyExclude?: PackageVersionPolicy
+  trustPolicyIgnoreAfter?: number
+  /**
+   * The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares that
+   * the registry cannot date its releases. The downgrade check orders
+   * history by publish date, so a packument with no `time` map leaves it
+   * nothing to order and the check is skipped with a warning rather than
+   * aborting the install.
+   *
+   * Scoped to the whole map being absent, which `dropIncompletePublishTimes`
+   * makes the only shape a registry that dates some of its versions can
+   * reach here in. A packument that dates every version it lists is instead
+   * saying it does not have this one, so that shape keeps failing closed
+   * however this flag is set.
+   */
+  ignoreMissingTimeField?: boolean
+}
+
 export function failIfTrustDowngraded (
   meta: PackageMeta,
   version: string,
-  opts?: {
-    trustPolicyExclude?: PackageVersionPolicy
-    trustPolicyIgnoreAfter?: number
-    /**
-     * The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares that
-     * the registry cannot date its releases. The downgrade check orders
-     * history by publish date, so a packument with no `time` map leaves it
-     * nothing to order and the check is skipped with a warning rather than
-     * aborting the install.
-     *
-     * Scoped to the whole map being absent, which `dropIncompletePublishTimes`
-     * makes the only shape a registry that dates some of its versions can
-     * reach here in. A packument that dates every version it lists is instead
-     * saying it does not have this one, so that shape keeps failing closed
-     * however this flag is set.
-     */
-    ignoreMissingTimeField?: boolean
-  }
+  opts?: TrustDowngradeCheckOptions
 ): void {
-  if (opts?.trustPolicyExclude) {
-    const excludeResult = opts.trustPolicyExclude(meta.name)
-    if (excludeResult === true) {
-      return
-    }
-    if (Array.isArray(excludeResult) && excludeResult.includes(version)) {
-      return
-    }
-  }
+  if (isExcludedFromTrustPolicy(meta, version, opts?.trustPolicyExclude)) return
 
   if (meta.time == null && opts?.ignoreMissingTimeField) {
     warnMissingTimeFieldOnce(meta.name, 'trustPolicy')
@@ -118,13 +112,7 @@ export function failIfTrustDowngraded (
   }
 
   const versionDate = new Date(versionPublishedAt)
-  if (opts?.trustPolicyIgnoreAfter) {
-    const now = new Date()
-    const minutesSincePublish = (now.getTime() - versionDate.getTime()) / (1000 * 60)
-    if (minutesSincePublish > opts.trustPolicyIgnoreAfter) {
-      return
-    }
-  }
+  if (isPastTrustPolicyIgnoreAfter(versionDate, opts?.trustPolicyIgnoreAfter)) return
   const manifest = meta.versions[version]
   if (!manifest) {
     throw new PnpmError(
@@ -142,18 +130,44 @@ export function failIfTrustDowngraded (
 
   const currentTrustEvidence = getTrustEvidence(manifest)
   if (currentTrustEvidence == null || TRUST_RANK[strongestEvidencePriorToRequestedVersion] > TRUST_RANK[currentTrustEvidence]) {
-    throw new PnpmError(
-      'TRUST_DOWNGRADE',
-      `High-risk trust downgrade for "${meta.name}@${version}" (possible package takeover)`,
-      {
-        hint: 'Trust checks are based solely on publish date, not semver. ' +
-          'A package cannot be installed if any earlier-published version had stronger trust evidence. ' +
-          `Earlier versions had ${prettyPrintTrustEvidence(strongestEvidencePriorToRequestedVersion)}, ` +
-          `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
-          'A trust downgrade may indicate a supply chain incident.',
-      }
-    )
+    throw createTrustDowngradeError(`${meta.name}@${version}`, strongestEvidencePriorToRequestedVersion, currentTrustEvidence)
   }
+}
+
+function isExcludedFromTrustPolicy (
+  meta: PackageMeta,
+  version: string,
+  trustPolicyExclude: PackageVersionPolicy | undefined
+): boolean {
+  if (!trustPolicyExclude) return false
+  const excludeResult = trustPolicyExclude(meta.name)
+  if (excludeResult === true) return true
+  return Array.isArray(excludeResult) && excludeResult.includes(version)
+}
+
+function isPastTrustPolicyIgnoreAfter (versionDate: Date, trustPolicyIgnoreAfter: number | undefined): boolean {
+  if (!trustPolicyIgnoreAfter) return false
+  const now = new Date()
+  const minutesSincePublish = (now.getTime() - versionDate.getTime()) / (1000 * 60)
+  return minutesSincePublish > trustPolicyIgnoreAfter
+}
+
+function createTrustDowngradeError (
+  pkgId: string,
+  earlierTrustEvidence: TrustEvidence,
+  currentTrustEvidence: TrustEvidence | undefined
+): PnpmError {
+  return new PnpmError(
+    'TRUST_DOWNGRADE',
+    `High-risk trust downgrade for "${pkgId}" (possible package takeover)`,
+    {
+      hint: 'Trust checks are based solely on publish date, not semver. ' +
+        'A package cannot be installed if any earlier-published version had stronger trust evidence. ' +
+        `Earlier versions had ${prettyPrintTrustEvidence(earlierTrustEvidence)}, ` +
+        `but this version has ${prettyPrintTrustEvidence(currentTrustEvidence)}. ` +
+        'A trust downgrade may indicate a supply chain incident.',
+    }
+  )
 }
 
 function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): string {
@@ -165,6 +179,11 @@ function prettyPrintTrustEvidence (trustEvidence: TrustEvidence | undefined): st
   }
 }
 
+interface TrustHistoryFilter {
+  beforeDate: Date
+  excludePrerelease: boolean
+}
+
 function detectStrongestTrustEvidenceBeforeDate (
   meta: PackageMetaWithTime,
   beforeDate: Date,
@@ -172,28 +191,34 @@ function detectStrongestTrustEvidenceBeforeDate (
     excludePrerelease: boolean
   }
 ): TrustEvidence | undefined {
+  const filter: TrustHistoryFilter = { beforeDate, excludePrerelease: options.excludePrerelease }
   let best: TrustEvidence | undefined
 
-  for (const [version, manifest] of Object.entries(meta.versions)) {
-    if (options.excludePrerelease && semver.prerelease(version, true)) continue
-    const ts = meta.time[version]
-    if (!ts) continue
-
-    const publishedAt = new Date(ts)
-    if (!(publishedAt < beforeDate)) continue
-
-    const trustEvidence = getTrustEvidence(manifest)
+  for (const versionEntry of Object.entries(meta.versions)) {
+    const trustEvidence = readEarlierTrustEvidence(meta, versionEntry, filter)
     if (!trustEvidence) continue
-
+    if (trustEvidence === 'stagedPublish') return trustEvidence
     if (best === undefined || TRUST_RANK[trustEvidence] > TRUST_RANK[best]) {
       best = trustEvidence
-      if (best === 'stagedPublish') {
-        return best
-      }
     }
   }
 
   return best
+}
+
+function readEarlierTrustEvidence (
+  meta: PackageMetaWithTime,
+  [version, manifest]: [string, PackageInRegistry],
+  filter: TrustHistoryFilter
+): TrustEvidence | undefined {
+  if (filter.excludePrerelease && semver.prerelease(version, true)) return undefined
+  const ts = meta.time[version]
+  if (!ts) return undefined
+
+  const publishedAt = new Date(ts)
+  if (!(publishedAt < filter.beforeDate)) return undefined
+
+  return getTrustEvidence(manifest)
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {
