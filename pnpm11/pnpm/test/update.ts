@@ -15,6 +15,7 @@ import {
   execPnpm,
   execPnpmSync,
 } from './utils/index.js'
+import { closeServer } from './utils/localServer.js'
 
 test('update --patches refreshes a registry revision without changing the version', async () => {
   const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
@@ -93,9 +94,7 @@ test('update --patches refreshes a registry revision without changing the versio
       revision: 2,
     })
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error == null ? resolve() : reject(error))
-    })
+    await closeServer(server)
   }
 })
 
