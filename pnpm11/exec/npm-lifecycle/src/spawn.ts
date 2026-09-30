@@ -1,4 +1,4 @@
-import { spawn as spawnProcess, type SpawnOptions, type StdioOptions } from 'node:child_process'
+import { type ChildProcess, spawn as spawnProcess, type SpawnOptions, type StdioOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { Readable, Writable } from 'node:stream'
 
@@ -54,13 +54,7 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
   const cooked = new EventEmitter() as LifecycleChildProcess
 
   raw.once('exit', () => {
-    const outputTimeout = setTimeout(() => {
-      raw.stdout?.destroy()
-      raw.stderr?.destroy()
-    }, OUTPUT_DRAIN_AFTER_EXIT_MS)
-    raw.once('close', () => {
-      clearTimeout(outputTimeout)
-    })
+    stopReadingOutputAfterDrain(raw)
   })
 
   raw.on('error', (er: SpawnError) => {
@@ -72,12 +66,7 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
     // A shell reports a command it could not find as exit code 127 without
     // an `error` event, so it is reported the way a failed spawn is.
     if (code === 127) {
-      const er: SpawnError = new Error('spawn ENOENT')
-      er.code = 'ENOENT'
-      er.errno = 'ENOENT' as unknown as number
-      er.syscall = 'spawn'
-      er.file = cmd
-      cooked.emit('error', er)
+      cooked.emit('error', createCommandNotFoundError(cmd))
     } else {
       cooked.emit('close', code, signal)
     }
@@ -90,6 +79,25 @@ export function spawn (cmd: string, args: string[], options: LifecycleSpawnOptio
   cooked.kill = (signal) => raw.kill(signal)
 
   return cooked
+}
+
+function stopReadingOutputAfterDrain (raw: ChildProcess): void {
+  const outputTimeout = setTimeout(() => {
+    raw.stdout?.destroy()
+    raw.stderr?.destroy()
+  }, OUTPUT_DRAIN_AFTER_EXIT_MS)
+  raw.once('close', () => {
+    clearTimeout(outputTimeout)
+  })
+}
+
+function createCommandNotFoundError (cmd: string): SpawnError {
+  const er: SpawnError = new Error('spawn ENOENT')
+  er.code = 'ENOENT'
+  er.errno = 'ENOENT' as unknown as number
+  er.syscall = 'spawn'
+  er.file = cmd
+  return er
 }
 
 function willCmdOutput (stdio: StdioOptions | undefined): boolean {
