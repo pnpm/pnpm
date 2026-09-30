@@ -187,6 +187,29 @@ test('switchCliVersion records the version minimumReleaseAge allows for a range 
   expect(spawnPnpm).not.toHaveBeenCalled()
 })
 
+test('switchCliVersion records nothing and keeps running when the release-age lookup fails (#16431)', async () => {
+  mockPackageManager.version = '11.1.0'
+  readEnvLockfile.mockResolvedValue(null)
+  isPackageManagerResolved.mockReturnValue(false)
+  maturePnpmVersionForRange.mockRejectedValue(new Error('registry unreachable'))
+
+  await switchCliVersion({
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDirMaxLength: 120,
+  } as unknown as Config, {
+    rootProjectManifestDir: '/repo',
+    wantedPackageManager: {
+      fromDevEngines: true,
+      name: 'pnpm',
+      onFail: 'download',
+      version: '^11.0.0',
+    },
+  } as unknown as ConfigContext)
+
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(spawnPnpm).not.toHaveBeenCalled()
+})
+
 test('switchCliVersion uses trusted package-manager registries instead of project registries', async () => {
   const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
     throw new Error(`exit ${code ?? 0}`)

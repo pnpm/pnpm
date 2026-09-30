@@ -31,8 +31,13 @@ async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
         frozen_lockfile,
     } = sync;
     let version = if package_manager.running_pnpm_for_range && !frozen_lockfile {
-        mature_version_or_running(&config, &package_manager.specifier, package_manager.version)
-            .await
+        let Some(version) =
+            mature_version_to_record(&config, &package_manager.specifier, &package_manager.version)
+                .await
+        else {
+            return Ok(());
+        };
+        version
     } else {
         package_manager.version
     };
@@ -69,21 +74,22 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
     Ok(true)
 }
 
-/// A failed lookup records the running pnpm, as pnpm did before the lookup
-/// existed. Every other contributor's switch still applies the cutoff, so the
-/// lookup is not what keeps an immature pnpm off their machines.
-async fn mature_version_or_running(config: &Config, range: &str, running: String) -> String {
-    match config_deps::mature_pnpm_version_for_range(config, range, &running).await {
-        Ok(version) => version,
+/// `None` when the lookup fails: nothing is recorded, and the command keeps
+/// running on the current pnpm. Recording the running pnpm unchecked could
+/// pin a release every other contributor's switch refuses, and the next
+/// command retries the lookup.
+async fn mature_version_to_record(config: &Config, range: &str, running: &str) -> Option<String> {
+    match config_deps::mature_pnpm_version_for_range(config, range, running).await {
+        Ok(version) => Some(version),
         Err(error) => {
             global_warn(
                 DefaultReporter::emit,
                 &format!(
-                    "Recording pnpm v{running} without checking it against minimumReleaseAge: {}",
+                    "Skipped recording pnpm v{running} in pnpm-lock.yaml because it could not be checked against minimumReleaseAge: {}",
                     error_causes(&error),
                 ),
             );
-            running
+            None
         }
     }
 }

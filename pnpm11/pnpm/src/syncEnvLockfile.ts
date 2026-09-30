@@ -44,6 +44,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   ) return
 
   const version = await pnpmVersionToRecord(config, pm.version)
+  if (version == null) return
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
   const store = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
   try {
@@ -65,16 +66,16 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
  * The version to record for a pin the running pnpm satisfies. A range pin
  * records the running pnpm only when it meets the project's
  * `minimumReleaseAge`. A frozen lockfile records nothing new, so the lookup
- * is skipped there.
+ * is skipped there. `undefined` when the lookup fails: nothing is recorded.
  */
-export async function pnpmVersionToRecord (config: Config, wantedVersion: string): Promise<string> {
+export async function pnpmVersionToRecord (config: Config, wantedVersion: string): Promise<string | undefined> {
   if (config.frozenLockfile || semver.valid(wantedVersion) != null) return packageManager.version
   try {
     return await maturePnpmVersionForRange(config, wantedVersion)
   } catch (err: unknown) {
-    // A failed lookup records the running pnpm, as pnpm did before the lookup
-    // existed. Every other contributor's switch still applies the cutoff.
-    globalWarn(`Recording pnpm v${packageManager.version} without checking it against minimumReleaseAge: ${describeFailure(err)}`)
-    return packageManager.version
+    // Recording the running pnpm unchecked could pin a release every other
+    // contributor's switch refuses. The next command retries the lookup.
+    globalWarn(`Skipped recording pnpm v${packageManager.version} in pnpm-lock.yaml because it could not be checked against minimumReleaseAge: ${describeFailure(err)}`)
+    return undefined
   }
 }

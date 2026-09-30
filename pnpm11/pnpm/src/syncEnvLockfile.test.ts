@@ -198,14 +198,14 @@ test('a frozen lockfile skips the release-age lookup for a range pin', async () 
   }))
 })
 
-test('a failed release-age lookup records the running pnpm', async () => {
+test('a failed release-age lookup records nothing', async () => {
   const dir = tempDir()
   maturePnpmVersionForRange.mockRejectedValue(new Error('registry unreachable'))
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: '>=0.0.0', fromDevEngines: true },
   }))
-  const updated = await readEnvLockfile(dir)
-  expect(updated!.importers['.'].packageManagerDependencies?.['pnpm']?.version).toBe(packageManager.version)
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(await readEnvLockfile(dir)).toBeNull()
 })
 
 test('updates the lockfile when locked version no longer satisfies wanted version', async () => {

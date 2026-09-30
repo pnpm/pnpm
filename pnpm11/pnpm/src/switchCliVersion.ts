@@ -98,7 +98,8 @@ async function resolveSwitchTargetVersion (versionSwitch: VersionSwitch): Promis
   // one the project actually uses. Asking the registry instead would pin a
   // version nobody is running and switch away from a satisfying one.
   if (pmVersion == null && satisfiesPin(packageManager.version, wantedVersion)) {
-    await recordPin(versionSwitch, await pnpmVersionToRecord(config, wantedVersion))
+    const version = await pnpmVersionToRecord(config, wantedVersion)
+    if (version != null) await recordPin(versionSwitch, version)
     return packageManager.version
   }
   if (pmVersion == null) {
