@@ -75,15 +75,16 @@ async function getBugsUrlFromRegistry (
 function pickBugsUrl (
   manifest: { bugs?: string | { url?: string }, repository?: string | { url?: string } }
 ): string | undefined {
-  if (manifest.bugs) {
-    const bugsUrl = typeof manifest.bugs === 'string' ? manifest.bugs : manifest.bugs.url
-    if (bugsUrl && isHttpUrl(bugsUrl)) return bugsUrl
-  }
-  if (manifest.repository) {
-    const repoUrl = typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url
-    if (repoUrl) return repositoryToIssuesUrl(repoUrl)
-  }
+  const bugsUrl = urlOf(manifest.bugs)
+  if (bugsUrl && isHttpUrl(bugsUrl)) return bugsUrl
+  const repoUrl = urlOf(manifest.repository)
+  if (repoUrl) return repositoryToIssuesUrl(repoUrl)
   return undefined
+}
+
+function urlOf (field: string | { url?: string } | undefined): string | undefined {
+  if (!field) return undefined
+  return typeof field === 'string' ? field : field.url
 }
 
 function repositoryToIssuesUrl (rawUrl: string): string | undefined {

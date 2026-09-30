@@ -51,18 +51,26 @@ export function reportDirectDependencyChanges (opts: {
   for (const { id, rootDir } of opts.projects) {
     const before = directDependencies(opts.currentLockfile, id, opts.previouslySkipped)
     const after = directDependencies(opts.wantedLockfile, id, opts.skipped)
-    for (const [alias, dep] of after) {
-      const prev = before.get(alias)
-      if (prev?.ref === dep.ref) continue
-      if (prev != null) {
-        report(alias, prev, rootDir, 'removed')
-      }
-      report(alias, dep, rootDir, 'added')
+    reportProjectChanges(before, after, rootDir)
+  }
+}
+
+function reportProjectChanges (
+  before: Map<string, DirectDependency>,
+  after: Map<string, DirectDependency>,
+  rootDir: ProjectRootDir
+): void {
+  for (const [alias, dep] of after) {
+    const prev = before.get(alias)
+    if (prev?.ref === dep.ref) continue
+    if (prev != null) {
+      report(alias, prev, rootDir, 'removed')
     }
-    for (const [alias, dep] of before) {
-      if (after.has(alias)) continue
-      report(alias, dep, rootDir, 'removed')
-    }
+    report(alias, dep, rootDir, 'added')
+  }
+  for (const [alias, dep] of before) {
+    if (after.has(alias)) continue
+    report(alias, dep, rootDir, 'removed')
   }
 }
 
@@ -77,18 +85,28 @@ function directDependencies (
   const importer = lockfile.importers[id]
   if (importer == null) return deps
   for (const field of Object.keys(DEPENDENCY_TYPE_BY_FIELD) as DependenciesField[]) {
-    for (const [alias, ref] of Object.entries<string>(importer[field] ?? {})) {
-      if (ref.startsWith('link:') || deps.has(alias)) continue
-      const depPath = dp.refToRelative(ref, alias)
-      if (depPath == null || skipped.has(depPath)) continue
-      deps.set(alias, {
-        ref,
-        dependencyType: DEPENDENCY_TYPE_BY_FIELD[field],
-        pkg: resolvePackage(lockfile, depPath),
-      })
-    }
+    addFieldDependencies({ deps, field, lockfile, refs: importer[field] ?? {}, skipped })
   }
   return deps
+}
+
+function addFieldDependencies ({ deps, field, lockfile, refs, skipped }: {
+  deps: Map<string, DirectDependency>
+  field: DependenciesField
+  lockfile: LockfileObject
+  refs: Record<string, string>
+  skipped: Set<DepPath>
+}): void {
+  for (const [alias, ref] of Object.entries<string>(refs)) {
+    if (ref.startsWith('link:') || deps.has(alias)) continue
+    const depPath = dp.refToRelative(ref, alias)
+    if (depPath == null || skipped.has(depPath)) continue
+    deps.set(alias, {
+      ref,
+      dependencyType: DEPENDENCY_TYPE_BY_FIELD[field],
+      pkg: resolvePackage(lockfile, depPath),
+    })
+  }
 }
 
 function report (
