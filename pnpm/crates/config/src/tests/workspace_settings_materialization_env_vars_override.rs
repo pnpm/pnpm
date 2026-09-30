@@ -488,6 +488,16 @@ pub fn package_map_settings_load_from_workspace_yaml() {
 }
 
 #[test]
+pub fn package_map_can_be_written_without_enabling_node_resolver() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "writePackageMap: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.write_package_map);
+    assert!(!config.node_experimental_package_map);
+}
+
+#[test]
 pub fn peers_suffix_max_length_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "peersSuffixMaxLength: 10\n")

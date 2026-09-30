@@ -134,6 +134,7 @@ fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
         "--lockfile-include-tarball-url",
         "--merge-git-branch-lockfiles",
         "--node-experimental-package-map",
+        "--write-package-map",
         "--offline",
         "--prefer-frozen-lockfile",
         "--prefer-offline",
@@ -151,6 +152,7 @@ fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
     assert!(config.lockfile_include_tarball_url);
     assert!(config.merge_git_branch_lockfiles);
     assert!(config.node_experimental_package_map);
+    assert!(config.write_package_map);
     assert!(config.offline);
     assert!(config.prefer_frozen_lockfile);
     assert!(config.prefer_offline);
