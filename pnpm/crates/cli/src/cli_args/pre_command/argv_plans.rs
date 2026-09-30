@@ -20,6 +20,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
+            printing_version: true,
             reporter: SwitchInput::reporter_flags_from_version_argv(argv),
             // Printing the version must work in a project whose
             // `pnpm-workspace.yaml` is broken, like the runtime checks above.
@@ -58,6 +59,7 @@ pub(crate) fn switch_plan_for_unparsed_argv(
             global,
             skip_pm_handling: false,
             check_runtimes: false,
+            printing_version: false,
             reporter: SwitchInput::reporter_flags_from_version_argv(argv),
             key_issues: KeyIssueReporting::Skip,
         },
