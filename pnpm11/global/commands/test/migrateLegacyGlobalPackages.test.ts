@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 
-import { isLegacyBin, legacyBinFiles, legacyMigrationSelectors, readLegacyGlobalLayout } from '../src/migrateLegacyGlobalPackages.js'
+import { isLegacyBin, legacyBinFiles, legacyMigrationSelectors, readLegacyGlobalLayout, removeLegacyGlobalLayout } from '../src/migrateLegacyGlobalPackages.js'
 
 test('readLegacyGlobalLayout returns null without a legacy manifest', async () => {
   const globalRoot = path.join(tempDir(), 'global')
@@ -115,6 +115,66 @@ test('legacyBinFiles identifies hard links by identity', async () => {
   expect(await legacyBinFiles(path.join(home, 'tool'), legacyDir, target)).toStrictEqual([bin])
   expect(await legacyBinFiles(copy, legacyDir, target)).toStrictEqual([])
   expect(await legacyBinFiles(copy, legacyDir, path.join(legacyDir, 'missing'))).toStrictEqual([])
+})
+
+test('legacyBinFiles preserves a home executable reached through a package symlink', async () => {
+  const { home, legacyDir } = homeWithLegacyDir()
+  const bin = path.join(home, 'tool')
+  fs.writeFileSync(bin, 'user executable')
+  const target = path.join(legacyDir, 'node_modules', 'tool')
+  fs.symlinkSync(bin, target)
+
+  expect(await legacyBinFiles(bin, legacyDir, target)).toStrictEqual([])
+})
+
+test('legacyBinFiles preserves a home executable reached through a directory symlink', async () => {
+  const { home, legacyDir } = homeWithLegacyDir()
+  const bin = path.join(home, 'tool')
+  fs.writeFileSync(bin, 'user executable')
+  const linkedDir = path.join(legacyDir, 'node_modules', 'linked')
+  fs.symlinkSync(home, linkedDir, 'junction')
+
+  expect(await legacyBinFiles(bin, legacyDir, path.join(linkedDir, 'tool'))).toStrictEqual([])
+})
+
+test.each(['first', 'second'])('migration cleans up a shared bin linked to the %s package', async (owner) => {
+  const { home, legacyDir } = homeWithLegacyDir()
+  const dependencies = { first: '1.0.0', second: '1.0.0' }
+  for (const name of Object.keys(dependencies)) {
+    const pkgDir = path.join(legacyDir, 'node_modules', name)
+    fs.mkdirSync(pkgDir)
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name, version: '1.0.0', bin: { tool: 'cli.js' } }))
+    fs.writeFileSync(path.join(pkgDir, 'cli.js'), name)
+  }
+  const bin = path.join(home, 'tool')
+  fs.linkSync(path.join(legacyDir, 'node_modules', owner, 'cli.js'), bin)
+  const readFile = fs.promises.readFile.bind(fs.promises)
+  const spy = jest.spyOn(fs.promises, 'readFile').mockImplementation(async (...args: Parameters<typeof fs.promises.readFile>) => {
+    if (args[0] === bin) await new Promise((resolve) => setTimeout(resolve, 30))
+    return readFile(...args)
+  })
+  try {
+    await removeLegacyGlobalLayout({ dir: legacyDir, dependencies }, home)
+    expect(fs.existsSync(bin)).toBe(false)
+    expect(fs.existsSync(legacyDir)).toBe(false)
+  } finally {
+    spy.mockRestore()
+  }
+})
+
+test('migration keeps the legacy layout when a bin target cannot be inspected', async () => {
+  const { home, legacyDir } = homeWithLegacyDir()
+  const pkgDir = path.join(legacyDir, 'node_modules', 'tool')
+  fs.mkdirSync(pkgDir)
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'cli.js' }))
+  fs.symlinkSync('cli.js', path.join(pkgDir, 'cli.js'))
+  const bin = path.join(home, 'tool')
+  fs.writeFileSync(bin, 'user executable')
+
+  await removeLegacyGlobalLayout({ dir: legacyDir, dependencies: { tool: '1.0.0' } }, home)
+
+  expect(fs.existsSync(legacyDir)).toBe(true)
+  expect(fs.readFileSync(bin, 'utf8')).toBe('user executable')
 })
 
 function tempDir (): string {

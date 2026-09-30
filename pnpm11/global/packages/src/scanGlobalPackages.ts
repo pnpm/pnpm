@@ -150,6 +150,11 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
   }
 }
 
+/** The bin names installed by a group (deduplicated). See getInstalledBins. */
+export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
+  return [...new Set((await getInstalledBins(info)).map((bin) => bin.name))]
+}
+
 /**
  * The bins installed by a group, including their executable paths.
  *
@@ -179,15 +184,10 @@ export async function getInstalledBins (info: GlobalPackageInfo): Promise<Comman
         throw err
       }
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
-      bins.push(...binsOfPkg)
+      for (const bin of binsOfPkg) bins.push(bin)
     })
   )
   return bins
-}
-
-/** The bin names installed by a group (deduplicated). See getInstalledBins. */
-export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
-  return [...new Set((await getInstalledBins(info)).map((bin) => bin.name))]
 }
 
 /**

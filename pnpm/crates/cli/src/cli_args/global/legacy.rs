@@ -28,7 +28,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use std::{
     collections::BTreeSet,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -162,8 +162,8 @@ impl LegacyGlobalLayout {
             install_dir: self.dir.clone(),
             dependencies: self.dependencies.clone(),
         };
-        let bins = match get_installed_bins(&info) {
-            Ok(bins) => bins,
+        let files = match legacy_home_bin_files(&info, &pnpm_home) {
+            Ok(files) => files,
             Err(error) => {
                 let dir = self.dir.display();
                 warn_global::<Reporter>(&format!(
@@ -173,58 +173,96 @@ impl LegacyGlobalLayout {
             }
         };
         let mut every_bin_removed = true;
-        for bin in bins {
-            for file in legacy_bin_files(&pnpm_home.join(&bin.name), &self.dir, Some(&bin.path)) {
-                if let Err(error) = remove_file_with_retry(&file) {
-                    every_bin_removed = false;
-                    let file = file.display();
-                    warn_global::<Reporter>(&format!("Failed to remove {file}: {error}"));
-                }
+        for file in files {
+            if let Err(error) = remove_file_with_retry(&file) {
+                every_bin_removed = false;
+                let file = file.display();
+                warn_global::<Reporter>(&format!("Failed to remove {file}: {error}"));
             }
         }
         every_bin_removed
     }
 }
 
-/// The files pnpm 10 wrote for the bin at `bin_path` that are still a link
-/// or shim into `legacy_dir`, or a hard link to `target`. Each file is judged
-/// on its own: anything else
-/// at one of those paths, a same-named executable of the user's or a bin
-/// linked there since, is not pnpm 10's and is kept.
-fn legacy_bin_files(bin_path: &Path, legacy_dir: &Path, target: Option<&Path>) -> Vec<PathBuf> {
-    LEGACY_BIN_EXTENSIONS
-        .iter()
-        .map(|extension| {
-            let mut file = bin_path.as_os_str().to_owned();
-            file.push(extension);
-            PathBuf::from(file)
-        })
-        .filter(|file| is_legacy_bin(file, legacy_dir, target))
-        .collect()
+fn legacy_home_bin_files(
+    info: &GlobalPackageInfo,
+    pnpm_home: &Path,
+) -> miette::Result<BTreeSet<PathBuf>> {
+    let mut files = BTreeSet::new();
+    for bin in get_installed_bins(info).map_err(miette::Report::new)? {
+        let bin_path = pnpm_home.join(&bin.name);
+        files.extend(
+            legacy_bin_files(&bin_path, &info.install_dir, Some(&bin.path))
+                .into_diagnostic()
+                .wrap_err_with(|| format!("inspect {}", bin_path.display()))?,
+        );
+    }
+    Ok(files)
 }
 
-fn is_legacy_bin(bin_path: &Path, legacy_dir: &Path, target: Option<&Path>) -> bool {
-    let Ok(metadata) = fs::symlink_metadata(bin_path) else {
-        return false;
+/// The files pnpm 10 wrote for the bin at `bin_path` that are still a link
+/// or shim into `legacy_dir`, or a hard link to `target`. Each file is judged
+/// on its own. Hard links are recognized only when the target resolves inside
+/// `legacy_dir`; other files at these paths are kept.
+fn legacy_bin_files(
+    bin_path: &Path,
+    legacy_dir: &Path,
+    target: Option<&Path>,
+) -> io::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for extension in LEGACY_BIN_EXTENSIONS {
+        let mut file = bin_path.as_os_str().to_owned();
+        file.push(extension);
+        let file = PathBuf::from(file);
+        if is_legacy_bin(&file, legacy_dir, target)? {
+            files.push(file);
+        }
+    }
+    Ok(files)
+}
+
+fn is_legacy_bin(bin_path: &Path, legacy_dir: &Path, target: Option<&Path>) -> io::Result<bool> {
+    let metadata = match fs::symlink_metadata(bin_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
     };
-    let Some(bin_dir) = bin_path.parent() else {
-        return false;
-    };
+    let Some(bin_dir) = bin_path.parent() else { return Ok(false) };
     if metadata.is_symlink() {
         return fs::read_link(bin_path)
-            .is_ok_and(|target| points_into(&bin_dir.join(target), legacy_dir));
+            .map(|target| points_into(&bin_dir.join(target), legacy_dir));
     }
     if !metadata.is_file() {
-        return false;
+        return Ok(false);
     }
-    if target.is_some_and(|target| same_file::is_same_file(bin_path, target).unwrap_or(false)) {
-        return true;
+    if let Some(target) = target
+        && is_legacy_hard_link(bin_path, target, legacy_dir)?
+    {
+        return Ok(true);
     }
     if metadata.len() > MAX_SHIM_BYTES {
-        return false;
+        return Ok(false);
     }
-    fs::read_to_string(bin_path)
-        .is_ok_and(|content| shim_targets_dir(&content, bin_dir, legacy_dir))
+    match fs::read_to_string(bin_path) {
+        Ok(content) => Ok(shim_targets_dir(&content, bin_dir, legacy_dir)),
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn is_legacy_hard_link(bin_path: &Path, target: &Path, legacy_dir: &Path) -> io::Result<bool> {
+    let check = || {
+        let target = fs::canonicalize(target)?;
+        let legacy_dir = fs::canonicalize(legacy_dir)?;
+        if !is_subdir(&legacy_dir, &target) {
+            return Ok(false);
+        }
+        same_file::is_same_file(bin_path, target)
+    };
+    match check() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        result => result,
+    }
 }
 
 /// Whether `path` lies under `dir`, spelled as given or through the

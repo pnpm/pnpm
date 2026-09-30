@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import type { Command } from '@pnpm/bins.resolver'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { isError } from '@pnpm/error'
 import {
@@ -191,7 +190,7 @@ async function installMigratedGroups (
  * the previous project, then the project. A bin that cannot be removed
  * keeps the project, so the next `update -g` can retry.
  */
-async function removeLegacyGlobalLayout (legacy: LegacyGlobalLayout, pnpmHomeDir: string | undefined): Promise<void> {
+export async function removeLegacyGlobalLayout (legacy: LegacyGlobalLayout, pnpmHomeDir: string | undefined): Promise<void> {
   if (pnpmHomeDir != null && !await removeHomeBins(legacy, pnpmHomeDir)) {
     globalWarn(`Kept ${legacy.dir} because a bin pnpm 10 linked into the pnpm home could not be removed. ` +
       'The next "pnpm update -g" retries.')
@@ -203,25 +202,24 @@ async function removeLegacyGlobalLayout (legacy: LegacyGlobalLayout, pnpmHomeDir
 
 /** Returns whether every bin of the previous project was removed. */
 async function removeHomeBins (legacy: LegacyGlobalLayout, pnpmHomeDir: string): Promise<boolean> {
-  let bins: Command[]
+  let files: string[]
   try {
-    bins = await getInstalledBins({ hash: '', installDir: legacy.dir, dependencies: legacy.dependencies })
+    const bins = await getInstalledBins({ hash: '', installDir: legacy.dir, dependencies: legacy.dependencies })
+    const candidates = await Promise.all(bins.map(async ({ name, path: target }) =>
+      legacyBinFiles(path.join(pnpmHomeDir, name), legacy.dir, target)))
+    files = [...new Set(candidates.flat())]
   } catch (err: unknown) {
     globalWarn(`Failed to read the bins linked from ${legacy.dir}: ${getSingleLineErrorMessage(err)}`)
     return false
   }
-  const removed = await Promise.all(bins.map(async ({ name, path: target }) => {
-    const files = await legacyBinFiles(path.join(pnpmHomeDir, name), legacy.dir, target)
-    const results = await Promise.all(files.map(async (file) => {
-      try {
-        await fs.promises.rm(file, { force: true })
-        return true
-      } catch (err: unknown) {
-        globalWarn(`Failed to remove ${file}: ${getSingleLineErrorMessage(err)}`)
-        return false
-      }
-    }))
-    return results.every(Boolean)
+  const removed = await Promise.all(files.map(async (file) => {
+    try {
+      await fs.promises.rm(file, { force: true })
+      return true
+    } catch (err: unknown) {
+      globalWarn(`Failed to remove ${file}: ${getSingleLineErrorMessage(err)}`)
+      return false
+    }
   }))
   return removed.every(Boolean)
 }
@@ -229,9 +227,8 @@ async function removeHomeBins (legacy: LegacyGlobalLayout, pnpmHomeDir: string):
 /**
  * The files pnpm 10 wrote for the bin at `binPath` that are still a link
  * or shim into `legacyDir`, or a hard link to `target`. Each file is judged
- * on its own: anything else
- * at one of those paths, a same-named executable of the user's or a bin
- * linked there since, is not pnpm 10's and is kept.
+ * on its own. Hard links are recognized only when the target resolves inside
+ * `legacyDir`; other files at these paths are kept.
  */
 export async function legacyBinFiles (binPath: string, legacyDir: string, target?: string): Promise<string[]> {
   const files = LEGACY_BIN_EXTENSIONS.map((extension) => `${binPath}${extension}`)
@@ -255,8 +252,14 @@ export async function isLegacyBin (binPath: string, legacyDir: string, target?: 
   if (!stats.isFile()) return false
   if (target != null) {
     try {
-      const targetStats = await fs.promises.stat(target, { bigint: true })
-      if (stats.ino !== 0n && stats.ino === targetStats.ino && stats.dev === targetStats.dev) return true
+      const [realTarget, realLegacyDir] = await Promise.all([
+        fs.promises.realpath(target),
+        fs.promises.realpath(legacyDir),
+      ])
+      if (isSubdir(realLegacyDir, realTarget)) {
+        const targetStats = await fs.promises.stat(realTarget, { bigint: true })
+        if (stats.ino !== 0n && stats.ino === targetStats.ino && stats.dev === targetStats.dev) return true
+      }
     } catch (err: unknown) {
       if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
     }
