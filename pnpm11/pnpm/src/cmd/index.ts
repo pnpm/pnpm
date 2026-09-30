@@ -278,12 +278,13 @@ export const pnpmCmds = handlerByCommandName
 export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
+  if (!Object.hasOwn(cliOptionsTypesByCommandName, commandName)) return {}
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
 export function getCommandFullName (commandName: string): string | null {
   return aliasToFullName.get(commandName) ??
-    (handlerByCommandName[commandName] ? commandName : null)
+    (Object.hasOwn(handlerByCommandName, commandName) ? commandName : null)
 }
 
 export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)
