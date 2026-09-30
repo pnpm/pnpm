@@ -9,32 +9,53 @@ import type { ProjectManifest } from '@pnpm/types'
 import type { ImporterToResolve } from './index.js'
 import type { ResolvedDirectDependency } from './resolveDependencyTree.js'
 
+interface UpdateProjectManifestOptions {
+  directDependencies: ResolvedDirectDependency[]
+  preserveWorkspaceProtocol: boolean
+  saveWorkspaceProtocol: boolean | 'rolling'
+}
+
 export async function updateProjectManifest (
   importer: ImporterToResolve,
-  opts: {
-    directDependencies: ResolvedDirectDependency[]
-    preserveWorkspaceProtocol: boolean
-    saveWorkspaceProtocol: boolean | 'rolling'
-  }
+  opts: UpdateProjectManifestOptions
 ): Promise<Array<ProjectManifest | undefined>> {
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
+  const { specsToUpsert, declaredSpecifiers } = getSpecsOfResolvedDirectDependencies(importer, opts)
+  addSpecsOfUnresolvedUpdates(importer, specsToUpsert)
+  const hookedManifest = await updateProjectManifestObject(
+    importer.rootDir,
+    importer.manifest,
+    specsToUpsert
+  )
+  const originalManifest = (importer.originalManifest != null)
+    ? await updateProjectManifestObject(
+      importer.rootDir,
+      importer.originalManifest,
+      applyDeclaredSpecifiers(specsToUpsert, declaredSpecifiers)
+    )
+    : undefined
+  return [hookedManifest, originalManifest]
+}
+
+function getSpecsOfResolvedDirectDependencies (
+  importer: ImporterToResolve,
+  opts: Pick<UpdateProjectManifestOptions, 'directDependencies' | 'preserveWorkspaceProtocol'>
+): { specsToUpsert: PackageSpecObject[], declaredSpecifiers: Map<string, string> } {
   const specsToUpsert: PackageSpecObject[] = []
   const declaredSpecifiers = new Map<string, string>()
   for (const rdd of opts.directDependencies) {
     const wantedDep = rdd.wantedDependency
     if (wantedDep?.updateSpec !== true || wantedDep.saveSpec === false) continue
     if (!belongsInTheProjectManifest(importer, rdd.alias, wantedDep.isNew)) continue
-    const declaredSpecifier = wantedDep.saveSpec === true
-      ? undefined
-      : getDeclaredSpecifierOwnedByHook(importer, rdd)
+    const declaredSpecifier = getDeclaredSpecifierOwnedByHook(importer, rdd)
     if (declaredSpecifier != null) {
       declaredSpecifiers.set(rdd.alias, declaredSpecifier)
     }
     specsToUpsert.push({
       alias: rdd.alias,
-      peer: importer.peerAliases?.has(rdd.alias) ?? importer.peer,
+      peer: isPeerOfImporter(importer, rdd.alias),
       bareSpecifier: declaredSpecifier == null
         ? getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol)
         : wantedDep.bareSpecifier,
@@ -43,10 +64,31 @@ export async function updateProjectManifest (
       saveType: importer.targetDependenciesField,
     })
   }
-  // Re-save a dependency flagged for update that failed to resolve (e.g. a
-  // missing optional, hence absent from `directDependencies`) carrying no
-  // specifier, so it keeps its existing version under the importer's target
-  // field (which is unset for a plain install/update, making this a no-op).
+  return { specsToUpsert, declaredSpecifiers }
+}
+
+function isPeerOfImporter (importer: ImporterToResolve, alias: string): boolean | undefined {
+  return importer.peerAliases?.has(alias) ?? importer.peer
+}
+
+function applyDeclaredSpecifiers (
+  specsToUpsert: PackageSpecObject[],
+  declaredSpecifiers: Map<string, string>
+): PackageSpecObject[] {
+  if (declaredSpecifiers.size === 0) return specsToUpsert
+  return specsToUpsert.map((spec) => declaredSpecifiers.has(spec.alias)
+    ? { ...spec, bareSpecifier: declaredSpecifiers.get(spec.alias) }
+    : spec)
+}
+
+// Re-save a dependency flagged for update that failed to resolve (e.g. a
+// missing optional, hence absent from `directDependencies`) carrying no
+// specifier, so it keeps its existing version under the importer's target
+// field (which is unset for a plain install/update, making this a no-op).
+function addSpecsOfUnresolvedUpdates (
+  importer: ImporterToResolve,
+  specsToUpsert: PackageSpecObject[]
+): void {
   for (const pkgToInstall of importer.wantedDependencies) {
     if (
       pkgToInstall.updateSpec &&
@@ -57,28 +99,11 @@ export async function updateProjectManifest (
     ) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
-        peer: importer.peerAliases?.has(pkgToInstall.alias) ?? importer.peer,
+        peer: isPeerOfImporter(importer, pkgToInstall.alias),
         saveType: importer.targetDependenciesField,
       })
     }
   }
-  const hookedManifest = await updateProjectManifestObject(
-    importer.rootDir,
-    importer.manifest,
-    specsToUpsert
-  )
-  const originalManifest = (importer.originalManifest != null)
-    ? await updateProjectManifestObject(
-      importer.rootDir,
-      importer.originalManifest,
-      declaredSpecifiers.size === 0
-        ? specsToUpsert
-        : specsToUpsert.map((spec) => declaredSpecifiers.has(spec.alias)
-          ? { ...spec, bareSpecifier: declaredSpecifiers.get(spec.alias) }
-          : spec)
-    )
-    : undefined
-  return [hookedManifest, originalManifest]
 }
 
 /**
@@ -122,7 +147,7 @@ function getDeclaredSpecifierOwnedByHook (
   importer: ImporterToResolve,
   rdd: ResolvedDirectDependency
 ): string | undefined {
-  if (importer.originalManifest == null) return undefined
+  if (rdd.wantedDependency?.saveSpec === true || importer.originalManifest == null) return undefined
   const hookedSpecifier = getSpecFromPackageManifest(importer.manifest, rdd.alias)
   if (hookedSpecifier === '' || hookedSpecifier !== rdd.wantedDependency?.bareSpecifier) return undefined
   const declaredSpecifier = getSpecFromPackageManifest(importer.originalManifest, rdd.alias)
