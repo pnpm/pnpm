@@ -196,7 +196,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
     if (indexWrites) {
       // Write immediately so that subsequent worker reads (e.g. side effects)
       // see the committed data without waiting for nextTick.
-      // A throw here (e.g. ReadOnlyStoreIndex refusing the write under
+      // A throw here (e.g. ImmutableStoreIndex refusing the write under
       // frozenStore) rejects the promise.
       opts.storeIndex.setRawMany(indexWrites)
     }

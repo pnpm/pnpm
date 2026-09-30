@@ -161,6 +161,45 @@ fn set_then_get_round_trips() {
 }
 
 #[test]
+fn readonly_index_reads_wal_commits_and_checkpointed_growth() {
+    let dir = tempdir().unwrap();
+    let writer = StoreIndex::open(dir.path()).unwrap();
+    let initial = sample_index();
+    for i in 0..1000 {
+        writer
+            .set(&format!("pkg-{i:06}"), &initial)
+            .unwrap();
+    }
+    writer.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    let reader = StoreIndex::open_readonly(dir.path()).unwrap();
+    assert_eq!(
+        reader
+            .get("pkg-000000")
+            .unwrap()
+            .as_ref(),
+        Some(&initial),
+    );
+
+    let mut added = sample_index();
+    added.files.get_mut("index.js").unwrap().size = 4096;
+    for i in 1000..1100 {
+        writer
+            .set(&format!("pkg-{i:06}"), &added)
+            .unwrap();
+    }
+    assert_eq!(
+        reader
+            .get("pkg-001099")
+            .unwrap()
+            .as_ref(),
+        Some(&added),
+    );
+    writer.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    assert_eq!(reader.get("pkg-001099").unwrap(), Some(added));
+    assert_eq!(reader.get("pkg-000000").unwrap(), Some(initial));
+}
+
+#[test]
 fn get_returns_none_for_missing_key() {
     let dir = tempdir().unwrap();
     let idx = StoreIndex::open(dir.path()).unwrap();

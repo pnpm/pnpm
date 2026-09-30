@@ -92,6 +92,8 @@ Added in: v11.7.0
 
 Lets `pnpm install` run against a package store that lives on a read-only filesystem — for example a [Nix](https://nixos.org/) store, a read-only bind mount, or an OCI image layer. When enabled, pnpm opens the store's SQLite `index.db` in immutable mode (bypassing the WAL/`-shm` sidecar files that otherwise can't be created on a read-only directory) and suppresses every code path that would write to the store.
 
+No other process may modify the store while `frozenStore` is enabled. For parallel jobs that populate a shared store, leave `frozenStore` disabled. Immutable reads bypass SQLite locking and can report "database disk image is malformed" if another job changes the database.
+
 Pair it with `--offline` and `--frozen-lockfile` against a fully-populated store:
 
 ```sh

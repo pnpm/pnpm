@@ -6,7 +6,7 @@ import { type Config, type ConfigContext, parseCAFileContents } from '@pnpm/conf
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
-import { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
+import { ImmutableStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type { RegistryContext } from '@pnpm/types'
 
 type CreateResolverOptions = Pick<Config,
@@ -79,7 +79,7 @@ export async function createNewStoreController (
   if (!opts.frozenStore) {
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
-  const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
+  const storeIndex = opts.frozenStore ? new ImmutableStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
   const ca = await getCA(opts)
   const clientOptions = buildClientOptions(opts, ca, storeIndex)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient(clientOptions)
