@@ -1020,7 +1020,26 @@ fn assert_frozen_install_accepts_injected_optional_peer(declared_range: bool) {
         .success();
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("fresh lockfile should exist");
-    assert!(lockfile.contains("optionalDependencies:"), "{lockfile}");
+    let parsed: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str(&lockfile).expect("parse generated lockfile");
+    let peer_key: pnpm_lockfile::PkgName = peer_name.parse().expect("parse peer name");
+    let has_sibling_optional_peer = parsed.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| {
+            snapshots
+                .iter()
+                .any(|(key, snapshot)| {
+                    key.to_string().starts_with("lib@file:lib(")
+                        && snapshot.optional_dependencies
+                            .as_ref()
+                            .is_some_and(|deps| {
+                                deps.get(&peer_key)
+                                    .and_then(pnpm_lockfile::SnapshotDepRef::as_link_target)
+                                    == Some("peer")
+                            })
+                })
+        });
+    assert!(has_sibling_optional_peer, "lib's optional peer must link to its sibling:\n{lockfile}");
     crate::_utils::pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
         .assert()
