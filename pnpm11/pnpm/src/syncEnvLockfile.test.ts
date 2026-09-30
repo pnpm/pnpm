@@ -204,6 +204,7 @@ test('a failed release-age lookup records nothing', async () => {
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: '>=0.0.0', fromDevEngines: true },
   }))
+  expect(maturePnpmVersionForRange).toHaveBeenCalledWith(baseConfig, '>=0.0.0')
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(await readEnvLockfile(dir)).toBeNull()
 })

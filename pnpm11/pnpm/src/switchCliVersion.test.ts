@@ -192,11 +192,12 @@ test('switchCliVersion records nothing and keeps running when the release-age lo
   readEnvLockfile.mockResolvedValue(null)
   isPackageManagerResolved.mockReturnValue(false)
   maturePnpmVersionForRange.mockRejectedValue(new Error('registry unreachable'))
-
-  await switchCliVersion({
+  const config = {
     registriesByScope: { default: 'https://registry.npmjs.org/' },
     virtualStoreDirMaxLength: 120,
-  } as unknown as Config, {
+  } as unknown as Config
+
+  await switchCliVersion(config, {
     rootProjectManifestDir: '/repo',
     wantedPackageManager: {
       fromDevEngines: true,
@@ -206,6 +207,7 @@ test('switchCliVersion records nothing and keeps running when the release-age lo
     },
   } as unknown as ConfigContext)
 
+  expect(maturePnpmVersionForRange).toHaveBeenCalledWith(config, '^11.0.0')
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(spawnPnpm).not.toHaveBeenCalled()
 })
