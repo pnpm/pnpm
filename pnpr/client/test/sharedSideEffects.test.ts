@@ -216,7 +216,7 @@ describe('signed shared artifacts', () => {
         envelope,
       })
     } finally {
-      await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
+      await closeServer(server)
     }
   })
 
@@ -389,6 +389,12 @@ describe('signed shared artifacts', () => {
     const variants = [envelope, alternateEnvelope]
       .sort((left, right) => signedArtifactEnvelopeDigest(right).localeCompare(signedArtifactEnvelopeDigest(left)))
     const requests: Array<{ url: string | undefined, authorization: string | undefined, body: Buffer }> = []
+    const resolveResponseBody = JSON.stringify({
+      artifacts: [{
+        key: payload().inputKey,
+        variants: [...variants, malformedEnvelope].map(envelope => ({ envelope })),
+      }],
+    })
     const server = createServer((request, response) => {
       const chunks: Buffer[] = []
       request.on('data', chunk => chunks.push(Buffer.from(chunk)))
@@ -401,13 +407,7 @@ describe('signed shared artifacts', () => {
         if (request.url === '/-/pnpr/v0/artifacts') {
           response.writeHead(201).end()
         } else if (request.url === '/-/pnpr/v0/artifacts/resolve') {
-          const body = JSON.stringify({
-            artifacts: [{
-              key: payload().inputKey,
-              variants: [...variants, malformedEnvelope].map(envelope => ({ envelope })),
-            }],
-          })
-          response.writeHead(200, { 'content-type': 'application/json' }).end(body)
+          response.writeHead(200, { 'content-type': 'application/json' }).end(resolveResponseBody)
         } else if (request.url === '/-/pnpr/v0/artifacts/blob') {
           response.writeHead(200, { 'content-type': 'application/octet-stream' }).end(contents)
         } else {
@@ -506,7 +506,7 @@ describe('signed shared artifacts', () => {
       ])
       expect(requests.every(request => request.authorization === 'Bearer token')).toBe(true)
     } finally {
-      await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
+      await closeServer(server)
     }
   })
 
@@ -531,7 +531,7 @@ describe('signed shared artifacts', () => {
       })).rejects.toThrow(/exceeds/)
     } finally {
       server.closeAllConnections()
-      await new Promise<void>((resolve, reject) => server.close(error => error == null ? resolve() : reject(error)))
+      await closeServer(server)
     }
   })
 
@@ -568,6 +568,15 @@ function windows ({ major, minor, build, architecture = 'x64' }: {
     windowsMinor: minor,
     windowsBuild: build,
   }
+}
+
+async function closeServer (server: ReturnType<typeof createServer>): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close(error => {
+      if (error == null) resolve()
+      else reject(error)
+    })
+  })
 }
 
 async function listen (server: ReturnType<typeof createServer>): Promise<string> {

@@ -258,3 +258,32 @@ test('pruning a catalog keeps aliases in other settings valid', async () => {
   })
   expect(fs.readFileSync(filePath, 'utf8')).toBe('overrides:\n  react: &version ^1.0.0\n')
 })
+
+test('addCatalogs creates a named catalog whose name is an Object.prototype member', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    catalogs: {
+      foo: {
+        bar: '1.0.0',
+      },
+    },
+  })
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      toString: {
+        qar: '^1.0.0',
+      },
+    },
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    catalogs: {
+      foo: {
+        bar: '1.0.0',
+      },
+      toString: {
+        qar: '^1.0.0',
+      },
+    },
+  })
+})
