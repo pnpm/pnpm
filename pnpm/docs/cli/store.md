@@ -47,8 +47,8 @@ briefly slowing down the installation process.
 
 After pruning, pnpm displays the total size of removed files.
 
-If pnpm cannot read a package index entry, it keeps the entry and reports the
-number of unreadable entries in the summary. Pruning continues for other entries.
+If pnpm cannot decode a package index entry, it keeps the entry and reports the
+number of undecodable entries in the summary. Pruning continues for other entries.
 Keeping an index entry does not preserve its unreferenced files. A later install
 downloads the package again if it cannot reuse the stored files.
 
