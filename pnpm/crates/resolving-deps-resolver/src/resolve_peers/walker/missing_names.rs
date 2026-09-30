@@ -51,7 +51,7 @@ impl<'a> MissingNames<'a> {
 /// Strongly-connected-component ids over the recorded children graph.
 /// Iterative Tarjan, mirroring the peer-graph variant in the finalize
 /// pass, so deep graphs cannot overflow the call stack.
-pub(in super::super) fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
+pub(crate) fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
     let (node_ids, adjacency) = children_graph_adjacency(tree);
     let mut pass = SccPass::new(adjacency);
     pass.run();

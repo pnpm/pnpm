@@ -9,7 +9,7 @@ pub(super) use walk_context::{
     MissingPeerInfo, NodeOutput, NodeWalkContext, RootWalk, SubtreeMissingByPkg,
 };
 
-pub(crate) use missing_names::{MissingNames, index_missing_names};
+pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_names};
 
 mod walk_context;
 use walk_context::{
@@ -19,7 +19,6 @@ use walk_context::{
 };
 
 mod missing_names;
-pub(super) use missing_names::children_scc_ids;
 use missing_names::external_peers_to_report;
 
 mod peer_issues;
