@@ -6,7 +6,7 @@ import {
   findLockedRootNodeRuntime,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { ImmutableStoreIndex, StoreIndex } from '@pnpm/store.index'
+import { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
 } from '@pnpm/types'
@@ -87,9 +87,9 @@ function createRebuildState (ctx: RebuildPackagesContext, opts: StrictBuildOptio
   }
 }
 
-function openStoreIndex (opts: StrictBuildOptions): ImmutableStoreIndex | StoreIndex | undefined {
+function openStoreIndex (opts: StrictBuildOptions): ReadOnlyStoreIndex | StoreIndex | undefined {
   return opts.skipIfHasSideEffectsCache
-    ? (opts.frozenStore ? new ImmutableStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir))
+    ? (opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir))
     : undefined
 }
 

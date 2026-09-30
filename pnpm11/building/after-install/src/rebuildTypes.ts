@@ -6,7 +6,7 @@ import type {
   PackageSnapshot,
   PackageSnapshots,
 } from '@pnpm/lockfile.utils'
-import type { ImmutableStoreIndex, StoreIndex } from '@pnpm/store.index'
+import type { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -45,7 +45,7 @@ export interface RebuildState {
   ignoredPkgs: Set<DepPath>
   pkgsThatWereRebuilt: Set<string>
   builtDepPaths: Set<string>
-  storeIndex: ImmutableStoreIndex | StoreIndex | undefined
+  storeIndex: ReadOnlyStoreIndex | StoreIndex | undefined
   gvsDirByDepPath: Map<DepPath, string>
   warn: (message: string) => void
 }

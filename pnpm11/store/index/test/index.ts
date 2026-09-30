@@ -4,17 +4,17 @@ import type { DatabaseSync } from 'node:sqlite'
 import util from 'node:util'
 
 import { expect, test } from '@jest/globals'
-import { ImmutableStoreIndex, packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { ConcurrentReadOnlyStoreIndex, packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
-test('ReadOnlyStoreIndex sees WAL commits and refuses writes', () => {
+test('ConcurrentReadOnlyStoreIndex sees WAL commits and refuses writes', () => {
   const storeDir = temporaryDirectory()
   const writer = new StoreIndex(storeDir)
-  let reader: ReadOnlyStoreIndex | undefined
+  let reader: ConcurrentReadOnlyStoreIndex | undefined
   try {
     writer.set('present', { value: 1 })
     writer.checkpoint()
-    reader = new ReadOnlyStoreIndex(storeDir)
+    reader = new ConcurrentReadOnlyStoreIndex(storeDir)
     expect(reader.get('present')).toEqual({ value: 1 })
 
     writer.set('present', { value: 2 })
@@ -37,17 +37,17 @@ test('ReadOnlyStoreIndex sees WAL commits and refuses writes', () => {
   }
 })
 
-test('ReadOnlyStoreIndex reads database growth after another connection runs a checkpoint', () => {
+test('ConcurrentReadOnlyStoreIndex reads database growth after another connection runs a checkpoint', () => {
   const storeDir = temporaryDirectory()
   const writer = new StoreIndex(storeDir)
-  let reader: ReadOnlyStoreIndex | undefined
+  let reader: ConcurrentReadOnlyStoreIndex | undefined
   try {
     const initial = { value: 'x'.repeat(1000) }
     for (let i = 0; i < 1000; i++) {
       writer.set(`pkg-${String(i).padStart(6, '0')}`, initial)
     }
     writer.checkpoint()
-    reader = new ReadOnlyStoreIndex(storeDir)
+    reader = new ConcurrentReadOnlyStoreIndex(storeDir)
     expect(reader.get('pkg-000000')).toEqual(initial)
 
     const added = { value: 'y'.repeat(4096) }
@@ -171,7 +171,7 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
   // SQLite cannot create any -shm / -wal sidecar.
   fs.chmodSync(storeDir, 0o555)
   try {
-    const idx = new ImmutableStoreIndex(storeDir)
+    const idx = new ReadOnlyStoreIndex(storeDir)
     try {
       assertReadOnlyBehavior(idx, key, data, storeDir)
     } finally {
@@ -219,7 +219,7 @@ testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"
   seed.set(key, data)
   seed.close()
 
-  const idx = new ImmutableStoreIndex(storeDir)
+  const idx = new ReadOnlyStoreIndex(storeDir)
   try {
     expect(idx.has(key)).toBe(true)
     expect((idx.get(key) as typeof data).algo).toBe('sha512')
@@ -280,7 +280,7 @@ testOnPosix('StoreIndex does not make a new index.db world-writable in a world-w
 
 testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
-  expect(() => new ImmutableStoreIndex(storeDir))
+  expect(() => new ReadOnlyStoreIndex(storeDir))
     .toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE' }))
 })
 
