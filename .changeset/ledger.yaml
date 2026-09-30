@@ -2814,6 +2814,10 @@
   dir: pnpm/npm/napi
   intents:
     - global-pnpmfile-readpackage-lockfile-reuse
+"@pnpm/napi@12.8.2":
+  dir: pnpm/npm/napi
+  intents:
+    - repeat-install-injected-workspace-deps
 "@pnpm/network.agent@1100.0.0":
   dir: pnpm11/network/agent
   intents:
@@ -6150,6 +6154,37 @@ pacquet@12.8.1:
     - local-directory-deps-keep-exec-bit
     - run-skips-install-when-nothing-to-install
     - verify-deps-filtered-install-touched-lockfile
+pacquet@12.8.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - child-concurrency-default-is-five
+    - coalesce-concurrent-wanted-key-resolution
+    - config-set-refuses-machine-level-keys
+    - dedupe-renames-peer-suffix-after-collapse
+    - deploy-does-not-copy-dev-engines
+    - deploy-injected-deduped-peer
+    - dlx-cache-prune-order
+    - fix-ppc64le-startup
+    - flate2-zlib-rs
+    - fresh-hoisted-dir-clone-cache
+    - frozen-cargo-lockfile-out-of-date
+    - frozen-install-keeps-the-dedupe-baseline
+    - git-dep-pm-on-fail
+    - global-shims-ignored-in-project-manifest
+    - green-probes-cache
+    - injected-workspace-peer-link
+    - install-rayon-pool-order
+    - latest-falls-back-to-major-prerelease
+    - lifecycle-path-case
+    - nested-run-exits-on-sigterm
+    - node-extra-ca-certs-without-system-certificates
+    - publish-readme-file-names
+    - repeat-install-injected-workspace-deps
+    - share-package-ids-in-resolver
+    - shim-helpers-without-default-path
+    - store-locks-follow-xdg-runtime-dir
+    - unknown-option-reaches-pinned-pnpm
+    - windows-rayon-pool
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
