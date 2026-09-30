@@ -8,7 +8,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/__utils__/scripts/**",
     "pnpm11/__utils__/test-fixtures/**",
     "pnpm11/bins/cmd-shim/**",
-    "pnpm11/deps/security/signatures/**",
     "pnpm11/engine/runtime/commands/**",
     "pnpm11/exec/lifecycle/**",
     "pnpm11/exec/prepare-package/**",
