@@ -29,77 +29,93 @@ export function createAllowBuildFunction (
   }
 ): undefined | AllowBuild {
   if (opts.dangerouslyAllowAllBuilds) return () => true
-  if (opts.allowBuilds != null) {
-    const allowedPackageBuilds = new Set<string>()
-    const disallowedPackageBuilds = new Set<string>()
-    const allowedDepPathBuilds = new Set<string>()
-    const disallowedDepPathBuilds = new Set<string>()
-    const allowedGitRepoBuilds = new Set<string>()
-    const disallowedGitRepoBuilds = new Set<string>()
-    for (const [pkg, value] of Object.entries(opts.allowBuilds)) {
-      switch (value) {
-        case true:
-          addAllowBuildRule(pkg, {
-            depPaths: allowedDepPathBuilds,
-            gitRepos: allowedGitRepoBuilds,
-            packageSpecs: allowedPackageBuilds,
-          })
-          break
-        case false:
-          addAllowBuildRule(pkg, {
-            depPaths: disallowedDepPathBuilds,
-            gitRepos: disallowedGitRepoBuilds,
-            packageSpecs: disallowedPackageBuilds,
-          })
-          break
-      }
-    }
-    const expandedAllowed = expandPackageVersionSpecs(Array.from(allowedPackageBuilds))
-    const expandedDisallowed = expandPackageVersionSpecs(Array.from(disallowedPackageBuilds))
-    return (depPath, context?: AllowBuildContext) => {
-      const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
-      if (disallowedDepPathBuilds.has(pkgIdWithPatchHash)) {
-        return false
-      }
-      const gitRepoKey = getGitRepoAllowBuildKeyFromDepPath(pkgIdWithPatchHash)
-      if (gitRepoKey != null && disallowedGitRepoBuilds.has(gitRepoKey)) {
-        return false
-      }
-      const { name, version, nonSemverVersion } = dp.parse(depPath)
-      const nameAtVersion = name != null && version != null ? `${name}@${version}` : undefined
-      if (
-        (name != null && expandedDisallowed.has(name)) ||
-        (nameAtVersion != null && expandedDisallowed.has(nameAtVersion))
-      ) {
-        return false
-      }
-      if (allowedDepPathBuilds.has(pkgIdWithPatchHash)) {
-        return true
-      }
-      if (gitRepoKey != null && allowedGitRepoBuilds.has(gitRepoKey)) {
-        return true
-      }
-      // Package-name rules require a trusted package identity. A
-      // registry-style depPath (name@semver) is the trust signal: the
-      // lockfile verification gate rejects lockfiles where such a key is
-      // backed by a non-registry resolution, so by the time scripts can
-      // run, the shape proves the artifact came from a registry. The
-      // override exists for callers that must evaluate name rules under
-      // legacy semantics (e.g. comparing against a policy recorded before
-      // identity trust existed).
-      const trustPackageIdentity = context?.trustPackageIdentity ??
-        (name != null && version != null && nonSemverVersion == null)
-      if (!trustPackageIdentity) return undefined
-      if (
-        (name != null && expandedAllowed.has(name)) ||
-        (nameAtVersion != null && expandedAllowed.has(nameAtVersion))
-      ) {
-        return true
-      }
-      return undefined
+  if (opts.allowBuilds == null) return undefined
+  const rules = collectAllowBuildRules(opts.allowBuilds)
+  return (depPath, context?: AllowBuildContext) => decideAllowBuild(rules, depPath, context)
+}
+
+interface AllowBuildRuleSets {
+  depPaths: Set<string>
+  gitRepos: Set<string>
+  packageSpecs: Set<string>
+}
+
+interface AllowBuildRules {
+  allowed: AllowBuildRuleSets
+  disallowed: AllowBuildRuleSets
+  expandedAllowed: Set<string>
+  expandedDisallowed: Set<string>
+}
+
+function collectAllowBuildRules (allowBuilds: Record<string, boolean | string>): AllowBuildRules {
+  const allowed = createAllowBuildRuleSets()
+  const disallowed = createAllowBuildRuleSets()
+  for (const [pkg, value] of Object.entries(allowBuilds)) {
+    switch (value) {
+      case true:
+        addAllowBuildRule(pkg, allowed)
+        break
+      case false:
+        addAllowBuildRule(pkg, disallowed)
+        break
     }
   }
+  return {
+    allowed,
+    disallowed,
+    expandedAllowed: expandPackageVersionSpecs(Array.from(allowed.packageSpecs)),
+    expandedDisallowed: expandPackageVersionSpecs(Array.from(disallowed.packageSpecs)),
+  }
+}
+
+function createAllowBuildRuleSets (): AllowBuildRuleSets {
+  return {
+    depPaths: new Set<string>(),
+    gitRepos: new Set<string>(),
+    packageSpecs: new Set<string>(),
+  }
+}
+
+function decideAllowBuild (rules: AllowBuildRules, depPath: DepPath, context?: AllowBuildContext): boolean | undefined {
+  const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
+  if (rules.disallowed.depPaths.has(pkgIdWithPatchHash)) {
+    return false
+  }
+  const gitRepoKey = getGitRepoAllowBuildKeyFromDepPath(pkgIdWithPatchHash)
+  if (gitRepoKey != null && rules.disallowed.gitRepos.has(gitRepoKey)) {
+    return false
+  }
+  const pkg = dp.parse(depPath)
+  if (matchesPackageSpec(rules.expandedDisallowed, pkg)) {
+    return false
+  }
+  if (rules.allowed.depPaths.has(pkgIdWithPatchHash)) {
+    return true
+  }
+  if (gitRepoKey != null && rules.allowed.gitRepos.has(gitRepoKey)) {
+    return true
+  }
+  // Package-name rules require a trusted package identity. A
+  // registry-style depPath (name@semver) is the trust signal: the
+  // lockfile verification gate rejects lockfiles where such a key is
+  // backed by a non-registry resolution, so by the time scripts can
+  // run, the shape proves the artifact came from a registry. The
+  // override exists for callers that must evaluate name rules under
+  // legacy semantics (e.g. comparing against a policy recorded before
+  // identity trust existed).
+  const trustPackageIdentity = context?.trustPackageIdentity ??
+    (pkg.name != null && pkg.version != null && pkg.nonSemverVersion == null)
+  if (!trustPackageIdentity) return undefined
+  if (matchesPackageSpec(rules.expandedAllowed, pkg)) {
+    return true
+  }
   return undefined
+}
+
+function matchesPackageSpec (packageSpecs: Set<string>, pkg: { name?: string, version?: string }): boolean {
+  if (pkg.name == null) return false
+  if (packageSpecs.has(pkg.name)) return true
+  return pkg.version != null && packageSpecs.has(`${pkg.name}@${pkg.version}`)
 }
 
 /**
@@ -141,14 +157,7 @@ export function parseAllowBuildSelector (selector: string): { name: string, allo
     : { name: selector, allowed: true }
 }
 
-function addAllowBuildRule (
-  pkg: string,
-  target: {
-    depPaths: Set<string>
-    gitRepos: Set<string>
-    packageSpecs: Set<string>
-  }
-): void {
+function addAllowBuildRule (pkg: string, target: AllowBuildRuleSets): void {
   if (isGitRepoAllowBuildKey(pkg)) {
     target.gitRepos.add(pkg)
     return

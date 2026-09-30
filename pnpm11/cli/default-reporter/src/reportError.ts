@@ -10,6 +10,15 @@ import StackTracey from 'stacktracey'
 
 import { EOL } from './constants.js'
 import type { ReporterPnpmConfig } from './ReporterPnpmConfig.js'
+import {
+  type ErrorInfo,
+  reportLockfileBreakingChange,
+  reportModifiedDependency,
+  reportModulesBreakingChange,
+  reportStoreBreakingChange,
+  reportUnexpectedStore,
+  reportUnexpectedVirtualStoreDir,
+} from './reportInstallStateErrors.js'
 
 StackTracey.maxColumnWidths = {
   callee: 25,
@@ -18,7 +27,6 @@ StackTracey.maxColumnWidths = {
 }
 
 const highlight = chalk.yellow
-const colorPath = chalk.gray
 
 export function reportError (logObj: Log, config?: ReporterPnpmConfig): string | null {
   const errorInfo = getErrorInfo(logObj, config)
@@ -45,69 +53,59 @@ export function reportError (logObj: Log, config?: ReporterPnpmConfig): string |
   }
 }
 
-interface ErrorInfo {
-  title: string
-  body?: string
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
+type LogWithErrorFields = any
+
+type ErrorInfoReporter = (
+  err: PnpmError & { stack: object },
+  logObj: LogWithErrorFields,
+  config?: ReporterPnpmConfig
+) => ErrorInfo
+
+const ERROR_INFO_REPORTERS = new Map<string, ErrorInfoReporter>([
+  ['ERR_PNPM_UNEXPECTED_STORE', (err, logObj) => reportUnexpectedStore(err, logObj)],
+  ['ERR_PNPM_UNEXPECTED_VIRTUAL_STORE', (err, logObj) => reportUnexpectedVirtualStoreDir(err, logObj)],
+  ['ERR_PNPM_STORE_BREAKING_CHANGE', (_err, logObj) => reportStoreBreakingChange(logObj)],
+  ['ERR_PNPM_MODULES_BREAKING_CHANGE', (_err, logObj) => reportModulesBreakingChange(logObj)],
+  ['ERR_PNPM_MODIFIED_DEPENDENCY', (_err, logObj) => reportModifiedDependency(logObj)],
+  ['ERR_PNPM_LOCKFILE_BREAKING_CHANGE', (err, logObj) => reportLockfileBreakingChange(err, logObj)],
+  ['ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT', (err) => ({ title: err.message })],
+  ['ERR_PNPM_MISSING_TIME', (err) => ({ title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' })],
+  // ERR_PNPM_NO_MATURE_MATCHING_VERSION used to come from the resolver
+  // with `packageMeta` attached; it now comes from the install / dlx /
+  // self-update callers as a plain PnpmError once the resolver has
+  // surfaced the violations. `packageMeta` may be undefined, in which
+  // case the formatter falls back to the bare title+message.
+  ['ERR_PNPM_NO_MATCHING_VERSION', (err, logObj) => formatNoMatchingVersion(err, logObj)],
+  ['ERR_PNPM_NO_MATURE_MATCHING_VERSION', (err, logObj) => formatNoMatchingVersion(err, logObj)],
+  ['ERR_PNPM_RECURSIVE_FAIL', (_err, logObj) => formatRecursiveCommandSummary(logObj)],
+  ['ERR_PNPM_BAD_TARBALL_SIZE', (err, logObj) => reportBadTarballSize(err, logObj)],
+  ['ELIFECYCLE', (_err, logObj) => reportLifecycleError(logObj)],
+  ['ERR_PNPM_UNSUPPORTED_ENGINE', (_err, logObj) => reportEngineError(logObj)],
+  ['ERR_PNPM_PEER_DEP_ISSUES', (err, logObj) => reportPeerDependencyIssuesError(err, logObj)],
+  ['ERR_PNPM_DEDUPE_CHECK_ISSUES', (err, logObj) => reportDedupeCheckIssuesError(err, logObj)],
+  ['ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER', (err, logObj) => reportSpecNotSupportedByAnyResolverError(err, logObj)],
+  ['ERR_PNPM_FETCH_401', (err, logObj, config) => reportAuthError(err, logObj, config)],
+  ['ERR_PNPM_FETCH_403', (err, logObj, config) => reportAuthError(err, logObj, config)],
+])
 
 function getErrorInfo (logObj: Log, config?: ReporterPnpmConfig): ErrorInfo | null {
-  if ('err' in logObj && logObj.err) {
-    const err = logObj.err as (PnpmError & { stack: object })
-    switch (err.code) {
-      case 'ERR_PNPM_UNEXPECTED_STORE':
-        return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
-        return reportUnexpectedVirtualStoreDir(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_STORE_BREAKING_CHANGE':
-        return reportStoreBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
-        return reportModulesBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_MODIFIED_DEPENDENCY':
-        return reportModifiedDependency(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
-        return reportLockfileBreakingChange(err, logObj)
-      case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
-        return { title: err.message }
-      case 'ERR_PNPM_MISSING_TIME':
-        return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
-      case 'ERR_PNPM_NO_MATCHING_VERSION':
-      case 'ERR_PNPM_NO_MATURE_MATCHING_VERSION':
-        // ERR_PNPM_NO_MATURE_MATCHING_VERSION used to come from the resolver
-        // with `packageMeta` attached; it now comes from the install / dlx /
-        // self-update callers as a plain PnpmError once the resolver has
-        // surfaced the violations. `packageMeta` may be undefined, in which
-        // case the formatter falls back to the bare title+message.
-        return formatNoMatchingVersion(err, logObj as unknown as { packageMeta?: PackageMeta })
-      case 'ERR_PNPM_RECURSIVE_FAIL':
-        return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_BAD_TARBALL_SIZE':
-        return reportBadTarballSize(err, logObj)
-      case 'ELIFECYCLE':
-        return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-        return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_PEER_DEP_ISSUES':
-        return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
-        return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
-        return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      case 'ERR_PNPM_FETCH_401':
-      case 'ERR_PNPM_FETCH_403':
-        return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-      default: {
-      // Errors with unknown error codes are printed with stack trace
-        if (!err.code?.startsWith?.('ERR_PNPM_')) {
-          return formatGenericError(err.message ?? (logObj as { message: string }).message, err.stack)
-        }
-        return {
-          title: err.message ?? '',
-          body: (logObj as { hint?: string }).hint,
-        }
-      }
-    }
+  if (!('err' in logObj && logObj.err)) {
+    return { title: logObj.message! }
   }
-  return { title: logObj.message! }
+  const err = logObj.err as (PnpmError & { stack: object })
+  const reportErrorInfo = ERROR_INFO_REPORTERS.get(err.code)
+  if (reportErrorInfo != null) {
+    return reportErrorInfo(err, logObj, config)
+  }
+  // Errors with unknown error codes are printed with stack trace
+  if (!err.code?.startsWith?.('ERR_PNPM_')) {
+    return formatGenericError(err.message ?? (logObj as { message: string }).message, err.stack)
+  }
+  return {
+    title: err.message ?? '',
+    body: (logObj as { hint?: string }).hint,
+  }
 }
 
 interface PkgStackItem {
@@ -139,7 +137,7 @@ interface PackageMeta {
   time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }) {
+function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }): ErrorInfo {
   // Errors raised by the install/dlx/self-update layer after the resolver
   // surfaces violations may not carry the original packageMeta. In that
   // case the error message alone already names every offending entry,
@@ -157,18 +155,7 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }
   output += EOL
 
   if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
-    output += EOL + 'Other releases are:' + EOL
-    for (const tag in meta['dist-tags']) {
-      if (tag !== 'latest') {
-        const version = meta['dist-tags'][tag]
-        output += `  * ${tag}: ${version}`
-        const time = meta.time?.[version]
-        if (time) {
-          output += ` published at ${stringifyDate(time)}`
-        }
-        output += EOL
-      }
-    }
+    output += EOL + 'Other releases are:' + EOL + formatOtherReleases(meta)
   }
 
   output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "pnpm view ${meta.name} versions".`
@@ -179,6 +166,21 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }
   }
 }
 
+function formatOtherReleases (meta: PackageMeta): string {
+  let output = ''
+  for (const tag in meta['dist-tags']) {
+    if (tag === 'latest') continue
+    const version = meta['dist-tags'][tag]
+    output += `  * ${tag}: ${version}`
+    const time = meta.time?.[version]
+    if (time) {
+      output += ` published at ${stringifyDate(time)}`
+    }
+    output += EOL
+  }
+  return output
+}
+
 function stringifyDate (dateStr: string): string {
   const now = Date.now()
   const oneDayAgo = now - 24 * 60 * 60 * 1000
@@ -187,110 +189,6 @@ function stringifyDate (dateStr: string): string {
     return date.toLocaleDateString()
   }
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`
-}
-
-function reportUnexpectedStore (
-  err: Error,
-  msg: {
-    actualStorePath: string
-    expectedStorePath: string
-    modulesDir: string
-  }
-): ErrorInfo {
-  return {
-    title: err.message,
-    body: `The dependencies at "${msg.modulesDir}" are currently linked from the store at "${msg.expectedStorePath}".
-
-pnpm now wants to use the store at "${msg.actualStorePath}" to link dependencies.
-
-If you want to use the new store location, reinstall your dependencies with "pnpm install".
-
-You may change the global store location by running "pnpm config set store-dir <dir> --global".
-(This error may happen if the node_modules was installed with a different major version of pnpm)`,
-  }
-}
-
-function reportUnexpectedVirtualStoreDir (
-  err: Error,
-  msg: {
-    actual: string
-    expected: string
-    modulesDir: string
-  }
-): ErrorInfo {
-  return {
-    title: err.message,
-    body: `The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".
-
-pnpm now wants to use the virtual store at "${msg.actual}" to link dependencies from the store.
-
-If you want to use the new virtual store location, reinstall your dependencies with "pnpm install".
-
-You may change the virtual store location by changing the value of the virtual-store-dir config.`,
-  }
-}
-
-function reportStoreBreakingChange (msg: {
-  additionalInformation?: string
-  storePath: string
-  relatedIssue?: number
-  relatedPR?: number
-}): ErrorInfo {
-  let output = `Store path: ${colorPath(msg.storePath)}
-
-Run "pnpm install" to recreate node_modules.`
-
-  if (msg.additionalInformation) {
-    output = `${output}${EOL}${EOL}${msg.additionalInformation}`
-  }
-
-  output += formatRelatedSources(msg)
-  return {
-    title: 'The store used for the current node_modules is incompatible with the current version of pnpm',
-    body: output,
-  }
-}
-
-function reportModulesBreakingChange (msg: {
-  additionalInformation?: string
-  modulesPath: string
-  relatedIssue?: number
-  relatedPR?: number
-}): ErrorInfo {
-  let output = `node_modules path: ${colorPath(msg.modulesPath)}
-
-Run ${highlight('pnpm install')} to recreate node_modules.`
-
-  if (msg.additionalInformation) {
-    output = `${output}${EOL}${EOL}${msg.additionalInformation}`
-  }
-
-  output += formatRelatedSources(msg)
-  return {
-    title: 'The current version of pnpm is not compatible with the available node_modules structure',
-    body: output,
-  }
-}
-
-function formatRelatedSources (msg: {
-  relatedIssue?: number
-  relatedPR?: number
-}): string {
-  let output = ''
-
-  if (!msg.relatedIssue && !msg.relatedPR) return output
-
-  output += EOL
-
-  if (msg.relatedIssue) {
-    output += EOL + `Related issue: ${colorPath(`https://github.com/pnpm/pnpm/issues/${msg.relatedIssue}`)}`
-  }
-
-  if (msg.relatedPR) {
-    output += EOL + `Related PR: ${colorPath(`https://github.com/pnpm/pnpm/pull/${msg.relatedPR}`)}`
-  }
-
-  return output
 }
 
 function formatGenericError (errorMessage: string, stack: object): ErrorInfo {
@@ -313,23 +211,6 @@ function formatGenericError (errorMessage: string, stack: object): ErrorInfo {
 
 function formatErrorSummary (message: string, code?: string): string {
   return `${chalk.bgRed.red('[')}${chalk.bgRed.black(code ?? 'ERROR')}${chalk.bgRed.red(']')} ${chalk.red(message)}`
-}
-
-function reportModifiedDependency (msg: { modified: string[] }): ErrorInfo {
-  return {
-    title: 'Packages in the store have been mutated',
-    body: `These packages are modified:
-${msg.modified.map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}`,
-  }
-}
-
-function reportLockfileBreakingChange (err: Error, _msg: object): ErrorInfo {
-  return {
-    title: err.message,
-    body: `Run with the ${highlight('--force')} parameter to recreate the lockfile.
-Warning: recreating the lockfile may break your application if it was generated by a different version of pnpm.
-To keep the existing lockfile, install the version of pnpm that generated it.`,
-  }
 }
 
 function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix: string }>, passes: number }): ErrorInfo {
@@ -518,8 +399,7 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
   // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
   // more clear error in this case.
   if (logObj.package?.bareSpecifier?.startsWith('catalog:')) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
-    return reportExternalCatalogProtocolError(err, logObj as any)
+    return reportExternalCatalogProtocolError(err, logObj)
   }
 
   return {
