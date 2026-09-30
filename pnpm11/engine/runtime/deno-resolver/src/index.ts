@@ -58,29 +58,7 @@ export async function resolveDenoRuntime (
     throw new PnpmError('DENO_RESOLUTION_FAILURE', `Could not resolve Deno version specified as ${versionSpec}`)
   }
   const version = npmResolution.manifest.version
-  const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
-  const data = (await res.json()) as { assets: Array<{ name: string, browser_download_url: string }> }
-  const assets: PlatformAssetResolution[] = []
-  if (data.assets == null) {
-    throw new PnpmError('DENO_MISSING_ASSETS', `No assets found for Deno v${version}`)
-  }
-  await Promise.all(data.assets.map(async (asset) => {
-    const targets = parseAssetName(asset.name)
-    if (!targets) return
-    const sha256 = await fetchSha256(ctx.fetchFromRegistry, asset.browser_download_url)
-    const base64 = Buffer.from(sha256, 'hex').toString('base64')
-    assets.push({
-      targets,
-      resolution: {
-        type: 'binary',
-        url: asset.browser_download_url.replace(/\.sha256sum$/, ''),
-        integrity: `sha256-${base64}`,
-        bin: getDenoBinLocationForCurrentOS(targets[0].os),
-        archive: 'zip',
-      },
-    })
-  }))
-  assets.sort((asset1, asset2) => lexCompare((asset1.resolution as BinaryResolution).url, (asset2.resolution as BinaryResolution).url))
+  const assets = await fetchDenoAssets(ctx.fetchFromRegistry, version)
 
   return {
     id: `deno@runtime:${version}` as PkgResolutionId,
@@ -155,4 +133,31 @@ async function fetchSha256 (fetch: FetchFromRegistry, url: string): Promise<stri
     throw new PnpmError('DENO_PARSE_HASH', `No SHA256 in ${url}`)
   }
   return hashMatch[1].toLowerCase()
+}
+
+async function fetchDenoAssets (fetch: FetchFromRegistry, version: string): Promise<PlatformAssetResolution[]> {
+  const res = await fetch(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
+  const data = (await res.json()) as { assets: Array<{ name: string, browser_download_url: string }> }
+  if (data.assets == null) {
+    throw new PnpmError('DENO_MISSING_ASSETS', `No assets found for Deno v${version}`)
+  }
+  const assets: PlatformAssetResolution[] = []
+  await Promise.all(data.assets.map(async (asset) => {
+    const targets = parseAssetName(asset.name)
+    if (!targets) return
+    const sha256 = await fetchSha256(fetch, asset.browser_download_url)
+    const base64 = Buffer.from(sha256, 'hex').toString('base64')
+    assets.push({
+      targets,
+      resolution: {
+        type: 'binary',
+        url: asset.browser_download_url.replace(/\.sha256sum$/, ''),
+        integrity: `sha256-${base64}`,
+        bin: getDenoBinLocationForCurrentOS(targets[0].os),
+        archive: 'zip',
+      },
+    })
+  }))
+  assets.sort((asset1, asset2) => lexCompare((asset1.resolution as BinaryResolution).url, (asset2.resolution as BinaryResolution).url))
+  return assets
 }
