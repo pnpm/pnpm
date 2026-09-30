@@ -9,26 +9,16 @@ interface ProjectLike {
   manifest?: { publishConfig?: { directory?: string, linkDirectory?: boolean } }
 }
 
+type ProjectWithTargetDirs<Project> = Project & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }
+
 export function extendProjectsWithTargetDirs<Project extends ProjectLike> (
   projects: Array<Project & { id: ProjectId }>,
   injectionTargetsByDepPath: Map<string, string[]>,
   lockfileDir: string
-): Array<Project & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }> {
+): Array<ProjectWithTargetDirs<Project>> {
   const projectsById: Record<ProjectId, Project & { id: ProjectId, stages?: string[], targetDirs: string[], publishTargetDirs: string[] }> =
     Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[], publishTargetDirs: [] as string[] }]))
-
-  // A project whose `publishConfig.directory` is injected resolves as its own
-  // `file:` dependency path (`a@file:packages/a/dist`), so a dep path may name
-  // a project's publish directory rather than any project root.
-  const projectsBySourceDir = new Map<string, Project & { id: ProjectId }>()
-  for (const project of projects) {
-    const publishDir = project.manifest?.publishConfig?.directory
-    if (publishDir == null || project.manifest?.publishConfig?.linkDirectory === false) continue
-    const sourceDir = path.resolve(project.rootDir, publishDir)
-    if (sourceDir !== project.rootDir) {
-      projectsBySourceDir.set(sourceDir, project)
-    }
-  }
+  const projectsBySourceDir = indexProjectsByPublishDir(projects)
 
   for (const [depPath, locations] of injectionTargetsByDepPath) {
     const importerId = getInjectedSourceId(depPath)
@@ -38,21 +28,42 @@ export function extendProjectsWithTargetDirs<Project extends ProjectLike> (
     // publish-directory redirect) both resolve to the same project, but the
     // resulting copies must stay grouped by which directory they were built
     // from, so each group is later refreshed from its own source.
-    const isPublishDirDepPath = projectsById[importerId] == null
-    const project = projectsById[importerId] ?? projectsBySourceDir.get(path.resolve(lockfileDir, importerId))
+    const projectById = Object.hasOwn(projectsById, importerId) ? projectsById[importerId] : undefined
+    const isPublishDirDepPath = projectById == null
+    const project = projectById ?? projectsBySourceDir.get(path.resolve(lockfileDir, importerId))
     if (project == null) continue
     const projectWithTargets = projectsById[project.id]
-    const targetGroup = isPublishDirDepPath ? projectWithTargets.publishTargetDirs : projectWithTargets.targetDirs
-    // Dedupe: only add locations that aren't already tracked
-    for (const location of locations) {
-      if (!targetGroup.includes(location)) {
-        targetGroup.push(location)
-      }
-    }
+    addUniqueLocations(isPublishDirDepPath ? projectWithTargets.publishTargetDirs : projectWithTargets.targetDirs, locations)
     projectWithTargets.stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
   }
 
-  return Object.values(projectsById) as Array<Project & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }>
+  return Object.values(projectsById) as Array<ProjectWithTargetDirs<Project>>
+}
+
+/**
+ * A project whose `publishConfig.directory` is injected resolves as its own
+ * `file:` dependency path (`a@file:packages/a/dist`), so a dep path may name
+ * a project's publish directory rather than any project root.
+ */
+function indexProjectsByPublishDir<Project extends ProjectLike> (projects: Project[]): Map<string, Project> {
+  const projectsBySourceDir = new Map<string, Project>()
+  for (const project of projects) {
+    const publishDir = project.manifest?.publishConfig?.directory
+    if (publishDir == null || project.manifest?.publishConfig?.linkDirectory === false) continue
+    const sourceDir = path.resolve(project.rootDir, publishDir)
+    if (sourceDir !== project.rootDir) {
+      projectsBySourceDir.set(sourceDir, project)
+    }
+  }
+  return projectsBySourceDir
+}
+
+function addUniqueLocations (targetGroup: string[], locations: string[]): void {
+  for (const location of locations) {
+    if (!targetGroup.includes(location)) {
+      targetGroup.push(location)
+    }
+  }
 }
 
 /**

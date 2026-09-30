@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import type { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -9,6 +10,7 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { streamParser } from '@pnpm/logger'
 import { tempDir } from '@pnpm/prepare'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
@@ -1096,4 +1098,14 @@ test('headlessInstall: peer-variant snapshot without `resolution` does not crash
     lockfileDir: workspaceFixture,
     projects,
   }))
+})
+
+test('the reporter is detached when the headless installation fails', async () => {
+  const prefix = tempDir()
+  const reporter = jest.fn()
+  const opts = await testDefaults({ lockfileDir: prefix, reporter })
+
+  await expect(headlessInstall(opts)).rejects.toThrow(`Headless installation requires a ${WANTED_LOCKFILE} file`)
+
+  expect((streamParser as unknown as EventEmitter).listeners('data')).not.toContain(reporter)
 })

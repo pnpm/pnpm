@@ -5,7 +5,6 @@ import * as regexpPlugin from "eslint-plugin-regexp";
 // package from this list once it is refactored to pass them.
 const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     ".meta-updater/**",
-    "pnpm11/__utils__/assert-project/**",
     "pnpm11/__utils__/assert-store/**",
     "pnpm11/__utils__/get-release-text/**",
     "pnpm11/__utils__/scripts/**",
@@ -36,7 +35,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/deps/graph-builder/**",
     "pnpm11/deps/graph-hasher/**",
     "pnpm11/deps/graph-sequencer/**",
-    "pnpm11/deps/inspection/commands/**",
     "pnpm11/deps/inspection/list/**",
     "pnpm11/deps/inspection/outdated/**",
     "pnpm11/deps/inspection/peers-checker/**",
@@ -72,7 +70,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/installing/context/**",
     "pnpm11/installing/deps-installer/**",
     "pnpm11/installing/deps-resolver/**",
-    "pnpm11/installing/deps-restorer/**",
     "pnpm11/installing/env-installer/**",
     "pnpm11/installing/linking/direct-dep-linker/**",
     "pnpm11/installing/linking/hoist/**",
