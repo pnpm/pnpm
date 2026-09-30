@@ -127,3 +127,34 @@ fn removes_executable_cas_suffix_from_the_index_digest() {
             .is_empty(),
     );
 }
+
+#[test]
+fn keeps_undecodable_rows_and_prunes_the_rest() {
+    let root = tempfile::tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let orphan_digest = format!("04{}", "d".repeat(126));
+    let orphan = store.file_path_by_hex_str(&orphan_digest, "");
+    fs::create_dir_all(orphan.parent().unwrap()).unwrap();
+    fs::write(&orphan, "{}").unwrap();
+    let index = StoreIndex::open_in(&store).unwrap();
+    index
+        .set("orphan", &package_index(&orphan_digest))
+        .unwrap();
+    drop(index);
+    rusqlite::Connection::open(store.root().join("index.db"))
+        .unwrap()
+        .execute("INSERT INTO package_index (key, data) VALUES ('a-unreadable', x'c1')", [])
+        .unwrap();
+
+    let stats = prune_cas(&store).unwrap();
+
+    assert_eq!(stats.packages, 1);
+    assert_eq!(stats.undecodable_packages, 1);
+    assert_eq!(
+        StoreIndex::open_in(&store)
+            .unwrap()
+            .keys()
+            .unwrap(),
+        ["a-unreadable"]
+    );
+}

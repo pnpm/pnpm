@@ -98,6 +98,13 @@ impl StoreDir {
             stats.packages,
             if stats.packages == 1 { "" } else { "s" },
         );
+        if stats.undecodable_packages > 0 {
+            eprintln!(
+                "Kept {} package index entr{} that could not be read",
+                stats.undecodable_packages,
+                if stats.undecodable_packages == 1 { "y" } else { "ies" },
+            );
+        }
         Ok(())
     }
 
