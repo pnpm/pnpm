@@ -568,8 +568,10 @@ fn downgrading_a_dependency_moves_other_projects_to_the_named_version() {
             fs::create_dir_all(workspace.join(project)).unwrap();
             fs::write(workspace.join(project).join("package.json"), manifest.to_string()).unwrap();
         }
+        // A full install fills the store, which lets the resolver reuse a
+        // locked version it has the manifest of without picking again.
         pnpm_at(&workspace)
-            .with_args(["install", "--lockfile-only"])
+            .with_arg("install")
             .assert()
             .success();
         assert_eq!(

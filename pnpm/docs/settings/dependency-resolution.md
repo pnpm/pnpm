@@ -606,7 +606,7 @@ Added in: v12.6.0
 
 When set to `true`, `pnpm install` and `pnpm add` deduplicate compatible dependency versions during installation. If a dependency appears at multiple versions and one version satisfies every range in the workspace, pnpm picks that version for all of them.
 
-Deduplication covers the whole workspace. A filtered command such as `pnpm --filter <project> add` can also change the lockfile entries of projects outside the filter.
+Deduplication covers the whole workspace. A filtered command such as `pnpm --filter <project> add` can also change the lockfile entries of projects outside the filter. Those projects get the deduplicated versions linked on the next `pnpm install`.
 
 ```yaml title="pnpm-workspace.yaml"
 autoDedupe: true
