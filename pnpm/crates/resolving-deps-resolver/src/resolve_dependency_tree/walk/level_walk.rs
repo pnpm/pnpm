@@ -249,7 +249,9 @@ pub(super) fn children_context(
 ) -> RecordedChildrenContext {
     RecordedChildrenContext {
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
-        prior_key: pending.prior_key.clone(),
+        prior_key: pending.prior_key
+            .clone()
+            .filter(|_| !ctx.update_scope().unpins_every_edge()),
         update_active: !matches!(ctx.update_reuse_scope(), super::super::UpdateReuseScope::All),
     }
 }
