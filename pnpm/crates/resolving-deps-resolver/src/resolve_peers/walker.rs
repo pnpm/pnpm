@@ -19,7 +19,8 @@ use walk_context::{
 };
 
 mod missing_names;
-use missing_names::{children_scc_ids, external_peers_to_report};
+pub(super) use missing_names::children_scc_ids;
+use missing_names::external_peers_to_report;
 
 mod peer_issues;
 
@@ -223,13 +224,9 @@ impl<'tree> Walker<'tree> {
     }
 
     /// The children-graph SCC table behind the canonical cycle gate; see
-    /// [`CanonicalCycleGate::sccs`](super::discovery::CanonicalCycleGate::sccs).
-    /// The tree's children are frozen for the walker's lifetime, so the
-    /// table is built at most once per tree view.
+    /// [`CanonicalCycleGate::table`](super::discovery::CanonicalCycleGate::table).
     pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
-        Arc::clone(self.caches.canonical_cycles.sccs.get_or_init(|| {
-            Arc::new(children_scc_ids(self.tree))
-        }))
+        self.caches.canonical_cycles.table(self.tree)
     }
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:

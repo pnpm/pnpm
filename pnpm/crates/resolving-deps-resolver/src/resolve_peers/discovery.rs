@@ -10,7 +10,7 @@ use crate::{
         HoistMissingScope, ResolvePeersOptions,
         cache::{PeerProviderChildren, PeersCacheItem},
         context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
-        walker::{MissingSummary, NodeOutput, RootWalk, Walker},
+        walker::{MissingSummary, NodeOutput, RootWalk, Walker, children_scc_ids},
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
@@ -77,8 +77,8 @@ impl PeerHoistDiscovery {
                 workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
             // The refreshed view may carry new child edges, which the SCC
-            // table is a function of. It is rebuilt on the next walk.
-            self.caches.canonical_cycles.sccs.take();
+            // table is a function of.
+            self.caches.canonical_cycles.invalidate();
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
@@ -126,16 +126,30 @@ pub(super) struct CanonicalCycleGate {
     /// canonically later (package-id order) is cut, the same cut at
     /// every occurrence, so realized subtrees are entry-independent and
     /// no walk path can revisit a package. A function of the tree view's
-    /// `children_by_id`, so it is built once per view on first use and
-    /// shared by every walker over that view: [`PeerHoistDiscovery`]
-    /// drops it whenever it refreshes the view.
-    pub(super) sccs: OnceCell<Arc<HashMap<Arc<str>, usize>>>,
+    /// `children_by_id`: [`Self::table`] builds it on first use and
+    /// shares it with every walker over that view, and
+    /// [`PeerHoistDiscovery`] calls [`Self::invalidate`] whenever it
+    /// refreshes the view.
+    sccs: OnceCell<Arc<HashMap<Arc<str>, usize>>>,
     /// The shared record-only occurrence per canonical back-edge
     /// target; persisted so later rounds reuse instead of re-creating
     /// (and re-walking) them. Entries are validated against the current
     /// tree on lookup, so a walker over a different tree view recreates
     /// what its tree lacks.
     pub(super) backedge_nodes: HashMap<Arc<str>, NodeId>,
+}
+
+impl CanonicalCycleGate {
+    /// The SCC table of `tree`'s children graph, built on first use and
+    /// shared until [`Self::invalidate`].
+    pub(super) fn table(&self, tree: &ResolvedTree) -> Arc<HashMap<Arc<str>, usize>> {
+        Arc::clone(self.sccs.get_or_init(|| Arc::new(children_scc_ids(tree))))
+    }
+
+    /// Drop the table: the tree view's `children_by_id` changed.
+    pub(super) fn invalidate(&mut self) {
+        self.sccs.take();
+    }
 }
 
 /// What one peer-hoist discovery pass reports back to the hoist loop —

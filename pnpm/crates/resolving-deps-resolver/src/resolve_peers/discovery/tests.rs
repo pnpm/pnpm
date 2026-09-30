@@ -1,6 +1,6 @@
 //! Unit tests for the peer-hoist discovery engine.
 
-use super::{PeerDiscoveryCaches, PeerHoistDiscovery, discover_peers};
+use super::{CanonicalCycleGate, PeerDiscoveryCaches, PeerHoistDiscovery, discover_peers};
 use crate::{
     node_id::NodeId,
     resolve_dependency_tree::WorkspaceTreeCtx,
@@ -13,6 +13,16 @@ use crate::{
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
+
+#[test]
+fn cycle_gate_shares_its_table_until_invalidated() {
+    let tree = ResolvedTree::default();
+    let mut gate = CanonicalCycleGate::default();
+    let first = gate.table(&tree);
+    assert!(Arc::ptr_eq(&first, &gate.table(&tree)), "reads share one table");
+    gate.invalidate();
+    assert!(!Arc::ptr_eq(&first, &gate.table(&tree)), "invalidate drops the table");
+}
 
 /// See [`PeersCacheItem`] for why a cache hit reports no providers.
 #[test]
