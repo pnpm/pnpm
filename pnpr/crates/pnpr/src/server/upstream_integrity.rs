@@ -19,7 +19,7 @@ struct MissingIntegrityTarball {
 struct StagedPin {
     tarball: MissingIntegrityTarball,
     integrity: Integrity,
-    write: pnpr_storage::BlobWrite,
+    blob: pnpr_storage::SealedBlob,
 }
 
 /// How many versions of one packument a single upstream fetch will download to
@@ -61,10 +61,10 @@ pub(super) async fn complete_missing_tarball_integrities(
 
 impl PackumentIntegrityResolver<'_> {
     /// The downloads run without the package lock, which is striped and shared
-    /// with hosted publishes. Promoting the staged tarballs and writing their
-    /// pins into the cached packument, which a concurrent refresh may have
-    /// replaced meanwhile, runs under it, so a published pin always describes
-    /// the cached bytes.
+    /// with hosted publishes. Writing the pins into the cached packument, which
+    /// a concurrent refresh may have replaced meanwhile, and promoting their
+    /// tarballs runs under it, so a published pin always describes the cached
+    /// bytes.
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
         if !self.upstream.caches() {
             return Ok(bytes);
@@ -79,36 +79,54 @@ impl PackumentIntegrityResolver<'_> {
         }
         let _guard = self.package_lock().await;
         let bytes = self.read_current_packument(bytes).await?;
-        let mut doc: Value = serde_json::from_slice(&bytes)?;
-        if !self.publish_pins(&mut doc, pins).await {
-            return Ok(bytes);
-        }
-        self.persist_packument(doc).await
+        let doc: Value = serde_json::from_slice(&bytes)?;
+        Ok(self.publish_pins(doc, pins).await.unwrap_or(bytes))
     }
 
-    /// Promotes each staged tarball and writes its pin into `doc` where the
-    /// pin still applies, abandons the rest, and reports whether any was
-    /// written.
-    async fn publish_pins(&self, doc: &mut Value, pins: Vec<StagedPin>) -> bool {
-        let mut published = false;
-        for StagedPin { tarball, integrity, write } in pins {
-            if !pin_still_applies(doc, self.name, &tarball) {
-                write.abandon().await;
-                continue;
+    /// Writes the pins that still apply into `doc` and persists it before
+    /// promoting their tarballs, so the cache never holds a tarball whose pin
+    /// was not published. Returns the persisted document, or `None` when
+    /// nothing was published.
+    async fn publish_pins(&self, mut doc: Value, pins: Vec<StagedPin>) -> Option<Vec<u8>> {
+        let mut publishable = Vec::new();
+        for pin in pins {
+            if pin_still_applies(&doc, self.name, &pin.tarball) {
+                set_integrity(&mut doc, &pin.tarball.version, &pin.integrity);
+                publishable.push(pin);
+            } else {
+                pin.blob.abandon().await;
             }
-            if let Err(err) = write.finalize().await {
-                tracing::warn!(
-                    ?err,
-                    package = %self.name.as_str(),
-                    version = %tarball.version,
-                    "leaving the version unpinned",
-                );
-                continue;
-            }
-            set_integrity(doc, &tarball.version, &integrity);
-            published = true;
         }
-        published
+        if publishable.is_empty() {
+            return None;
+        }
+        let persisted = match self.persist_packument(&doc).await {
+            Ok(persisted) => persisted,
+            Err(err) => {
+                tracing::warn!(?err, package = %self.name.as_str(), "pinned packument cache write failed");
+                for pin in publishable {
+                    pin.blob.abandon().await;
+                }
+                return None;
+            }
+        };
+        for pin in publishable {
+            self.promote(pin).await;
+        }
+        Some(persisted)
+    }
+
+    /// A pin whose tarball fails to promote stays published: the tarball route
+    /// then fetches that version again and verifies it against the pin.
+    async fn promote(&self, pin: StagedPin) {
+        if let Err(err) = pin.blob.promote().await {
+            tracing::warn!(
+                ?err,
+                package = %self.name.as_str(),
+                version = %pin.tarball.version,
+                "pinned tarball cache promotion failed",
+            );
+        }
     }
 
     fn osv_index(&self) -> Option<&std::sync::Arc<pnpr_osv::OsvIndex>> {
@@ -135,8 +153,8 @@ impl PackumentIntegrityResolver<'_> {
         let mut candidates = candidates.into_iter();
         for candidate in candidates.by_ref().take(MAX_PINNED_VERSIONS_PER_PACKUMENT) {
             match self.stage_pin(&candidate).await {
-                Ok((write, integrity)) => {
-                    pins.push(StagedPin { tarball: candidate, integrity, write });
+                Ok((blob, integrity)) => {
+                    pins.push(StagedPin { tarball: candidate, integrity, blob });
                 }
                 Err(err) => {
                     tracing::warn!(
@@ -162,7 +180,7 @@ impl PackumentIntegrityResolver<'_> {
     async fn stage_pin(
         &self,
         candidate: &MissingIntegrityTarball,
-    ) -> Result<(pnpr_storage::BlobWrite, Integrity), RegistryError> {
+    ) -> Result<(pnpr_storage::SealedBlob, Integrity), RegistryError> {
         let fetched = timed(
             "tarball:integrity_fetch",
             self.name.as_str(),
@@ -197,8 +215,8 @@ impl PackumentIntegrityResolver<'_> {
         })
     }
 
-    async fn persist_packument(&self, doc: Value) -> Result<Vec<u8>, RegistryError> {
-        let bytes = serde_json::to_vec(&doc)?;
+    async fn persist_packument(&self, doc: &Value) -> Result<Vec<u8>, RegistryError> {
+        let bytes = serde_json::to_vec(doc)?;
         self.state.inner.storage.write_upstream_document(self.namespace, self.name, &bytes).await?;
         Ok(bytes)
     }

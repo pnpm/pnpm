@@ -7,11 +7,11 @@
 //!   matches the full body.
 //! * [`download_verified_to_temp`] hashes an upstream response into a
 //!   temp file for mirror-less pass-through.
-//! * [`download_computing_sha512`] stages an upstream response for the cache
-//!   and returns the SHA-512 integrity it computed over the bytes.
+//! * [`download_computing_sha512`] seals an upstream response next to the
+//!   cache and returns the SHA-512 integrity it computed over the bytes.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::BlobWrite;
+use crate::{BlobWrite, SealedBlob};
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
 use pnpm_network::ThrottledResponse;
@@ -208,22 +208,24 @@ pub async fn download_verified_to_temp(
 }
 
 /// Download an upstream response into `write` and return the SHA-512 integrity
-/// of its bytes alongside the still-unpromoted write, which the caller
-/// finalizes or abandons. When `expected` is given, the bytes must also match
+/// of its bytes, sealed but not yet promoted, so the caller decides whether to
+/// promote or abandon it. When `expected` is given, the bytes must also match
 /// it, or the write is abandoned and an error returned.
 pub async fn download_computing_sha512(
     response: ThrottledResponse,
     mut write: BlobWrite,
     expected: Option<&Integrity>,
     max_bytes: u64,
-) -> Result<(BlobWrite, Integrity), BlobStreamError> {
-    match hash_download_as_sha512(response, &mut write, expected, max_bytes).await {
-        Ok(computed) => Ok((write, computed)),
+) -> Result<(SealedBlob, Integrity), BlobStreamError> {
+    let computed = match hash_download_as_sha512(response, &mut write, expected, max_bytes).await {
+        Ok(computed) => computed,
         Err(err) => {
             write.abandon().await;
-            Err(err)
+            return Err(err);
         }
-    }
+    };
+    let sealed = write.seal().await.map_err(BlobStreamError::Io)?;
+    Ok((sealed, computed))
 }
 
 async fn download_verified(

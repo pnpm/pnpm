@@ -212,7 +212,7 @@ async fn download_returns_the_sha512_of_the_staged_bytes() {
 
         let (write, computed) =
             download_computing_sha512(response, write, expected, u64::MAX).await.unwrap();
-        write.finalize().await.unwrap();
+        write.promote().await.unwrap();
 
         assert_eq!(computed.to_string(), sha512_integrity(bytes), "expected: {expected:?}");
         assert_eq!(
@@ -220,6 +220,32 @@ async fn download_returns_the_sha512_of_the_staged_bytes() {
             bytes,
         );
     }
+}
+
+/// A sealed download is invisible to cache readers until it is promoted, and
+/// dropping it leaves nothing behind.
+#[tokio::test]
+async fn a_sealed_download_is_not_in_the_cache_until_promoted() {
+    let bytes = b"sealed";
+    let response = throttled_response(spawn_response(bytes).await).await;
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let write =
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+
+    let (sealed, _) = download_computing_sha512(response, write, None, u64::MAX)
+        .await
+        .unwrap();
+
+    let package_dir = cache.join("~public/test").join("foo");
+    assert!(!package_dir.join("foo-1.0.0.tgz").exists());
+    assert_eq!(blob_tmp_entries(&package_dir).len(), 1);
+    drop(sealed);
+    assert!(blob_tmp_entries(&package_dir).is_empty());
+    assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 }
 
 #[tokio::test]

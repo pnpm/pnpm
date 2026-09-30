@@ -14,7 +14,7 @@ pub use revision_ref_index::HostedRevisionRefWrite;
 
 pub(crate) use revision_ref_index::{HostedRevisionRefIndex, is_canonical_revision_ref_owner};
 
-pub use blob_write::{BlobSlot, BlobWrite};
+pub use blob_write::{BlobSlot, BlobWrite, SealedBlob};
 
 pub(crate) use local_store::read_dir_if_present;
 
