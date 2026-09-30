@@ -309,24 +309,7 @@ describe('custom fetcher implementation examples', () => {
         ))
         const lockedIntegrity = matches ? tarballIntegrity : wrongIntegrity
         const resolution = { tarball: `${registry}original-pkg.tgz`, integrity: lockedIntegrity }
-        const customFetcher: CustomFetcher = {
-          canFetch: (_packageId, resolution) => {
-            if (method !== 'decline') return true
-            Object.assign(resolution, { tarball: `file:${tarballPath}`, integrity: rewrittenIntegrity })
-            return false
-          },
-          fetch: (cafs, _resolution, opts, fetchers) => {
-            if (method === 'decline') throw new Error('declined fetcher was called')
-            Object.assign(_resolution, { integrity: rewrittenIntegrity })
-            const rewritten = {
-              tarball: method === 'remoteTarball' ? `${registry}locked-pkg.tgz` : `file:${tarballPath}`,
-              integrity: rewrittenIntegrity,
-            }
-            return method === 'delegate'
-              ? { delegate: rewritten }
-              : fetchers[method](cafs, rewritten, opts)
-          },
-        }
+        const customFetcher = createIntegrityTestCustomFetcher(method, tarballPath, registry, rewrittenIntegrity)
         const fetch = await pickFetcher(fetchers, resolution, {
           customFetchers: [customFetcher],
           packageId: 'locked-pkg@1.0.0',
@@ -807,3 +790,30 @@ test('pickFetcher() forwards a custom fetcher resolutionNeedsFetch hook bound to
   ) as FetchFunction
   expect(picked.resolutionNeedsFetch?.(createMockResolution({}))).toBe(true)
 })
+
+function createIntegrityTestCustomFetcher (
+  method: 'localTarball' | 'remoteTarball' | 'delegate' | 'decline',
+  tarballPath: string,
+  registry: string,
+  rewrittenIntegrity: string | undefined
+): CustomFetcher {
+  return {
+    canFetch: (_packageId, resolution) => {
+      if (method !== 'decline') return true
+      Object.assign(resolution, { tarball: `file:${tarballPath}`, integrity: rewrittenIntegrity })
+      return false
+    },
+    fetch: (cafs, _resolution, opts, fetchers) => {
+      if (method === 'decline') throw new Error('declined fetcher was called')
+      Object.assign(_resolution, { integrity: rewrittenIntegrity })
+      const rewritten = {
+        tarball: method === 'remoteTarball' ? `${registry}locked-pkg.tgz` : `file:${tarballPath}`,
+        integrity: rewrittenIntegrity,
+      }
+      return method === 'delegate'
+        ? { delegate: rewritten }
+        : fetchers[method](cafs, rewritten, opts)
+    },
+  }
+}
+

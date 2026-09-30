@@ -69,31 +69,29 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
   }
   const result: GlobalPackageInfo[] = []
   for (const entry of entries) {
-    // Hash entries are symlinks pointing to install dirs
     if (!entry.isSymbolicLink()) continue
-    const linkPath = path.join(globalDir, entry.name)
-    let installDir: string
-    try {
-      installDir = fs.realpathSync(linkPath)
-    } catch {
-      continue
-    }
-    let pkgJson: PackageManifest
-    try {
-      pkgJson = readPackageJsonFromDirRawSync(installDir)
-    } catch {
-      continue
-    }
-    if (!pkgJson.dependencies) continue
-    const dependencies = pickValidDependencies(pkgJson.dependencies)
-    if (Object.keys(dependencies).length === 0) continue
-    result.push({
-      hash: entry.name,
-      installDir,
-      dependencies,
-    })
+    const info = scanSymlinkEntry(globalDir, entry.name)
+    if (info) result.push(info)
   }
   return result
+}
+
+function scanSymlinkEntry (globalDir: string, entryName: string): GlobalPackageInfo | undefined {
+  const linkPath = path.join(globalDir, entryName)
+  try {
+    const installDir = fs.realpathSync(linkPath)
+    const pkgJson = readPackageJsonFromDirRawSync(installDir)
+    if (!pkgJson.dependencies) return undefined
+    const dependencies = pickValidDependencies(pkgJson.dependencies)
+    if (Object.keys(dependencies).length === 0) return undefined
+    return {
+      hash: entryName,
+      installDir,
+      dependencies,
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export function findGlobalPackage (globalDir: string, alias: string): GlobalPackageInfo | null {
@@ -114,15 +112,25 @@ export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise
 }
 
 export function cleanOrphanedInstallDirs (globalDir: string): void {
-  globalDir = path.resolve(globalDir)
+  const resolvedDir = path.resolve(globalDir)
   let entries: fs.Dirent[]
   try {
-    entries = fs.readdirSync(globalDir, { withFileTypes: true })
+    entries = fs.readdirSync(resolvedDir, { withFileTypes: true })
   } catch {
     return
   }
 
-  // Collect real paths of all symlink targets
+  const referenced = collectReferencedDirs(resolvedDir, entries)
+  const now = Date.now()
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const dirPath = path.join(resolvedDir, entry.name)
+    if (referenced.has(dirPath) || shouldPreserveOrphan(dirPath, now)) continue
+    fs.rmSync(dirPath, { recursive: true, force: true })
+  }
+}
+
+function collectReferencedDirs (globalDir: string, entries: fs.Dirent[]): Set<string> {
   const referenced = new Set<string>()
   for (const entry of entries) {
     if (!entry.isSymbolicLink()) continue
@@ -130,23 +138,17 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
       referenced.add(fs.realpathSync(path.join(globalDir, entry.name)))
     } catch {}
   }
+  return referenced
+}
 
-  // Remove directories that no symlink points to.
-  // Skip recently-created dirs to avoid racing with a concurrent install
-  // that hasn't created its hash symlink yet.
-  const now = Date.now()
-  const SAFETY_WINDOW_MS = 5 * 60 * 1000
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const dirPath = path.join(globalDir, entry.name)
-    if (referenced.has(dirPath)) continue
-    try {
-      const stat = fs.statSync(dirPath)
-      if (now - Math.max(stat.birthtimeMs, stat.ctimeMs) < SAFETY_WINDOW_MS) continue
-    } catch {
-      continue
-    }
-    fs.rmSync(dirPath, { recursive: true, force: true })
+const SAFETY_WINDOW_MS = 5 * 60 * 1000
+
+function shouldPreserveOrphan (dirPath: string, now: number): boolean {
+  try {
+    const stat = fs.statSync(dirPath)
+    return now - Math.max(stat.birthtimeMs, stat.ctimeMs) < SAFETY_WINDOW_MS
+  } catch {
+    return true
   }
 }
 
