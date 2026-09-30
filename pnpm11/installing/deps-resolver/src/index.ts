@@ -1,55 +1,31 @@
-import path from 'node:path'
-
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
-import {
-  packageManifestLogger,
-} from '@pnpm/core-loggers'
-import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
-import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
+import { parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
-import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
-import type {
-  LockfileObject,
-  ProjectSnapshot,
-} from '@pnpm/lockfile.types'
-import { findLockedRootNodeRuntime, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import {
-  getAllDependenciesFromManifest,
-  getSpecFromPackageManifest,
-} from '@pnpm/pkg-manifest.utils'
 import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
-import {
-  type AllowBuild,
-  DEPENDENCIES_FIELDS,
-  type DependenciesField,
-  type DependencyManifest,
-  type DepPath,
-  type PeerDependencyIssuesByProjects,
-  type PkgIdWithPatchHash,
-  type ProjectId,
-  type ProjectManifest,
-  type ProjectRootDir,
-  type RangeSpecStyle,
-  type SupportedArchitectures,
+import type {
+  DependenciesField,
+  PeerDependencyIssuesByProjects,
+  ProjectManifest,
+  RangeSpecStyle,
 } from '@pnpm/types'
-import { isSubdir } from 'is-subdir'
-import { difference, zipWith } from 'ramda'
 import semver from 'semver'
 
-import { depPathToRef } from './depPathToRef.js'
+import { extendGraph } from './extendGraph.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
-import type { NodeId } from './nextNodeId.js'
-import { createNodeIdForLinkedLocalPkg, type DependenciesTree, type UpdateMatchingFunction } from './resolveDependencies.js'
+import type { ResolvedPkgsById } from './resolutionTypes.js'
+import type { DependenciesTree, UpdateMatchingFunction } from './resolveDependencies.js'
 import {
   type Importer,
   type LinkedDependency,
-  type ResolvedDirectDependency,
   type ResolveDependenciesOptions,
   resolveDependencyTree,
+  type ResolveDependencyTreeResult,
+  type ResolvedImporters,
   type ResolvedPackage,
 } from './resolveDependencyTree.js'
 import {
@@ -58,9 +34,10 @@ import {
   type GenericDependenciesGraphWithResolvedChildren,
   resolvePeers,
 } from './resolvePeers.js'
-import { toResolveImporter } from './toResolveImporter.js'
+import { type ProjectToLink, toProjectToLink } from './toProjectToLink.js'
+import { type ResolveImporter, toResolveImporter } from './toResolveImporter.js'
 import { updateLockfile } from './updateLockfile.js'
-import { updateProjectManifest } from './updateProjectManifest.js'
+import { updateLockfileImporters } from './updateLockfileImporters.js'
 import { wantedDepShouldUpdateCatalog } from './wantedDepShouldUpdateCatalog.js'
 
 export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
@@ -77,20 +54,6 @@ export {
 }
 export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
-
-interface ProjectToLink {
-  binsDir: string
-  declaredDirectDependencies: Set<string>
-  directNodeIdsByAlias: Map<string, NodeId>
-  hoistedPeerProviderNodeIds: Set<NodeId>
-  explicitlyRequestedDirectDependencies: Set<string>
-  id: ProjectId
-  linkedDependencies: LinkedDependency[]
-  manifest: ProjectManifest
-  modulesDir: string
-  rootDir: ProjectRootDir
-  topParents: Array<{ name: string, version: string }>
-}
 
 export interface ImporterToResolve extends Importer<{
   nodeExecPath?: string
@@ -142,34 +105,89 @@ export interface ResolveDependenciesResult {
   resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
+export type ResolveDependenciesOpts = ResolveDependenciesOptions & {
+  defaultUpdateDepth: number
+  dedupePeerDependents?: boolean
+  dedupePeers?: boolean
+  dedupeDirectDeps?: boolean
+  dedupeInjectedDeps?: boolean
+  excludeLinksFromLockfile?: boolean
+  preserveWorkspaceProtocol: boolean
+  saveWorkspaceProtocol: 'rolling' | boolean
+  lockfileIncludeTarballUrl?: boolean
+  allowUnusedPatches?: boolean
+  enableGlobalVirtualStore?: boolean
+  allProjectIds: string[]
+  /**
+   * Generic checkpoint invoked between `resolveDependencyTree` and
+   * `resolvePeers` once any inline-collected policy violations have
+   * been gathered. Callers can prompt, persist, or throw based on
+   * the violations. Throwing unwinds before any peer-dep work,
+   * lockfile write, package.json update, or modules-dir change.
+   * Intentionally policy-neutral: each resolver owns its violation
+   * codes and the hook implementer (install command) decides what
+   * to do with them.
+   */
+  handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
+}
+
 export async function resolveDependencies (
   importers: ImporterToResolve[],
-  opts: ResolveDependenciesOptions & {
-    defaultUpdateDepth: number
-    dedupePeerDependents?: boolean
-    dedupePeers?: boolean
-    dedupeDirectDeps?: boolean
-    dedupeInjectedDeps?: boolean
-    excludeLinksFromLockfile?: boolean
-    preserveWorkspaceProtocol: boolean
-    saveWorkspaceProtocol: 'rolling' | boolean
-    lockfileIncludeTarballUrl?: boolean
-    allowUnusedPatches?: boolean
-    enableGlobalVirtualStore?: boolean
-    allProjectIds: string[]
-    /**
-     * Generic checkpoint invoked between `resolveDependencyTree` and
-     * `resolvePeers` once any inline-collected policy violations have
-     * been gathered. Callers can prompt, persist, or throw based on
-     * the violations. Throwing unwinds before any peer-dep work,
-     * lockfile write, package.json update, or modules-dir change.
-     * Intentionally policy-neutral: each resolver owns its violation
-     * codes and the hook implementer (install command) decides what
-     * to do with them.
-     */
-    handleResolutionPolicyViolations?: (violations: readonly ResolutionPolicyViolation[]) => Promise<void>
-  }
+  opts: ResolveDependenciesOpts
 ): Promise<ResolveDependenciesResult> {
+  const projectsToResolve = await toResolveImporters(importers, opts)
+  const resolution = await resolveDependencyTree(projectsToResolve, opts)
+  await handleResolutionPolicyViolations(resolution.resolutionPolicyViolations, opts)
+
+  opts.storeController.clearResolutionCache()
+
+  const { resolvedImporters } = resolution
+  const projectsToLink = await Promise.all(projectsToResolve.map(async (project) => toProjectToLink(project, {
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    lockfileDir: opts.lockfileDir,
+    resolvedImporter: resolvedImporters[project.id],
+  })))
+  const {
+    dependenciesGraph,
+    dependenciesByProjectId,
+    peerDependencyIssuesByProjects,
+  } = await resolvePeersOfProjects(projectsToLink, resolution, opts)
+
+  const linkedDependenciesByProjectId = await updateLockfileImporters(projectsToResolve, {
+    ...opts,
+    dependenciesByProjectId,
+    dependenciesGraph,
+    importers,
+    resolvedImporters,
+  })
+  const updatedCatalogs = getUpdatedCatalogs(projectsToResolve, resolvedImporters)
+
+  if (opts.dedupeDirectDeps) {
+    removeDirectDepsProvidedByRoot(dependenciesByProjectId)
+  }
+
+  await waitForResolutionFetches(resolution.resolvedPkgsById)
+
+  const newLockfile = createNewLockfile({ dependenciesGraph, importersCount: importers.length, resolution, updatedCatalogs }, opts)
+
+  return {
+    dependenciesByProjectId,
+    dependenciesGraph: extendGraph(dependenciesGraph, opts),
+    outdatedDependencies: resolution.outdatedDependencies,
+    linkedDependenciesByProjectId,
+    updatedCatalogs,
+    newLockfile,
+    peerDependencyIssuesByProjects,
+    waitTillAllFetchingsFinish: createWaitTillAllFetchingsFinish(resolution.resolvedPkgsById),
+    wantedToBeSkippedPackageIds: resolution.wantedToBeSkippedPackageIds,
+    resolutionPolicyViolations: resolution.resolutionPolicyViolations,
+  }
+}
+
+async function toResolveImporters (
+  importers: ImporterToResolve[],
+  opts: ResolveDependenciesOpts
+): Promise<ResolveImporter[]> {
   const _toResolveImporter = toResolveImporter.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
     defaultUpdateDepth: opts.defaultUpdateDepth,
@@ -181,100 +199,56 @@ export async function resolveDependencies (
     workspacePackages: opts.workspacePackages,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
-  const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
-  const {
-    dependenciesTree,
-    outdatedDependencies,
-    resolvedImporters,
-    resolvedPkgsById,
-    wantedToBeSkippedPackageIds,
-    time,
-    allPeerDepNames,
-    resolutionPolicyViolations,
-  } = await resolveDependencyTree(projectsToResolve, opts)
+  return Promise.all(importers.map(async (project) => _toResolveImporter(project)))
+}
 
-  // Resolver-policy gate between main resolution and peer-dep
-  // resolution: every resolver records its own policy violations
-  // inline as it picks each version, and we hand the accumulated
-  // list to the install command's hook. The hook throws to abort
-  // cleanly — nothing on disk has changed yet, and we haven't paid
-  // the cost of peer resolution. Dispatch stays policy-neutral: each
-  // resolver owns its violation codes, and the hook implementer
-  // decides what to do with them.
-  //
-  // If violations fired but no hook was wired, throw rather than
-  // silently dropping them — the resolver-policy contract is "every
-  // pick that trips a check produces a violation that gets handled";
-  // a missing handler means the caller forgot to opt in and would
-  // otherwise see policy-rejected versions land in the lockfile.
-  if (resolutionPolicyViolations.length > 0) {
-    if (!opts.handleResolutionPolicyViolations) {
-      throw new PnpmError(
-        'RESOLUTION_POLICY_VIOLATIONS_UNHANDLED',
-        `${resolutionPolicyViolations.length} resolution-policy ${resolutionPolicyViolations.length === 1 ? 'violation was' : 'violations were'} produced but no handleResolutionPolicyViolations callback was wired to react to them.`,
-        {
-          hint: 'Internal: resolveDependencies needs a handleResolutionPolicyViolations callback whenever a policy that can produce violations (today: minimumReleaseAge) is active. Wire setupPolicyHandlers (in @pnpm/installing.commands) or supply a callback directly.',
-        }
-      )
-    }
-    await opts.handleResolutionPolicyViolations(resolutionPolicyViolations)
+/**
+ * Resolver-policy gate between main resolution and peer-dep
+ * resolution: every resolver records its own policy violations
+ * inline as it picks each version, and we hand the accumulated
+ * list to the install command's hook. The hook throws to abort
+ * cleanly — nothing on disk has changed yet, and we haven't paid
+ * the cost of peer resolution. Dispatch stays policy-neutral: each
+ * resolver owns its violation codes, and the hook implementer
+ * decides what to do with them.
+ *
+ * If violations fired but no hook was wired, throw rather than
+ * silently dropping them — the resolver-policy contract is "every
+ * pick that trips a check produces a violation that gets handled";
+ * a missing handler means the caller forgot to opt in and would
+ * otherwise see policy-rejected versions land in the lockfile.
+ */
+async function handleResolutionPolicyViolations (
+  resolutionPolicyViolations: ResolutionPolicyViolation[],
+  opts: Pick<ResolveDependenciesOpts, 'handleResolutionPolicyViolations'>
+): Promise<void> {
+  if (resolutionPolicyViolations.length === 0) return
+  if (!opts.handleResolutionPolicyViolations) {
+    throw new PnpmError(
+      'RESOLUTION_POLICY_VIOLATIONS_UNHANDLED',
+      `${resolutionPolicyViolations.length} resolution-policy ${resolutionPolicyViolations.length === 1 ? 'violation was' : 'violations were'} produced but no handleResolutionPolicyViolations callback was wired to react to them.`,
+      {
+        hint: 'Internal: resolveDependencies needs a handleResolutionPolicyViolations callback whenever a policy that can produce violations (today: minimumReleaseAge) is active. Wire setupPolicyHandlers (in @pnpm/installing.commands) or supply a callback directly.',
+      }
+    )
   }
+  await opts.handleResolutionPolicyViolations(resolutionPolicyViolations)
+}
 
-  opts.storeController.clearResolutionCache()
+interface PeersOfProjects {
+  dependenciesGraph: DependenciesGraph
+  dependenciesByProjectId: DependenciesByProjectId
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
+}
 
-  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
-    const resolvedImporter = resolvedImporters[project.id]
-
-    const topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }> = project.manifest
-      ? await getTopParents(
-        difference(
-          Object.keys(getAllDependenciesFromManifest(project.manifest)),
-          resolvedImporter.directDependencies.map(({ alias }) => alias) || []
-        ),
-        project.modulesDir
-      )
-      : []
-    for (const linkedDependency of resolvedImporter.linkedDependencies) {
-      // The location of the external link may vary on different machines, so it is better not to include it in the lockfile.
-      // As a workaround, we symlink to the root of node_modules, which is a symlink to the actual location of the external link.
-      const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
-        ? linkedDependency.resolution.directory
-        : path.join(project.modulesDir, linkedDependency.alias)
-      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target) as string
-      topParents.push({
-        name: linkedDependency.alias,
-        version: linkedDependency.version,
-        linkedDir,
-      })
-    }
-
-    return {
-      binsDir: project.binsDir,
-      declaredDirectDependencies: new Set([
-        ...Object.keys(project.manifest == null ? {} : getAllDependenciesFromManifest(project.manifest)),
-        ...project.wantedDependencies.flatMap(({ alias, isNew }) => isNew && alias != null ? [alias] : []),
-      ]),
-      directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      hoistedPeerProviderNodeIds: resolvedImporter.hoistedPeerProviderNodeIds,
-      explicitlyRequestedDirectDependencies: new Set(
-        project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
-          alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
-            ? [alias]
-            : []
-        )
-      ),
-      id: project.id,
-      linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: project.manifest,
-      modulesDir: project.modulesDir,
-      rootDir: project.rootDir,
-      topParents,
-    }
-  }))
-
+async function resolvePeersOfProjects (
+  projectsToLink: ProjectToLink[],
+  resolution: ResolveDependencyTreeResult,
+  opts: ResolveDependenciesOpts
+): Promise<PeersOfProjects> {
   const peerResolutionOpts = {
-    allPeerDepNames,
-    dependenciesTree,
+    allPeerDepNames: resolution.allPeerDepNames,
+    dependenciesTree: resolution.dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
     dedupePeers: opts.dedupePeers,
     dedupeInjectedDeps: opts.dedupeInjectedDeps,
@@ -283,7 +257,7 @@ export async function resolveDependencies (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
-    resolvedImporters,
+    resolvedImporters: resolution.resolvedImporters,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
   }
@@ -293,158 +267,77 @@ export async function resolveDependencies (
   // is still valid and present. It can only differ from the first pass for nodes
   // that carry a locked peer context, so it is skipped when none do (e.g. a fresh
   // install) to avoid resolving peers twice for no benefit.
-  const {
-    dependenciesGraph,
-    dependenciesByProjectId,
-    peerDependencyIssuesByProjects,
-  } = treeHasLockedPeerContexts(dependenciesTree)
-    ? await resolvePeers({
-      ...peerResolutionOpts,
-      resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
-    })
-    : initiallyResolvedPeers
+  if (!treeHasLockedPeerContexts(resolution.dependenciesTree)) return initiallyResolvedPeers
+  return resolvePeers({
+    ...peerResolutionOpts,
+    resolvedPeerProviderPaths: initiallyResolvedPeers.pathsByNodeId,
+  })
+}
 
-  const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
-  const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  await Promise.all(projectsToResolve.map(async (project, index) => {
-    const resolvedImporter = resolvedImporters[project.id]
-    linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
-    // Capture previous importer refs before the lockfile importer is rebuilt,
-    // so an install that doesn't actually change a workspace dependency (e.g.
-    // updating an unrelated dependency) does not rewrite its `link:` entry to a
-    // peer-suffixed `file:`. These are the pnpm/pnpm#10433 re-resolution paths
-    // that dedupeInjectedDeps does not reach.
-    const previousImporterSnapshot = opts.wantedLockfile.importers[project.id]
-    const previousDirectRefs: Record<string, string> = {
-      ...previousImporterSnapshot?.dependencies,
-      ...previousImporterSnapshot?.devDependencies,
-      ...previousImporterSnapshot?.optionalDependencies,
-    }
-    // Aliases this run actually targets (added, spec-changed, or matched by a
-    // `pnpm update <name>`). Only these may legitimately change their
-    // `link:`/`file:` form; the preserve-prior-link guard below is limited to
-    // dependencies outside this set. `updateSpec` is deliberately not
-    // consulted: a plain install marks every manifest dependency with it, so
-    // it signals "re-check the spec", not "the user targeted this dependency".
-    const importer = importers[index]
-    const updateMatching = importer.updateMatching
-    const updateTargetedAliases = new Set(
-      project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier }) =>
-        alias != null && (isNew === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))
-          ? [alias]
-          : []
-      )
-    )
-    let updatedManifest: ProjectManifest | undefined
-    let updatedOriginalManifest: ProjectManifest | undefined
-    if (project.updatePackageManifest) {
-      [updatedManifest, updatedOriginalManifest] = await updateProjectManifest(project, {
-        directDependencies: resolvedImporter.directDependencies,
-        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-      })
-    } else {
-      updatedManifest = project.manifest
-      updatedOriginalManifest = project.originalManifest
-      packageManifestLogger.debug({
-        prefix: project.rootDir,
-        updated: project.manifest,
-      })
-    }
-
-    if (updatedManifest != null) {
-      if (opts.autoInstallPeers) {
-        if (updatedManifest.peerDependencies) {
-          const allDeps = getAllDependenciesFromManifest(updatedManifest)
-          for (const [peerName, peerRange] of Object.entries(updatedManifest.peerDependencies)) {
-            if (allDeps[peerName]) continue
-            updatedManifest.dependencies ??= {}
-            updatedManifest.dependencies[peerName] = peerRange
-          }
-        }
-      }
-      const projectSnapshot = opts.wantedLockfile.importers[project.id]
-      opts.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
-        updatedManifest,
-        projectSnapshot,
-        resolvedImporter.linkedDependencies,
-        resolvedImporter.directDependencies,
-        opts.excludeLinksFromLockfile
-      )
-    }
-
-    importers[index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
-
-    for (const [alias, depPath] of dependenciesByProjectId[project.id].entries()) {
-      const projectSnapshot = opts.wantedLockfile.importers[project.id]
-      if (project.manifest.dependenciesMeta != null) {
-        projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
-      }
-
-      const depNode = dependenciesGraph[depPath]
-
-      let ref = depPathToRef(depPath, {
-        alias,
-        realName: depNode.name,
-      })
-      // A workspace dependency resolved to `link:` has no version to update, so
-      // it should stay `link:` unless this run specifically targets it (a spec
-      // change or `pnpm update <name>`). Preserving it stops an update of an
-      // unrelated dependency (e.g. `pnpm update <other-pkg>`) from re-resolving
-      // an untouched injected workspace dep and flipping its `link:` to a
-      // peer-suffixed `file:` on paths dedupeInjectedDeps doesn't reach. See
-      // pnpm/pnpm#10433.
-      const previousRef = previousDirectRefs[alias]
-      const targetedByUpdate = updateTargetedAliases.has(alias) ||
-        (updateMatching?.(depNode.name) ?? false)
-      if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
-        ref = previousRef
-      }
-      if (projectSnapshot.dependencies?.[alias]) {
-        projectSnapshot.dependencies[alias] = ref
-      } else if (projectSnapshot.devDependencies?.[alias]) {
-        projectSnapshot.devDependencies[alias] = ref
-      } else if (projectSnapshot.optionalDependencies?.[alias]) {
-        projectSnapshot.optionalDependencies[alias] = ref
-      }
-    }
-  }))
-
+function getUpdatedCatalogs (
+  projectsToResolve: ResolveImporter[],
+  resolvedImporters: ResolvedImporters
+): Record<string, Record<string, string>> | undefined {
   let updatedCatalogs: Record<string, Record<string, string>> | undefined
   for (const project of projectsToResolve) {
     if (!project.updatePackageManifest) continue
-    const resolvedImporter = resolvedImporters[project.id]
-    for (let index = 0; index < resolvedImporter.directDependencies.length; index++) {
-      if (!wantedDepShouldUpdateCatalog(project.wantedDependencies[index])) continue
-      const dep = resolvedImporter.directDependencies[index]
-      if (dep.catalogLookup == null) continue
-      // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
-      // Avoid updating the updatedCatalogs map since it is likely unchanged.
-      if (dep.normalizedBareSpecifier == null) continue
+    for (const { alias, catalogName, spec } of getCatalogUpdatesOfProject(project, resolvedImporters[project.id])) {
       updatedCatalogs ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
-        ? dep.version
-        : dep.normalizedBareSpecifier
+      updatedCatalogs[catalogName] ??= {}
+      updatedCatalogs[catalogName][alias] = spec
     }
   }
+  return updatedCatalogs
+}
 
-  if (opts.dedupeDirectDeps) {
-    const rootDeps = dependenciesByProjectId['.']
-    if (rootDeps) {
-      for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
-        if (id === '.') continue
-        for (const [alias, depPath] of deps.entries()) {
-          if (depPath === rootDeps.get(alias)) {
-            deps.delete(alias)
-          }
-        }
+function * getCatalogUpdatesOfProject (
+  project: ResolveImporter,
+  resolvedImporter: ResolvedImporters[string]
+): Generator<{ alias: string, catalogName: string, spec: string }> {
+  for (let index = 0; index < resolvedImporter.directDependencies.length; index++) {
+    if (!wantedDepShouldUpdateCatalog(project.wantedDependencies[index])) continue
+    const dep = resolvedImporter.directDependencies[index]
+    if (dep.catalogLookup == null) continue
+    // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
+    // Avoid updating the updatedCatalogs map since it is likely unchanged.
+    if (dep.normalizedBareSpecifier == null) continue
+    yield {
+      alias: dep.alias,
+      catalogName: dep.catalogLookup.catalogName,
+      spec: isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
+        ? dep.version
+        : dep.normalizedBareSpecifier,
+    }
+  }
+}
+
+function removeDirectDepsProvidedByRoot (dependenciesByProjectId: DependenciesByProjectId): void {
+  const rootDeps = dependenciesByProjectId['.']
+  if (!rootDeps) return
+  for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
+    if (id === '.') continue
+    for (const [alias, depPath] of deps.entries()) {
+      if (depPath === rootDeps.get(alias)) {
+        deps.delete(alias)
       }
     }
   }
+}
 
-  await waitForResolutionFetches(resolvedPkgsById)
-
+function createNewLockfile (
+  {
+    dependenciesGraph,
+    importersCount,
+    resolution,
+    updatedCatalogs,
+  }: {
+    dependenciesGraph: DependenciesGraph
+    importersCount: number
+    resolution: ResolveDependencyTreeResult
+    updatedCatalogs: Catalogs | undefined
+  },
+  opts: ResolveDependenciesOpts
+): LockfileObject {
   const newLockfile = updateLockfile({
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
@@ -452,20 +345,20 @@ export async function resolveDependencies (
     ...pickRegistryContext(opts),
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
-  if (time) {
+  if (resolution.time) {
     newLockfile.time = {
       ...opts.wantedLockfile.time,
-      ...time,
+      ...resolution.time,
     }
   }
 
   newLockfile.catalogs = getCatalogSnapshots(
-    Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
+    Object.values(resolution.resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
 
   if (
     opts.patchedDependencies &&
-    Object.keys(opts.wantedLockfile.importers).length === importers.length
+    Object.keys(opts.wantedLockfile.importers).length === importersCount
   ) {
     verifyPatches({
       patchedDependencies: opts.patchedDependencies,
@@ -473,27 +366,17 @@ export async function resolveDependencies (
       allowUnusedPatches: opts.allowUnusedPatches,
     })
   }
+  return newLockfile
+}
 
-  // waiting till package requests are finished
-  async function waitTillAllFetchingsFinish (): Promise<void> {
+// waiting till package requests are finished
+function createWaitTillAllFetchingsFinish (resolvedPkgsById: ResolvedPkgsById): () => Promise<void> {
+  return async function waitTillAllFetchingsFinish (): Promise<void> {
     await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
       try {
         await fetching?.()
       } catch {}
     }))
-  }
-
-  return {
-    dependenciesByProjectId,
-    dependenciesGraph: extendGraph(dependenciesGraph, opts),
-    outdatedDependencies,
-    linkedDependenciesByProjectId,
-    updatedCatalogs,
-    newLockfile,
-    peerDependencyIssuesByProjects,
-    waitTillAllFetchingsFinish,
-    wantedToBeSkippedPackageIds,
-    resolutionPolicyViolations,
   }
 }
 
@@ -525,92 +408,6 @@ function getAppliedPatchKeys (
   return appliedPatchKeys
 }
 
-function addDirectDependenciesToLockfile (
-  newManifest: ProjectManifest,
-  projectSnapshot: ProjectSnapshot,
-  linkedPackages: Array<{ alias: string }>,
-  directDependencies: ResolvedDirectDependency[],
-  excludeLinksFromLockfile?: boolean
-): ProjectSnapshot {
-  const newProjectSnapshot: ProjectSnapshot & Required<Pick<ProjectSnapshot, 'dependencies' | 'devDependencies' | 'optionalDependencies'>> = {
-    dependencies: {},
-    devDependencies: {},
-    optionalDependencies: {},
-    specifiers: {},
-  }
-
-  if (newManifest.publishConfig?.directory) {
-    newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
-    if (newManifest.publishConfig.linkDirectory === false) {
-      newProjectSnapshot.linkDirectory = false
-    }
-  }
-
-  for (const linkedPkg of linkedPackages) {
-    newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
-  }
-
-  const directDependenciesByAlias: Record<string, ResolvedDirectDependency> = {}
-  for (const directDependency of directDependencies) {
-    directDependenciesByAlias[directDependency.alias] = directDependency
-  }
-
-  const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
-
-  for (const alias of allDeps) {
-    const dep = directDependenciesByAlias[alias]
-    const spec = dep && getSpecFromPackageManifest(newManifest, dep.alias)
-    if (
-      dep &&
-      (
-        !excludeLinksFromLockfile ||
-        !(dep as LinkedDependency).isLinkedDependency ||
-        spec.startsWith('workspace:')
-      )
-    ) {
-      const ref = depPathToRef(dep.pkgId, {
-        alias: dep.alias,
-        realName: dep.name,
-      })
-      if (dep.dev) {
-        newProjectSnapshot.devDependencies[dep.alias] = ref
-      } else if (dep.optional) {
-        newProjectSnapshot.optionalDependencies[dep.alias] = ref
-      } else {
-        newProjectSnapshot.dependencies[dep.alias] = ref
-      }
-      newProjectSnapshot.specifiers[dep.alias] = spec
-    } else if (projectSnapshot.specifiers[alias]) {
-      newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
-      if (projectSnapshot.dependencies?.[alias]) {
-        newProjectSnapshot.dependencies[alias] = projectSnapshot.dependencies[alias]
-      } else if (projectSnapshot.optionalDependencies?.[alias]) {
-        newProjectSnapshot.optionalDependencies[alias] = projectSnapshot.optionalDependencies[alias]
-      } else if (projectSnapshot.devDependencies?.[alias]) {
-        newProjectSnapshot.devDependencies[alias] = projectSnapshot.devDependencies[alias]
-      }
-    }
-  }
-
-  alignDependencyTypes(newManifest, newProjectSnapshot)
-
-  return newProjectSnapshot
-}
-
-function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot): void {
-  const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
-
-  // Aligning the dependency types in pnpm-lock.yaml
-  for (const depType of DEPENDENCIES_FIELDS) {
-    if (projectSnapshot[depType] == null) continue
-    for (const [alias, ref] of Object.entries(projectSnapshot[depType] ?? {})) {
-      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      projectSnapshot[depTypesOfAliases[alias]]![alias] = ref
-      delete projectSnapshot[depType]![alias]
-    }
-  }
-}
-
 /**
  * Waits for fetches that complete resolution data used by the lockfile snapshot and
  * virtual-store paths. Other package fetches are awaited later by `waitTillAllFetchingsFinish`.
@@ -625,79 +422,4 @@ async function waitForResolutionFetches (resolvedPkgsById: Record<string, Resolv
   if (fetches.length > 0) {
     await Promise.all(fetches)
   }
-}
-
-function getAliasToDependencyTypeMap (manifest: ProjectManifest): Record<string, DependenciesField> {
-  const depTypesOfAliases: Record<string, DependenciesField> = {}
-  for (const depType of DEPENDENCIES_FIELDS) {
-    if (manifest[depType] == null) continue
-    for (const alias of Object.keys(manifest[depType] ?? {})) {
-      if (!depTypesOfAliases[alias]) {
-        depTypesOfAliases[alias] = depType
-      }
-    }
-  }
-  return depTypesOfAliases
-}
-
-async function getTopParents (pkgAliases: string[], modulesDir: string): Promise<DependencyManifest[]> {
-  const pkgs = await Promise.all(
-    pkgAliases.map((alias) => path.join(modulesDir, alias)).map(safeReadPackageJsonFromDir)
-  )
-  return zipWith((manifest, alias) => {
-    if (!manifest) return null
-    return {
-      alias,
-      name: manifest.name,
-      version: manifest.version,
-    }
-  }, pkgs, pkgAliases)
-    .filter(Boolean) as DependencyManifest[]
-}
-
-function * iterateGraphPkgMetaEntries (graph: DependenciesGraph, runtimeOnly?: boolean): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash }> {
-  for (const depPath in graph) {
-    if (Object.hasOwn(graph, depPath)) {
-      if (runtimeOnly && !isRuntimeDepPath(depPath as DepPath)) continue
-      const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
-      yield { depPath: depPath as DepPath, name, version, pkgIdWithPatchHash }
-    }
-  }
-}
-
-function extendGraph (
-  graph: DependenciesGraph,
-  opts: {
-    allowBuild?: AllowBuild
-    globalVirtualStoreDir: string
-    enableGlobalVirtualStore?: boolean
-    lockfileDir: string
-    supportedArchitectures?: SupportedArchitectures
-    wantedLockfile: LockfileObject
-  }
-): DependenciesGraph {
-  const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
-  // Only use allowBuild for engine-agnostic hash optimization when GVS is on
-  const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
-  // Anchor every snapshot's engine hash to the root project's pinned
-  // Node version (from `engines.runtime` / `devEngines.runtime`).
-  // Without this, GVS slots for approved-build packages would hash
-  // under the runner's `process.version` instead of the script-runner
-  // Node, splitting the cache between pinned and non-pinned installs
-  // on the same host.
-  const nodeVersion = findLockedRootNodeRuntime(opts.wantedLockfile)?.version
-  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
-    allowBuild,
-    supportedArchitectures: opts.supportedArchitectures,
-    nodeVersion,
-    lockfileDir: opts.lockfileDir,
-  })) {
-    const modules = path.join(opts.globalVirtualStoreDir, hash, 'node_modules')
-    const node = graph[depPath]
-    Object.assign(node, {
-      modules,
-      dir: safeJoinModulesDir(modules, node.name),
-    })
-  }
-  return graph
 }
