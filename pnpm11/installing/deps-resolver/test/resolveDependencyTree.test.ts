@@ -484,16 +484,21 @@ function pickVersion (alias: string, bareSpecifier: string, preferredVersions: P
     return hasPreferredVersion(preferredVersions, alias, '1.0.0') ? '1.0.0' : '2.0.0'
   }
   if (alias === 't') {
-    // An exact specifier admits only itself.
-    if (bareSpecifier === '1.0.0') return '1.0.0'
-    // Caret admits 1.0.0 and 1.0.1 (latest). Model the npm-picker
-    // contract from `resolving/npm-resolver/src/index.ts`: propagated
-    // (plain) preferred versions are honored regardless of
-    // `updateRequested` — only the target's lockfile-derived pins are
-    // stripped, and this fixture threads none of those.
-    if (bareSpecifier === '^1.0.0') {
-      return hasPreferredVersion(preferredVersions, 't', '1.0.0') ? '1.0.0' : '1.0.1'
-    }
+    return pickVersionOfT(bareSpecifier, preferredVersions)
+  }
+  return bareSpecifier
+}
+
+function pickVersionOfT (bareSpecifier: string, preferredVersions: PreferredVersions): string {
+  // An exact specifier admits only itself.
+  if (bareSpecifier === '1.0.0') return '1.0.0'
+  // Caret admits 1.0.0 and 1.0.1 (latest). Model the npm-picker
+  // contract from `resolving/npm-resolver/src/index.ts`: propagated
+  // (plain) preferred versions are honored regardless of
+  // `updateRequested` — only the target's lockfile-derived pins are
+  // stripped, and this fixture threads none of those.
+  if (bareSpecifier === '^1.0.0') {
+    return hasPreferredVersion(preferredVersions, 't', '1.0.0') ? '1.0.0' : '1.0.1'
   }
   return bareSpecifier
 }

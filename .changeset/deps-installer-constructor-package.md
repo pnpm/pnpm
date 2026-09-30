@@ -1,5 +1,6 @@
 ---
 "@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-resolver": patch
 "pnpm": patch
 ---
 
