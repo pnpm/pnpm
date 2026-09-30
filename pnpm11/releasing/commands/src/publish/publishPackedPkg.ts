@@ -6,7 +6,6 @@ import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import { type Creds, DEFAULT_REGISTRY_SCOPE, type PublishConfig, type RegistryConfig } from '@pnpm/types'
-import type { PublishOptions } from 'libnpmpublish'
 
 import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
 import { displayError } from './displayError.js'
@@ -59,18 +58,16 @@ export async function publishPackedPkg (
   const tarballData = await fs.readFile(tarballPath)
   const publishOptions = await createPublishOptions(publishedManifest, opts)
   const { name, version } = publishedManifest
-  const { registry } = publishOptions
   const isStage = opts.stage === true
   // Redact any `user:pass@` credentials a registry= URL may carry so they don't leak into logs.
-  globalInfo(`📦 ${name}@${version} → ${registry != null ? redactUrlCredentials(registry) : 'the default registry'}`)
+  globalInfo(`📦 ${name}@${version} → ${publishOptions.registry != null ? redactUrlCredentials(publishOptions.registry) : 'the default registry'}`)
   const summary = createPublishSummary({ publishedManifest, tarballPath, contents, unpackedSize }, tarballData)
   if (opts.dryRun) {
     globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)
     return summary
   }
-  const context = createPublishContext(opts)
   const response = await publishWithOtpHandling({
-    context,
+    context: createPublishContext(opts),
     manifest: publishedManifest,
     publishOptions,
     tarballData,
@@ -119,66 +116,7 @@ export async function createPublishOptions (
   { oidc = true }: { oidc?: boolean } = {}
 ): Promise<StagePublishOptions> {
   const { registry, config } = findRegistryInfo(manifest, options, getPublishConfigRegistry(manifest.publishConfig, manifest.name))
-  const tls = config?.tls
-  const creds = config?.[DEFAULT_REGISTRY_SCOPE]
-
-  const publishConfigAccess = manifest.publishConfig?.access
-  const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : null)
-
-  const {
-    ci: isFromCI,
-    fetchRetries,
-    fetchRetryFactor,
-    fetchRetryMaxtimeout,
-    fetchRetryMintimeout,
-    fetchTimeout: timeout,
-    otp,
-    provenance,
-    provenanceFile,
-    tag: defaultTag,
-    userAgent,
-  } = options
-
-  const npmCommand = options.stage === true ? 'stage' : 'publish'
-  const headers: PublishOptions['headers'] = {
-    'npm-auth-type': 'web',
-    'npm-command': npmCommand,
-  }
-
-  const publishOptions: StagePublishOptions = {
-    access,
-    defaultTag,
-    fetchRetries,
-    fetchRetryFactor,
-    fetchRetryMaxtimeout,
-    fetchRetryMintimeout,
-    headers,
-    isFromCI,
-    otp,
-    timeout: Math.max(timeout ?? 0, MIN_PUBLISH_TIMEOUT),
-    provenance,
-    provenanceFile,
-    registry,
-    strictSSL: options.strictSsl, // npm-registry-fetch defaults to true; must be set explicitly to honour strictSsl: false
-    userAgent,
-    // Signal to the registry that the client supports web-based authentication.
-    // Without this, the registry would never offer the web auth flow and would
-    // always fall back to prompting the user for an OTP code, even when the user
-    // has no OTP set up.
-    authType: 'web',
-    ca: tls?.ca,
-    cert: tls?.cert,
-    key: tls?.key,
-    npmCommand,
-    token: creds && extractToken(creds),
-    username: creds?.basicAuth?.username,
-    password: creds?.basicAuth?.password,
-  }
-
-  if (options.stage === true) {
-    publishOptions.command = 'stage'
-    publishOptions.stage = true
-  }
+  const publishOptions = createStaticPublishOptions({ manifest, options, registry, config })
 
   if (registry) {
     if (oidc) {
@@ -197,6 +135,63 @@ export async function createPublishOptions (
 
   pruneUndefined(publishOptions)
   return publishOptions
+}
+
+interface StaticPublishOptionsSource extends Partial<RegistryInfo> {
+  manifest: ExportedManifest
+  options: PublishPackedPkgOptions
+}
+
+function createStaticPublishOptions ({ manifest, options, registry, config }: StaticPublishOptionsSource): StagePublishOptions {
+  const publishConfigAccess = manifest.publishConfig?.access
+  const npmCommand = options.stage === true ? 'stage' : 'publish'
+
+  const publishOptions: StagePublishOptions = {
+    access: options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : null),
+    defaultTag: options.tag,
+    fetchRetries: options.fetchRetries,
+    fetchRetryFactor: options.fetchRetryFactor,
+    fetchRetryMaxtimeout: options.fetchRetryMaxtimeout,
+    fetchRetryMintimeout: options.fetchRetryMintimeout,
+    headers: {
+      'npm-auth-type': 'web',
+      'npm-command': npmCommand,
+    },
+    isFromCI: options.ci,
+    otp: options.otp,
+    timeout: Math.max(options.fetchTimeout ?? 0, MIN_PUBLISH_TIMEOUT),
+    provenance: options.provenance,
+    provenanceFile: options.provenanceFile,
+    registry,
+    strictSSL: options.strictSsl, // npm-registry-fetch defaults to true; must be set explicitly to honour strictSsl: false
+    userAgent: options.userAgent,
+    // Signal to the registry that the client supports web-based authentication.
+    // Without this, the registry would never offer the web auth flow and would
+    // always fall back to prompting the user for an OTP code, even when the user
+    // has no OTP set up.
+    authType: 'web',
+    npmCommand,
+    ...createRegistryCredentialOptions(config),
+  }
+
+  if (options.stage === true) {
+    publishOptions.command = 'stage'
+    publishOptions.stage = true
+  }
+  return publishOptions
+}
+
+function createRegistryCredentialOptions (config: RegistryConfig | undefined): Pick<StagePublishOptions, 'ca' | 'cert' | 'key' | 'token' | 'username' | 'password'> {
+  const tls = config?.tls
+  const creds = config?.[DEFAULT_REGISTRY_SCOPE]
+  return {
+    ca: tls?.ca,
+    cert: tls?.cert,
+    key: tls?.key,
+    token: creds && extractToken(creds),
+    username: creds?.basicAuth?.username,
+    password: creds?.basicAuth?.password,
+  }
 }
 
 export function isPublishAccess (access: unknown): access is 'public' | 'restricted' {
@@ -323,9 +318,40 @@ export async function fetchTokenAndProvenanceByOidc (
   registry: string,
   options: PublishPackedPkgOptions
 ): Promise<OidcTokenProvenanceResult | undefined> {
-  let idToken: string | undefined
+  const idToken = await getIdTokenUnlessSkipped(registry, options)
+  if (!idToken) {
+    // OIDC is simply not applicable here — either we're outside of CI, or we're in a CI
+    // that doesn't natively drive OIDC and the user hasn't forwarded a token via
+    // `NPM_ID_TOKEN`. This is the common case for local publishes, so it must stay
+    // silent — only configuration *errors* in a supported CI environment surface as
+    // warnings, and those come back as `IdTokenError` and are handled in `getIdTokenUnlessSkipped`.
+    return undefined
+  }
+
+  const target: OidcTarget = { idToken, options, packageName, registry }
+  const authToken = await fetchAuthTokenUnlessSkipped(target)
+  if (authToken == null) return undefined
+
+  if (options.provenance != null) {
+    return {
+      authToken,
+      provenance: options.provenance,
+    }
+  }
+
+  return determineOidcProvenance(authToken, target)
+}
+
+interface OidcTarget {
+  idToken: string
+  options: PublishPackedPkgOptions
+  packageName: string
+  registry: string
+}
+
+async function getIdTokenUnlessSkipped (registry: string, options: PublishPackedPkgOptions): Promise<string | undefined> {
   try {
-    idToken = await getIdToken({
+    return await getIdToken({
       options,
       registry,
     })
@@ -337,18 +363,11 @@ export async function fetchTokenAndProvenanceByOidc (
 
     throw error
   }
-  if (!idToken) {
-    // OIDC is simply not applicable here — either we're outside of CI, or we're in a CI
-    // that doesn't natively drive OIDC and the user hasn't forwarded a token via
-    // `NPM_ID_TOKEN`. This is the common case for local publishes, so it must stay
-    // silent — only configuration *errors* in a supported CI environment surface as
-    // warnings, and those come back as `IdTokenError` and are handled above.
-    return undefined
-  }
+}
 
-  let authToken: string
+async function fetchAuthTokenUnlessSkipped ({ idToken, options, packageName, registry }: OidcTarget): Promise<string | undefined> {
   try {
-    authToken = await fetchAuthToken({
+    return await fetchAuthToken({
       idToken,
       options,
       packageName,
@@ -362,14 +381,12 @@ export async function fetchTokenAndProvenanceByOidc (
 
     throw error
   }
+}
 
-  if (options.provenance != null) {
-    return {
-      authToken,
-      provenance: options.provenance,
-    }
-  }
-
+async function determineOidcProvenance (
+  authToken: string,
+  { idToken, options, packageName, registry }: OidcTarget
+): Promise<OidcTokenProvenanceResult> {
   let provenance: boolean | undefined
   try {
     provenance = await determineProvenance({

@@ -35,7 +35,16 @@ export async function readStageApprovalOrder (
   context: StageContext,
   items: ApprovalItem[]
 ): Promise<StageApprovalOrder> {
-  const projects: Array<{ manifest: BaseManifest, rootDir: ProjectRootDir }> = []
+  return orderStagedProjects(await readStagedProjects(context, items))
+}
+
+interface StagedProject {
+  manifest: BaseManifest
+  rootDir: ProjectRootDir
+}
+
+async function readStagedProjects (context: StageContext, items: ApprovalItem[]): Promise<StagedProject[]> {
+  const projects: StagedProject[] = []
   const stageIdByVersionByPackageName = new Map<string, Map<string, string>>()
   for (const item of items) {
     // eslint-disable-next-line no-await-in-loop -- one tarball at a time keeps a single tarball in memory
@@ -57,6 +66,10 @@ export async function readStageApprovalOrder (
       rootDir: item.id as ProjectRootDir,
     })
   }
+  return projects
+}
+
+function orderStagedProjects (projects: StagedProject[]): StageApprovalOrder {
   const { graph } = createProjectsGraph(projects, { linkWorkspacePackages: true })
   const orderIndexByStageId = new Map<string, number>()
   const dependencyStageIdsByStageId = new Map<string, string[]>()

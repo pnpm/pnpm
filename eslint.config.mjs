@@ -108,7 +108,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/pkg-manifest/utils/**",
     "pnpm11/pnpm/**",
     "pnpm11/registry-access/commands/**",
-    "pnpm11/releasing/commands/**",
     "pnpm11/releasing/exportable-manifest/**",
     "pnpm11/releasing/versioning/**",
     "pnpm11/resolving/default-resolver/**",

@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { createGunzip } from 'node:zlib'
+import { createGunzip, type Gunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest, getReadmeRank, isPreferredReadme, type ReadmeCandidate } from '@pnpm/releasing.exportable-manifest'
-import tar from 'tar-stream'
+import tar, { type Extract, type ExtractEvents, type Header } from 'tar-stream'
 
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const
 
@@ -49,25 +49,52 @@ interface PackedReadme extends ReadmeCandidate {
  * manifest, and with the stream error when the archive cannot be read.
  */
 async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: boolean): Promise<PackedEntries> {
-  const extract = tar.extract()
-  const gunzip = createGunzip()
-  const tarballStream = fs.createReadStream(tarballPath)
+  const streams: PackedStreams = {
+    extract: tar.extract(),
+    gunzip: createGunzip(),
+    tarballStream: fs.createReadStream(tarballPath),
+  }
+  const promise = collectPackedEntries(streams, { tarballPath, wantReadme })
+  streams.tarballStream.pipe(streams.gunzip).pipe(streams.extract)
+  return promise
+}
 
+interface PackedStreams {
+  extract: Extract
+  gunzip: Gunzip
+  tarballStream: fs.ReadStream
+}
+
+interface PackedEntriesScan {
+  manifest?: string
+  readme?: PackedReadme
+}
+
+interface PackedEntriesScanContext {
+  scan: PackedEntriesScan
+  wantReadme: boolean
+  settle: () => void
+  handleError: (error: unknown) => void
+}
+
+function collectPackedEntries (
+  streams: PackedStreams,
+  { tarballPath, wantReadme }: { tarballPath: TarballPath, wantReadme: boolean }
+): Promise<PackedEntries> {
   let cleanedUp = false
 
   function cleanup (): void {
     if (cleanedUp) return
     cleanedUp = true
 
-    extract.destroy()
-    gunzip.destroy()
-    tarballStream.destroy()
+    streams.extract.destroy()
+    streams.gunzip.destroy()
+    streams.tarballStream.destroy()
   }
 
-  const promise = new Promise<PackedEntries>((resolve, reject) => {
+  return new Promise<PackedEntries>((resolve, reject) => {
     let settled = false
-    let manifest: string | undefined
-    let readme: PackedReadme | undefined
+    const scan: PackedEntriesScan = {}
 
     function handleError (error: unknown): void {
       cleanup()
@@ -78,63 +105,74 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
       if (settled) return
       settled = true
       cleanup()
-      if (manifest == null) {
+      if (scan.manifest == null) {
         reject(new PublishArchiveMissingManifestError(tarballPath))
         return
       }
-      resolve({ manifest, readme })
+      resolve({ manifest: scan.manifest, readme: scan.readme })
     }
 
-    tarballStream.once('error', handleError)
-    gunzip.once('error', handleError)
+    streams.tarballStream.once('error', handleError)
+    streams.gunzip.once('error', handleError)
 
-    extract.on('entry', (header, stream, next) => {
-      const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
-      const isManifest = normalizedPath === 'package/package.json'
-      const readmeCandidate = wantReadme && !isManifest && header.type === 'file'
-        ? getRootReadmeCandidate(normalizedPath)
-        : undefined
-      const wantedReadme = readmeCandidate != null && isPreferredReadme(readmeCandidate, readme)
-        ? readmeCandidate
-        : undefined
-
-      if (!isManifest && wantedReadme == null) {
-        stream.once('end', next)
-        stream.resume()
-        return
-      }
-
-      const chunks: Buffer[] = []
-      stream.on('data', (chunk) => {
-        chunks.push(chunk as Buffer)
-      })
-
-      stream.once('end', () => {
-        const text = Buffer.concat(chunks).toString()
-        if (wantedReadme == null) {
-          manifest = text
-        } else {
-          readme = { ...wantedReadme, text }
-        }
-        // The manifest-only path stops at the manifest so the rest of the tarball isn't
-        // decompressed. The README path scans on, so a later duplicate entry wins as on extraction.
-        if (manifest != null && !wantReadme) {
-          settle()
-          return
-        }
-        next()
-      })
-
-      stream.once('error', handleError)
+    const context: PackedEntriesScanContext = { scan, wantReadme, settle, handleError }
+    streams.extract.on('entry', (header, stream, next) => {
+      readPackedEntry({ header, stream, next }, context)
     })
 
-    extract.once('finish', settle)
-    extract.once('error', handleError)
+    streams.extract.once('finish', settle)
+    streams.extract.once('error', handleError)
+  })
+}
+
+interface PackedEntry {
+  header: Header
+  stream: ExtractEvents['entry'][1]
+  next: () => void
+}
+
+function readPackedEntry ({ header, stream, next }: PackedEntry, context: PackedEntriesScanContext): void {
+  const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
+  const isManifest = normalizedPath === 'package/package.json'
+  const wantedReadme = isManifest ? undefined : pickWantedReadme(header, normalizedPath, context)
+
+  if (!isManifest && wantedReadme == null) {
+    stream.once('end', next)
+    stream.resume()
+    return
+  }
+
+  const chunks: Buffer[] = []
+  stream.on('data', (chunk) => {
+    chunks.push(chunk as Buffer)
   })
 
-  tarballStream.pipe(gunzip).pipe(extract)
+  stream.once('end', () => {
+    const text = Buffer.concat(chunks).toString()
+    if (wantedReadme == null) {
+      context.scan.manifest = text
+    } else {
+      context.scan.readme = { ...wantedReadme, text }
+    }
+    // The manifest-only path stops at the manifest so the rest of the tarball isn't
+    // decompressed. The README path scans on, so a later duplicate entry wins as on extraction.
+    if (context.scan.manifest != null && !context.wantReadme) {
+      context.settle()
+      return
+    }
+    next()
+  })
 
-  return promise
+  stream.once('error', context.handleError)
+}
+
+function pickWantedReadme (header: Header, normalizedPath: string, context: PackedEntriesScanContext): ReadmeCandidate | undefined {
+  const readmeCandidate = context.wantReadme && header.type === 'file'
+    ? getRootReadmeCandidate(normalizedPath)
+    : undefined
+  return readmeCandidate != null && isPreferredReadme(readmeCandidate, context.scan.readme)
+    ? readmeCandidate
+    : undefined
 }
 
 function getRootReadmeCandidate (normalizedPath: string): ReadmeCandidate | undefined {
