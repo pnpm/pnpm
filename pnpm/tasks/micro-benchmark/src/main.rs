@@ -2,7 +2,7 @@ mod version_pick;
 mod workspace_resolution;
 mod workspace_sort;
 
-use std::{fs, hint::black_box, path::Path, time::Duration};
+use std::{env, fs, hint::black_box, path::Path, sync::Arc, time::Duration};
 
 use clap::Parser;
 use criterion::{Criterion, Throughput};
@@ -11,7 +11,7 @@ use futures_util::future;
 use mockito::ServerGuard;
 use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_registry::Package;
+use pnpm_registry::{Package, PackageVersion};
 use pnpm_store_dir::StoreDir;
 use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, RetryOpts};
 use project_root::get_project_root;
@@ -226,25 +226,69 @@ fn benchmark_file(package_index: usize, file_index: usize) -> Vec<u8> {
 /// network. `PackageVersions` captures each version as a raw fragment and
 /// hydrates lazily, so this also guards that optimization: a regression that
 /// eagerly hydrates every version would surface here as a parse blowup.
-fn bench_packument(criterion: &mut Criterion, bytes: &[u8]) {
+fn bench_packument(criterion: &mut Criterion, bytes: &[u8], extra: &[(String, Vec<u8>)]) {
     let mut group = criterion.benchmark_group("packument");
     group.throughput(Throughput::Bytes(bytes.len() as u64));
     group.bench_function("parse", |bencher| {
-        bencher.iter(|| {
-            let package: Package = serde_json::from_slice(black_box(bytes)).unwrap();
-            let latest = package.dist_tag("latest").expect("lodash lists a `latest` dist-tag");
-            let manifest = package.versions.get(latest).expect("the `latest` manifest hydrates");
-            black_box(manifest)
-        });
+        bencher.iter(|| black_box(parse_and_hydrate_latest(black_box(bytes))));
     });
+    for (name, bytes) in extra {
+        group.throughput(Throughput::Bytes(bytes.len() as u64));
+        group.bench_function(format!("parse/{name}"), |bencher| {
+            bencher.iter(|| black_box(parse_and_hydrate_latest(black_box(bytes))));
+        });
+        group.bench_function(format!("hydrate_all/{name}"), |bencher| {
+            bencher.iter(|| {
+                let package: Package = serde_json::from_slice(black_box(bytes)).unwrap();
+                black_box(package.versions.iter().count())
+            });
+        });
+    }
     group.finish();
+}
+
+fn parse_and_hydrate_latest(bytes: &[u8]) -> Arc<PackageVersion> {
+    let package: Package = serde_json::from_slice(bytes).unwrap();
+    let latest = package.dist_tag("latest").expect("the packument lists a `latest` dist-tag");
+    package.versions.get(latest).expect("the `latest` manifest hydrates")
+}
+
+/// Packuments named by `PNPM_MICRO_BENCHMARK_PACKUMENTS`, a directory of
+/// `<name>.json` registry documents (a scoped name spells its `/` as
+/// `__`). They are too large to commit, and the registry serves a
+/// different document every time a version is published, so a comparison
+/// between two revisions reads the same saved copies.
+fn extra_packuments() -> Vec<(String, Vec<u8>)> {
+    let Some(dir) = env::var_os("PNPM_MICRO_BENCHMARK_PACKUMENTS") else {
+        return Vec::new();
+    };
+    let mut packuments = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .map(|path| {
+            let name = path
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .replace("__", "/");
+            (name, fs::read(&path).unwrap())
+        })
+        .collect::<Vec<_>>();
+    packuments.sort_by(|left, right| left.0.cmp(&right.0));
+    packuments
 }
 
 /// Isolate the lockfile-parse sink
 /// ([`pnpm_lockfile::Lockfile::load_wanted_from_dir`], `serde-saphyr`). The
 /// per-iteration file read is page-cache-warm after the first pass, so the
-/// 12k-line YAML parse dominates the measurement.
-fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
+/// 12k-line YAML parse dominates the measurement. `monorepo_dir` holds the
+/// repository's own lockfile, a combined env and main document twice the
+/// fixture's size. Writing measures the lowering and the YAML emitter.
+fn bench_lockfile(criterion: &mut Criterion, dir: &Path, monorepo_dir: &Path) {
     assert!(
         pnpm_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
         "fixture lockfile must parse to Some, else the bench measures nothing",
@@ -255,6 +299,20 @@ fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
     group.bench_function("parse_pnpm_lock", |bencher| {
         bencher.iter(|| {
             let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(black_box(dir)).unwrap();
+            black_box(lockfile.is_some())
+        });
+    });
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().unwrap();
+    group.bench_function("serialize_pnpm_lock", |bencher| {
+        bencher.iter(|| black_box(black_box(&lockfile).to_yaml_string().unwrap()));
+    });
+    let monorepo_bytes =
+        fs::metadata(monorepo_dir.join(pnpm_lockfile::Lockfile::FILE_NAME)).unwrap().len();
+    group.throughput(Throughput::Bytes(monorepo_bytes));
+    group.bench_function("parse_monorepo_lock", |bencher| {
+        bencher.iter(|| {
+            let lockfile =
+                pnpm_lockfile::Lockfile::load_wanted_from_dir(black_box(monorepo_dir)).unwrap();
             black_box(lockfile.is_some())
         });
     });
@@ -287,8 +345,8 @@ pub fn main() -> Result<(), String> {
 
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);
     bench_concurrent_tarballs(&mut criterion, &mut server);
-    bench_packument(&mut criterion, &packument);
-    bench_lockfile(&mut criterion, &lockfile_dir);
+    bench_packument(&mut criterion, &packument, &extra_packuments());
+    bench_lockfile(&mut criterion, &lockfile_dir, &root);
     version_pick::bench_version_pick(&mut criterion);
     workspace_resolution::bench_workspace_resolution(&mut criterion);
     workspace_sort::bench_workspace_sort(&mut criterion);
