@@ -106,16 +106,32 @@ fn remove_external_virtual_store(
         root_dir.join(virtual_store_dir)
     };
     let root_modules_dir = root_dir.join(modules_leaf);
-    // `is_subdir` accepts the root itself, which a store set to `.` names.
-    if !is_subdir(&root_modules_dir, &resolved_virtual_store_dir)
-        && is_subdir(root_dir, &resolved_virtual_store_dir)
-        && lexical_normalize(&resolved_virtual_store_dir) != lexical_normalize(root_dir)
-        && resolved_virtual_store_dir.exists()
-    {
-        print_removing(cwd, &resolved_virtual_store_dir);
-        remove_path(&resolved_virtual_store_dir)?;
+    if is_subdir(&root_modules_dir, &resolved_virtual_store_dir) {
+        return Ok(());
+    }
+    let Some(virtual_store_in_project) = resolve_inside(root_dir, &resolved_virtual_store_dir)
+    else {
+        return Ok(());
+    };
+    if virtual_store_in_project.exists() {
+        print_removing(cwd, &virtual_store_in_project);
+        remove_path(&virtual_store_in_project)?;
     }
     Ok(())
+}
+
+/// `path` with its parent resolved through symlinks, when it names an entry
+/// strictly inside `root`. A symlinked ancestor cannot carry the removal out
+/// of the project, and the last component stays unresolved so a symlinked
+/// store is unlinked rather than followed. `None` when either path cannot be
+/// resolved.
+fn resolve_inside(root: &Path, path: &Path) -> Option<PathBuf> {
+    let root = dunce::canonicalize(root).ok()?;
+    let path = lexical_normalize(path);
+    let resolved = dunce::canonicalize(path.parent()?)
+        .ok()?
+        .join(path.file_name()?);
+    (resolved.starts_with(&root) && resolved != root).then_some(resolved)
 }
 
 /// Whether `modules_dir` holds anything `clean` removes: a regular
