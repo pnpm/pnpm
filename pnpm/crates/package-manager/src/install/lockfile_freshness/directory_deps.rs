@@ -225,9 +225,12 @@ fn check_local_peer_deps_freshness(
     local_manifest: &PackageManifest,
     pkg_meta: &pnpm_lockfile::PackageMetadata,
 ) -> Result<(), FreshnessCheckError> {
-    let manifest_peers: std::collections::HashMap<&str, &str> = local_manifest
+    let mut manifest_peers: std::collections::HashMap<&str, &str> = local_manifest
         .dependencies([DependencyGroup::Peer])
         .collect();
+    for name in optional_peer_names(local_manifest) {
+        manifest_peers.entry(name).or_insert("*");
+    }
     check_recorded_peer_specs_match(dep, &manifest_peers, pkg_meta)?;
     check_peer_dependencies_meta_freshness(dep, local_manifest, pkg_meta)
 }
@@ -306,16 +309,30 @@ fn check_local_dep_group_freshness(
         .dependencies([group])
         .collect();
     if let Some(snapshot_deps) = snapshot_deps {
-        let valid_keys: std::collections::HashMap<&str, &str> = if group == DependencyGroup::Prod {
-            local_manifest
-                .dependencies([DependencyGroup::Prod, DependencyGroup::Peer])
-                .collect()
-        } else {
-            manifest_deps.clone()
-        };
+        let mut valid_keys = manifest_deps.clone();
+        if group == DependencyGroup::Prod {
+            valid_keys.extend(local_manifest.dependencies([DependencyGroup::Peer]));
+        }
+        if group == DependencyGroup::Optional {
+            valid_keys.extend(optional_peer_names(local_manifest).map(|name| (name, "*")));
+        }
         check_snapshot_keys_in_manifest(dep, &valid_keys, snapshot_deps)?;
     }
     check_manifest_specs_satisfy_snapshot(dep, &manifest_deps, snapshot_deps, allow_unresolved)
+}
+
+fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
+    manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|meta| meta.iter())
+        .filter_map(|(name, entry)| {
+            (entry.get("optional").and_then(serde_json::Value::as_bool) == Some(true)).then_some(
+                name.as_str(),
+            )
+        })
 }
 
 fn check_snapshot_keys_in_manifest(
