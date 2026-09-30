@@ -196,6 +196,27 @@ async function unpublishVersions (
   pkg: PackumentResponse,
   versions: string[]
 ): Promise<string> {
+  const tarballs = removeVersionsFromPackument(pkg, versions)
+
+  const putResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
+    method: 'PUT',
+    body: JSON.stringify(pkg),
+  })
+
+  if (!putResponse.ok) {
+    await throwRegistryError(putResponse, 'unpublish')
+  }
+
+  await deleteTarballs(ctx, tarballs)
+
+  return `Successfully unpublished ${versions.length} version(s) of ${pkg.name}`
+}
+
+/**
+ * Removes the versions, the dist-tags pointing at them, and the internal
+ * metadata from the packument. Returns the tarball URLs of the removed versions.
+ */
+function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]): string[] {
   // Collect tarball URLs before mutating
   const tarballs: string[] = []
   for (const version of versions) {
@@ -226,17 +247,10 @@ async function unpublishVersions (
   // Clean up internal metadata
   delete pkg._revisions
   delete pkg._attachments
+  return tarballs
+}
 
-  const putResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
-    method: 'PUT',
-    body: JSON.stringify(pkg),
-  })
-
-  if (!putResponse.ok) {
-    await throwRegistryError(putResponse, 'unpublish')
-  }
-
-  // Delete each tarball
+async function deleteTarballs (ctx: RegistryMutationContext, tarballs: string[]): Promise<void> {
   const registryOrigin = new URL(ctx.registryUrl).origin
   /* eslint-disable no-await-in-loop -- each DELETE needs the revision produced by the previous one */
   for (const tarball of tarballs) {
@@ -253,8 +267,6 @@ async function unpublishVersions (
     }
   }
   /* eslint-enable no-await-in-loop */
-
-  return `Successfully unpublished ${versions.length} version(s) of ${pkg.name}`
 }
 
 async function unpublishAll (

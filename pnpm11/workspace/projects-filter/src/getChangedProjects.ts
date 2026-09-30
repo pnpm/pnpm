@@ -35,41 +35,19 @@ export async function getChangedProjects (
   opts: GetChangedProjectsOptions
 ): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
   const workingDir = opts.workingDir ?? opts.workspaceDir
-
-  // .git is a directory in regular repos, but a file in worktrees. The
-  // nearest entry of either kind wins, so a worktree checked out inside
-  // another repository's tree resolves to the worktree root, matching
-  // where git anchors its diff paths.
-  const gitPath = find.up('.git', { cwd: opts.workspaceDir })
-
-  const repoRoot = path.resolve(gitPath ?? opts.workspaceDir, '..')
+  const repoRoot = findRepoRoot(opts.workspaceDir)
 
   const base = await getMergeBase(commit, opts.workspaceDir)
-  const { changedDirs: rawChangedDirs, workspaceManifestChanged } = await getChangedDirsSinceCommit(
-    base,
+  const { changedDirs, workspaceManifestChanged } = await getChangedDirsSinceCommit({
+    commit: base,
     workingDir,
     repoRoot,
-    opts.testPattern ?? [],
-    opts.changedFilesIgnorePattern ?? [],
-    opts.workspaceDir
-  )
+    testPattern: opts.testPattern ?? [],
+    changedFilesIgnorePattern: opts.changedFilesIgnorePattern ?? [],
+    workspaceDir: opts.workspaceDir,
+  })
 
-  const changedDirs = rawChangedDirs
-    .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
-  const projectChangeTypes = new Map<ProjectRootDir, ChangeType | undefined>()
-  for (const projectDir of projectDirs) {
-    projectChangeTypes.set(projectDir, undefined)
-  }
-  for (const changedDir of changedDirs) {
-    let currentDir = changedDir.dir
-    while (!projectChangeTypes.has(currentDir as ProjectRootDir)) {
-      const nextDir = path.dirname(currentDir)
-      if (nextDir === currentDir) break
-      currentDir = nextDir
-    }
-    if (projectChangeTypes.get(currentDir as ProjectRootDir) === 'source') continue
-    projectChangeTypes.set(currentDir as ProjectRootDir, changedDir.changeType)
-  }
+  const projectChangeTypes = assignChangedDirsToProjects(projectDirs, changedDirs, repoRoot)
 
   if (workspaceManifestChanged) {
     await applyCatalogChangesToProjects({
@@ -84,6 +62,49 @@ export async function getChangedProjects (
     })
   }
 
+  return partitionProjectsByChangeType(projectChangeTypes)
+}
+
+function findRepoRoot (workspaceDir: string): string {
+  // .git is a directory in regular repos, but a file in worktrees. The
+  // nearest entry of either kind wins, so a worktree checked out inside
+  // another repository's tree resolves to the worktree root, matching
+  // where git anchors its diff paths.
+  const gitPath = find.up('.git', { cwd: workspaceDir })
+
+  return path.resolve(gitPath ?? workspaceDir, '..')
+}
+
+type ProjectChangeTypes = Map<ProjectRootDir, ChangeType | undefined>
+
+function assignChangedDirsToProjects (
+  projectDirs: ProjectRootDir[],
+  rawChangedDirs: ChangedDir[],
+  repoRoot: string
+): ProjectChangeTypes {
+  const projectChangeTypes: ProjectChangeTypes = new Map()
+  for (const projectDir of projectDirs) {
+    projectChangeTypes.set(projectDir, undefined)
+  }
+  for (const changedDir of rawChangedDirs) {
+    const projectDir = findOwningProjectDir(path.join(repoRoot, changedDir.dir), projectChangeTypes)
+    if (projectChangeTypes.get(projectDir) === 'source') continue
+    projectChangeTypes.set(projectDir, changedDir.changeType)
+  }
+  return projectChangeTypes
+}
+
+function findOwningProjectDir (dir: string, projectChangeTypes: ProjectChangeTypes): ProjectRootDir {
+  let currentDir = dir
+  while (!projectChangeTypes.has(currentDir as ProjectRootDir)) {
+    const nextDir = path.dirname(currentDir)
+    if (nextDir === currentDir) break
+    currentDir = nextDir
+  }
+  return currentDir as ProjectRootDir
+}
+
+function partitionProjectsByChangeType (projectChangeTypes: ProjectChangeTypes): [ProjectRootDir[], ProjectRootDir[]] {
   const changedProjects = [] as ProjectRootDir[]
   const ignoreDependentForPkgs = [] as ProjectRootDir[]
   for (const [changedDir, changeType] of projectChangeTypes.entries()) {
@@ -130,55 +151,25 @@ function projectMatchesWorkingDir (
   return false
 }
 
-async function applyCatalogChangesToProjects (params: {
+interface ApplyCatalogChangesParams {
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
   commit: string
-  projectChangeTypes: Map<ProjectRootDir, ChangeType | undefined>
+  projectChangeTypes: ProjectChangeTypes
   projectDirs: ProjectRootDir[]
   repoRoot: string
   useGlobDirFiltering?: boolean
   workingDir: string
   workspaceDir: string
-}): Promise<void> {
-  const relManifestPath = path.relative(params.repoRoot, path.join(params.workspaceDir, 'pnpm-workspace.yaml')).replaceAll('\\', '/')
+}
 
-  let prevManifestContent = ''
-  try {
-    const result = await execa('git', [
-      'show',
-      '--end-of-options',
-      `${params.commit}:${relManifestPath}`,
-    ], { cwd: params.workspaceDir, env: { ...process.env, LC_ALL: 'C' } })
-    prevManifestContent = result.stdout as string
-  } catch (err: unknown) {
-    const stderr = (err as { stderr?: string }).stderr ?? ''
-    if (stderr.includes('does not exist in') || stderr.includes('exists on disk, but not in')) {
-      prevManifestContent = ''
-    } else {
-      throw err
-    }
-  }
+type Catalogs = ReturnType<typeof getCatalogsFromWorkspaceManifest>
 
-  let currManifestContent = ''
-  try {
-    currManifestContent = await fs.promises.readFile(path.join(params.workspaceDir, 'pnpm-workspace.yaml'), 'utf8')
-  } catch (err: unknown) {
-    if (isError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
-      currManifestContent = ''
-    } else {
-      throw err
-    }
-  }
+async function applyCatalogChangesToProjects (params: ApplyCatalogChangesParams): Promise<void> {
+  const prevManifestContent = await readWorkspaceManifestAtCommit(params)
+  const currManifestContent = await readCurrentWorkspaceManifest(params.workspaceDir)
 
-  type Catalogs = ReturnType<typeof getCatalogsFromWorkspaceManifest>
-  let prevCatalogs: Catalogs = {}
-  let currCatalogs: Catalogs = {}
-  if (prevManifestContent) {
-    prevCatalogs = getCatalogsFromWorkspaceManifest(yaml.parse(prevManifestContent))
-  }
-  if (currManifestContent) {
-    currCatalogs = getCatalogsFromWorkspaceManifest(yaml.parse(currManifestContent))
-  }
+  const prevCatalogs = parseCatalogs(prevManifestContent)
+  const currCatalogs = parseCatalogs(currManifestContent)
 
   const changedCatalogs = getChangedCatalogEntries(prevCatalogs, currCatalogs)
   if (changedCatalogs.size === 0) return
@@ -193,6 +184,43 @@ async function applyCatalogChangesToProjects (params: {
       params.projectChangeTypes.set(project.rootDir, 'source')
     }
   }
+}
+
+async function readWorkspaceManifestAtCommit (
+  params: Pick<ApplyCatalogChangesParams, 'commit' | 'repoRoot' | 'workspaceDir'>
+): Promise<string> {
+  const relManifestPath = path.relative(params.repoRoot, path.join(params.workspaceDir, 'pnpm-workspace.yaml')).replaceAll('\\', '/')
+
+  try {
+    const result = await execa('git', [
+      'show',
+      '--end-of-options',
+      `${params.commit}:${relManifestPath}`,
+    ], { cwd: params.workspaceDir, env: { ...process.env, LC_ALL: 'C' } })
+    return result.stdout as string
+  } catch (err: unknown) {
+    const stderr = (err as { stderr?: string }).stderr ?? ''
+    if (stderr.includes('does not exist in') || stderr.includes('exists on disk, but not in')) {
+      return ''
+    }
+    throw err
+  }
+}
+
+async function readCurrentWorkspaceManifest (workspaceDir: string): Promise<string> {
+  try {
+    return await fs.promises.readFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'utf8')
+  } catch (err: unknown) {
+    if (isError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return ''
+    }
+    throw err
+  }
+}
+
+function parseCatalogs (manifestContent: string): Catalogs {
+  if (!manifestContent) return {}
+  return getCatalogsFromWorkspaceManifest(yaml.parse(manifestContent))
 }
 
 async function loadProjects (
@@ -226,8 +254,8 @@ async function loadProjects (
 }
 
 function getChangedCatalogEntries (
-  prevCatalogs: ReturnType<typeof getCatalogsFromWorkspaceManifest>,
-  currCatalogs: ReturnType<typeof getCatalogsFromWorkspaceManifest>
+  prevCatalogs: Catalogs,
+  currCatalogs: Catalogs
 ): Map<string, Set<string>> {
   const changed = new Map<string, Set<string>>()
   const allCatalogNames = new Set([
@@ -236,26 +264,30 @@ function getChangedCatalogEntries (
   ])
 
   for (const catalogName of allCatalogNames) {
-    const prevCatalog = prevCatalogs[catalogName] ?? {}
-    const currCatalog = currCatalogs[catalogName] ?? {}
-    const allDepNames = new Set([
-      ...Object.keys(prevCatalog),
-      ...Object.keys(currCatalog),
-    ])
-
-    for (const depName of allDepNames) {
-      if (prevCatalog[depName] !== currCatalog[depName]) {
-        let deps = changed.get(catalogName)
-        if (!deps) {
-          deps = new Set()
-          changed.set(catalogName, deps)
-        }
-        deps.add(depName)
-      }
+    const changedDepNames = getChangedDepNames(prevCatalogs[catalogName] ?? {}, currCatalogs[catalogName] ?? {})
+    if (changedDepNames.size > 0) {
+      changed.set(catalogName, changedDepNames)
     }
   }
 
   return changed
+}
+
+function getChangedDepNames (
+  prevCatalog: Record<string, string | undefined>,
+  currCatalog: Record<string, string | undefined>
+): Set<string> {
+  const allDepNames = new Set([
+    ...Object.keys(prevCatalog),
+    ...Object.keys(currCatalog),
+  ])
+  const changedDepNames = new Set<string>()
+  for (const depName of allDepNames) {
+    if (prevCatalog[depName] !== currCatalog[depName]) {
+      changedDepNames.add(depName)
+    }
+  }
+  return changedDepNames
 }
 
 function projectUsesChangedCatalogs (
@@ -269,19 +301,20 @@ function projectUsesChangedCatalogs (
     manifest.peerDependencies,
   ]
 
-  for (const deps of depFields) {
-    if (!deps) continue
-    for (const [depName, specifier] of Object.entries(deps)) {
-      if (typeof specifier !== 'string') continue
-      const { catalogName, lookupName } = parseCatalogDep(depName, specifier)
-      if (catalogName != null) {
-        if (changedCatalogs.get(catalogName)?.has(lookupName)) {
-          return true
-        }
-      }
+  return depFields.some((deps) => deps != null && depsUseChangedCatalogs(deps, changedCatalogs))
+}
+
+function depsUseChangedCatalogs (
+  deps: Record<string, string>,
+  changedCatalogs: Map<string, Set<string>>
+): boolean {
+  for (const [depName, specifier] of Object.entries(deps)) {
+    if (typeof specifier !== 'string') continue
+    const { catalogName, lookupName } = parseCatalogDep(depName, specifier)
+    if (catalogName != null && changedCatalogs.get(catalogName)?.has(lookupName)) {
+      return true
     }
   }
-
   return false
 }
 
@@ -317,25 +350,69 @@ async function getMergeBase (commit: string, workspaceDir: string): Promise<stri
   }
 }
 
-async function getChangedDirsSinceCommit (
-  commit: string,
-  workingDir: string,
-  repoRoot: string,
-  testPattern: string[],
-  changedFilesIgnorePattern: string[],
+interface GetChangedDirsSinceCommitOptions {
+  commit: string
+  workingDir: string
+  repoRoot: string
+  testPattern: string[]
+  changedFilesIgnorePattern: string[]
   workspaceDir: string
-): Promise<{ changedDirs: ChangedDir[], workspaceManifestChanged: boolean }> {
-  const workspaceManifestPath = path.resolve(workspaceDir, 'pnpm-workspace.yaml')
-  const diffPaths = workingDir === workspaceDir
-    ? [workingDir]
-    : [workingDir, workspaceManifestPath]
+}
 
-  let diff!: string
+async function getChangedDirsSinceCommit (
+  opts: GetChangedDirsSinceCommitOptions
+): Promise<{ changedDirs: ChangedDir[], workspaceManifestChanged: boolean }> {
+  const workspaceManifestPath = path.resolve(opts.workspaceDir, 'pnpm-workspace.yaml')
+  const diffPaths = opts.workingDir === opts.workspaceDir
+    ? [opts.workingDir]
+    : [opts.workingDir, workspaceManifestPath]
+
+  const diff = await diffFileNames(opts.commit, diffPaths, opts.workspaceDir)
+
+  if (!diff) {
+    return { changedDirs: [], workspaceManifestChanged: false }
+  }
+
+  const changedFiles = filterOutIgnoredFiles(parseDiffFileNames(diff), opts.changedFilesIgnorePattern)
+  return classifyChangedFiles(changedFiles, { ...opts, workspaceManifestPath })
+}
+
+function classifyChangedFiles (
+  changedFiles: string[],
+  opts: GetChangedDirsSinceCommitOptions & { workspaceManifestPath: string }
+): { changedDirs: ChangedDir[], workspaceManifestChanged: boolean } {
+  const changedDirs = new Map<string, ChangeType>()
+  let workspaceManifestChanged = false
+
+  for (const changedFile of changedFiles) {
+    if (!changedFile) continue
+    if (path.resolve(opts.repoRoot, changedFile) === opts.workspaceManifestPath) {
+      workspaceManifestChanged = true
+      if (opts.workingDir !== opts.workspaceDir) continue
+    }
+    const dir = path.dirname(changedFile)
+
+    if (changedDirs.get(dir) === 'source') continue
+
+    changedDirs.set(dir, getChangeType(changedFile, opts.testPattern))
+  }
+
+  return {
+    changedDirs: Array.from(changedDirs.entries()).map(([dir, changeType]) => ({ dir, changeType })),
+    workspaceManifestChanged,
+  }
+}
+
+async function diffFileNames (commit: string, diffPaths: string[], workspaceDir: string): Promise<string> {
   try {
-    diff = (
+    return (
       await execa('git', [
         'diff',
         '--name-only',
+        // NUL-terminated names are printed verbatim. Newline-terminated
+        // ones are C-quoted with octal escapes when they contain non-ASCII
+        // characters.
+        '-z',
         '--no-relative',
         '--no-renames',
         // Keeps an option-like `<since>` (`--output=...`) from being
@@ -350,44 +427,25 @@ async function getChangedDirsSinceCommit (
     assert(isError(err))
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err ? err.stderr as string : ''}`)
   }
-  const changedDirs = new Map<string, ChangeType>()
+}
 
-  if (!diff) {
-    return { changedDirs: [], workspaceManifestChanged: false }
-  }
+function parseDiffFileNames (diff: string): string[] {
+  return diff.split('\0')
+}
 
-  const allChangedFiles = diff.split('\n')
-    // The prefix and suffix '"' are appended to the Korean path
-    .map(line => line.replace(/^"/, '').replace(/"$/, ''))
+function filterOutIgnoredFiles (changedFiles: string[], changedFilesIgnorePattern: string[]): string[] {
   const patterns = changedFilesIgnorePattern.filter(
     (pattern) => pattern.length
   )
-  const changedFiles = (patterns.length > 0)
-    ? micromatch.default.not(allChangedFiles, patterns, {
+  return (patterns.length > 0)
+    ? micromatch.default.not(changedFiles, patterns, {
       dot: true,
     })
-    : allChangedFiles
+    : changedFiles
+}
 
-  let workspaceManifestChanged = false
-
-  for (const changedFile of changedFiles) {
-    if (!changedFile) continue
-    if (path.resolve(repoRoot, changedFile) === workspaceManifestPath) {
-      workspaceManifestChanged = true
-      if (workingDir !== workspaceDir) continue
-    }
-    const dir = path.dirname(changedFile)
-
-    if (changedDirs.get(dir) === 'source') continue
-
-    const changeType: ChangeType = testPattern.some(pattern => micromatch.default.isMatch(changedFile, pattern))
-      ? 'test'
-      : 'source'
-    changedDirs.set(dir, changeType)
-  }
-
-  return {
-    changedDirs: Array.from(changedDirs.entries()).map(([dir, changeType]) => ({ dir, changeType })),
-    workspaceManifestChanged,
-  }
+function getChangeType (changedFile: string, testPattern: string[]): ChangeType {
+  return testPattern.some(pattern => micromatch.default.isMatch(changedFile, pattern))
+    ? 'test'
+    : 'source'
 }

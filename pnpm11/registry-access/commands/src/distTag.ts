@@ -23,43 +23,45 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['dist-tag', 'dist-tags']
 
+const HELP_DESCRIPTION_LISTS = [
+  {
+    title: 'Commands',
+
+    list: [
+      {
+        description: 'List all dist-tags for a package. Default if no subcommand is given.',
+        name: 'ls',
+      },
+      {
+        description: 'Add a dist-tag to a specific version of a package.',
+        name: 'add',
+      },
+      {
+        description: 'Remove a dist-tag from a package.',
+        name: 'rm',
+      },
+    ],
+  },
+  {
+    title: 'Options',
+
+    list: [
+      {
+        description: 'The base URL of the npm registry.',
+        name: '--registry <url>',
+      },
+      {
+        description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
+        name: '--otp',
+      },
+    ],
+  },
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manages distribution tags for a package.',
-    descriptionLists: [
-      {
-        title: 'Commands',
-
-        list: [
-          {
-            description: 'List all dist-tags for a package. Default if no subcommand is given.',
-            name: 'ls',
-          },
-          {
-            description: 'Add a dist-tag to a specific version of a package.',
-            name: 'add',
-          },
-          {
-            description: 'Remove a dist-tag from a package.',
-            name: 'rm',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-
-        list: [
-          {
-            description: 'The base URL of the npm registry.',
-            name: '--registry <url>',
-          },
-          {
-            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
-            name: '--otp',
-          },
-        ],
-      },
-    ],
+    descriptionLists: HELP_DESCRIPTION_LISTS,
     url: docsUrl('dist-tag'),
     usages: [
       'pnpm dist-tag ls [<package>]',
