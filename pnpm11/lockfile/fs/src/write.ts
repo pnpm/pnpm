@@ -241,15 +241,7 @@ export async function writeLockfiles (
   if (opts.wantedLockfile === opts.currentLockfile) {
     await Promise.all([
       writeLockfileDoc(wantedLockfilePath, wantedLockfileName, yamlDoc),
-      (async () => {
-        if (isEmptyLockfile(opts.wantedLockfile)) {
-          await rimraf(currentLockfilePath)
-        } else {
-          await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-          // Current lockfile (node_modules/.pnpm/lock.yaml) does not include the env document
-          await writeFileAtomic(currentLockfilePath, yamlDoc)
-        }
-      })(),
+      writeCurrentLockfileDoc(currentLockfilePath, isEmptyLockfile(opts.wantedLockfile) ? undefined : yamlDoc),
     ])
     // Both files share the same source object; strip once and reuse.
     const normalized = convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile)
@@ -272,14 +264,7 @@ export async function writeLockfiles (
   const currentIsEmpty = isEmptyLockfile(opts.currentLockfile)
   await Promise.all([
     writeLockfileDoc(wantedLockfilePath, wantedLockfileName, yamlDoc),
-    (async () => {
-      if (currentIsEmpty) {
-        await rimraf(currentLockfilePath)
-      } else {
-        await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-        await writeFileAtomic(currentLockfilePath, currentYamlDoc)
-      }
-    })(),
+    writeCurrentLockfileDoc(currentLockfilePath, currentIsEmpty ? undefined : currentYamlDoc),
   ])
   return {
     wantedLockfile: convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile),
@@ -287,4 +272,15 @@ export async function writeLockfiles (
       ? undefined
       : convertToLockfileObject(stripUndefinedDeep(currentLockfileToStringify) as LockfileFile),
   }
+}
+
+/** Writes the current lockfile, or removes it when there is no `yamlDoc` to write. */
+async function writeCurrentLockfileDoc (currentLockfilePath: string, yamlDoc: string | undefined): Promise<void> {
+  if (yamlDoc == null) {
+    await rimraf(currentLockfilePath)
+    return
+  }
+  await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
+  // Current lockfile (node_modules/.pnpm/lock.yaml) does not include the env document
+  await writeFileAtomic(currentLockfilePath, yamlDoc)
 }

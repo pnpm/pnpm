@@ -26,65 +26,24 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   }
 
   if (isAuthSetting) {
-    const configPath = opts.global
-      ? path.join(opts.configDir, 'auth.ini')
-      : path.join(opts.dir, '.npmrc')
-    if (value != null && typeof value !== 'string' && isStringOnlyIniKey(key)) {
-      throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
-    }
-    const settings = await safeReadIniFile(configPath)
-    if (value == null) {
-      if (settings[key] == null) return
-      delete settings[key]
-    } else {
-      settings[key] = value
-    }
-    await writeIniFile(configPath, settings)
+    await setAuthSetting(opts, key, value)
     return
   }
 
   const { configDir, configFileName } = getConfigFileInfo(key, opts)
-  const configPath = path.join(configDir, configFileName)
 
   switch (configFileName) {
     case GLOBAL_CONFIG_YAML_FILENAME:
     case WORKSPACE_MANIFEST_FILENAME: {
-      // `pnpm config set <key> null` casts to a removal too.
-      const castValue = castField(value, kebabCase(key))
-      const isRemoval = castValue == null
-      // Validation stops a write landing in a file that will not read it back.
-      // Nothing reads back a key being deleted, so a removal skips both checks.
-      if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemoval) {
-        key = validateYamlConfigKey(key)
-      }
-      const writtenKey = isRemoval ? camelCase(key) : validateWorkspaceKey(key)
-      if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedKey(writtenKey)) {
-        throw new ConfigSetNotAProjectSettingError(writtenKey)
-      }
-      const updatedFields: Record<string, unknown> = {
-        [writtenKey]: castValue,
-      }
-      // A hand-edited file may carry a spelling pnpm did not write, and that
-      // is the one the reader's warning names, so a removal clears them all.
-      if (isRemoval) {
-        updatedFields[key] = null
-        updatedFields[kebabCase(writtenKey)] = null
-      }
-      await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
+      await setYamlConfigSetting({ configDir, configFileName, key, value })
       break
     }
 
     case 'auth.ini':
     case '.npmrc': {
+      const configPath = path.join(configDir, configFileName)
       const settings = await safeReadIniFile(configPath)
-      key = validateIniConfigKey(key)
-      if (value == null) {
-        if (settings[key] == null) return
-        delete settings[key]
-      } else {
-        settings[key] = value
-      }
-      await writeIniFile(configPath, settings)
+      await writeIniSetting({ configPath, settings, key: validateIniConfigKey(key), value })
       break
     }
 
@@ -93,6 +52,66 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       throw new Error(`Unhandled case: ${JSON.stringify(_typeGuard)}`)
     }
   }
+}
+
+async function setAuthSetting (opts: ConfigCommandOptions, key: string, value: unknown): Promise<void> {
+  const configPath = opts.global
+    ? path.join(opts.configDir, 'auth.ini')
+    : path.join(opts.dir, '.npmrc')
+  if (value != null && typeof value !== 'string' && isStringOnlyIniKey(key)) {
+    throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
+  }
+  const settings = await safeReadIniFile(configPath)
+  await writeIniSetting({ configPath, settings, key, value })
+}
+
+interface WriteIniSettingOptions {
+  configPath: string
+  settings: Record<string, unknown>
+  key: string
+  value: unknown
+}
+
+async function writeIniSetting ({ configPath, settings, key, value }: WriteIniSettingOptions): Promise<void> {
+  if (value == null) {
+    if (settings[key] == null) return
+    delete settings[key]
+  } else {
+    settings[key] = value
+  }
+  await writeIniFile(configPath, settings)
+}
+
+interface SetYamlConfigSettingOptions {
+  configDir: string
+  configFileName: typeof GLOBAL_CONFIG_YAML_FILENAME | typeof WORKSPACE_MANIFEST_FILENAME
+  key: string
+  value: unknown
+}
+
+async function setYamlConfigSetting ({ configDir, configFileName, key, value }: SetYamlConfigSettingOptions): Promise<void> {
+  // `pnpm config set <key> null` casts to a removal too.
+  const castValue = castField(value, kebabCase(key))
+  const isRemoval = castValue == null
+  // Validation stops a write landing in a file that will not read it back.
+  // Nothing reads back a key being deleted, so a removal skips both checks.
+  if (configFileName === GLOBAL_CONFIG_YAML_FILENAME && !isRemoval) {
+    key = validateYamlConfigKey(key)
+  }
+  const writtenKey = isRemoval ? camelCase(key) : validateWorkspaceKey(key)
+  if (castValue != null && configFileName === WORKSPACE_MANIFEST_FILENAME && isProjectManifestSkippedKey(writtenKey)) {
+    throw new ConfigSetNotAProjectSettingError(writtenKey)
+  }
+  const updatedFields: Record<string, unknown> = {
+    [writtenKey]: castValue,
+  }
+  // A hand-edited file may carry a spelling pnpm did not write, and that
+  // is the one the reader's warning names, so a removal clears them all.
+  if (isRemoval) {
+    updatedFields[key] = null
+    updatedFields[kebabCase(writtenKey)] = null
+  }
+  await updateWorkspaceManifest(configDir, { fileName: configFileName, updatedFields })
 }
 
 function castField (value: unknown, key: string) {

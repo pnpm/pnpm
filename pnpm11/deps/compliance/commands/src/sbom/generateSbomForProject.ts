@@ -255,8 +255,11 @@ function toWorkspacePackageInfo (manifest: ManifestLike & { name: string }): Wor
 async function readManifestSafe (dir: string): Promise<ManifestLike | undefined> {
   try {
     return await readProjectManifestOnly(dir)
-  } catch {
-    return undefined
+  } catch (err: unknown) {
+    if ((err as { code?: string })?.code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND' || (err as { code?: string })?.code === 'ENOENT') {
+      return undefined
+    }
+    throw err
   }
 }
 

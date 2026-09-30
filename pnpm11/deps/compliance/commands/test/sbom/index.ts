@@ -1465,6 +1465,24 @@ test.each([
   expect(spdxRoot.licenseDeclared).toBe('NOASSERTION')
 })
 
+test('pnpm sbom fails when a workspace dependency manifest is malformed', async () => {
+  const workspaceDir = tempDir()
+  testFixtures.copy('workspace-sbom', workspaceDir)
+  const storeDir = path.join(workspaceDir, 'store')
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  const sbomOpts = await installWorkspaceForSbom(workspaceDir, storeDir, appADir)
+
+  // Corrupt workspace dependency shared-lib package.json
+  fs.writeFileSync(path.join(workspaceDir, 'shared-lib', 'package.json'), '{ malformed json')
+
+  await expect(sbom.handler({
+    ...sbomOpts,
+    lockfileOnly: false,
+    allProjectsGraph: undefined,
+  })).rejects.toThrow()
+})
+
 function writePopulatedWorkspaceRoot (workspaceDir: string): void {
   fs.writeFileSync(
     path.join(workspaceDir, 'package.json'),

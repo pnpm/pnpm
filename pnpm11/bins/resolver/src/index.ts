@@ -52,35 +52,36 @@ async function findFiles (dir: string): Promise<string[]> {
       followSymbolicLinks: false,
       expandDirectories: false,
     })
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw err
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 'ENOENT') {
+      return []
     }
-    return []
+    throw err
   }
 }
 
 function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string): Command[] {
   const cmds: Command[] = []
-  for (const [commandName, binRelativePath] of typeof bin === 'string' ? [[pkgName, bin]] : Object.entries(bin)) {
-    const binName = commandName[0] === '@'
-      ? commandName.slice(commandName.indexOf('/') + 1)
-      : commandName
-    // Validate: must be safe (no path traversal). Reject empty and the
-    // filesystem-relative names "." and ".." (these survive encodeURIComponent
-    // unchanged but resolve to the bin directory itself or its parent when
-    // joined to a target dir), then only allow URL-safe chars or $.
-    if (binName === '' || binName === '.' || binName === '..') {
-      continue
-    }
-    if (binName !== encodeURIComponent(binName) && binName !== '$') {
-      continue
-    }
+  const binEntries = typeof bin === 'string' ? [[pkgName, bin]] : Object.entries(bin)
+  for (const [commandName, binRelativePath] of binEntries) {
+    const binName = resolveBinName(commandName)
+    if (!isSafeBinName(binName)) continue
     const binPath = path.join(pkgPath, binRelativePath)
-    if (!isSubdir(pkgPath, binPath)) {
-      continue
-    }
+    if (!isSubdir(pkgPath, binPath)) continue
     cmds.push({ name: binName, path: binPath })
   }
   return cmds
+}
+
+function resolveBinName (commandName: string): string {
+  return commandName[0] === '@'
+    ? commandName.slice(commandName.indexOf('/') + 1)
+    : commandName
+}
+
+function isSafeBinName (binName: string): boolean {
+  if (binName === '' || binName === '.' || binName === '..') {
+    return false
+  }
+  return binName === encodeURIComponent(binName) || binName === '$'
 }

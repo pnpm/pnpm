@@ -17,6 +17,9 @@ export async function readResponseBodyCapped (response: Response, maxBytes: numb
     let withinLimit: boolean
     try {
       withinLimit = await writeStreamToFileCapped(reader, file, maxBytes)
+    } catch (err: unknown) {
+      await reader.cancel().catch(() => {})
+      throw err
     } finally {
       await file.close()
     }

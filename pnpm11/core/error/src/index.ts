@@ -151,17 +151,20 @@ export function redactUrlCredentials (text: string): string {
     // (schemes end in an ASCII alphanumeric) sits right before it; otherwise a
     // bare `://` in the text is left untouched.
     if (schemeSep === 0 || !isSchemeTailChar(text.charCodeAt(schemeSep - 1))) continue
-    // Userinfo runs to the last `@` within the authority, which itself ends at
-    // the first `/`, `?`, `#`, or whitespace.
-    let lastAt = -1
-    for (let index = authorityStart; index < text.length; index++) {
-      const code = text.charCodeAt(index)
-      if (code === 0x2f || code === 0x3f || code === 0x23 || isAsciiWhitespace(code)) break
-      if (code === 0x40) lastAt = index
-    }
-    if (lastAt !== -1) cursor = lastAt + 1
+    const userinfoEnd = findAuthorityUserinfoEnd(text, authorityStart)
+    if (userinfoEnd !== -1) cursor = userinfoEnd
   }
   return result
+}
+
+function findAuthorityUserinfoEnd (text: string, authorityStart: number): number {
+  let lastAt = -1
+  for (let index = authorityStart; index < text.length; index++) {
+    const code = text.charCodeAt(index)
+    if (code === 0x2f || code === 0x3f || code === 0x23 || isAsciiWhitespace(code)) break
+    if (code === 0x40) lastAt = index
+  }
+  return lastAt === -1 ? -1 : lastAt + 1
 }
 
 /**

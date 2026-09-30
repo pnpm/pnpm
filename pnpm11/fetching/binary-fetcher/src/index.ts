@@ -36,18 +36,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
   // caller's object can't reintroduce invalid patterns, and so zip extraction doesn't
   // recompile the regex per fetch. The tarball path still needs the pattern string — it
   // crosses the worker thread boundary, where RegExp instances don't survive structured clone.
-  const archiveFilters = new Map<string, { pattern: string, regex: RegExp }>()
-  for (const [name, pattern] of Object.entries(ctx.archiveFilters ?? {})) {
-    try {
-      archiveFilters.set(name, { pattern, regex: new RegExp(pattern) })
-    } catch (err: unknown) {
-      const detail = isError(err) ? `: ${err.message}` : ''
-      throw new PnpmError(
-        'INVALID_ARCHIVE_FILTER',
-        `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
-      )
-    }
-  }
+  const archiveFilters = compileArchiveFilters(ctx.archiveFilters)
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
@@ -59,44 +48,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
       bin: resolution.bin,
     }
     const archiveFilter = opts.pkg.name != null ? archiveFilters.get(opts.pkg.name) : undefined
-
-    let fetchResult!: FetchResult
-    switch (resolution.archive) {
-      case 'tarball': {
-        fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
-          tarball: resolution.url,
-          integrity: resolution.integrity,
-        }, {
-          ...opts,
-          appendManifest: manifest,
-          ignoreFilePattern: archiveFilter?.pattern ?? opts.ignoreFilePattern,
-        })
-        break
-      }
-      case 'zip': {
-        const tempLocation = await cafs.tempDir()
-        await downloadAndUnpackZip(ctx.fetch, {
-          url: resolution.url,
-          integrity: resolution.integrity,
-          basename: resolution.prefix ?? '',
-          authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
-          ignoreEntry: archiveFilter?.regex,
-        }, tempLocation)
-        fetchResult = await addFilesFromDir({
-          storeDir: cafs.storeDir,
-          storeIndex: ctx.storeIndex,
-          dir: tempLocation,
-          filesIndexFile: opts.filesIndexFile,
-          readManifest: false,
-          appendManifest: manifest,
-          includeNodeModules: true,
-        })
-        break
-      }
-      default: {
-        throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
-      }
-    }
+    const fetchResult = await fetchArchive(ctx, { cafs, resolution, opts, manifest, archiveFilter })
     return {
       ...fetchResult,
       manifest,
@@ -105,6 +57,82 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
   return {
     binary: fetchBinary,
   }
+}
+
+interface CompiledArchiveFilter {
+  pattern: string
+  regex: RegExp
+}
+
+function compileArchiveFilters (archiveFilters: Record<string, string> | undefined): Map<string, CompiledArchiveFilter> {
+  const compiled = new Map<string, CompiledArchiveFilter>()
+  for (const [name, pattern] of Object.entries(archiveFilters ?? {})) {
+    try {
+      compiled.set(name, { pattern, regex: new RegExp(pattern) })
+    } catch (err: unknown) {
+      const detail = isError(err) ? `: ${err.message}` : ''
+      throw new PnpmError(
+        'INVALID_ARCHIVE_FILTER',
+        `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
+      )
+    }
+  }
+  return compiled
+}
+
+type BinaryFetcherArgs = Parameters<BinaryFetcher>
+
+interface FetchArchiveParams {
+  cafs: BinaryFetcherArgs[0]
+  resolution: BinaryFetcherArgs[1]
+  opts: BinaryFetcherArgs[2]
+  manifest: { name: string, version: string, bin: BinaryFetcherArgs[1]['bin'] }
+  archiveFilter: CompiledArchiveFilter | undefined
+}
+
+async function fetchArchive (ctx: CreateBinaryFetcherOptions, params: FetchArchiveParams): Promise<FetchResult> {
+  const { cafs, resolution, opts, manifest, archiveFilter } = params
+  switch (resolution.archive) {
+    case 'tarball': {
+      return ctx.fetchFromRemoteTarball(cafs, {
+        tarball: resolution.url,
+        integrity: resolution.integrity,
+      }, {
+        ...opts,
+        appendManifest: manifest,
+        ignoreFilePattern: archiveFilter?.pattern ?? opts.ignoreFilePattern,
+      })
+    }
+    case 'zip': {
+      return fetchZipArchive(ctx, params)
+    }
+    default: {
+      throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    }
+  }
+}
+
+async function fetchZipArchive (
+  ctx: CreateBinaryFetcherOptions,
+  { cafs, resolution, opts, manifest, archiveFilter }: FetchArchiveParams
+): Promise<FetchResult> {
+  const tempLocation = await cafs.tempDir()
+  await downloadAndUnpackZip(ctx.fetch, {
+    url: resolution.url,
+    integrity: resolution.integrity,
+    basename: resolution.prefix ?? '',
+    authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
+    ignoreEntry: archiveFilter?.regex,
+  }, tempLocation)
+  return addFilesFromDir({
+    storeDir: cafs.storeDir,
+    storeIndex: ctx.storeIndex,
+    dir: tempLocation,
+    filesIndexFile: opts.filesIndexFile,
+    readManifest: false,
+    appendManifest: manifest,
+    includeNodeModules: true,
+  })
 }
 
 function getSecureNodeMirrorAuthHeader (
@@ -254,18 +282,19 @@ async function extractEntries (zipPath: string, { extractionRoot, basename, igno
       // Directory entries are optional in a zip, so directories are created from file paths instead.
       if (entryPath.endsWith('/')) continue
       validatePathSecurity(extractionRoot, entryPath)
-      if (testEntry) {
-        const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
-          ? entryPath.slice(basenamePrefix.length)
-          : entryPath
-        if (testEntry(relative)) continue
-      }
+      if (testEntry?.(stripBasenamePrefix(entryPath, basenamePrefix))) continue
       await mkdirWithoutFollowingSymlinks(extractionRoot, path.dirname(entryPath), createdDirs)
       await extractEntry(zipfile, entry, path.join(extractionRoot, entryPath))
     }
   } finally {
     zipfile.close()
   }
+}
+
+function stripBasenamePrefix (entryPath: string, basenamePrefix: string): string {
+  return basenamePrefix && entryPath.startsWith(basenamePrefix)
+    ? entryPath.slice(basenamePrefix.length)
+    : entryPath
 }
 
 /**
@@ -279,15 +308,19 @@ async function mkdirWithoutFollowingSymlinks (root: string, relativeDir: string,
     if (segment === '' || segment === '.') continue
     dir = path.join(dir, segment)
     if (createdDirs.has(dir)) continue
-    try {
-      await fsPromises.mkdir(dir) // eslint-disable-line no-await-in-loop -- each segment is created inside the previous one
-    } catch (err: unknown) {
-      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-      if (!(await fsPromises.lstat(dir)).isDirectory()) { // eslint-disable-line no-await-in-loop -- the next segment must not be created until this one is known to be a real directory
-        throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract into "${dir}" because it is not a directory`)
-      }
-    }
+    await mkdirOrAssertRealDirectory(dir) // eslint-disable-line no-await-in-loop -- each segment is created inside the previous one, once the previous one is known to be a real directory
     createdDirs.add(dir)
+  }
+}
+
+async function mkdirOrAssertRealDirectory (dir: string): Promise<void> {
+  try {
+    await fsPromises.mkdir(dir)
+  } catch (err: unknown) {
+    if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    if (!(await fsPromises.lstat(dir)).isDirectory()) {
+      throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract into "${dir}" because it is not a directory`)
+    }
   }
 }
 

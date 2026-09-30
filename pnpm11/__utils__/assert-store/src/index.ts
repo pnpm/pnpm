@@ -22,27 +22,12 @@ export function assertStore (
   const notOk = (value: unknown): void => expect(value).toBeFalsy()
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
-    getPkgIndexFilePath (pkgName: string, version: string): string {
-      const integrity = getIntegrity(pkgName, version)
-      return storeIndexKey(integrity, `${pkgName}@${version}`)
-    },
+    getPkgIndexFilePath,
     cafsHas (pkgName: string, version: string): void {
-      const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
-      const storeIndex = new StoreIndex(storePath)
-      try {
-        ok(storeIndex.get(pathToCheck) != null)
-      } finally {
-        storeIndex.close()
-      }
+      ok(storeIndexHas(storePath, getPkgIndexFilePath(pkgName, version)))
     },
     cafsHasNot (pkgName: string, version: string): void {
-      const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
-      const storeIndex = new StoreIndex(storePath)
-      try {
-        notOk(storeIndex.get(pathToCheck) != null)
-      } finally {
-        storeIndex.close()
-      }
+      notOk(storeIndexHas(storePath, getPkgIndexFilePath(pkgName, version)))
     },
     storeHas (pkgName: string, version?: string): void {
       const pathToCheck = store.resolve(pkgName, version)
@@ -61,4 +46,18 @@ export function assertStore (
     },
   }
   return store
+}
+
+function getPkgIndexFilePath (pkgName: string, version: string): string {
+  const integrity = getIntegrity(pkgName, version)
+  return storeIndexKey(integrity, `${pkgName}@${version}`)
+}
+
+function storeIndexHas (storePath: string, indexKey: string): boolean {
+  const storeIndex = new StoreIndex(storePath)
+  try {
+    return storeIndex.get(indexKey) != null
+  } finally {
+    storeIndex.close()
+  }
 }

@@ -18,41 +18,9 @@ const READ_BUFFER_SIZE = 64 * 1024
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
   let fileHandle: FileHandle | undefined
-  let buffer = ''
-  let firstChunk = true
   try {
     fileHandle = await open(filePath, constants.O_RDONLY)
-    const decoder = new StringDecoder('utf8')
-    const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
-    let position = 0
-    while (true) {
-      const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop -- each read continues at the position the previous one reached
-      if (bytesRead === 0) break
-      position += bytesRead
-      let chunk = decoder.write(readBuffer.subarray(0, bytesRead))
-      if (firstChunk && chunk.length > 0) {
-        // Strip BOM from the first chunk. Safe because the decoder uses utf8,
-        // so the 3-byte BOM is decoded into a single \uFEFF character.
-        chunk = stripBom(chunk)
-        firstChunk = false
-      }
-      buffer += chunk
-      // Normalize CRLF (Windows) to LF so document separator detection works.
-      buffer = buffer.replace(/\r\n/g, '\n')
-      if (canRejectDocumentStart(buffer)) {
-        return null
-      }
-      const sep = buffer.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
-      if (sep !== -1) {
-        return buffer.slice(YAML_DOCUMENT_START.length, sep)
-      }
-    }
-    const remainder = decoder.end()
-    if (remainder.length > 0) {
-      buffer += firstChunk ? stripBom(remainder) : remainder
-      buffer = buffer.replace(/\r\n/g, '\n')
-    }
-    return null
+    return await readFirstYamlDocument(fileHandle, readBufferSize)
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
@@ -61,6 +29,47 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
   } finally {
     await fileHandle?.close().catch(() => {})
   }
+}
+
+interface DecodedText {
+  text: string
+  bomStripped: boolean
+}
+
+async function readFirstYamlDocument (fileHandle: FileHandle, readBufferSize: number): Promise<string | null> {
+  const decoder = new StringDecoder('utf8')
+  const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
+  const decoded: DecodedText = { text: '', bomStripped: false }
+  let position = 0
+  while (true) {
+    const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop -- each read continues at the position the previous one reached
+    if (bytesRead === 0) return null
+    position += bytesRead
+    appendDecodedChunk(decoded, decoder.write(readBuffer.subarray(0, bytesRead)))
+    const document = findFirstYamlDocument(decoded.text)
+    if (document !== undefined) return document
+  }
+}
+
+function appendDecodedChunk (decoded: DecodedText, chunk: string): void {
+  if (!decoded.bomStripped && chunk.length > 0) {
+    // Strip BOM from the first chunk. Safe because the decoder uses utf8,
+    // so the 3-byte BOM is decoded into a single \uFEFF character.
+    chunk = stripBom(chunk)
+    decoded.bomStripped = true
+  }
+  // Normalize CRLF (Windows) to LF so document separator detection works.
+  decoded.text = (decoded.text + chunk).replace(/\r\n/g, '\n')
+}
+
+/**
+ * The first document once `text` holds all of it, `null` once `text` cannot start an env
+ * document, and `undefined` while more of the file is needed to tell.
+ */
+function findFirstYamlDocument (text: string): string | null | undefined {
+  if (canRejectDocumentStart(text)) return null
+  const sep = text.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
+  return sep === -1 ? undefined : text.slice(YAML_DOCUMENT_START.length, sep)
 }
 
 export async function readLockfileToString (filePath: string): Promise<string | null> {

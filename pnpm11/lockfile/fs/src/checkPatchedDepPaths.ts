@@ -131,13 +131,7 @@ function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
 /** The verdict on the path's own hash, and the peer paths in its suffix that carry one. */
 function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict, peers: DepPath[] } {
   const suffix = splitSuffix(depPath)
-  if (
-    depPath.includes(PATCH_HASH_PREFIX) && (
-      suffix == null ||
-      suffix.locator.includes(PATCH_HASH_PREFIX) ||
-      suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
-    )
-  ) {
+  if (depPath.includes(PATCH_HASH_PREFIX) && !isPatchHashLeadingSuffix(suffix)) {
     return { verdict: 'indeterminate', peers: [] }
   }
   // Only a registry version is known to end before the suffix. A `file:` or other locator can end
@@ -160,6 +154,12 @@ function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict,
  * apply to it. A bare `name@version` peer may be the resolver's hashless cycle collapse, so its
  * missing hash cannot establish staleness.
  */
+function isPatchHashLeadingSuffix (suffix: DepPathSuffix | undefined): boolean {
+  return suffix != null &&
+    !suffix.locator.includes(PATCH_HASH_PREFIX) &&
+    !suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
+}
+
 function isPatchedRegistryPeer (peer: DepPath, ctx: JudgeContext): boolean {
   const { name, version, peerDepGraphHash } = parse(peer)
   return name != null && version != null && peerDepGraphHash != null && ctx.patchedNames.has(name)
@@ -176,25 +176,35 @@ function worseVerdict (left: Verdict, right: Verdict): Verdict {
  * such as a `file:` path can hold parentheses of its own. `undefined` when a segment's opening
  * parenthesis is missing.
  */
-function splitSuffix (depPath: string): { locator: string, segments: string[] } | undefined {
+function splitSuffix (depPath: string): DepPathSuffix | undefined {
   const segments: string[] = []
   let end = depPath.length
   while (end > 0 && depPath[end - 1] === ')') {
-    let depth = 0
-    let start = end - 1
-    for (; start >= 0; start--) {
-      if (depPath[start] === ')') {
-        depth++
-      } else if (depPath[start] === '(') {
-        depth--
-        if (depth === 0) break
-      }
-    }
+    const start = findSegmentStart(depPath, end)
     if (start < 0) return undefined
     segments.push(depPath.slice(start, end))
     end = start
   }
   return { locator: depPath.slice(0, end), segments: segments.reverse() }
+}
+
+interface DepPathSuffix {
+  locator: string
+  segments: string[]
+}
+
+/** The index of the parenthesis that opens the segment closed at `end - 1`, or -1 when it is missing. */
+function findSegmentStart (depPath: string, end: number): number {
+  let depth = 0
+  for (let start = end - 1; start >= 0; start--) {
+    if (depPath[start] === ')') {
+      depth++
+    } else if (depPath[start] === '(') {
+      depth--
+      if (depth === 0) return start
+    }
+  }
+  return -1
 }
 
 function judge (depPath: DepPath, ctx: JudgeContext): Verdict {

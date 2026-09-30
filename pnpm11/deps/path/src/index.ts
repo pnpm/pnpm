@@ -198,50 +198,64 @@ export function parse (dependencyPath: string): DependencyPath {
     return {}
   }
   const name = dependencyPath.substring(0, sepIndex)
-  let version = dependencyPath.substring(sepIndex + 1)
-  if (version) {
-    let peerDepGraphHash: string | undefined
-    let patchHash: string | undefined
-    const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(version)
-    if (peersIndex !== -1 || patchHashIndex !== -1) {
-      if (peersIndex === -1) {
-        patchHash = version.substring(patchHashIndex)
-        version = version.substring(0, patchHashIndex)
-      } else if (patchHashIndex === -1) {
-        peerDepGraphHash = version.substring(peersIndex)
-        version = version.substring(0, peersIndex)
-      } else {
-        patchHash = version.substring(patchHashIndex, peersIndex)
-        peerDepGraphHash = version.substring(peersIndex)
-        version = version.substring(0, patchHashIndex)
-      }
-    }
-    if (semver.valid(version)) {
-      return {
-        name,
-        peerDepGraphHash,
-        version,
-        patchHash,
-      }
-    }
-    const registryQualified = parseRegistryQualifiedVersion(version)
-    if (registryQualified != null) {
-      return {
-        name,
-        peerDepGraphHash,
-        version: registryQualified.version,
-        patchHash,
-        registryName: registryQualified.registryName,
-      }
-    }
+  const rawVersion = dependencyPath.substring(sepIndex + 1)
+  if (!rawVersion) {
+    return {}
+  }
+  return buildParsedDependencyPath(name, rawVersion)
+}
+
+interface SplitSuffixResult {
+  version: string
+  peerDepGraphHash?: string
+  patchHash?: string
+}
+
+function splitDepPathSuffixes (rawVersion: string): SplitSuffixResult {
+  const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(rawVersion)
+  if (peersIndex === -1 && patchHashIndex === -1) {
+    return { version: rawVersion }
+  }
+  if (peersIndex === -1) {
     return {
-      name,
-      nonSemverVersion: version as PkgResolutionId,
-      peerDepGraphHash,
-      patchHash,
+      version: rawVersion.substring(0, patchHashIndex),
+      patchHash: rawVersion.substring(patchHashIndex),
     }
   }
-  return {}
+  if (patchHashIndex === -1) {
+    return {
+      version: rawVersion.substring(0, peersIndex),
+      peerDepGraphHash: rawVersion.substring(peersIndex),
+    }
+  }
+  return {
+    version: rawVersion.substring(0, patchHashIndex),
+    patchHash: rawVersion.substring(patchHashIndex, peersIndex),
+    peerDepGraphHash: rawVersion.substring(peersIndex),
+  }
+}
+
+function buildParsedDependencyPath (name: string, rawVersion: string): DependencyPath {
+  const { version, peerDepGraphHash, patchHash } = splitDepPathSuffixes(rawVersion)
+  if (semver.valid(version)) {
+    return { name, peerDepGraphHash, version, patchHash }
+  }
+  const registryQualified = parseRegistryQualifiedVersion(version)
+  if (registryQualified != null) {
+    return {
+      name,
+      peerDepGraphHash,
+      version: registryQualified.version,
+      patchHash,
+      registryName: registryQualified.registryName,
+    }
+  }
+  return {
+    name,
+    nonSemverVersion: version as PkgResolutionId,
+    peerDepGraphHash,
+    patchHash,
+  }
 }
 
 export function depPathToFilename (depPath: string, maxLengthWithoutHash: number): string {

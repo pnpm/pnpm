@@ -44,267 +44,328 @@ interface PendingEntry {
  * See the TAR specification: https://www.gnu.org/software/tar/manual/html_node/Standard.html
  */
 export function createTarballParser (onFile: OnTarballFile): TarballParser {
-  const chunks: Buffer[] = []
-  let chunkOffset = 0
-  let available = 0
-  let consumed = 0
-  let finished = false
+  const state: ParserState = {
+    onFile,
+    chunks: [],
+    chunkOffset: 0,
+    available: 0,
+    consumed: 0,
+    finished: false,
+    entry: undefined,
+    content: undefined,
+    bytesToSkip: 0,
+    longLinkPath: '',
+    paxHeaderPath: '',
+    paxHeaderFileSize: undefined,
+  }
+  return {
+    push: (chunk) => {
+      pushChunk(state, chunk)
+    },
+    end: () => {
+      assertArchiveFinished(state)
+    },
+  }
+}
 
-  let entry: PendingEntry | undefined
-  let content: { parts: Buffer[], received: number } | undefined
-  let bytesToSkip = 0
-
-  let longLinkPath = ''
+interface ParserState {
+  onFile: OnTarballFile
+  chunks: Buffer[]
+  chunkOffset: number
+  available: number
+  consumed: number
+  finished: boolean
+  entry: PendingEntry | undefined
+  content: { parts: Buffer[], received: number } | undefined
+  bytesToSkip: number
+  longLinkPath: string
   // If a PAX extended header record is encountered and has a path field, it overrides the next entry's path.
-  let paxHeaderPath = ''
-  let paxHeaderFileSize: number | undefined
+  paxHeaderPath: string
+  paxHeaderFileSize: number | undefined
+}
 
-  return { push, end }
+function pushChunk (state: ParserState, chunk: Buffer): void {
+  if (state.finished || chunk.length === 0) return
+  state.chunks.push(chunk)
+  state.available += chunk.length
+  drain(state)
+}
 
-  function push (chunk: Buffer): void {
-    if (finished || chunk.length === 0) return
-    chunks.push(chunk)
-    available += chunk.length
-    drain()
+function assertArchiveFinished (state: ParserState): void {
+  if (!state.finished) {
+    throw new Error(`Unexpected end of TAR archive at offset ${state.consumed + state.available}`)
   }
+}
 
-  function end (): void {
-    if (!finished) {
-      throw new Error(`Unexpected end of TAR archive at offset ${consumed + available}`)
-    }
+function drain (state: ParserState): void {
+  while (!state.finished) {
+    if (!drainStep(state)) return
   }
+}
 
-  function drain (): void {
-    while (!finished) {
-      if (bytesToSkip > 0) {
-        const n = Math.min(bytesToSkip, available)
-        discard(n)
-        bytesToSkip -= n
-        if (bytesToSkip > 0) return
-        continue
+/**
+ * Makes one step of progress through the buffered bytes.
+ * Returns `false` when the parser has to wait for more input or the archive has ended.
+ */
+function drainStep (state: ParserState): boolean {
+  if (state.bytesToSkip > 0) return skipBytes(state)
+  if (state.entry != null) return consumeEntryContent(state, state.entry)
+  return consumeHeader(state)
+}
+
+function skipBytes (state: ParserState): boolean {
+  const skipped = Math.min(state.bytesToSkip, state.available)
+  discard(state, skipped)
+  state.bytesToSkip -= skipped
+  return state.bytesToSkip === 0
+}
+
+function consumeEntryContent (state: ParserState, entry: PendingEntry): boolean {
+  const entryContent = readContent(state, entry.size)
+  if (entryContent == null) return false
+  handleEntryContent(state, entry, entryContent)
+  state.bytesToSkip = paddingOf(entry.size)
+  state.entry = undefined
+  return true
+}
+
+function consumeHeader (state: ParserState): boolean {
+  if (state.available === 0) return false
+  // The archive ends with zero-filled blocks.
+  if (state.chunks[0][state.chunkOffset] === 0) {
+    state.finished = true
+    state.chunks.length = 0
+    state.available = 0
+    return false
+  }
+  if (state.available < BLOCK_SIZE) return false
+  const headerOffset = state.consumed
+  const header = take(state, BLOCK_SIZE)
+  const nextEntry = parseHeader(state, header, headerOffset)
+  if (entryHasContent(nextEntry.fileType)) {
+    state.entry = nextEntry
+  } else {
+    state.bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)
+  }
+  return true
+}
+
+/**
+ * Returns the next `size` bytes once they have all arrived. Until then, the
+ * parser holds only the bytes received, so a header that declares more
+ * content than the archive has does not reserve memory for it.
+ */
+function readContent (state: ParserState, size: number): Buffer | undefined {
+  if (state.content == null) {
+    if (state.available >= size) return take(state, size)
+    state.content = { parts: [], received: 0 }
+  }
+  const { content } = state
+  while (state.available > 0 && content.received < size) {
+    const chunk = state.chunks[0]
+    const length = Math.min(chunk.length - state.chunkOffset, size - content.received)
+    content.parts.push(chunk.subarray(state.chunkOffset, state.chunkOffset + length))
+    content.received += length
+    discard(state, length)
+  }
+  if (content.received < size) return undefined
+  state.content = undefined
+  return Buffer.concat(content.parts, size)
+}
+
+function take (state: ParserState, size: number): Buffer {
+  if (size === 0) return Buffer.alloc(0)
+  const chunk = state.chunks[0]
+  if (chunk.length - state.chunkOffset >= size) {
+    const view = chunk.subarray(state.chunkOffset, state.chunkOffset + size)
+    discard(state, size)
+    return view
+  }
+  const buffer = Buffer.allocUnsafe(size)
+  let filled = 0
+  while (filled < size) {
+    const current = state.chunks[0]
+    const length = Math.min(current.length - state.chunkOffset, size - filled)
+    current.copy(buffer, filled, state.chunkOffset, state.chunkOffset + length)
+    filled += length
+    discard(state, length)
+  }
+  return buffer
+}
+
+function discard (state: ParserState, size: number): void {
+  state.chunkOffset += size
+  state.available -= size
+  state.consumed += size
+  while (state.chunks.length > 0 && state.chunkOffset >= state.chunks[0].length) {
+    state.chunkOffset -= state.chunks[0].length
+    state.chunks.shift()
+  }
+}
+
+function handleEntryContent (state: ParserState, { fileType, fileName, mode }: PendingEntry, entryContent: Buffer): void {
+  switch (fileType) {
+    case FILE_TYPE_PAX_HEADER:
+      parsePaxHeader(state, entryContent, false)
+      break
+    case FILE_TYPE_PAX_GLOBAL_HEADER:
+      parsePaxHeader(state, entryContent, true)
+      break
+    case FILE_TYPE_LONGLINK:
+      state.longLinkPath = parseLongLinkPath(entryContent)
+      break
+    default:
+      state.onFile(fileName, mode, entryContent)
+  }
+}
+
+function parseLongLinkPath (entryContent: Buffer): string {
+  const longLinkPath = entryContent.toString('utf8').replace(/\0.*/, '')
+  // Remove the first path segment
+  const slashIndex = longLinkPath.indexOf('/')
+  return slashIndex >= 0 ? longLinkPath.slice(slashIndex + 1) : longLinkPath
+}
+
+function parseHeader (state: ParserState, header: Buffer, headerOffset: number): PendingEntry {
+  // The file type is a single byte at offset 156 in the header
+  const fileType = header[FILE_TYPE_OFFSET]
+  const fileSize = takeEntryFileSize(state, header)
+  verifyHeaderChecksum(header, headerOffset)
+  if (!Number.isSafeInteger(fileSize) || fileSize < 0) {
+    throw new Error(`Invalid file size for TAR header at offset ${headerOffset}`)
+  }
+  const fileName = normalizeTraversal(takeEntryFileName(state, header))
+
+  // Values '\0' and '0' are normal files.
+  // Treat all other file types as non-existent
+  // However, we still need to parse the name to handle collisions
+  switch (fileType) {
+    case 0:
+    case ZERO:
+    case FILE_TYPE_HARD_LINK:
+      return {
+        fileType,
+        fileName: fileName.replaceAll('//', '/'),
+        // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
+        mode: parseOctal(header, MODE_OFFSET, 8),
+        size: fileSize,
       }
-      if (entry != null) {
-        const entryContent = readContent(entry.size)
-        if (entryContent == null) return
-        handleEntryContent(entry, entryContent)
-        bytesToSkip = paddingOf(entry.size)
-        entry = undefined
-        continue
-      }
-      if (available === 0) return
-      // The archive ends with zero-filled blocks.
-      if (chunks[0][chunkOffset] === 0) {
-        finished = true
-        chunks.length = 0
-        available = 0
-        return
-      }
-      if (available < BLOCK_SIZE) return
-      const headerOffset = consumed
-      const header = take(BLOCK_SIZE)
-      const nextEntry = parseHeader(header, headerOffset)
-      if (entryHasContent(nextEntry.fileType)) {
-        entry = nextEntry
-      } else {
-        bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)
-      }
-    }
+    case FILE_TYPE_DIRECTORY:
+    case FILE_TYPE_SYMLINK:
+    case FILE_TYPE_PAX_HEADER:
+    case FILE_TYPE_PAX_GLOBAL_HEADER:
+    case FILE_TYPE_LONGLINK:
+      return { fileType, fileName, mode: 0, size: fileSize }
+    default:
+      throw new Error(`Unsupported file type ${fileType} for file ${fileName}.`)
+  }
+}
+
+function takeEntryFileSize (state: ParserState, header: Buffer): number {
+  if (state.paxHeaderFileSize !== undefined) {
+    const fileSize = state.paxHeaderFileSize
+    state.paxHeaderFileSize = undefined
+    return fileSize
+  }
+  // The file size is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 12 characters.
+  return parseOctal(header, FILE_SIZE_OFFSET, 12)
+}
+
+function verifyHeaderChecksum (header: Buffer, headerOffset: number): void {
+  const expectedCheckSum: number = parseOctal(header, CHECKSUM_OFFSET, 8)
+  const actualCheckSum: number = checkSum(header)
+  if (expectedCheckSum !== actualCheckSum) {
+    throw new Error(
+      `Invalid checksum for TAR header at offset ${headerOffset}. Expected ${expectedCheckSum}, got ${actualCheckSum}`
+    )
+  }
+}
+
+function takeEntryFileName (state: ParserState, header: Buffer): string {
+  if (state.longLinkPath) {
+    const fileName = state.longLinkPath
+    state.longLinkPath = ''
+    return fileName
+  }
+  if (state.paxHeaderPath) {
+    const fileName = state.paxHeaderPath
+    // The PAX header only applies to the immediate next entry.
+    state.paxHeaderPath = ''
+    return fileName
+  }
+  return parseHeaderPath(header)
+}
+
+function normalizeTraversal (fileName: string): string {
+  if (fileName.includes('./') || fileName.includes('.\\')) {
+    // Normalize path traversal attempts (including Windows backslash traversal)
+    // Replaces backslashes with forward slashes and uses POSIX path normalization to resolve ..
+    return path.posix.join('/', fileName.replaceAll('\\', '/')).slice(1)
+  }
+  return fileName
+}
+
+/**
+ * Parses a PAX header, which is a series of key/value pairs.
+ *
+ * @param buffer - The content of the PAX header entry
+ * @param global - Whether this is a global PAX header
+ */
+function parsePaxHeader (state: ParserState, buffer: Buffer, global: boolean): void {
+  let cursor: number = 0
+  while (cursor < buffer.length) {
+    const { record, lineEnd } = readPaxRecord(buffer, cursor)
+    cursor = lineEnd
+    applyPaxRecord(state, record, global)
+  }
+}
+
+function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, lineEnd: number } {
+  const end: number = buffer.length
+  let cursor: number = lineStart
+  while (cursor < end && buffer[cursor] !== SPACE) {
+    cursor++
   }
 
-  /**
-   * Returns the next `size` bytes once they have all arrived. Until then, the
-   * parser holds only the bytes received, so a header that declares more
-   * content than the archive has does not reserve memory for it.
-   */
-  function readContent (size: number): Buffer | undefined {
-    if (content == null) {
-      if (available >= size) return take(size)
-      content = { parts: [], received: 0 }
-    }
-    while (available > 0 && content.received < size) {
-      const chunk = chunks[0]
-      const n = Math.min(chunk.length - chunkOffset, size - content.received)
-      content.parts.push(chunk.subarray(chunkOffset, chunkOffset + n))
-      content.received += n
-      discard(n)
-    }
-    if (content.received < size) return undefined
-    const { parts } = content
-    content = undefined
-    return Buffer.concat(parts, size)
+  // The format of a PAX header line is "%d %s=%s\n"
+  const strLen: string = buffer.toString('utf-8', lineStart, cursor)
+  const len: number = parseInt(strLen, 10)
+  if (!len) {
+    throw new Error(`Invalid length in PAX record: ${strLen}`)
   }
 
-  function take (size: number): Buffer {
-    if (size === 0) return Buffer.alloc(0)
-    const chunk = chunks[0]
-    if (chunk.length - chunkOffset >= size) {
-      const view = chunk.subarray(chunkOffset, chunkOffset + size)
-      discard(size)
-      return view
+  // Skip the space.
+  cursor++
+
+  const lineEnd: number = lineStart + len
+  return { record: buffer.toString('utf-8', cursor, lineEnd - 1), lineEnd }
+}
+
+function applyPaxRecord (state: ParserState, record: string, global: boolean): void {
+  const equalSign: number = record.indexOf('=')
+  const keyword: string = record.slice(0, equalSign)
+
+  if (keyword === 'path') {
+    // Still need to trim the first path segment.
+    const slashIndex: number = record.indexOf('/', equalSign + 1)
+    if (global) {
+      throw new Error(`Unexpected global PAX path: ${record}`)
     }
-    const buffer = Buffer.allocUnsafe(size)
-    let filled = 0
-    while (filled < size) {
-      const current = chunks[0]
-      const n = Math.min(current.length - chunkOffset, size - filled)
-      current.copy(buffer, filled, chunkOffset, chunkOffset + n)
-      filled += n
-      discard(n)
-    }
-    return buffer
+    state.paxHeaderPath = record.slice(slashIndex >= 0 ? slashIndex + 1 : equalSign + 1)
+  } else if (keyword === 'size') {
+    state.paxHeaderFileSize = parsePaxSize(record, equalSign, global)
   }
+}
 
-  function discard (size: number): void {
-    chunkOffset += size
-    available -= size
-    consumed += size
-    while (chunks.length > 0 && chunkOffset >= chunks[0].length) {
-      chunkOffset -= chunks[0].length
-      chunks.shift()
-    }
+function parsePaxSize (record: string, equalSign: number, global: boolean): number {
+  const size: number = parseInt(record.slice(equalSign + 1), 10)
+  if (isNaN(size) || size < 0) {
+    throw new Error(`Invalid size in PAX record: ${record}`)
   }
-
-  function handleEntryContent ({ fileType, fileName, mode }: PendingEntry, entryContent: Buffer): void {
-    switch (fileType) {
-      case FILE_TYPE_PAX_HEADER:
-        parsePaxHeader(entryContent, false)
-        break
-      case FILE_TYPE_PAX_GLOBAL_HEADER:
-        parsePaxHeader(entryContent, true)
-        break
-      case FILE_TYPE_LONGLINK: {
-        longLinkPath = entryContent.toString('utf8').replace(/\0.*/, '')
-        // Remove the first path segment
-        const slashIndex = longLinkPath.indexOf('/')
-        if (slashIndex >= 0) {
-          longLinkPath = longLinkPath.slice(slashIndex + 1)
-        }
-        break
-      }
-      default:
-        onFile(fileName, mode, entryContent)
-    }
+  if (global) {
+    throw new Error(`Unexpected global PAX file size: ${record}`)
   }
-
-  function parseHeader (header: Buffer, headerOffset: number): PendingEntry {
-    // The file type is a single byte at offset 156 in the header
-    const fileType = header[FILE_TYPE_OFFSET]
-    let fileSize: number
-    if (paxHeaderFileSize !== undefined) {
-      fileSize = paxHeaderFileSize
-      paxHeaderFileSize = undefined
-    } else {
-      // The file size is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 12 characters.
-      fileSize = parseOctal(header, FILE_SIZE_OFFSET, 12)
-    }
-
-    const expectedCheckSum: number = parseOctal(header, CHECKSUM_OFFSET, 8)
-    const actualCheckSum: number = checkSum(header)
-    if (expectedCheckSum !== actualCheckSum) {
-      throw new Error(
-        `Invalid checksum for TAR header at offset ${headerOffset}. Expected ${expectedCheckSum}, got ${actualCheckSum}`
-      )
-    }
-    if (!Number.isSafeInteger(fileSize) || fileSize < 0) {
-      throw new Error(`Invalid file size for TAR header at offset ${headerOffset}`)
-    }
-
-    let fileName: string
-    if (longLinkPath) {
-      fileName = longLinkPath
-      longLinkPath = ''
-    } else if (paxHeaderPath) {
-      fileName = paxHeaderPath
-
-      // The PAX header only applies to the immediate next entry.
-      paxHeaderPath = ''
-    } else {
-      fileName = parseHeaderPath(header)
-    }
-
-    if (fileName.includes('./') || fileName.includes('.\\')) {
-      // Normalize path traversal attempts (including Windows backslash traversal)
-      // Replaces backslashes with forward slashes and uses POSIX path normalization to resolve ..
-      fileName = path.posix.join('/', fileName.replaceAll('\\', '/')).slice(1)
-    }
-
-    // Values '\0' and '0' are normal files.
-    // Treat all other file types as non-existent
-    // However, we still need to parse the name to handle collisions
-    switch (fileType) {
-      case 0:
-      case ZERO:
-      case FILE_TYPE_HARD_LINK:
-        return {
-          fileType,
-          fileName: fileName.replaceAll('//', '/'),
-          // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
-          mode: parseOctal(header, MODE_OFFSET, 8),
-          size: fileSize,
-        }
-      case FILE_TYPE_DIRECTORY:
-      case FILE_TYPE_SYMLINK:
-      case FILE_TYPE_PAX_HEADER:
-      case FILE_TYPE_PAX_GLOBAL_HEADER:
-      case FILE_TYPE_LONGLINK:
-        return { fileType, fileName, mode: 0, size: fileSize }
-      default:
-        throw new Error(`Unsupported file type ${fileType} for file ${fileName}.`)
-    }
-  }
-
-  /**
-   * Parses a PAX header, which is a series of key/value pairs.
-   *
-   * @param buffer - The content of the PAX header entry
-   * @param global - Whether this is a global PAX header
-   */
-  function parsePaxHeader (buffer: Buffer, global: boolean): void {
-    const end: number = buffer.length
-    let cursor: number = 0
-    while (cursor < end) {
-      const lineStart: number = cursor
-      while (cursor < end && buffer[cursor] !== SPACE) {
-        cursor++
-      }
-
-      // The format of a PAX header line is "%d %s=%s\n"
-      const strLen: string = buffer.toString('utf-8', lineStart, cursor)
-      const len: number = parseInt(strLen, 10)
-      if (!len) {
-        throw new Error(`Invalid length in PAX record: ${strLen}`)
-      }
-
-      // Skip the space.
-      cursor++
-
-      const lineEnd: number = lineStart + len
-
-      const record: string = buffer.toString('utf-8', cursor, lineEnd - 1)
-      cursor = lineEnd
-
-      const equalSign: number = record.indexOf('=')
-      const keyword: string = record.slice(0, equalSign)
-
-      if (keyword === 'path') {
-        // Still need to trim the first path segment.
-        const slashIndex: number = record.indexOf('/', equalSign + 1)
-        if (global) {
-          throw new Error(`Unexpected global PAX path: ${record}`)
-        }
-        paxHeaderPath = record.slice(slashIndex >= 0 ? slashIndex + 1 : equalSign + 1)
-      } else if (keyword === 'size') {
-        const size: number = parseInt(record.slice(equalSign + 1), 10)
-        if (isNaN(size) || size < 0) {
-          throw new Error(`Invalid size in PAX record: ${record}`)
-        }
-        if (global) {
-          throw new Error(`Unexpected global PAX file size: ${record}`)
-        }
-        paxHeaderFileSize = size
-      }
-    }
-  }
+  return size
 }
 
 function entryHasContent (fileType: number): boolean {

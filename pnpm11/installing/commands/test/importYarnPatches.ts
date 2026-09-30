@@ -165,7 +165,7 @@ test('importYarnPatches records a patch of a package named like an Object.protot
   const patchedDependencies = await importYarnPatches({
     projects: [{
       rootDir: process.cwd(),
-      manifest: { dependencies: { constructor: 'patch:constructor@npm%3Alatest#~/p.patch' } },
+      manifest: { dependencies: { constructor: 'patch:constructor@npm%3A1.0.0#~/p.patch' } },
       writeProjectManifest: async () => {},
     }],
     yarnRootDir: process.cwd(),
