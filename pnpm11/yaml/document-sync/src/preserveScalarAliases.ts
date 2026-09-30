@@ -3,6 +3,20 @@ import yaml from 'yaml'
 export function preserveScalarAliases (document: yaml.Document): () => void {
   const groups = new Map<yaml.Scalar, yaml.Scalar>()
   const replacements = new Map<yaml.Alias, yaml.Scalar>()
+  collectAliasesAndAnchors(document, groups, replacements)
+  yaml.visit(document, {
+    Alias (_, node) {
+      return replacements.get(node)
+    },
+  })
+  return () => restorePreservedAliases(document, groups)
+}
+
+function collectAliasesAndAnchors (
+  document: yaml.Document,
+  groups: Map<yaml.Scalar, yaml.Scalar>,
+  replacements: Map<yaml.Alias, yaml.Scalar>
+): void {
   yaml.visit(document, {
     Scalar (_, node) {
       if (node.anchor) groups.set(node, node)
@@ -19,35 +33,39 @@ export function preserveScalarAliases (document: yaml.Document): () => void {
       replacements.set(node, copy)
     },
   })
+}
+
+function restorePreservedAliases (document: yaml.Document, groups: Map<yaml.Scalar, yaml.Scalar>): void {
+  assignUniqueNames(document, new Set(groups.values()))
+  const anchors = new Map<yaml.Scalar, yaml.Scalar>()
   yaml.visit(document, {
-    Alias (_, node) {
-      return replacements.get(node)
+    Scalar (_, node) {
+      const source = groups.get(node)
+      if (!source) return undefined
+      return restoreScalarAnchorOrAlias(node, source, anchors)
     },
   })
-  return () => {
-    assignUniqueNames(document, new Set(groups.values()))
-    const anchors = new Map<yaml.Scalar, yaml.Scalar>()
-    yaml.visit(document, {
-      Scalar (_, node) {
-        const source = groups.get(node)
-        if (!source) return
-        const anchor = anchors.get(source)
-        if (!anchor) {
-          node.anchor = source.anchor
-          anchors.set(source, node)
-        } else if (Object.is(anchor.value, node.value)) {
-          const alias = new yaml.Alias(anchor.anchor!)
-          alias.comment = node.comment
-          alias.commentBefore = node.commentBefore
-          alias.spaceBefore = node.spaceBefore
-          return alias
-        } else {
-          node.anchor = undefined
-        }
-        return undefined
-      },
-    })
+}
+
+function restoreScalarAnchorOrAlias (
+  node: yaml.Scalar,
+  source: yaml.Scalar,
+  anchors: Map<yaml.Scalar, yaml.Scalar>
+): yaml.Alias | undefined {
+  const anchor = anchors.get(source)
+  if (!anchor) {
+    node.anchor = source.anchor
+    anchors.set(source, node)
+  } else if (Object.is(anchor.value, node.value)) {
+    const alias = new yaml.Alias(anchor.anchor!)
+    alias.comment = node.comment
+    alias.commentBefore = node.commentBefore
+    alias.spaceBefore = node.spaceBefore
+    return alias
+  } else {
+    node.anchor = undefined
   }
+  return undefined
 }
 
 function assignUniqueNames (document: yaml.Document, sources: Set<yaml.Scalar>): void {
