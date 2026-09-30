@@ -289,7 +289,7 @@ async function _readWantedLockfile (
   }
   let result: { lockfile: LockfileObject | null, lockfileFile: LockfileFile | null, hadConflicts: boolean } = { lockfile: null, lockfileFile: null, hadConflicts: false }
   let preMergeImporters: LockfileObject['importers'] | undefined
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- the first lockfile candidate that exists wins, so later ones are not read */
   for (const lockfileName of lockfileNames) {
     result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
     if (result.lockfile) {

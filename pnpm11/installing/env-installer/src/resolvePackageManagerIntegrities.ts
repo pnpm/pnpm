@@ -2,7 +2,7 @@ import { parseRegistryQualifiedVersion, refToRelative, removeSuffix } from '@pnp
 import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
@@ -199,18 +199,18 @@ export async function resolvePackageManagerIntegrities (
 function stripRegistryTarballUrls (lockfile: LockfileObject): void {
   for (const pkg of Object.values(lockfile.packages ?? {})) {
     const resolution = pkg.resolution
-    if (
-      resolution == null ||
-      !('integrity' in resolution) || !resolution.integrity ||
-      !('tarball' in resolution) || typeof resolution.tarball !== 'string' ||
-      resolution.tarball.startsWith('file:') ||
-      ('gitHosted' in resolution && resolution.gitHosted === true) ||
-      ('path' in resolution && resolution.path != null)
-    ) {
-      continue
-    }
+    if (resolution == null || !('integrity' in resolution) || !resolution.integrity) continue
+    if (!isRegistryTarballResolution(resolution)) continue
     pkg.resolution = { integrity: resolution.integrity }
   }
+}
+
+function isRegistryTarballResolution (resolution: LockfileResolution): boolean {
+  if (!('tarball' in resolution) || typeof resolution.tarball !== 'string') return false
+  if (resolution.tarball.startsWith('file:')) return false
+  const isGitHosted = 'gitHosted' in resolution && resolution.gitHosted === true
+  const isDirectory = 'path' in resolution && resolution.path != null
+  return !isGitHosted && !isDirectory
 }
 
 /**

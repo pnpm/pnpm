@@ -31,7 +31,7 @@ export async function pickFetcher (
       : bindArchiveIntegrity(fetcherByHostingType, lockedIntegrity)
     for (const customFetcher of opts.customFetchers) {
       if (customFetcher.canFetch && customFetcher.fetch) {
-        // eslint-disable-next-line no-await-in-loop
+        // eslint-disable-next-line no-await-in-loop -- the first custom fetcher that accepts the resolution wins, so they are asked in order
         const canFetch = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.canFetch!(opts.packageId, resolution))
 
         if (canFetch) {

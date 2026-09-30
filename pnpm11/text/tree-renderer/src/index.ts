@@ -69,15 +69,15 @@ function render (
 
   // Continuation lines for multiline labels
   const continuationChars = items.length ? chr('│') + ' ' : '  '
-  for (let l = 1; l < lines.length; l++) {
-    result += fmt(prefix + continuationChars) + lines[l] + '\n'
+  for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
+    result += fmt(prefix + continuationChars) + lines[lineIndex] + '\n'
   }
 
   // Render items, emitting group headers when the group changes
   let currentGroup: string | undefined
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    const last = i === items.length - 1
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+    const item = items[itemIndex]
+    const last = itemIndex === items.length - 1
 
     if (item.group !== currentGroup) {
       currentGroup = item.group
@@ -119,15 +119,15 @@ function isGroup (node: TreeNode | string | TreeNodeGroup): node is TreeNodeGrou
   return typeof node !== 'string' && 'group' in node
 }
 
-function identity (s: string): string {
-  return s
+function identity (text: string): string {
+  return text
 }
 
-function unicodeChar (s: string): string {
-  return s
+function unicodeChar (char: string): string {
+  return char
 }
 
-function asciiChar (s: string): string {
+function asciiChar (char: string): string {
   const chars: Record<string, string> = {
     '│': '|',
     '└': '`',
@@ -135,5 +135,5 @@ function asciiChar (s: string): string {
     '─': '-',
     '┬': '-',
   }
-  return chars[s] ?? s
+  return chars[char] ?? char
 }

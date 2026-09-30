@@ -26,7 +26,7 @@ import { dropIncompletePublishTimes } from './publishTimes.js'
  * A spec-compliant registry echoes this in the response `Content-Type` when it
  * honors the abbreviated `Accept` header. Its absence signals that the registry
  * ignored the header and served the full document instead.
- * https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md
+ * https://github.com/npm/registry/blob/ae49abf1bac0/docs/responses/package-metadata.md
  */
 const ABBREVIATED_META_CONTENT_TYPE = 'application/vnd.npm.install-v1+json'
 
@@ -102,31 +102,31 @@ function stripTrailingSemverSuffix (pkgName: string): string | undefined {
   // Fallback: detect a trailing "<digits>.<digits>.<digits>" appended to a name
   // with no separator (e.g. "foo1.0.0"). We walk backwards through three
   // digit-blocks separated by dots; this is O(n) and free of regex backtracking.
-  let i = pkgName.length
-  i = consumeTrailingDigits(pkgName, i)
-  if (i === pkgName.length || i === 0 || pkgName.charCodeAt(i - 1) !== 46 /* '.' */) return undefined
-  i--
-  const beforePatch = i
-  i = consumeTrailingDigits(pkgName, i)
-  if (i === beforePatch || i === 0 || pkgName.charCodeAt(i - 1) !== 46) return undefined
-  i--
-  const beforeMinor = i
-  i = consumeTrailingDigits(pkgName, i)
-  if (i === beforeMinor || i === 0) return undefined
-  if (semver.valid(pkgName.slice(i)) == null) return undefined
-  let prefix = pkgName.slice(0, i)
+  let versionStart = pkgName.length
+  versionStart = consumeTrailingDigits(pkgName, versionStart)
+  if (versionStart === pkgName.length || versionStart === 0 || pkgName.charCodeAt(versionStart - 1) !== 46 /* '.' */) return undefined
+  versionStart--
+  const beforePatch = versionStart
+  versionStart = consumeTrailingDigits(pkgName, versionStart)
+  if (versionStart === beforePatch || versionStart === 0 || pkgName.charCodeAt(versionStart - 1) !== 46) return undefined
+  versionStart--
+  const beforeMinor = versionStart
+  versionStart = consumeTrailingDigits(pkgName, versionStart)
+  if (versionStart === beforeMinor || versionStart === 0) return undefined
+  if (semver.valid(pkgName.slice(versionStart)) == null) return undefined
+  let prefix = pkgName.slice(0, versionStart)
   if (prefix.endsWith('@')) prefix = prefix.slice(0, -1)
   return prefix.length > 0 ? prefix : undefined
 }
 
-function consumeTrailingDigits (s: string, end: number): number {
-  let i = end
-  while (i > 0) {
-    const c = s.charCodeAt(i - 1)
-    if (c < 48 || c > 57) break
-    i--
+function consumeTrailingDigits (text: string, end: number): number {
+  let digitsStart = end
+  while (digitsStart > 0) {
+    const charCode = text.charCodeAt(digitsStart - 1)
+    if (charCode < 48 || charCode > 57) break
+    digitsStart--
   }
-  return i
+  return digitsStart
 }
 
 export interface FetchMetadataFromFromRegistryOptions {

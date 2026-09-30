@@ -402,8 +402,8 @@ function maybeCompactCache (cacheDir: string): void {
   // MAX_CACHE_ENTRIES and write back in original order.
   const seen = new Set<string>()
   const reversed: string[] = []
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index]
     try {
       const parsed = JSON.parse(line) as Partial<CacheRecord>
       const lockfilePath = parsed?.lockfile?.path

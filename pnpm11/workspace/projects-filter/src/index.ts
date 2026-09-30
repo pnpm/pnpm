@@ -230,7 +230,7 @@ export async function filterWorkspaceProjects<Pkg extends BaseProject> (
   const unmatchedFilters: string[] = []
 
   for (const chunk of chunks) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- include and exclude chunks apply in order, so each result depends on the ones before it
     const result = await fg(chunk.selectors)
     unmatchedFilters.push(...result.unmatchedFilters)
     if (chunk.exclude) {
@@ -279,7 +279,7 @@ async function _filterGraph<Pkg extends BaseProject> (
     let entryProjects: ProjectRootDir[] | null = null
     if (selector.diff) {
       let ignoreDependentForProjects: ProjectRootDir[] = []
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- each selector adds to the shared walked sets, which selectEntries mutates
       ;[entryProjects, ignoreDependentForProjects] = await getChangedProjects(
         Object.keys(projectsGraph) as ProjectRootDir[],
         selector.diff,

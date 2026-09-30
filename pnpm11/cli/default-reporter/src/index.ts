@@ -64,7 +64,7 @@ export function initDefaultReporter (
       : console.log.bind(console)
     const subscription = output$
       .subscribe({
-        complete () {}, // eslint-disable-line:no-empty
+        complete () {},
         error: (err) => {
           console.error(err.message)
         },
@@ -105,7 +105,7 @@ export function initDefaultReporter (
   opts.streamParser.on('data', onLog)
   const subscription = output$
     .subscribe({
-      complete () {}, // eslint-disable-line:no-empty
+      complete () {},
       error: (err) => {
         logUpdate(err.message)
       },
@@ -165,18 +165,18 @@ export function initDefaultReporter (
     // below the frame.
     const maxRows = Math.max(rows - 1, 1)
     let uncommittedRows = 0
-    for (let i = committedLines; i < lines.length; i++) {
-      uncommittedRows += renderedRows(lines[i], width)
+    for (let lineIndex = committedLines; lineIndex < lines.length; lineIndex++) {
+      uncommittedRows += renderedRows(lines[lineIndex], width)
     }
     // The last line always stays in the frame — there would be nothing left to
     // redraw otherwise — so the walk upwards starts one line above it.
     let firstVisible = lines.length - 1
     let frameRows = renderedRows(lines[firstVisible], width)
-    for (let i = firstVisible - 1; i >= committedLines; i--) {
-      const lineRows = renderedRows(lines[i], width)
+    for (let lineIndex = firstVisible - 1; lineIndex >= committedLines; lineIndex--) {
+      const lineRows = renderedRows(lines[lineIndex], width)
       if (frameRows + lineRows > maxRows) break
       frameRows += lineRows
-      firstVisible = i
+      firstVisible = lineIndex
     }
     // A frame taller than the terminal has scrolled its own top away — whether
     // because a line outgrew the screen or because the window shrank under it —
@@ -213,8 +213,8 @@ export function initDefaultReporter (
  */
 function viewOffsetOfLine (view: string, lines: string[], index: number): number {
   let trailing = 0
-  for (let i = lines.length - 1; i >= index; i--) {
-    trailing += lines[i].length + EOL.length
+  for (let lineIndex = lines.length - 1; lineIndex >= index; lineIndex--) {
+    trailing += lines[lineIndex].length + EOL.length
   }
   return view.length - trailing
 }
@@ -354,6 +354,9 @@ export function toOutput$ (
           break
         case 'pnpm:update-check':
           updateCheckPushStream.next(log)
+          break
+        case 'pnpm:prompt':
+          // Prompts only pause redraws, which `onLog` handles.
           break
       case 'pnpm' as any: // eslint-disable-line
       case 'pnpm:global' as any: // eslint-disable-line

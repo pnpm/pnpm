@@ -90,13 +90,13 @@ async function resolveSpec (
     try {
       integrity = await getTarballIntegrity(spec.fetchSpec)
     } catch (err: unknown) {
+      const mayReuseLockedTarball = !opts.update && (err as { code?: string })?.code === 'ENOENT'
       if (
+        mayReuseLockedTarball &&
         opts.currentPkg?.resolution &&
         'tarball' in opts.currentPkg.resolution &&
         Boolean(opts.currentPkg.resolution.integrity) &&
-        (opts.currentPkg.id === spec.id || opts.currentPkg.resolution.tarball === spec.id) &&
-        !opts.update &&
-        (err as { code?: string })?.code === 'ENOENT'
+        (opts.currentPkg.id === spec.id || opts.currentPkg.resolution.tarball === spec.id)
       ) {
         return {
           id: spec.id,

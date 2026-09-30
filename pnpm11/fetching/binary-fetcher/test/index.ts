@@ -5,17 +5,18 @@ import path from 'node:path'
 import { describe, expect, it } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import { createBinaryFetcher, downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import AdmZip from 'adm-zip'
 import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 
 // Mock fetch function that returns a ZIP buffer and simulates FetchFromRegistry
-function createMockFetch (zipBuffer: Buffer) {
-  return () => Promise.resolve({
+function createMockFetch (zipBuffer: Buffer): FetchFromRegistry {
+  return (() => Promise.resolve({
     body: (async function * () {
       yield zipBuffer
     })(),
-  })
+  })) as unknown as FetchFromRegistry
 }
 
 describe('extractZipToTarget security', () => {
@@ -32,8 +33,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch,
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -45,8 +45,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch,
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -71,8 +70,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch,
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -97,8 +95,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch,
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -125,8 +122,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch,
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -154,8 +150,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          mockFetch as any,
+          mockFetch,
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -188,8 +183,7 @@ describe('extractZipToTarget security', () => {
       const integrity = ssri.fromData(zipBuffer).toString()
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        createMockFetch(zipBuffer) as any,
+        createMockFetch(zipBuffer),
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -214,8 +208,7 @@ describe('extractZipToTarget security', () => {
 
       await expect(
         downloadAndUnpackZip(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          createMockFetch(zipBuffer) as any,
+          createMockFetch(zipBuffer),
           {
             url: 'https://example.com/node.zip',
             integrity,
@@ -240,8 +233,7 @@ describe('extractZipToTarget security', () => {
       const integrity = ssri.fromData(zipBuffer).toString()
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        createMockFetch(zipBuffer) as any,
+        createMockFetch(zipBuffer),
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -268,8 +260,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch,
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -317,8 +308,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch,
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -344,8 +334,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch,
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -373,8 +362,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch,
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -390,7 +378,7 @@ describe('extractZipToTarget security', () => {
 
     it('still honors ignoreEntry when the archive contains directory entries (regression for #11325)', async () => {
       // Real Node.js Windows zips include directory entries in addition to file
-      // entries. AdmZip's extractEntryTo(dirEntry, …) expands to every descendant
+      // entries. AdmZip's extractEntryTo(dirEntry, ...) expands to every descendant
       // via getEntryChildren, which previously bypassed the ignoreEntry filter.
       // Covering that path explicitly here.
       const targetDir = temporaryDirectory()
@@ -407,8 +395,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch,
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -435,8 +422,7 @@ describe('extractZipToTarget security', () => {
       const mockFetch = createMockFetch(zipBuffer)
 
       await downloadAndUnpackZip(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mockFetch as any,
+        mockFetch,
         {
           url: 'https://example.com/node.zip',
           integrity,
@@ -476,8 +462,7 @@ describe('zip extraction over a symlink', () => {
     zip.addFile('bin/node', Buffer.from('overwritten'))
     const zipBuffer = zip.toBuffer()
     const extraction = downloadAndUnpackZip(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      createMockFetch(zipBuffer) as any,
+      createMockFetch(zipBuffer),
       { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
       targetDir
     )
@@ -512,8 +497,7 @@ describe('zip entry sizes', () => {
     const targetDir = temporaryDirectory()
 
     await expect(downloadAndUnpackZip(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      createMockFetch(zipBuffer) as any,
+      createMockFetch(zipBuffer),
       { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
       targetDir
     )).rejects.toThrow('too many bytes in the stream')
@@ -528,8 +512,7 @@ describe('zip extraction target', () => {
     const targetDir = path.join(temporaryDirectory(), 'missing', 'target')
 
     await downloadAndUnpackZip(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      createMockFetch(zipBuffer) as any,
+      createMockFetch(zipBuffer),
       { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
       targetDir
     )
@@ -546,8 +529,7 @@ describe('zip download integrity', () => {
     const targetDir = temporaryDirectory()
 
     await expect(downloadAndUnpackZip(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      createMockFetch(zipBuffer) as any,
+      createMockFetch(zipBuffer),
       { url: 'https://example.com/node.zip', integrity, basename: '' },
       targetDir
     )).rejects.toMatchObject({

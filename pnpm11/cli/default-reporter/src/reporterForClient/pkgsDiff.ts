@@ -14,8 +14,8 @@ export interface PackageDiff {
   latest?: string
 }
 
-export interface RecordByString<T> {
-  [index: string]: T
+export interface RecordByString<Value> {
+  [index: string]: Value
 }
 
 export const propertyByDependencyType = {
@@ -57,7 +57,7 @@ export function getPkgsDiff (
 
   const filterPrefix = opts.prefix
     ? filter((log: { prefix: string }) => log.prefix === opts.prefix)
-    : <T>(x: Rx.Observable<T>) => x
+    : <Entry>(stream: Rx.Observable<Entry>) => stream
   const pkgsDiff$ = Rx.combineLatest(
     log$.root.pipe(filterPrefix),
     deprecationSet$
@@ -115,7 +115,7 @@ export function getPkgsDiff (
   )
     .pipe(
       take(2),
-      reduce(mergeRight, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      reduce(mergeRight, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the result is cast to PackageManifestLog right below
     ) as Rx.Observable<logs.PackageManifestLog>
 
   return Rx.combineLatest(

@@ -446,8 +446,8 @@ function getTeamMembersUrl (registryUrl: string, scope: string, team: string): s
 async function throwRegistryError (response: Response, action: string): Promise<never> {
   const errorBody = await readErrorBody(response)
   const safeErrorBody = [...errorBody]
-    .filter(c => {
-      const code = c.charCodeAt(0)
+    .filter(char => {
+      const code = char.charCodeAt(0)
       return code > 0x1f && (code < 0x7f || code > 0x9f)
     })
     .join('')

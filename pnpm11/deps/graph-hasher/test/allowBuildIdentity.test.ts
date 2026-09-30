@@ -41,17 +41,17 @@ it('gates built dep paths through the allowBuild policy by depPath', () => {
 })
 
 it('includes the engine for every cycle member that reaches a builder', () => {
-  const a = 'a@1.0.0' as DepPath
-  const b = 'b@1.0.0' as DepPath
+  const cycleMemberA = 'a@1.0.0' as DepPath
+  const cycleMemberB = 'b@1.0.0' as DepPath
   const builder = 'builder@1.0.0' as DepPath
   const pureJs = 'pure-js@1.0.0' as DepPath
   const graph: DepsGraph<DepPath> = {
-    [a]: {
-      children: { b, builder },
+    [cycleMemberA]: {
+      children: { b: cycleMemberB, builder },
       fullPkgId: 'a@1.0.0:sha512-a',
     },
-    [b]: {
-      children: { a },
+    [cycleMemberB]: {
+      children: { a: cycleMemberA },
       fullPkgId: 'b@1.0.0:sha512-b',
     },
     [builder]: {
@@ -64,8 +64,8 @@ it('includes the engine for every cycle member that reaches a builder', () => {
     },
   }
   const pkgMeta = [
-    { depPath: a, name: 'a', version: '1.0.0' },
-    { depPath: b, name: 'b', version: '1.0.0' },
+    { depPath: cycleMemberA, name: 'a', version: '1.0.0' },
+    { depPath: cycleMemberB, name: 'b', version: '1.0.0' },
     { depPath: builder, name: 'builder', version: '1.0.0' },
     { depPath: pureJs, name: 'pure-js', version: '1.0.0' },
   ]
@@ -75,8 +75,8 @@ it('includes the engine for every cycle member that reaches a builder', () => {
     const node20 = hashesFor('20.0.0', orderedPkgMeta)
     const node22 = hashesFor('22.0.0', orderedPkgMeta)
 
-    expect(node20.get(a)).not.toBe(node22.get(a))
-    expect(node20.get(b)).not.toBe(node22.get(b))
+    expect(node20.get(cycleMemberA)).not.toBe(node22.get(cycleMemberA))
+    expect(node20.get(cycleMemberB)).not.toBe(node22.get(cycleMemberB))
     expect(node20.get(pureJs)).toBe(node22.get(pureJs))
   }
 

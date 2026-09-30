@@ -195,7 +195,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * skipped on abort.
    *
    * Intentionally policy-neutral. Each verifier owns its violation
-   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
+   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, ...); the
    * install command filters by code to decide what to do. Future
    * resolvers can plug verifiers in without touching this signature.
    */
@@ -234,7 +234,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * where every commit comes from a trusted author, fully reproducible
    * CI runs against an already-verified lockfile, etc.
    *
-   * Added for #11860: on workspaces with thousands of locked entries,
+   * Added for pnpm/pnpm#11860: on workspaces with thousands of locked entries,
    * the verification pass holds the per-package registry metadata
    * needed for the trust check resident in memory and can OOM CI
    * runners with a 2GB heap cap.

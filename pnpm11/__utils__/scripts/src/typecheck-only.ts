@@ -122,9 +122,11 @@ function readThreadingMode (repoRoot: string): { mode: string, source: string } 
 
 main().catch((error: unknown) => {
   if (error && typeof error === 'object' && 'exitCode' in error && 'shortMessage' in error) {
+    // eslint-disable-next-line n/no-process-exit -- the script's exit code mirrors the failed child process
     process.exit(error.exitCode as number)
   } else {
     console.error(error)
+    // eslint-disable-next-line n/no-process-exit -- a top-level script failure ends the process
     process.exit(1)
   }
 })

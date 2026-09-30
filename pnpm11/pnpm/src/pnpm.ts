@@ -7,9 +7,7 @@ process.setMaxListeners(0)
 
 const argv = buildArgv()
 
-; (async () => {
-  await runPnpm()
-})()
+void runPnpm()
 
 async function runPnpm (): Promise<void> {
   const { finishWorkers } = await import('@pnpm/worker')

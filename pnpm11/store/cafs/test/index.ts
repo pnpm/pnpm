@@ -16,14 +16,14 @@ import {
 } from '../src/index.js'
 import { createTarballParser } from '../src/parseTarball.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 describe('cafs', () => {
   it('unpack', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest)
     const { filesIndex } = cafs.addFilesFromTarball(
-      fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+      fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     )
     expect(filesIndex.size).toBe(121)
     const pkgFile = filesIndex.get('package.json')
@@ -48,7 +48,7 @@ describe('cafs', () => {
   it('addFilesFromTarball honors a per-call ignore predicate', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest)
-    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     const baseline = cafs.addFilesFromTarball(tarball)
     const filtered = cafs.addFilesFromTarball(tarball, false, (name) => name === 'package.json')
     expect(filtered.filesIndex.has('package.json')).toBe(false)
@@ -58,7 +58,7 @@ describe('cafs', () => {
   it('addFilesFromTarball combines cafs-level ignoreFile with per-call ignore', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest, { ignoreFile: (name) => name === 'package.json' })
-    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     const { filesIndex } = cafs.addFilesFromTarball(tarball, false, (name) => name === 'README.md')
     expect(filesIndex.has('package.json')).toBe(false)
     expect(filesIndex.has('README.md')).toBe(false)
@@ -83,7 +83,7 @@ describe('cafs', () => {
 
   it('ignores broken symlinks when traversing subdirectories', () => {
     const storeDir = temporaryDirectory()
-    const srcDir = f.prepare('broken-symlink')
+    const srcDir = testFixtures.prepare('broken-symlink')
     fs.symlinkSync('../dangling', path.join(srcDir, 'dangling'))
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
@@ -267,7 +267,7 @@ test('file names are normalized when unpacking a tarball', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('colorize-semver-diff.tgz'))
+    fs.readFileSync(testFixtures.find('colorize-semver-diff.tgz'))
   )
   expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
     'LICENSE',
@@ -282,7 +282,7 @@ test('broken magic in tarball headers is handled gracefully', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('jquery.dirtyforms-2.0.0.tgz'))
+    fs.readFileSync(testFixtures.find('jquery.dirtyforms-2.0.0.tgz'))
   )
 })
 
@@ -290,7 +290,7 @@ test('unpack an older version of tar that prefixes with spaces', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('parsers-3.0.0-rc.48.1.tgz'))
+    fs.readFileSync(testFixtures.find('parsers-3.0.0-rc.48.1.tgz'))
   )
   expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
     'lib/grammars/resolution.d.ts',
@@ -318,7 +318,7 @@ test('unpack a tarball that contains hard links', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
+    fs.readFileSync(testFixtures.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)
 })
@@ -412,7 +412,7 @@ describe('addFilesFromTarballBounded', () => {
   }
 
   it('extracts a small gzip archive in memory', async () => {
-    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
     const actual = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(tarball, true)
     expect(digestsOf(actual.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
@@ -442,7 +442,7 @@ describe('addFilesFromTarballBounded', () => {
 
 function findTarballFixture (name: string): string {
   const localFixture = path.join(import.meta.dirname, 'fixtures', name)
-  return fs.existsSync(localFixture) ? localFixture : f.find(name)
+  return fs.existsSync(localFixture) ? localFixture : testFixtures.find(name)
 }
 
 function digestsOf (filesIndex: Map<string, { digest: string }>): Record<string, string> {
@@ -502,8 +502,8 @@ function createTarballWithEntry (
   // First, fill checksum field with spaces
   header.fill(' ', 148, 156)
   let checksum = 0
-  for (let i = 0; i < 512; i++) {
-    checksum += header[i]
+  for (const byte of header) {
+    checksum += byte
   }
   const checksumOctal = checksum.toString(8).padStart(6, '0')
   header.write(checksumOctal + '\0 ', 148, 8, 'utf8')
@@ -596,7 +596,7 @@ test('unpack should not fail when the tarball format seems to be not USTAR or GN
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('devextreme-17.1.6.tgz'))
+    fs.readFileSync(testFixtures.find('devextreme-17.1.6.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)
 })

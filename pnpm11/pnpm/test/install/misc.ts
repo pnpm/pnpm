@@ -28,7 +28,7 @@ import {
 } from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -503,7 +503,7 @@ test('installing in a CI environment', async () => {
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(lockfileBeforeInstall)
 })
 
-// Tests for issue #9861: frozen-lockfile should be overridable via env vars and updateConfig hook
+// Tests for issue pnpm/pnpm#9861: frozen-lockfile should be overridable via env vars and updateConfig hook
 test('CI mode: frozen-lockfile can be overridden via environment variable', async () => {
   const project = prepare({
     dependencies: { rimraf: '2.5.1' },
@@ -645,7 +645,7 @@ test('do not fail to render peer dependencies warning, when cache was hit during
 
 // Covers https://github.com/pnpm/pnpm/issues/8720
 test('do not hang on circular peer dependencies', () => {
-  const tempDir = f.prepare('workspace-with-circular-peers')
+  const tempDir = testFixtures.prepare('workspace-with-circular-peers')
   process.chdir(tempDir)
 
   const result = execPnpmSync(['install', '--lockfile-only'])

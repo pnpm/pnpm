@@ -13,7 +13,7 @@ export interface ParsedCliArgs {
     original: string[]
   }
   params: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   options: Record<string, any>
   cmd: string | null
   unknownOptions: Map<string, string[]>
@@ -98,7 +98,7 @@ export async function parseCliArgs (
   // The --help and --version short-circuits skip the per-command nopt
   // parse, so we still need to surface universal options the user typed
   // alongside them — most importantly --pm-on-fail, which gates the
-  // packageManager / devEngines.packageManager check (#11487). Universal
+  // packageManager / devEngines.packageManager check (pnpm/pnpm#11487). Universal
   // options were already typed and parsed by the exploratory nopt call,
   // so we just pluck them back out and apply the same renamedOptions
   // mapping the regular parse path uses (e.g. --prefix → dir), so
@@ -118,7 +118,7 @@ export async function parseCliArgs (
   const types = {
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(commandName),
-  } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the option types are declared as unknown values, which nopt's typings reject
 
   function getCommandName (args: string[]): string {
     if (recursiveCommandUsed) {
@@ -194,7 +194,7 @@ export async function parseCliArgs (
   // Apply renamedOptions before workspace detection so `--prefix=foo`
   // (renamed to `dir`) participates in finding the workspace root.
   // Otherwise getWorkspaceDir falls back to process.cwd() and the
-  // workspace manifest at the prefix dir is missed (#11535).
+  // workspace manifest at the prefix dir is missed (pnpm/pnpm#11535).
   // The canonical option wins if both are supplied (e.g. `--prefix=foo
   // --dir=bar` keeps `dir=bar`); the alias is always dropped.
   if (opts.renamedOptions != null) {

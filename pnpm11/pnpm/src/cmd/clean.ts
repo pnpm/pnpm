@@ -88,8 +88,8 @@ export async function handler (
   }
 }
 
-function printRemoving (p: string): void {
-  process.stdout.write(`Removing ${path.relative(process.cwd(), p) || '.'}\n`)
+function printRemoving (dir: string): void {
+  process.stdout.write(`Removing ${path.relative(process.cwd(), dir) || '.'}\n`)
 }
 
 async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boolean }, dir: string): Promise<void> {

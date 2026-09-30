@@ -129,9 +129,9 @@ let PATH = 'PATH'
 // windows calls it's path 'Path' usually, but this is not guaranteed.
 if (process.platform === 'win32') {
   PATH = 'Path'
-  Object.keys(process.env).forEach(e => {
-    if (e.match(/^PATH$/i)) {
-      PATH = e
+  Object.keys(process.env).forEach(envName => {
+    if (envName.match(/^PATH$/i)) {
+      PATH = envName
     }
   })
 }
@@ -219,18 +219,18 @@ function hookStat (dir: string, stage: string, cb: (statError: NodeJS.ErrnoExcep
   setImmediate(() => cb(cachedStatError))
 }
 
-function validWd (d: string, cb: (err: Error | null, wd: string) => void): void {
-  fs.stat(d, (er, st) => {
+function validWd (dir: string, cb: (err: Error | null, wd: string) => void): void {
+  fs.stat(dir, (er, st) => {
     if (er || !st.isDirectory()) {
-      const p = path.dirname(d)
-      if (p === d) {
-        cb(new Error('Could not find suitable wd'), d)
+      const parentDir = path.dirname(dir)
+      if (parentDir === dir) {
+        cb(new Error('Could not find suitable wd'), dir)
         return
       }
-      validWd(p, cb)
+      validWd(parentDir, cb)
       return
     }
-    cb(null, d)
+    cb(null, dir)
   })
 }
 
@@ -261,13 +261,13 @@ function runLifecycle (run: Omit<ScriptRun, 'cmd'>, cb: Callback): void {
     runHookLifecycle(run, next)
   })
 
-  let i = 0
+  let nextTaskIndex = 0
   function next (er?: LifecycleError | null): void {
     if (er) {
       done(er)
       return
     }
-    const task = tasks[i++]
+    const task = tasks[nextTaskIndex++]
     if (task) {
       task(next)
       return
@@ -545,7 +545,7 @@ export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, pr
   prefix = prefix ?? 'npm_package_'
   if (!env) {
     env = {}
-    for (const i in process.env) {
+    for (const envName in process.env) {
       // npm_package_* are regenerated below. (npm|pnpm)_config_* auth settings
       // (e.g. _auth, _authToken, _password, //registry/:_authToken) are
       // stripped so they never leak into dependency lifecycle scripts. This
@@ -553,11 +553,11 @@ export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, pr
       // _, /, or @ (or containing :_) are treated as private. npm reads the
       // variables case-insensitively, so the filter does too.
       if (
-        !i.match(/^npm_package_/) &&
-        !i.match(/^(?:npm|pnpm)_config_(?:[/@_]|.*:_)/i) &&
-        (!i.match(/^PATH$/i) || i === PATH)
+        !envName.match(/^npm_package_/) &&
+        !envName.match(/^(?:npm|pnpm)_config_(?:[/@_]|.*:_)/i) &&
+        (!envName.match(/^PATH$/i) || envName === PATH)
       ) {
-        env[i] = process.env[i]!
+        env[envName] = process.env[envName]!
       }
     }
 
@@ -574,18 +574,18 @@ export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, pr
 
   if (opts.nodeOptions) env.NODE_OPTIONS = opts.nodeOptions
 
-  for (const i in data) {
-    if (i.charAt(0) !== '_') {
-      const envKey = (prefix + i).replace(/\W/g, '_')
+  for (const key in data) {
+    if (key.charAt(0) !== '_') {
+      const envKey = (prefix + key).replace(/\W/g, '_')
       if (
-        !['name', 'version', 'config', 'engines', 'bin'].includes(i) &&
+        !['name', 'version', 'config', 'engines', 'bin'].includes(key) &&
         !prefix.startsWith('npm_package_config_') &&
         !prefix.startsWith('npm_package_engines_') &&
         !prefix.startsWith('npm_package_bin_')
       ) {
         continue
       }
-      const value = data[i]
+      const value = data[key]
       if (value && typeof value === 'object') {
         try {
           // quick and dirty detection for cyclical structures
@@ -594,9 +594,9 @@ export function makeEnv (data: Record<string, unknown>, opts: MakeEnvOptions, pr
         } catch {
           // usually these are package objects.
           // just get the path and basic details.
-          const d = value as { name?: unknown, version?: unknown, path?: unknown }
+          const packageLike = value as { name?: unknown, version?: unknown, path?: unknown }
           makeEnv(
-            { name: d.name, version: d.version, path: d.path },
+            { name: packageLike.name, version: packageLike.version, path: packageLike.path },
             opts,
             `${envKey}_`,
             env

@@ -179,8 +179,8 @@ function plainNameAtVersion (name: string, version: string): string {
   return version ? `${name}@${version}` : name
 }
 
-function trimTrailingNewlines (s: string): string {
-  let end = s.length
-  while (end > 0 && s.charCodeAt(end - 1) === 10) end--
-  return end === s.length ? s : s.slice(0, end)
+function trimTrailingNewlines (text: string): string {
+  let end = text.length
+  while (end > 0 && text.charCodeAt(end - 1) === 10) end--
+  return end === text.length ? text : text.slice(0, end)
 }

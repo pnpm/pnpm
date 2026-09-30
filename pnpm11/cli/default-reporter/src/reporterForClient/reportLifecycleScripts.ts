@@ -67,8 +67,7 @@ export function reportLifecycleScripts (
   } = {}
   const lifecyclePushStream = new Rx.Subject<Rx.Observable<{ msg: string }>>()
 
-  // TODO: handle promise of .forEach?!
-  log$.lifecycle
+  void log$.lifecycle
     .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
       lifecycleMessages[key] = lifecycleMessages[key] || {
@@ -214,9 +213,9 @@ function formatIndentedStatus (status: string): string {
   return `${chalk.magentaBright('└─')} ${status}`
 }
 
-function highlightLastFolder (p: string): string {
-  const lastSlash = p.lastIndexOf('/') + 1
-  return `${chalk.gray(p.slice(0, lastSlash))}${p.slice(lastSlash)}`
+function highlightLastFolder (dir: string): string {
+  const lastSlash = dir.lastIndexOf('/') + 1
+  return `${chalk.gray(dir.slice(0, lastSlash))}${dir.slice(lastSlash)}`
 }
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1

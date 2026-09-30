@@ -91,7 +91,7 @@ test('approve-builds updates GVS symlinks and runs builds at correct hash direct
 
   // Step 3: Verify GVS hash changed (new engine-specific directory)
   const hashesAfter = fs.readdirSync(pkgVersionDir)
-  const newHash = hashesAfter.find((h) => h !== hashBefore[0])
+  const newHash = hashesAfter.find((hash) => hash !== hashBefore[0])
   expect(newHash).toBeDefined()
   expect(newHash).not.toBe(hashBefore[0])
 

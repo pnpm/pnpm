@@ -200,7 +200,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   ) {
     const packages = opts.currentLockfile.packages ?? {}
     if (opts.wantedLockfile.packages != null) {
-      for (const depPath in opts.wantedLockfile.packages) { // eslint-disable-line:forin
+      for (const depPath of Object.keys(opts.wantedLockfile.packages)) {
         if (depGraph[depPath as DepPath]) {
           packages[depPath as DepPath] = opts.wantedLockfile.packages[depPath as DepPath]
         }

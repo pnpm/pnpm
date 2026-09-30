@@ -17,8 +17,7 @@ import type {
   SideEffectsDiff,
 } from '@pnpm/store.cafs'
 import type { TarballResolution } from '@pnpm/store.controller-types'
-import { pickStoreIndexKey } from '@pnpm/store.index'
-import { StoreIndex } from '@pnpm/store.index'
+import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 import dint from 'dint'
 import pFilter from 'p-filter'
@@ -28,7 +27,7 @@ import {
   type StoreStatusOptions,
 } from './extendStoreStatusOptions.js'
 
-function getMapEntries<V> (mapOrObj: Map<string, V> | Record<string, V> | undefined): Array<[string, V]> {
+function getMapEntries<Value> (mapOrObj: Map<string, Value> | Record<string, Value> | undefined): Array<[string, Value]> {
   if (!mapOrObj) return []
   if (mapOrObj instanceof Map) {
     return Array.from(mapOrObj.entries())
@@ -64,14 +63,14 @@ function isIsolatedDir (targetDir: string, filePaths: string[]): boolean {
     }
     const parts = normalized.split(path.sep).filter(Boolean)
     let current = targetDir
-    for (let i = 0; i < parts.length; i++) {
-      current = path.join(current, parts[i])
+    for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+      current = path.join(current, parts[partIndex])
       try {
         const stat = fs.lstatSync(current)
         if (stat.isSymbolicLink()) {
           return false
         }
-        const isLeaf = i === parts.length - 1
+        const isLeaf = partIndex === parts.length - 1
         if (isLeaf && stat.isFile() && stat.nlink > 1) {
           return false
         }

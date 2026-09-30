@@ -93,7 +93,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
     let redirects = 0
     let urlObject = new URL(url)
     const originalOrigin = urlObject.origin
-    /* eslint-disable no-await-in-loop */
+    /* eslint-disable no-await-in-loop -- each redirect hop needs the previous response */
     while (true) {
       const dispatcherOptions: DispatcherOptions = {
         ...defaultOpts,

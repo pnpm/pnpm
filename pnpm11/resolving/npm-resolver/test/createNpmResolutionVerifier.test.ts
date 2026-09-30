@@ -534,7 +534,7 @@ test('createNpmResolutionVerifier() treats an empty-string integrity as missing'
 test('createNpmResolutionVerifier() treats a non-string integrity as missing', async () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   for (const integrity of [true, [], {}] as unknown[]) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the cases share one verifier and are checked one by one
     const result = await verifier.verify(
       { integrity, tarball: REGISTRY_TARBALL } as unknown as Resolution,
       { name: 'foo', version: '1.0.0' }

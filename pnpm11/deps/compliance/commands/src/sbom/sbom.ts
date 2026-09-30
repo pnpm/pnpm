@@ -256,7 +256,7 @@ async function handleSplit (
 
     const singleProjectGraph = { [dir as keyof typeof projectsGraph]: entry }
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- one project at a time keeps a single project's component graph and license lookups in memory
     const { output } = await generateSbomForProject(
       { ...opts, selectedProjectsGraph: singleProjectGraph as typeof projectsGraph, allProjectsGraph: undefined, split: false, out: undefined },
       serialOpts,
@@ -292,7 +292,7 @@ async function handleSplit (
 
   if (opts.out) {
     return {
-      output: `Generated ${files.length} SBOMs:\n${files.map((f) => `  ${f}`).join('\n')}`,
+      output: `Generated ${files.length} SBOMs:\n${files.map((file) => `  ${file}`).join('\n')}`,
       exitCode: 0,
     }
   }
@@ -480,7 +480,7 @@ async function generateSbomForProject (
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
-      .map((p) => getLockfileImporterId(lockfileDir, p))
+      .map((projectDir) => getLockfileImporterId(lockfileDir, projectDir))
     : undefined
   assertImportersAreInLockfile(lockfile, includedImporterIds)
 
@@ -643,7 +643,7 @@ async function buildWorkspacePackagesMap (
     }))
   )
 
-  return Object.fromEntries(entries.filter((e) => e !== null)) as Record<ProjectId, WorkspacePackageInfo>
+  return Object.fromEntries(entries.filter((entry) => entry !== null)) as Record<ProjectId, WorkspacePackageInfo>
 }
 
 async function readManifestSafe (dir: string): Promise<ManifestLike | undefined> {
@@ -662,7 +662,7 @@ function sanitizePathSegment (value: string): string {
   // Control characters (e.g. newlines) would produce confusing filenames and could
   // inject extra lines into the printed `--split --out` summary; filesystem
   // metacharacters are replaced so the value stays a single path segment.
-  // eslint-disable-next-line no-control-regex
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point of this pattern
   const sanitized = value.replace(/[/\\:*?"<>|\x00-\x1F\x7F]/g, '-')
   // `.`, `..`, or a blank value would let a crafted name/version escape or replace
   // the intended output directory once interpolated into an `--out` template.

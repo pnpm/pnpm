@@ -766,11 +766,11 @@ function bufferHasShebangWithCrlf (buf: Buffer | Uint8Array): boolean {
   if (buf.length < start + 2 || buf[start] !== 0x23 || buf[start + 1] !== 0x21) {
     return false
   }
-  for (let i = start + 2; i < buf.length; i++) {
-    if (buf[i] === 0x0D) {
+  for (let byteIndex = start + 2; byteIndex < buf.length; byteIndex++) {
+    if (buf[byteIndex] === 0x0D) {
       return true
     }
-    if (buf[i] === 0x0A) {
+    if (buf[byteIndex] === 0x0A) {
       return false
     }
   }

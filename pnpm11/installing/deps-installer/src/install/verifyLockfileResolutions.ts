@@ -219,7 +219,7 @@ export async function verifyLockfileResolutions (
   // Guarantee a terminal `done` or `failed` event on every exit path
   // that emitted `started`. Without this, an unexpected throw from the
   // registry fan-out (or the policy-violation throw below) would leave
-  // the transient "Verifying lockfile…" line as the last frame the
+  // the transient "Verifying lockfile..." line as the last frame the
   // reporter rendered for this block, hanging spinner-style above the
   // failure output.
   let terminalStatus: 'done' | 'failed' = 'failed'
@@ -275,14 +275,14 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
   // lockfile) escalates to the generic `LOCKFILE_RESOLUTION_VERIFICATION`
   // and the per-entry code goes into the breakdown so the user can see
   // which policy each entry tripped.
-  const distinctCodes = new Set(violations.map((v) => v.code))
+  const distinctCodes = new Set(violations.map((violation) => violation.code))
   const isMixed = distinctCodes.size > 1
   const errorCode = isMixed ? 'LOCKFILE_RESOLUTION_VERIFICATION' : violations[0].code
   const visible = violations.slice(0, MAX_VIOLATIONS_TO_PRINT)
   const omitted = violations.length - visible.length
   const formatEntry = isMixed
-    ? (v: ResolutionPolicyViolation): string => `  ${v.name}@${v.version} [${v.code}] ${v.reason}`
-    : (v: ResolutionPolicyViolation): string => `  ${v.name}@${v.version} ${v.reason}`
+    ? (violation: ResolutionPolicyViolation): string => `  ${violation.name}@${violation.version} [${violation.code}] ${violation.reason}`
+    : (violation: ResolutionPolicyViolation): string => `  ${violation.name}@${violation.version} ${violation.reason}`
   const breakdown = visible.map(formatEntry).join('\n')
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
@@ -295,7 +295,7 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
-      hint: violations.every((v) => POLICY_VIOLATION_CODES.has(v.code))
+      hint: violations.every((violation) => POLICY_VIOLATION_CODES.has(violation.code))
         ? 'The lockfile contains entries that the active policies reject. ' +
           'This can mean the lockfile is stale, or that someone committed a ' +
           'lockfile that bypassed the policy locally — inspect recent changes ' +
@@ -387,7 +387,7 @@ interface Candidate {
 }
 
 // depPath can include peer-dependency and patch_hash suffixes (e.g.
-// `react@18.0.0(peer)(patch_hash=…)`); the same (name, version) pair may
+// `react@18.0.0(peer)(patch_hash=...)`); the same (name, version) pair may
 // therefore appear multiple times. Dedupe so we issue at most one
 // verification per package version.
 //
@@ -478,7 +478,7 @@ async function iterateLockfileViolations (
         // multi-verifier setup doesn't produce duplicate violations for the
         // same (name, version).
         for (const verifier of verifiers) {
-          // eslint-disable-next-line no-await-in-loop
+          // eslint-disable-next-line no-await-in-loop -- the verifiers run in turn so an entry stops at its first failure
           const result = await verifier.verify(resolution, { name, version, nonSemverVersion, registryName })
           if (!result.ok) {
             violations.push({ name, version, resolution, code: result.code, reason: result.reason })

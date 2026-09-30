@@ -186,7 +186,7 @@ async function approveStagedPackages (
       continue
     }
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- stages are approved in dependency order, and a failure skips its dependents
       await approveStagedPackage(context, item, session)
       approvedCount++
       globalInfo(`Approved ${label}`)

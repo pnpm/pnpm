@@ -361,6 +361,7 @@ async function _rebuild (
         ignoredPkgs.add(depPath)
         break
       }
+      case false: break
     }
     return false
   }

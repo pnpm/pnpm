@@ -13,13 +13,13 @@ export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
  * parse error, or with one naming the file if every attempt was merely not
  * ready yet.
  */
-export async function retryLoadJsonFile<T> (filePath: string, isReady?: (data: T) => boolean): Promise<T> {
+export async function retryLoadJsonFile<Parsed> (filePath: string, isReady?: (data: Parsed) => boolean): Promise<Parsed> {
   let lastError: unknown
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to fail */
   for (let attempt = 0; attempt < 4; attempt++) {
     await delay(500)
     try {
-      const data = parseNdjsonMeta<T>(await fs.promises.readFile(filePath, 'utf8'))
+      const data = parseNdjsonMeta<Parsed>(await fs.promises.readFile(filePath, 'utf8'))
       if (isReady == null || isReady(data)) return data
       lastError = new Error(`${filePath} does not hold the awaited metadata yet`)
     } catch (err: unknown) {
@@ -34,12 +34,12 @@ export async function retryLoadJsonFile<T> (filePath: string, isReady?: (data: T
  * Parses an NDJSON cache file: line 1 = headers, line 2 = metadata.
  * The headers (etag, modified) are merged into the metadata object.
  */
-export function parseNdjsonMeta<T> (data: string): T {
+export function parseNdjsonMeta<Parsed> (data: string): Parsed {
   const newlineIdx = data.indexOf('\n')
-  if (newlineIdx === -1) return JSON.parse(data) as T
+  if (newlineIdx === -1) return JSON.parse(data) as Parsed
   const headers = JSON.parse(data.slice(0, newlineIdx))
   const meta = JSON.parse(data.slice(newlineIdx + 1))
-  return { ...meta, ...headers } as T
+  return { ...meta, ...headers } as Parsed
 }
 
 export async function delay (time: number): Promise<void> {

@@ -23,6 +23,8 @@ import type {
 
 let workerPool: WorkerPool | undefined
 
+const globalWithWorkers = globalThis as typeof globalThis & { finishWorkers?: () => Promise<void> }
+
 /**
  * Store verification runs in the workers, so each one tallies the files
  * it re-hashed and the time that took, and hands its share back with
@@ -70,10 +72,8 @@ export async function restartWorkerPool (): Promise<void> {
 }
 
 export async function finishWorkers (): Promise<void> {
-  // @ts-expect-error
-  const finish = global.finishWorkers
-  // @ts-expect-error
-  global.finishWorkers = undefined
+  const finish = globalWithWorkers.finishWorkers
+  globalWithWorkers.finishWorkers = undefined
   await finish?.()
 }
 
@@ -84,18 +84,14 @@ function createTarballWorkerPool (): WorkerPool {
     maxWorkers,
     workerScriptPath: path.join(import.meta.dirname, 'worker.js'),
   })
-  // @ts-expect-error
-  if (global.finishWorkers) {
-    // @ts-expect-error
-    const previous = global.finishWorkers
-    // @ts-expect-error
-    global.finishWorkers = async () => {
+  const previous = globalWithWorkers.finishWorkers
+  if (previous) {
+    globalWithWorkers.finishWorkers = async () => {
       await previous()
       await workerPool.finishAsync()
     }
   } else {
-    // @ts-expect-error
-    global.finishWorkers = () => workerPool.finishAsync()
+    globalWithWorkers.finishWorkers = () => workerPool.finishAsync()
   }
   return workerPool
 }
@@ -325,7 +321,7 @@ export async function importPackage (
     }
     const localWorker = await workerPool.checkoutWorkerAsync(true)
     return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-      localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      localWorker.once('message', ({ status, error, value }) => {
         workerPool!.checkinWorker(localWorker)
         if (status === 'error') {
           reject(new PnpmError(error.code ?? 'LINKING_FAILED', `[importPackage ${opts.targetDir}] ${error.message as string}`))
@@ -349,7 +345,7 @@ export async function symlinkAllModules (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
@@ -397,7 +393,7 @@ export async function hardLinkDir (src: string, destDirs: string[]): Promise<voi
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   await new Promise<void>((resolve, reject) => {
-    localWorker.once('message', ({ status, error }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    localWorker.once('message', ({ status, error }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError(error.code ?? 'HARDLINK_FAILED', error.message as string))

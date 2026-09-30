@@ -98,8 +98,8 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   const denied: string[] = []
   const approved: string[] = []
   const unknown: string[] = []
-  for (const p of params) {
-    const { name, allowed } = parseAllowBuildSelector(p)
+  for (const selector of params) {
+    const { name, allowed } = parseAllowBuildSelector(selector)
     if (!automaticallyIgnoredBuilds.includes(name)) {
       unknown.push(name)
     }
@@ -112,7 +112,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   if (unknown.length) {
     globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
   }
-  const contradictions = approved.filter((p) => denied.includes(p))
+  const contradictions = approved.filter((name) => denied.includes(name))
   if (contradictions.length) {
     throw new PnpmError(
       'APPROVE_BUILDS_CONTRADICTING_ARGS',
@@ -147,6 +147,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       buildPackages = buildPackagesValues
     } catch (err) {
       if (isError(err) && err.name === 'ExitPromptError') {
+        // eslint-disable-next-line n/no-process-exit -- the user cancelled the prompt, so nothing else should run
         process.exit(0)
       }
       throw err
@@ -182,6 +183,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
         })
       } catch (err) {
         if (isError(err) && err.name === 'ExitPromptError') {
+          // eslint-disable-next-line n/no-process-exit -- the user cancelled the prompt, so nothing else should run
           process.exit(0)
         }
         throw err
@@ -223,7 +225,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
-      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any -- approve-builds options are not typed as the full install option set
       return
     }
     await rebuild.handler({

@@ -31,11 +31,11 @@ export default { // eslint-disable-line
   writeFileSync: withEagainRetry(gfs.writeFileSync),
 }
 
-function withEagainRetry<T extends unknown[], R> (
-  fn: (...args: T) => R,
+function withEagainRetry<Args extends unknown[], Result> (
+  fn: (...args: Args) => Result,
   maxRetries: number = 15
-): (...args: T) => R {
-  return (...args: T): R => {
+): (...args: Args) => Result {
+  return (...args: Args): Result => {
     let attempts = 0
     while (attempts <= maxRetries) {
       try {
@@ -106,7 +106,7 @@ export function unlinkWithRetry (target: string): void {
  * Runs a filesystem operation with the retry policy of
  * {@link renameFileWithRetry}.
  */
-export function withFileLockRetry<T> (operation: () => T): T {
+export function withFileLockRetry<Result> (operation: () => Result): Result {
   const retry = createFileLockRetry()
   for (;;) {
     try {
@@ -123,16 +123,16 @@ export function withFileLockRetry<T> (operation: () => T): T {
  * Asynchronous {@link withFileLockRetry}, which waits between attempts
  * without blocking the event loop.
  */
-export async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
+export async function withFileLockRetryAsync<Result> (operation: () => Promise<Result>): Promise<Result> {
   const retry = createFileLockRetry()
   for (;;) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the next attempt runs only after this one fails
       return await operation()
     } catch (err) {
       const delayMs = retry.delayBeforeNextAttempt(err)
       if (delayMs > 0) {
-        // eslint-disable-next-line no-await-in-loop
+        // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
         await new Promise((resolve) => setTimeout(resolve, delayMs))
       }
       retry.checkBudgetAfterDelay(err)

@@ -62,6 +62,7 @@ async function updateShell (
   pnpmHomeDir: string,
   opts: AddDirToPosixEnvPathOpts
 ): Promise<PathExtenderPosixReport> {
+  const supportedShellsMsg = 'Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.'
   switch (currentShell) {
     case 'bash':
     case 'zsh':
@@ -76,16 +77,18 @@ async function updateShell (
     case 'nu': {
       return setupNuShell(pnpmHomeDir, opts)
     }
+    case null:
+    case '': {
+      throw new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.', {
+        hint: `Set the SHELL environment variable to your active shell.\n${supportedShellsMsg}`,
+      })
+    }
+    default: {
+      throw new PnpmError('UNSUPPORTED_SHELL', `Can't setup configuration for "${currentShell}" shell`, {
+        hint: supportedShellsMsg,
+      })
+    }
   }
-  const supportedShellsMsg = 'Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.'
-  if (!currentShell) {
-    throw new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.', {
-      hint: `Set the SHELL environment variable to your active shell.\n${supportedShellsMsg}`,
-    })
-  }
-  throw new PnpmError('UNSUPPORTED_SHELL', `Can't setup configuration for "${currentShell}" shell`, {
-    hint: supportedShellsMsg,
-  })
 }
 
 async function setupShell (
@@ -292,10 +295,10 @@ export function findSection (
   let offset = 0
 
   const lines = content.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
     const lineStart = offset
-    const lineLengthWithNewline = i < lines.length - 1 ? line.length + 1 : line.length
+    const lineLengthWithNewline = lineIndex < lines.length - 1 ? line.length + 1 : line.length
     offset += lineLengthWithNewline
 
     const trimmed = line.replace(/[\r \t]+$/, '')
@@ -332,8 +335,8 @@ export function findSection (
     (text) => text.includes('PATH'),
   ]
   for (const predicate of predicates) {
-    for (let i = sections.length - 1; i >= 0; i--) {
-      if (predicate(settings[i])) return sections[i]
+    for (let sectionIndex = sections.length - 1; sectionIndex >= 0; sectionIndex--) {
+      if (predicate(settings[sectionIndex])) return sections[sectionIndex]
     }
   }
   return sections[sections.length - 1]

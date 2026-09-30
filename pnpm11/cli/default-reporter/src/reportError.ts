@@ -55,15 +55,15 @@ function getErrorInfo (logObj: Log, config?: ReporterPnpmConfig): ErrorInfo | nu
     const err = logObj.err as (PnpmError & { stack: object })
     switch (err.code) {
       case 'ERR_PNPM_UNEXPECTED_STORE':
-        return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
-        return reportUnexpectedVirtualStoreDir(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportUnexpectedVirtualStoreDir(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_STORE_BREAKING_CHANGE':
-        return reportStoreBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportStoreBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
-        return reportModulesBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportModulesBreakingChange(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_MODIFIED_DEPENDENCY':
-        return reportModifiedDependency(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportModifiedDependency(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
         return reportLockfileBreakingChange(err, logObj)
       case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
@@ -79,22 +79,22 @@ function getErrorInfo (logObj: Log, config?: ReporterPnpmConfig): ErrorInfo | nu
         // case the formatter falls back to the bare title+message.
         return formatNoMatchingVersion(err, logObj as unknown as { packageMeta?: PackageMeta })
       case 'ERR_PNPM_RECURSIVE_FAIL':
-        return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_BAD_TARBALL_SIZE':
         return reportBadTarballSize(err, logObj)
       case 'ELIFECYCLE':
-        return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportLifecycleError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_UNSUPPORTED_ENGINE':
-        return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_PEER_DEP_ISSUES':
-        return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
-        return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
-        return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       case 'ERR_PNPM_FETCH_401':
       case 'ERR_PNPM_FETCH_403':
-        return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
+        return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
       default: {
       // Errors with unknown error codes are printed with stack trace
         if (!err.code?.startsWith?.('ERR_PNPM_')) {
@@ -518,7 +518,7 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
   // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
   // more clear error in this case.
   if (logObj.package?.bareSpecifier?.startsWith('catalog:')) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
     return reportExternalCatalogProtocolError(err, logObj as any)
   }
 

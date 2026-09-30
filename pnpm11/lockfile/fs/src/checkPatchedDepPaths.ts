@@ -165,9 +165,9 @@ function isPatchedRegistryPeer (peer: DepPath, ctx: JudgeContext): boolean {
   return name != null && version != null && peerDepGraphHash != null && ctx.patchedNames.has(name)
 }
 
-function worseVerdict (a: Verdict, b: Verdict): Verdict {
-  if (a === 'stale' || b === 'stale') return 'stale'
-  return a === 'indeterminate' || b === 'indeterminate' ? 'indeterminate' : 'ok'
+function worseVerdict (left: Verdict, right: Verdict): Verdict {
+  if (left === 'stale' || right === 'stale') return 'stale'
+  return left === 'indeterminate' || right === 'indeterminate' ? 'indeterminate' : 'ok'
 }
 
 /**

@@ -74,9 +74,9 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
         url: comp.tarballUrl,
       }
       if (hashes.length > 0) {
-        distRef.hashes = hashes.map((h) => ({
-          alg: h.algorithm,
-          content: h.digest,
+        distRef.hashes = hashes.map((hash) => ({
+          alg: hash.algorithm,
+          content: hash.digest,
         }))
       }
       externalRefs.push(distRef)

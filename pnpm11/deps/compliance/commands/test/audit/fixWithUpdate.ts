@@ -15,7 +15,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 describe('audit fix with update', () => {
   beforeEach(async () => {
@@ -27,7 +27,7 @@ describe('audit fix with update', () => {
     await teardownMockAgent()
   })
   test('top-level vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -88,7 +88,7 @@ The fixed vulnerabilities are:
   })
 
   test('patched versions older than the minimumReleaseAge cutoff are fixed without minimumReleaseAgeExclude entries', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
 
@@ -123,7 +123,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-pinned')
+    const tmp = testFixtures.prepare('update-single-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -197,7 +197,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned npm-aliased vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-aliased-pinned')
+    const tmp = testFixtures.prepare('update-single-aliased-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -250,7 +250,7 @@ The fixed vulnerabilities are:
   })
 
   test('depth 2 vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
@@ -301,7 +301,7 @@ The fixed vulnerabilities are:
   })
 
   test('depth 3 vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-depth-3')
+    const tmp = testFixtures.prepare('update-single-depth-3')
 
     const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
@@ -352,7 +352,7 @@ The fixed vulnerabilities are:
   })
 
   test('unfixable vulnerability remains unresolved', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const pkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
 
@@ -408,7 +408,7 @@ The remaining vulnerabilities are:
   })
 
   test('vulnerable package with multiple versions is updated', async () => {
-    const tmp = f.prepare('update-multiple')
+    const tmp = testFixtures.prepare('update-multiple')
 
     const auditedPkg = '@pnpm.e2e/audit-multi-version'
     const originalPkgId1 = `${auditedPkg}@1.0.0` as DepPath
@@ -477,7 +477,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level workspace subpackage vulnerability is fixed by recursive update from root', async () => {
-    const tmp = f.prepare('update-workspace-depth-2')
+    const tmp = testFixtures.prepare('update-workspace-depth-2')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -558,7 +558,7 @@ The fixed vulnerabilities are:
   })
 
   test('depth 2 workspace subpackage vulnerability is fixed by recursive update from root', async () => {
-    const tmp = f.prepare('update-workspace-depth-2')
+    const tmp = testFixtures.prepare('update-workspace-depth-2')
 
     const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
@@ -627,7 +627,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned workspace subpackage vulnerability is fixed by recursive update from root', async () => {
-    const tmp = f.prepare('update-workspace-pinned')
+    const tmp = testFixtures.prepare('update-workspace-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -721,7 +721,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
-    const tmp = f.prepare('update-workspace-catalog-pinned')
+    const tmp = testFixtures.prepare('update-workspace-catalog-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -809,7 +809,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned npm-aliased workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
-    const tmp = f.prepare('update-workspace-catalog-aliased')
+    const tmp = testFixtures.prepare('update-workspace-catalog-aliased')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -876,7 +876,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
-    const tmp = f.prepare('update-workspace-catalog')
+    const tmp = testFixtures.prepare('update-workspace-catalog')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath

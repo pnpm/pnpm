@@ -414,9 +414,9 @@ export async function resolveDependencies (
   for (const project of projectsToResolve) {
     if (!project.updatePackageManifest) continue
     const resolvedImporter = resolvedImporters[project.id]
-    for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
-      if (!wantedDepShouldUpdateCatalog(project.wantedDependencies[i])) continue
-      const dep = resolvedImporter.directDependencies[i]
+    for (let index = 0; index < resolvedImporter.directDependencies.length; index++) {
+      if (!wantedDepShouldUpdateCatalog(project.wantedDependencies[index])) continue
+      const dep = resolvedImporter.directDependencies[index]
       if (dep.catalogLookup == null) continue
       // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
       // Avoid updating the updatedCatalogs map since it is likely unchanged.

@@ -239,7 +239,7 @@ export async function handler (
       ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : undefined
   )
-  // @ts-expect-error
+  // @ts-expect-error -- workspacePackages is an install option that the remove options type does not declare
   removeOpts['workspacePackages'] = allProjects
     ? arrayOfWorkspacePackagesToMap(allProjects)
     : undefined

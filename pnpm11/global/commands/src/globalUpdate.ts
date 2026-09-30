@@ -68,7 +68,7 @@ export async function handleGlobalUpdate (
   let packagesToUpdate: GlobalPackageInfo[]
   if (params.length > 0) {
     packagesToUpdate = allPackages.filter((pkg) =>
-      params.some((p) => Object.hasOwn(pkg.dependencies, p))
+      params.some((param) => Object.hasOwn(pkg.dependencies, param))
     )
     if (packagesToUpdate.length === 0) {
       return 'No matching global packages found'
@@ -92,7 +92,7 @@ export async function handleGlobalUpdate (
       continue
     }
     checked = true
-    changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop
+    changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop -- groups share the global bin directory, so they are updated one at a time
   }
   if (checked && !changed) {
     logger.info({ message: 'Already up to date', prefix: opts.dir })

@@ -111,8 +111,8 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
   }
 
   const first = JSON.stringify(await runOnce())
-  for (let i = 1; i < iterations; i++) {
-    const subsequent = JSON.stringify(await runOnce()) // eslint-disable-line no-await-in-loop
+  for (let iteration = 1; iteration < iterations; iteration++) {
+    const subsequent = JSON.stringify(await runOnce()) // eslint-disable-line no-await-in-loop -- the runs share the project directory and the mock agent
     expect(subsequent).toEqual(first)
   }
 })

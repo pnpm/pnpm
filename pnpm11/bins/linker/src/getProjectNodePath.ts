@@ -20,8 +20,8 @@ export async function getProjectNodePath (
   return project.modulesDir
 }
 
-async function isSameDir (a: string, b: string): Promise<boolean> {
-  return a === b || await realpathOrSelf(a) === await realpathOrSelf(b)
+async function isSameDir (dir1: string, dir2: string): Promise<boolean> {
+  return dir1 === dir2 || await realpathOrSelf(dir1) === await realpathOrSelf(dir2)
 }
 
 async function realpathOrSelf (dir: string): Promise<string> {

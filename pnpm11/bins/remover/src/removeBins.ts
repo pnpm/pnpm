@@ -28,9 +28,9 @@ async function removeOnWin (cmd: string): Promise<void> {
   }
 }
 
-async function removeOnNonWin (p: string): Promise<void> {
-  removalLogger.debug(p)
-  return rimraf(p)
+async function removeOnNonWin (binPath: string): Promise<void> {
+  removalLogger.debug(binPath)
+  return rimraf(binPath)
 }
 
 export const removeBin: (cmd: string) => Promise<void> = isWindows() ? removeOnWin : removeOnNonWin

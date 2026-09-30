@@ -64,14 +64,14 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
  * expected to take the literal value `with`.
  */
 function findWithCurrentIndex (argv: string[], optionTypes: Record<string, unknown>): number {
-  for (let i = 0; i < argv.length - 1; i++) {
-    if (argv[i] !== 'with' || argv[i + 1] !== 'current') continue
-    const prev = argv[i - 1]
+  for (let tokenIndex = 0; tokenIndex < argv.length - 1; tokenIndex++) {
+    if (argv[tokenIndex] !== 'with' || argv[tokenIndex + 1] !== 'current') continue
+    const prev = argv[tokenIndex - 1]
     // A preceding long option that takes a value would consume `with` as its
     // value, so this `with current` pair isn't the command — skip it. Boolean
     // flags (e.g. `--color`) and `--no-` negations don't consume a value.
     if (prev != null && longOptionConsumesValue(prev, optionTypes)) continue
-    return i
+    return tokenIndex
   }
   return -1
 }

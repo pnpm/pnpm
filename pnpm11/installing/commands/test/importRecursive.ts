@@ -11,7 +11,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = temporaryDirectory()
 
@@ -48,11 +48,11 @@ const DEFAULT_OPTS = {
 }
 
 test('import from shared yarn.lock of monorepo', async () => {
-  f.prepare('workspace-has-shared-yarn-lock')
+  testFixtures.prepare('workspace-has-shared-yarn-lock')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -72,11 +72,11 @@ test('import from shared yarn.lock of monorepo', async () => {
 })
 
 test('import from shared package-lock.json of monorepo', async () => {
-  f.prepare('workspace-has-shared-package-lock-json')
+  testFixtures.prepare('workspace-has-shared-package-lock-json')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -96,11 +96,11 @@ test('import from shared package-lock.json of monorepo', async () => {
 })
 
 test('import from shared npm-shrinkwrap.json of monorepo', async () => {
-  f.prepare('workspace-has-shared-npm-shrinkwrap-json')
+  testFixtures.prepare('workspace-has-shared-npm-shrinkwrap-json')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -142,7 +142,7 @@ test('import keeps the root project on the version pinned by yarn.lock when anot
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -184,7 +184,7 @@ test('import keeps the version pinned by a nested yarn.lock', async () => {
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),

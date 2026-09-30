@@ -66,7 +66,7 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
       } else {
         newScriptName = scriptName
       }
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- prepublish scripts run in the order npm defines
       await runLifecycleHook(newScriptName, manifest, execOpts)
     }
   } catch (err: unknown) {

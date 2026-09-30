@@ -123,7 +123,7 @@ export async function installConfigDepsAndLoadHooks (
       const cliSettings = pickCliSettings(config, context.cliOptions)
       for (const updateConfig of context.hooks.updateConfig) {
         const updateConfigResult = updateConfig(config)
-        config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
+        config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
       }
       applyRegistryRoutingChanges(config, routingBeforeHooks)
       restoreCliSettings(config, cliSettings)
@@ -147,7 +147,7 @@ interface CliSettings {
   registriesByScope: Map<string, string>
 }
 
-function cloneCliSetting<T> (value: T): T {
+function cloneCliSetting<Setting> (value: Setting): Setting {
   if (value === null || typeof value !== 'object') {
     return value
   }
@@ -155,7 +155,7 @@ function cloneCliSetting<T> (value: T): T {
     return structuredClone(value)
   } catch {
     if (Array.isArray(value)) {
-      return value.slice() as unknown as T
+      return value.slice() as unknown as Setting
     }
     return { ...value }
   }

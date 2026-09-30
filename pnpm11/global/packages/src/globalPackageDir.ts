@@ -28,7 +28,7 @@ export function createInstallDir (globalDir: string): string {
   // a pre-existing symlink). The name adds random bytes on top of pid+time
   // so it isn't predictable and can't collide within the same millisecond.
   fs.mkdirSync(globalDir, { recursive: true })
-  for (let i = 0; i < 10; i++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     const name = `${process.pid.toString(16)}-${Date.now().toString(16)}-${crypto.randomBytes(8).toString('hex')}`
     const dir = path.join(globalDir, name)
     try {

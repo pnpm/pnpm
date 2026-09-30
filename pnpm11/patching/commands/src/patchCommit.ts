@@ -299,11 +299,11 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
     .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*$/gm, '')
 }
 
-function removeTrailingAndLeadingSlash (p: string): string {
-  if (p[0] === '/' || p.endsWith('/')) {
-    return p.replace(/^\/|\/$/g, '')
+function removeTrailingAndLeadingSlash (dirPath: string): string {
+  if (dirPath[0] === '/' || dirPath.endsWith('/')) {
+    return dirPath.replace(/^\/|\/$/g, '')
   }
-  return p
+  return dirPath
 }
 
 /**

@@ -80,9 +80,9 @@ export async function outdatedRecursive (
       timeout: opts.fetchTimeout,
     })
     : pkgs.map(() => [])
-  for (let i = 0; i < outdatedPackagesByProject.length; i++) {
-    const { rootDir, manifest } = pkgs[i]
-    for (const outdatedPkg of outdatedPackagesByProject[i]) {
+  for (let projectIndex = 0; projectIndex < outdatedPackagesByProject.length; projectIndex++) {
+    const { rootDir, manifest } = pkgs[projectIndex]
+    for (const outdatedPkg of outdatedPackagesByProject[projectIndex]) {
       const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
       if (!outdatedMap[key]) {
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
@@ -155,8 +155,8 @@ function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, 
   }
 
   // Avoid the overhead of allocating a new array caused by calling `array.map()`
-  for (let i = 0; i < columnNames.length; i++)
-    columnNames[i] = chalk.blueBright(columnNames[i])
+  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex++)
+    columnNames[columnIndex] = chalk.blueBright(columnNames[columnIndex])
 
   const data = [
     columnNames,

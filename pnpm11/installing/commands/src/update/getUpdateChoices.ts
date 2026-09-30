@@ -127,7 +127,7 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : colorizeSemverDiff({ change: sdiff.change, diff: sdiff.diff })
   const label = outdatedPkg.packageName
 
   const raw: string[] = [

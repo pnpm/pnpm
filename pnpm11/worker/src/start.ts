@@ -79,6 +79,7 @@ async function handleMessage (
       idx.close()
     }
     storeIndexCache.clear()
+    // eslint-disable-next-line n/no-process-exit -- in a worker thread this ends only the thread, which is how the pool retires a worker
     process.exit(0)
   }
   try {
@@ -522,14 +523,14 @@ interface ProcessFilesIndexResult {
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: PackageFiles = new Map()
   const filesMap: FilesMap = new Map()
-  for (const [k, { checkedAt, filePath, digest, mode, size }] of filesIndex) {
-    filesIntegrity.set(k, {
+  for (const [relativePath, { checkedAt, filePath, digest, mode, size }] of filesIndex) {
+    filesIntegrity.set(relativePath, {
       checkedAt,
       digest,
       mode,
       size,
     })
-    filesMap.set(k, filePath)
+    filesMap.set(relativePath, filePath)
   }
   return { filesIntegrity, filesMap }
 }

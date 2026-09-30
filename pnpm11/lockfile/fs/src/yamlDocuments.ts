@@ -26,7 +26,7 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
     const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
     let position = 0
     while (true) {
-      const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop
+      const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop -- each read continues at the position the previous one reached
       if (bytesRead === 0) break
       position += bytesRead
       let chunk = decoder.write(readBuffer.subarray(0, bytesRead))

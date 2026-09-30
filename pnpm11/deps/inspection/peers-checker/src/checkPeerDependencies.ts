@@ -54,7 +54,7 @@ function checkPeerDependenciesFromLockfile (
   lockfileDir: string
 ): PeerDependencyIssuesByProjects {
   const packages = lockfile.packages ?? {}
-  const importerIds = projectPaths.map((p) => getLockfileImporterId(lockfileDir, p))
+  const importerIds = projectPaths.map((projectPath) => getLockfileImporterId(lockfileDir, projectPath))
   const walkerSteps = lockfileWalkerGroupImporterSteps(lockfile, importerIds as ProjectId[])
   const result: PeerDependencyIssuesByProjects = {}
 

@@ -495,10 +495,10 @@ export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditRep
    * Sort the given array of advisory IDs by severity descending
    */
   function sortBySeverity (ids: number[]): IdAndAdvisory[] {
-    return ids.map(id => ({ id, advisory: auditReport.advisories[id] })).sort((a, b) => {
-      const aValue = a.advisory ? AUDIT_LEVEL_NUMBER[a.advisory.severity] : -1
-      const bValue = b.advisory ? AUDIT_LEVEL_NUMBER[b.advisory.severity] : -1
-      return bValue - aValue
+    return ids.map(id => ({ id, advisory: auditReport.advisories[id] })).sort((left, right) => {
+      const leftValue = left.advisory ? AUDIT_LEVEL_NUMBER[left.advisory.severity] : -1
+      const rightValue = right.advisory ? AUDIT_LEVEL_NUMBER[right.advisory.severity] : -1
+      return rightValue - leftValue
     })
   }
 
@@ -520,15 +520,15 @@ export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditRep
 
   if (fixed.length > 0) {
     output.push('\nThe fixed vulnerabilities are:')
-    for (const f of fixed) {
-      output.push(summarizeAdvisory(true, f))
+    for (const fixedAdvisory of fixed) {
+      output.push(summarizeAdvisory(true, fixedAdvisory))
     }
   }
 
   if (remaining.length > 0) {
     output.push('\nThe remaining vulnerabilities are:')
-    for (const r of remaining) {
-      output.push(summarizeAdvisory(false, r))
+    for (const remainingAdvisory of remaining) {
+      output.push(summarizeAdvisory(false, remainingAdvisory))
     }
   }
 
@@ -607,6 +607,7 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
   } catch (err) {
     if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Audit fix canceled')
+      // eslint-disable-next-line n/no-process-exit -- canceling the prompt ends the command successfully without applying any fix
       process.exit(0)
     }
     throw err

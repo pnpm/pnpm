@@ -1,11 +1,3 @@
-export type Global = typeof globalThis & {
-  pnpm__startedAt?: number
-  [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
-}
-declare const global: Global
-if (!global['pnpm__startedAt']) {
-  global['pnpm__startedAt'] = Date.now()
-}
 import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
@@ -39,6 +31,15 @@ import { syncEnvLockfile } from './syncEnvLockfile.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
+export type Global = typeof globalThis & {
+  pnpm__startedAt?: number
+  [REPORTER_INITIALIZED]?: ReporterType
+}
+declare const global: Global
+if (!global['pnpm__startedAt']) {
+  global['pnpm__startedAt'] = Date.now()
+}
+
 // Commands whose reporter output (warnings, progress) must go to stderr so that
 // their stdout stays a clean, machine-readable value. For example, `pnpm store
 // path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
@@ -56,6 +57,7 @@ function isRootOnlyPatterns (patterns: string[]): boolean {
 // (e.g., when running `pnpm config list | head`)
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EPIPE') {
+    // eslint-disable-next-line n/no-process-exit -- the reader is gone, so there is nothing left to print to
     process.exit(0)
   }
   throw err
@@ -105,7 +107,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   let context: ConfigContext
   try {
     // When we just want to print the location of the global bin directory,
-    // we don't need the write permission to it. Related issue: #2700
+    // we don't need the write permission to it. Related issue: pnpm/pnpm#2700
     const globalDirShouldAllowWrite = cmd !== 'root' && cmd !== 'prefix'
     const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
     const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
@@ -172,7 +174,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
     // delegate to the `config` command internally. They are not rewritten to
     // `cmd === 'config'` at this layer, so list them explicitly — users can
-    // hit the #10684 crash via any of these three entry points.
+    // hit the pnpm/pnpm#10684 crash via any of these three entry points.
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
       tolerateConfigDependenciesErrors: isConfigCommand,
       forSelfUpdate: cmd === 'self-update',
@@ -315,6 +317,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // `legacyDirFiltering`'s subtree matching would read them as "every
     // project below the root" — including the root's descendants instead
     // of the root, and excluding them instead of it.
+    const cmdSkipsWorkspaceRootByDefault = cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     } else if (
@@ -323,7 +326,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       config.workspacePackagePatterns &&
       !isRootOnlyPatterns(config.workspacePackagePatterns) &&
       !config.includeWorkspaceRoot &&
-      (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
+      cmdSkipsWorkspaceRootByDefault
     ) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length), useGlobDirFiltering: true })
     }
@@ -384,12 +387,10 @@ export async function main (inputArgv: string[]): Promise<void> {
       resolve()
     }, 0))
 
+    const updateCheckEnabled = config.updateNotifier !== false && !config.ci && !config.offline && !config.preferOffline
     if (
-      config.updateNotifier !== false &&
-      !config.ci &&
+      updateCheckEnabled &&
       cmd !== 'self-update' &&
-      !config.offline &&
-      !config.preferOffline &&
       !config.fallbackCommandUsed &&
       (cmd === 'install' || cmd === 'add')
     ) {

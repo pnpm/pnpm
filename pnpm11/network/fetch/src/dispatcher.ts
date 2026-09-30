@@ -62,9 +62,9 @@ function stripSecFetchHeaders (dispatch: Dispatcher['dispatch']): Dispatcher['di
       if (Array.isArray(opts.headers)) {
         // Flat array format: [key1, val1, key2, val2, ...]
         const filtered: string[] = []
-        for (let i = 0; i < opts.headers.length; i += 2) {
-          if (!opts.headers[i].toLowerCase().startsWith('sec-fetch-')) {
-            filtered.push(opts.headers[i], opts.headers[i + 1])
+        for (let nameIndex = 0; nameIndex < opts.headers.length; nameIndex += 2) {
+          if (!opts.headers[nameIndex].toLowerCase().startsWith('sec-fetch-')) {
+            filtered.push(opts.headers[nameIndex], opts.headers[nameIndex + 1])
           }
         }
         opts = { ...opts, headers: filtered }
@@ -419,20 +419,20 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
 function checkNoProxy (parsedUri: URL, opts: { noProxy?: boolean | string }): boolean {
   const host = parsedUri.hostname
     .split('.')
-    .filter(x => x)
+    .filter(label => label)
     .reverse()
   if (typeof opts.noProxy === 'string') {
     const noproxyArr = opts.noProxy.split(',').map(s => s.trim())
     return noproxyArr.some(no => {
       const noParts = no
         .split('.')
-        .filter(x => x)
+        .filter(label => label)
         .reverse()
       if (noParts.length === 0) {
         return false
       }
-      for (let i = 0; i < noParts.length; i++) {
-        if (host[i] !== noParts[i]) {
+      for (let labelIndex = 0; labelIndex < noParts.length; labelIndex++) {
+        if (host[labelIndex] !== noParts[labelIndex]) {
           return false
         }
       }
@@ -446,10 +446,10 @@ function checkNoProxy (parsedUri: URL, opts: { noProxy?: boolean | string }): bo
  * Pick SSL/TLS configuration by URL using nerf-dart matching.
  * This matches the behavior of @pnpm/network.config's pickSettingByUrl.
  */
-function pickSettingByUrl<T> (
-  settings: Record<string, T> | undefined,
+function pickSettingByUrl<Setting> (
+  settings: Record<string, Setting> | undefined,
   uri: string
-): T | undefined {
+): Setting | undefined {
   if (!settings) return undefined
 
   // Try exact match first
@@ -470,8 +470,8 @@ function pickSettingByUrl<T> (
     return parts > max ? parts : max
   }, 0)
   const parts = nerf.split('/')
-  for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
-    const key = `${parts.slice(0, i).join('/')}/`
+  for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
+    const key = `${parts.slice(0, partCount).join('/')}/`
     if (settings[key]) {
       return settings[key]
     }

@@ -66,21 +66,21 @@ export function parseRegistryQualifiedVersion (version: string): RegistryQualifi
 export function indexOfDepPathSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
   if (!depPath.endsWith(')')) return { peersIndex: -1, patchHashIndex: -1 }
   let open = 1
-  for (let i = depPath.length - 2; i >= 0; i--) {
-    if (depPath[i] === '(') {
+  for (let charIndex = depPath.length - 2; charIndex >= 0; charIndex--) {
+    if (depPath[charIndex] === '(') {
       open--
-    } else if (depPath[i] === ')') {
+    } else if (depPath[charIndex] === ')') {
       open++
     } else if (!open) {
-      if (depPath.substring(i + 1).startsWith('(patch_hash=')) {
+      if (depPath.substring(charIndex + 1).startsWith('(patch_hash=')) {
         return {
-          patchHashIndex: i + 1,
-          peersIndex: depPath.indexOf('(', i + 2),
+          patchHashIndex: charIndex + 1,
+          peersIndex: depPath.indexOf('(', charIndex + 2),
         }
       }
       return {
         patchHashIndex: -1,
-        peersIndex: i + 1,
+        peersIndex: charIndex + 1,
       }
     }
   }
@@ -188,10 +188,8 @@ export interface DependencyPath {
 }
 
 export function parse (dependencyPath: string): DependencyPath {
-  // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
     throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
-      // eslint-disable-next-line: strict-type-predicates
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }

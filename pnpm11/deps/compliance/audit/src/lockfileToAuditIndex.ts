@@ -72,29 +72,29 @@ export function lockfileToAuditRequest (
   let devDependencies = 0
   let optionalDependencies = 0
 
-  const registerOccurrence = (o: { name: string, version: string, devOnly: boolean, optionalOnly: boolean }): void => {
-    let versionStates = versionStatesByName[o.name]
+  const registerOccurrence = (occurrence: { name: string, version: string, devOnly: boolean, optionalOnly: boolean }): void => {
+    let versionStates = versionStatesByName[occurrence.name]
     if (!versionStates) {
       versionStates = new Map()
-      versionStatesByName[o.name] = versionStates
-      request[o.name] = []
+      versionStatesByName[occurrence.name] = versionStates
+      request[occurrence.name] = []
     }
-    const state = versionStates.get(o.version)
+    const state = versionStates.get(occurrence.version)
     if (!state) {
-      versionStates.set(o.version, { devOnly: o.devOnly, optionalOnly: o.optionalOnly })
-      request[o.name].push(o.version)
+      versionStates.set(occurrence.version, { devOnly: occurrence.devOnly, optionalOnly: occurrence.optionalOnly })
+      request[occurrence.name].push(occurrence.version)
       totalDependencies++
-      if (o.devOnly) devDependencies++
-      if (o.optionalOnly) optionalDependencies++
-      if (!o.devOnly && !o.optionalOnly) dependencies++
+      if (occurrence.devOnly) devDependencies++
+      if (occurrence.optionalOnly) optionalDependencies++
+      if (!occurrence.devOnly && !occurrence.optionalOnly) dependencies++
       return
     }
     const wasProduction = !state.devOnly && !state.optionalOnly
-    if (state.devOnly && !o.devOnly) {
+    if (state.devOnly && !occurrence.devOnly) {
       state.devOnly = false
       devDependencies--
     }
-    if (state.optionalOnly && !o.optionalOnly) {
+    if (state.optionalOnly && !occurrence.optionalOnly) {
       state.optionalOnly = false
       optionalDependencies--
     }
@@ -393,8 +393,8 @@ function createReachableVulnerabilitiesGetter (
             addAll(shared, own)
           }
         } while (member !== edge.depPath)
-        for (const m of members) {
-          memo.set(m, shared!)
+        for (const sccMember of members) {
+          memo.set(sccMember, shared!)
         }
       }
 
@@ -450,7 +450,7 @@ function parseVulnerabilityKey (key: string): { name: string, version: string, d
   return { name, version, depPath: depPath as DepPath }
 }
 
-function addAll<T> (target: Set<T>, source: Set<T>): void {
+function addAll<Item> (target: Set<Item>, source: Set<Item>): void {
   for (const value of source) {
     target.add(value)
   }

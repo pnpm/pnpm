@@ -128,10 +128,10 @@ function normalizeRuntimeSpec (versionSpec: string): string {
 }
 
 function parseAssetName (name: string): PlatformAssetTarget[] | null {
-  const m = ASSET_REGEX.exec(name)
-  if (!m?.groups) return null
-  const os = OS_MAP[m.groups.os as keyof typeof OS_MAP]
-  const cpu = CPU_MAP[m.groups.cpu as keyof typeof CPU_MAP]
+  const assetMatch = ASSET_REGEX.exec(name)
+  if (!assetMatch?.groups) return null
+  const os = OS_MAP[assetMatch.groups.os as keyof typeof OS_MAP]
+  const cpu = CPU_MAP[assetMatch.groups.cpu as keyof typeof CPU_MAP]
   const targets = [{ os, cpu }]
   if (os === 'win32' && cpu === 'x64') {
     // The Windows x64 binaries of Deno are compatible with arm64 architecture.
@@ -150,9 +150,9 @@ async function fetchSha256 (fetch: FetchFromRegistry, url: string): Promise<stri
     throw new PnpmError('DENO_GITHUB_FAILURE', `Failed to GET sha256 at ${url}`)
   }
   const txt = await response.text()
-  const m = txt.match(/([a-f0-9]{64})/i)
-  if (!m) {
+  const hashMatch = txt.match(/([a-f0-9]{64})/i)
+  if (!hashMatch) {
     throw new PnpmError('DENO_PARSE_HASH', `No SHA256 in ${url}`)
   }
-  return m[1].toLowerCase()
+  return hashMatch[1].toLowerCase()
 }

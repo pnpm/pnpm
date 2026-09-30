@@ -76,11 +76,11 @@ async function resolveFromCustomResolvers (
     // Skip custom resolvers that don't support both canResolve and resolve
     if (!customResolver.canResolve || !customResolver.resolve) continue
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the first custom resolver that accepts the dependency wins, so they are tried in order
     const canResolve = await checkCustomResolverCanResolve(customResolver, wantedDependency)
 
     if (canResolve) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the first custom resolver that accepts the dependency wins, so they are tried in order
       const result = await customResolver.resolve(wantedDependency, {
         lockfileDir: opts.lockfileDir,
         projectDir: opts.projectDir,

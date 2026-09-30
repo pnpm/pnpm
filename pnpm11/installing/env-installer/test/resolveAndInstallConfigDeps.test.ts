@@ -351,7 +351,7 @@ test('emits installing-config-deps events only when work is needed', async () =>
   const firstRunEvents = takeConfigDepEvents()
 
   expect(firstRunEvents.map(e => e.status)).toEqual(['started', 'done'])
-  expect(firstRunEvents.find(e => e.status === 'done')?.deps).toEqual([
+  expect(firstRunEvents.find(event => event.status === 'done')?.deps).toEqual([
     { name: '@pnpm.e2e/foo', version: '100.0.0' },
   ])
 

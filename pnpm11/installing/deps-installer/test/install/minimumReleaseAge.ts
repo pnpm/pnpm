@@ -89,7 +89,7 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
 
 test('strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts', async () => {
   // Pre-refactor strict mode threw at the resolver on the first immature
-  // pick (forcing a discover-by-loop dance, #10488). With always-defer the
+  // pick (forcing a discover-by-loop dance, pnpm/pnpm#10488). With always-defer the
   // resolver records every immature pick inline; the install command (here
   // simulated via the hook) decides what to do once it has the full set.
   prepareEmpty()
@@ -98,7 +98,7 @@ test('strict minimumReleaseAge surfaces every immature pick via handleResolution
   await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     handleResolutionPolicyViolations: async (violations) => {
-      for (const v of violations) seen.push(`${v.name}@${v.version}`)
+      for (const violation of violations) seen.push(`${violation.name}@${violation.version}`)
       throw new Error('immature picks rejected')
     },
   })).rejects.toThrow(/immature picks rejected/)
@@ -143,7 +143,7 @@ test('a subdependency newer than the time-based cutoff but mature under minimumR
       overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
     }),
     handleResolutionPolicyViolations: async (found) => {
-      violations.push(...found.map((v) => `${v.name}@${v.version}`))
+      violations.push(...found.map((violation) => `${violation.name}@${violation.version}`))
     },
   })
 
@@ -162,7 +162,7 @@ test('a subdependency newer than minimumReleaseAge is reported against the minim
       overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
     }),
     handleResolutionPolicyViolations: async (found) => {
-      reasons.push(...found.map((v) => `${v.name}@${v.version} ${v.reason}`))
+      reasons.push(...found.map((violation) => `${violation.name}@${violation.version} ${violation.reason}`))
     },
   })
 
@@ -483,7 +483,7 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
   // range) treating it as fully trusted. The verifier short-circuits on the
   // excluded entry, so it doesn't end up in the violations array — otherwise
   // every install would re-add the same exclude entry the user just dismissed.
-  expect(result.resolutionPolicyViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
+  expect(result.resolutionPolicyViolations.find((violation) => violation.name === 'is-odd')).toBeUndefined()
 })
 
 test('handleResolutionPolicyViolations throwing aborts the install before the lockfile is written', async () => {
@@ -527,7 +527,7 @@ test('handleResolutionPolicyViolations approval lets the install proceed cleanly
       // The real install command would inspect the violations and run
       // an enquirer prompt here. The test just confirms the hook gets a
       // full set and returns to approve.
-      expect(violations.some((v) => v.name === 'is-odd' && v.version === '0.1.0')).toBe(true)
+      expect(violations.some((violation) => violation.name === 'is-odd' && violation.version === '0.1.0')).toBe(true)
     },
   })
 

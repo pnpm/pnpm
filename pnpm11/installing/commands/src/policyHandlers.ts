@@ -113,7 +113,7 @@ export function setupPolicyHandlers (opts: PolicyHandlersOptions): PolicyHandler
       // throw to short-circuit before later handlers ask for input.
       for (const handler of handlers) {
         if (handler.handleResolutionPolicyViolations) {
-          // eslint-disable-next-line no-await-in-loop
+          // eslint-disable-next-line no-await-in-loop -- handlers prompt in turn, so each must finish before the next starts
           await handler.handleResolutionPolicyViolations(violations)
         }
       }
@@ -147,7 +147,7 @@ export function setupPolicyHandlers (opts: PolicyHandlersOptions): PolicyHandler
  * surfaces the full set of immature picks (direct AND transitive) at
  * once via a confirm prompt — the install proceeds if the user
  * approves, otherwise it aborts before touching the lockfile or
- * package.json (#10488). Strict mode in CI or any other non-TTY
+ * package.json (pnpm/pnpm#10488). Strict mode in CI or any other non-TTY
  * context aborts hard with the same violation list so the failure
  * pinpoints every offending entry, not just the first one the
  * resolver picked.
@@ -200,9 +200,9 @@ function createMinimumReleaseAgeHandler (opts: PolicyHandlersOptions): PolicyHan
 
 function filterImmatureViolations (violations: readonly PolicyViolation[]): PolicyViolation[] {
   const seen = new Set<string>()
-  return violations.filter((v) => {
-    if (v.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return false
-    const key = `${v.name}@${v.version}`
+  return violations.filter((violation) => {
+    if (violation.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return false
+    const key = `${violation.name}@${violation.version}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -220,7 +220,7 @@ function pickImmatureEntries (
   // entries that actually land in pnpm-workspace.yaml even when multiple
   // immature versions belong to the same package. The pre-sort keeps the
   // cross-package order stable regardless of resolution order.
-  const entries = mergePackageVersionSpecs(immature.map((v) => `${v.name}@${v.version}`).sort())
+  const entries = mergePackageVersionSpecs(immature.map((violation) => `${violation.name}@${violation.version}`).sort())
   // Strict-mode picks already passed through the approval prompt, so
   // the log here only confirms what was persisted. Loose-mode picks
   // haven't been announced anywhere else, so the same log doubles as
@@ -237,7 +237,7 @@ function pickImmatureEntries (
 
 function failOnImmature (immature: readonly PolicyViolation[]): PnpmError {
   const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
-  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}`).join('\n')
+  const list = sorted.map((violation) => `  ${violation.name}@${violation.version} ${violation.reason}`).join('\n')
   return new PnpmError(
     'NO_MATURE_MATCHING_VERSION',
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n${list}`,
@@ -253,7 +253,7 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
   const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
   const message =
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n` +
-    sorted.map((v) => `  ${v.name}@${v.version}`).join('\n') + '\n' +
+    sorted.map((violation) => `  ${violation.name}@${violation.version}`).join('\n') + '\n' +
     'Add to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?'
   let confirmed: boolean
   // Pause the default reporter's redraws while the prompt is open (see promptLogger).

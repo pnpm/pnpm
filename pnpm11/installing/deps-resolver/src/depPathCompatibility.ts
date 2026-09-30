@@ -25,8 +25,8 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 // unrelated leaf packages (both with empty sets) would count as compatible.
 // A pair reached twice is taken as compatible, which is what terminates
 // dependency cycles.
-export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
+export function isCompatibleAndHasMoreDeps<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   depPath1: DepPath,
   depPath2: DepPath
 ): boolean {

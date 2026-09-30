@@ -212,7 +212,7 @@ function gitHostedTarballRepoUrl (tarballUrl: string): string | undefined {
     const match = /^https:\/\/bitbucket\.org\/([^/]+)\/([^/]+)\/get\//.exec(tarballUrl)
     return match == null ? undefined : `git+https://bitbucket.org/${match[1]}/${match[2]}.git`
   }
-  // GitLab (incl. self-hosted): https://<host>/<group…>/<repo>/-/archive/<ref>/…
+  // GitLab (incl. self-hosted): https://<host>/<group...>/<repo>/-/archive/<ref>/...
   // The project path may contain nested groups, so match up to the
   // `/-/archive/<ref>/` marker rather than a fixed number of path segments.
   const match = /^https:\/\/([^/]+)\/(.+?)\/-\/archive\/[^/]+\//.exec(tarballUrl)

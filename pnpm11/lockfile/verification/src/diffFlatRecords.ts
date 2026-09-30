@@ -21,7 +21,7 @@ export interface Diff<Key, Value> {
 export function diffFlatRecords<Key extends string | number | symbol, Value> (
   left: Record<Key, Value>,
   right: Record<Key, Value>,
-  areValuesEqual: (left: Value, right: Value) => boolean = (a, b) => a === b
+  areValuesEqual: (left: Value, right: Value) => boolean = (leftValue, rightValue) => leftValue === rightValue
 ): Diff<Key, Value> {
   const result: Diff<Key, Value> = {
     added: [],

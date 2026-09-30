@@ -10,8 +10,8 @@ test('installing aliased dependency', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('negative')
-  expect(typeof m).toBe('function')
+  const moduleExports = project.requireModule('negative')
+  expect(typeof moduleExports).toBe('function')
   expect(typeof project.requireModule('positive')).toBe('function')
 
   expect(project.readLockfile()).toStrictEqual({

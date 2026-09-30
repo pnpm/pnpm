@@ -15,7 +15,7 @@ import { writeYamlFile } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const resolvePathAsUrl = (...paths: string[]): string => url.pathToFileURL(path.resolve(...paths)).toString()
 
@@ -941,7 +941,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     preparedManifests['project-1'],
   ])
 
-  f.copy('is-positive.patch', '__patches__/is-positive.patch')
+  testFixtures.copy('is-positive.patch', '__patches__/is-positive.patch')
 
   // patchedDependencies with relative paths (as from pnpm-workspace.yaml)
   const patchedDependenciesRelative = {

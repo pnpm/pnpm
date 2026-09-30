@@ -334,6 +334,18 @@ To ensure your code adheres to the style guide, run:
 pnpm run lint
 ```
 
+### Size and shape limits
+
+`@pnpm/eslint-config` ports the perfectionist rules that the Rust workspace enforces through [`dylint.toml`](./dylint.toml), with the same limits:
+
+-   A function body has at most 40 lines of code, a cognitive complexity of at most 10, at most 3 levels of nesting, and at most 12 distinct local names.
+-   A condition has at most 5 `&&` or `||` operators, and a method chain has at most 9 calls.
+-   A production file has at most 400 lines of code.
+-   Variables, parameters, and type parameters have descriptive names, not single letters.
+-   Every `eslint-disable` directive gives a reason after `--`.
+
+Tests are exempt from the length, local-name, and chain limits, as they are in Rust. Meet a limit by refactoring, not by disabling the rule: extract a helper named for what it does, return early, or name a predicate. Packages that do not pass the size limits yet are listed in `PENDING_SIZE_AND_SHAPE_REFACTOR` in [`eslint.config.mjs`](./eslint.config.mjs). When you refactor a package to pass them, remove it from that list.
+
 ### Conventions
 
 Recurring engineering conventions in this codebase — the rules reviewers most often enforce:

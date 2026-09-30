@@ -44,7 +44,7 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
     return []
   }
 
-  const fixable = advisories.filter(({ patched_versions: p }) => p != null)
+  const fixable = advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
   if (fixable.length === 0) {
     return []
   }

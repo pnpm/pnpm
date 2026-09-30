@@ -14,8 +14,8 @@ import type {
   ProjectToResolve,
 } from './resolvePeers.js'
 
-export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
-  depGraph: GenericDependenciesGraphWithResolvedChildren<T>
+export interface DedupeInjectedDepsOptions<Pkg extends PartialResolvedPackage> {
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
   dependenciesByProjectId: DependenciesByProjectId
   lockfileDir: string
   pathsByNodeId: Map<NodeId, DepPath>
@@ -24,8 +24,8 @@ export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
   workspaceProjectIds: Set<string>
 }
 
-export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
-  opts: DedupeInjectedDepsOptions<T>
+export function dedupeInjectedDeps<Pkg extends PartialResolvedPackage> (
+  opts: DedupeInjectedDepsOptions<Pkg>
 ): void {
   const injectedDepsByProjects = getInjectedDepsByProjects(opts)
   const dedupeMap = getDedupeMap(injectedDepsByProjects, opts)
@@ -34,8 +34,8 @@ export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
 
 type InjectedDepsByProjects = Map<string, Map<string, { depPath: DepPath, id: string }>>
 
-function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
-  opts: Pick<DedupeInjectedDepsOptions<T>, 'projects' | 'pathsByNodeId' | 'depGraph' | 'workspaceProjectIds'>
+function getInjectedDepsByProjects<Pkg extends PartialResolvedPackage> (
+  opts: Pick<DedupeInjectedDepsOptions<Pkg>, 'projects' | 'pathsByNodeId' | 'depGraph' | 'workspaceProjectIds'>
 ): InjectedDepsByProjects {
   const injectedDepsByProjects = new Map<string, Map<string, { depPath: DepPath, id: string }>>()
   for (const project of opts.projects) {
@@ -54,9 +54,9 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
 
 type DedupeMap = Map<string, Map<string, string>>
 
-function getDedupeMap<T extends PartialResolvedPackage> (
+function getDedupeMap<Pkg extends PartialResolvedPackage> (
   injectedDepsByProjects: InjectedDepsByProjects,
-  opts: Pick<DedupeInjectedDepsOptions<T>, 'depGraph' | 'dependenciesByProjectId'>
+  opts: Pick<DedupeInjectedDepsOptions<Pkg>, 'depGraph' | 'dependenciesByProjectId'>
 ): DedupeMap {
   const toDedupe = new Map<string, Map<string, string>>()
   for (const [id, deps] of injectedDepsByProjects.entries()) {
@@ -105,9 +105,9 @@ function getDedupeMap<T extends PartialResolvedPackage> (
   return toDedupe
 }
 
-function applyDedupeMap<T extends PartialResolvedPackage> (
+function applyDedupeMap<Pkg extends PartialResolvedPackage> (
   dedupeMap: DedupeMap,
-  opts: Pick<DedupeInjectedDepsOptions<T>, 'dependenciesByProjectId' | 'resolvedImporters' | 'lockfileDir'>
+  opts: Pick<DedupeInjectedDepsOptions<Pkg>, 'dependenciesByProjectId' | 'resolvedImporters' | 'lockfileDir'>
 ): void {
   for (const [id, aliases] of dedupeMap.entries()) {
     for (const [alias, dedupedProjectId] of aliases.entries()) {

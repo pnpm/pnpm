@@ -186,8 +186,8 @@ export interface ResolveDependencyTreeResult {
   resolutionPolicyViolations: ResolutionPolicyViolation[]
 }
 
-export async function resolveDependencyTree<T> (
-  importers: Array<ImporterToResolveGeneric<T>>,
+export async function resolveDependencyTree<WantedDepExtraProps> (
+  importers: Array<ImporterToResolveGeneric<WantedDepExtraProps>>,
   opts: ResolveDependenciesOptions
 ): Promise<ResolveDependencyTreeResult> {
   const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
@@ -449,8 +449,8 @@ function getLockedDepPathByPkgId (lockfile: LockfileObject): Map<PkgResolutionId
  * to in this install. It is resolved ahead of the other dependencies because
  * each package's engines are checked when the package is requested.
  */
-async function resolveRootRuntimeNodeVersion<T> (
-  importers: Array<ImporterToResolveGeneric<T>>,
+async function resolveRootRuntimeNodeVersion<WantedDepExtraProps> (
+  importers: Array<ImporterToResolveGeneric<WantedDepExtraProps>>,
   opts: Pick<ResolveDependenciesOptions, 'lockfileDir' | 'storeController' | 'wantedLockfile'>
 ): Promise<string | undefined> {
   const locked = findLockedRootNodeRuntime(opts.wantedLockfile)

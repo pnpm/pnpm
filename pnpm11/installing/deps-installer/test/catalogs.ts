@@ -13,7 +13,7 @@ import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const originalModule = await import('@pnpm/logger')
 jest.unstable_mockModule('@pnpm/logger', () => {
@@ -1585,7 +1585,7 @@ describe('add', () => {
       dependencies: {},
     }])
     const projectDir = path.join(options.lockfileDir, 'project1')
-    f.copy('pkg-with-bundled-dependencies-1.0.0.tgz', path.join(projectDir, 'local-pkg-1.0.0.tgz'))
+    testFixtures.copy('pkg-with-bundled-dependencies-1.0.0.tgz', path.join(projectDir, 'local-pkg-1.0.0.tgz'))
 
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
@@ -2697,7 +2697,7 @@ describe('update', () => {
   // A named catalog whose name parses as a version (e.g. "express4-21") must not
   // have its update policy overridden. The "catalog:express4-21" reference in the
   // manifest carries no pinning of its own, so the "~" prefix from the catalog
-  // entry must be preserved instead of being widened to "^" (issue #10321).
+  // entry must be preserved instead of being widened to "^" (issue pnpm/pnpm#10321).
   test('update via install mutation preserves the ~ range of a version-like named catalog (issue #10321)', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',

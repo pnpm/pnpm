@@ -711,8 +711,8 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
     pnpmHomeDir: '',
   }, ['/build:.*/'])
 
-  const outputsA = serverA.getLines().map(x => Number.parseInt(x))
-  const outputsB = serverB.getLines().map(x => Number.parseInt(x))
+  const outputsA = serverA.getLines().map(line => Number.parseInt(line))
+  const outputsB = serverB.getLines().map(line => Number.parseInt(line))
 
   expect(Math.max(outputsA[0], outputsB[0]) < Math.min(outputsA[outputsA.length - 1], outputsB[outputsB.length - 1])).toBeTruthy()
 })
@@ -738,8 +738,8 @@ test('pnpm run with RegExp script selector should work sequentially with --works
     workspaceConcurrency: 1,
   }, ['/build:.*/'])
 
-  const outputsA = serverA.getLines().map(x => Number.parseInt(x))
-  const outputsB = serverB.getLines().map(x => Number.parseInt(x))
+  const outputsA = serverA.getLines().map(line => Number.parseInt(line))
+  const outputsB = serverB.getLines().map(line => Number.parseInt(line))
 
   expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
 })

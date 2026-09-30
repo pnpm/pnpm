@@ -1,5 +1,5 @@
 /**
- * https://github.com/snyk/nodejs-lockfile-parser/blob/master/lib/parsers/yarn-utils.ts
+ * https://github.com/snyk/nodejs-lockfile-parser/blob/a4557f0015d0299045997b454cea9e91da2501de/lib/parsers/yarn-utils.ts
  */
 import type { structUtils } from '@yarnpkg/core'
 

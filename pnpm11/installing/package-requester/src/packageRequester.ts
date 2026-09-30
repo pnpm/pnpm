@@ -163,7 +163,7 @@ async function resolveAndFetch (
     forceIgnoresPlatform?: boolean
     nodeVersion?: string
     pnpmVersion?: string
-    requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
+    requestsQueue: { add: <Result>(fn: () => Promise<Result>, opts: { priority: number }) => Promise<Result> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
     storeDir: string
@@ -490,7 +490,7 @@ function fetchToStore (
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
     requestsQueue: {
-      add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
+      add: <Result>(fn: () => Promise<Result>, opts: { priority: number }) => Promise<Result>
       counter: number
       concurrency: number
     }
@@ -518,7 +518,8 @@ function fetchToStore (
   if (!ctx.fetchingLocker.has(fetchingKey)) {
     const fetching = pDefer<PkgRequestFetchResult>()
 
-    doFetchToStore(filesIndexFile, fetching, target, resolution)
+    // doFetchToStore never rejects, its errors reject `fetching`.
+    void doFetchToStore(filesIndexFile, fetching, target, resolution)
 
     ctx.fetchingLocker.set(fetchingKey, {
       fetching: removeKeyOnFail(fetching.promise),
@@ -616,9 +617,9 @@ function fetchToStore (
     },
   }
 
-  async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
+  async function removeKeyOnFail<Result> (fetchingPromise: Promise<Result>): Promise<Result> {
     try {
-      return await p
+      return await fetchingPromise
     } catch (err: any) { // eslint-disable-line
       ctx.fetchingLocker.delete(fetchingKey)
       if (opts.onFetchError) {
@@ -861,7 +862,7 @@ async function fetcher (
       customFetchers,
       packageId,
     })
-    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any -- the picked fetcher is a union of fetchers, so its resolution parameter narrows to never
     return result
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({

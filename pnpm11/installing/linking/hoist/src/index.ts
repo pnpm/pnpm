@@ -16,24 +16,24 @@ import { isSubdir } from 'is-subdir'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
 
-export interface DependenciesGraphNode<T extends string> {
+export interface DependenciesGraphNode<NodeId extends string> {
   dir: string
-  children: Record<string, T>
+  children: Record<string, NodeId>
   optionalDependencies: Set<string>
   hasBin: boolean
   name: string
   depPath: DepPath
 }
 
-export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
+export type DependenciesGraph<NodeId extends string> = Record<NodeId, DependenciesGraphNode<NodeId>>
 
-export interface DirectDependenciesByImporterId<T extends string> {
-  [importerId: string]: Map<string, T>
+export interface DirectDependenciesByImporterId<NodeId extends string> {
+  [importerId: string]: Map<string, NodeId>
 }
 
 const hoistLogger = logger('hoist')
 
-export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
+export interface HoistOpts<NodeId extends string> extends GetHoistedDependenciesOpts<NodeId> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<(() => Promise<void>) | void>
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
@@ -41,7 +41,7 @@ export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<
   virtualStoreDirMaxLength: number
 }
 
-export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
+export async function hoist<NodeId extends string> (opts: HoistOpts<NodeId>): Promise<HoistedDependencies | null> {
   const initialResult = getHoistedDependencies(opts)
   // Ahead of the graph, so that a workspace project always wins the alias over an
   // equally named transitive dependency instead of whichever symlink lands first.
@@ -90,10 +90,10 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
   return hoistedDependencies
 }
 
-export interface GetHoistedDependenciesOpts<T extends string> {
-  graph: DependenciesGraph<T>
+export interface GetHoistedDependenciesOpts<NodeId extends string> {
+  graph: DependenciesGraph<NodeId>
   skipped: Set<DepPath>
-  directDepsByImporterId: DirectDependenciesByImporterId<T>
+  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
   importerIds?: ProjectId[]
   privateHoistPattern: string[]
   privateHoistedModulesDir: string
@@ -108,10 +108,10 @@ export interface HoistedWorkspaceProject {
   dir: string
 }
 
-export interface HoistWorkspacePackagesOpts<T extends string> {
+export interface HoistWorkspacePackagesOpts<NodeId extends string> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<(() => Promise<void>) | void>
-  directDepsByImporterId: DirectDependenciesByImporterId<T>
-  graph: DependenciesGraph<T>
+  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
+  graph: DependenciesGraph<NodeId>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
   occupiedAliases?: OccupiedAliases
   privateHoistedModulesDir: string
@@ -134,7 +134,7 @@ export interface HoistWorkspacePackagesOpts<T extends string> {
  * from the graph instead. A dependency with no node in the graph, a `workspace:`
  * link among them, claims nothing: the graph walk skips it too.
  */
-export async function hoistWorkspacePackages<T extends string> (opts: HoistWorkspacePackagesOpts<T>): Promise<HoistedDependencies> {
+export async function hoistWorkspacePackages<NodeId extends string> (opts: HoistWorkspacePackagesOpts<NodeId>): Promise<HoistedDependencies> {
   if (opts.hoistedWorkspacePackages == null) {
     await opts.beforeWorkspaceLinks?.({})
     return {}
@@ -328,9 +328,9 @@ interface OccupiedAliases {
   public: AliasIndex
 }
 
-function collectOccupiedAliases<T extends string> (
-  result: HoistGraphResult<T> | null,
-  directDepsByImporterId: DirectDependenciesByImporterId<T>
+function collectOccupiedAliases<NodeId extends string> (
+  result: HoistGraphResult<NodeId> | null,
+  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
 ): OccupiedAliases {
   const occupiedAliases: OccupiedAliases = {
     private: { aliases: new Set(), ancestors: new Set() },
@@ -389,9 +389,9 @@ async function removeWorkspaceLinkIfTarget (destination: string, target: string)
   if (resolvedTarget === target) await fs.promises.unlink(destination)
 }
 
-export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {
+export function getHoistedDependencies<NodeId extends string> (opts: GetHoistedDependenciesOpts<NodeId>): HoistGraphResult<NodeId> | null {
   if (Object.keys(opts.graph ?? {}).length === 0) return null
-  const rootDirectDeps = opts.directDepsByImporterId['.' as ProjectId] ?? new Map<string, T>()
+  const rootDirectDeps = opts.directDepsByImporterId['.' as ProjectId] ?? new Map<string, NodeId>()
   const privateRootAliases = isSubdir(path.dirname(opts.publicHoistedModulesDir), opts.privateHoistedModulesDir)
     ? new Set<string>()
     : new Set(Array.from(rootDirectDeps.keys()).filter(createMatcher(opts.privateHoistPattern)))
@@ -399,7 +399,7 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
     opts.graph,
     opts.directDepsByImporterId
   )
-  const deps: Array<Dependency<T>> = [
+  const deps: Array<Dependency<NodeId>> = [
     {
       children: directDeps
         .reduce((acc, { alias, nodeId }) => {
@@ -407,8 +407,8 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
             acc[alias] = nodeId
           }
           return acc
-        }, privateRootAliases.size > 0 ? Object.fromEntries(rootDirectDeps) : {} as Record<string, T>),
-      nodeId: '' as T,
+        }, privateRootAliases.size > 0 ? Object.fromEntries(rootDirectDeps) : {} as Record<string, NodeId>),
+      nodeId: '' as NodeId,
       depth: -1,
     },
     ...getDependencies(0, step),
@@ -468,12 +468,12 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions): Promi
   }
 }
 
-function getDependencies<T extends string> (
+function getDependencies<NodeId extends string> (
   depth: number,
-  step: GraphWalkerStep<T>
-): Array<Dependency<T>> {
-  const deps: Array<Dependency<T>> = []
-  const nextSteps: Array<GraphWalkerStep<T>> = []
+  step: GraphWalkerStep<NodeId>
+): Array<Dependency<NodeId>> {
+  const deps: Array<Dependency<NodeId>> = []
+  const nextSteps: Array<GraphWalkerStep<NodeId>> = []
   for (const { node, nodeId, next } of step.dependencies) {
     deps.push({
       children: node.children,
@@ -492,53 +492,53 @@ function getDependencies<T extends string> (
 
   return [
     ...deps,
-    ...(nextSteps.flatMap(getDependencies.bind(null, depth + 1)) as Array<Dependency<T>>),
+    ...(nextSteps.flatMap(getDependencies.bind(null, depth + 1)) as Array<Dependency<NodeId>>),
   ]
 }
 
-export interface Dependency<T extends string> {
-  children: Record<string, T>
-  nodeId: T
+export interface Dependency<NodeId extends string> {
+  children: Record<string, NodeId>
+  nodeId: NodeId
   depth: number
 }
 
-interface HoistGraphResult<T extends string> {
+interface HoistGraphResult<NodeId extends string> {
   hoistedDependencies: HoistedDependencies
-  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<NodeId>
   hoistedAliasesWithBins: string[]
 }
 
-type HoistedDependenciesByNodeId<T extends string> = Map<T, Record<string, 'public' | 'private'>>
+type HoistedDependenciesByNodeId<NodeId extends string> = Map<NodeId, Record<string, 'public' | 'private'>>
 
-function hoistGraph<T extends string> (
-  depNodes: Array<Dependency<T>>,
-  currentSpecifiers: Map<string, T>,
+function hoistGraph<NodeId extends string> (
+  depNodes: Array<Dependency<NodeId>>,
+  currentSpecifiers: Map<string, NodeId>,
   opts: {
     getAliasHoistType: GetAliasHoistType
     privateRootAliases: Set<string>
-    graph: DependenciesGraph<T>
+    graph: DependenciesGraph<NodeId>
     reservedAliases?: Iterable<string>
     skipped: Set<DepPath>
   }
-): HoistGraphResult<T> {
+): HoistGraphResult<NodeId> {
   const hoistedAliases = new Set([
     ...Array.from(currentSpecifiers.keys()).filter(alias => !opts.privateRootAliases.has(alias)),
     ...opts.reservedAliases ?? [],
   ].map(alias => alias.toLowerCase()))
   const hoistedDependencies: HoistedDependencies = Object.create(null)
-  const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
+  const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<NodeId> = new Map()
   const hoistedAliasesWithBins = new Set<string>()
 
   depNodes
     // sort by depth and then alphabetically
-    .sort((a, b) => {
-      const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? lexCompare(a.nodeId, b.nodeId) : depthDiff
+    .sort((left, right) => {
+      const depthDiff = left.depth - right.depth
+      return depthDiff === 0 ? lexCompare(left.nodeId, right.nodeId) : depthDiff
     })
     // build the alias map and the id map
     .forEach((depNode) => {
-      for (const [childAlias, childNodeId] of Object.entries<T>(depNode.children)) {
-        const node = opts.graph[childNodeId as T]
+      for (const [childAlias, childNodeId] of Object.entries<NodeId>(depNode.children)) {
+        const node = opts.graph[childNodeId as NodeId]
         const hoist = getChildHoistType(childAlias, childNodeId, node)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
@@ -570,7 +570,7 @@ function hoistGraph<T extends string> (
     hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins),
   }
 
-  function getChildHoistType (childAlias: string, childNodeId: T, node: DependenciesGraphNode<T> | undefined): 'public' | 'private' | false {
+  function getChildHoistType (childAlias: string, childNodeId: NodeId, node: DependenciesGraphNode<NodeId> | undefined): 'public' | 'private' | false {
     if (!opts.privateRootAliases.has(childAlias)) return opts.getAliasHoistType(childAlias)
     // Only the root's own version of a root dependency may take its alias, and a skipped one keeps it reserved.
     if (currentSpecifiers.get(childAlias) !== childNodeId) return false
@@ -579,10 +579,10 @@ function hoistGraph<T extends string> (
   }
 }
 
-async function symlinkHoistedDependencies<T extends string> (
-  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>,
+async function symlinkHoistedDependencies<NodeId extends string> (
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<NodeId>,
   opts: {
-    graph: DependenciesGraph<T>
+    graph: DependenciesGraph<NodeId>
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
@@ -669,14 +669,14 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
   let retries = 0
   while (true) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- each attempt runs only after the previous one lost a race
       await symlinkDir(depLocation, dest, { overwrite: false })
       break
     } catch (err: unknown) {
       if (!isError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
       let winningTarget: string
       try {
-        // eslint-disable-next-line no-await-in-loop
+        // eslint-disable-next-line no-await-in-loop -- the winning link is read to decide whether to retry
         winningTarget = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
       } catch (readError: unknown) {
         retries += 1
@@ -685,11 +685,11 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
           if (readError.code === 'EINVAL') {
             // macOS can report EINVAL when a concurrent unlink interrupts readlink.
             try {
-              // eslint-disable-next-line no-await-in-loop
+              // eslint-disable-next-line no-await-in-loop -- the link state is inspected to decide whether to retry
               const stat = await fs.promises.lstat(dest)
-              // eslint-disable-next-line no-await-in-loop
+              // eslint-disable-next-line no-await-in-loop -- the link state is inspected to decide whether to retry
               if ((stat.isSymbolicLink() || await mayBeJunctionInCreation(dest, stat)) && retries <= 100) {
-                // eslint-disable-next-line no-await-in-loop
+                // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
                 await delay(1)
                 continue
               }
@@ -729,16 +729,16 @@ async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<b
   return (await fs.promises.lstat(dest)).isSymbolicLink()
 }
 
-export function graphWalker<T extends string> (
-  graph: DependenciesGraph<T>,
-  directDepsByImporterId: DirectDependenciesByImporterId<T>,
+export function graphWalker<NodeId extends string> (
+  graph: DependenciesGraph<NodeId>,
+  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>,
   opts?: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<DepPath>
   }
-): GraphWalker<T> {
-  const startNodeIds = [] as T[]
-  const allDirectDeps = [] as Array<{ alias: string, nodeId: T }>
+): GraphWalker<NodeId> {
+  const startNodeIds = [] as NodeId[]
+  const allDirectDeps = [] as Array<{ alias: string, nodeId: NodeId }>
 
   for (const directDeps of Object.values(directDepsByImporterId)) {
     for (const [alias, nodeId] of directDeps.entries()) {
@@ -748,7 +748,7 @@ export function graphWalker<T extends string> (
       allDirectDeps.push({ alias, nodeId })
     }
   }
-  const visited = new Set<T>()
+  const visited = new Set<NodeId>()
   return {
     directDeps: allDirectDeps,
     step: makeStep({
@@ -760,16 +760,16 @@ export function graphWalker<T extends string> (
   }
 }
 
-function makeStep<T extends string> (
+function makeStep<NodeId extends string> (
   ctx: {
     includeOptionalDependencies: boolean
-    graph: DependenciesGraph<T>
-    visited: Set<T>
+    graph: DependenciesGraph<NodeId>
+    visited: Set<NodeId>
     skipped?: Set<DepPath>
   },
-  nextNodeIds: T[]
-): GraphWalkerStep<T> {
-  const result: GraphWalkerStep<T> = {
+  nextNodeIds: NodeId[]
+): GraphWalkerStep<NodeId> {
+  const result: GraphWalkerStep<NodeId> = {
     dependencies: [],
     links: [],
     missing: [],
@@ -792,18 +792,18 @@ function makeStep<T extends string> (
     if (ctx.skipped?.has(node.depPath)) continue
     result.dependencies.push({
       nodeId,
-      next: () => makeStep<T>(ctx, _next(node) as T[]),
+      next: () => makeStep<NodeId>(ctx, _next(node) as NodeId[]),
       node,
     })
   }
   return result
 }
 
-function collectChildNodeIds<T extends string> (opts: { includeOptionalDependencies: boolean }, nextPkg: DependenciesGraphNode<T>): T[] {
+function collectChildNodeIds<NodeId extends string> (opts: { includeOptionalDependencies: boolean }, nextPkg: DependenciesGraphNode<NodeId>): NodeId[] {
   if (opts.includeOptionalDependencies) {
     return Object.values(nextPkg.children)
   } else {
-    const nextNodeIds: T[] = []
+    const nextNodeIds: NodeId[] = []
     for (const [alias, nodeId] of Object.entries(nextPkg.children)) {
       if (!nextPkg.optionalDependencies.has(alias)) {
         nextNodeIds.push(nodeId)
@@ -813,22 +813,22 @@ function collectChildNodeIds<T extends string> (opts: { includeOptionalDependenc
   }
 }
 
-export interface GraphWalker<T extends string> {
+export interface GraphWalker<NodeId extends string> {
   directDeps: Array<{
     alias: string
-    nodeId: T
+    nodeId: NodeId
   }>
-  step: GraphWalkerStep<T>
+  step: GraphWalkerStep<NodeId>
 }
 
-export interface GraphWalkerStep<T extends string> {
-  dependencies: Array<GraphDependency<T>>
+export interface GraphWalkerStep<NodeId extends string> {
+  dependencies: Array<GraphDependency<NodeId>>
   links: string[]
   missing: string[]
 }
 
-export interface GraphDependency<T extends string> {
-  nodeId: T
-  node: DependenciesGraphNode<T>
-  next: () => GraphWalkerStep<T>
+export interface GraphDependency<NodeId extends string> {
+  nodeId: NodeId
+  node: DependenciesGraphNode<NodeId>
+  next: () => GraphWalkerStep<NodeId>
 }

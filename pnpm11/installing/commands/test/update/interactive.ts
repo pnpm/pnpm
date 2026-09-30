@@ -73,7 +73,7 @@ test('global interactive update handles an empty global directory', async () => 
     global: true,
     globalPkgDir: globalDir,
     interactive: true,
-  } as any)).resolves.toBe('No global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any)).resolves.toBe('No global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   expect(mockCheckbox).not.toHaveBeenCalled()
 })
 
@@ -94,7 +94,7 @@ test('global interactive update reads current versions from the global virtual s
     storeDir,
   }
 
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
   mockCheckbox.mockResolvedValue([])
 
@@ -102,7 +102,7 @@ test('global interactive update reads current versions from the global virtual s
     ...options,
     interactive: true,
     latest: true,
-  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
 
   expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
     choices: [{
@@ -118,7 +118,7 @@ test('global interactive update offers a matching group even when the requested 
 
   await addDistTag({ package: '@pnpm.e2e/multi-version-b', version: '3.1.0', distTag: 'latest' })
   // One comma-joined param installs both packages into a single group.
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0,@pnpm.e2e/multi-version-b@3.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0,@pnpm.e2e/multi-version-b@3.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
   mockCheckbox.mockClear()
   mockCheckbox.mockResolvedValue([])
@@ -127,7 +127,7 @@ test('global interactive update offers a matching group even when the requested 
     ...options,
     interactive: true,
     latest: true,
-  } as any, ['@pnpm.e2e/multi-version-b']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['@pnpm.e2e/multi-version-b']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
 
   expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
     choices: [{
@@ -141,14 +141,14 @@ test('global interactive update reports when no group has the requested package'
   prepare()
   const options = globalOptions()
 
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   mockCheckbox.mockClear()
 
   await expect(update.handler({
     ...options,
     interactive: true,
     latest: true,
-  } as any, ['@pnpm.e2e/multi-version-c'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['@pnpm.e2e/multi-version-c'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   expect(mockCheckbox).not.toHaveBeenCalled()
 })
 
@@ -159,7 +159,7 @@ test('global interactive update reads current versions when the lockfile setting
   prepare()
   const options = { ...globalOptions(), useLockfile: false }
 
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
   mockCheckbox.mockClear()
   mockCheckbox.mockResolvedValue([])
@@ -168,7 +168,7 @@ test('global interactive update reads current versions when the lockfile setting
     ...options,
     interactive: true,
     latest: true,
-  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
 
   expect(mockCheckbox).toHaveBeenCalledWith(expect.objectContaining({
     choices: [{
@@ -182,14 +182,14 @@ test('global interactive update does not match a group on an inherited Object ke
   prepare()
   const options = globalOptions()
 
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   mockCheckbox.mockClear()
 
   await expect(update.handler({
     ...options,
     interactive: true,
     latest: true,
-  } as any, ['constructor'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['constructor'])).resolves.toBe('No matching global packages found') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   expect(mockCheckbox).not.toHaveBeenCalled()
 })
 
@@ -197,7 +197,7 @@ test('global interactive update leaves without an error when the prompt is cance
   prepare()
   const options = globalOptions()
 
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
   const canceled = new Error('User force closed the prompt')
   canceled.name = 'ExitPromptError'
@@ -215,7 +215,7 @@ test('global interactive update leaves without an error when the prompt is cance
       ...options,
       interactive: true,
       latest: true,
-    } as any)).rejects.toBe(exited) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any)).rejects.toBe(exited) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
     expect(exitSpy).toHaveBeenCalledWith(0)
   } finally {
     exitSpy.mockRestore()
@@ -281,7 +281,7 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the prompt theme types highlight as a partial style object, but the test calls it
   const callArgs = mockCheckbox.mock.calls[0][0] as any
   const flatChoices = callArgs.choices
 
@@ -332,8 +332,7 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  // eslint-disable-next-line
-  const callArgs2 = mockCheckbox.mock.calls[0][0] as any
+  const callArgs2 = mockCheckbox.mock.calls[0][0]
   const flatChoices2 = callArgs2.choices
 
   expect(flatChoices2).toStrictEqual([
@@ -480,8 +479,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     },
   })
 
-  // eslint-disable-next-line
-  const callArgs3 = mockCheckbox.mock.calls[0][0] as any
+  const callArgs3 = mockCheckbox.mock.calls[0][0]
   const flatChoices3 = callArgs3.choices
 
   expect(flatChoices3).toStrictEqual(

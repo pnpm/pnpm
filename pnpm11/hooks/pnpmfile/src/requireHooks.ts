@@ -11,12 +11,12 @@ import { pathAbsolute } from 'path-absolute'
 import type { HookContext, Hooks } from './Hooks.js'
 import { type Finders, type Pnpmfile, requirePnpmfile } from './requirePnpmfile.js'
 
-// eslint-disable-next-line
-type Cook<T extends (...args: any[]) => any> = (
-  arg: Parameters<T>[0],
-  // eslint-disable-next-line
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a constraint matching every function type needs any parameters
+type Cook<Hook extends (...args: any[]) => any> = (
+  arg: Parameters<Hook>[0],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the cooked hook forwards whatever extra arguments the caller passes
   ...otherArgs: any[]
-) => ReturnType<T>
+) => ReturnType<Hook>
 
 interface PnpmfileEntry {
   path: string
@@ -106,7 +106,7 @@ export async function requireHooks (
         loadedEntry.includeInChecksum ||= includeInChecksum
         break
       }
-      const requirePnpmfileResult = await requirePnpmfile(file, prefix) // eslint-disable-line no-await-in-loop
+      const requirePnpmfileResult = await requirePnpmfile(file, prefix) // eslint-disable-line no-await-in-loop -- pnpmfiles must load in the listed order and a found candidate stops the fallback search
       if (requirePnpmfileResult != null) {
         entries.push({
           file,
@@ -202,7 +202,7 @@ export async function requireHooks (
     // updateConfig
     if (fileHooks.updateConfig) {
       const updateConfig = fileHooks.updateConfig
-      cookedHooks.updateConfig.push((config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      cookedHooks.updateConfig.push((config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any -- the config object comes from a user pnpmfile and has no fixed shape
         const updated = updateConfig(config)
         return updated instanceof Promise ? updated.then(assertConfigIsDefined) : assertConfigIsDefined(updated)
       })
@@ -266,15 +266,15 @@ function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger
   const from = 'pnpmfile'
   return {
     info: (message: string) => {
-      hookLogger.info({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      hookLogger.info({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the logger info and warn signatures accept only message and prefix, but the reporter reads hook and from too
     },
     warn: (message: string) => {
-      hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the logger info and warn signatures accept only message and prefix, but the reporter reads hook and from too
     },
   }
 }
 
-function assertConfigIsDefined<T> (config: T): T {
+function assertConfigIsDefined<Config> (config: Config): Config {
   if (config == null) {
     throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
   }

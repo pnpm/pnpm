@@ -34,7 +34,7 @@ const BASEDIR_ABS_LINE = 'basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) |
 const PRINTF_BASEDIR_LINE = String.raw`basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 beforeEach(() => {
   jest.mocked(binsConflictLogger.debug).mockClear()
@@ -64,7 +64,7 @@ function getExpectedBins (bins: string[]) {
 test('linkBins()', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
@@ -86,7 +86,7 @@ test('linkBins()', async () => {
 test('linkBins() skips bins that already reference the correct target', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
@@ -108,7 +108,7 @@ test('linkBins() skips bins that already reference the correct target', async ()
 
 test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own directories, then extraNodePaths', async () => {
   const warn = jest.fn()
-  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const modulesDir = path.join(testFixtures.prepare('simple-fixture'), 'node_modules')
   const hoisted = path.join(modulesDir, '.pnpm', 'node_modules')
 
   const binTarget = temporaryDirectory()
@@ -135,7 +135,7 @@ test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own 
 test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to its options', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const modulesDir = path.join(testFixtures.prepare('simple-fixture'), 'node_modules')
   const binLocation = path.join(binTarget, 'simple')
   const extraNodePaths = [path.join(modulesDir, '.pnpm', 'node_modules')]
   const projectModulesDir = path.join(modulesDir, '..', 'vendor')
@@ -167,7 +167,7 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
 test('linkBins() keeps an existing bin whose shim is larger than 4 KiB', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const modulesDir = path.join(testFixtures.prepare('simple-fixture'), 'node_modules')
   const binLocation = path.join(binTarget, 'simple')
   const extraNodePaths = [path.join(modulesDir, 'x'.repeat(2048))]
 
@@ -193,7 +193,7 @@ function nodePathEntries (shim: string): string[] {
 test('linkBins() replaces a shim that looks its helpers up on PATH', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -225,7 +225,7 @@ exec node  "$basedir/../simple/index.js" "$@"
 test('linkBins() replaces a shim that still pipes the path through echo', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -260,7 +260,7 @@ exec node  "$basedir/../simple/index.js" "$@"
 test('linkBins() replaces a shim that converts Windows paths with a helper from PATH', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -317,7 +317,7 @@ exec node  "$basedir/../simple/index.js" "$@"
 test('linkBins() replaces a shim that resolves its helpers with node_modules on PATH', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
   const helperPathFilterLine = '    */node_modules/*|*/node_modules) ;;\n'
 
@@ -341,7 +341,7 @@ test('linkBins() replaces a shim that resolves its helpers with node_modules on 
 test('linkBins() replaces a shim whose helpers have no PATH fallback', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -369,7 +369,7 @@ test('linkBins() replaces a shim whose helpers have no PATH fallback', async () 
 test('linkBins() replaces a shim whose relative target climbs from the lexical basedir', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -392,7 +392,7 @@ test('linkBins() replaces a shim whose relative target climbs from the lexical b
 test('linkBins() replaces a shim whose relative target does not match the physical bin directory', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -431,7 +431,7 @@ test('linkBins() computes a relative target from the physical bin directory when
 test('linkBins() keeps a shim whose size exceeds 4KB but stays within the shim size limit', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   fs.mkdirSync(binTarget, { recursive: true })
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
@@ -448,7 +448,7 @@ test('linkBins() keeps a shim whose size exceeds 4KB but stays within the shim s
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
@@ -462,7 +462,7 @@ testOnPosix('linkBins() repairs a non-executable source when the existing bin re
 testOnPosix('linkBins() keeps a correctly linked bin whose source file is missing', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
@@ -474,7 +474,7 @@ testOnPosix('linkBins() keeps a correctly linked bin whose source file is missin
 test('linkBins() rewrites bins that lack a target marker', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   // Create a stale bin without a cmd-shim-target marker
   fs.mkdirSync(binTarget, { recursive: true })
@@ -489,7 +489,7 @@ test('linkBins() rewrites bins that lack a target marker', async () => {
 
 test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('pnpm-cli')
+  const fixture = testFixtures.prepare('pnpm-cli')
   const warn = jest.fn()
 
   await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
@@ -501,7 +501,7 @@ test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => 
 
 test('linkBins() deletes a PowerShell shim left by an older install of the pnpm CLI', async () => {
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('pnpm-cli')
+  const fixture = testFixtures.prepare('pnpm-cli')
   const warn = jest.fn()
 
   fs.mkdirSync(binTarget, { recursive: true })
@@ -529,7 +529,7 @@ test('linkBins() deletes a PowerShell shim left by an older install of the pnpm 
 
 test('linkBins() finds exotic manifests', async () => {
   const binTarget = temporaryDirectory()
-  const exoticManifestFixture = f.prepare('exotic-manifest')
+  const exoticManifestFixture = testFixtures.prepare('exotic-manifest')
   const warn = jest.fn()
 
   await linkBins(path.join(exoticManifestFixture, 'node_modules'), binTarget, {
@@ -556,7 +556,7 @@ test('linkBins() do not fail on directory w/o manifest file', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
 
-  await linkBins(f.find('dir-with-no-manifest/node_modules'), binTarget, {
+  await linkBins(testFixtures.find('dir-with-no-manifest/node_modules'), binTarget, {
     allowExoticManifests: false,
     warn,
   })
@@ -568,7 +568,7 @@ test('linkBins() with exotic manifests do not fail on directory w/o manifest fil
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
 
-  await linkBins(f.find('dir-with-no-manifest/node_modules'), binTarget, {
+  await linkBins(testFixtures.find('dir-with-no-manifest/node_modules'), binTarget, {
     allowExoticManifests: true,
     warn,
   })
@@ -614,7 +614,7 @@ describe('linkBins() with a dependency linked to its publishConfig.directory', (
 })
 
 test('linkBins() does not link own bins', async () => {
-  const target = f.prepare('foobar')
+  const target = testFixtures.prepare('foobar')
 
   const warn = jest.fn()
   const modules = path.join(target, 'node_modules')
@@ -628,7 +628,7 @@ test('linkBins() does not link own bins', async () => {
 
 test('linkBinsOfPackages()', async () => {
   const binTarget = temporaryDirectory()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
   const linkedCommandNames = new Set<string>()
 
   await linkBinsOfPackages(
@@ -652,7 +652,7 @@ test('linkBinsOfPackages()', async () => {
 
 test('linkBinsOfPackages() matches excludeBins case-insensitively only on Windows', async () => {
   const binTarget = temporaryDirectory()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   await linkBinsOfPackages(
     [
@@ -670,7 +670,7 @@ test('linkBinsOfPackages() matches excludeBins case-insensitively only on Window
 
 test('linkBinsOfPkgsByAliases()', async () => {
   const binTarget = temporaryDirectory()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   await linkBinsOfPkgsByAliases(
     [],
@@ -700,7 +700,7 @@ test('linkBinsOfPkgsByAliases()', async () => {
 
 test('linkBins() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = temporaryDirectory()
-  const binNameConflictsFixture = f.prepare('bin-name-conflicts')
+  const binNameConflictsFixture = testFixtures.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
@@ -732,7 +732,7 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
 
 test('linkBins() resolves conflicts. Prefer packages whose name is greater in localeCompare', async () => {
   const binTarget = temporaryDirectory()
-  const binNameConflictsFixture = f.prepare('bin-name-conflicts-no-own-name')
+  const binNameConflictsFixture = testFixtures.prepare('bin-name-conflicts-no-own-name')
   const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
@@ -757,7 +757,7 @@ test('linkBins() resolves conflicts. Prefer packages whose name is greater in lo
 
 test('linkBins() resolves conflicts. Prefer the latest version of the same package', async () => {
   const binTarget = temporaryDirectory()
-  const binNameConflictsFixture = f.prepare('different-versions')
+  const binNameConflictsFixture = testFixtures.prepare('different-versions')
   const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
@@ -790,7 +790,7 @@ test('linkBins() resolves conflicts. Prefer the latest version of the same packa
 
 test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their name as bin name', async () => {
   const binTarget = temporaryDirectory()
-  const binNameConflictsFixture = f.prepare('bin-name-conflicts')
+  const binNameConflictsFixture = testFixtures.prepare('bin-name-conflicts')
 
   const modulesPath = path.join(binNameConflictsFixture, 'node_modules')
 
@@ -839,7 +839,7 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
 
 test('linkBinsOfPackages() resolves conflicts. Prefer the latest version', async () => {
   const binTarget = temporaryDirectory()
-  const binNameConflictsFixture = f.prepare('different-versions')
+  const binNameConflictsFixture = testFixtures.prepare('different-versions')
 
   const modulesPath = path.join(binNameConflictsFixture, 'node_modules')
 
@@ -893,7 +893,7 @@ test('linkBinsOfPackages() resolves conflicts. Prefer the latest version', async
 
 test('linkBins() resolves conflicts. Prefer packages are direct dependencies', async () => {
   const binTarget = temporaryDirectory()
-  const binNameConflictsFixture = f.prepare('bin-name-conflicts')
+  const binNameConflictsFixture = testFixtures.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, {
@@ -925,7 +925,7 @@ test('linkBins() resolves conflicts. Prefer packages are direct dependencies', a
 
 test('linkBins() would throw error if package has no name field', async () => {
   const binTarget = temporaryDirectory()
-  const noNameFixture = f.prepare('no-name')
+  const noNameFixture = testFixtures.prepare('no-name')
   const warn = jest.fn()
   const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
 
@@ -943,7 +943,7 @@ test('linkBins() would throw error if package has no name field', async () => {
 
 test('linkBins() would give warning if package has no bin field', async () => {
   const binTarget = temporaryDirectory()
-  const noBinFixture = f.prepare('no-bin')
+  const noBinFixture = testFixtures.prepare('no-bin')
   const warn = jest.fn()
 
   await linkBins(path.join(noBinFixture, 'packages'), binTarget, {
@@ -957,7 +957,7 @@ test('linkBins() would give warning if package has no bin field', async () => {
 
 test('linkBins() would not give warning if package has no bin field but inside node_modules', async () => {
   const binTarget = temporaryDirectory()
-  const noBinFixture = f.prepare('no-bin')
+  const noBinFixture = testFixtures.prepare('no-bin')
   const warn = jest.fn()
 
   await linkBins(path.join(noBinFixture, 'node_modules'), binTarget, {
@@ -971,14 +971,14 @@ test('linkBins() would not give warning if package has no bin field but inside n
 test('linkBins() links commands from bin directory with a subdirectory', async () => {
   const binTarget = temporaryDirectory()
 
-  await linkBins(f.find('bin-dir'), binTarget, { warn: () => {} })
+  await linkBins(testFixtures.find('bin-dir'), binTarget, { warn: () => {} })
 
   expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['index.js']))
 })
 
 test('linkBins() fix window shebang line', async () => {
   const binTarget = temporaryDirectory()
-  const windowShebangFixture = f.prepare('bin-window-shebang')
+  const windowShebangFixture = testFixtures.prepare('bin-window-shebang')
   const warn = jest.fn()
 
   await linkBins(path.join(windowShebangFixture, 'node_modules'), binTarget, { warn })
@@ -1012,7 +1012,7 @@ test('linkBins() fix window shebang line', async () => {
 
 test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {
   const binTarget = temporaryDirectory()
-  const binNotExistFixture = f.prepare('bin-not-exist')
+  const binNotExistFixture = testFixtures.prepare('bin-not-exist')
 
   await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, {
     allowExoticManifests: true,
@@ -1053,7 +1053,7 @@ test('linkBinsOfPackages() rewrites a shim written for a missing target once the
 
 test('linkBins() holds back a bin whose target is missing when holdBackMissingTargets is set', async () => {
   const binTarget = temporaryDirectory()
-  const binNotExistFixture = f.prepare('bin-not-exist')
+  const binNotExistFixture = testFixtures.prepare('bin-not-exist')
   const warn = () => {}
 
   const heldBackBinsDirs = new Set<string>()
@@ -1068,7 +1068,7 @@ test('linkBins() holds back a bin whose target is missing when holdBackMissingTa
 })
 
 test("linkBinsOfPackages() does not link a package's missing bin into its own .bin directory", async () => {
-  const binNotExistFixture = f.prepare('bin-not-exist')
+  const binNotExistFixture = testFixtures.prepare('bin-not-exist')
   const pkgDir = path.join(binNotExistFixture, 'node_modules', 'foo')
   const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
   const pkg = {
@@ -1142,7 +1142,7 @@ testOnWindows('linkBins() should remove an existing .exe file from the target di
   const binTarget = temporaryDirectory()
   fs.writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
   const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+  const simpleFixture = testFixtures.prepare('simple-fixture')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
@@ -1151,7 +1151,7 @@ testOnWindows('linkBins() should remove an existing .exe file from the target di
 
 test('linkBins() should handle bin field pointing to a directory gracefully', async () => {
   const binTarget = temporaryDirectory()
-  const binIsDirFixture = f.prepare('bin-is-directory')
+  const binIsDirFixture = testFixtures.prepare('bin-is-directory')
   const warn = jest.fn()
 
   await linkBins(path.join(binIsDirFixture, 'node_modules'), binTarget, { warn })
@@ -1164,7 +1164,7 @@ describe('enable prefer-symlinked-executables', () => {
   test('linkBins()', async () => {
     const binTarget = temporaryDirectory()
     const warn = jest.fn()
-    const simpleFixture = f.prepare('simple-fixture')
+    const simpleFixture = testFixtures.prepare('simple-fixture')
     const sourceFile = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
       fs.chmodSync(sourceFile, 0o700)
@@ -1198,7 +1198,7 @@ describe('enable prefer-symlinked-executables', () => {
 
   test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {
     const binTarget = temporaryDirectory()
-    const binNotExistFixture = f.prepare('bin-not-exist')
+    const binNotExistFixture = testFixtures.prepare('bin-not-exist')
 
     await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, {
       allowExoticManifests: true,
@@ -1401,7 +1401,7 @@ describe('node binary linking', () => {
 
 test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)', async () => {
   const binTarget = temporaryDirectory()
-  const binOwnerOverrideFixture = f.prepare('bin-owner-override')
+  const binOwnerOverrideFixture = testFixtures.prepare('bin-owner-override')
   const warn = jest.fn()
 
   await linkBins(binOwnerOverrideFixture, binTarget, { warn })
@@ -1500,7 +1500,7 @@ describe('generated POSIX shim resolves its helpers off the caller\'s PATH', () 
 
     const decoyDir = path.join(projectDir, 'decoy')
     fs.mkdirSync(decoyDir)
-    const answer = (p: string) => `#!/bin/sh\necho '${p}'\n`
+    const answer = (output: string) => `#!/bin/sh\necho '${output}'\n`
     for (const helper of ['readlink', 'sed']) {
       writeExecutable(path.join(decoyDir, helper), answer(path.join(hijackBin, 'tsc')))
     }

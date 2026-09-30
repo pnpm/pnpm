@@ -177,7 +177,7 @@ async function readNodeAssets (
   // The mirror is repository-configurable, so the SHASUMS file's hashes are only
   // trustworthy once its OpenPGP signature is verified against the Node.js
   // release keys embedded in pnpm. Only the `release` channel publishes a signed
-  // SHASUMS256.txt; pre-release channels (rc, nightly, …) are unsigned by Node,
+  // SHASUMS256.txt; pre-release channels (rc, nightly, ...) are unsigned by Node,
   // so they cannot be verified this way.
   const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release', cacheDir, getAuthHeader })
 
@@ -353,7 +353,7 @@ function createAuthenticatedFetch (fetch: FetchFromRegistry, getAuthHeader?: Get
   return async (url, opts) => {
     let currentUrl = url
     for (let redirectCount = 0; ; redirectCount++) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- each redirect hop needs the previous response's location
       const response = await fetch(currentUrl, {
         ...opts,
         authHeaderValue: getSecureAuthHeader(getAuthHeader, currentUrl),

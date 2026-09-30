@@ -28,16 +28,16 @@ export interface ExtendPathOptions {
  */
 export function extendPath (wd: string, originalPath: string | undefined, opts: ExtendPathOptions): string {
   const pathArr = [...opts.extraBinPaths ?? []]
-  const p = wd.split(/[\\/]node_modules[\\/]/)
-  let acc = path.resolve(p.shift()!)
+  const wdSegments = wd.split(/[\\/]node_modules[\\/]/)
+  let acc = path.resolve(wdSegments.shift()!)
 
   // we also unshift the bundled node-gyp-bin folder so that
   // the bundled one will be used for installing things.
   pathArr.unshift(opts.nodeGypBinDir)
 
-  p.forEach(pp => {
+  wdSegments.forEach(segment => {
     pathArr.unshift(path.join(acc, 'node_modules', '.bin'))
-    acc = path.join(acc, 'node_modules', pp)
+    acc = path.join(acc, 'node_modules', segment)
   })
   pathArr.unshift(opts.wdBinDir ?? path.join(acc, 'node_modules', '.bin'))
 

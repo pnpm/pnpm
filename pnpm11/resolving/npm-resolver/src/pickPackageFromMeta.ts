@@ -2,9 +2,9 @@
 import { isError, PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
-import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
+  type NonDeprecatedAlternative,
   type VersionSelectors,
   type VersionSelectorType,
 } from '@pnpm/resolving.resolver-base'

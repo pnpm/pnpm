@@ -15,8 +15,8 @@ export async function lsRemote (args: string[], opts: { retries: number }): Prom
   let lastErr: unknown
   for (let attempt = 0; attempt <= opts.retries; attempt++) {
     try {
-      const { stdout } = await execa('git', ['ls-remote', ...args], { // eslint-disable-line no-await-in-loop
-        env: await nonInteractiveGitEnv(), // eslint-disable-line no-await-in-loop
+      const { stdout } = await execa('git', ['ls-remote', ...args], { // eslint-disable-line no-await-in-loop -- a retry runs only after the previous attempt failed
+        env: await nonInteractiveGitEnv(), // eslint-disable-line no-await-in-loop -- a retry runs only after the previous attempt failed
       })
       return { stdout: stdout as string }
     } catch (err: unknown) {

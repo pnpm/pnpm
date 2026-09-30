@@ -159,9 +159,9 @@ describe('audit', () => {
       },
     })
     packages['cold-leaf@1.0.0' as DepPath] = { resolution: { integrity: 'cold-leaf-integrity' } }
-    for (let i = 0; i < 50; i++) {
-      const parentName = `parent-${i}`
-      importers[`.${i}` as ProjectId] = {
+    for (let parentIndex = 0; parentIndex < 50; parentIndex++) {
+      const parentName = `parent-${parentIndex}`
+      importers[`.${parentIndex}` as ProjectId] = {
         dependencies: { [parentName]: '1.0.0' },
         specifiers: { [parentName]: '1.0.0' },
       }
@@ -754,28 +754,28 @@ describe('audit', () => {
   })
 
   test('buildAuditPathIndex() scales linearly, not quadratically, with cycle size', () => {
-    // n0 -> ... -> n(L-1) -> n0 is one big cycle with a single vulnerable leaf.
-    // Recomputing the cycle for every ancestor scans ~L^2 nodes, so doubling L
+    // n0 -> ... -> n(cycleLength-1) -> n0 is one big cycle with a single vulnerable leaf.
+    // Recomputing the cycle for every ancestor scans ~cycleLength^2 nodes, so doubling cycleLength
     // quadruples the reads; linear work only doubles them. Comparing the growth
     // rate of two sizes — rather than an absolute count — keeps the assertion
     // robust to constant-factor changes in future refactors.
-    const countReads = (L: number): number => {
+    const countReads = (cycleLength: number): number => {
       let reads = 0
       const importers = {
         ['.' as ProjectId]: { dependencies: { n0: '1.0.0' }, specifiers: { n0: '^1.0.0' } },
       }
       const packages: PackageSnapshots = {}
-      for (let i = 0; i < L; i++) {
-        const nextName = i + 1 < L ? `n${i + 1}` : 'n0' // the last node loops back to n0
-        const deps = { [nextName]: '1.0.0', [`leaf${i}`]: '1.0.0' }
-        Object.defineProperty(packages, `n${i}@1.0.0`, {
+      for (let nodeIndex = 0; nodeIndex < cycleLength; nodeIndex++) {
+        const nextName = nodeIndex + 1 < cycleLength ? `n${nodeIndex + 1}` : 'n0' // the last node loops back to n0
+        const deps = { [nextName]: '1.0.0', [`leaf${nodeIndex}`]: '1.0.0' }
+        Object.defineProperty(packages, `n${nodeIndex}@1.0.0`, {
           enumerable: true,
           get: () => {
             reads++
-            return { dependencies: deps, resolution: { integrity: `n${i}-integrity` } }
+            return { dependencies: deps, resolution: { integrity: `n${nodeIndex}-integrity` } }
           },
         })
-        packages[`leaf${i}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${i}-integrity` } }
+        packages[`leaf${nodeIndex}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${nodeIndex}-integrity` } }
       }
 
       const result = buildAuditPathIndex({
@@ -798,15 +798,15 @@ describe('audit', () => {
   })
 
   test('buildAuditPathIndex() handles a very deep dependency chain without overflowing the stack', () => {
-    // n0 -> n1 -> ... -> n(L-1) -> vuln is a single chain far deeper than the JS
+    // n0 -> n1 -> ... -> n(chainLength-1) -> vuln is a single chain far deeper than the JS
     // call-stack limit. A recursive walk (reachability or path traversal) would
     // throw RangeError on this lockfile (a lockfile is untrusted input); the
     // iterative implementation must complete and still report the leaf.
-    const L = 60_000
+    const chainLength = 60_000
     const packages: PackageSnapshots = {}
-    for (let i = 0; i < L; i++) {
-      const child = i + 1 < L ? `n${i + 1}` : 'vuln'
-      packages[`n${i}@1.0.0` as DepPath] = { dependencies: { [child]: '1.0.0' }, resolution: { integrity: `n${i}-integrity` } }
+    for (let nodeIndex = 0; nodeIndex < chainLength; nodeIndex++) {
+      const child = nodeIndex + 1 < chainLength ? `n${nodeIndex + 1}` : 'vuln'
+      packages[`n${nodeIndex}@1.0.0` as DepPath] = { dependencies: { [child]: '1.0.0' }, resolution: { integrity: `n${nodeIndex}-integrity` } }
     }
     packages['vuln@1.0.0' as DepPath] = { resolution: { integrity: 'vuln-integrity' } }
 
@@ -1207,12 +1207,12 @@ describe('audit', () => {
 function addFanOutToVuln (packages: PackageSnapshots, count: number): { dependencies: Record<string, string>, specifiers: Record<string, string> } {
   const dependencies: Record<string, string> = {}
   const specifiers: Record<string, string> = {}
-  for (let i = 0; i < count; i++) {
-    dependencies[`parent${i}`] = '1.0.0'
-    specifiers[`parent${i}`] = '1.0.0'
-    packages[`parent${i}@1.0.0` as DepPath] = {
+  for (let parentIndex = 0; parentIndex < count; parentIndex++) {
+    dependencies[`parent${parentIndex}`] = '1.0.0'
+    specifiers[`parent${parentIndex}`] = '1.0.0'
+    packages[`parent${parentIndex}@1.0.0` as DepPath] = {
       dependencies: { vuln: '1.0.0' },
-      resolution: { integrity: `parent${i}-integrity` },
+      resolution: { integrity: `parent${parentIndex}-integrity` },
     }
   }
   return { dependencies, specifiers }

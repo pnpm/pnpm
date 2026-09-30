@@ -17,16 +17,16 @@ export async function readResponseBodyCapped (response: Response, maxBytes: numb
     let total = 0
     try {
       for (;;) {
-        // eslint-disable-next-line no-await-in-loop
+        // eslint-disable-next-line no-await-in-loop -- stream chunks must be read in order
         const { done, value } = await reader.read()
         if (done) break
         total += value.byteLength
         if (total > maxBytes) {
-          // eslint-disable-next-line no-await-in-loop
+          // eslint-disable-next-line no-await-in-loop -- the loop returns right after the cancellation
           await reader.cancel().catch(() => {})
           return undefined
         }
-        // eslint-disable-next-line no-await-in-loop
+        // eslint-disable-next-line no-await-in-loop -- chunks are appended in the order they arrive
         await file.writeFile(value)
       }
     } finally {

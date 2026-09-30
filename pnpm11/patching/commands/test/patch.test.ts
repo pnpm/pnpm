@@ -42,7 +42,7 @@ const { patch, patchCommit, patchRemove } = await import('@pnpm/patching.command
 const mockSelect = jest.mocked(select)
 const mockConfirm = jest.mocked(confirmPrompt)
 const mockCheckbox = jest.mocked(mockCheckboxFn)
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const basePatchOption = {
   pnpmHomeDir: '',
@@ -867,7 +867,7 @@ describe('multiple versions', () => {
     expect(mockSelect).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Choose which version to patch',
-        choices: ['1.0.0', '2.0.0', '3.0.0'].map(x => expect.objectContaining({ name: x, value: x })),
+        choices: ['1.0.0', '2.0.0', '3.0.0'].map(version => expect.objectContaining({ name: version, value: version })),
       })
     )
     expect(mockConfirm).toHaveBeenCalledWith(
@@ -1565,7 +1565,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   let storeDir: string
   beforeAll(() => {
     customModulesDirFixture = tempDir()
-    f.copy('custom-modules-dir', customModulesDirFixture)
+    testFixtures.copy('custom-modules-dir', customModulesDirFixture)
     cacheDir = path.resolve(customModulesDirFixture, 'cache')
     storeDir = path.resolve(customModulesDirFixture, 'store')
     defaultPatchOption = {
@@ -1691,8 +1691,7 @@ describe('patch-remove', () => {
       rootProjectManifest: manifest,
       patchedDependencies,
     }, [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((mockCheckbox.mock.calls[0][0] as any).choices.map((c: any) => c.value)).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
+    expect((mockCheckbox.mock.calls[0][0] as { choices: ReadonlyArray<{ value: string }> }).choices.map(choice => choice.value)).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
     mockCheckbox.mockClear()
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
