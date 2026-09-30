@@ -163,21 +163,30 @@ function listPublicProxyNamespaces (publicCacheDir: string): string[] {
 // Re-throws any other read/parse error so genuine failures surface immediately.
 function readPackument (candidatePaths: string[]): Packument | undefined {
   for (const filePath of candidatePaths) {
-    let raw: string
-    try {
-      raw = fs.readFileSync(filePath, 'utf8')
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
-      throw err
-    }
-    try {
-      return JSON.parse(raw) as Packument
-    } catch (err: unknown) {
-      if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) {
-        return undefined
-      }
-      throw err
-    }
+    const raw = tryReadFile(filePath)
+    if (raw === undefined) continue
+    const packument = tryParsePackument(raw)
+    if (packument !== undefined) return packument
   }
   return undefined
+}
+
+function tryReadFile (filePath: string): string | undefined {
+  try {
+    return fs.readFileSync(filePath, 'utf8')
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+function tryParsePackument (raw: string): Packument | undefined {
+  try {
+    return JSON.parse(raw) as Packument
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) {
+      return undefined
+    }
+    throw err
+  }
 }

@@ -198,56 +198,62 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const COMMANDS = {
+  title: 'Commands',
+  list: [
+    {
+      description: 'Retrieves a value from package.json',
+      name: 'get [<key> [<key> ...]]',
+    },
+    {
+      description: 'Sets a value in package.json',
+      name: 'set <key>=<value> [<key>=<value> ...]',
+    },
+    {
+      description: 'Deletes a key from package.json',
+      name: 'delete <key> [<key> ...]',
+    },
+    {
+      description: 'Auto corrects common errors in package.json',
+      name: 'fix',
+    },
+  ],
+}
+
+const OPTIONS = {
+  title: 'Options',
+  list: [
+    {
+      description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
+      name: '--json',
+    },
+    {
+      description: 'Run on every workspace project or every project selected by a filter',
+      name: '--recursive',
+      shortAlias: '-r',
+    },
+  ],
+}
+
+const USAGES = [
+  'pnpm pkg get [<key> [<key> ...]]',
+  'pnpm pkg set <key>=<value> [<key>=<value> ...]',
+  'pnpm pkg delete <key> [<key> ...]',
+  'pnpm pkg fix',
+  'pnpm pkg set <key>=<value> --json',
+  'pnpm -r pkg get name',
+  'pnpm --filter <selector> pkg get name',
+  'pnpm -r pkg set version=1.0.0',
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manages your package.json',
     descriptionLists: [
-      {
-        title: 'Commands',
-        list: [
-          {
-            description: 'Retrieves a value from package.json',
-            name: 'get [<key> [<key> ...]]',
-          },
-          {
-            description: 'Sets a value in package.json',
-            name: 'set <key>=<value> [<key>=<value> ...]',
-          },
-          {
-            description: 'Deletes a key from package.json',
-            name: 'delete <key> [<key> ...]',
-          },
-          {
-            description: 'Auto corrects common errors in package.json',
-            name: 'fix',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-        list: [
-          {
-            description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
-            name: '--json',
-          },
-          {
-            description: 'Run on every workspace project or every project selected by a filter',
-            name: '--recursive',
-            shortAlias: '-r',
-          },
-        ],
-      },
+      COMMANDS,
+      OPTIONS,
     ],
     url: docsUrl('pkg'),
-    usages: [
-      'pnpm pkg get [<key> [<key> ...]]',
-      'pnpm pkg set <key>=<value> [<key>=<value> ...]',
-      'pnpm pkg delete <key> [<key> ...]',
-      'pnpm pkg fix',
-      'pnpm pkg set <key>=<value> --json',
-      'pnpm -r pkg get name',
-      'pnpm --filter <selector> pkg get name',
-      'pnpm -r pkg set version=1.0.0',
-    ],
+    usages: USAGES,
   })
 }
