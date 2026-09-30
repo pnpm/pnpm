@@ -66,7 +66,9 @@ use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
-    resolved_tree::{AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput},
+    resolved_tree::{
+        AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
+    },
 };
 
 use super::{

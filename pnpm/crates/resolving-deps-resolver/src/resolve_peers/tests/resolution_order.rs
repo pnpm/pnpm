@@ -1,6 +1,6 @@
 use super::{
     Arc, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, order_test_shape, package, peer_cycle_fixture,
+    ResolvePeersOptions, ResolvedTree, TreeChildren, order_test_shape, package, peer_cycle_fixture,
     peer_cycle_graph_keys, resolve_peers, resolve_peers_workspace,
 };
 
@@ -116,7 +116,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
                 node_id.clone(),
                 crate::resolved_tree::DependenciesTreeNode::new(
                     Arc::from(pkg_id),
-                    crate::resolved_tree::TreeChildren::Lazy,
+                    TreeChildren::Lazy,
                     0,
                     true,
                 ),

@@ -29,7 +29,9 @@ use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput},
+    resolved_tree::{
+        AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
+    },
 };
 
 use super::{

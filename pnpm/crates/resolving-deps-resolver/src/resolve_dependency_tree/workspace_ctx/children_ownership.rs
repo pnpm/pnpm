@@ -1,6 +1,6 @@
 use super::{
     AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
-    PkgNameVerPeer, TreeCtx, UpdateReuseScope, lock_recoverable,
+    PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope, lock_recoverable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,14 +220,12 @@ impl ChildrenRecording {
     pub(in super::super) fn into_children(
         self,
         realized: BTreeMap<String, NodeId>,
-    ) -> (crate::resolved_tree::TreeChildren, bool) {
+    ) -> (TreeChildren, bool) {
         match self {
-            ChildrenRecording::Declined => (crate::resolved_tree::TreeChildren::Lazy, false),
-            ChildrenRecording::Published => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), false)
-            }
+            ChildrenRecording::Declined => (TreeChildren::Lazy, false),
+            ChildrenRecording::Published => (TreeChildren::Realized(Arc::new(realized)), false),
             ChildrenRecording::PublishedOverStale => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), true)
+                (TreeChildren::Realized(Arc::new(realized)), true)
             }
         }
     }
@@ -360,7 +358,7 @@ pub(in super::super) fn insert_tree_node(
     ctx: &TreeCtx,
     node_id: NodeId,
     pkg_id: &Arc<str>,
-    children: crate::resolved_tree::TreeChildren,
+    children: TreeChildren,
     depth: i32,
 ) {
     let mut written = true;
@@ -409,9 +407,9 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
         // discovery engine rebuild from scratch. In a peer-heavy graph
         // most occurrences of a package are already lazy.
         if let Some(node) = tree.get_mut(&node_id)
-            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy)
+            && !matches!(node.children, TreeChildren::Lazy)
         {
-            node.children = crate::resolved_tree::TreeChildren::Lazy;
+            node.children = TreeChildren::Lazy;
             rewritten.push(node_id);
         }
     }

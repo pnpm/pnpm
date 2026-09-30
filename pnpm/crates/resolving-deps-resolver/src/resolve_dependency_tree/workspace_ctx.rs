@@ -46,6 +46,7 @@ use crate::{
     resolve_peers::MissingNames,
     resolved_tree::{
         AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+        TreeChildren,
     },
 };
 

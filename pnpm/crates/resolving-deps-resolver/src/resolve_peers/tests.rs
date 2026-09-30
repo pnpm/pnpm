@@ -23,7 +23,7 @@ use super::{
 };
 use crate::{
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{DirectDep, ResolvedTree, TreeChildren},
 };
 use pnpm_deps_path::{DepPath, PeerId};
 use pnpm_resolving_resolver_base::PkgResolutionId;
@@ -429,7 +429,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
             node_id.clone(),
             crate::resolved_tree::DependenciesTreeNode::new(
                 Arc::from(id),
-                crate::resolved_tree::TreeChildren::Lazy,
+                TreeChildren::Lazy,
                 0,
                 true,
             ),

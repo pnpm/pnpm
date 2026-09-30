@@ -2,9 +2,10 @@ use super::{
     Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, DirectDep, FrontierNode, HashMap, HashSet,
     NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
     RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
-    SkippedOptionalDependencyParent, TreeCtx, catalogs_for_children, claim_children_owner,
-    extract_peer_dependencies, insert_tree_node, is_current_children_owner, lock_recoverable,
-    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
+    SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
+    claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
+    lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
+    register_peer_dep_names,
 };
 
 /// Settle children ownership across every occurrence one level seeded.
@@ -112,15 +113,11 @@ pub(super) fn settle_seeds(
         // an empty `Realized` map: a linked node has no children of its
         // own here.
         if pending.is_link {
-            insert_walked_node(
-                ctx,
-                &pending,
-                crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(BTreeMap::new())),
-            );
+            insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
             continue;
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            insert_walked_node(ctx, &pending, crate::resolved_tree::TreeChildren::Lazy);
+            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
             continue;
         };
         if !pending.resolves_children_through_catalogs
@@ -130,7 +127,7 @@ pub(super) fn settle_seeds(
                 &children_context(ctx, &pending, &claim),
             )
         {
-            insert_walked_node(ctx, &pending, crate::resolved_tree::TreeChildren::Lazy);
+            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
             continue;
         }
         frontier.push(FrontierNode {
@@ -191,9 +188,9 @@ pub(super) fn record_walked_children(
     claim: &ChildrenOwnerClaim,
     child_specs: &[ChildSpec],
     seeds: &[NodeSeed],
-) -> (crate::resolved_tree::TreeChildren, bool) {
+) -> (TreeChildren, bool) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
-        return (crate::resolved_tree::TreeChildren::Lazy, false);
+        return (TreeChildren::Lazy, false);
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
@@ -261,11 +258,7 @@ pub(super) fn children_context(
 /// are unique by construction, so that only ever fires for leaves.
 /// Linked nodes carry `depth = -1` so the peer-resolution pass
 /// short-circuits them.
-pub(super) fn insert_walked_node(
-    ctx: &TreeCtx,
-    pending: &PendingNode,
-    children: crate::resolved_tree::TreeChildren,
-) {
+pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children: TreeChildren) {
     let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
