@@ -14,8 +14,9 @@ use std::{
 pub type ResolvedDependencyMap = HashMap<PkgName, ResolvedDependencySpec>;
 
 /// Value type of [`ResolvedDependencyMap`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct ResolvedDependencySpec {
     pub specifier: String,
     pub version: ImporterDepVersion,
@@ -303,6 +304,17 @@ impl<'de> Deserialize<'de> for ImporterDepVersion {
     {
         let raw = Cow::<'de, str>::deserialize(deserializer)?;
         raw.parse().map_err(serde::de::Error::custom)
+    }
+}
+
+impl<'de> deser::Deserialize<'de> for ImporterDepVersion {
+    fn deserialize_into<'out>(
+        out: &'out mut Option<Self>,
+        state: &mut deser::State,
+    ) -> deser::de::SinkHandle<'out, 'de> {
+        <deser::adapters::DisplayFromStr as deser::adapters::DeserializeAs<'de, Self>>::deserialize_into_as(
+            out, state,
+        )
     }
 }
 

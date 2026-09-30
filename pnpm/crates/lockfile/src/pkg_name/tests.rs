@@ -24,7 +24,7 @@ fn parse_ok() {
 fn deserialize_ok() {
     fn case(input: &'static str, output: PkgName) {
         eprintln!("CASE: {input:?}");
-        let actual: PkgName = serde_saphyr::from_str(input).unwrap();
+        let actual: PkgName = crate::test_yaml::from_str(input).unwrap();
         assert_eq!(&actual, &output);
     }
 
@@ -40,7 +40,7 @@ fn deserialize_decodes_escape_sequences() {
     // source would reject this input.
     let input = r#""\u0040foo/bar""#;
     eprintln!("CASE: {input:?}");
-    let actual: PkgName = serde_saphyr::from_str(input).unwrap();
+    let actual: PkgName = crate::test_yaml::from_str(input).unwrap();
     dbg!(&actual);
     assert_eq!(actual, PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() });
 }

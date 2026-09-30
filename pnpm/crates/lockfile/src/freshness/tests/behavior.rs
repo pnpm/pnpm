@@ -4,7 +4,7 @@ use super::{
 
 #[test]
 fn matching_across_all_three_dep_fields_satisfies() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -42,7 +42,7 @@ fn matching_across_all_three_dep_fields_satisfies() {
 /// different so we must reject.
 #[test]
 fn dep_moves_between_fields_returns_dep_specifier_mismatch() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -87,7 +87,7 @@ fn spec_diff_display_lists_added_removed_modified() {
 
 #[test]
 fn cross_field_swap_with_same_cardinalities_caught_by_per_field_check() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -149,7 +149,7 @@ fn spec_diff_display_uses_singular_for_count_of_one() {
 
 #[test]
 fn same_dep_in_prod_and_dev_counts_under_prod() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"

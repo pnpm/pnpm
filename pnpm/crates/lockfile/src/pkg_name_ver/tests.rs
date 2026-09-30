@@ -31,7 +31,7 @@ fn parse_ok() {
 fn deserialize_ok() {
     fn case(input: &'static str, expected: PkgNameVer) {
         eprintln!("CASE: {input:?}");
-        let received: PkgNameVer = serde_saphyr::from_str(input).unwrap();
+        let received: PkgNameVer = crate::test_yaml::from_str(input).unwrap();
         assert_eq!(&received, &expected);
     }
 

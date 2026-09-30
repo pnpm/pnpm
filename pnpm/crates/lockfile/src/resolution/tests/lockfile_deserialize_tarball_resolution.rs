@@ -12,7 +12,7 @@ fn deserialize_tarball_resolution() {
     let yaml = text_block! {
         "tarball: file:ts-pipe-compose-0.2.1.tgz"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "file:ts-pipe-compose-0.2.1.tgz".to_string(),
@@ -28,7 +28,7 @@ fn deserialize_tarball_resolution() {
         "tarball: file:ts-pipe-compose-0.2.1.tgz"
         "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "file:ts-pipe-compose-0.2.1.tgz".to_string(),
@@ -47,7 +47,7 @@ fn deserialize_tarball_resolution_with_git_hosted() {
         "tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234"
         "gitHosted: true"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
@@ -63,7 +63,7 @@ fn deserialize_tarball_resolution_with_git_hosted() {
 fn deserialize_tarball_resolution_backfills_git_hosted() {
     eprintln!("CASE: codeload.github.com");
     let yaml = format!("tarball: https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}");
-    let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(&yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}"),
@@ -78,7 +78,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let yaml = format!(
         "tarball: https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz",
     );
-    let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(&yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: format!(
             "https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz",
@@ -92,7 +92,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
 
     eprintln!("CASE: bitbucket.org archive");
     let yaml = format!("tarball: https://bitbucket.org/foo/bar/get/{GIT_COMMIT}.tar.gz");
-    let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(&yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("https://bitbucket.org/foo/bar/get/{GIT_COMMIT}.tar.gz"),
         integrity: None,
@@ -106,7 +106,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let yaml = text_block! {
         "tarball: https://registry.npmjs.org/foo/-/foo-1.0.0.tgz"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: None,
@@ -120,7 +120,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let yaml = text_block! {
         "tarball: https://codeload.github.com/foo/bar/zip/abc1234"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/zip/abc1234".to_string(),
         integrity: None,
@@ -167,7 +167,7 @@ fn deserialize_tarball_resolution_with_path() {
         "gitHosted: true"
         "path: packages/sub"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: None,
@@ -213,7 +213,7 @@ fn deserialize_registry_resolution() {
     let yaml = text_block! {
         "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Registry(RegistryResolution {
         integrity: integrity(
@@ -241,7 +241,7 @@ fn serialize_registry_resolution() {
 #[test]
 fn registry_revision_round_trips_in_the_compact_lockfile_form() {
     let resolution: LockfileResolution =
-        serde_saphyr::from_str(&format!("integrity: {REVISION_SHA512}\nrevision: 2"))
+        crate::test_yaml::from_str(&format!("integrity: {REVISION_SHA512}\nrevision: 2"))
             .expect("deserialize registry revision");
     let expected = LockfileResolution::Registry(RegistryResolution {
         integrity: integrity(REVISION_SHA512),
@@ -260,7 +260,7 @@ fn deserialize_directory_resolution() {
         "type: directory"
         "directory: ts-pipe-compose-0.2.1/package"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Directory(DirectoryResolution {
         directory: "ts-pipe-compose-0.2.1/package".to_string(),
@@ -286,7 +286,7 @@ fn deserialize_git_resolution() {
         "repo: https://github.com/ksxnodemodules/ts-pipe-compose.git"
         "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
@@ -305,7 +305,7 @@ fn deserialize_git_resolution_with_path() {
         "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
         "path: packages/sub"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     let expected = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
@@ -352,7 +352,7 @@ fn deserialize_binary_resolution_tarball() {
         "bin: bin/node"
         "archive: tarball"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Binary(BinaryResolution {
         url: "https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz".to_string(),
@@ -377,7 +377,7 @@ fn deserialize_binary_resolution_zip_with_map_and_prefix() {
         "archive: zip"
         "prefix: node-v22.0.0-win-x64"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let bin = BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())]));
     let expected = LockfileResolution::Binary(BinaryResolution {
@@ -441,7 +441,7 @@ fn deserialize_variations_resolution() {
         "        cpu: x64"
         "        libc: musl"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let LockfileResolution::Variations(variations) = received else {
         panic!("expected Variations, got {received:?}");
@@ -664,7 +664,7 @@ fn deserialize_custom_resolution_preserves_unknown_fields() {
         "url: https://cdn.example.com/pkg.tgz"
         "region: eu-west-1"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let LockfileResolution::Custom(custom) = &received else {
         panic!("expected a custom resolution, got {received:?}");

@@ -92,7 +92,7 @@ fn deserialize_ok() {
         (r#""17.0.2(react@17.0.2)""#, "17.0.2(react@17.0.2)"),
         ("link:packages/c", "link:packages/c"),
     ] {
-        let dep: SnapshotDepRef = serde_saphyr::from_str(yaml).unwrap();
+        let dep: SnapshotDepRef = crate::test_yaml::from_str(yaml).unwrap();
         assert_eq!(dep.to_string(), expected);
     }
 }

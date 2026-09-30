@@ -4,7 +4,7 @@ use std::fs;
 use text_block_macros::text_block;
 
 fn minimal_lockfile() -> Lockfile {
-    serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse a minimal lockfile")
+    crate::test_yaml::from_str("lockfileVersion: '9.0'\n").expect("parse a minimal lockfile")
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn preloaded_returns_the_stored_lockfile_without_io() {
 
 #[test]
 fn preloaded_repair_preserves_the_merge_view() {
-    let lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "packages:"
         "  pkg@1.0.0:"

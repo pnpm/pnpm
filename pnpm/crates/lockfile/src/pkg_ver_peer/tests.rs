@@ -77,7 +77,11 @@ fn deserialize_ok() {
         Peer: Into<String>,
     {
         eprintln!("CASE: {input:?}");
-        assert_ver_peer(serde_saphyr::from_str(input).unwrap(), expected_version, expected_peer);
+        assert_ver_peer(
+            crate::test_yaml::from_str(input).unwrap(),
+            expected_version,
+            expected_peer,
+        );
     }
 
     case(
@@ -109,7 +113,7 @@ fn deserialize_serialize() {
     let case = |input| {
         decode_encode_case(
             input,
-            |input| serde_saphyr::from_str(input).unwrap(),
+            |input| crate::test_yaml::from_str(input).unwrap(),
             |ver_peer| {
                 serde_saphyr::to_string(&ver_peer)
                     .unwrap()
@@ -187,7 +191,8 @@ fn parse_runtime_substring_in_version_is_not_a_prefix() {
 /// test pins the wire shape end-to-end.
 #[test]
 fn serde_round_trip_runtime_prefix() {
-    let parsed: PkgVerPeer = serde_saphyr::from_str("runtime:22.0.0").expect("deserialize runtime");
+    let parsed: PkgVerPeer =
+        crate::test_yaml::from_str("runtime:22.0.0").expect("deserialize runtime");
     assert_eq!(parsed.prefix(), Prefix::Runtime);
     assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
     let serialized = serde_saphyr::to_string(&parsed)
@@ -222,7 +227,7 @@ fn parse_file_prefix_with_peer_suffix() {
 #[test]
 fn serde_round_trip_file_prefix() {
     let parsed: PkgVerPeer =
-        serde_saphyr::from_str("file:packages/pkg(peer@1.0.0)").expect("deserialize file");
+        crate::test_yaml::from_str("file:packages/pkg(peer@1.0.0)").expect("deserialize file");
     assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
     let serialized = serde_saphyr::to_string(&parsed)
         .expect("serialize")
@@ -276,10 +281,10 @@ fn parse_patch_hash_then_peer_suffix_round_trip() {
 #[test]
 fn serde_round_trip_non_semver() {
     let url = "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/0848bc83347720c322c5087f3bd0d6cd086ffa4b";
-    let parsed: PkgVerPeer = serde_saphyr::from_str(url).expect("deserialize non-semver");
+    let parsed: PkgVerPeer = crate::test_yaml::from_str(url).expect("deserialize non-semver");
     assert_eq!(parsed.version(), &VersionPart::NonSemver(url.to_string()));
     let serialized = serde_saphyr::to_string(&parsed).expect("serialize");
-    let round_trip: PkgVerPeer = serde_saphyr::from_str(&serialized).expect("deserialize back");
+    let round_trip: PkgVerPeer = crate::test_yaml::from_str(&serialized).expect("deserialize back");
     assert_eq!(round_trip, parsed);
 }
 

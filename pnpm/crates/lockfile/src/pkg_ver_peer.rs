@@ -53,9 +53,12 @@ impl fmt::Display for VersionPart {
 /// against the `pnpm-lock.yaml` output.
 ///
 /// **NOTE:** The peer part isn't guaranteed to be correct. It is only assumed to be.
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, deser::Deserialize,
+)]
 #[display("{prefix}{version}{peer}")]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
+#[deser(deserialize_as = deser::adapters::DisplayFromStr)]
 pub struct PkgVerPeer {
     /// Scheme prefix (e.g. `runtime:`) preserved verbatim through
     /// the round-trip. [`Prefix::None`] for plain semver — the only

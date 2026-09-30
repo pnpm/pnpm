@@ -5519,6 +5519,8 @@ name = "pnpm-lockfile"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "deser",
+ "deser-yaml",
  "indexmap 2.14.0",
  "miette 7.6.0",
  "node-semver",
@@ -5528,6 +5530,7 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-diagnostics",
  "pnpm-fs",
+ "pnpm-json-bridge",
  "pnpm-package-manifest",
  "pnpm-patching",
  "pnpm-resolving-parse-wanted-dependency",

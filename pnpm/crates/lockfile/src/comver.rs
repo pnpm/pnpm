@@ -5,9 +5,12 @@ use std::{borrow::Cow, num::ParseIntError, str::FromStr};
 /// Information of the top-level field `lockfileVersion`.
 ///
 /// It contains only major and minor.
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize,
+)]
 #[display("{major}.{minor}")]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
+#[deser(deserialize_as = deser::adapters::DisplayFromStr)]
 pub struct ComVer {
     pub major: u16,
     pub minor: u16,

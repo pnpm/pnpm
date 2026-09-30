@@ -5,7 +5,7 @@ use super::{
 
 #[test]
 fn matching_manifest_and_lockfile_satisfies() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -30,7 +30,7 @@ fn matching_manifest_and_lockfile_satisfies() {
 
 #[test]
 fn equivalent_git_specifiers_satisfy_manifest() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -56,7 +56,7 @@ fn equivalent_git_specifiers_satisfy_manifest() {
 
 #[test]
 fn different_git_specifiers_do_not_satisfy_manifest() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -92,7 +92,7 @@ fn different_git_specifiers_do_not_satisfy_manifest() {
 
 #[test]
 fn manifest_adds_dep_returns_specifier_diff() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -125,7 +125,7 @@ fn manifest_adds_dep_returns_specifier_diff() {
 
 #[test]
 fn manifest_drops_dep_returns_specifier_diff() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -158,7 +158,7 @@ fn manifest_drops_dep_returns_specifier_diff() {
 
 #[test]
 fn manifest_bumps_specifier_returns_specifier_diff() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -195,7 +195,7 @@ fn manifest_bumps_specifier_returns_specifier_diff() {
 /// `satisfiesPackageManifest.ts`.
 #[test]
 fn manifest_optional_only_but_lockfile_records_prod_is_stale() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -229,7 +229,7 @@ fn manifest_optional_only_but_lockfile_records_prod_is_stale() {
 /// manifest-read time.
 #[test]
 fn ignored_optional_filtered_out_of_manifest_diff() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"

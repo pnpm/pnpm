@@ -6,7 +6,7 @@ use super::{
 /// `publishConfig.directory` surfaces as drift.
 #[test]
 fn publish_directory_mismatch_returns_publish_directory_mismatch() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -36,7 +36,7 @@ fn publish_directory_mismatch_returns_publish_directory_mismatch() {
 
 #[test]
 fn link_directory_mismatch_returns_link_directory_mismatch() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -61,7 +61,7 @@ fn link_directory_mismatch_returns_link_directory_mismatch() {
 
 #[test]
 fn publish_directory_match_satisfies() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"

@@ -80,8 +80,9 @@ pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> st
 /// link variant; a reference is an alias when a package name appears before
 /// the version separator (either the first `@` occurs before any `(` and `:`,
 /// or the reference begins with `@`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, deser::Deserialize)]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
+#[deser(deserialize_as = deser::adapters::DisplayFromStr)]
 pub enum SnapshotDepRef {
     Plain(PkgVerPeer),
     Alias(PkgNameVerPeer),

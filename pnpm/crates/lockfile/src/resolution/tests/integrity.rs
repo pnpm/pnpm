@@ -15,7 +15,7 @@ fn empty_integrity_string_is_not_checkable() {
         "tarball: https://registry.example/p/-/p-1.0.0.tgz"
         "integrity: ''"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     assert!(received.integrity().is_some());
     assert!(received.checkable_integrity().is_none());
@@ -29,7 +29,7 @@ fn deserialize_git_resolution_with_integrity() {
         "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
         "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/ksxnodemodules/ts-pipe-compose.git".to_string(),
@@ -51,7 +51,7 @@ fn deserialize_git_resolution_with_a_malformed_integrity() {
         "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
         "integrity: not-a-real-hash"
     };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let received: LockfileResolution = crate::test_yaml::from_str(yaml).unwrap();
     dbg!(&received);
     let LockfileResolution::Git(git) = &received else { panic!("expected a git resolution") };
     assert_eq!(git.integrity, None, "the malformed hash must not survive the read");

@@ -16,37 +16,37 @@ fn make_metadata(libc_yaml: &str) -> String {
 #[test]
 fn libc_as_string() {
     let yaml = make_metadata("libc: glibc\n");
-    let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
+    let metadata: PackageMetadata = crate::test_yaml::from_str(&yaml).unwrap();
     assert_eq!(metadata.libc, Some(StringOrList::String("glibc".to_string())));
 }
 
 #[test]
 fn libc_as_array() {
     let yaml = make_metadata("libc: [glibc]\n");
-    let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
+    let metadata: PackageMetadata = crate::test_yaml::from_str(&yaml).unwrap();
     assert_eq!(metadata.libc, Some(StringOrList::List(vec!["glibc".to_string()])));
 }
 
 #[test]
 fn libc_absent() {
     let yaml = make_metadata("");
-    let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
+    let metadata: PackageMetadata = crate::test_yaml::from_str(&yaml).unwrap();
     assert_eq!(metadata.libc, None);
 }
 
 #[test]
 fn libc_string_roundtrip() {
     let yaml = make_metadata("libc: glibc\n");
-    let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
+    let metadata: PackageMetadata = crate::test_yaml::from_str(&yaml).unwrap();
     let serialized = serialize_yaml::to_string(&metadata).unwrap();
-    let reparsed: PackageMetadata = serde_saphyr::from_str(&serialized).unwrap();
+    let reparsed: PackageMetadata = crate::test_yaml::from_str(&serialized).unwrap();
     assert_eq!(metadata.libc, reparsed.libc);
 }
 
 #[test]
 fn libc_shape_is_preserved() {
     for input in ["libc: glibc\n", "libc: [glibc]\n"] {
-        let metadata: PackageMetadata = serde_saphyr::from_str(&make_metadata(input)).unwrap();
+        let metadata: PackageMetadata = crate::test_yaml::from_str(&make_metadata(input)).unwrap();
         let yaml = serialize_yaml::to_string(&metadata).unwrap();
         assert!(
             yaml.lines()
@@ -125,22 +125,22 @@ fn bundled_dependencies_absent() {
 #[test]
 fn bundled_dependencies_boolean_roundtrip() {
     let yaml = format!("{}\nbundledDependencies: true\n", make_metadata(""));
-    let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
+    let metadata: PackageMetadata = crate::test_yaml::from_str(&yaml).unwrap();
     assert_eq!(metadata.bundled_dependencies, Some(BundledDependencies::Boolean(true)));
     let serialized = serialize_yaml::to_string(&metadata).unwrap();
-    let reparsed: PackageMetadata = serde_saphyr::from_str(&serialized).unwrap();
+    let reparsed: PackageMetadata = crate::test_yaml::from_str(&serialized).unwrap();
     assert_eq!(metadata.bundled_dependencies, reparsed.bundled_dependencies);
 }
 
 #[test]
 fn bundled_dependencies_name_list_roundtrip() {
     let yaml = format!("{}\nbundledDependencies:\n  - a\n", make_metadata(""));
-    let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
+    let metadata: PackageMetadata = crate::test_yaml::from_str(&yaml).unwrap();
     assert_eq!(
         metadata.bundled_dependencies,
         Some(BundledDependencies::Names(vec!["a".to_string()])),
     );
     let serialized = serialize_yaml::to_string(&metadata).unwrap();
-    let reparsed: PackageMetadata = serde_saphyr::from_str(&serialized).unwrap();
+    let reparsed: PackageMetadata = crate::test_yaml::from_str(&serialized).unwrap();
     assert_eq!(metadata.bundled_dependencies, reparsed.bundled_dependencies);
 }

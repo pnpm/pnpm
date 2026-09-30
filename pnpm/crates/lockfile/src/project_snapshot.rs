@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Snapshot of a single project.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct ProjectSnapshot {
     /// Direct-dependency specifiers, keyed by alias. The v9 lockfile file
     /// format does not carry a top-level `specifiers` map — each specifier is
@@ -34,6 +35,7 @@ pub struct ProjectSnapshot {
     )]
     pub optional_dependencies: Option<ResolvedDependencyMap>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[deser(deserialize_as = Option<pnpm_json_bridge::SerdeJson>)]
     pub dependencies_meta: Option<serde_json::Value>, // TODO: DependenciesMeta
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,

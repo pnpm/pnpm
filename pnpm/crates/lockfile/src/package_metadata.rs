@@ -6,8 +6,9 @@ use std::{collections::HashMap, ops::Deref};
 /// `packages:` map. This is the per-version data that does not vary by
 /// peer-dependency context — peer-specific information lives in
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -64,8 +65,9 @@ pub struct PackageMetadata {
 ///
 /// The presence of the field — whatever its shape — is what tells the
 /// installer to link the bins the tarball ships in its own `node_modules`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(untagged)]
+#[deser(untagged)]
 pub enum BundledDependencies {
     Boolean(bool),
     Names(Vec<String>),
@@ -103,8 +105,9 @@ impl BundledDependencies {
 ///
 /// pnpm preserves this distinction in the lockfile, so retaining only the
 /// normalized values is insufficient for byte-identical serialization.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(untagged)]
+#[deser(untagged)]
 pub enum StringOrList {
     String(String),
     List(Vec<String>),
@@ -133,7 +136,7 @@ impl FromIterator<String> for StringOrList {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 pub struct PeerDependencyMeta {
     pub optional: bool,
 }

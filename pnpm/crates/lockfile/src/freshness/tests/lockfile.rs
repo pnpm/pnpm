@@ -9,7 +9,7 @@ use super::{
 #[test]
 fn missing_importer_returns_no_importer() {
     let lockfile: Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
+        crate::test_yaml::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
     // We can't easily get a `ProjectSnapshot` out of an empty map,
     // so this test exercises the lookup-then-call shape on the
     // caller side: the caller uses `root_project()` which returns
@@ -33,7 +33,7 @@ fn no_importer_message_uses_bracket_quoted_id() {
 
 #[test]
 fn importer_empty_dev_dependencies_equivalent_to_absent() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -60,7 +60,7 @@ fn importer_empty_dev_dependencies_equivalent_to_absent() {
 /// because the filter would then incorrectly apply to dev entries.
 #[test]
 fn ignored_optional_dev_only_lockfile_entry_kept() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"

@@ -8,7 +8,7 @@ fn manifest(value: serde_json::Value) -> PackageManifest {
 }
 
 fn importer(source: &str) -> ProjectSnapshot {
-    serde_saphyr::from_str(source).expect("parse importer")
+    crate::test_yaml::from_str(source).expect("parse importer")
 }
 
 const FOO_AND_BAR: &str = r"

@@ -22,6 +22,21 @@ pub struct PkgNameSuffix<Suffix> {
     pub suffix: Suffix,
 }
 
+impl<'de, Suffix> deser::Deserialize<'de> for PkgNameSuffix<Suffix>
+where
+    Suffix: FromStr + Send + 'static,
+    Suffix::Err: std::fmt::Display,
+{
+    fn deserialize_into<'out>(
+        out: &'out mut Option<Self>,
+        state: &mut deser::State,
+    ) -> deser::de::SinkHandle<'out, 'de> {
+        <deser::adapters::DisplayFromStr as deser::adapters::DeserializeAs<'de, Self>>::deserialize_into_as(
+            out, state,
+        )
+    }
+}
+
 impl<Suffix> PkgNameSuffix<Suffix> {
     /// Construct a [`PkgNameSuffix`].
     pub fn new(name: PkgName, suffix: Suffix) -> Self {

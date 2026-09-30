@@ -10,8 +10,9 @@ mod tests;
 /// An entry describes the wiring of one concrete installation of a package:
 /// which versions its dependencies were resolved to, plus any optional /
 /// transitive-peer metadata needed to recreate the install.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct SnapshotEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -42,6 +43,7 @@ pub struct SnapshotEntry {
     /// build should be swallowed and reported via
     /// `pnpm:skipped-optional-dependency`.
     #[serde(default, skip_serializing_if = "is_false")]
+    #[deser(default)]
     pub optional: bool,
 }
 

@@ -73,12 +73,12 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
 /// branch is being merged.
 fn merge_extra(ours: &LockfileExtra, theirs: &LockfileExtra) -> LockfileExtra {
     let mut merged = theirs.clone();
-    for (key, our_value) in ours {
-        if let Some(their_value) = merged.get(key) {
-            merged.insert(key.clone(), merge_extra_value(key, our_value, their_value));
-        } else {
-            merged.insert(key.clone(), our_value.clone());
-        }
+    for (key, our_value) in ours.iter() {
+        let value = match merged.get(key) {
+            Some(their_value) => merge_extra_value(key, our_value, their_value),
+            None => our_value.clone(),
+        };
+        merged.insert(key.clone(), value);
     }
     merged
 }

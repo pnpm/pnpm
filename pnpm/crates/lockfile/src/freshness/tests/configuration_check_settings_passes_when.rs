@@ -9,7 +9,7 @@ use super::{
 
 #[test]
 fn check_settings_passes_when_both_sides_empty() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -28,7 +28,7 @@ fn check_settings_passes_when_both_sides_empty() {
 
 #[test]
 fn check_settings_passes_when_sets_match_regardless_of_order() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "ignoredOptionalDependencies:"
         "  - foo"
@@ -50,7 +50,7 @@ fn check_settings_passes_when_sets_match_regardless_of_order() {
 
 #[test]
 fn check_settings_returns_drift_when_sets_differ() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "ignoredOptionalDependencies:"
         "  - foo"
@@ -76,7 +76,7 @@ fn check_settings_returns_drift_when_sets_differ() {
 
 #[test]
 fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "ignoredOptionalDependencies:"
         "  - foo"
@@ -97,7 +97,7 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
 
 #[test]
 fn check_settings_passes_when_overrides_both_empty() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -115,7 +115,7 @@ fn check_settings_passes_when_overrides_both_empty() {
 
 #[test]
 fn check_settings_passes_when_overrides_match_regardless_of_order() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "overrides:"
         "  foo: 1.0.0"
@@ -136,7 +136,7 @@ fn check_settings_passes_when_overrides_match_regardless_of_order() {
 
 #[test]
 fn check_settings_returns_drift_on_overrides_value_change() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "overrides:"
         "  foo: 1.0.0"
@@ -158,7 +158,7 @@ fn check_settings_returns_drift_on_overrides_value_change() {
 
 #[test]
 fn check_settings_returns_drift_when_lockfile_has_overrides_but_config_does_not() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "overrides:"
         "  foo: 1.0.0"
@@ -175,7 +175,7 @@ fn check_settings_returns_drift_when_lockfile_has_overrides_but_config_does_not(
 
 #[test]
 fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -199,7 +199,7 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
 
 #[test]
 fn check_settings_passes_when_patched_dependencies_match() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "patchedDependencies:"
         "  graceful-fs@4.2.11: abc123"
@@ -226,7 +226,7 @@ fn check_settings_passes_when_patched_dependencies_match() {
 /// rather than silently materializing against a stale `(patch_hash=...)`.
 #[test]
 fn check_settings_returns_drift_when_patch_hash_changes() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "patchedDependencies:"
         "  graceful-fs@4.2.11: oldhash"
@@ -253,7 +253,7 @@ fn check_settings_returns_drift_when_patch_hash_changes() {
 
 #[test]
 fn check_settings_returns_drift_when_patch_removed_from_config() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "patchedDependencies:"
         "  graceful-fs@4.2.11: abc123"
@@ -270,7 +270,7 @@ fn check_settings_returns_drift_when_patch_removed_from_config() {
 
 #[test]
 fn check_settings_returns_ok_when_no_package_extensions_checksum_on_either_side() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -279,7 +279,7 @@ fn check_settings_returns_ok_when_no_package_extensions_checksum_on_either_side(
 
 #[test]
 fn check_settings_returns_ok_when_package_extensions_checksum_matches() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "packageExtensionsChecksum: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     })
@@ -302,7 +302,7 @@ fn check_settings_returns_ok_when_package_extensions_checksum_matches() {
 /// current config surfaces as drift.
 #[test]
 fn check_settings_returns_drift_on_package_extensions_checksum_value_change() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "packageExtensionsChecksum: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     })
@@ -326,7 +326,7 @@ fn check_settings_returns_drift_on_package_extensions_checksum_value_change() {
 
 #[test]
 fn check_settings_returns_drift_when_lockfile_has_checksum_but_config_does_not() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "packageExtensionsChecksum: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     })
@@ -342,7 +342,7 @@ fn check_settings_returns_drift_when_lockfile_has_checksum_but_config_does_not()
 
 #[test]
 fn check_settings_returns_drift_when_config_has_checksum_but_lockfile_does_not() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -365,7 +365,7 @@ fn check_settings_returns_drift_when_config_has_checksum_but_lockfile_does_not()
 
 #[test]
 fn check_settings_reports_overrides_before_ignored_optional() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "overrides:"
         "  foo: 1.0.0"
@@ -406,7 +406,7 @@ fn check_settings_reports_overrides_before_ignored_optional() {
 /// under the other value.
 #[test]
 fn check_settings_returns_drift_when_auto_install_peers_differs() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: true"
@@ -432,7 +432,7 @@ fn check_settings_returns_drift_when_auto_install_peers_differs() {
 /// with.
 #[test]
 fn check_settings_ignores_auto_install_peers_without_a_settings_block() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -455,7 +455,7 @@ fn check_settings_ignores_auto_install_peers_without_a_settings_block() {
 /// as `false` and turning the setting on is drift.
 #[test]
 fn check_settings_returns_drift_when_dedupe_peers_is_enabled() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: true"
@@ -479,7 +479,7 @@ fn check_settings_returns_drift_when_dedupe_peers_is_enabled() {
 
 #[test]
 fn check_settings_returns_drift_when_exclude_links_from_lockfile_differs() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: true"
@@ -510,7 +510,7 @@ fn check_settings_returns_drift_when_exclude_links_from_lockfile_differs() {
 /// stacks must name `overrides`.
 #[test]
 fn check_settings_reports_the_field_pnpm_reports_first() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: true"
@@ -539,7 +539,7 @@ fn check_settings_reports_the_field_pnpm_reports_first() {
 
 #[test]
 fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_default() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -553,7 +553,7 @@ fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_defaul
 /// produce a different graph.
 #[test]
 fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_config() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -579,7 +579,7 @@ fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_conf
 
 #[test]
 fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: false"
@@ -607,7 +607,7 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
 /// differs from the current config surfaces as drift.
 #[test]
 fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: false"
@@ -638,7 +638,7 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
 /// still has none.
 #[test]
 fn check_settings_passes_when_neither_side_has_a_pnpmfile() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -647,7 +647,7 @@ fn check_settings_passes_when_neither_side_has_a_pnpmfile() {
 
 #[test]
 fn check_settings_passes_when_pnpmfile_checksum_matches() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "pnpmfileChecksum: sha256-abc"
     })
@@ -671,7 +671,7 @@ fn check_settings_passes_when_pnpmfile_checksum_matches() {
 /// describes what this install's `readPackage` hooks would produce.
 #[test]
 fn check_settings_returns_drift_when_pnpmfile_checksum_differs() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "pnpmfileChecksum: sha256-abc"
     })
@@ -701,7 +701,7 @@ fn check_settings_returns_drift_when_pnpmfile_checksum_differs() {
 /// added after the lockfile was written.
 #[test]
 fn check_settings_returns_drift_when_a_pnpmfile_appeared() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -727,7 +727,7 @@ fn check_settings_returns_drift_when_a_pnpmfile_appeared() {
 
 #[test]
 fn check_settings_returns_drift_when_the_pnpmfile_was_removed() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "pnpmfileChecksum: sha256-abc"
     })
@@ -748,7 +748,7 @@ fn check_settings_returns_drift_when_the_pnpmfile_was_removed() {
 /// every lockfile that legitimately records one.
 #[test]
 fn check_settings_skips_the_pnpmfile_checksum_on_request() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "pnpmfileChecksum: sha256-abc"
     })
@@ -776,7 +776,7 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
 /// the gates above this one never compare.
 #[test]
 fn check_settings_reports_a_segment_that_disagrees_with_the_lockfile_s_own_map() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "patchedDependencies:"
         "  is-positive@1.0.0: abc123"
@@ -804,7 +804,7 @@ fn check_settings_reports_a_segment_that_disagrees_with_the_lockfile_s_own_map()
 /// not check, but the reason says so rather than claiming a disagreement.
 #[test]
 fn check_settings_reports_a_segment_it_cannot_check() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "patchedDependencies:"
         "  foo@1.0.0: abc123"

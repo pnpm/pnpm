@@ -9,7 +9,7 @@ fn optional_true_round_trips() {
         "  foo: 1.2.3"
         "optional: true"
     };
-    let entry: SnapshotEntry = serde_saphyr::from_str(yaml).expect("parse");
+    let entry: SnapshotEntry = crate::test_yaml::from_str(yaml).expect("parse");
     assert!(entry.optional, "deserialize must capture optional: true");
 
     let out = serialize_yaml::to_string(&entry).expect("serialize");
@@ -22,7 +22,7 @@ fn optional_defaults_false_and_omits_when_false() {
         "dependencies:"
         "  bar: 1.0.0"
     };
-    let entry: SnapshotEntry = serde_saphyr::from_str(yaml).expect("parse");
+    let entry: SnapshotEntry = crate::test_yaml::from_str(yaml).expect("parse");
     assert!(!entry.optional, "default must be false when absent");
 
     let out = serialize_yaml::to_string(&entry).expect("serialize");

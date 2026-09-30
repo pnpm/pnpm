@@ -25,7 +25,7 @@ const YAML: &str = text_block! {
 };
 
 fn fixture_project_snapshot() -> ProjectSnapshot {
-    serde_saphyr::from_str(YAML).unwrap()
+    crate::test_yaml::from_str(YAML).unwrap()
 }
 
 #[test]

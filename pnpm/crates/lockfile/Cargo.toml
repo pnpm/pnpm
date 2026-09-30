@@ -16,18 +16,20 @@ pnpm-crypto-hash = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-json-bridge = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 
 derive_more = { workspace = true }
+deser = { workspace = true }
+deser-yaml = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
-serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 ssri = { workspace = true }
 split-first-char = { workspace = true }
@@ -35,6 +37,7 @@ url = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+serde-saphyr = { workspace = true }
 tempfile = { workspace = true }
 text-block-macros = { workspace = true }
 

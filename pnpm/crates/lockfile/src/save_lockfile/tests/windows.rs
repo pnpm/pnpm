@@ -19,7 +19,7 @@ fn save_recovers_after_the_lockfile_is_briefly_held() {
             .open(&path)
             .unwrap(),
     );
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).unwrap();
+    let lockfile: Lockfile = crate::test_yaml::from_str(LOCKFILE_YAML).unwrap();
 
     let (sender, receiver) = mpsc::channel();
     let result = with_retry_observer(

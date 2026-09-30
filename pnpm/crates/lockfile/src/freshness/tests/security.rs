@@ -5,7 +5,7 @@ use super::{
 
 #[test]
 fn resolved_version_outside_manifest_range_is_stale() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"

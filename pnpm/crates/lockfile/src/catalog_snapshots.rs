@@ -15,7 +15,7 @@ pub type CatalogSnapshots = BTreeMap<String, BTreeMap<String, ResolvedCatalogEnt
 
 /// One resolved catalog entry: the manifest specifier plus the version it
 /// resolved to.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 pub struct ResolvedCatalogEntry {
     /// The specifier recorded under the catalog in `pnpm-workspace.yaml`
     /// (e.g. the `^1.2.3` of `catalog: { foo: ^1.2.3 }`).

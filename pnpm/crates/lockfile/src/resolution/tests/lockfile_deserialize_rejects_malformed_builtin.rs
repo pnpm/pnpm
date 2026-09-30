@@ -14,7 +14,7 @@ fn deserialize_rejects_malformed_builtin_resolution() {
         "type: git"
         "repo: https://github.com/user/repo.git"
     };
-    let received = serde_saphyr::from_str::<LockfileResolution>(yaml);
+    let received = crate::test_yaml::from_str::<LockfileResolution>(yaml);
     dbg!(&received);
     assert!(received.is_err(), "a git resolution without a commit must not parse");
 }

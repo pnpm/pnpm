@@ -58,10 +58,15 @@ mod save_lockfile;
 mod serialize_yaml;
 mod snapshot_dep_ref;
 mod snapshot_entry;
+#[cfg(test)]
+mod test_yaml;
 mod yaml_documents;
 mod yaml_emit;
 
+use derive_more::{Deref, DerefMut};
+use deser::adapters::{As, DeserializeAs, FromInto};
 use indexmap::IndexMap;
+use pnpm_json_bridge::SerdeJson;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
@@ -76,8 +81,9 @@ pub type PackageKey = PkgNameVerPeer;
 /// equals this default it is omitted from the serialized file.
 pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
 
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct LockfileSettings {
     pub auto_install_peers: bool,
     /// Recorded as `Some(true)` when the install ran with
@@ -95,6 +101,7 @@ pub struct LockfileSettings {
     /// gate reads the value as a boolean, so a missing key and `false`
     /// are equivalent.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[deser(default)]
     pub inject_workspace_packages: bool,
     /// Cap that drove this lockfile's peer-suffix rendering. Omitted
     /// from the serialized file when it equals the default ([`DEFAULT_PEERS_SUFFIX_MAX_LENGTH`])
@@ -105,11 +112,46 @@ pub struct LockfileSettings {
 
 /// Top-level lockfile keys pnpm itself does not define, in the order they
 /// were read. See [`Lockfile::extra`].
-pub type LockfileExtra = IndexMap<String, serde_json::Value>;
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Deref, DerefMut)]
+#[serde(transparent)]
+pub struct LockfileExtra(IndexMap<String, serde_json::Value>);
+
+impl LockfileExtra {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// The values are `serde_json` trees, which take an adapter, and a
+/// flattened field cannot. The map is decoded with the adapter first and
+/// converted.
+impl<'de> deser::Deserialize<'de> for LockfileExtra {
+    fn deserialize_into<'out>(
+        out: &'out mut Option<Self>,
+        state: &mut deser::State,
+    ) -> deser::de::SinkHandle<'out, 'de> {
+        <FromInto<BridgedExtra> as DeserializeAs<'de, Self>>::deserialize_into_as(out, state)
+    }
+}
+
+type BridgedExtra = IndexMap<String, As<serde_json::Value, SerdeJson>>;
+
+impl From<BridgedExtra> for LockfileExtra {
+    fn from(extra: BridgedExtra) -> Self {
+        LockfileExtra(
+            extra
+                .into_iter()
+                .map(|(key, value)| (key, value.into_inner()))
+                .collect(),
+        )
+    }
+}
 
 /// A pnpm lockfile using a supported wire format.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -182,6 +224,7 @@ pub struct Lockfile {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_patched_dependencies"
     )]
+    #[deser(deserialize_as = Option<FromInto<PatchEntries>>)]
     pub patched_dependencies: Option<BTreeMap<String, String>>,
 
     #[serde(
@@ -189,6 +232,7 @@ pub struct Lockfile {
         skip_serializing_if = "HashMap::is_empty",
         serialize_with = "crate::serialize_yaml::sorted_map"
     )]
+    #[deser(default)]
     pub importers: HashMap<String, ProjectSnapshot>,
 
     #[serde(
@@ -225,6 +269,7 @@ pub struct Lockfile {
     /// where such a block already sits in the files pnpm's own consumers
     /// have written.
     #[serde(default, flatten, skip_serializing_if = "LockfileExtra::is_empty")]
+    #[deser(flatten)]
     pub extra: LockfileExtra,
 }
 
@@ -428,20 +473,43 @@ fn deserialize_patched_dependencies<'de, Deser>(
 where
     Deser: Deserializer<'de>,
 {
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum PatchEntry {
-        Hash(String),
-        HashAndPath { hash: String },
-    }
-
     let entries = Option::<BTreeMap<String, PatchEntry>>::deserialize(deserializer)?;
     Ok(entries.map(|entries| {
         entries
             .into_iter()
-            .map(|(key, entry)| match entry {
-                PatchEntry::Hash(hash) | PatchEntry::HashAndPath { hash } => (key, hash),
-            })
+            .map(|(key, entry)| (key, String::from(entry)))
             .collect()
     }))
+}
+
+/// One `patchedDependencies` entry in either of its shapes, see
+/// [`deserialize_patched_dependencies`].
+#[derive(Deserialize, deser::Deserialize)]
+#[serde(untagged)]
+#[deser(untagged)]
+enum PatchEntry {
+    Hash(String),
+    HashAndPath { hash: String },
+}
+
+impl From<PatchEntry> for String {
+    fn from(entry: PatchEntry) -> Self {
+        match entry {
+            PatchEntry::Hash(hash) | PatchEntry::HashAndPath { hash } => hash,
+        }
+    }
+}
+
+/// `patchedDependencies` as deser decodes it, each entry in either shape.
+#[derive(deser::Deserialize)]
+#[deser(transparent)]
+struct PatchEntries(BTreeMap<String, PatchEntry>);
+
+impl From<PatchEntries> for BTreeMap<String, String> {
+    fn from(PatchEntries(entries): PatchEntries) -> Self {
+        entries
+            .into_iter()
+            .map(|(key, entry)| (key, String::from(entry)))
+            .collect()
+    }
 }

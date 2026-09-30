@@ -63,7 +63,8 @@ const LOCKFILE_YAML: &str = text_block! {
 
 #[test]
 fn round_trip_parse_save_parse_preserves_lockfile() {
-    let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let original: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
@@ -83,7 +84,7 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
         "saved lockfile must keep `integrity: sha512-` as a plain scalar:\n{saved_bytes}",
     );
 
-    let reparsed: Lockfile = serde_saphyr::from_str(&saved_bytes).expect("reparse lockfile");
+    let reparsed: Lockfile = crate::test_yaml::from_str(&saved_bytes).expect("reparse lockfile");
 
     assert_eq!(original, reparsed);
 }
@@ -96,7 +97,8 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
 /// exact match proves pacquet's writer matches pnpm's formatting.
 #[test]
 fn save_reproduces_pnpm_authored_bytes() {
-    let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let original: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
@@ -109,7 +111,7 @@ fn save_reproduces_pnpm_authored_bytes() {
 
 #[test]
 fn time_survives_a_save_round_trip() {
-    let lockfile: Lockfile = serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))
+    let lockfile: Lockfile = crate::test_yaml::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))
         .expect("parse fixture lockfile");
 
     let tmp = tempdir().expect("create tempdir");
@@ -132,7 +134,7 @@ fn time_is_pruned_to_the_importers_direct_dependencies() {
     };
 
     let lockfile: Lockfile =
-        serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{TIME_WITH_TRANSITIVE}"))
+        crate::test_yaml::from_str(&format!("{LOCKFILE_YAML}\n{TIME_WITH_TRANSITIVE}"))
             .expect("parse fixture lockfile");
 
     let tmp = tempdir().expect("create tempdir");
@@ -191,7 +193,7 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     };
 
     let original: Lockfile =
-        serde_saphyr::from_str(WORKSPACE_YAML).expect("parse workspace lockfile");
+        crate::test_yaml::from_str(WORKSPACE_YAML).expect("parse workspace lockfile");
     assert_eq!(original.importers.len(), 2);
 
     let web = original.importers.get("packages/web").expect("web importer present");
@@ -212,7 +214,7 @@ fn workspace_lockfile_with_link_dep_round_trips() {
         saved.contains("version: link:../shared"),
         "expected `link:` to survive serialization:\n{saved}",
     );
-    let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse");
+    let reparsed: Lockfile = crate::test_yaml::from_str(&saved).expect("reparse");
     assert_eq!(original, reparsed);
 }
 
@@ -241,7 +243,8 @@ fn patched_dependencies_block_round_trips_and_renders_in_order() {
         "  react@17.0.2: {}"
     };
 
-    let original: Lockfile = serde_saphyr::from_str(PATCHED_YAML).expect("parse fixture lockfile");
+    let original: Lockfile =
+        crate::test_yaml::from_str(PATCHED_YAML).expect("parse fixture lockfile");
     let patched = original.patched_dependencies.as_ref().expect("patchedDependencies parsed");
     assert_eq!(
         patched.get("graceful-fs@4.2.11").map(String::as_str),
@@ -330,14 +333,14 @@ fn peers_suffix_max_length_serialized_when_set() {
         "non-default peersSuffixMaxLength must be serialized:\n{saved}",
     );
 
-    let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse lockfile");
+    let reparsed: Lockfile = crate::test_yaml::from_str(&saved).expect("reparse lockfile");
     assert_eq!(reparsed.settings.expect("settings present").peers_suffix_max_length, Some(10));
 }
 
 #[test]
 fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
     let empty_lockfile: Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
+        crate::test_yaml::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
 
     // Attempt to write under a non-existent directory; fs::write returns NotFound.
     let tmp = tempdir().expect("create tempdir");
@@ -354,7 +357,8 @@ fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
 
 #[test]
 fn write_current_round_trips_through_read_current() {
-    let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let original: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
 
     let tmp = tempdir().expect("create tempdir");
     let virtual_store_dir = tmp
@@ -402,7 +406,7 @@ fn write_current_deletes_file_when_lockfile_is_empty() {
     assert!(lock_path.exists());
 
     let empty: Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
+        crate::test_yaml::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
     assert!(empty.is_empty(), "fixture should be considered empty");
 
     empty
@@ -421,7 +425,7 @@ fn write_current_is_a_noop_for_empty_lockfile_with_no_existing_file() {
         .join(".pacquet");
 
     let empty: Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
+        crate::test_yaml::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
     empty
         .save_current_to_virtual_store_dir(&virtual_store_dir)
         .expect("write should succeed when target is missing");
@@ -439,7 +443,8 @@ fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
     std::fs::write(&blocker, b"not a dir").expect("seed blocker file");
 
     let virtual_store_dir = blocker.join(".pacquet");
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     let err = lockfile
         .save_current_to_virtual_store_dir(&virtual_store_dir)
         .expect_err("create_dir_all should fail on a regular-file ancestor");
@@ -464,7 +469,7 @@ fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
     std::fs::create_dir(&dir_at_target).expect("seed directory at lock.yaml path");
 
     let empty: Lockfile =
-        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
+        crate::test_yaml::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
     let err = empty
         .save_current_to_virtual_store_dir(&virtual_store_dir)
         .expect_err("remove_file on a directory should error");
@@ -491,7 +496,8 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
     std::fs::create_dir(&dir_at_target).unwrap();
     std::fs::write(dir_at_target.join("decoy"), b"x").unwrap();
 
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     let err = lockfile
         .save_current_to_virtual_store_dir(&virtual_store_dir)
         .expect_err("rename over a non-empty directory should fail");
@@ -516,7 +522,8 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
 fn save_leaves_an_unchanged_lockfile_untouched() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&path).unwrap();
     let mtime_before = std::fs::metadata(&path)
         .unwrap()
@@ -536,7 +543,8 @@ fn save_leaves_an_unchanged_lockfile_untouched() {
 fn save_leaves_an_unchanged_crlf_lockfile_untouched() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&path).unwrap();
     let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
     std::fs::write(&path, &crlf_content).unwrap();
@@ -561,7 +569,8 @@ fn save_leaves_an_unchanged_crlf_lockfile_untouched() {
 fn save_leaves_an_unchanged_lockfile_with_env_document_untouched() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&path).unwrap();
     let main_doc = std::fs::read_to_string(&path).unwrap();
     let env_doc = "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n---\n";
@@ -589,7 +598,8 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
     let path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&victim, &path).unwrap();
 
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     let error = lockfile.save_to_path(&path).expect_err("a symlinked lockfile must not be written");
 
     assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
@@ -611,7 +621,8 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
 fn save_accepts_symlinked_lockfile_when_nothing_changes() {
     let dir = tempdir().unwrap();
     let staged = dir.path().join("staged-lockfile.yaml");
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&staged).unwrap();
     let target_before = std::fs::read(&staged).unwrap();
     let mtime_before = std::fs::metadata(&staged)
@@ -644,7 +655,8 @@ fn save_accepts_symlinked_lockfile_when_nothing_changes() {
 fn save_accepts_unchanged_crlf_symlinked_lockfile() {
     let dir = tempdir().unwrap();
     let staged = dir.path().join("staged-lockfile.yaml");
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&staged).unwrap();
     let crlf_content = std::fs::read_to_string(&staged).unwrap().replace('\n', "\r\n");
     std::fs::write(&staged, &crlf_content).unwrap();
@@ -677,7 +689,7 @@ fn save_preserves_the_lockfile_permission_mode() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     let mut lockfile: Lockfile =
-        serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&path).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
 
@@ -697,7 +709,8 @@ fn save_preserves_the_lockfile_permission_mode() {
 fn save_leaves_no_temp_file_behind() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
-    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let lockfile: Lockfile =
+        crate::test_yaml::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
 
     lockfile.save_to_path(&path).unwrap();
 

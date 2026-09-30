@@ -5,7 +5,7 @@ use super::{
 
 #[test]
 fn dependencies_meta_mismatch_returns_dependencies_meta_mismatch() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -36,7 +36,7 @@ fn dependencies_meta_mismatch_returns_dependencies_meta_mismatch() {
 
 #[test]
 fn dependencies_meta_empty_object_equivalent_to_absent() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -60,7 +60,7 @@ fn dependencies_meta_empty_object_equivalent_to_absent() {
 
 #[test]
 fn same_dep_in_prod_and_optional_counts_under_optional() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -87,7 +87,7 @@ fn same_dep_in_prod_and_optional_counts_under_optional() {
 
 #[test]
 fn dev_only_dependency_match_satisfies() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -110,7 +110,7 @@ fn dev_only_dependency_match_satisfies() {
 
 #[test]
 fn optional_only_dependency_match_satisfies() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -139,7 +139,7 @@ fn optional_only_dependency_match_satisfies() {
 
 #[test]
 fn peer_only_dependency_is_satisfied_when_auto_install_peers() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -166,7 +166,7 @@ fn peer_only_dependency_is_satisfied_when_auto_install_peers() {
 
 #[test]
 fn peers_also_declared_as_regular_deps_still_satisfy() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -200,7 +200,7 @@ fn peers_also_declared_as_regular_deps_still_satisfy() {
 
 #[test]
 fn peer_only_dependency_is_stale_without_auto_install_peers() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -237,7 +237,7 @@ fn peer_only_dependency_is_stale_without_auto_install_peers() {
 /// some other accidental match.
 #[test]
 fn ignored_optional_without_filter_surfaces_as_drift() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
@@ -275,7 +275,7 @@ fn ignored_optional_dependencies_round_trips_through_yaml() {
         "  - foo"
         "  - '@scope/bar'"
     };
-    let parsed: Lockfile = serde_saphyr::from_str(yaml).expect("parse lockfile");
+    let parsed: Lockfile = crate::test_yaml::from_str(yaml).expect("parse lockfile");
     assert_eq!(
         parsed.ignored_optional_dependencies.as_deref(),
         Some(&["foo".to_string(), "@scope/bar".to_string()][..]),
@@ -290,7 +290,7 @@ fn ignored_optional_dependencies_round_trips_through_yaml() {
 /// flagging the lockfile's dev entry as removed → false drift.
 #[test]
 fn ignored_optional_does_not_apply_to_dev_dependencies() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"

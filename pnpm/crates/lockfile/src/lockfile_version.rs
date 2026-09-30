@@ -5,9 +5,21 @@ use std::fmt;
 
 /// Wrapper that checks compatibility with the lockfile versions this client supports.
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, AsRef, Deref, Into,
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    AsRef,
+    Deref,
+    deser::Deserialize,
+    Into,
 )]
 #[serde(try_from = "ComVer", into = "ComVer")]
+#[deser(deserialize_as = deser::adapters::TryFromInto<ComVer>)]
 pub struct LockfileVersion<const MAJOR: u16>(ComVer);
 
 impl<const MAJOR: u16> LockfileVersion<MAJOR> {

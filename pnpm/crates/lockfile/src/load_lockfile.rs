@@ -7,7 +7,7 @@ use crate::{
 use derive_more::{Display, Error};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use serde_saphyr::MessageFormatter;
+use pnpm_json_bridge::{Value, to_serde_json};
 use std::{
     collections::HashMap,
     env, fs,
@@ -15,11 +15,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
-const DEFAULT_YAML_MAX_NODES: usize = 250_000;
-const DEFAULT_YAML_MAX_SCALAR_BYTES: usize = 64 * 1024 * 1024;
-const DEFAULT_YAML_MAX_READER_INPUT_BYTES: usize = 256 * 1024 * 1024;
 
 /// Error when reading lockfile the filesystem.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -43,37 +38,15 @@ pub enum LoadLockfileError {
 }
 
 impl LoadLockfileError {
-    pub(super) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
+    pub(super) fn parse_yaml(path: &Path, source: &deser::Error) -> Self {
         Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
     }
 }
 
-fn format_yaml_error(error: &serde_saphyr::Error) -> String {
-    let error = error.without_snippet();
-    let reason = serde_saphyr::DefaultMessageFormatter.format_message(error);
-    if let Some(location) = error.location() {
-        format!("{reason} ({}:{})", location.line(), location.column())
-    } else {
-        reason.into_owned()
-    }
-}
-
-/// The parsing budgets for a lockfile document of `document_len` bytes.
-///
-/// Every size-proportional budget is raised to the document's byte length:
-/// none of these dimensions can exceed the size of an input that is already
-/// in memory, so a valid lockfile must never trip them, however large. The
-/// remaining defaults (aliases, anchors, depth, documents) bound YAML shapes
-/// the lockfile emitter never produces and stay as security caps.
-fn yaml_parse_options(document_len: usize) -> serde_saphyr::Options {
-    serde_saphyr::options! {
-        budget: serde_saphyr::budget! {
-            max_events: document_len.max(DEFAULT_YAML_MAX_EVENTS),
-            max_nodes: document_len.max(DEFAULT_YAML_MAX_NODES),
-            max_total_scalar_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
-            max_total_comment_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
-            max_reader_input_bytes: Some(document_len.max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
-        },
+fn format_yaml_error(error: &deser::Error) -> String {
+    match (error.line(), error.column()) {
+        (Some(line), Some(column)) => format!("{} ({line}:{column})", error.message()),
+        _ => error.message().to_string(),
     }
 }
 
@@ -259,7 +232,7 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str_with_options::<Self>(&main, yaml_parse_options(main.len()))
+        deser_yaml::from_str::<Self>(&main)
             .map(|mut lockfile| {
                 lockfile.reconstruct_missing_directory_resolutions();
                 Some(lockfile)
@@ -275,11 +248,9 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        let mut value = serde_saphyr::from_str_with_options::<serde_json::Value>(
-            &main,
-            yaml_parse_options(main.len()),
-        )
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
+        let mut value = deser_yaml::from_str::<Value>(&main)
+            .and_then(|document| to_serde_json(&document))
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         prepare_value_for_fix(&mut value);
         serde_json::from_value::<Self>(value)
             .map(|mut merge| {

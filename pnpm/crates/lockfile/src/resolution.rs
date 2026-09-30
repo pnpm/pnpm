@@ -6,9 +6,12 @@ pub use registry::{
 };
 
 use derive_more::{Display, Error, From, Into, TryInto};
+use deser::adapters::{As, DisplayFromStr, FromInto, TryFromInto};
+use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_diagnostics::miette::Diagnostic;
+use pnpm_json_bridge::SerdeJson;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 use std::{
@@ -17,11 +20,13 @@ use std::{
 };
 
 /// For tarball hosted remotely or locally.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct TarballResolution {
     pub tarball: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[deser(deserialize_as = Option<DisplayFromStr>)]
     pub integrity: Option<Integrity>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<TarballRevision>,
@@ -59,9 +64,11 @@ impl TarballResolution {
 }
 
 /// For standard package specification, with package name and version range.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RegistryResolution {
+    #[deser(deserialize_as = DisplayFromStr)]
     pub integrity: Integrity,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<TarballRevision>,
@@ -72,9 +79,21 @@ pub const MAX_TARBALL_REVISION: u64 = 9_007_199_254_740_991;
 
 /// A positive registry artifact revision in JavaScript's safe-integer range.
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Into,
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    deser::Deserialize,
+    Into,
 )]
 #[serde(try_from = "u64", into = "u64")]
+#[deser(deserialize_as = TryFromInto<u64>)]
 pub struct TarballRevision(u64);
 
 impl TarballRevision {
@@ -119,15 +138,17 @@ pub enum LockfileFormError {
 }
 
 /// For local directory on a filesystem.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct DirectoryResolution {
     pub directory: String,
 }
 
 /// For git repository.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GitResolution {
     pub repo: String,
     pub commit: String,
@@ -159,8 +180,9 @@ pub struct GitResolution {
 ///
 /// `BTreeMap` (not `HashMap`) keeps the serialised order stable so a
 /// round-trip through pacquet doesn't churn the lockfile diff.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(untagged)]
+#[deser(untagged)]
 pub enum BinarySpec {
     /// Single executable. The bin name defaults to the package name
     /// at install time; this string is the path *inside the archive*
@@ -174,8 +196,9 @@ pub enum BinarySpec {
 ///
 /// `tarball` is the common shape for nodejs.org's `.tar.gz` artifacts
 /// (Linux / macOS); `zip` is what Windows Node ships as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[deser(rename_all = "lowercase")]
 pub enum BinaryArchive {
     Tarball,
     Zip,
@@ -188,10 +211,12 @@ pub enum BinaryArchive {
 /// per-package `ignoreFilePattern` filtering — Node strips bundled
 /// `npm` / `corepack`) and links the executables named in `bin` into
 /// the importer's `node_modules/.bin/`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct BinaryResolution {
     pub url: String,
+    #[deser(deserialize_as = DisplayFromStr)]
     pub integrity: Integrity,
     pub bin: BinarySpec,
     pub archive: BinaryArchive,
@@ -214,8 +239,9 @@ pub struct BinaryResolution {
 /// else. `Option<String>` (rather than `Option<Libc>` enum) keeps
 /// future libc values future-compatible without a churning serde
 /// migration if a new one lands.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetTarget {
     pub os: String,
     pub cpu: String,
@@ -237,8 +263,9 @@ pub struct PlatformAssetTarget {
 /// each shape independently — no infinite recursion is possible
 /// because the install dispatcher does not call back into
 /// [`select_platform_variant`] for non-`Variations` inputs.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetResolution {
     pub resolution: LockfileResolution,
     pub targets: Vec<PlatformAssetTarget>,
@@ -250,8 +277,9 @@ pub struct PlatformAssetResolution {
 /// At install time, the dispatcher walks `variants` in declaration
 /// order and picks the first whose `targets[]` includes the host
 /// triple — see [`select_platform_variant`] in this module.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[deser(deny_unknown_fields, rename_all = "camelCase")]
 pub struct VariationsResolution {
     pub variants: Vec<PlatformAssetResolution>,
 }
@@ -264,8 +292,9 @@ pub struct VariationsResolution {
 /// tags here keeps a malformed built-in resolution (e.g. a `git` entry
 /// missing `commit`) a hard parse error instead of silently
 /// reclassifying it as custom.
-#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(try_from = "String", into = "String")]
+#[deser(deserialize_as = TryFromInto<String>)]
 pub struct CustomResolutionType(String);
 
 impl CustomResolutionType {
@@ -302,12 +331,36 @@ impl From<CustomResolutionType> for String {
 ///
 /// Mirrors the TypeScript interface of the same name in
 /// `pnpm11/resolving/resolver-base/src/index.ts`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
+#[deser(deserialize_as = FromInto<CustomResolutionFields>)]
 pub struct CustomResolution {
     #[serde(rename = "type")]
     pub resolution_type: CustomResolutionType,
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// The fields of a [`CustomResolution`] as deser decodes them. The
+/// flattened extras are `serde_json` values, which take an adapter, and a
+/// flattened field cannot.
+#[derive(deser::Deserialize)]
+struct CustomResolutionFields {
+    #[deser(rename = "type")]
+    resolution_type: CustomResolutionType,
+    #[deser(flatten)]
+    extra: IndexMap<String, As<serde_json::Value, SerdeJson>>,
+}
+
+impl From<CustomResolutionFields> for CustomResolution {
+    fn from(fields: CustomResolutionFields) -> Self {
+        CustomResolution {
+            resolution_type: fields.resolution_type,
+            extra: fields.extra
+                .into_iter()
+                .map(|(key, value)| (key, value.into_inner()))
+                .collect(),
+        }
+    }
 }
 
 /// Host triple used to pick a variant out of a [`VariationsResolution`].
@@ -375,8 +428,9 @@ pub(crate) fn libc_matches(variant_libc: Option<&str>, requested_libc: Option<&s
 }
 
 /// Represent the resolution object.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, From, TryInto)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize, From, TryInto)]
 #[serde(from = "ResolutionSerde", into = "ResolutionSerde")]
+#[deser(deserialize_as = FromInto<ResolutionSerde>)]
 pub enum LockfileResolution {
     Tarball(TarballResolution),
     Registry(RegistryResolution),
@@ -507,8 +561,9 @@ pub struct LockfileFormOptions<'a> {
 }
 
 /// Intermediate helper type for serde.
-#[derive(Serialize, Deserialize, From, TryInto)]
+#[derive(Serialize, Deserialize, deser::Deserialize, From, TryInto)]
 #[serde(tag = "type", rename_all = "camelCase")]
+#[deser(tag = "type", rename_all = "camelCase")]
 enum TaggedResolution {
     Directory(DirectoryResolution),
     Git(GitResolution),
@@ -523,8 +578,9 @@ enum TaggedResolution {
 /// its chance to match (or to *fail loudly* — [`CustomResolutionType`]
 /// rejects built-in tags, keeping a malformed built-in resolution a
 /// parse error rather than a silent reclassification) first.
-#[derive(Serialize, Deserialize, From, TryInto)]
+#[derive(Serialize, Deserialize, deser::Deserialize, From, TryInto)]
 #[serde(untagged)]
+#[deser(untagged)]
 enum ResolutionSerde {
     Tarball(TarballResolution),
     Registry(RegistryResolution),

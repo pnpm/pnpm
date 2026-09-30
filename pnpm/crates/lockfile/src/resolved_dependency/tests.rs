@@ -36,7 +36,7 @@ fn parses_link_with_absolute_path() {
 #[test]
 fn resolved_spec_deserialize_link() {
     let yaml = "specifier: workspace:*\nversion: link:../shared\n";
-    let spec: ResolvedDependencySpec = serde_saphyr::from_str(yaml).unwrap();
+    let spec: ResolvedDependencySpec = crate::test_yaml::from_str(yaml).unwrap();
     assert_eq!(spec.specifier, "workspace:*");
     assert_eq!(spec.version.as_link_target(), Some("../shared"));
 }
@@ -44,7 +44,7 @@ fn resolved_spec_deserialize_link() {
 #[test]
 fn resolved_spec_deserialize_regular() {
     let yaml = "specifier: ^4.0.0\nversion: 4.0.0\n";
-    let spec: ResolvedDependencySpec = serde_saphyr::from_str(yaml).unwrap();
+    let spec: ResolvedDependencySpec = crate::test_yaml::from_str(yaml).unwrap();
     assert_eq!(spec.specifier, "^4.0.0");
     assert!(spec.version.as_regular().is_some());
 }
@@ -84,7 +84,7 @@ fn parses_alias_version_with_peer() {
 #[test]
 fn resolved_spec_deserialize_alias() {
     let yaml = "specifier: 'catalog:'\nversion: '@zkochan/js-yaml@0.0.11'\n";
-    let spec: ResolvedDependencySpec = serde_saphyr::from_str(yaml).unwrap();
+    let spec: ResolvedDependencySpec = crate::test_yaml::from_str(yaml).unwrap();
     assert_eq!(spec.specifier, "catalog:");
     let alias = spec.version.as_alias().expect("alias variant");
     assert_eq!(alias.name.to_string(), "@zkochan/js-yaml");

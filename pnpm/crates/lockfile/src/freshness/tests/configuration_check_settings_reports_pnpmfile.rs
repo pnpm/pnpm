@@ -8,7 +8,7 @@ use super::{
 /// drifted field is reported.
 #[test]
 fn check_settings_reports_pnpmfile_checksum_between_its_pnpm_neighbors() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "pnpmfileChecksum: sha256-abc"
         "settings:"

@@ -25,7 +25,18 @@ use serde::{Deserialize, Serialize};
 /// depend on `pnpm-modules-yaml` and adding the dep just for a
 /// rustdoc reference would invert the natural crate ordering.
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    deser::Deserialize,
+    From,
+    Into,
 )]
 #[serde(transparent)]
 pub struct PkgIdWithPatchHash(String);

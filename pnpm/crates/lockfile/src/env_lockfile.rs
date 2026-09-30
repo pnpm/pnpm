@@ -35,7 +35,7 @@ use std::{
 
 /// The resolved `{ specifier, version }` pair recorded for each config
 /// (or package-manager) dependency under an importer.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 pub struct SpecifierAndResolution {
     pub specifier: String,
     pub version: String,
@@ -43,12 +43,14 @@ pub struct SpecifierAndResolution {
 
 /// Per-importer entry of the env lockfile. Only the root importer
 /// (`.`) is ever populated.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct EnvImporterSnapshot {
     /// Always serialized — the key is seeded even when empty, so the env
     /// document always carries it.
     #[serde(default)]
+    #[deser(default)]
     pub config_dependencies: BTreeMap<String, SpecifierAndResolution>,
     /// The `packageManager` / `devEngines` bootstrap deps. Omitted when
     /// absent so a config-deps-only env document round-trips identically.
@@ -61,20 +63,24 @@ pub struct EnvImporterSnapshot {
 /// Field declaration order is the serialized root-key order
 /// (`lockfileVersion`, `importers`, `packages`, `snapshots`), the subset
 /// of the lockfile root-key order that an env document uses.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, deser::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct EnvLockfile {
     /// A plain string (not the numeric [`crate::LockfileVersion`]): the
     /// env document records `lockfileVersion` as a string.
     pub lockfile_version: String,
 
     #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
+    #[deser(default)]
     pub importers: HashMap<String, EnvImporterSnapshot>,
 
     #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
+    #[deser(default)]
     pub packages: HashMap<PackageKey, PackageMetadata>,
 
     #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
+    #[deser(default)]
     pub snapshots: HashMap<PackageKey, SnapshotEntry>,
 }
 
@@ -135,7 +141,7 @@ impl EnvLockfile {
     }
 
     fn parse_document(env_doc: &str, path: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        let mut env: EnvLockfile = serde_saphyr::from_str(env_doc)
+        let mut env: EnvLockfile = deser_yaml::from_str(env_doc)
             .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?;
         env.root_importer_mut();
         Ok(Some(env))

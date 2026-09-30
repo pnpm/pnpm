@@ -9,8 +9,9 @@ use std::{borrow::Cow, fmt, str::FromStr};
 /// Syntax:
 /// * Without scope: `{bare}`
 /// * With scope: `@{scope}/bare`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, deser::Deserialize)]
 #[serde(try_from = "Cow<'de, str>", into = "String")]
+#[deser(deserialize_as = deser::adapters::DisplayFromStr)]
 pub struct PkgName {
     /// The scope (if any) without the `@` prefix.
     pub scope: Option<String>,

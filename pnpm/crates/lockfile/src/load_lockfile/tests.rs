@@ -340,6 +340,27 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
     assert_eq!(lockfile.pnpmfile_checksum.unwrap().len(), huge_string_len);
 }
 
+#[test]
+fn a_deeply_nested_foreign_block_is_rejected_by_both_loaders() {
+    const DEPTH: usize = 100_000;
+    let content =
+        format!("lockfileVersion: '9.0'\n\nbit: {}{}\n", "[".repeat(DEPTH), "]".repeat(DEPTH));
+
+    let strict = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
+        .expect_err("nesting past the cap is rejected");
+    eprintln!("STRICT:\n{strict}\n");
+    assert!(matches!(strict, LoadLockfileError::ParseYaml { .. }));
+    assert!(strict.to_string().contains("recursion limit"));
+
+    let tmp = tempdir().expect("create tempdir");
+    std::fs::write(tmp.path().join(Lockfile::FILE_NAME), &content).expect("write lockfile");
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let repair = lazy.get_for_fix().expect_err("the repair loader applies the same cap");
+    eprintln!("REPAIR:\n{repair}\n");
+    assert!(matches!(repair, LoadLockfileError::ParseYaml { .. }));
+    assert!(repair.to_string().contains("recursion limit"));
+}
+
 // A regression here makes every subsequent install re-resolve from
 // scratch after failing to read the lockfile it just wrote.
 #[test]

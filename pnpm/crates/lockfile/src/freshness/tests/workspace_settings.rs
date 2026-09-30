@@ -9,7 +9,7 @@ use super::{
 
 #[test]
 fn check_settings_passes_when_catalog_snapshot_matches_config() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "catalogs:"
         "  default:"
@@ -27,7 +27,7 @@ fn check_settings_passes_when_catalog_snapshot_matches_config() {
 
 #[test]
 fn check_settings_accepts_equivalent_git_catalog_specifiers() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "catalogs:"
         "  default:"
@@ -49,7 +49,7 @@ fn check_settings_accepts_equivalent_git_catalog_specifiers() {
 
 #[test]
 fn check_settings_ignores_catalog_config_entries_absent_from_snapshot() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse lockfile without catalog snapshot");
@@ -62,7 +62,7 @@ fn check_settings_ignores_catalog_config_entries_absent_from_snapshot() {
 
 #[test]
 fn check_settings_returns_drift_when_catalog_snapshot_specifier_changes() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "catalogs:"
         "  default:"
@@ -99,7 +99,7 @@ fn check_settings_returns_drift_when_catalog_snapshot_specifier_changes() {
 
 #[test]
 fn check_settings_returns_drift_when_catalog_snapshot_entry_is_removed_from_config() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "catalogs:"
         "  default:"
@@ -116,7 +116,7 @@ fn check_settings_returns_drift_when_catalog_snapshot_entry_is_removed_from_conf
 
 #[test]
 fn check_settings_passes_when_inject_workspace_packages_both_false() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -125,7 +125,7 @@ fn check_settings_passes_when_inject_workspace_packages_both_false() {
 
 #[test]
 fn check_settings_passes_when_inject_workspace_packages_both_true() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: false"
@@ -151,7 +151,7 @@ fn check_settings_passes_when_inject_workspace_packages_both_true() {
 
 #[test]
 fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
@@ -174,7 +174,7 @@ fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() 
 
 #[test]
 fn check_settings_returns_drift_when_config_disables_inject_workspace_packages() {
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+    let lockfile: Lockfile = crate::test_yaml::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "settings:"
         "  autoInstallPeers: false"

@@ -6,7 +6,7 @@ const CURRENT: &str = "aaaa1111";
 const STALE: &str = "bbbb2222";
 
 fn status(source: &str) -> PatchedDepPathsStatus {
-    let lockfile: Lockfile = serde_saphyr::from_str(source).expect("parse lockfile");
+    let lockfile: Lockfile = crate::test_yaml::from_str(source).expect("parse lockfile");
     check_patched_dep_paths(&lockfile)
 }
 
