@@ -47,7 +47,7 @@ use workspace_pick::{
 };
 
 mod store_peek;
-use store_peek::fast_path_pick;
+use store_peek::{fast_path_pick, peek_manifest_from_store};
 
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -222,6 +222,27 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         self.resolve_registry_dependency(wanted_dependency, opts, default_tag).await
     }
 
+    /// An offline repick that found no usable metadata keeps the locked
+    /// version when the store holds its manifest: without metadata there is
+    /// nothing to deduplicate against.
+    async fn offline_locked_fallback(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        spec: &RegistryPackageSpec,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        if !self.cache_policy.offline || !opts.refresh.repick_current_version {
+            return Ok(None);
+        }
+        peek_manifest_from_store(
+            self.store_view.as_ref().map(OfflineStoreView::index),
+            wanted_dependency,
+            opts,
+            spec,
+        )
+        .await
+    }
+
     async fn resolve_registry_dependency(
         &self,
         wanted_dependency: &WantedDependency,
@@ -253,6 +274,11 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             match self.pick_from_registry(&registry, &spec, opts, optional, trust_check).await {
                 Ok(RegistryPick::Picked(picked)) => picked,
                 outcome => {
+                    if let Some(result) =
+                        self.offline_locked_fallback(wanted_dependency, opts, &spec).await?
+                    {
+                        return Ok(Some(result));
+                    }
                     return workspace_fallback_for(
                         outcome,
                         wanted_dependency,

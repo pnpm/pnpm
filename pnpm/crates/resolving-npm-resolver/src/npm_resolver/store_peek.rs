@@ -24,8 +24,9 @@ pub(crate) async fn fast_path_pick(
     spec: &RegistryPackageSpec,
     workspace_packages_active: Option<&Arc<WorkspacePackages>>,
 ) -> Result<Option<ResolveResult>, ResolveError> {
-    if let Some(result) =
-        peek_manifest_from_store(store_index, wanted_dependency, opts, spec).await?
+    if !opts.refresh.repick_current_version
+        && let Some(result) =
+            peek_manifest_from_store(store_index, wanted_dependency, opts, spec).await?
     {
         return Ok(Some(result));
     }
@@ -55,7 +56,7 @@ fn is_eligible_for_store_peek<'a>(
     spec: &RegistryPackageSpec,
 ) -> Option<&'a CurrentPkg> {
     let current_pkg = opts.refresh.current_pkg.as_ref()?;
-    if opts.refresh.update != UpdateBehavior::Off || opts.refresh.repick_current_version {
+    if opts.refresh.update != UpdateBehavior::Off {
         return None;
     }
     if opts.refresh.update_checksums {

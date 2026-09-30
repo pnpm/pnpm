@@ -621,10 +621,6 @@ fn filtered_downgrade_reaches_other_projects_on_the_next_install() {
         .with_arg("install")
         .assert()
         .success();
-    pnpm_at(&workspace)
-        .with_args(["--filter=low", "add", &format!("{DEP}@100.0.0")])
-        .assert()
-        .success();
     let installed = |project: &str| {
         let manifest = workspace
             .join(project)
@@ -635,7 +631,13 @@ fn filtered_downgrade_reaches_other_projects_on_the_next_install() {
             serde_json::from_slice(&fs::read(manifest).unwrap()).unwrap();
         manifest["version"].clone()
     };
+    assert_eq!(installed("high"), "100.1.0");
+    pnpm_at(&workspace)
+        .with_args(["--filter=low", "add", &format!("{DEP}@100.0.0")])
+        .assert()
+        .success();
     assert_eq!(installed("low"), "100.0.0");
+    assert_eq!(installed("high"), "100.1.0");
     assert_eq!(
         importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "high", DEP),
         "100.0.0",

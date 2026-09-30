@@ -743,6 +743,79 @@ async fn store_peek_bypassed_when_the_current_version_is_reopened() {
 }
 
 #[tokio::test]
+async fn offline_reopened_version_falls_back_to_the_store() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(0)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (mut resolver, _tempdir) = build_resolver(&registry);
+    resolver.cache_policy.offline = true;
+
+    let store_dir = tempfile::TempDir::new().unwrap();
+    let index = pnpm_store_dir::StoreIndex::open(store_dir.path()).unwrap();
+    let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+    let pkg_id = "acme@1.0.0";
+    let key = pnpm_store_dir::store_index_key(integrity_str, pkg_id);
+    index
+        .set(
+            &key,
+            &pnpm_store_dir::PackageFilesIndex {
+                manifest: Some(json!({
+                    "name": "acme",
+                    "version": "1.0.0",
+                })),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    resolver.store_view =
+        Some(crate::OfflineStoreView::new(Arc::new(std::sync::Mutex::new(index))));
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            current_pkg: Some(CurrentPkg {
+                id: PkgResolutionId::from(pkg_id),
+                name: Some("acme".to_string()),
+                version: Some("1.0.0".to_string()),
+                resolution: LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+                    tarball: "https://registry/acme-1.0.0.tgz".to_string(),
+                    integrity: Some(integrity_str.parse().unwrap()),
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                }),
+                published_at: None,
+                manifest: None,
+            }),
+            update: UpdateBehavior::Off,
+            repick_current_version: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("should resolve the locked version from the store");
+    let name_ver = result.package.name_ver.as_ref().expect("name_ver");
+    assert_eq!(name_ver.suffix.to_string(), "1.0.0");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn store_peek_bypassed_when_update_checksums_is_true() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
