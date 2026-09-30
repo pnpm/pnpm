@@ -22,6 +22,12 @@ export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir'
  * dependencies in the root modules directory too, so both are probed there.
  */
 export async function findDanglingDirectDependencyLink (opts: FindDanglingDirectDependencyLinkOptions): Promise<string | undefined> {
+  const entries = listDirectDependencyEntries(opts)
+  const dangling = await Promise.all(entries.map(isDanglingLink))
+  return entries.find((_, index) => dangling[index])
+}
+
+function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOptions): string[] {
   const projects: Array<{ rootDir: string, manifest: ProjectManifest }> = [...(opts.allProjects ?? [])]
   if (opts.rootProjectManifest != null && !projects.some(({ rootDir }) => rootDir === opts.rootProjectManifestDir)) {
     projects.push({ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest })
@@ -29,16 +35,14 @@ export async function findDanglingDirectDependencyLink (opts: FindDanglingDirect
   const modulesDirOf = createProjectModulesDirResolver(opts)
   const rootModulesDir = path.resolve(opts.rootProjectManifestDir, modulesDirOf(opts.rootProjectManifest?.name) ?? 'node_modules')
   const fields = DEPENDENCIES_FIELDS.filter((field) => opts.include?.[field] !== false)
-  const entries = projects.flatMap(({ rootDir, manifest }) => {
+  return projects.flatMap(({ rootDir, manifest }) => {
     const modulesDirs = [path.resolve(rootDir, modulesDirOf(manifest.name) ?? 'node_modules')]
     if (opts.nodeLinker === 'hoisted' && modulesDirs[0] !== rootModulesDir) {
       modulesDirs.push(rootModulesDir)
     }
-    return fields.flatMap((field) => Object.keys(manifest[field] ?? {})
-      .flatMap((alias) => modulesDirs.map((modulesDir) => path.join(modulesDir, alias))))
+    const aliases = fields.flatMap((field) => Object.keys(manifest[field] ?? {}))
+    return aliases.flatMap((alias) => modulesDirs.map((modulesDir) => path.join(modulesDir, alias)))
   })
-  const dangling = await Promise.all(entries.map(isDanglingLink))
-  return entries.find((_, index) => dangling[index])
 }
 
 async function isDanglingLink (entry: string): Promise<boolean> {
