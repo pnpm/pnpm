@@ -5,15 +5,15 @@ export function inferRangeSpecStyle (spec: string): RangeSpecStyle | undefined {
   const range = getRangeOfSpecifier(spec)
   if (range == null) return undefined
   if (range === '*') return 'none'
-  spec = range
-  const parsedRange = parseRange(spec)
+  const parsedRange = parseRange(range)
   if (parsedRange.length !== 1) return undefined
-  const versionObject = parsedRange[0]
+  return styleFromVersionObject(parsedRange[0])
+}
+
+function styleFromVersionObject (versionObject: ReturnType<typeof parseRange>[number]): RangeSpecStyle | undefined {
   switch (versionObject.operator) {
     case '~': return 'minor'
     case '^': return 'major'
-    // A bare '=' before a full version is an explicit exact pin; a partial
-    // '=' pins the same way the plain version it prefixes does.
     case '=':
     case undefined:
       if (versionObject.patch) return versionObject.operator === '=' ? 'exact' : 'patch'
@@ -22,6 +22,7 @@ export function inferRangeSpecStyle (spec: string): RangeSpecStyle | undefined {
   }
   return undefined
 }
+
 
 /**
  * The range a specifier declares once its protocol prefix (`npm:`, `jsr:`,
