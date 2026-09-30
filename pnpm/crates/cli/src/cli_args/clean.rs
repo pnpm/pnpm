@@ -1,7 +1,7 @@
 use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, relative_path, remove_dirent};
+use pnpm_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -106,8 +106,10 @@ fn remove_external_virtual_store(
         root_dir.join(virtual_store_dir)
     };
     let root_modules_dir = root_dir.join(modules_leaf);
+    // `is_subdir` accepts the root itself, which a store set to `.` names.
     if !is_subdir(&root_modules_dir, &resolved_virtual_store_dir)
         && is_subdir(root_dir, &resolved_virtual_store_dir)
+        && lexical_normalize(&resolved_virtual_store_dir) != lexical_normalize(root_dir)
         && resolved_virtual_store_dir.exists()
     {
         print_removing(cwd, &resolved_virtual_store_dir);

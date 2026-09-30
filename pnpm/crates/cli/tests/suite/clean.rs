@@ -363,6 +363,35 @@ fn clean_keeps_the_default_global_virtual_store_inside_the_project() {
     drop(root);
 }
 
+/// A store setting of `.` names the project itself, which `clean` never
+/// removes.
+#[test]
+fn clean_keeps_the_project_when_a_virtual_store_setting_names_it() {
+    for settings in [
+        "virtualStoreDir: .\n",
+        "enableGlobalVirtualStore: true\nvirtualStoreDir: .pnpm-store\nglobalVirtualStoreDir: .\n",
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+        fs::write(workspace.join("pnpm-workspace.yaml"), format!("{settings}packages:\n  - .\n"))
+            .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+
+        let output = pacquet
+            .with_args(["clean"])
+            .output()
+            .expect("run pacquet clean");
+        assert!(output.status.success(), "pacquet clean should succeed");
+
+        assert!(
+            workspace.join("package.json").exists(),
+            "the project must be kept with {settings:?}",
+        );
+
+        drop(root);
+    }
+}
+
 #[test]
 fn clean_does_not_remove_virtual_store_dir_outside_the_project_root() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
