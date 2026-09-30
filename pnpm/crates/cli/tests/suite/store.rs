@@ -555,6 +555,55 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
 }
 
 #[test]
+fn store_prune_reports_undecodable_entries() {
+    for count in [0, 1, 2] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+        let store_dir = pnpm_store_dir::StoreDir::from(root.path().join("store"));
+        drop(pnpm_store_dir::StoreIndex::open_in(&store_dir).expect("initialize store index"));
+        Command::new("node")
+            .with_args([
+                "-e",
+                r"
+                const { DatabaseSync } = require('node:sqlite');
+                const db = new DatabaseSync(process.argv[1]);
+                const insert = db.prepare('INSERT INTO package_index (key, data) VALUES (?, ?)');
+                for (let i = 0; i < Number(process.argv[2]); i++) {
+                    insert.run(`unreadable-${i}`, Buffer.from([0xc1]));
+                }
+                db.close();
+                ",
+            ])
+            .with_arg(store_dir.root().join("index.db"))
+            .with_arg(count.to_string())
+            .assert()
+            .success();
+
+        let output = pacquet
+            .with_args(["store", "prune", "--store-dir"])
+            .with_arg(store_dir.root())
+            .output()
+            .expect("run store prune");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "store prune failed: {stderr}");
+        if count == 0 {
+            assert!(!stderr.contains("could not be read"), "stderr={stderr}");
+        } else {
+            let noun = if count == 1 { "entry" } else { "entries" };
+            let notice = format!("Kept {count} package index {noun} that could not be read");
+            assert!(stderr.contains(&notice), "stderr={stderr}");
+        }
+        assert_eq!(
+            pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+                .expect("open pruned store index")
+                .keys()
+                .expect("read retained keys")
+                .len(),
+            count,
+        );
+    }
+}
+
+#[test]
 fn store_prune_removes_packages_left_unreferenced_by_remove() {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..

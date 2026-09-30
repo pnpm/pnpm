@@ -62,6 +62,7 @@ pub(crate) struct PruneCasStats {
     pub files: usize,
     pub bytes: u64,
     pub packages: usize,
+    pub undecodable_packages: usize,
 }
 
 pub(crate) fn prune_cas(store_dir: &StoreDir) -> Result<PruneCasStats, PruneCasError> {
@@ -83,7 +84,17 @@ pub(crate) fn prune_cas(store_dir: &StoreDir) -> Result<PruneCasStats, PruneCasE
     let mut index = StoreIndex::open_in(store_dir).map_err(PruneCasError::StoreIndex)?;
     let mut rows_to_delete = Vec::new();
     index.for_each_raw(|key, data| {
-        let package = decode_package_files_index(&data).map_err(PruneCasError::StoreIndex)?;
+        // A row another pnpm version wrote in a shape this one can't read
+        // stays: without its file list there is no telling whether it
+        // references a removed file.
+        let package = match decode_package_files_index(&data) {
+            Ok(package) => package,
+            Err(error) => {
+                tracing::debug!(target: "pacquet::store", ?key, ?error, "keeping an undecodable package_index row");
+                stats.undecodable_packages += 1;
+                return Ok(());
+            }
+        };
         if package.files
             .get("package.json")
             .is_some_and(|file| removed_hashes.contains(&file.digest))
