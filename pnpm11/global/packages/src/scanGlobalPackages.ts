@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { isError } from '@pnpm/error'
 import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
@@ -150,8 +150,13 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
   }
 }
 
+/** The bin names installed by a group (deduplicated). See getInstalledBins. */
+export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
+  return [...new Set((await getInstalledBins(info)).map((bin) => bin.name))]
+}
+
 /**
- * The bin names installed by a group (deduplicated).
+ * The bins installed by a group, including their executable paths.
  *
  * A group whose `node_modules` is wholly absent owns no bins, and neither
  * does a declared dependency whose directory under `node_modules` is absent,
@@ -161,8 +166,8 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
  * would make destructive callers mistake unknown ownership for an unowned
  * bin.
  */
-export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
-  const bins = new Set<string>()
+export async function getInstalledBins (info: GlobalPackageInfo): Promise<Command[]> {
+  const bins: Command[] = []
   const aliases = Object.keys(info.dependencies)
   const modulesDir = path.join(info.installDir, 'node_modules')
   if (!await dirExists(modulesDir)) return []
@@ -179,12 +184,10 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
         throw err
       }
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
-      for (const bin of binsOfPkg) {
-        bins.add(bin.name)
-      }
+      for (const bin of binsOfPkg) bins.push(bin)
     })
   )
-  return [...bins]
+  return bins
 }
 
 /**

@@ -1,5 +1,8 @@
-use super::{LegacyGlobalLayout, MigrationSelector, is_legacy_bin, legacy_bin_files};
+use super::{
+    LegacyGlobalLayout, MigrationSelector, is_legacy_bin, legacy_bin_files, legacy_home_bin_files,
+};
 use pnpm_fs::lexical_normalize;
+use pnpm_global::GlobalPackageInfo;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
@@ -121,7 +124,7 @@ fn is_legacy_bin_accepts_a_shim_that_runs_the_legacy_project_relative_to_itself(
     )
     .expect("write the sh shim");
 
-    assert!(is_legacy_bin(&shim, &legacy_dir));
+    assert!(is_legacy_bin(&shim, &legacy_dir, None).unwrap());
 }
 
 #[test]
@@ -140,7 +143,7 @@ fn is_legacy_bin_accepts_a_cmd_shim_with_backslashes_and_an_absolute_target() {
     let content = format!("@node \"{target}\" %*\r\n");
     fs::write(&shim, content).expect("write the cmd shim");
 
-    assert!(is_legacy_bin(&shim, &legacy_dir));
+    assert!(is_legacy_bin(&shim, &legacy_dir, None).unwrap());
 }
 
 #[cfg(unix)]
@@ -151,7 +154,7 @@ fn is_legacy_bin_accepts_a_symlink_into_the_legacy_project() {
     std::os::unix::fs::symlink("global/5/node_modules/typescript/bin/tsc", &link)
         .expect("link into the legacy project");
 
-    assert!(is_legacy_bin(&link, &legacy_dir));
+    assert!(is_legacy_bin(&link, &legacy_dir, None).unwrap());
 }
 
 #[test]
@@ -166,9 +169,9 @@ fn is_legacy_bin_keeps_a_shim_of_the_current_layout_and_an_unrelated_file() {
     let unrelated = home.join("my-script");
     fs::write(&unrelated, "#!/bin/sh\necho hi\n").expect("write an unrelated script");
 
-    assert!(!is_legacy_bin(&current, &legacy_dir));
-    assert!(!is_legacy_bin(&unrelated, &legacy_dir));
-    assert!(!is_legacy_bin(&home.join("missing"), &legacy_dir));
+    assert!(!is_legacy_bin(&current, &legacy_dir, None).unwrap());
+    assert!(!is_legacy_bin(&unrelated, &legacy_dir, None).unwrap());
+    assert!(!is_legacy_bin(&home.join("missing"), &legacy_dir, None).unwrap());
 }
 
 #[test]
@@ -182,7 +185,102 @@ fn legacy_bin_files_lists_only_the_files_that_point_into_the_legacy_project() {
     fs::write(home.join("tool.exe"), "MZ").expect("write an unrelated executable");
     fs::write(home.join("tool"), "#!/bin/sh\necho mine\n").expect("write an unrelated script");
 
-    let files = legacy_bin_files(&home.join("tool"), &legacy_dir);
+    let files = legacy_bin_files(&home.join("tool"), &legacy_dir, None).unwrap();
 
     assert_eq!(files, [home.join("tool.cmd")]);
+}
+
+#[test]
+fn legacy_bin_files_identifies_hard_links_by_identity() {
+    let (_root, home, legacy_dir) = home_with_legacy_dir();
+    let target = legacy_dir.join("node_modules/tool.exe");
+    fs::write(&target, vec![0xff; 128 * 1024]).expect("write a native executable");
+    let bin = home.join("tool.exe");
+    fs::hard_link(&target, &bin).expect("hard link the executable");
+    let copy = home.join("copy.exe");
+    fs::copy(&target, &copy).expect("copy the same executable");
+    let unrelated = home.join("tool.exe.cmd");
+    fs::write(&unrelated, "user script").expect("write an unrelated sibling");
+
+    assert_eq!(
+        legacy_bin_files(&bin, &legacy_dir, Some(&target)).unwrap(),
+        std::slice::from_ref(&bin),
+    );
+    assert_eq!(legacy_bin_files(&home.join("tool"), &legacy_dir, Some(&target)).unwrap(), [bin]);
+    assert_eq!(legacy_bin_files(&copy, &legacy_dir, Some(&target)).unwrap(), Vec::<PathBuf>::new());
+    assert_eq!(
+        legacy_bin_files(&copy, &legacy_dir, Some(&legacy_dir.join("missing"))).unwrap(),
+        Vec::<PathBuf>::new(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn legacy_bin_files_preserves_a_home_executable_reached_through_symlinks() {
+    let (_root, home, legacy_dir) = home_with_legacy_dir();
+    let bin = home.join("tool");
+    fs::write(&bin, "user executable").unwrap();
+    let target = legacy_dir.join("node_modules/tool");
+    std::os::unix::fs::symlink(&bin, &target).unwrap();
+    assert_eq!(legacy_bin_files(&bin, &legacy_dir, Some(&target)).unwrap(), Vec::<PathBuf>::new());
+
+    let linked_dir = legacy_dir.join("node_modules/linked");
+    std::os::unix::fs::symlink(&home, &linked_dir).unwrap();
+    assert_eq!(
+        legacy_bin_files(&bin, &legacy_dir, Some(&linked_dir.join("tool"))).unwrap(),
+        Vec::<PathBuf>::new(),
+    );
+}
+
+#[test]
+fn legacy_home_bin_files_checks_every_owner_of_a_shared_bin() {
+    let (_root, home, legacy_dir) = home_with_legacy_dir();
+    let dependencies = vec![
+        ("first".to_string(), "1.0.0".to_string()),
+        ("second".to_string(), "1.0.0".to_string()),
+    ];
+    for (name, _) in &dependencies {
+        let pkg_dir = legacy_dir.join("node_modules").join(name);
+        fs::create_dir_all(&pkg_dir).unwrap();
+        fs::write(
+            pkg_dir.join("package.json"),
+            json!({ "name": name, "bin": { "tool": "cli.js" } }).to_string(),
+        )
+        .unwrap();
+        fs::write(pkg_dir.join("cli.js"), name).unwrap();
+    }
+    let info =
+        GlobalPackageInfo { hash: String::new(), install_dir: legacy_dir.clone(), dependencies };
+    let bin = home.join("tool");
+    for owner in ["first", "second"] {
+        fs::hard_link(
+            legacy_dir
+                .join("node_modules")
+                .join(owner)
+                .join("cli.js"),
+            &bin,
+        )
+        .unwrap();
+        assert_eq!(legacy_home_bin_files(&info, &home).unwrap(), BTreeSet::from([bin.clone()]));
+        fs::remove_file(&bin).unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn legacy_home_bin_files_reports_a_target_that_cannot_be_inspected() {
+    let (_root, home, legacy_dir) = home_with_legacy_dir();
+    let pkg_dir = legacy_dir.join("node_modules/tool");
+    fs::create_dir_all(&pkg_dir).unwrap();
+    fs::write(pkg_dir.join("package.json"), r#"{"name":"tool","bin":"cli.js"}"#).unwrap();
+    std::os::unix::fs::symlink("cli.js", pkg_dir.join("cli.js")).unwrap();
+    fs::write(home.join("tool"), "user executable").unwrap();
+    let info = GlobalPackageInfo {
+        hash: String::new(),
+        install_dir: legacy_dir,
+        dependencies: vec![("tool".to_string(), "1.0.0".to_string())],
+    };
+
+    let error = legacy_home_bin_files(&info, &home).unwrap_err();
+    assert!(error.to_string().contains("tool"), "{error:?}");
 }

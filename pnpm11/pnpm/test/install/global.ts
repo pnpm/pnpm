@@ -475,7 +475,7 @@ test('global update migrates the packages of the previous global layout', async 
   fs.writeFileSync(path.join(legacyPkgDir, 'index.js'), '')
   // pnpm 10 linked the bins of its global packages straight into the pnpm home.
   const strayBin = path.join(pnpmHome, 'hello-world-js-bin')
-  fs.writeFileSync(strayBin, '#!/bin/sh\nexec node "$basedir/global/5/node_modules/@pnpm.e2e/hello-world-js-bin/index.js" "$@"\n')
+  fs.linkSync(path.join(legacyPkgDir, 'index.js'), strayBin)
   const legacyPnpmDir = path.join(legacyDir, 'node_modules', 'pnpm')
   fs.mkdirSync(path.join(legacyPnpmDir, 'bin'), { recursive: true })
   fs.writeFileSync(path.join(legacyPnpmDir, 'package.json'), JSON.stringify({

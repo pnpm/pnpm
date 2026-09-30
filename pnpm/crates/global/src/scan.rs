@@ -3,7 +3,8 @@
 
 use crate::read_package_json;
 use pnpm_cmd_shim::{
-    FsReadDir, FsReadFile, FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest,
+    Command, FsReadDir, FsReadFile, FsWalkFiles, Host, PackageBinSource,
+    get_bins_from_package_manifest,
 };
 use pnpm_fs::is_symlink_or_junction;
 use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
@@ -139,7 +140,7 @@ fn installed_packages(
         .collect()
 }
 
-/// The bin names installed by a group (deduplicated).
+/// The bins installed by a group, including their executable paths.
 ///
 /// A group whose `node_modules` is wholly absent owns no bins, and neither
 /// does a declared dependency whose directory under `node_modules` is absent,
@@ -148,6 +149,11 @@ fn installed_packages(
 /// does exist must hold a readable, valid manifest: returning a partial set
 /// would make destructive callers mistake unknown ownership for an unowned
 /// bin.
+pub fn get_installed_bins(info: &GlobalPackageInfo) -> Result<Vec<Command>, PackageManifestError> {
+    get_installed_bins_with_fs::<Host>(info)
+}
+
+/// The bin names installed by a group (deduplicated). See [`get_installed_bins`].
 pub fn get_installed_bin_names(
     info: &GlobalPackageInfo,
 ) -> Result<Vec<String>, PackageManifestError> {
@@ -160,11 +166,25 @@ fn get_installed_bin_names_with_fs<Sys>(
 where
     Sys: FsReadFile + FsWalkFiles + FsReadDir,
 {
+    Ok(get_installed_bins_with_fs::<Sys>(info)?
+        .into_iter()
+        .map(|bin| bin.name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect())
+}
+
+fn get_installed_bins_with_fs<Sys>(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<Command>, PackageManifestError>
+where
+    Sys: FsReadFile + FsWalkFiles + FsReadDir,
+{
     let modules_dir = info.install_dir.join("node_modules");
     if !dir_exists::<Sys>(&modules_dir)? {
         return Ok(Vec::new());
     }
-    let mut bins = BTreeSet::new();
+    let mut bins = Vec::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
         let manifest_path = dep_dir.join("package.json");
@@ -181,11 +201,9 @@ where
         };
         let manifest = parse_manifest_bytes(&bytes)
             .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
-        for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {
-            bins.insert(command.name);
-        }
+        bins.extend(get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir));
     }
-    Ok(bins.into_iter().collect())
+    Ok(bins)
 }
 
 /// Whether `dir` is there to be listed. Only `NotFound` reads as absent;
