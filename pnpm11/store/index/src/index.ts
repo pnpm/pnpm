@@ -391,7 +391,7 @@ export class StoreIndex {
     }
   }
 
-  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip it (the DB is immutable). */
+  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip database writes. */
   protected optimizeBeforeClose (): void {
     try {
       this.db.exec('PRAGMA optimize')
@@ -402,25 +402,19 @@ export class StoreIndex {
 }
 
 /**
- * A {@link StoreIndex} opened read-only for installs against a store on a
- * read-only filesystem (`frozenStore`). The index is a WAL-mode database, and a
- * normal WAL read creates an `index.db-shm` sidecar in the store directory —
- * which fails on a read-only directory and surfaces as "attempt to write a
- * readonly database" on the first query. Opening via the SQLite `immutable=1`
- * URI tells SQLite the file cannot change, so it bypasses the WAL/shm machinery
- * and reads the file directly, creating no sidecars.
- *
- * The store is assumed complete; every write is a programming error and throws.
+ * A read-only connection to a store that other processes may write to.
+ * Participates in WAL locking and change detection. SQLite may create sidecar
+ * files in the store directory. Use {@link ImmutableStoreIndex} for a frozen
+ * store on a read-only filesystem.
  */
 export class ReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
-    if (!nodeSupportsImmutableSqliteUri()) {
-      throw new PnpmError(
-        'FROZEN_STORE_UNSUPPORTED_NODE',
-        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
-      )
-    }
-    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+    this.db = this.openConnection(storeDir)
+    this.db.prepare('PRAGMA busy_timeout=5000').run()
+  }
+
+  protected override openConnection (storeDir: string): DatabaseSyncType {
+    return new DatabaseSync(`${storeDir}/index.db`, { readOnly: true })
   }
 
   protected override prepareStatements (): void {
@@ -460,7 +454,29 @@ export class ReadOnlyStoreIndex extends StoreIndex {
     this.throwReadOnly()
   }
 
-  private throwReadOnly (): never {
+  protected throwReadOnly (): never {
+    throw new PnpmError('STORE_READ_ONLY', 'Cannot write to the package store because its index is opened read-only.')
+  }
+}
+
+/**
+ * A frozen store whose database cannot change, including through other
+ * processes. Skips SQLite locking and change detection and creates no WAL
+ * sidecars, allowing reads on a read-only filesystem. Concurrent writes can
+ * cause incorrect results or SQLITE_CORRUPT errors.
+ */
+export class ImmutableStoreIndex extends ReadOnlyStoreIndex {
+  protected override openDatabase (storeDir: string): void {
+    if (!nodeSupportsImmutableSqliteUri()) {
+      throw new PnpmError(
+        'FROZEN_STORE_UNSUPPORTED_NODE',
+        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
+      )
+    }
+    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+  }
+
+  protected override throwReadOnly (): never {
     throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
   }
 }
