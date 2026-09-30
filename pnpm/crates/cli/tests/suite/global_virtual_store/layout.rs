@@ -390,7 +390,7 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
 
 /// The ESM `NODE_PATH` loader flag is an `--import`, which makes Node.js
 /// run the main entry point through the ESM loader. An entry point that
-/// only a CommonJS require hook can load, like ts-node's `.ts` entry point,
+/// only a CJS require hook can load, like ts-node's `.ts` entry point,
 /// must still run. Mirrors the TS coverage in
 /// `pnpm11/exec/esm-node-path-loader/test/index.ts`.
 #[test]
