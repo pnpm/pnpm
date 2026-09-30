@@ -33,6 +33,15 @@ pub fn force_lifts_engine_strict_and_installs_incompatible_packages_only_when_op
 }
 
 #[test]
+pub fn ignore_platform_checks_installs_incompatible_packages() {
+    let tmp = tempdir().unwrap();
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.installs_incompatible_packages());
+    config.ignore_platform_checks = true;
+    assert!(config.installs_incompatible_packages());
+}
+
+#[test]
 pub fn peers_suffix_max_length_defaults_to_1000() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");

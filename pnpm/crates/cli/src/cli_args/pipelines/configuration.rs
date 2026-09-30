@@ -89,7 +89,16 @@ fn apply_install_materialization_config(
     if materialization.force {
         cfg.cli_settings.insert("force".to_string());
     }
-    cfg.force = materialization.force || cfg.force;
+    if materialization.ignore_platform_checks {
+        cfg.cli_settings.insert("ignorePlatformChecks".to_string());
+    }
+    if materialization.reinstall {
+        cfg.cli_settings.insert("reinstall".to_string());
+    }
+    cfg.ignore_platform_checks =
+        materialization.ignore_platform_checks || cfg.ignore_platform_checks;
+    cfg.reinstall = materialization.reinstall || materialization.force || cfg.reinstall;
+    cfg.force = materialization.force || (cfg.ignore_platform_checks && cfg.reinstall) || cfg.force;
 }
 
 fn apply_install_fetching_config(

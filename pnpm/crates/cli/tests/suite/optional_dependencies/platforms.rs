@@ -142,6 +142,65 @@ pub(super) fn forced_frozen_install_skips_incompatible_optionals() {
     drop((root, npmrc_info)); // cleanup
 }
 
+#[test]
+pub(super) fn ignore_platform_checks_install_materializes_incompatible_optionals() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        }),
+    );
+
+    pacquet
+        .with_args(["install", "--ignore-platform-checks"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os/package.json").exists(),
+        "--ignore-platform-checks must install the platform-incompatible optional dependency",
+    );
+    assert_eq!(read_skipped(&workspace), Vec::<String>::new());
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+pub(super) fn reinstall_flag_does_not_materialize_incompatible_optionals() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/not-compatible-with-any-os": "*" },
+        }),
+    );
+
+    pacquet
+        .with_args(["install", "--reinstall"])
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os/package.json").exists(),
+        "--reinstall alone must not install the platform-incompatible optional dependency",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// TS: `skip optional dependency that does not support the current OS,
 /// when doing install on a subset of workspace projects`
 /// (`optionalDependencies.ts:644`). The subset resolve-path install

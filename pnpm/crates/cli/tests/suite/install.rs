@@ -787,6 +787,10 @@ fn force_defeats_the_up_to_date_fast_path() {
         !run_install(&["install", "--force"]).contains("Already up to date"),
         "--force must defeat the fast path even though nothing changed",
     );
+    assert!(
+        !run_install(&["install", "--reinstall"]).contains("Already up to date"),
+        "--reinstall must defeat the fast path even though nothing changed",
+    );
 
     drop((root, mock_instance));
 }
