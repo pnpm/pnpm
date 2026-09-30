@@ -7,7 +7,7 @@ import { fetch, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
@@ -175,6 +175,7 @@ test.each([
   [true, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0', 'is-positive@1.0.0']],
   [false, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0']],
 ])('fetch only dev dependencies with optional = %s', async (optional, expectedVirtualStoreEntries) => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
   const project = prepare({
     dependencies: { 'is-negative': '1.0.0' },
     devDependencies: { '@pnpm.e2e/pkg-with-good-optional': '1.0.0' },

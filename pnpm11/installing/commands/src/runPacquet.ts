@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import readline from 'node:readline'
-import type { Writable } from 'node:stream'
+import type { Readable, Writable } from 'node:stream'
 
 import { PnpmError } from '@pnpm/error'
 import { logger, streamParser } from '@pnpm/logger'
@@ -138,83 +138,102 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): PacquetEngine {
 function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
   return async (callOpts) => {
     const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
-    // From `pnpm install`/`pnpm i` we forward the user's flags through to
-    // pacquet's own `install` subcommand verbatim — pacquet mirrors pnpm's
-    // surface closely enough on that command that they're safe to pass
-    // along. From `add`/`update`/`dedupe` we don't forward anything: those
-    // commands carry flags pacquet's `install` doesn't recognize
-    // (`--save-dev`, `--save-peer`, etc.) which clap would reject.
-    const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
-    // In resolve mode pacquet does the resolution itself, so it must not
-    // be pinned to the existing lockfile — drop both injected flags.
-    //
-    // Otherwise (frozen materialization) inject `--frozen-lockfile` plus
-    // `--ignore-manifest-check`. The latter tells pacquet to skip its
-    // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate:
-    // pnpm just resolved and wrote the lockfile itself; on `pnpm up` /
-    // `add` / `remove` the manifest on disk is still the pre-mutation
-    // copy (pnpm writes it after `mutateModules` returns), so pacquet's
-    // own check would always fire here. See
-    // https://github.com/pnpm/pnpm/issues/11797. The flag is narrow
-    // (only the manifest check); settings drift like `overrides` is
-    // still enforced and was already re-validated by pnpm.
-    const frozenArgs = callOpts?.resolve === true ? [] : ['--frozen-lockfile', '--ignore-manifest-check']
-    const args = ['--reporter=ndjson', 'install', ...frozenArgs, ...forwardedFlags]
-    const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
-    if (droppedFlags.length > 0) {
-      logger.warn({
-        message: `The following CLI flags are not forwarded to pacquet and may not be honored: ${droppedFlags.join(' ')}. Move the equivalent settings into pnpm-workspace.yaml (or .npmrc for auth/registry) if pacquet needs them.`,
-        prefix: opts.lockfileDir,
-      })
-    }
-    // Banner so users can tell at a glance their install is going
-    // through the Rust engine rather than the JS path. Chalk is the
-    // same dependency the default reporter uses for the "+ pkg
-    // version" summary, so colorization respects the user's TTY
-    // settings consistently.
-    const banner = [
-      chalk.magentaBright('▶ Using pacquet for this install'),
-      chalk.gray('  pacquet is pnpm\'s Rust install engine (preview); declared in configDependencies.'),
-    ].join('\n')
-    logger.info({ message: banner, prefix: opts.lockfileDir })
+    const args = createPacquetArgs(opts, callOpts)
+    warnAboutDroppedFlags(opts)
+    logPacquetBanner(opts.lockfileDir)
     const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
       env: makePacquetEnv(opts, callOpts),
       stdio: ['ignore', 'inherit', 'pipe'],
     })
-    const filterResolved = callOpts?.filterResolvedProgress === true
-    const rl = readline.createInterface({ input: child.stderr!, crlfDelay: Infinity })
-    rl.on('line', (line) => {
-      if (!line) return
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(line)
-      } catch {
-        process.stderr.write(`${line}\n`)
-        return
-      }
-      if (
-        filterResolved &&
-        typeof parsed === 'object' && parsed !== null &&
-        (parsed as { name?: string }).name === 'pnpm:progress' &&
-        (parsed as { status?: string }).status === 'resolved'
-      ) {
-        return
-      }
-      streamParserWritable.write(`${line}\n`)
-    })
-    await new Promise<void>((resolve, reject) => {
-      child.once('error', reject)
-      child.once('close', (code) => {
-        rl.close()
-        if (code === 0) {
-          resolve()
-          return
-        }
-        reject(new PnpmError('PACQUET_INSTALL_FAILED', `pacquet exited with code ${code ?? 'null'}`))
-      })
+    const rl = relayPacquetStderr(child.stderr!, callOpts?.filterResolvedProgress === true)
+    await waitForPacquetExit(child, rl)
+  }
+}
+
+function createPacquetArgs (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): string[] {
+  // From `pnpm install`/`pnpm i` we forward the user's flags through to
+  // pacquet's own `install` subcommand verbatim — pacquet mirrors pnpm's
+  // surface closely enough on that command that they're safe to pass
+  // along. From `add`/`update`/`dedupe` we don't forward anything: those
+  // commands carry flags pacquet's `install` doesn't recognize
+  // (`--save-dev`, `--save-peer`, etc.) which clap would reject.
+  const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
+  // In resolve mode pacquet does the resolution itself, so it must not
+  // be pinned to the existing lockfile — drop both injected flags.
+  //
+  // Otherwise (frozen materialization) inject `--frozen-lockfile` plus
+  // `--ignore-manifest-check`. The latter tells pacquet to skip its
+  // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate:
+  // pnpm just resolved and wrote the lockfile itself; on `pnpm up` /
+  // `add` / `remove` the manifest on disk is still the pre-mutation
+  // copy (pnpm writes it after `mutateModules` returns), so pacquet's
+  // own check would always fire here. See
+  // https://github.com/pnpm/pnpm/issues/11797. The flag is narrow
+  // (only the manifest check); settings drift like `overrides` is
+  // still enforced and was already re-validated by pnpm.
+  const frozenArgs = callOpts?.resolve === true ? [] : ['--frozen-lockfile', '--ignore-manifest-check']
+  return ['--reporter=ndjson', 'install', ...frozenArgs, ...forwardedFlags]
+}
+
+function warnAboutDroppedFlags (opts: MakeRunPacquetOpts): void {
+  const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
+  if (droppedFlags.length > 0) {
+    logger.warn({
+      message: `The following CLI flags are not forwarded to pacquet and may not be honored: ${droppedFlags.join(' ')}. Move the equivalent settings into pnpm-workspace.yaml (or .npmrc for auth/registry) if pacquet needs them.`,
+      prefix: opts.lockfileDir,
     })
   }
+}
+
+function logPacquetBanner (lockfileDir: string): void {
+  // Banner so users can tell at a glance their install is going
+  // through the Rust engine rather than the JS path. Chalk is the
+  // same dependency the default reporter uses for the "+ pkg
+  // version" summary, so colorization respects the user's TTY
+  // settings consistently.
+  const banner = [
+    chalk.magentaBright('▶ Using pacquet for this install'),
+    chalk.gray('  pacquet is pnpm\'s Rust install engine (preview); declared in configDependencies.'),
+  ].join('\n')
+  logger.info({ message: banner, prefix: lockfileDir })
+}
+
+function relayPacquetStderr (stderr: Readable, filterResolved: boolean): readline.Interface {
+  const rl = readline.createInterface({ input: stderr, crlfDelay: Infinity })
+  rl.on('line', (line) => {
+    if (!line) return
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch {
+      process.stderr.write(`${line}\n`)
+      return
+    }
+    if (filterResolved && isResolvedProgressEvent(parsed)) return
+    streamParserWritable.write(`${line}\n`)
+  })
+  return rl
+}
+
+function isResolvedProgressEvent (parsed: unknown): boolean {
+  return typeof parsed === 'object' && parsed !== null &&
+    (parsed as { name?: string }).name === 'pnpm:progress' &&
+    (parsed as { status?: string }).status === 'resolved'
+}
+
+async function waitForPacquetExit (child: ChildProcess, rl: readline.Interface): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    child.once('error', reject)
+    child.once('close', (code) => {
+      rl.close()
+      if (code === 0) {
+        resolve()
+        return
+      }
+      reject(new PnpmError('PACQUET_INSTALL_FAILED', `pacquet exited with code ${code ?? 'null'}`))
+    })
+  })
 }
 
 /**
@@ -355,7 +374,7 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * it hands pacquet: a resolving install (pacquet resolves and writes
  * the lockfile, no `--frozen-lockfile` injected) or a frozen
  * materialization (pacquet is pinned to the lockfile via an injected
- * `--frozen-lockfile`) — see `frozenArgs` in `makeRun`. Forwarding the
+ * `--frozen-lockfile`) — see `createPacquetArgs`. Forwarding the
  * user's own token would contradict that choice: pacquet accepts a
  * `--no-<flag>` negation for every boolean flag with last-one-wins
  * override semantics, so a user `--no-frozen-lockfile` sitting next to
@@ -377,13 +396,7 @@ function collectForwardedFlags (argv: { original: string[], remain: string[] }):
       continue
     }
     if (isAlwaysInjected(arg)) continue
-    const translated = translateReportingFlag(argv.original, argIndex)
-    if (translated != null) {
-      if (translated.replacement != null) result.push(translated.replacement)
-      argIndex += translated.width - 1
-      continue
-    }
-    result.push(arg)
+    argIndex += pushForwardableFlag(result, argv.original, argIndex) - 1
   }
   return result
 }
@@ -419,15 +432,24 @@ function collectDroppedFlags (argv: { original: string[] }): string[] {
     if (!arg.startsWith('-')) continue
     if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--config.')) continue
-    const translated = translateReportingFlag(argv.original, argIndex)
-    if (translated != null) {
-      if (translated.replacement != null) result.push(translated.replacement)
-      argIndex += translated.width - 1
-      continue
-    }
-    result.push(arg)
+    argIndex += pushForwardableFlag(result, argv.original, argIndex) - 1
   }
   return result
+}
+
+/**
+ * Push the token at `index` to `result`, or the pacquet replacement of a
+ * reporting flag (see {@link translateReportingFlag}). Returns how many
+ * tokens were consumed.
+ */
+function pushForwardableFlag (result: string[], argv: string[], index: number): number {
+  const translated = translateReportingFlag(argv, index)
+  if (translated == null) {
+    result.push(argv[index])
+    return 1
+  }
+  if (translated.replacement != null) result.push(translated.replacement)
+  return translated.width
 }
 
 const REPORTING_LONG_FLAGS = new Set(['--silent', '--verbose', '--quiet'])
@@ -471,14 +493,26 @@ interface TranslatedFlag {
  */
 function translateReportingFlag (argv: string[], index: number): TranslatedFlag | undefined {
   const arg = argv[index]
-  if (REPORTING_LONG_FLAGS.has(arg)) return { width: 1 }
-  if (arg.startsWith('--reporter=') || arg.startsWith('--loglevel=')) return { width: 1 }
-  const value = argv[index + 1]
+  return translateLongReportingFlag(arg, argv[index + 1]) ?? stripReportingShorthands(arg)
+}
+
+function translateLongReportingFlag (arg: string, value: string | undefined): TranslatedFlag | undefined {
+  const width = reportingFlagWidth(arg, value)
+  if (width != null) return { width }
+  if (NAMED_SHORTHANDS.has(arg)) return { width: 1, replacement: NAMED_SHORTHANDS.get(arg) }
+  return undefined
+}
+
+function reportingFlagWidth (arg: string, value: string | undefined): number | undefined {
+  if (REPORTING_LONG_FLAGS.has(arg) || arg.startsWith('--reporter=') || arg.startsWith('--loglevel=')) return 1
   // nopt takes the next token as the value of a string option only when it
   // is not an option itself, but always takes it for an enum like `loglevel`.
-  if (arg === '--reporter') return { width: value == null || value.startsWith('-') ? 1 : 2 }
-  if (arg === '--loglevel') return { width: value == null ? 1 : 2 }
-  if (NAMED_SHORTHANDS.has(arg)) return { width: 1, replacement: NAMED_SHORTHANDS.get(arg) }
+  if (arg === '--reporter') return value == null || value.startsWith('-') ? 1 : 2
+  if (arg === '--loglevel') return value == null ? 1 : 2
+  return undefined
+}
+
+function stripReportingShorthands (arg: string): TranslatedFlag | undefined {
   if (arg.length < 2 || arg[0] !== '-' || arg[1] === '-') return undefined
   const letters = [...arg.slice(1)]
   if (!letters.every((letter) => SINGLE_LETTER_SHORTHANDS.has(letter)) || !letters.some((letter) => REPORTING_SHORTHANDS.has(letter))) return undefined

@@ -156,3 +156,22 @@ test('import keeps a configured patch when the yarn patch file is missing', asyn
   expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toMatch(/^1\.0\.0\(patch_hash=/)
   expect(globalWarn).not.toHaveBeenCalled()
 })
+
+test('importYarnPatches records a patch of a package named like an Object.prototype key', async () => {
+  prepareEmpty()
+  fs.writeFileSync('p.patch', '')
+  const { importYarnPatches } = await import('../src/import/yarnPatches.js')
+
+  const patchedDependencies = await importYarnPatches({
+    projects: [{
+      rootDir: process.cwd(),
+      manifest: { dependencies: { constructor: 'patch:constructor@npm%3Alatest#~/p.patch' } },
+      writeProjectManifest: async () => {},
+    }],
+    yarnRootDir: process.cwd(),
+    workspaceDir: process.cwd(),
+    patchedDependencies: {},
+  })
+
+  expect(patchedDependencies).toStrictEqual({ constructor: path.resolve('p.patch') })
+})
