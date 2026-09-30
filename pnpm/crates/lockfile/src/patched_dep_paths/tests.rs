@@ -828,7 +828,20 @@ snapshots:
 /// patched peer missing its hash there is as stale as anywhere else.
 #[test]
 fn a_patched_peer_segment_missing_its_hash_is_stale() {
-    assert_eq!(status(&unmarked_peer_lockfile("", "react@18.0.0")), PatchedDepPathsStatus::Stale);
+    assert_eq!(
+        status(&unmarked_peer_lockfile("", "react@18.0.0(scheduler@0.23.0)")),
+        PatchedDepPathsStatus::Stale,
+    );
+}
+
+/// The resolver collapses a peer in a peer cycle to a bare `name@version`,
+/// which carries no hash.
+#[test]
+fn a_patched_peer_collapsed_by_a_peer_cycle_needs_no_hash() {
+    assert_eq!(
+        status(&unmarked_peer_lockfile("", "react@18.0.0")),
+        PatchedDepPathsStatus::UpToDate,
+    );
 }
 
 /// With `dedupePeers` a peer segment is only `name@version`, which never

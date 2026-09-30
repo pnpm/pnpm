@@ -330,8 +330,10 @@ impl<'a> Checker<'a> {
     /// registry version of a patched package, `infers_unmarked_peers` holds
     /// for the depPath around it, and peers are not deduped. A
     /// `link:` peer is written with a path where the version goes, and patches
-    /// never apply to it. `Some(Err(()))` for a segment carrying a marker that
-    /// does not parse as a depPath.
+    /// never apply to it. A bare `name@version` peer is how the resolver
+    /// writes a peer it collapsed to break a peer cycle, without its hash.
+    /// `Some(Err(()))` for a segment carrying a marker that does not parse as
+    /// a depPath.
     fn peer_to_judge(
         &self,
         segment: &str,
@@ -352,9 +354,10 @@ impl<'a> Checker<'a> {
             return None;
         }
         let peer = inner.parse::<PackageKey>().ok()?;
-        (is_registry_version(&peer.suffix) && self.patched_names.contains(&peer.name)).then_some(
-            Ok(peer),
-        )
+        (is_registry_version(&peer.suffix)
+            && !peer.suffix.peer().is_empty()
+            && self.patched_names.contains(&peer.name))
+        .then_some(Ok(peer))
     }
 
     /// Compares `recorded`, the depPath's own patch hash, with the one

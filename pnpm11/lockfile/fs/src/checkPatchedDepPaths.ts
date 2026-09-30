@@ -156,11 +156,12 @@ function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict,
 /**
  * Whether a peer segment names a registry version of a patched package, so it has to carry that
  * package's hash. A `link:` peer is written with a path where the version goes, and patches never
- * apply to it.
+ * apply to it. A bare `name@version` peer is how the resolver writes a peer it collapsed to break a
+ * peer cycle, without its hash.
  */
 function isPatchedRegistryPeer (peer: DepPath, ctx: JudgeContext): boolean {
-  const { name, version } = parse(peer)
-  return name != null && version != null && ctx.patchedNames.has(name)
+  const { name, version, peerDepGraphHash } = parse(peer)
+  return name != null && version != null && peerDepGraphHash != null && ctx.patchedNames.has(name)
 }
 
 function worseVerdict (a: Verdict, b: Verdict): Verdict {
