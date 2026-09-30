@@ -43,20 +43,24 @@ export function reportMisc (
           return reportWarning(obj)
         }
         case 'error': {
-          const errorOutput = reportError(obj, opts.config)
-          if (!errorOutput) return Rx.NEVER
-          if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
-            return Rx.of({
-              msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
-            })
-          }
-          return Rx.of({ msg: errorOutput })
+          return reportErrorLog(obj, opts)
         }
         default:
           return Rx.of({ msg: obj.message! })
       }
     })
   )
+}
+
+function reportErrorLog (obj: Log, opts: { cwd: string, config?: ReporterPnpmConfig }): Rx.Observable<{ msg: string }> {
+  const errorOutput = reportError(obj, opts.config)
+  if (!errorOutput) return Rx.NEVER
+  if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
+    return Rx.of({
+      msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
+    })
+  }
+  return Rx.of({ msg: errorOutput })
 }
 
 type WarningReporter = (obj: {
