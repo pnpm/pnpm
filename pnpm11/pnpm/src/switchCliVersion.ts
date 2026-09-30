@@ -13,6 +13,7 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
+import { pnpmVersionToRecord } from './syncEnvLockfile.js'
 
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
@@ -97,20 +98,26 @@ async function resolveSwitchTargetVersion (versionSwitch: VersionSwitch): Promis
   // one the project actually uses. Asking the registry instead would pin a
   // version nobody is running and switch away from a satisfying one.
   if (pmVersion == null && satisfiesPin(packageManager.version, wantedVersion)) {
-    pmVersion = packageManager.version
+    const version = await pnpmVersionToRecord(config, wantedVersion)
+    if (version != null) await recordPin(versionSwitch, version)
+    return packageManager.version
   }
   if (pmVersion == null) {
     return resolvePinFromRegistry(versionSwitch)
   }
-  if (!isPackageManagerResolved(envLockfile, pmVersion, config.frozenLockfile ? undefined : wantedVersion)) {
-    await resolveIntegrities(versionSwitch, pmVersion, {
-      save: versionSwitch.persistLockfile,
-      frozenLockfile: config.frozenLockfile,
-      specifier: wantedVersion,
-    })
-    versionSwitch.freshlyResolved = true
-  }
+  await recordPin(versionSwitch, pmVersion)
   return pmVersion
+}
+
+async function recordPin (versionSwitch: VersionSwitch, pmVersion: string): Promise<void> {
+  const { config, envLockfile, wantedVersion } = versionSwitch
+  if (isPackageManagerResolved(envLockfile, pmVersion, config.frozenLockfile ? undefined : wantedVersion)) return
+  await resolveIntegrities(versionSwitch, pmVersion, {
+    save: versionSwitch.persistLockfile,
+    frozenLockfile: config.frozenLockfile,
+    specifier: wantedVersion,
+  })
+  versionSwitch.freshlyResolved = true
 }
 
 async function resolvePinFromRegistry (versionSwitch: VersionSwitch): Promise<string | undefined> {

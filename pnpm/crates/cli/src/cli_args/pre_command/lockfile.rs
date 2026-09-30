@@ -26,9 +26,13 @@ pub(super) fn env_lockfile_sync_plan(
 /// so the entry is the same whichever command a contributor happens to run
 /// first.
 ///
+/// A version the lockfile already records is kept while it satisfies the
+/// pin, so a contributor whose own pnpm the range also allows does not
+/// replace it.
+///
 /// `None` when the project doesn't pin a persisting pnpm version, when
 /// `lockfile` is turned off, or when the lockfile already records a version
-/// that satisfies the pin.
+/// that satisfies the pin under the pin's specifier.
 pub(super) fn env_lockfile_sync(
     config: &Config,
     root_manifest: &Value,
@@ -39,7 +43,7 @@ pub(super) fn env_lockfile_sync(
     if !config.lockfile {
         return Ok(None);
     }
-    let Some(package_manager) =
+    let Some(mut package_manager) =
         package_manager_to_sync(root_manifest, &roots.manifest, Some(on_fail))
     else {
         return Ok(None);
@@ -52,6 +56,13 @@ pub(super) fn env_lockfile_sync(
             read.as_ref()
         }
     };
+    if let Some(env_lockfile) = env_lockfile
+        && let Some(version) =
+            locked_package_manager_version(env_lockfile, &package_manager.specifier)?
+    {
+        package_manager.version = version;
+        package_manager.running_pnpm_for_range = false;
+    }
     if env_lockfile.is_some_and(|env_lockfile| {
         is_package_manager_resolved(
             env_lockfile,
