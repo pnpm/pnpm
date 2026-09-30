@@ -1044,10 +1044,11 @@ fn assert_frozen_install_accepts_injected_optional_peer(declared_range: bool) {
         .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
         .assert()
         .success();
-    assert_eq!(
-        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile"),
-        lockfile,
-    );
+    let frozen_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("EXPECTED LOCKFILE:\n{lockfile}\n");
+    eprintln!("FROZEN LOCKFILE:\n{frozen_lockfile}\n");
+    assert_eq!(frozen_lockfile, lockfile);
     assert!(
         workspace.join("app2/node_modules/lib/package.json").exists(),
         "frozen install must materialize the injected copy",
