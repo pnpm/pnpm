@@ -177,6 +177,8 @@ async function runScriptTask (pkg) {
       await runCommand('node', ['pd.js', '--version'], { cwd: pkg.path })
     } else if (pkg.manifest.name === '@pnpm/bins.cmd-shim') {
       await runCommand('node', ['--test', 'test/test.js', 'test/e2e.test.js'], { cwd: pkg.path })
+    } else if (pkg.manifest.name === '@pnpm/eslint-config') {
+      await runCommand('node', ['--test', 'test/perfectionist.test.js'], { cwd: pkg.path })
     } else {
       throw new Error(`Unsupported non-Jest .test script in ${relDir}: ${pkg.manifest.scripts['.test']}`)
     }
