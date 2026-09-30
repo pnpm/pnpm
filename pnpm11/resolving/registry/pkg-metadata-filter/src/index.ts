@@ -120,7 +120,13 @@ function resolveKeptDistTags (
       keptDistTags[tag] = distTagVersion
       continue
     }
-    const best = findBestTagCandidate(tag, distTagVersion, keptVersions, pkgDoc, parse)
+    const best = findBestTagCandidate({
+      distTagVersion,
+      keptVersions,
+      parse,
+      pkgDoc,
+      tag,
+    })
     if (best) {
       keptDistTags[tag] = best.version
     }
@@ -141,20 +147,28 @@ function tryParseSemver (semverStr: string, cache: Map<string, semver.SemVer>): 
   return parsed
 }
 
-function findBestTagCandidate (
-  tag: string,
-  distTagVersion: string,
-  keptVersions: PackageMeta['versions'],
-  pkgDoc: PackageMeta,
+interface FindBestTagCandidateOptions {
+  distTagVersion: string
+  keptVersions: PackageMeta['versions']
   parse: (str: string) => semver.SemVer | null
-): BestCandidate | undefined {
+  pkgDoc: PackageMeta
+  tag: string
+}
+
+function findBestTagCandidate (opts: FindBestTagCandidateOptions): BestCandidate | undefined {
+  const { distTagVersion, keptVersions, parse, pkgDoc, tag } = opts
   const originalSemVer = parse(distTagVersion)
   if (!originalSemVer) return undefined
   let best: BestCandidate | undefined
 
   for (const candidate in keptVersions) {
     if (!Object.hasOwn(keptVersions, candidate)) continue
-    const candidateInfo = evaluateTagCandidate(tag, originalSemVer, candidate, parse)
+    const candidateInfo = evaluateTagCandidate({
+      candidate,
+      originalSemVer,
+      parse,
+      tag,
+    })
     if (candidateInfo == null) continue
     if (best == null || candidateIsBetter(candidateInfo, best, pkgDoc)) {
       best = candidateInfo
@@ -163,12 +177,15 @@ function findBestTagCandidate (
   return best
 }
 
-function evaluateTagCandidate (
-  tag: string,
-  originalSemVer: semver.SemVer,
-  candidate: string,
+interface EvaluateTagCandidateOptions {
+  candidate: string
+  originalSemVer: semver.SemVer
   parse: (str: string) => semver.SemVer | null
-): BestCandidate | undefined {
+  tag: string
+}
+
+function evaluateTagCandidate (opts: EvaluateTagCandidateOptions): BestCandidate | undefined {
+  const { candidate, originalSemVer, parse, tag } = opts
   const candidateParsed = parse(candidate)
   if (!candidateParsed || candidateParsed.compare(originalSemVer) > 0) return undefined
   const tier = getTagCandidateTier(tag, originalSemVer, candidateParsed)
