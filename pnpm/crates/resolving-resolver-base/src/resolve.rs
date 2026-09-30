@@ -400,6 +400,10 @@ pub struct ResolutionRefreshOptions {
     pub current_pkg: Option<CurrentPkg>,
     /// Prefer this edge's current version over workspace-wide selectors.
     pub prefer_current_version: bool,
+    /// The walk reopened this edge's locked version, for deduplication or an
+    /// update, so the resolver picks again instead of reusing
+    /// [`Self::current_pkg`] as it is.
+    pub repick_current_version: bool,
     pub update: UpdateBehavior,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
