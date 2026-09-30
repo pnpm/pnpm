@@ -15,7 +15,7 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Command, Output, Stdio},
     time::Instant,
 };
 
@@ -256,6 +256,7 @@ impl Probe<'_> {
             .current_dir(consumer)
             .args(["install", "--offline", "--config.ignore-scripts=false"])
             .arg(format!("--store-dir={}", self.base.join("store").display()))
+            .stdout(Stdio::null())
             .output();
         read_probe_result(output, &self.base.join("install-node"), "the install script")
     }
@@ -267,6 +268,7 @@ impl Probe<'_> {
             .args([NO_VERIFY_DEPS, "exec"])
             .arg(&self.shim)
             .arg(&result)
+            .stdout(Stdio::null())
             .output();
         read_probe_result(output, &result, &format!("a script in {}", project_dir.display()))
     }
@@ -289,6 +291,7 @@ fn trace_shim(probe: &Probe<'_>, dir: &Path) -> Vec<String> {
         .args([NO_VERIFY_DEPS, "exec", "/bin/sh", "-x"])
         .arg(&probe.shim)
         .arg(probe.base.join("trace-node"))
+        .stdout(Stdio::null())
         .output()
     else {
         return Vec::new();
