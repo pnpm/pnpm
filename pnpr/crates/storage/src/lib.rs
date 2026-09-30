@@ -14,7 +14,7 @@ pub use revision_ref_index::HostedRevisionRefWrite;
 
 pub(crate) use revision_ref_index::{HostedRevisionRefIndex, is_canonical_revision_ref_owner};
 
-pub use blob_write::{BlobSlot, BlobWrite};
+pub use blob_write::{BlobSlot, BlobWrite, SealedBlob};
 
 pub(crate) use local_store::read_dir_if_present;
 
@@ -472,6 +472,17 @@ impl Storage {
         name: &CanonicalPackageName,
     ) -> Result<bool> {
         self.cached.namespaced(namespace).remove_package(name).await
+    }
+
+    /// Remove one cached upstream tarball. Returns `Ok(false)` when it is
+    /// already gone.
+    pub async fn remove_upstream_blob(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<bool> {
+        self.cached.namespaced(namespace).remove_blob(name, filename).await
     }
 
     pub async fn open_upstream_blob_tmp(
