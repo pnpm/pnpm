@@ -127,24 +127,33 @@ async function _fetchAllFilesFromDir (
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
-    .map(async (file) => {
-      const fileStatResult = await readFileStat(path.join(dir, file))
-      if (!fileStatResult) return
-      const { filePath, stat } = fileStatResult
-      const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
-      if (stat.isDirectory()) {
-        const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
-        for (const [key, value] of subFetchResult.filesMap) {
-          filesMap.set(key, value)
-        }
-        Object.assign(filesStats, subFetchResult.filesStats)
-      } else {
-        filesMap.set(relativeSubdir, filePath)
-        filesStats[relativeSubdir] = fileStatResult.stat
-      }
-    })
+    .map((file) => handleDirEntry(readFileStat, dir, file, relativeDir, filesMap, filesStats))
   )
   return { filesMap, filesStats }
+}
+
+async function handleDirEntry (
+  readFileStat: ReadFileStat,
+  dir: string,
+  file: string,
+  relativeDir: string,
+  filesMap: FilesMap,
+  filesStats: Record<string, Stats | null>
+): Promise<void> {
+  const fileStatResult = await readFileStat(path.join(dir, file))
+  if (!fileStatResult) return
+  const { filePath, stat } = fileStatResult
+  const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
+  if (stat.isDirectory()) {
+    const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
+    for (const [key, value] of subFetchResult.filesMap) {
+      filesMap.set(key, value)
+    }
+    Object.assign(filesStats, subFetchResult.filesStats)
+  } else {
+    filesMap.set(relativeSubdir, filePath)
+    filesStats[relativeSubdir] = fileStatResult.stat
+  }
 }
 
 interface FileStatResult {

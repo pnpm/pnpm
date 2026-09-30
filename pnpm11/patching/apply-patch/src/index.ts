@@ -40,15 +40,7 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts): boolean {
 // would otherwise let the applier traverse out of the package directory and write,
 // delete, or rename files anywhere the install user can.
 function assertPatchPathsStayInside (opts: ApplyPatchToDirOpts): void {
-  let patchContent: string
-  try {
-    patchContent = fs.readFileSync(opts.patchFilePath, 'utf8')
-  } catch (err) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
-      throw new PnpmError('PATCH_NOT_FOUND', `Patch file not found: ${opts.patchFilePath}`)
-    }
-    throw err
-  }
+  const patchContent = readPatchContent(opts.patchFilePath)
   let effects
   try {
     effects = parsePatchFile(patchContent)
@@ -64,18 +56,36 @@ function assertPatchPathsStayInside (opts: ApplyPatchToDirOpts): void {
       ? [effect.fromPath, effect.toPath]
       : [effect.path]
     for (const candidate of candidates) {
-      if (!candidate) continue
-      if (
-        path.isAbsolute(candidate) ||
-        candidate.split(/[/\\]/).includes('..')
-      ) {
-        throw new PatchPathEscapesError(opts, candidate)
-      }
-      const resolved = path.resolve(root, candidate)
-      if (resolved !== root && !resolved.startsWith(rootWithSep)) {
-        throw new PatchPathEscapesError(opts, candidate)
+      if (candidate) {
+        assertCandidatePathStaysInside(opts, candidate, root, rootWithSep)
       }
     }
+  }
+}
+
+function readPatchContent (patchFilePath: string): string {
+  try {
+    return fs.readFileSync(patchFilePath, 'utf8')
+  } catch (err) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+      throw new PnpmError('PATCH_NOT_FOUND', `Patch file not found: ${patchFilePath}`)
+    }
+    throw err
+  }
+}
+
+function assertCandidatePathStaysInside (
+  opts: ApplyPatchToDirOpts,
+  candidate: string,
+  root: string,
+  rootWithSep: string
+): void {
+  if (path.isAbsolute(candidate) || candidate.split(/[/\\]/).includes('..')) {
+    throw new PatchPathEscapesError(opts, candidate)
+  }
+  const resolved = path.resolve(root, candidate)
+  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
+    throw new PatchPathEscapesError(opts, candidate)
   }
 }
 

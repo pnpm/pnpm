@@ -4,7 +4,7 @@ import {
   isPeerSatisfactionEdge,
   type PeerSatisfactionEdges,
 } from '@pnpm/lockfile.peer-edges'
-import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '@pnpm/lockfile.types'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
 
 export interface LockedDependency {
@@ -67,26 +67,47 @@ export function lockfileWalker (
   importerIds: ProjectId[],
   opts?: LockfileWalkerOptions
 ): LockfileWalker {
-  const entryNodes = [] as DepPath[]
-  const directDeps = [] as Array<{ alias: string, depPath: DepPath }>
-
-  for (const importerId of importerIds) {
-    const projectSnapshot = lockfile.importers[importerId]
-    Object.entries({
-      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.dependencies === false || opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
-    })
-      .forEach(([pkgName, reference]) => {
-        const depPath = dp.refToRelative(reference, pkgName)
-        if (depPath === null) return
-        entryNodes.push(depPath)
-        directDeps.push({ alias: pkgName, depPath })
-      })
-  }
+  const { entryNodes, directDeps } = collectDirectDeps(lockfile, importerIds, opts?.include)
   return {
     directDeps,
     step: step(createWalkerContext(lockfile, opts), entryNodes),
+  }
+}
+
+interface DirectDepsResult {
+  entryNodes: DepPath[]
+  directDeps: Array<{ alias: string, depPath: DepPath }>
+}
+
+function collectDirectDeps (
+  lockfile: LockfileObject,
+  importerIds: ProjectId[],
+  include?: LockfileWalkerOptions['include']
+): DirectDepsResult {
+  const entryNodes: DepPath[] = []
+  const directDeps: Array<{ alias: string, depPath: DepPath }> = []
+
+  for (const importerId of importerIds) {
+    const deps = getProjectDeps(lockfile.importers[importerId], include)
+    for (const [pkgName, reference] of Object.entries(deps)) {
+      const depPath = dp.refToRelative(reference, pkgName)
+      if (depPath !== null) {
+        entryNodes.push(depPath)
+        directDeps.push({ alias: pkgName, depPath })
+      }
+    }
+  }
+  return { entryNodes, directDeps }
+}
+
+function getProjectDeps (
+  projectSnapshot: ProjectSnapshot,
+  include?: LockfileWalkerOptions['include']
+): Record<string, string> {
+  return {
+    ...(include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+    ...(include?.dependencies === false ? {} : projectSnapshot.dependencies),
+    ...(include?.dependencies === false || include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
   }
 }
 

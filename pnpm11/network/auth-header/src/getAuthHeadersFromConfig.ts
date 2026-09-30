@@ -23,17 +23,24 @@ export function getAuthHeadersFromCreds (
     if (header) {
       authHeaders.authHeaderValueByURI[normalizedUri] = header
     }
-    for (const scope of getRegistryScopes(registryConfig)) {
-      if (scope === DEFAULT_REGISTRY_SCOPE) continue
-      const scopedCreds = registryConfig[scope]
-      const scopedHeader = credsToHeader(scopedCreds)
-      if (scopedHeader) {
-        authHeaders.scopedAuthHeaderValueByURI[normalizedUri] ??= {}
-        authHeaders.scopedAuthHeaderValueByURI[normalizedUri][scope] = scopedHeader
-      }
-    }
+    collectScopedAuthHeaders(registryConfig, normalizedUri, authHeaders.scopedAuthHeaderValueByURI)
   }
   return authHeaders
+}
+
+function collectScopedAuthHeaders (
+  registryConfig: RegistryConfig,
+  normalizedUri: string,
+  target: Record<string, Record<string, string>>
+): void {
+  for (const scope of getRegistryScopes(registryConfig)) {
+    if (scope === DEFAULT_REGISTRY_SCOPE) continue
+    const scopedHeader = credsToHeader(registryConfig[scope])
+    if (scopedHeader) {
+      target[normalizedUri] ??= {}
+      target[normalizedUri][scope] = scopedHeader
+    }
+  }
 }
 
 export function getAuthHeadersByScope (authHeaders: AuthHeaders): AuthHeadersByScope {
