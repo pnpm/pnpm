@@ -227,29 +227,9 @@ test('takes the tarball of an old-format config dep from the packument', async (
 // registry. Packuments are proxied from pnpr with their `dist.tarball` pointed
 // at a `/tarballs/` prefix, and the derivable URL is answered with a 404.
 async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
-  const upstreamBase = `http://localhost:${REGISTRY_MOCK_PORT}`
-  let proxyBase = ''
+  const bases = { upstream: `http://localhost:${REGISTRY_MOCK_PORT}`, proxy: '' }
   const server = http.createServer((req, res) => {
-    void (async () => {
-      const tarballPath = req.url!.startsWith('/tarballs/') ? req.url!.slice('/tarballs'.length) : undefined
-      if (tarballPath == null && req.url!.endsWith('.tgz')) {
-        res.writeHead(404)
-        res.end('Not Found')
-        return
-      }
-      const upstream = await fetch(`${upstreamBase}${tarballPath ?? req.url!}`, {
-        headers: { accept: req.headers.accept ?? '*/*' },
-      })
-      const contentType = upstream.headers.get('content-type') ?? ''
-      if (contentType.includes('json')) {
-        const body = (await upstream.text()).split(upstreamBase).join(`${proxyBase}/tarballs`)
-        res.writeHead(upstream.status, { 'content-type': 'application/json' })
-        res.end(body)
-      } else {
-        res.writeHead(upstream.status, { 'content-type': contentType })
-        res.end(Buffer.from(await upstream.arrayBuffer()))
-      }
-    })().catch((err: unknown) => {
+    proxyToUpstream(req, res, bases).catch((err: unknown) => {
       res.writeHead(500)
       res.end(String(err))
     })
@@ -257,21 +237,50 @@ async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Pr
   await new Promise<void>((resolve) => {
     server.listen(0, resolve)
   })
-  proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
+  bases.proxy = `http://localhost:${(server.address() as AddressInfo).port}`
   try {
-    await run(`${proxyBase}/`)
+    await run(`${bases.proxy}/`)
   } finally {
     server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err == null) {
-          resolve()
-        } else {
-          reject(err)
-        }
-      })
-    })
+    await closeServer(server)
   }
+}
+
+async function proxyToUpstream (
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  bases: { upstream: string, proxy: string }
+): Promise<void> {
+  const tarballPath = req.url!.startsWith('/tarballs/') ? req.url!.slice('/tarballs'.length) : undefined
+  if (tarballPath == null && req.url!.endsWith('.tgz')) {
+    res.writeHead(404)
+    res.end('Not Found')
+    return
+  }
+  const upstream = await fetch(`${bases.upstream}${tarballPath ?? req.url!}`, {
+    headers: { accept: req.headers.accept ?? '*/*' },
+  })
+  const contentType = upstream.headers.get('content-type') ?? ''
+  if (contentType.includes('json')) {
+    const body = (await upstream.text()).split(bases.upstream).join(`${bases.proxy}/tarballs`)
+    res.writeHead(upstream.status, { 'content-type': 'application/json' })
+    res.end(body)
+  } else {
+    res.writeHead(upstream.status, { 'content-type': contentType })
+    res.end(Buffer.from(await upstream.arrayBuffer()))
+  }
+}
+
+async function closeServer (server: http.Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => {
+      if (err == null) {
+        resolve()
+      } else {
+        reject(err)
+      }
+    })
+  })
 }
 
 test('keeps optional subdeps of a pinned config dep out of the lockfile', async () => {

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import type { Stats } from 'node:fs'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -7,6 +8,22 @@ import { isError, PnpmError } from '@pnpm/error'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import type { TaskGraph, TaskKey, TaskNode } from '@pnpm/workspace.task-scheduler'
 import writeFileAtomic from 'write-file-atomic'
+
+import {
+  compareStrings,
+  compareTaskIds,
+  type FinishRecord,
+  hasErrorCode,
+  isStateUnavailableError,
+  type TaskId,
+  taskId,
+  type TaskRecord,
+  TaskRunState,
+  unlessStateUnavailable,
+  unlinkIfExists,
+} from './taskRunStateJournal.js'
+
+export type { TaskRunState }
 
 const STATE_VERSION = 1
 const STATE_DIR = '.pnpm-task-run-state-v1'
@@ -18,11 +35,6 @@ const LOCK_WAIT_MS = 2_000
 const LOCK_ABANDONED_MS = 30_000
 const RUN_GENERATION_LENGTH = 12
 const RUN_ID = /^[0-9a-f]{12}-[0-9a-f-]{1,115}$/
-
-interface TaskId {
-  project: string
-  task: string
-}
 
 interface TaskIdentity extends TaskId {
   scripts: Array<{ name: string, commands: string[] }>
@@ -41,15 +53,6 @@ interface StateHeader {
   version: number
   invocation: string
   run: string
-}
-
-interface TaskRecord extends TaskId {
-  run: string
-}
-
-interface FinishRecord {
-  run: string
-  finished: true
 }
 
 export interface TaskRunStateContextOptions {
@@ -120,68 +123,20 @@ export class TaskRunStateContext {
   }
 
   async readCompletedTasks (): Promise<Set<TaskKey> | undefined> {
-    try {
-      if (!await this.validateStateDirectory(false)) return undefined
-    } catch (err: unknown) {
-      if (isStateUnavailableError(err)) return undefined
-      throw err
-    }
-    let latest: StateHeader
-    try {
-      latest = JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
-    } catch (err: unknown) {
-      if (isError(err) && 'code' in err && err.code !== 'ENOENT' && !isStateUnavailableError(err)) throw err
-      return undefined
-    }
-    if (latest.version !== STATE_VERSION || latest.invocation !== this.invocation || !RUN_ID.test(latest.run)) return undefined
-    let state: { run: string, finished: boolean }
-    try {
-      state = await this.newestState(latest.run)
-    } catch (err: unknown) {
-      if (isStateUnavailableError(err)) return undefined
-      throw err
-    }
-    if (state.finished) return undefined
-    const filePath = this.journalPath(state.run)
-    let contents: string
-    try {
-      contents = await fs.readFile(filePath, 'utf8')
-    } catch (err: unknown) {
-      if (isError(err) && 'code' in err && (err.code === 'ENOENT' || isStateUnavailableError(err))) return undefined
-      throw err
-    }
-    // A record is committed by its newline; a process killed during append
-    // can leave only the final record torn.
-    const lines = contents.split('\n')
-    lines.pop()
-    if (lines.length === 0) return undefined
-    let header: StateHeader
-    try {
-      header = JSON.parse(lines[0]) as StateHeader
-    } catch {
-      return undefined
-    }
-    if (header.version !== STATE_VERSION || header.invocation !== this.invocation || header.run !== state.run) return undefined
-    const completed = new Set<TaskKey>()
-    for (const line of lines.slice(1)) {
-      let record: TaskRecord | FinishRecord
-      try {
-        record = JSON.parse(line) as TaskRecord | FinishRecord
-      } catch {
-        return undefined
-      }
-      if (record.run !== header.run) continue
-      if (isFinishRecord(record)) return undefined
-      const key = this.keysById.get(taskIdKey(record))
-      if (key == null) return undefined
-      completed.add(key)
-    }
-    return completed
+    if (!await unlessStateUnavailable(this.validateStateDirectory(false))) return undefined
+    const latest = await this.readLatestState()
+    if (latest == null || !this.isCurrentInvocation(latest) || !RUN_ID.test(latest.run)) return undefined
+    const state = await unlessStateUnavailable(this.newestState(latest.run))
+    if (state == null || state.finished) return undefined
+    const lines = await readJournalLines(this.journalPath(state.run))
+    if (lines == null || lines.length === 0) return undefined
+    const header = parseJson<StateHeader>(lines[0])
+    if (header == null || !this.isCurrentInvocation(header) || header.run !== state.run) return undefined
+    return this.collectCompletedTasks(lines.slice(1), header.run)
   }
 
   async start (completedTasks: ReadonlySet<TaskKey>): Promise<TaskRunState> {
     let run = createRunId(Date.now())
-    let filePath = this.journalPath(run)
     let file: FileHandle | undefined
     let journalCreated = false
     let lock: DirLock | undefined
@@ -189,40 +144,79 @@ export class TaskRunStateContext {
       await this.validateStateDirectory(true)
       lock = await DirLock.acquire(path.join(this.stateDir, START_LOCK_DIR), { waitMs: LOCK_WAIT_MS, abandonedMs: LOCK_ABANDONED_MS })
       if (lock == null) {
-        return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
+        return this.createState(run, undefined, completedTasks)
       }
       run = await this.nextRunId()
-      filePath = this.journalPath(run)
-      const header: StateHeader = { version: STATE_VERSION, invocation: this.invocation, run }
-      const completed = [...completedTasks]
-        .map((key): TaskRecord => ({ run, ...taskId(this.opts.graph.get(key)!, this.opts.workspaceDir) }))
-        .sort(compareTaskIds)
-      const contents = [header, ...completed].map((record) => JSON.stringify(record)).join('\n') + '\n'
-      await writeFileAtomic(filePath, contents, { mode: 0o600 })
+      const header = await this.writeJournal(run, completedTasks)
       journalCreated = true
-      file = await fs.open(filePath, 'a')
+      file = await fs.open(this.journalPath(run), 'a')
       if (!await lock.isOwner()) {
         await file.close()
         file = undefined
-        await unlinkIfExists(filePath)
+        await unlinkIfExists(this.journalPath(run))
         journalCreated = false
-        return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
+        return this.createState(run, undefined, completedTasks)
       }
-      await writeFileAtomic(this.latestStatePath, JSON.stringify(header), { mode: 0o600 })
-      await writeFileAtomic(this.publishedPath(run), '', { mode: 0o600 })
-      await this.cleanupOlderFinishedState(run).catch(() => {})
+      await this.publishRun(header)
     } catch (err: unknown) {
       await file?.close().catch(() => {})
-      if (journalCreated) await unlinkIfExists(filePath).catch(() => {})
+      if (journalCreated) await unlinkIfExists(this.journalPath(run)).catch(() => {})
       await unlinkIfExists(this.publishedPath(run)).catch(() => {})
       if (isStateUnavailableError(err)) {
-        return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), undefined, this.opts.workspaceDir, run, completedTasks)
+        return this.createState(run, undefined, completedTasks)
       }
       throw err
     } finally {
       await lock?.release()
     }
-    return new TaskRunState(filePath, this.publishedPath(run), this.finishedPath(run), file, this.opts.workspaceDir, run, completedTasks)
+    return this.createState(run, file, completedTasks)
+  }
+
+  private createState (run: string, file: FileHandle | undefined, completedTasks: ReadonlySet<TaskKey>): TaskRunState {
+    return new TaskRunState(this.journalPath(run), this.publishedPath(run), this.finishedPath(run), file, this.opts.workspaceDir, run, completedTasks)
+  }
+
+  private async writeJournal (run: string, completedTasks: ReadonlySet<TaskKey>): Promise<StateHeader> {
+    const header: StateHeader = { version: STATE_VERSION, invocation: this.invocation, run }
+    const completed = [...completedTasks]
+      .map((key): TaskRecord => ({ run, ...taskId(this.opts.graph.get(key)!, this.opts.workspaceDir) }))
+      .sort(compareTaskIds)
+    const contents = [header, ...completed].map((record) => JSON.stringify(record)).join('\n') + '\n'
+    await writeFileAtomic(this.journalPath(run), contents, { mode: 0o600 })
+    return header
+  }
+
+  private async publishRun (header: StateHeader): Promise<void> {
+    await writeFileAtomic(this.latestStatePath, JSON.stringify(header), { mode: 0o600 })
+    await writeFileAtomic(this.publishedPath(header.run), '', { mode: 0o600 })
+    await this.cleanupOlderFinishedState(header.run).catch(() => {})
+  }
+
+  private async readLatestState (): Promise<StateHeader | undefined> {
+    try {
+      return JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
+    } catch (err: unknown) {
+      if (isError(err) && 'code' in err && err.code !== 'ENOENT' && !isStateUnavailableError(err)) throw err
+      return undefined
+    }
+  }
+
+  private isCurrentInvocation (header: StateHeader): boolean {
+    return header.version === STATE_VERSION && header.invocation === this.invocation
+  }
+
+  private collectCompletedTasks (recordLines: string[], run: string): Set<TaskKey> | undefined {
+    const completed = new Set<TaskKey>()
+    for (const line of recordLines) {
+      const record = parseJson<TaskRecord | FinishRecord>(line)
+      if (record == null) return undefined
+      if (record.run !== run) continue
+      if (isFinishRecord(record)) return undefined
+      const key = this.keysById.get(taskIdKey(record))
+      if (key == null) return undefined
+      completed.add(key)
+    }
+    return completed
   }
 
   private journalPath (run: string): string {
@@ -243,24 +237,12 @@ export class TaskRunStateContext {
     const names = new Set(await fs.readdir(this.stateDir))
     let finished = names.has(`${prefix}${latestRun}${FINISHED_SUFFIX}`)
     for (const name of names) {
-      if (!name.startsWith(prefix)) continue
-      let run: string
-      let candidateFinished: boolean
-      if (name.endsWith(FINISHED_SUFFIX)) {
-        run = name.slice(prefix.length, -FINISHED_SUFFIX.length)
-        candidateFinished = true
-      } else if (name.endsWith('.jsonl')) {
-        run = name.slice(prefix.length, -'.jsonl'.length)
-        if (!names.has(`${prefix}${run}${PUBLISHED_SUFFIX}`)) continue
-        candidateFinished = false
-      } else {
-        continue
-      }
-      if (!RUN_ID.test(run)) continue
-      if (runGeneration(run) > runGeneration(newestRun)) {
-        newestRun = run
-        finished = candidateFinished
-      } else if (run === newestRun && candidateFinished) {
+      const candidate = parsePublishedRun(name, prefix, names)
+      if (candidate == null || !RUN_ID.test(candidate.run)) continue
+      if (runGeneration(candidate.run) > runGeneration(newestRun)) {
+        newestRun = candidate.run
+        finished = candidate.finished
+      } else if (candidate.run === newestRun && candidate.finished) {
         finished = true
       }
     }
@@ -269,23 +251,26 @@ export class TaskRunStateContext {
 
   private async nextRunId (): Promise<string> {
     let newestGeneration = Date.now().toString(16).padStart(RUN_GENERATION_LENGTH, '0')
-    try {
-      const latest = JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
-      if (latest.invocation === this.invocation && RUN_ID.test(latest.run)) {
-        newestGeneration = maxString(newestGeneration, runGeneration(latest.run))
-      }
-    } catch (err: unknown) {
-      if (isError(err) && 'code' in err && err.code !== 'ENOENT') throw err
+    const latestRun = await this.readLatestRunOfInvocation()
+    if (latestRun != null) {
+      newestGeneration = maxString(newestGeneration, runGeneration(latestRun))
     }
     const prefix = `${this.invocation}.`
     for (const name of await fs.readdir(this.stateDir)) {
-      if (!name.startsWith(prefix)) continue
-      const suffix = name.endsWith('.jsonl') ? '.jsonl' : name.endsWith(FINISHED_SUFFIX) ? FINISHED_SUFFIX : undefined
-      if (suffix == null) continue
-      const run = name.slice(prefix.length, -suffix.length)
-      if (RUN_ID.test(run)) newestGeneration = maxString(newestGeneration, runGeneration(run))
+      const run = parseStateFileRun(name, prefix)
+      if (run != null && RUN_ID.test(run)) newestGeneration = maxString(newestGeneration, runGeneration(run))
     }
     return createRunId(Number.parseInt(newestGeneration, 16) + 1)
+  }
+
+  private async readLatestRunOfInvocation (): Promise<string | undefined> {
+    try {
+      const latest = JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
+      if (latest.invocation === this.invocation && RUN_ID.test(latest.run)) return latest.run
+    } catch (err: unknown) {
+      if (isError(err) && 'code' in err && err.code !== 'ENOENT') throw err
+    }
+    return undefined
   }
 
   private async cleanupOlderFinishedState (run: string): Promise<void> {
@@ -324,156 +309,79 @@ function isFinishRecord (record: TaskRecord | FinishRecord): record is FinishRec
   return 'finished' in record && record.finished
 }
 
-export class TaskRunState {
-  readonly filePath: string
-  private readonly publishedPath: string
-  private readonly finishedPath: string
-  private readonly file: FileHandle | undefined
-  private readonly workspaceDir: string
-  private readonly run: string
-  private readonly completedTasks: Set<TaskKey>
-  private pendingWrite: Promise<void> = Promise.resolve()
-  private closePromise: Promise<void> | undefined
-  private disabled: boolean
-
-  constructor (
-    filePath: string,
-    publishedPath: string,
-    finishedPath: string,
-    file: FileHandle | undefined,
-    workspaceDir: string,
-    run: string,
-    completedTasks: ReadonlySet<TaskKey>
-  ) {
-    this.filePath = filePath
-    this.publishedPath = publishedPath
-    this.finishedPath = finishedPath
-    this.file = file
-    this.workspaceDir = workspaceDir
-    this.run = run
-    this.completedTasks = new Set(completedTasks)
-    this.disabled = file == null
+/**
+ * Returns the run of a journal that was published or of a finished run.
+ * A journal that was never published belongs to a run that has not started.
+ */
+function parsePublishedRun (name: string, prefix: string, names: Set<string>): { run: string, finished: boolean } | undefined {
+  if (!name.startsWith(prefix)) return undefined
+  if (name.endsWith(FINISHED_SUFFIX)) {
+    return { run: name.slice(prefix.length, -FINISHED_SUFFIX.length), finished: true }
   }
+  if (!name.endsWith('.jsonl')) return undefined
+  const run = name.slice(prefix.length, -'.jsonl'.length)
+  if (!names.has(`${prefix}${run}${PUBLISHED_SUFFIX}`)) return undefined
+  return { run, finished: false }
+}
 
-  async recordPassed (key: TaskKey, node: TaskNode): Promise<void> {
-    const file = this.file
-    if (this.disabled || file == null || this.completedTasks.has(key)) return
-    this.completedTasks.add(key)
-    const record: TaskRecord = { run: this.run, ...taskId(node, this.workspaceDir) }
-    const line = `${JSON.stringify(record)}\n`
-    let unavailable = false
-    const write = this.pendingWrite.then(async () => {
-      if (this.disabled) return
-      try {
-        await file.appendFile(line)
-      } catch (err: unknown) {
-        if (!isStateUnavailableError(err)) throw err
-        this.disabled = true
-        unavailable = true
-      }
-    })
-    this.pendingWrite = write.catch(() => {})
-    try {
-      await write
-    } catch (err: unknown) {
-      this.completedTasks.delete(key)
-      throw err
-    }
-    if (unavailable) {
-      await this.close().catch(() => {})
-      await unlinkIfExists(this.filePath).catch(() => {})
-      await unlinkIfExists(this.publishedPath).catch(() => {})
-    }
+function parseStateFileRun (name: string, prefix: string): string | undefined {
+  if (!name.startsWith(prefix)) return undefined
+  const suffix = name.endsWith('.jsonl') ? '.jsonl' : name.endsWith(FINISHED_SUFFIX) ? FINISHED_SUFFIX : undefined
+  if (suffix == null) return undefined
+  return name.slice(prefix.length, -suffix.length)
+}
+
+async function readJournalLines (filePath: string): Promise<string[] | undefined> {
+  let contents: string
+  try {
+    contents = await fs.readFile(filePath, 'utf8')
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || isStateUnavailableError(err))) return undefined
+    throw err
   }
+  // A record is committed by its newline; a process killed during append
+  // can leave only the final record torn.
+  const lines = contents.split('\n')
+  lines.pop()
+  return lines
+}
 
-  async finish (): Promise<void> {
-    if (this.file == null || this.disabled) return
-    if (this.closePromise == null) {
-      const finishRecord: FinishRecord = { run: this.run, finished: true }
-      const write = this.pendingWrite.then(async () => this.file!.appendFile(`${JSON.stringify(finishRecord)}\n`))
-      this.pendingWrite = write.catch(() => {})
-      try {
-        await write
-      } catch (err: unknown) {
-        if (!isStateUnavailableError(err)) throw err
-      }
-    }
-    await this.close()
-    try {
-      await writeFileAtomic(this.finishedPath, '', { mode: 0o600 })
-    } catch (err: unknown) {
-      if (isStateUnavailableError(err)) return
-      throw err
-    }
-    try {
-      await unlinkIfExists(this.publishedPath)
-      await unlinkIfExists(this.filePath)
-    } catch (err: unknown) {
-      if (!isStateUnavailableError(err)) throw err
-    }
-  }
-
-  async close (): Promise<void> {
-    const file = this.file
-    if (file == null) return
-    this.closePromise ??= this.pendingWrite.then(async () => file.close())
-    await this.closePromise
+function parseJson<Value> (text: string): Value | undefined {
+  try {
+    return JSON.parse(text) as Value
+  } catch {
+    return undefined
   }
 }
 
 async function validateRealDirectory (dir: string, create: boolean): Promise<boolean> {
-  let stats
-  try {
-    stats = await fs.lstat(dir)
-  } catch (err: unknown) {
-    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) throw err
-    if (!create) return false
-    try {
-      await fs.mkdir(dir)
-    } catch (mkdirErr: unknown) {
-      if (!(isError(mkdirErr) && 'code' in mkdirErr && mkdirErr.code === 'EEXIST')) throw mkdirErr
-    }
-    stats = await fs.lstat(dir)
-  }
+  const stats = await lstatCreatingMissingDirectory(dir, create)
+  if (stats == null) return false
   if (stats.isSymbolicLink() || !stats.isDirectory()) {
     throw new PnpmError('UNSAFE_TASK_RUN_STATE_PATH', `Refusing to use task run state directory at "${dir}" because it is a symbolic link or not a directory`)
   }
   return true
 }
 
-function taskId (node: TaskNode, workspaceDir: string): TaskId {
-  const relative = path.relative(workspaceDir, node.project)
-  return {
-    project: relative === '' ? '.' : relative.replaceAll(path.sep, '/'),
-    task: node.taskName,
+async function lstatCreatingMissingDirectory (dir: string, create: boolean): Promise<Stats | undefined> {
+  try {
+    return await fs.lstat(dir)
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'ENOENT')) throw err
+    if (!create) return undefined
   }
+  try {
+    await fs.mkdir(dir)
+  } catch (mkdirErr: unknown) {
+    if (!hasErrorCode(mkdirErr, 'EEXIST')) throw mkdirErr
+  }
+  return fs.lstat(dir)
 }
 
 function taskIdKey (id: TaskId): string {
   return `${id.project}\0${id.task}`
 }
 
-function compareTaskIds (left: TaskId, right: TaskId): number {
-  return compareStrings(left.project, right.project) || compareStrings(left.task, right.task)
-}
-
 function compareScripts (left: { name: string }, right: { name: string }): number {
   return compareStrings(left.name, right.name)
-}
-
-function compareStrings (left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
-}
-
-async function unlinkIfExists (filePath: string): Promise<void> {
-  try {
-    await fs.unlink(filePath)
-  } catch (err: unknown) {
-    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) throw err
-  }
-}
-
-function isStateUnavailableError (err: unknown): boolean {
-  return isError(err) && 'code' in err &&
-    (err.code === 'EACCES' || err.code === 'EPERM' || err.code === 'EROFS')
 }

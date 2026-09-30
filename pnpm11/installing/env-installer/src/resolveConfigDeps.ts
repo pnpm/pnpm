@@ -37,47 +37,8 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
 
-  await Promise.all(configDeps.map(async (configDep) => {
-    const wantedDep = parseWantedDependency(configDep)
-    if (!wantedDep.alias) {
-      throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency`)
-    }
-    const resolution = await resolveFromNpm(wantedDep, {
-      lockfileDir: opts.rootDir,
-      preferredVersions: {},
-      projectDir: opts.rootDir,
-    })
-    if (resolution?.resolution == null || !('integrity' in resolution.resolution) || typeof resolution.resolution.integrity !== 'string' || !resolution.resolution.integrity) {
-      throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency because it has no integrity`)
-    }
-    const pkgName = wantedDep.alias
-    const version = resolution.manifest.version
-    const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
-
-    // Write clean specifier to workspace manifest
-    configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
-
-    // Write resolved info to env lockfile
-    const pkgKey = `${pkgName}@${version}`
-    envLockfile.importers['.'].configDependencies[pkgName] = {
-      specifier: configDependencySpecifiers[pkgName],
-      version,
-    }
-    envLockfile.packages[pkgKey] = {
-      resolution: toLockfileResolution(
-        { name: pkgName, version },
-        resolution.resolution,
-        { registry }
-      ),
-    }
-    const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
-      envLockfile,
-      lockfileDir: opts.rootDir,
-      registriesByScope: opts.registriesByScope,
-      resolveFromNpm,
-    })
-    envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
-  }))
+  const ctx: AddConfigDepContext = { configDependencySpecifiers, envLockfile, opts, resolveFromNpm }
+  await Promise.all(configDeps.map((configDep) => addConfigDepToLockfile(ctx, configDep)))
 
   pruneEnvLockfile(envLockfile)
 
@@ -93,6 +54,56 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   await installConfigDeps(envLockfile, opts)
 }
 
+interface AddConfigDepContext {
+  configDependencySpecifiers: ConfigDependencySpecifiers
+  envLockfile: EnvLockfile
+  opts: ResolveConfigDepsOpts
+  resolveFromNpm: ReturnType<typeof createNpmResolver>['resolveFromNpm']
+}
+
+async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: string): Promise<void> {
+  const { configDependencySpecifiers, envLockfile, opts } = ctx
+  const wantedDep = parseWantedDependency(configDep)
+  if (!wantedDep.alias) {
+    throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency`)
+  }
+  const resolution = await ctx.resolveFromNpm(wantedDep, {
+    lockfileDir: opts.rootDir,
+    preferredVersions: {},
+    projectDir: opts.rootDir,
+  })
+  if (resolution?.resolution == null || !('integrity' in resolution.resolution) || typeof resolution.resolution.integrity !== 'string' || !resolution.resolution.integrity) {
+    throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency because it has no integrity`)
+  }
+  const pkgName = wantedDep.alias
+  const version = resolution.manifest.version
+  const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
+
+  // Write clean specifier to workspace manifest
+  configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
+
+  // Write resolved info to env lockfile
+  const pkgKey = `${pkgName}@${version}`
+  envLockfile.importers['.'].configDependencies[pkgName] = {
+    specifier: configDependencySpecifiers[pkgName],
+    version,
+  }
+  envLockfile.packages[pkgKey] = {
+    resolution: toLockfileResolution(
+      { name: pkgName, version },
+      resolution.resolution,
+      { registry }
+    ),
+  }
+  const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
+    envLockfile,
+    lockfileDir: opts.rootDir,
+    registriesByScope: opts.registriesByScope,
+    resolveFromNpm: ctx.resolveFromNpm,
+  })
+  envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
+}
+
 /**
  * Extracts plain specifiers from configDependencies, handling both old format
  * ("version+integrity") and new format (plain specifiers).
@@ -101,15 +112,14 @@ function extractSpecifiers (configDependencies?: ConfigDependencies): ConfigDepe
   if (!configDependencies) return {}
   const specifiers: ConfigDependencySpecifiers = {}
   for (const [name, value] of Object.entries(configDependencies)) {
-    if (typeof value === 'object') {
-      // Old format with tarball: extract version from integrity string
-      const sepIndex = value.integrity.indexOf('+')
-      specifiers[name] = sepIndex !== -1 ? value.integrity.substring(0, sepIndex) : value.integrity
-    } else {
-      // Could be old "version+integrity" or new plain specifier
-      const sepIndex = value.indexOf('+')
-      specifiers[name] = sepIndex !== -1 ? value.substring(0, sepIndex) : value
-    }
+    // Old format with tarball: extract version from integrity string.
+    // A string could be old "version+integrity" or new plain specifier.
+    specifiers[name] = stripInlineIntegrity(typeof value === 'object' ? value.integrity : value)
   }
   return specifiers
+}
+
+function stripInlineIntegrity (spec: string): string {
+  const sepIndex = spec.indexOf('+')
+  return sepIndex !== -1 ? spec.substring(0, sepIndex) : spec
 }
