@@ -55,7 +55,7 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
     strictSsl,
   })
 
-  const cachedAgent = AGENT_CACHE.peek(key)
+  const cachedAgent = AGENT_CACHE.get(key)
   if (cachedAgent) {
     return cachedAgent
   }
