@@ -42,12 +42,9 @@ export class DirLock {
       const lock = await DirLock.tryCreate(lockPath)
       if (lock != null) return lock
       // eslint-disable-next-line no-await-in-loop -- inspects the lock this attempt failed to create
-      const state = await inspectLock(lockPath, opts.abandonedMs)
-      if (state.kind === 'unusable') return undefined
-      // Released since the `mkdir` attempt: retry at once.
-      if (state.kind === 'vanished') continue
-      // eslint-disable-next-line no-await-in-loop -- the next attempt must see whether the stale lock was removed
-      if (state.kind === 'stale' && await removeIfStillStale(lockPath, state.owner, opts.abandonedMs)) continue
+      const nextAction = await checkLockAttempt(lockPath, opts.abandonedMs)
+      if (nextAction === 'unusable') return undefined
+      if (nextAction === 'retry') continue
       if (Date.now() >= deadline) return undefined
       // eslint-disable-next-line no-await-in-loop -- waits between polls
       await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
@@ -81,6 +78,14 @@ export class DirLock {
   }
 }
 
+async function checkLockAttempt (lockPath: string, abandonedMs: number): Promise<'unusable' | 'retry' | 'wait'> {
+  const state = await inspectLock(lockPath, abandonedMs)
+  if (state.kind === 'unusable') return 'unusable'
+  if (state.kind === 'vanished') return 'retry'
+  if (state.kind === 'stale' && await removeIfStillStale(lockPath, state.owner, abandonedMs)) return 'retry'
+  return 'wait'
+}
+
 type LockState =
   | { kind: 'live' | 'vanished' | 'unusable' }
   | { kind: 'stale', owner: string | undefined }
@@ -96,19 +101,17 @@ async function inspectLock (lockPath: string, abandonedMs: number): Promise<Lock
   if (stats.isSymbolicLink() || !stats.isDirectory()) return { kind: 'unusable' }
   const owner = await readOwner(lockPath)
   const age = Date.now() - stats.mtimeMs
-  const localPid = owner == null ? undefined : localOwnerPid(owner)
-  const liveness = localPid != null && localPid !== process.pid ? processLiveness(localPid) : 'unknown'
-  let stale: boolean
-  if (owner == null) {
-    stale = age > OWNERLESS_ABANDONED_MS
-  } else if (liveness === 'alive') {
-    stale = false
-  } else if (liveness === 'ended') {
-    stale = true
-  } else {
-    stale = age > abandonedMs
-  }
+  const stale = isLockStale(owner, age, abandonedMs)
   return stale ? { kind: 'stale', owner } : { kind: 'live' }
+}
+
+function isLockStale (owner: string | undefined, age: number, abandonedMs: number): boolean {
+  if (owner == null) return age > OWNERLESS_ABANDONED_MS
+  const localPid = localOwnerPid(owner)
+  const liveness = localPid != null && localPid !== process.pid ? processLiveness(localPid) : 'unknown'
+  if (liveness === 'alive') return false
+  if (liveness === 'ended') return true
+  return age > abandonedMs
 }
 
 /**

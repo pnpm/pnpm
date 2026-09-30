@@ -38,21 +38,42 @@ function withEagainRetry<Args extends unknown[], Result> (
   return (...args: Args): Result => {
     let attempts = 0
     while (attempts <= maxRetries) {
-      try {
-        return fn(...args)
-      } catch (err: unknown) {
-        if (isError(err) && 'code' in err && err.code === 'EAGAIN' && attempts < maxRetries) {
-          attempts++
-          // Exponential backoff: wait 2^attempts milliseconds, max 300ms
-          const delay = Math.min(Math.pow(2, attempts), 300)
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
-          continue
-        }
-        throw err
-      }
+      const outcome = tryCallWithEagain(fn, args, attempts, maxRetries)
+      if (outcome.success) return outcome.value
+      attempts = outcome.attempts
     }
     throw new Error('Unreachable')
   }
+}
+
+type CallOutcome<Result> =
+  | { success: true, value: Result }
+  | { success: false, attempts: number }
+
+function tryCallWithEagain<Args extends unknown[], Result> (
+  fn: (...args: Args) => Result,
+  args: Args,
+  attempts: number,
+  maxRetries: number
+): CallOutcome<Result> {
+  try {
+    return { success: true, value: fn(...args) }
+  } catch (err: unknown) {
+    if (!isEagainError(err) || attempts >= maxRetries) throw err
+    const nextAttempts = attempts + 1
+    waitEagainBackoff(nextAttempts)
+    return { success: false, attempts: nextAttempts }
+  }
+}
+
+function isEagainError (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'EAGAIN'
+}
+
+function waitEagainBackoff (attempts: number): void {
+  // Exponential backoff: wait 2^attempts milliseconds, max 300ms
+  const delay = Math.min(Math.pow(2, attempts), 300)
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
 }
 
 /**
@@ -130,14 +151,18 @@ export async function withFileLockRetryAsync<Result> (operation: () => Promise<R
       // eslint-disable-next-line no-await-in-loop -- the next attempt runs only after this one fails
       return await operation()
     } catch (err) {
-      const delayMs = retry.delayBeforeNextAttempt(err)
-      if (delayMs > 0) {
-        // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
-        await new Promise((resolve) => setTimeout(resolve, delayMs))
-      }
-      retry.checkBudgetAfterDelay(err)
+      // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
+      await backOffWithFileLockRetryAsync(retry, err)
     }
   }
+}
+
+async function backOffWithFileLockRetryAsync (retry: FileLockRetry, err: unknown): Promise<void> {
+  const delayMs = retry.delayBeforeNextAttempt(err)
+  if (delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  retry.checkBudgetAfterDelay(err)
 }
 
 interface FileLockRetry {

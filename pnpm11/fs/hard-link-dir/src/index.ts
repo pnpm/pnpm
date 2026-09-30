@@ -34,43 +34,55 @@ export function hardLinkDir (src: string, destDirs: string[]): void {
 }
 
 function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void {
-  let files: string[] = []
-  try {
-    files = fs.readdirSync(src)
-  } catch (err: unknown) {
-    if (!isRoot || !((isError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
-    globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
-    return
-  }
+  const files = readSourceFiles(src, destDirs, isRoot)
+  if (!files) return
   for (const file of files) {
     if (file === 'node_modules') continue
     const srcFile = path.join(src, file)
     const srcStats = fs.lstatSync(srcFile, { bigint: true })
     if (srcStats.isDirectory()) {
-      const destSubdirs = destDirs.map((destDir) => {
-        const destSubdir = path.join(destDir, file)
-        clearMismatchedDirent(destSubdir, true)
-        try {
-          gfs.mkdirSync(destSubdir, { recursive: true })
-        } catch (err: unknown) {
-          if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-        }
-        return destSubdir
-      })
-      _hardLinkDir(srcFile, destSubdirs)
-      continue
+      hardLinkSubdir(srcFile, file, destDirs)
+    } else {
+      hardLinkFileEntry(srcFile, file, destDirs, srcStats)
     }
-    for (const destDir of destDirs) {
-      const destFile = path.join(destDir, file)
-      try {
-        linkOrCopyFile(srcFile, destFile, srcStats)
-      } catch (err: unknown) {
-        if (isError(err) && 'code' in err && err.code === 'ENOENT') {
-          // Ignore broken symlinks
-          continue
-        }
-        throw err
+  }
+}
+
+function readSourceFiles (src: string, destDirs: string[], isRoot?: boolean): string[] | null {
+  try {
+    return fs.readdirSync(src)
+  } catch (err: unknown) {
+    if (!isRoot || !((isError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
+    globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
+    return null
+  }
+}
+
+function hardLinkSubdir (srcFile: string, file: string, destDirs: string[]): void {
+  const destSubdirs = destDirs.map((destDir) => {
+    const destSubdir = path.join(destDir, file)
+    clearMismatchedDirent(destSubdir, true)
+    try {
+      gfs.mkdirSync(destSubdir, { recursive: true })
+    } catch (err: unknown) {
+      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    }
+    return destSubdir
+  })
+  _hardLinkDir(srcFile, destSubdirs)
+}
+
+function hardLinkFileEntry (srcFile: string, file: string, destDirs: string[], srcStats: fs.BigIntStats): void {
+  for (const destDir of destDirs) {
+    const destFile = path.join(destDir, file)
+    try {
+      linkOrCopyFile(srcFile, destFile, srcStats)
+    } catch (err: unknown) {
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+        // Ignore broken symlinks
+        continue
       }
+      throw err
     }
   }
 }
