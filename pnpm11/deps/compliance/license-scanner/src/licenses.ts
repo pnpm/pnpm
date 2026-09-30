@@ -15,6 +15,7 @@ import type {
 import { compareVersions } from './compareVersions.js'
 import {
   type LicenseNode,
+  type LicenseNodeTree,
   lockfileToLicenseNodeTree,
 } from './lockfileToLicenseNodeTree.js'
 
@@ -108,6 +109,45 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
+  const modulesConfig = await resolveModulesConfig(opts)
+  const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
+    dir: opts.dir ?? opts.lockfileDir,
+    lockfileDir: opts.lockfileDir,
+    modulesDir: opts.modulesDir,
+    hoistedLocations: modulesConfig.hoistedLocations,
+    storeDir: opts.storeDir,
+    virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    include: opts.include,
+    nodeLinker: modulesConfig.nodeLinker,
+    shamefullyHoist: modulesConfig.shamefullyHoist,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
+    includedImporterIds: opts.includedImporterIds,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    supportedArchitectures: opts.supportedArchitectures,
+  })
+
+  const licensePackages = collectUniqueLicensePackages(licenseNodeTree)
+  return licensePackages.sort((pkg1, pkg2) =>
+    pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
+  )
+}
+
+interface ModulesConfig {
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  shamefullyHoist: boolean
+  hoistedLocations?: Record<string, string[]>
+}
+
+async function resolveModulesConfig (opts: {
+  dir?: string
+  lockfileDir: string
+  modulesDir?: string
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  shamefullyHoist?: boolean
+  hoistedLocations?: Record<string, string[]>
+}): Promise<ModulesConfig> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = path.resolve(opts.lockfileDir, modulesDir)
   const projectModulesDir = opts.dir ? path.resolve(opts.dir, modulesDir) : rootModulesDir
@@ -122,37 +162,15 @@ export async function findDependencyLicenses (opts: {
   const shamefullyHoist = opts.shamefullyHoist ??
     (modulesManifest?.shamefullyHoist === true || Boolean(modulesManifest?.publicHoistPattern?.includes('*')))
   const hoistedLocations = opts.hoistedLocations ?? (nodeLinker === 'hoisted' ? modulesManifest?.hoistedLocations : undefined)
+  return { nodeLinker, shamefullyHoist, hoistedLocations }
+}
 
-  const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
-    dir: opts.dir ?? opts.lockfileDir,
-    lockfileDir: opts.lockfileDir,
-    modulesDir: opts.modulesDir,
-    hoistedLocations,
-    storeDir: opts.storeDir,
-    virtualStoreDir: opts.virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    include: opts.include,
-    nodeLinker,
-    shamefullyHoist,
-    registriesByScope: opts.registriesByScope,
-    registriesByPrefix: opts.registriesByPrefix,
-    includedImporterIds: opts.includedImporterIds,
-    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
-    supportedArchitectures: opts.supportedArchitectures,
-  })
-
-  // map: name@ver (qualified by named registry, when any) and license -> LicensePackage
+function collectUniqueLicensePackages (licenseNodeTree: LicenseNodeTree): LicensePackage[] {
   const licensePackages = new Map<string, LicensePackage>()
-
   for (const dependencyName in licenseNodeTree.dependencies) {
     const licenseNode = licenseNodeTree.dependencies[dependencyName]
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
-
     for (const dependencyNode of dependenciesOfNode) {
-      // The registry is part of the identity: the same name and version
-      // served by two registries are different artifacts and may carry
-      // different licenses, so they must not collapse onto one entry. Two
-      // local packages can share a name and version but not their license.
       const pkgId = dependencyNode.registryName == null
         ? `${dependencyNode.name}@${dependencyNode.version}`
         : `${dependencyNode.name}@${dependencyNode.registryName}:${dependencyNode.version}`
@@ -165,12 +183,7 @@ export async function findDependencyLicenses (opts: {
       }
     }
   }
-
-  // Get all non-duplicate dependencies of the project
-  const projectDependencies = Array.from(licensePackages.values())
-  return Array.from(projectDependencies).sort((pkg1, pkg2) =>
-    pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
-  )
+  return Array.from(licensePackages.values())
 }
 
 /**
