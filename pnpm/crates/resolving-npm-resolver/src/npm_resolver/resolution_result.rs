@@ -155,7 +155,11 @@ pub(super) fn cached_manifest(
     if let Some(cached) = cache.get(&key) {
         return Ok(Arc::clone(cached.value()));
     }
-    let arc = Arc::new(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
+    let arc = Arc::new(
+        picked
+            .to_json_value()
+            .map_err(|err| Box::new(err) as ResolveError)?,
+    );
     cache.insert(key, Arc::clone(&arc));
     Ok(arc)
 }

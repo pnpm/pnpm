@@ -14,7 +14,7 @@ fn fallback_preserves_the_first_pick_and_preferred_versions() {
     document["versions"]["1.2.0"] = later;
     document["time"]["1.2.0"] = "2022-05-02T00:00:00Z".into();
     document["dist-tags"]["latest"] = "1.2.0".into();
-    let meta = serde_json::from_value(document).unwrap();
+    let meta = pnpm_registry::Package::from_json(&document.to_string()).unwrap();
     let preferred = VersionSelectors::from_iter([(
         "1.2.0".to_string(),
         VersionSelectorEntry::Plain(VersionSelectorType::Version),

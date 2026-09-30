@@ -290,7 +290,7 @@ struct DecodeMeta {
 
 impl DecodeMeta {
     fn run(self, raw_body: &str) -> Result<(Package, Duration), FetchMetadataError> {
-        let mut meta: Package = serde_json::from_str(raw_body)
+        let mut meta = Package::from_json(raw_body)
             .map_err(|error| FetchMetadataError::Decode {
                 url: redact_url_credentials(&self.url),
                 error,

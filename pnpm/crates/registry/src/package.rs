@@ -3,12 +3,14 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
+use deser::{Deserialize, Serialize};
+use deser_value::Value;
 use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use serde::{Deserialize, Serialize};
 
 use crate::{
-    NetworkError, RegistryError, package_version::PackageVersion, package_versions::PackageVersions,
+    NetworkError, RegistryError, json, package_version::PackageVersion,
+    package_versions::PackageVersions,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,16 +23,16 @@ use crate::{
 )]
 pub struct Package {
     pub name: String,
-    #[serde(rename = "dist-tags")]
+    #[deser(rename = "dist-tags")]
     pub dist_tags: HashMap<String, String>,
     pub versions: PackageVersions,
 
     /// Per-version publish timestamps as the npm registry reports
     /// them. Each key is either a version string (value: ISO-8601
     /// timestamp) or the reserved `unpublished` key (value: object).
-    /// The map is typed as `serde_json::Value` so the reserved key's
-    /// object value can round-trip alongside the per-version
-    /// timestamps without a custom deserializer.
+    /// The map holds dynamic [`Value`]s so the reserved key's object
+    /// value can round-trip alongside the per-version timestamps without
+    /// a custom deserializer.
     ///
     /// This is the input to the `minimumReleaseAge` verifier. Use
     /// [`Self::published_at`] for the typed per-version lookup.
@@ -38,8 +40,8 @@ pub struct Package {
     /// Optional — abbreviated metadata responses (`application/vnd.npm.install-v1+json`)
     /// omit this field; only the full-metadata fetcher used by the
     /// verifier sees it populated.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub time: Option<HashMap<String, serde_json::Value>>,
+    #[deser(skip_serializing_if = Option::is_none)]
+    pub time: Option<HashMap<String, Value>>,
 
     /// Package-level "last modified" timestamp the abbreviated
     /// metadata endpoint sends. The verifier's
@@ -47,13 +49,13 @@ pub struct Package {
     /// upper bound on every version's publish time — if `modified`
     /// is older than the policy cutoff, every version in this
     /// package was published at least that long ago.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
     pub modified: Option<String>,
 
     /// Last `ETag` the registry returned when this manifest was
     /// fetched. Threaded into `If-None-Match` on the next
     /// conditional GET by the cached metadata fetcher (Phase 5).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
     pub etag: Option<String>,
 
     /// Package-level `homepage` URL, shown in the `Details` column of
@@ -63,20 +65,26 @@ pub struct Package {
     /// field; the abbreviated install metadata pacquet fetches by default
     /// (`application/vnd.npm.install-v1+json`) omits it, so it is `None`
     /// unless the registry serves it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
     pub homepage: Option<String>,
 
-    #[serde(skip_serializing, skip_deserializing)]
+    #[deser(skip)]
     pub mutex: Arc<Mutex<u8>>,
 
     /// Packuments derived from this one by a policy filter, keyed by
     /// the deriving code's opaque policy key. See
     /// [`DerivedPackuments`].
-    #[serde(skip_serializing, skip_deserializing)]
+    #[deser(skip)]
     pub derived: DerivedPackuments,
 }
 
 impl Package {
+    /// Decode a packument. Each version stays an unparsed range of the
+    /// document until it is asked for (see [`PackageVersions`]).
+    pub fn from_json(json: &str) -> Result<Self, deser::Error> {
+        json::from_shared_str(&Arc::from(json))
+    }
+
     /// Resolved publish timestamp for `version`, or `None` when the
     /// registry didn't report one for that pin.
     #[must_use]
@@ -114,7 +122,7 @@ impl Package {
             .keys()
             .all(|version| {
                 time.get(version)
-                    .and_then(serde_json::Value::as_str)
+                    .and_then(|value| value.as_str())
                     .is_some_and(|at| !at.is_empty())
             });
         if !complete {
@@ -224,7 +232,8 @@ impl Package {
     ) -> Result<Self, RegistryError> {
         let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
-        let network_error = |error| NetworkError { error, url: url.clone() };
+        let network_error =
+            |error: reqwest::Error| NetworkError { error: error.into(), url: url.clone() };
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the
         // doc comment on `ThrottledClientGuard`.
@@ -246,10 +255,11 @@ impl Package {
             // decodes into neither a `Package` nor a useful message.
             .error_for_status()
             .map_err(network_error)?
-            .json::<Package>()
+            .text()
             .await
             .map_err(network_error)?
-            .pipe(Ok)
+            .pipe(|body| Package::from_json(&body))
+            .map_err(|error| NetworkError { error: error.into(), url: url.clone() }.into())
     }
 
     #[must_use]

@@ -26,6 +26,8 @@ pnpm-workspace-spec = { workspace = true }
 chrono = { workspace = true }
 dashmap = { workspace = true }
 derive_more = { workspace = true }
+deser = { workspace = true }
+deser-value = { workspace = true }
 httpdate = { workspace = true }
 indexmap = { workspace = true }
 libc = { workspace = true }

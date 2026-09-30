@@ -125,7 +125,8 @@ fn registry_resolution(package: &PackageVersion) -> Result<RegistryResolution, B
             version: package.version.to_string(),
         })?;
     let revision = package.dist.revision
-        .clone()
+        .as_ref()
+        .map(pnpm_registry::json::to_serde_json)
         .map(serde_json::from_value::<TarballRevision>)
         .transpose()
         .map_err(|source| {

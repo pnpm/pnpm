@@ -2,14 +2,14 @@
 //!
 //! Hydrating every version of a multi-thousand-release packument into
 //! typed [`PackageVersion`]s dominated resolve CPU: the maps, strings,
-//! and `serde_json::Value` trees behind each version are built, hashed,
+//! and dynamic value trees behind each version are built, hashed,
 //! and dropped even though a pick consults only the version *strings*
 //! plus the handful of manifests it actually considers. Each version
-//! therefore stays as an unhydrated fragment — the raw JSON serde
-//! captured ([`Arc<RawValue>`], shared rather than copied) or a byte
-//! span read on demand from the held-open mirror file — until someone
-//! asks for the typed form, and the hydrated manifest is cached per
-//! slot so repeated lookups parse once.
+//! therefore stays as an unhydrated fragment — a byte range of the
+//! decoded document (shared by every version rather than copied) or a
+//! byte span read on demand from the held-open mirror file — until
+//! someone asks for the typed form, and the hydrated manifest is cached
+//! per slot so repeated lookups parse once.
 //!
 //! A fragment that fails to decode behaves as if the version were
 //! absent from the packument (with a `tracing::warn`), mirroring the
@@ -20,20 +20,20 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     fs::File,
+    ops::Range,
     sync::{Arc, OnceLock},
 };
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::value::RawValue;
+use deser::{Deserialize, adapters::FromInto};
 
-use crate::package_version::{PackageVersion, deserialize_deprecated_field};
+use crate::{json, package_version::PackageVersion, wire_tolerance::DeprecationReason};
 
 /// Single-field view of a version manifest for
 /// [`PackageVersions::is_deprecated`] — same normalization as
 /// [`PackageVersion::deprecated`], every other field skipped.
 #[derive(Deserialize)]
 struct DeprecatedProbe {
-    #[serde(default, deserialize_with = "deserialize_deprecated_field")]
+    #[deser(default, deserialize_as = FromInto<DeprecationReason>)]
     deprecated: Option<String>,
 }
 
@@ -98,9 +98,10 @@ impl Drop for MirrorFile {
 /// Where a version's JSON fragment lives until it is hydrated.
 #[derive(Debug, Clone)]
 enum FragmentSource {
-    /// Raw JSON fragment as served by the registry (the serde parse
-    /// of a packument body captures these).
-    Raw(Arc<RawValue>),
+    /// A byte range of a JSON document held in memory: the packument
+    /// body as served by the registry (every version of one packument
+    /// shares its text), or a fragment buffered on its own.
+    Shared { document: Arc<str>, range: Range<usize> },
     /// Byte span inside an indexed on-disk metadata mirror, read on
     /// demand from the *held-open* file — reading per hydration
     /// instead of retaining the mirror body keeps a workspace-scale
@@ -114,12 +115,14 @@ enum FragmentSource {
 }
 
 impl FragmentSource {
-    /// The fragment's JSON text: borrowed for [`FragmentSource::Raw`],
+    /// The fragment's JSON text: borrowed for [`FragmentSource::Shared`],
     /// read from the mirror file for [`FragmentSource::FileSpan`],
     /// absent for [`FragmentSource::None`] or unreadable spans.
     fn json(&self) -> Option<Cow<'_, str>> {
         match self {
-            FragmentSource::Raw(raw) => Some(Cow::Borrowed(raw.get())),
+            FragmentSource::Shared { document, range } => {
+                document.get(range.clone()).map(Cow::Borrowed)
+            }
             FragmentSource::FileSpan { file, offset, len } => {
                 let mut bytes = vec![0u8; *len as usize];
                 if let Err(error) = read_exact_at(&file.file, &mut bytes, *offset) {
@@ -194,6 +197,10 @@ impl Clone for VersionSlot {
 }
 
 impl VersionSlot {
+    fn unparsed(source: FragmentSource) -> Self {
+        VersionSlot { source, parsed: OnceLock::new(), deprecated: OnceLock::new() }
+    }
+
     fn from_parsed(manifest: PackageVersion) -> Self {
         VersionSlot {
             source: FragmentSource::None,
@@ -206,7 +213,7 @@ impl VersionSlot {
         self.parsed
             .get_or_init(|| {
                 let json = self.source.json()?;
-                match serde_json::from_str::<PackageVersion>(&json) {
+                match PackageVersion::from_json(&json) {
                     Ok(parsed) => Some(Arc::new(parsed)),
                     Err(error) => {
                         tracing::warn!(
@@ -251,7 +258,7 @@ impl PackageVersions {
     pub fn decode_error(&self, version: &str) -> Option<String> {
         let slot = self.slot(version)?;
         let json = slot.source.json()?;
-        serde_json::from_str::<PackageVersion>(&json).err().map(|error| error.to_string())
+        PackageVersion::from_json(&json).err().map(|error| error.to_string())
     }
 
     /// Whether `version` is marked deprecated, equivalent to
@@ -277,7 +284,7 @@ impl PackageVersions {
         let Some(json) = slot.source.json() else { return false };
         *slot.deprecated.get_or_init(|| {
             json.contains(r#""deprecated""#)
-                && serde_json::from_str::<DeprecatedProbe>(&json)
+                && json::from_str::<DeprecatedProbe>(&json)
                     .is_ok_and(|probe| probe.deprecated.is_some())
         })
     }
@@ -357,44 +364,26 @@ impl PackageVersions {
             spans
                 .into_iter()
                 .map(|(version, offset, len)| {
-                    (
-                        version,
-                        VersionSlot {
-                            source: FragmentSource::FileSpan {
-                                file: Arc::clone(file),
-                                offset,
-                                len,
-                            },
-                            parsed: OnceLock::new(),
-                            deprecated: OnceLock::new(),
-                        },
-                    )
+                    let source = FragmentSource::FileSpan { file: Arc::clone(file), offset, len };
+                    (version, VersionSlot::unparsed(source))
                 })
                 .collect(),
         )
     }
 
-    /// Build a map from already-extracted raw JSON fragments. The
-    /// fallback for a mirror the loader could not keep open (the
-    /// held-handle cap in [`MirrorFile::try_hold`] was reached): the
-    /// fragments stay buffered in memory like a freshly-fetched
-    /// packument's, trading residency for a descriptor.
+    /// Build a map from already-extracted JSON fragments, each one a
+    /// whole JSON value. The fallback for a mirror the loader could not
+    /// keep open (the held-handle cap in [`MirrorFile::try_hold`] was
+    /// reached): the fragments stay buffered in memory like a
+    /// freshly-fetched packument's, trading residency for a descriptor.
     #[must_use]
-    pub fn from_raw_fragments(
-        fragments: impl IntoIterator<Item = (String, Box<RawValue>)>,
-    ) -> Self {
+    pub fn from_raw_fragments(fragments: impl IntoIterator<Item = (String, Arc<str>)>) -> Self {
         PackageVersions::from_slots(
             fragments
                 .into_iter()
-                .map(|(version, raw)| {
-                    (
-                        version,
-                        VersionSlot {
-                            source: FragmentSource::Raw(Arc::from(raw)),
-                            parsed: OnceLock::new(),
-                            deprecated: OnceLock::new(),
-                        },
-                    )
+                .map(|(version, document)| {
+                    let range = 0..document.len();
+                    (version, VersionSlot::unparsed(FragmentSource::Shared { document, range }))
                 })
                 .collect(),
         )
@@ -415,7 +404,7 @@ impl PackageVersions {
                     return Some((version, json));
                 }
                 if let Some(Some(parsed)) = slot.parsed.get() {
-                    match serde_json::to_string(parsed.as_ref()) {
+                    match json::to_string(parsed.as_ref()) {
                         Ok(json) => return Some((version, Cow::Owned(json))),
                         Err(error) => {
                             tracing::warn!(
@@ -451,61 +440,7 @@ impl FromIterator<(String, PackageVersion)> for PackageVersions {
     }
 }
 
-impl<'de> Deserialize<'de> for PackageVersions {
-    fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
-        let raw_map = HashMap::<String, Box<RawValue>>::deserialize(deserializer)?;
-        Ok(PackageVersions::from_slots(
-            raw_map
-                .into_iter()
-                .map(|(version, raw)| {
-                    (
-                        version,
-                        VersionSlot {
-                            source: FragmentSource::Raw(Arc::from(raw)),
-                            parsed: OnceLock::new(),
-                            deprecated: OnceLock::new(),
-                        },
-                    )
-                })
-                .collect(),
-        ))
-    }
-}
-
-impl Serialize for PackageVersions {
-    fn serialize<Ser: Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
-        use serde::ser::SerializeMap;
-        let mut map = serializer.serialize_map(Some(self.slots.len()))?;
-        for (version, slot) in &self.slots {
-            // Fragments round-trip verbatim — re-serializing a hydrated
-            // manifest would reorder keys; the wire bytes are canonical.
-            // File-span fragments read their span here (rare: only a
-            // file-loaded packument being re-serialized).
-            if let Some(json) = slot.source.json() {
-                match serde_json::from_str::<&RawValue>(&json) {
-                    Ok(raw) => map.serialize_entry(version, raw)?,
-                    Err(error) => {
-                        tracing::warn!(
-                            target: "pnpm_registry",
-                            %error,
-                            version,
-                            "skipping registry version with a corrupt fragment during serialization",
-                        );
-                        continue;
-                    }
-                }
-                continue;
-            }
-            if let Some(Some(parsed)) = slot.parsed.get() {
-                map.serialize_entry(version, parsed.as_ref())?;
-            }
-            // A slot with neither a readable fragment nor a typed
-            // manifest serializes as absent rather than panicking
-            // inside the serializer.
-        }
-        map.end()
-    }
-}
+mod serialization;
 
 #[cfg(test)]
 mod tests;

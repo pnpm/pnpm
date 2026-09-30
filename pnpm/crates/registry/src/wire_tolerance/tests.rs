@@ -16,7 +16,7 @@ fn manifest_json(npm_user: &str, attestations: &str) -> String {
 }
 
 fn parse(npm_user: &str, attestations: &str) -> PackageVersion {
-    serde_json::from_str(&manifest_json(npm_user, attestations)).expect("deserialize manifest")
+    PackageVersion::from_json(&manifest_json(npm_user, attestations)).expect("deserialize manifest")
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn parse_with(dist_extra: &str, top_extra: &str) -> PackageVersion {
             }}
         }}"#,
     );
-    serde_json::from_str(&json).expect("deserialize manifest")
+    PackageVersion::from_json(&json).expect("deserialize manifest")
 }
 
 #[test]

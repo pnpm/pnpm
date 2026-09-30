@@ -72,7 +72,7 @@ pub enum FetchMetadataError {
     Decode {
         url: String,
         #[error(source)]
-        error: serde_json::Error,
+        error: deser::Error,
     },
 
     /// Filtering a parsed packument down to the fields pnpm keeps
@@ -87,7 +87,7 @@ pub enum FetchMetadataError {
     FilterMetadata {
         url: String,
         #[error(source)]
-        error: serde_json::Error,
+        error: deser::Error,
     },
 
     /// `ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces when a registry

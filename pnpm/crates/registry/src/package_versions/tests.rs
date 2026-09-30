@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{Package, PackageVersion};
+use deser_value::Value;
+
+use crate::{Package, PackageVersion, json};
 
 fn parse_package(json: &str) -> Package {
-    serde_json::from_str(json).expect("parse package")
+    Package::from_json(json).expect("parse package")
 }
 
 #[test]
@@ -72,7 +74,7 @@ fn undecodable_fragment_behaves_as_absent() {
 }
 
 #[test]
-fn serializes_raw_fragments_verbatim() {
+fn serializes_raw_fragments_losslessly() {
     let json = r#"{
         "name": "foo",
         "dist-tags": {},
@@ -81,15 +83,15 @@ fn serializes_raw_fragments_verbatim() {
         }
     }"#;
     let package = parse_package(json);
-    let round_tripped = serde_json::to_string(&package).expect("serialize package");
-    let reparsed: serde_json::Value = serde_json::from_str(&round_tripped).unwrap();
-    let original: serde_json::Value = serde_json::from_str(json).unwrap();
+    let round_tripped = json::to_string(&package).expect("serialize package");
+    let reparsed: Value = json::from_str(&round_tripped).unwrap();
+    let original: Value = json::from_str(json).unwrap();
     assert_eq!(reparsed["versions"], original["versions"]);
 }
 
 #[test]
 fn eager_construction_from_typed_manifests_round_trips() {
-    let manifest: PackageVersion = serde_json::from_str(
+    let manifest = PackageVersion::from_json(
         r#"{"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}}"#,
     )
     .unwrap();
@@ -102,7 +104,7 @@ fn eager_construction_from_typed_manifests_round_trips() {
             .to_string(),
         "1.0.0",
     );
-    let json = serde_json::to_string(&versions).unwrap();
+    let json = json::to_string(&versions).unwrap();
     assert!(json.contains(r#""1.0.0""#));
 }
 

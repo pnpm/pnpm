@@ -52,7 +52,8 @@ async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror(
         .create_async()
         .await;
     let cache = TempDir::new().expect("tempdir");
-    let public_meta: Package = serde_json::from_value(public_packument).expect("package parses");
+    let public_meta: Package =
+        pnpm_registry::Package::from_json(&public_packument.to_string()).expect("package parses");
     persist_meta_to_mirror(cache.path(), ABBREVIATED_META_DIR, &registry, &public_meta)
         .expect("warm public mirror");
 

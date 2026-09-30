@@ -73,7 +73,7 @@ fn seed_store(store_dir: &TempDir, pkg_id: &str, integrity: &str) -> OfflineStor
 #[tokio::test]
 async fn offline_pick_prefers_the_version_whose_tarball_the_store_holds() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     let body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).expect("parse packument body");
     let integrity =
         body["versions"]["1.0.0"]["dist"]["integrity"].as_str().expect("1.0.0 integrity");
@@ -117,7 +117,7 @@ async fn offline_pick_prefers_the_version_whose_tarball_the_store_holds() {
 #[tokio::test]
 async fn offline_pick_falls_back_to_the_newest_version_when_the_store_holds_none() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
 
     let cache_dir = TempDir::new().expect("tempdir");
     persist_meta_to_mirror(
@@ -162,7 +162,7 @@ async fn offline_pick_falls_back_to_the_newest_version_when_the_store_holds_none
 #[tokio::test]
 async fn offline_pick_memo_survives_a_caller_that_blocked_the_store_held_version() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     let body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).expect("parse packument body");
     let integrity =
         body["versions"]["1.0.0"]["dist"]["integrity"].as_str().expect("1.0.0 integrity");
@@ -226,7 +226,7 @@ async fn offline_pick_falls_back_when_the_picked_version_has_no_integrity() {
         .expect("dist object")
         .remove("integrity");
     let preloaded: pnpm_registry::Package =
-        serde_json::from_value(no_integrity_body).expect("parse packument");
+        pnpm_registry::Package::from_json(&no_integrity_body.to_string()).expect("parse packument");
     let integrity =
         body["versions"]["1.0.0"]["dist"]["integrity"].as_str().expect("1.0.0 integrity");
 
@@ -268,7 +268,7 @@ async fn offline_pick_falls_back_when_the_picked_version_has_no_integrity() {
 #[tokio::test]
 async fn offline_pick_without_a_store_index_keeps_the_newest_version() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
 
     let cache_dir = TempDir::new().expect("tempdir");
     persist_meta_to_mirror(
@@ -299,7 +299,7 @@ async fn offline_pick_without_a_store_index_keeps_the_newest_version() {
 #[tokio::test]
 async fn offline_pick_with_published_by_still_narrows_to_store_held_version() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     let body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).expect("parse packument body");
     let integrity =
         body["versions"]["1.0.0"]["dist"]["integrity"].as_str().expect("1.0.0 integrity");
@@ -349,7 +349,7 @@ async fn offline_pick_finds_a_stored_version_that_only_has_a_shasum() {
     dist.remove("integrity");
     dist.insert("shasum".to_string(), serde_json::json!(shasum));
     let preloaded: pnpm_registry::Package =
-        serde_json::from_value(body).expect("parse shasum-only packument");
+        pnpm_registry::Package::from_json(&body.to_string()).expect("parse shasum-only packument");
 
     let cache_dir = TempDir::new().expect("tempdir");
     persist_meta_to_mirror(

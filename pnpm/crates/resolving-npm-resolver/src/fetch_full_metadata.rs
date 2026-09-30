@@ -425,7 +425,7 @@ async fn decode_full_metadata(
     let task_url = url.to_string();
     let (meta, elapsed) =
         tokio::task::spawn_blocking(move || -> Result<(Package, Duration), FetchMetadataError> {
-            let mut meta = serde_json::from_str::<Package>(&raw_body)
+            let mut meta = Package::from_json(&raw_body)
                 .map_err(|error| FetchMetadataError::Decode {
                     url: redact_url_credentials(&task_url),
                     error,

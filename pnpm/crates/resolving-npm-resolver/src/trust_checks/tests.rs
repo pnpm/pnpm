@@ -63,7 +63,7 @@ fn make_package(name: &str, versions: &[(&str, &str, Evidence)]) -> Package {
         "time": time_json,
         "versions": versions_json,
     });
-    serde_json::from_value(body).expect("deserialize fixture Package")
+    Package::from_json(&body.to_string()).expect("deserialize fixture Package")
 }
 
 fn now_at(date: &str) -> DateTime<Utc> {
@@ -326,7 +326,7 @@ fn missing_time_surfaces_trust_check_failed() {
 fn unparsable_timestamp_surfaces_trust_check_failed() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
     if let Some(time) = meta.time.as_mut() {
-        time.insert("1.0.0".to_string(), serde_json::Value::String("not-a-date".to_string()));
+        time.insert("1.0.0".to_string(), deser_value::Value::from("not-a-date"));
     }
     let err = fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
         .expect_err("unparsable timestamp should fail");
@@ -376,7 +376,7 @@ fn undecodable_prior_version_fails_closed() {
             "1.1.0": version_json("acme", "1.1.0", Evidence::None),
         },
     });
-    let meta: Package = serde_json::from_value(body).expect("deserialize fixture Package");
+    let meta: Package = Package::from_json(&body.to_string()).expect("deserialize fixture Package");
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("undecodable prior manifest must fail the trust check");
     assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
@@ -471,8 +471,8 @@ mod get_trust_evidence {
     use super::{Evidence, version_json};
     use crate::trust_checks::{TrustEvidence, get_trust_evidence};
 
-    fn parse(version: serde_json::Value) -> PackageVersion {
-        serde_json::from_value(version).expect("deserialize fixture PackageVersion")
+    fn parse(version: &serde_json::Value) -> PackageVersion {
+        PackageVersion::from_json(&version.to_string()).expect("deserialize fixture PackageVersion")
     }
 
     #[test]
@@ -481,14 +481,14 @@ mod get_trust_evidence {
         version["_npmUser"] = serde_json::json!({
             "trustedPublisher": { "id": "github", "oidcConfigId": "release" }
         });
-        assert!(get_trust_evidence(&parse(version)).is_none());
+        assert!(get_trust_evidence(&parse(&version)).is_none());
     }
 
     #[test]
     fn trusted_publisher_with_provenance_ranks_strongest() {
         let version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
         assert!(matches!(
-            get_trust_evidence(&parse(version)),
+            get_trust_evidence(&parse(&version)),
             Some(TrustEvidence::TrustedPublisher)
         ),);
     }
@@ -496,7 +496,7 @@ mod get_trust_evidence {
     #[test]
     fn approver_ranks_as_staged_publish() {
         let version = version_json("acme", "1.0.0", Evidence::StagedPublish);
-        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
+        assert!(matches!(get_trust_evidence(&parse(&version)), Some(TrustEvidence::StagedPublish)));
     }
 
     #[test]
@@ -504,25 +504,25 @@ mod get_trust_evidence {
         let mut version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
         version["_npmUser"]["approver"] =
             serde_json::json!({ "name": "approver", "email": "approver@example.com" });
-        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
+        assert!(matches!(get_trust_evidence(&parse(&version)), Some(TrustEvidence::StagedPublish)));
     }
 
     #[test]
     fn provenance_alone_ranks_as_provenance() {
         let version = version_json("acme", "1.0.0", Evidence::Provenance);
-        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::Provenance)));
+        assert!(matches!(get_trust_evidence(&parse(&version)), Some(TrustEvidence::Provenance)));
     }
 
     #[test]
     fn no_evidence_returns_none() {
         let version = version_json("acme", "1.0.0", Evidence::None);
-        assert!(get_trust_evidence(&parse(version)).is_none());
+        assert!(get_trust_evidence(&parse(&version)).is_none());
     }
 
     #[test]
     fn npm_user_without_trusted_publisher_is_none() {
         let mut version = version_json("acme", "1.0.0", Evidence::None);
         version["_npmUser"] = serde_json::json!({ "name": "alice", "email": "alice@example.com" });
-        assert!(get_trust_evidence(&parse(version)).is_none());
+        assert!(get_trust_evidence(&parse(&version)).is_none());
     }
 }

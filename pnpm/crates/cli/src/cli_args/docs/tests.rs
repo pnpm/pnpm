@@ -158,12 +158,15 @@ async fn semver_range_uses_the_highest_matching_version_homepage() {
 
 #[test]
 fn manifest_without_http_homepage_falls_back_to_npmx() {
-    let manifest: PackageVersion = serde_json::from_value(json!({
-        "name": "@scope/is-negative",
-        "version": "1.0.0",
-        "homepage": "git+ssh://git@example.com/docs.git",
-        "dist": { "tarball": "https://registry.example/is-negative-1.0.0.tgz" }
-    }))
+    let manifest = PackageVersion::from_json(
+        &json!({
+            "name": "@scope/is-negative",
+            "version": "1.0.0",
+            "homepage": "git+ssh://git@example.com/docs.git",
+            "dist": { "tarball": "https://registry.example/is-negative-1.0.0.tgz" }
+        })
+        .to_string(),
+    )
     .expect("manifest must deserialize");
 
     assert_eq!(

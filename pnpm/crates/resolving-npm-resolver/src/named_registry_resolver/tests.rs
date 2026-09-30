@@ -658,7 +658,7 @@ async fn update_target_does_not_reuse_a_fresh_mirror_without_etag() {
     user.insert("gh".to_string(), registry.clone());
     let (resolver, cache_dir) = build_resolver(user);
     let packument: pnpm_registry::Package =
-        serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(ACME_PRIVATE_BODY).expect("parse packument");
     let mirror = crate::mirror::get_pkg_mirror_path(
         cache_dir.path(),
         crate::mirror::ABBREVIATED_META_DIR,
@@ -708,7 +708,7 @@ async fn offline_named_registry_range_pick_narrows_to_store_held_version() {
     resolver.cache_policy.offline = true;
 
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(ACME_PRIVATE_BODY).expect("parse packument");
     persist_meta_to_mirror(tempdir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 

@@ -1,6 +1,8 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
+pub mod json;
+
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
@@ -24,7 +26,15 @@ use miette::Diagnostic;
 pub struct NetworkError {
     pub url: String,
     #[error(source)]
-    pub error: reqwest::Error,
+    pub error: ResponseError,
+}
+
+/// Why a registry request produced no document.
+#[derive(Debug, Display, Error, From)]
+pub enum ResponseError {
+    Transport(#[error(source)] reqwest::Error),
+    #[display("error decoding response body: {_0}")]
+    Decode(#[error(source)] deser::Error),
 }
 
 #[derive(Debug, Display, Error, Diagnostic, From)]

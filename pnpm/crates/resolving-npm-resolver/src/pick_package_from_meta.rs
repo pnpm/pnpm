@@ -496,7 +496,7 @@ fn has_unpublished_versions(meta: &Package) -> bool {
     let Some(unpublished) = time.get("unpublished") else { return false };
     unpublished
         .get("versions")
-        .and_then(serde_json::Value::as_array)
+        .and_then(|versions| versions.as_seq())
         .is_some_and(|versions| !versions.is_empty())
 }
 

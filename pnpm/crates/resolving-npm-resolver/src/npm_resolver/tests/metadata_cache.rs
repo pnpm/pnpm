@@ -249,7 +249,7 @@ async fn update_target_does_not_reuse_a_fresh_mirror_without_etag() {
     let registry = format!("{}/", server.url());
     let (resolver, cache_dir) = build_resolver(&registry);
     let packument: pnpm_registry::Package =
-        serde_json::from_str(super::PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(super::PACKAGE_BODY).expect("parse packument");
     let mirror = crate::mirror::get_pkg_mirror_path(
         cache_dir.path(),
         crate::mirror::ABBREVIATED_META_DIR,

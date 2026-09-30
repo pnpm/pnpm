@@ -47,14 +47,8 @@ fn make_package() -> Package {
             .map(|version| (version.to_string(), make_pkg_version("foo", version)))
             .collect(),
         time: Some(HashMap::from([
-            (
-                "2.1.3".to_string(),
-                serde_json::Value::String("2026-01-01T00:00:00.000Z".to_string()),
-            ),
-            (
-                "2.1.4".to_string(),
-                serde_json::Value::String("2026-07-14T12:00:00.000Z".to_string()),
-            ),
+            ("2.1.3".to_string(), deser_value::Value::from("2026-01-01T00:00:00.000Z")),
+            ("2.1.4".to_string(), deser_value::Value::from("2026-07-14T12:00:00.000Z")),
         ])),
         modified: None,
         etag: None,

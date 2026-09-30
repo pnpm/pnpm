@@ -247,7 +247,11 @@ fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageV
     info.insert("distTags".to_string(), dist_tags.clone());
     info.insert("dist-tags".to_string(), dist_tags);
     if let Some(time) = &meta.time {
-        info.insert("time".to_string(), serde_json::to_value(time).unwrap_or(Value::Null));
+        let time = time
+            .iter()
+            .map(|(key, value)| (key.clone(), pnpm_registry::json::to_serde_json(value)))
+            .collect::<serde_json::Map<_, _>>();
+        info.insert("time".to_string(), Value::Object(time));
     }
 
     Value::Object(info)
@@ -260,7 +264,7 @@ fn version_data(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageVe
         .fragments()
         .find(|(version, _)| version.as_str() == version_key)
         .and_then(|(_, json)| serde_json::from_str::<Value>(&json).ok())
-        .unwrap_or_else(|| serde_json::to_value(picked).unwrap_or(Value::Null))
+        .unwrap_or_else(|| picked.to_json_value().unwrap_or(Value::Null))
 }
 
 /// Map a metadata-fetch failure to the matching pnpm error. A `404`

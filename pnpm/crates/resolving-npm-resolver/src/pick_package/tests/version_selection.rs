@@ -71,7 +71,7 @@ async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();
@@ -129,7 +129,7 @@ async fn stable_range_does_not_promote_meta_for_a_later_unproven_range() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();
@@ -189,7 +189,7 @@ async fn blocked_dominant_version_falls_through_to_registry_pick() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let cached: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &cached)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();
@@ -366,7 +366,8 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let pkg: pnpm_registry::Package = serde_json::from_str(PACKAGE_BODY).expect("parse");
+    let pkg: pnpm_registry::Package =
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse");
     let path = crate::mirror::get_pkg_mirror_path(
         cache_dir.path(),
         ABBREVIATED_META_DIR,
@@ -421,7 +422,7 @@ async fn fresh_mirror_without_etag_resolves_a_range_without_a_registry_request()
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();
@@ -451,7 +452,7 @@ async fn expired_mirror_without_etag_is_fetched_again() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
     age_mirror(cache_dir.path(), &registry);
@@ -482,7 +483,7 @@ async fn future_dated_mirror_without_etag_is_fetched_again() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
     let future = std::time::SystemTime::now() + std::time::Duration::from_hours(1);
@@ -514,7 +515,7 @@ async fn uncacheable_mirror_without_etag_is_fetched_again() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse stale packument");
     let path = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
         .expect("mirror path");
     crate::mirror::save_meta_indexed(&path, &stale, None, true).expect("seed uncacheable mirror");
@@ -546,7 +547,7 @@ async fn fresh_mirror_with_etag_still_revalidates_a_range() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let mut preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     preloaded.etag = Some(r#""abc""#.to_string());
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
@@ -577,7 +578,7 @@ async fn refresh_metadata_does_not_reuse_a_fresh_mirror_without_etag() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();
@@ -607,7 +608,7 @@ async fn refresh_pick_does_not_reuse_a_mirror_an_earlier_pick_promoted() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();

@@ -239,7 +239,7 @@ fn bench_packument(criterion: &mut Criterion, bytes: &[u8], extra: &[(String, Ve
         });
         group.bench_function(format!("hydrate_all/{name}"), |bencher| {
             bencher.iter(|| {
-                let package: Package = serde_json::from_slice(black_box(bytes)).unwrap();
+                let package = parse_packument(black_box(bytes));
                 black_box(package.versions.iter().count())
             });
         });
@@ -248,9 +248,15 @@ fn bench_packument(criterion: &mut Criterion, bytes: &[u8], extra: &[(String, Ve
 }
 
 fn parse_and_hydrate_latest(bytes: &[u8]) -> Arc<PackageVersion> {
-    let package: Package = serde_json::from_slice(bytes).unwrap();
+    let package = parse_packument(bytes);
     let latest = package.dist_tag("latest").expect("the packument lists a `latest` dist-tag");
     package.versions.get(latest).expect("the `latest` manifest hydrates")
+}
+
+/// Decode a registry response body the way the resolver does, including
+/// its UTF-8 check.
+fn parse_packument(bytes: &[u8]) -> Package {
+    Package::from_json(std::str::from_utf8(bytes).unwrap()).unwrap()
 }
 
 /// Packuments named by `PNPM_MICRO_BENCHMARK_PACKUMENTS`, a directory of

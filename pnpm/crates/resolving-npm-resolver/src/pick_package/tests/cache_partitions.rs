@@ -166,7 +166,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 
@@ -234,7 +234,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
 #[tokio::test]
 async fn cache_fast_paths_record_route_through_hook() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
 
     // The mock 500s and expects zero calls: every pick below is served
     // from cache, so the only signal the route was seen is the recorder.
@@ -472,7 +472,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 #[tokio::test]
 async fn public_scope_falls_back_to_mirror_on_401() {
     let mut preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     // An ETag keeps this mirror on the conditional-request path. A mirror
     // stored without one is reused while it is fresh, which would never
     // observe this 401.

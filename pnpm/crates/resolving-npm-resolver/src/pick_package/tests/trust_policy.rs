@@ -18,7 +18,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let cached: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &cached)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();

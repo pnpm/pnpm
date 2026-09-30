@@ -1,3 +1,5 @@
+use pnpm_registry::json;
+
 use super::{
     Cow, Integrity, InvalidRevisionSpecifierError, InvalidTarballRevisionMetadataError,
     MalformedRevisionHistoryError, NoMatchingRevisionError, PackageVersion, RegistryPackageSpec,
@@ -83,15 +85,16 @@ pub(super) fn apply_revision_record<'a>(
     requested: u64,
     record: &ValidatedPackageRevision<'_>,
 ) -> Result<Cow<'a, PackageVersion>, ResolveError> {
-    let mut selected =
-        serde_json::to_value(picked).map_err(|error| Box::new(error) as ResolveError)?;
+    let mut selected = picked
+        .to_json_value()
+        .map_err(|error| Box::new(error) as ResolveError)?;
     let selected_object = selected.as_object_mut().expect("PackageVersion serializes as an object");
     for field in REVISION_MANIFEST_FIELDS {
         selected_object.remove(field);
     }
     for field in REVISION_MANIFEST_FIELDS {
         if let Some(value) = record.manifest.get(field) {
-            selected_object.insert(field.to_string(), value.clone());
+            selected_object.insert(field.to_string(), json::to_serde_json(value));
         }
     }
     let dist = selected_object
@@ -109,7 +112,7 @@ pub(super) fn apply_revision_record<'a>(
     } else {
         dist.insert("revision".to_string(), serde_json::Value::Number(requested.into()));
     }
-    serde_json::from_value(selected)
+    PackageVersion::from_json(&selected.to_string())
         .map(Cow::Owned)
         .map_err(|error| malformed_revision_history(picked, error.to_string()))
 }
@@ -125,7 +128,7 @@ pub(super) struct ValidatedPackageRevision<'a> {
     pub(super) integrity: Integrity,
     pub(super) integrity_text: &'a str,
     pub(super) tarball: &'a str,
-    pub(super) manifest: &'a serde_json::Map<String, serde_json::Value>,
+    pub(super) manifest: &'a deser_value::Map,
 }
 
 pub(super) fn package_revision_record<'a>(
@@ -134,13 +137,13 @@ pub(super) fn package_revision_record<'a>(
     registry: &str,
 ) -> Result<Option<ValidatedPackageRevision<'a>>, ResolveError> {
     let Some(revisions) = picked.dist.revisions.as_ref() else { return Ok(None) };
-    let Some(revisions) = revisions.as_array() else {
+    let Some(revisions) = revisions.as_seq() else {
         return Err(malformed_revision_history(picked, "the revisions field is not an array"));
     };
-    let matches: Vec<&serde_json::Value> = revisions
+    let matches: Vec<&deser_value::Value> = revisions
         .iter()
         .filter(|entry| {
-            entry.get("revision").and_then(serde_json::Value::as_u64) == Some(requested)
+            entry.get("revision").and_then(|revision| revision.as_u64()) == Some(requested)
         })
         .collect();
     if matches.is_empty() {
@@ -173,7 +176,10 @@ pub(super) fn validate_current_package_revision(
         .ok_or_else(|| {
             malformed_revision_history(
                 picked,
-                format!("current revision {raw_revision} is not a canonical positive safe integer"),
+                format!(
+                    "current revision {} is not a canonical positive safe integer",
+                    json::to_serde_json(raw_revision),
+                ),
             )
         })?;
     let record = package_revision_record(picked, revision, registry)?
@@ -231,11 +237,11 @@ pub(super) fn validate_package_revision_record<'a>(
     picked: &PackageVersion,
     requested: u64,
     registry: &str,
-    record: &'a serde_json::Value,
+    record: &'a deser_value::Value,
 ) -> Result<ValidatedPackageRevision<'a>, ResolveError> {
     let integrity_text = record
         .get("integrity")
-        .and_then(serde_json::Value::as_str)
+        .and_then(|integrity| integrity.as_str())
         .ok_or_else(|| {
             malformed_revision_history(picked, format!("revision {requested} has no integrity"))
         })?;
@@ -249,7 +255,7 @@ pub(super) fn validate_package_revision_record<'a>(
         })?;
     let tarball = record
         .get("tarball")
-        .and_then(serde_json::Value::as_str)
+        .and_then(|tarball| tarball.as_str())
         .ok_or_else(|| {
             malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
         })?;
@@ -261,7 +267,7 @@ pub(super) fn validate_package_revision_record<'a>(
     }
     let manifest = record
         .get("manifest")
-        .and_then(serde_json::Value::as_object)
+        .and_then(|manifest| manifest.as_map())
         .ok_or_else(|| {
             malformed_revision_history(
                 picked,

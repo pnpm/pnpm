@@ -1,3 +1,5 @@
+use deser_value::Value;
+
 use super::PackageDistribution;
 
 #[test]
@@ -7,12 +9,12 @@ fn revision_is_excluded_from_content_equality() {
         .unwrap();
     let first = PackageDistribution {
         integrity: Some(integrity.clone()),
-        revision: Some(serde_json::json!(1)),
+        revision: Some(Value::from(1u64)),
         ..PackageDistribution::default()
     };
     let second = PackageDistribution {
         integrity: Some(integrity),
-        revision: Some(serde_json::json!(2)),
+        revision: Some(Value::from(2u64)),
         ..PackageDistribution::default()
     };
 

@@ -71,7 +71,7 @@ async fn warm_in_memory_cache_skips_network() {
     let fetch_locker = shared_packument_fetch_locker();
 
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     meta_cache.set(format!("{registry}\x00acme"), std::sync::Arc::new(preloaded));
 
     let ctx = PickPackageContext {
@@ -116,7 +116,7 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
     let http_client = ThrottledClient::default();
@@ -174,7 +174,7 @@ async fn offline_with_mirror_picks_from_disk() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 
@@ -298,7 +298,8 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
 #[test]
 fn meta_cache_tracks_registry_verification_per_entry() {
     let cache = InMemoryPackageMetaCache::default();
-    let meta: pnpm_registry::Package = serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let meta: pnpm_registry::Package =
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     let meta = Arc::new(meta);
     cache.set_unverified("k".to_string(), Arc::clone(&meta));
     assert!(!cache.get("k").expect("entry").registry_verified);
@@ -314,7 +315,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = "https://registry.example.com/".to_string();
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 
@@ -375,7 +376,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 
@@ -441,7 +442,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let stale: pnpm_registry::Package =
-        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(STALE_PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
         .expect("warm mirror");
 
@@ -501,7 +502,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 
@@ -570,7 +571,7 @@ async fn version_spec_missing_in_mirror_fetches() {
         }
     }"#;
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(older_body).expect("parse old packument");
+        pnpm_registry::Package::from_json(older_body).expect("parse old packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm mirror");
 
@@ -871,7 +872,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
 
     assert_eq!(
         result.picked_package.expect("picked package").other.get("libc"),
-        Some(&serde_json::json!(["glibc"])),
+        Some(&pnpm_registry::json::from_serde_json(&serde_json::json!(["glibc"]))),
     );
 
     let full_path =

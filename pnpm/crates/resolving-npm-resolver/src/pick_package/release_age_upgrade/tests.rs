@@ -6,12 +6,15 @@ const FULL_ETAG: &str = r#""full-etag""#;
 const MODIFIED: &str = "2015-06-10T00:00:00.000Z";
 
 fn upgraded_meta() -> Package {
-    let mut meta: Package = serde_json::from_value(serde_json::json!({
-        "name": "is-positive",
-        "dist-tags": { "latest": "1.0.0" },
-        "modified": MODIFIED,
-        "versions": {},
-    }))
+    let mut meta: Package = pnpm_registry::Package::from_json(
+        &(serde_json::json!({
+            "name": "is-positive",
+            "dist-tags": { "latest": "1.0.0" },
+            "modified": MODIFIED,
+            "versions": {},
+        }))
+        .to_string(),
+    )
     .expect("deserialize Package");
     meta.etag = Some(FULL_ETAG.to_string());
     meta

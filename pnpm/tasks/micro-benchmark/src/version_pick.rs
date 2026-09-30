@@ -82,11 +82,14 @@ fn synthetic_package(file_backed: bool) -> Package {
         fragments.extend(json);
         releases.insert(version, release);
     }
-    let mut package: Package = serde_json::from_value(serde_json::json!({
-        "name": "probe",
-        "dist-tags": { "latest": format!("1.0.{}", RELEASE_COUNT - 1) },
-        "versions": releases,
-    }))
+    let mut package = Package::from_json(
+        &serde_json::json!({
+            "name": "probe",
+            "dist-tags": { "latest": format!("1.0.{}", RELEASE_COUNT - 1) },
+            "versions": releases,
+        })
+        .to_string(),
+    )
     .unwrap();
     if file_backed {
         let mut file = tempfile::tempfile().unwrap();

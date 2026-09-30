@@ -115,7 +115,7 @@ pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
         |version| {
             let mature = time
                 .get(version)
-                .and_then(serde_json::Value::as_str)
+                .and_then(|published_at| published_at.as_str())
                 .and_then(parse_packument_timestamp)
                 .is_some_and(|date| date <= cutoff);
             let trusted = trusted_versions.is_some_and(|allow| {

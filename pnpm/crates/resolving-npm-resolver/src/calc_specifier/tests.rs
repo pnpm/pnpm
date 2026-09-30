@@ -4,11 +4,14 @@ use pnpm_registry::{PackageVersion, RangeSpecStyle};
 use super::{calc_prefixed_specifier, calc_specifier, calc_version_range};
 
 fn picked(version: &str) -> PackageVersion {
-    serde_json::from_value(serde_json::json!({
-        "name": "foo",
-        "version": version,
-        "dist": { "tarball": "https://registry.npmjs.org/foo/-/foo.tgz" },
-    }))
+    PackageVersion::from_json(
+        &(serde_json::json!({
+            "name": "foo",
+            "version": version,
+            "dist": { "tarball": "https://registry.npmjs.org/foo/-/foo.tgz" },
+        }))
+        .to_string(),
+    )
     .expect("build a package version")
 }
 

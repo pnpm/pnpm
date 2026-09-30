@@ -491,7 +491,7 @@ fn fixture_package() -> Package {
             }
         }
     });
-    serde_json::from_value(body).expect("deserialize fixture Package")
+    Package::from_json(&body.to_string()).expect("deserialize fixture Package")
 }
 
 #[test]
@@ -532,7 +532,7 @@ fn load_meta_survives_mirror_rewrite() {
     let loaded = load_meta(&mirror).expect("read full back");
     // The fatter `0.9.0` fragment shifts `1.0.0`'s offset, so a loader
     // that re-read the path instead of the pinned inode parses garbage.
-    let newer: Package = serde_json::from_value(serde_json::json!({
+    let newer: Package = Package::from_json(&(serde_json::json!({
         "name": "acme",
         "dist-tags": { "latest": "1.0.0" },
         "versions": {
@@ -556,7 +556,7 @@ fn load_meta_survives_mirror_rewrite() {
                 }
             }
         }
-    }))
+    })).to_string())
     .expect("deserialize rewritten Package");
     save_meta_indexed(&mirror, &newer, None, false).expect("overwrite");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate after rewrite");
@@ -680,7 +680,7 @@ fn pnpm_ndjson_format_reads_as_cache_hit() {
         &mirror,
         format!(
             "{{\"etag\":\"W/abc\",\"modified\":\"2025-01-15T12:00:00.000Z\"}}\n{}",
-            serde_json::to_string(&pkg).expect("serialize fixture"),
+            pnpm_registry::json::to_string(&pkg).expect("serialize fixture"),
         ),
     )
     .expect("write pnpm format");

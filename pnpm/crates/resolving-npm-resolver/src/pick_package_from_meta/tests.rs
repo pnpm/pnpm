@@ -96,10 +96,10 @@ fn make_package(
     }
 }
 
-fn make_time_map(entries: &[(&str, &str)]) -> HashMap<String, serde_json::Value> {
+fn make_time_map(entries: &[(&str, &str)]) -> HashMap<String, deser_value::Value> {
     entries
         .iter()
-        .map(|(key, value)| (key.to_string(), serde_json::Value::String(value.to_string())))
+        .map(|(key, value)| (key.to_string(), deser_value::Value::from(*value)))
         .collect()
 }
 
@@ -630,10 +630,10 @@ fn pick_from_meta_unpublished_marker_propagates() {
     let mut time = HashMap::new();
     time.insert(
         "unpublished".to_string(),
-        serde_json::json!({
+        pnpm_registry::json::from_serde_json(&serde_json::json!({
             "time": "2025-01-01T00:00:00.000Z",
             "versions": ["1.0.0"],
-        }),
+        })),
     );
     pkg.time = Some(time);
     let err = pick_package_from_meta(
@@ -1025,7 +1025,7 @@ fn lowest_picker_with_published_by_drops_immature_min() {
 
 #[test]
 fn pick_from_meta_skips_undecodable_winner_and_retries() {
-    let pkg: Package = serde_json::from_str(
+    let pkg: Package = Package::from_json(
         r#"{
             "name": "acme",
             "dist-tags": {"latest": "1.2.0"},
@@ -1048,7 +1048,7 @@ fn pick_from_meta_skips_undecodable_winner_and_retries() {
 
 #[test]
 fn pick_from_meta_returns_none_for_undecodable_exact_version() {
-    let pkg: Package = serde_json::from_str(
+    let pkg: Package = Package::from_json(
         r#"{
             "name": "acme",
             "dist-tags": {},
@@ -1100,7 +1100,7 @@ fn filter_tag_rewrite_prefers_non_deprecated_candidate() {
 /// validating the rest of the entry.
 #[test]
 fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
-    let mut pkg: Package = serde_json::from_str(
+    let mut pkg: Package = Package::from_json(
         r#"{
             "name": "acme",
             "dist-tags": {"old": "2.5.0"},

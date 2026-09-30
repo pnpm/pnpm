@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use deser_value::Value;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
@@ -199,7 +200,7 @@ fn package_deserializes_full_provenance_packument() {
             }
         }
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize full packument");
+    let pkg = Package::from_json(body).expect("deserialize full packument");
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
     assert_eq!(pkg.etag.as_deref(), Some(r#""abc123""#));
@@ -244,7 +245,7 @@ fn package_deserializes_approver_packument() {
             }
         }
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize approver packument");
+    let pkg = Package::from_json(body).expect("deserialize approver packument");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     let user = version.npm_user.as_ref().expect("_npmUser present");
     let approver = user.approver.as_ref().expect("approver present");
@@ -270,7 +271,7 @@ fn package_deserializes_without_npm_user_or_attestations() {
             }
         }
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize minimal packument");
+    let pkg = Package::from_json(body).expect("deserialize minimal packument");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     assert!(version.npm_user.is_none(), "missing _npmUser stays None");
     assert!(version.dist.attestations.is_none(), "missing attestations stays None");
@@ -306,8 +307,7 @@ fn package_deserializes_deprecated_boolean_false() {
             }
         }
     }"#;
-    let pkg: Package =
-        serde_json::from_str(body).expect("deserialize packument with deprecated:false");
+    let pkg = Package::from_json(body).expect("deserialize packument with deprecated:false");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     assert!(version.deprecated.is_none(), "deprecated:false maps to None");
 }
@@ -330,8 +330,7 @@ fn package_deserializes_deprecated_boolean_true() {
             }
         }
     }"#;
-    let pkg: Package =
-        serde_json::from_str(body).expect("deserialize packument with deprecated:true");
+    let pkg = Package::from_json(body).expect("deserialize packument with deprecated:true");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     assert_eq!(
         version.deprecated.as_deref(),
@@ -358,8 +357,7 @@ fn package_deserializes_deprecated_reason_string() {
             }
         }
     }"#;
-    let pkg: Package =
-        serde_json::from_str(body).expect("deserialize packument with deprecation reason");
+    let pkg = Package::from_json(body).expect("deserialize packument with deprecation reason");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     assert_eq!(version.deprecated.as_deref(), Some("use acme@2 instead"));
 }
@@ -376,7 +374,7 @@ fn package_deserializes_without_time_field() {
         "modified": "2025-01-15T12:00:00.000Z",
         "versions": {}
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize without time");
+    let pkg = Package::from_json(body).expect("deserialize without time");
     assert!(pkg.time.is_none(), "missing time stays None");
     assert!(pkg.published_at("1.0.0").is_none(), "no per-version lookup possible");
 }
@@ -428,7 +426,7 @@ fn package_tolerates_object_valued_dependency_entries() {
             }
         }
     }"#;
-    let pkg: Package = serde_json::from_str(body)
+    let pkg = Package::from_json(body)
         .expect("deserialize packument with object-valued devDependencies entries");
 
     let old = pkg.versions.get("0.1.0").expect("0.1.0 deserialized");
@@ -455,7 +453,7 @@ fn published_at_skips_reserved_unpublished_object() {
         },
         "versions": {}
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize");
+    let pkg = Package::from_json(body).expect("deserialize");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     assert_eq!(pkg.published_at("unpublished"), None, "object value isn't a string");
 }
@@ -467,10 +465,8 @@ fn published_at_skips_reserved_unpublished_object() {
 #[test]
 fn drop_incomplete_publish_times_discards_a_partial_map() {
     let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
-    pkg.time = Some(HashMap::from([(
-        "1.1.0".to_string(),
-        serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string()),
-    )]));
+    pkg.time =
+        Some(HashMap::from([("1.1.0".to_string(), Value::from("2025-01-10T08:30:00.000Z"))]));
 
     pkg.drop_incomplete_publish_times();
 
@@ -481,9 +477,9 @@ fn drop_incomplete_publish_times_discards_a_partial_map() {
 fn drop_incomplete_publish_times_keeps_a_complete_map() {
     let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
     pkg.time = Some(HashMap::from([
-        ("1.0.0".to_string(), serde_json::Value::String("2025-01-01T08:30:00.000Z".to_string())),
-        ("1.1.0".to_string(), serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string())),
-        ("created".to_string(), serde_json::Value::String("2024-12-01T00:00:00.000Z".to_string())),
+        ("1.0.0".to_string(), Value::from("2025-01-01T08:30:00.000Z")),
+        ("1.1.0".to_string(), Value::from("2025-01-10T08:30:00.000Z")),
+        ("created".to_string(), Value::from("2024-12-01T00:00:00.000Z")),
     ]));
 
     pkg.drop_incomplete_publish_times();
@@ -495,8 +491,7 @@ fn drop_incomplete_publish_times_keeps_a_complete_map() {
 #[test]
 fn drop_incomplete_publish_times_discards_an_empty_timestamp() {
     let mut pkg = package_with_versions("acme", &["1.0.0"], "1.0.0");
-    pkg.time =
-        Some(HashMap::from([("1.0.0".to_string(), serde_json::Value::String(String::new()))]));
+    pkg.time = Some(HashMap::from([("1.0.0".to_string(), Value::from(""))]));
 
     pkg.drop_incomplete_publish_times();
 
@@ -527,7 +522,7 @@ fn latest_decode_error_names_the_version_and_the_parse_failure() {
             }
         }
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
+    let pkg = Package::from_json(body).expect("deserialize packument");
 
     assert!(pkg.versions.contains_key("2.0.0"), "the packument lists the version");
     assert!(pkg.latest().is_none(), "but it cannot be hydrated");
@@ -549,7 +544,7 @@ fn latest_decode_error_stays_silent_for_a_dangling_tag() {
         "dist-tags": { "latest": "9.9.9" },
         "versions": {}
     }"#;
-    let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
+    let pkg = Package::from_json(body).expect("deserialize packument");
 
     assert!(pkg.latest().is_none());
     assert_eq!(pkg.latest_decode_error(), None);

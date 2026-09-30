@@ -64,7 +64,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
 #[tokio::test]
 async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+        pnpm_registry::Package::from_json(PACKAGE_BODY).expect("parse packument");
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")

@@ -72,12 +72,12 @@ use std::{
 };
 
 use derive_more::{Display, Error};
+use deser::{Deserialize, Serialize};
+use deser_value::{Map, Value};
 use miette::Diagnostic;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
 use pnpm_network::{MetadataCacheScope, redact_and_sanitize, redact_url_for_display};
-use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions, json};
 use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache.
@@ -97,14 +97,14 @@ pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
 /// it has.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MetaHeaders {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
     pub etag: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
     pub modified: Option<String>,
     /// The registry's `Cache-Control` said this document is already stale
     /// (`max-age=0`, `no-cache`, or `no-store`). The next online fetch must
     /// not revalidate it with `If-None-Match` or `If-Modified-Since`.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[deser(default, skip_serializing_if = std::ops::Not::not)]
     pub uncacheable: bool,
 }
 
@@ -230,11 +230,11 @@ const MIRROR_MAGIC: &str = "pacquet-meta-v1";
 #[derive(Debug, Serialize, Deserialize)]
 struct MirrorIndex {
     name: String,
-    #[serde(default, rename = "distTags")]
+    #[deser(default, rename = "distTags")]
     dist_tags: HashMap<String, String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    time: Option<HashMap<String, serde_json::Value>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
+    time: Option<HashMap<String, Value>>,
+    #[deser(skip_serializing_if = Option::is_none)]
     homepage: Option<String>,
     versions: Vec<(String, u64, u32)>,
 }
@@ -243,10 +243,10 @@ struct MirrorIndex {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to encode mirror records: {_0}")]
 #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_ENCODE))]
-pub struct EncodeMetaError(#[error(source)] serde_json::Error);
+pub struct EncodeMetaError(#[error(source)] deser::Error);
 
 impl EncodeMetaError {
-    pub(crate) fn into_inner(self) -> serde_json::Error {
+    pub(crate) fn into_inner(self) -> deser::Error {
         self.0
     }
 }
@@ -264,7 +264,7 @@ pub fn save_meta_indexed(
     etag: Option<&str>,
     uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
-    let headers = serde_json::to_string(&MetaHeaders {
+    let headers = json::to_string(&MetaHeaders {
         etag: etag.map(str::to_string),
         modified: meta_modified(meta),
         uncacheable,
@@ -286,7 +286,7 @@ pub fn save_meta_indexed(
         spans.push((version.clone(), offset, len));
     }
 
-    let index = serde_json::to_string(&MirrorIndex {
+    let index = json::to_string(&MirrorIndex {
         name: meta.name.clone(),
         dist_tags: meta.dist_tags.clone(),
         time: meta.time.clone(),
@@ -312,7 +312,7 @@ pub fn save_meta_ndjson(
     etag: Option<&str>,
     uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
-    let headers = serde_json::to_vec(&MetaHeaders {
+    let headers = json::to_string(&MetaHeaders {
         etag: etag.map(str::to_string),
         modified: meta_modified(meta),
         uncacheable,
@@ -320,13 +320,13 @@ pub fn save_meta_ndjson(
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
     let mut body_meta = meta.clone();
     body_meta.etag = None;
-    let body = serde_json::to_vec(&body_meta)
-        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let body =
+        json::to_string(&body_meta).map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
     let mut bytes = Vec::with_capacity(headers.len() + 1 + body.len());
-    bytes.extend_from_slice(&headers);
+    bytes.extend_from_slice(headers.as_bytes());
     bytes.push(b'\n');
-    bytes.extend_from_slice(&body);
+    bytes.extend_from_slice(body.as_bytes());
     save_meta(pkg_mirror, &bytes)
 }
 
@@ -334,35 +334,33 @@ pub fn save_meta_ndjson(
 /// `filterMetadata` is enabled.
 pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
     let mut versions = Map::new();
-    for (version, json) in meta.versions.fragments() {
-        let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
-        let Value::Object(info) = info else {
+    for (version, fragment) in meta.versions.fragments() {
+        let info: Value = json::from_str(&fragment).map_err(EncodeMetaError)?;
+        let Some(info) = info.as_map() else {
             continue;
         };
         let mut filtered = Map::new();
         for key in VERSION_KEYS {
             if let Some(value) = info.get(*key) {
-                filtered.insert((*key).to_string(), value.clone());
+                filtered.insert(*key, value.clone());
             }
         }
-        versions.insert(version.clone(), Value::Object(filtered));
+        versions.insert(version.as_str(), filtered);
     }
 
     let mut pkg = Map::new();
-    pkg.insert("name".to_string(), Value::String(meta.name.clone()));
-    pkg.insert(
-        "dist-tags".to_string(),
-        serde_json::to_value(&meta.dist_tags).map_err(EncodeMetaError)?,
-    );
-    pkg.insert("versions".to_string(), Value::Object(versions));
+    pkg.insert("name", meta.name.as_str());
+    pkg.insert("dist-tags", deser_value::to_value(&meta.dist_tags).map_err(EncodeMetaError)?);
+    pkg.insert("versions", versions);
     if let Some(time) = meta.time.as_ref() {
-        pkg.insert("time".to_string(), serde_json::to_value(time).map_err(EncodeMetaError)?);
+        pkg.insert("time", deser_value::to_value(time).map_err(EncodeMetaError)?);
     }
     if let Some(modified) = meta.modified.as_ref() {
-        pkg.insert("modified".to_string(), Value::String(modified.clone()));
+        pkg.insert("modified", modified.as_str());
     }
 
-    let mut cleared: Package = serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
+    let document = json::to_string(&Value::from(pkg)).map_err(EncodeMetaError)?;
+    let mut cleared = Package::from_json(&document).map_err(EncodeMetaError)?;
     cleared.etag.clone_from(&meta.etag);
     Ok(cleared)
 }
@@ -374,7 +372,7 @@ fn meta_modified(meta: &Package) -> Option<String> {
             meta.time
                 .as_ref()
                 .and_then(|time| time.get("modified"))
-                .and_then(Value::as_str)
+                .and_then(|modified| modified.as_str())
                 .map(str::to_string)
         })
 }
@@ -450,7 +448,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
     let Some((headers_len, _)) = parse_mirror_magic(line) else {
-        return serde_json::from_str(line).ok();
+        return json::from_str(line).ok();
     };
     if headers_len > MAX_HEADERS_LEN {
         return None;
@@ -458,7 +456,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     let headers_start = newline + 1;
     let headers_json =
         read_headers_json(file, chunk, headers_start, headers_start.checked_add(headers_len)?)?;
-    serde_json::from_slice(&headers_json).ok()
+    json::from_slice(&headers_json).ok()
 }
 
 /// Fill `buf` from `file` until it is full or the file ends.

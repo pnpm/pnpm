@@ -26,7 +26,7 @@ impl DocsArgs {
 fn documentation_url_from_manifest(manifest: &PackageVersion) -> String {
     manifest.other
         .get("homepage")
-        .and_then(serde_json::Value::as_str)
+        .and_then(|homepage| homepage.as_str())
         .filter(|homepage| is_http_url(homepage))
         .map_or_else(|| format!("https://npmx.dev/package/{}", manifest.name), ToString::to_string)
 }

@@ -68,8 +68,7 @@ fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
         }
     }"#;
 
-    let pkg: PackageVersion =
-        serde_json::from_str(body).expect("deserialize PackageVersion fixture");
+    let pkg = PackageVersion::from_json(body).expect("deserialize PackageVersion fixture");
 
     let optional = pkg.optional_dependencies.as_ref().expect("optionalDependencies present");
     assert_eq!(optional.get("sharp").map(String::as_str), Some("^0.34.0"));
@@ -78,10 +77,10 @@ fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
     assert_eq!(peer_meta["@vercel/kv"].optional, Some(true));
     assert_eq!(peer_meta["ioredis"].optional, Some(true));
 
-    // The JSON shape `serde_json::to_value(pkg)` produces feeds
+    // The JSON shape `to_json_value` produces feeds
     // `extract_children` / `extract_peer_dependencies` downstream;
     // both consume the camelCase keys verbatim.
-    let value = serde_json::to_value(&pkg).expect("serialize PackageVersion");
+    let value = pkg.to_json_value().expect("serialize PackageVersion");
     assert!(value.get("optionalDependencies").is_some_and(serde_json::Value::is_object));
     assert!(value.get("peerDependenciesMeta").is_some_and(serde_json::Value::is_object));
 }
@@ -105,7 +104,7 @@ fn manifest_with(dist_extra: &str, npm_user: &str, top_extra: &str) -> String {
 }
 
 fn decodes(json: &str) -> bool {
-    serde_json::from_str::<PackageVersion>(json).is_ok()
+    PackageVersion::from_json(json).is_ok()
 }
 
 /// The registry wire format grows fields and reshapes the trust markers

@@ -195,7 +195,8 @@ async fn is_version_published(
             "registry returned status {status} for {display_url} while checking whether {name}@{version} is published",
         ));
     }
-    let package: Package = response.json().await.into_diagnostic()?;
+    let body = response.text().await.into_diagnostic()?;
+    let package = Package::from_json(&body).into_diagnostic()?;
     Ok(package.versions.contains_key(version))
 }
 

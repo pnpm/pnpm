@@ -1,8 +1,14 @@
-use serde::{Deserialize, Serialize};
+use deser::{
+    Deserialize, Serialize,
+    adapters::{DisplayFromStr, FromInto},
+};
+use deser_value::Value;
 use ssri::Integrity;
 
+use crate::wire_tolerance::{AdvisoryCount, PresenceMarker, RecordOrAbsent, TextOrAbsent};
+
 #[derive(Debug, Default, Clone, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct PackageDistribution {
     /// Subresource integrity for the version's tarball.
     ///
@@ -12,25 +18,26 @@ pub struct PackageDistribution {
     /// move "pnpm cannot verify this tarball" to a later, quieter
     /// failure. An unparsable value fails the manifest, and so the
     /// version, on purpose.
+    #[deser(as = Option<DisplayFromStr>)]
     pub integrity: Option<Integrity>,
     pub shasum: Option<String>,
     pub tarball: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub revision: Option<serde_json::Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub revisions: Option<serde_json::Value>,
+    #[deser(skip_serializing_if = Option::is_none)]
+    pub revision: Option<Value>,
+    #[deser(skip_serializing_if = Option::is_none)]
+    pub revisions: Option<Value>,
     /// Number of files in the tarball, as the registry reports it.
     ///
     /// Advisory: any integral, non-negative encoding decodes — `12`,
     /// `12.0`, `"12"` — and anything else reads as "not reported".
-    #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
+    #[deser(default, deserialize_as = FromInto<AdvisoryCount>)]
     pub file_count: Option<usize>,
     /// Unpacked byte size of the tarball, as the registry reports it.
     /// Read only as an allocation hint by the tarball extractor, which
     /// caps it — never trusted as fact.
     ///
     /// Decoded as leniently as [`Self::file_count`].
-    #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
+    #[deser(default, deserialize_as = FromInto<AdvisoryCount>)]
     pub unpacked_size: Option<usize>,
 
     /// Sigstore-based supply-chain evidence the npm registry attaches
@@ -43,10 +50,10 @@ pub struct PackageDistribution {
     /// Read by the `trustPolicy='no-downgrade'` verifier when it
     /// decides whether a version's trust evidence is weaker than
     /// an earlier-published one's.
-    #[serde(
+    #[deser(
         default,
-        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
-        skip_serializing_if = "Option::is_none"
+        deserialize_as = FromInto<RecordOrAbsent<AttestationsDist>>,
+        skip_serializing_if = Option::is_none
     )]
     pub attestations: Option<AttestationsDist>,
 }
@@ -57,18 +64,18 @@ pub struct PackageDistribution {
 /// the raw Sigstore bundle and is kept for round-trip parity, decoded
 /// leniently so it cannot cost the version its provenance rank.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct AttestationsDist {
-    #[serde(
+    #[deser(
         default,
-        deserialize_with = "crate::wire_tolerance::deserialize_presence_marker",
-        skip_serializing_if = "Option::is_none"
+        deserialize_as = FromInto<PresenceMarker<ProvenanceMeta>>,
+        skip_serializing_if = Option::is_none
     )]
     pub provenance: Option<ProvenanceMeta>,
-    #[serde(
+    #[deser(
         default,
-        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
-        skip_serializing_if = "Option::is_none"
+        deserialize_as = FromInto<TextOrAbsent>,
+        skip_serializing_if = Option::is_none
     )]
     pub url: Option<String>,
 }
@@ -82,9 +89,9 @@ pub struct AttestationsDist {
 /// other than an object still counts as carrying it, and decodes here
 /// with no `predicateType`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[deser(rename_all = "camelCase")]
 pub struct ProvenanceMeta {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[deser(skip_serializing_if = Option::is_none)]
     pub predicate_type: Option<String>,
 }
 

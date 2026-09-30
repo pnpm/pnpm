@@ -8,7 +8,7 @@ use pnpm_network::redact_url_credentials;
 /// into a retry log line through the error value.
 #[test]
 fn debug_render_redacts_embedded_url_credentials() {
-    let json_error = serde_json::from_str::<u8>(r#""not a number""#).unwrap_err();
+    let json_error = pnpm_registry::json::from_str::<u8>(r#""not a number""#).unwrap_err();
     let error = FetchMetadataError::Decode {
         url: "https://user:secret@registry.example/pkg".to_string(),
         error: json_error,

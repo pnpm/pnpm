@@ -1,6 +1,6 @@
 use super::{
-    Approver, Arc, DerivedPackuments, DistStats, HashMap, JsonValue, NpmUser, Package,
-    PackageDistribution, PackageVersion, Pipe, PublishedAtTimeMap,
+    Approver, Arc, DerivedPackuments, DistStats, HashMap, NpmUser, Package, PackageDistribution,
+    PackageVersion, Pipe, PublishedAtTimeMap,
 };
 
 /// Build a [`Package`] that retains only the fields
@@ -157,24 +157,24 @@ pub(super) fn project_artifact_history(
 ) -> crate::lookup_context::RegistryArtifactHistory {
     let revisions = dist.revisions
         .as_ref()
-        .and_then(JsonValue::as_array)
+        .and_then(|revisions| revisions.as_seq())
         .into_iter()
         .flatten()
         .map(|revision| crate::lookup_context::RegistryArtifact {
-            revision: revision.get("revision").cloned(),
+            revision: revision.get("revision").map(pnpm_registry::json::to_serde_json),
             integrity: revision
                 .get("integrity")
-                .and_then(JsonValue::as_str)
+                .and_then(|integrity| integrity.as_str())
                 .and_then(|integrity| integrity.parse().ok()),
             tarball: revision
                 .get("tarball")
-                .and_then(JsonValue::as_str)
+                .and_then(|tarball| tarball.as_str())
                 .map(str::to_string),
         })
         .collect();
     crate::lookup_context::RegistryArtifactHistory {
         current: crate::lookup_context::RegistryArtifact {
-            revision: dist.revision.clone(),
+            revision: dist.revision.as_ref().map(pnpm_registry::json::to_serde_json),
             integrity: dist.integrity.clone(),
             tarball: Some(dist.tarball.clone()),
         },

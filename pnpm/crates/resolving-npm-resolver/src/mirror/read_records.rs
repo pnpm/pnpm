@@ -1,6 +1,6 @@
 use super::{
     Arc, DerivedPackuments, File, MAX_FRAGMENT_LEN, MAX_HEADERS_LEN, MAX_INDEX_LEN, MetaHeaders,
-    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, parse_mirror_magic,
+    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, json, parse_mirror_magic,
     raise_open_file_limit_once,
 };
 
@@ -86,9 +86,9 @@ pub(super) fn read_mirror_records(
     prefixed.extend_from_slice(&prefix[..prefix.len().min(layout.fragment_base)]);
     prefixed.extend_from_slice(&records);
     let headers: MetaHeaders =
-        serde_json::from_slice(prefixed.get(layout.headers_start..layout.index_start)?).ok()?;
+        json::from_slice(prefixed.get(layout.headers_start..layout.index_start)?).ok()?;
     let index: MirrorIndex =
-        serde_json::from_slice(prefixed.get(layout.index_start..layout.fragment_base)?).ok()?;
+        json::from_slice(prefixed.get(layout.index_start..layout.fragment_base)?).ok()?;
     Some((headers, index, file_size))
 }
 
@@ -141,11 +141,11 @@ pub(super) fn buffer_fragments(
         if pnpm_registry::read_exact_at(file, &mut bytes, absolute).is_err() {
             continue;
         }
-        let Ok(json) = String::from_utf8(bytes) else { continue };
-        let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json) else {
+        let Ok(fragment) = String::from_utf8(bytes) else { continue };
+        if json::validate(&fragment).is_err() {
             continue;
-        };
-        raw_fragments.push((version, raw));
+        }
+        raw_fragments.push((version, Arc::from(fragment)));
     }
     Some(PackageVersions::from_raw_fragments(raw_fragments))
 }
@@ -157,8 +157,9 @@ pub(super) fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
     let newline = contents
         .iter()
         .position(|&byte| byte == b'\n')?;
-    let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
-    let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
+    let headers: MetaHeaders = json::from_slice(&contents[..newline]).ok()?;
+    let body = std::str::from_utf8(&contents[newline + 1..]).ok()?;
+    let mut meta = Package::from_json(body).ok()?;
     meta.etag = headers.etag;
     meta.modified = meta.modified.or(headers.modified);
     meta.drop_incomplete_publish_times();

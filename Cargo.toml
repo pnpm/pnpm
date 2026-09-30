@@ -151,6 +151,10 @@ crossterm = { version = "0.29.0" }
 dashmap = { version = "6.2.1" }
 deno_task_shell = { version = "0.33.3" }
 derive_more = { version = "2.1.1", features = ["full"] }
+deser = { version = "0.9.1", features = ["derive"] }
+deser-json = { version = "0.9.1" }
+deser-value = { version = "0.9.1" }
+deser-yaml = { version = "0.9.1" }
 dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }

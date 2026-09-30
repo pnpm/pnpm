@@ -321,7 +321,7 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
     // The document a prior mirror load would have produced: abbreviated
     // (no `time`), carrying the mirror's etag next to the fixture's `modified`.
     let mut seeded: pnpm_registry::Package =
-        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+        pnpm_registry::Package::from_json(ABBREVIATED_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
@@ -412,7 +412,7 @@ async fn published_by_upgrade_answering_repeated_304_does_not_fail_the_pick() {
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
     let seeded: pnpm_registry::Package =
-        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+        pnpm_registry::Package::from_json(ABBREVIATED_BODY).expect("parse fixture");
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
@@ -565,7 +565,7 @@ async fn published_by_upgrade_marker_is_scoped_to_document() {
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
     let mut seeded: pnpm_registry::Package =
-        serde_json::from_str(ABBREVIATED_BODY).expect("parse fixture");
+        pnpm_registry::Package::from_json(ABBREVIATED_BODY).expect("parse fixture");
     seeded.etag = Some(r#""acme-etag""#.to_string());
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
@@ -645,7 +645,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
         }
     }"#;
     let preloaded: pnpm_registry::Package =
-        serde_json::from_str(stale_body).expect("parse stale packument");
+        pnpm_registry::Package::from_json(stale_body).expect("parse stale packument");
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
         .expect("warm stale mirror");
     let mirror_path =

@@ -54,7 +54,7 @@ fn builds_package_key_for_scoped_name() {
 #[test]
 fn builds_metadata_with_registry_resolution_and_no_deps() {
     let mut pkg = make_package("lodash", "4.17.21");
-    pkg.dist.revision = Some(serde_json::json!(2));
+    pkg.dist.revision = Some(pnpm_registry::json::from_serde_json(&serde_json::json!(2)));
     let built = build_package_snapshot(&pkg, &HashMap::new()).unwrap();
 
     assert_eq!(built.package_key.to_string(), "lodash@4.17.21");
@@ -101,7 +101,7 @@ fn returns_error_when_integrity_is_missing() {
 #[test]
 fn returns_error_when_revision_is_invalid() {
     let mut pkg = make_package("broken", "1.0.0");
-    pkg.dist.revision = Some(serde_json::json!(0));
+    pkg.dist.revision = Some(pnpm_registry::json::from_serde_json(&serde_json::json!(0)));
 
     let err = build_package_snapshot(&pkg, &HashMap::new())
         .expect_err("should fail with an invalid revision");
