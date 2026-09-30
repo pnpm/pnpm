@@ -220,48 +220,53 @@ export async function updateShellConfig (
   opts: AddDirToPosixEnvPathOpts
 ): Promise<UpdateShellResult> {
   await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
-  try {
-    await fs.promises.writeFile(configFile, `${newContent}\n`, { encoding: 'utf8', flag: 'wx' })
-    return {
-      changeType: 'created',
-      oldSettings: '',
-    }
-  } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') {
-      throw err
-    }
-  }
+  const created = await tryCreateShellConfig(configFile, newContent)
+  if (created) return created
+
   const configContent = await fs.promises.readFile(configFile, 'utf8')
   const section = findSection(configContent, opts.configSectionName, opts.proxyVarName)
   if (!section) {
     await fs.promises.appendFile(configFile, `\n${newContent}\n`, 'utf8')
-    return {
-      changeType: 'appended',
-      oldSettings: '',
-    }
+    return { changeType: 'appended', oldSettings: '' }
   }
+  return applySectionUpdate(configFile, configContent, section, newContent, opts)
+}
+
+async function tryCreateShellConfig (configFile: string, newContent: string): Promise<UpdateShellResult | null> {
+  try {
+    await fs.promises.writeFile(configFile, `${newContent}\n`, { encoding: 'utf8', flag: 'wx' })
+    return { changeType: 'created', oldSettings: '' }
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') {
+      throw err
+    }
+    return null
+  }
+}
+
+async function applySectionUpdate (
+  configFile: string,
+  configContent: string,
+  section: FoundSection,
+  newContent: string,
+  opts: AddDirToPosixEnvPathOpts
+): Promise<UpdateShellResult> {
   const oldSettings = section.inner
   const normalizedFullMatch = section.fullMatch.replace(/\r\n/g, '\n')
-  if (normalizedFullMatch !== newContent) {
-    if (!opts.overwrite) {
-      throw new BadShellSectionError({
-        configSectionName: opts.configSectionName,
-        current: section.fullMatch,
-        wanted: newContent,
-        configFile,
-      })
-    }
-    const newConfigContent = configContent.slice(0, section.start) + newContent + configContent.slice(section.end)
-    await writeFileAtomic(configFile, newConfigContent, 'utf8')
-    return {
-      changeType: 'modified',
-      oldSettings,
-    }
+  if (normalizedFullMatch === newContent) {
+    return { changeType: 'skipped', oldSettings }
   }
-  return {
-    changeType: 'skipped',
-    oldSettings,
+  if (!opts.overwrite) {
+    throw new BadShellSectionError({
+      configFile,
+      configSectionName: opts.configSectionName,
+      current: section.fullMatch,
+      wanted: newContent,
+    })
   }
+  const newConfigContent = configContent.slice(0, section.start) + newContent + configContent.slice(section.end)
+  await writeFileAtomic(configFile, newConfigContent, 'utf8')
+  return { changeType: 'modified', oldSettings }
 }
 
 export interface FoundSection {
@@ -287,11 +292,17 @@ export function findSection (
   homeVar = `${section.toUpperCase()}_HOME`
 ): FoundSection | null {
   if (!content) return null
+  const sections = collectCandidateSections(content, section)
+  if (sections.length === 0) return null
+  if (sections.length === 1) return sections[0]
+  return pickBestSection(sections, homeVar)
+}
+
+function collectCandidateSections (content: string, section: string): FoundSection[] {
   const startMarker = `# ${section}`
   const endMarker = `# ${section} end`
-
   const sections: FoundSection[] = []
-  let lastStart: { lineStart: number, innerStart: number } | null = null
+  let lastStart: { innerStart: number, lineStart: number } | null = null
   let offset = 0
 
   const lines = content.split('\n')
@@ -303,31 +314,34 @@ export function findSection (
 
     const trimmed = line.replace(/[\r \t]+$/, '')
     if (trimmed === startMarker) {
-      lastStart = {
-        lineStart,
-        innerStart: offset,
-      }
-    } else if (trimmed === endMarker) {
-      if (lastStart) {
-        const { lineStart: startOffset, innerStart } = lastStart
-        lastStart = null
-
-        const inner = content.slice(innerStart, lineStart).replace(/[\r\n]+$/, '')
-        const markerLen = line.replace(/[\r\n]+$/, '').length
-        const rangeEnd = lineStart + markerLen
-        sections.push({
-          start: startOffset,
-          end: rangeEnd,
-          inner,
-          fullMatch: content.slice(startOffset, rangeEnd),
-        })
-      }
+      lastStart = { innerStart: offset, lineStart }
+    } else if (trimmed === endMarker && lastStart) {
+      sections.push(buildFoundSection(content, line, lineStart, lastStart))
+      lastStart = null
     }
   }
+  return sections
+}
 
-  if (sections.length === 0) return null
-  if (sections.length === 1) return sections[0]
+function buildFoundSection (
+  content: string,
+  line: string,
+  lineStart: number,
+  lastStart: { innerStart: number, lineStart: number }
+): FoundSection {
+  const { lineStart: startOffset, innerStart } = lastStart
+  const inner = content.slice(innerStart, lineStart).replace(/[\r\n]+$/, '')
+  const markerLen = line.replace(/[\r\n]+$/, '').length
+  const rangeEnd = lineStart + markerLen
+  return {
+    end: rangeEnd,
+    fullMatch: content.slice(startOffset, rangeEnd),
+    inner,
+    start: startOffset,
+  }
+}
 
+function pickBestSection (sections: FoundSection[], homeVar: string): FoundSection {
   const settings = sections.map(({ inner }) => stripComments(inner))
   const predicates: Array<(text: string) => boolean> = [
     (text) => text.includes('PATH') && text.includes(homeVar),

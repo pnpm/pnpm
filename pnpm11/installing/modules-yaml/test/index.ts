@@ -130,7 +130,7 @@ test('readModulesManifest() should create a node_modules directory', async () =>
 
 test('readModulesManifest does not fail on empty file', async () => {
   const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/empty-modules-yaml'))
-  expect(modulesYaml).toBeUndefined()
+  expect(modulesYaml).toBeNull()
 })
 
 test('readModulesManifest() rejects a manifest it cannot parse', async () => {
