@@ -10,6 +10,7 @@ use crate::runtime_storage_root;
 use pnpr_fixtures::FixtureGeneration;
 use std::{
     fs, io,
+    io::Write,
     path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
@@ -76,27 +77,46 @@ fn seed_generation(generation: &FixtureGeneration, root: &Path) -> io::Result<Ru
     let marker = path.join(GENERATION_FILE);
     if let Some(seeded_for) = read_generation_marker(&marker)? {
         if seeded_for != generation.fingerprint() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "runtime storage {} is seeded for fixture generation {seeded_for}, not {}: \
-                     point PNPM_REGISTRY_STORAGE at a directory this mock owns",
-                    path.display(),
-                    generation.fingerprint(),
-                ),
-            ));
+            return Err(marker_generation_mismatch(&marker, &seeded_for, generation.fingerprint()));
         }
         return Ok(RuntimeStorage { path, seeded_files: 0 });
     }
     let seeded_files = seed_files(generation, &path)?;
-    fs::write(&marker, generation.fingerprint())
-        .map_err(|err| {
-            io::Error::new(
-                err.kind(),
-                format!("write fixture generation marker at {}: {err}", marker.display()),
-            )
-        })?;
+    publish_generation_marker(&marker, generation.fingerprint())?;
     Ok(RuntimeStorage { path, seeded_files })
+}
+
+fn publish_generation_marker(marker: &Path, fingerprint: &str) -> io::Result<()> {
+    let parent = marker.parent().expect("generation marker has a parent directory");
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(fingerprint.as_bytes())?;
+    match temporary.persist_noclobber(marker) {
+        Ok(_) => Ok(()),
+        Err(err) if err.error.kind() == io::ErrorKind::AlreadyExists => {
+            match read_generation_marker(marker)? {
+                Some(seeded_for) if seeded_for == fingerprint => Ok(()),
+                Some(seeded_for) => {
+                    Err(marker_generation_mismatch(marker, &seeded_for, fingerprint))
+                }
+                None => Err(err.error),
+            }
+        }
+        Err(err) => Err(err.error),
+    }
+}
+
+fn marker_generation_mismatch(marker: &Path, seeded_for: &str, expected: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!(
+            "runtime storage {} is seeded for fixture generation {seeded_for}, not {expected}: \
+             point PNPM_REGISTRY_STORAGE at a directory this mock owns",
+            marker
+                .parent()
+                .unwrap_or(marker)
+                .display(),
+        ),
+    )
 }
 
 fn read_generation_marker(marker: &Path) -> io::Result<Option<String>> {
