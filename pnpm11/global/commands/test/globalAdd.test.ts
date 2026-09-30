@@ -33,6 +33,7 @@ const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
 const getActualBinNames = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
+const DIR_SYMLINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir'
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
@@ -225,7 +226,7 @@ test('global add retries safely and activates from a complete replacement owners
   fs.mkdirSync(globalBinDir, { recursive: true })
   fs.writeFileSync(oldMarker, 'old install\n')
   fs.writeFileSync(path.join(survivorInstallDir, 'marker'), 'survivor install\n')
-  fs.symlinkSync(oldInstallDir, oldHashLink, process.platform === 'win32' ? 'junction' : 'dir')
+  fs.symlinkSync(oldInstallDir, oldHashLink, DIR_SYMLINK_TYPE)
 
   const existingPnpm = {
     dependencies: { pnpm: '12.0.0-alpha.2' },
@@ -241,8 +242,7 @@ test('global add retries safely and activates from a complete replacement owners
   const freshInstallDirs: string[] = []
   createInstallDir.mockImplementation(() => {
     const freshInstallDir = path.join(globalDir, `fresh-install-${freshInstallDirs.length + 1}`)
-    const relative = path.relative(root, freshInstallDir)
-    expect(path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)).toBe(false)
+    expect(isInsideDir(root, freshInstallDir)).toBe(true)
     fs.mkdirSync(freshInstallDir, { recursive: true })
     fs.writeFileSync(path.join(freshInstallDir, 'marker'), 'fresh install\n')
     freshInstallDirs.push(freshInstallDir)
@@ -275,12 +275,7 @@ test('global add retries safely and activates from a complete replacement owners
   })
   const before = snapshotBeforeActivation()
   const assertFailedAttempt = async (attempt: number): Promise<void> => {
-    let failure: unknown
-    try {
-      await add()
-    } catch (err) {
-      failure = err
-    }
+    const failure = await captureRejection(add)
     expect({ attempt, failure }).toStrictEqual({ attempt, failure: enumerationError })
     expect(snapshotBeforeActivation()).toStrictEqual(before)
     expect(fs.existsSync(freshInstallDirs[attempt - 1])).toBe(false)
@@ -298,7 +293,7 @@ test('global add retries safely and activates from a complete replacement owners
       ownershipReadsAtSwitch = getInstalledBinNames.mock.calls.length
       const installDir = (opts as { installDir: string }).installDir
       fs.unlinkSync(oldHashLink)
-      fs.symlinkSync(installDir, oldHashLink, process.platform === 'win32' ? 'junction' : 'dir')
+      fs.symlinkSync(installDir, oldHashLink, DIR_SYMLINK_TYPE)
       return new Set(['pnpm'])
     })
 
@@ -342,7 +337,7 @@ test('global add preserves ownership state and both errors when fresh install cl
   fs.writeFileSync(path.join(survivorInstallDir, 'marker'), 'survivor install\n')
   fs.writeFileSync(path.join(freshInstallDir, 'marker'), 'fresh install\n')
   fs.writeFileSync(oldBin, 'old pnpm shim\n')
-  fs.symlinkSync(oldInstallDir, oldHashLink, process.platform === 'win32' ? 'junction' : 'dir')
+  fs.symlinkSync(oldInstallDir, oldHashLink, DIR_SYMLINK_TYPE)
 
   const existingPnpm = {
     dependencies: { pnpm: '12.0.0-alpha.2' },
@@ -422,3 +417,17 @@ test('global add does not clean up or persist policy when activation fails', asy
   expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()
 })
+
+function isInsideDir (parentDir: string, dir: string): boolean {
+  const relative = path.relative(parentDir, dir)
+  return !(path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`))
+}
+
+async function captureRejection (run: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await run()
+  } catch (err) {
+    return err
+  }
+  return undefined
+}

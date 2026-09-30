@@ -152,27 +152,9 @@ function createAliasScripts (targetDir: string): void {
   createShellScript(targetDir, 'pnx', ' dlx')
 }
 
-/**
- * Write one alias, `subcommand` being the shell text it appends to the pnpm call
- * (`' dlx'` for `pnpx` and `pnx`).
- *
- * The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this command
- * just installed: a pnpm shim and, on Windows, its pnpm.cmd twin. The bin linker
- * writes a bare pnpm.exe only for the `node` bin name, so each form has exactly
- * one sibling to name.
- *
- * On Windows this also writes the `.cmd` form and removes a `.ps1` form of the same
- * name, so PowerShell runs the `.cmd`.
- */
-function createShellScript (targetDir: string, name: string, subcommand: string): void {
-  // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = `#!/bin/sh
-# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
-# file itself before looking beside it. The hop cap matches the kernel's ELOOP
-# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
-# and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
-#
-# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+// Sets $self to the regular file this alias script lives in, walking the shim
+// or symlink chain it was launched through.
+const RESOLVE_SELF_SCRIPT = `# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
 # instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
@@ -225,7 +207,29 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   esac
 done
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
-# The walk has to end at a regular file. Running out of hops leaves $self a
+`
+
+/**
+ * Write one alias, `subcommand` being the shell text it appends to the pnpm call
+ * (`' dlx'` for `pnpx` and `pnx`).
+ *
+ * The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this command
+ * just installed: a pnpm shim and, on Windows, its pnpm.cmd twin. The bin linker
+ * writes a bare pnpm.exe only for the `node` bin name, so each form has exactly
+ * one sibling to name.
+ *
+ * On Windows this also writes the `.cmd` form and removes a `.ps1` form of the same
+ * name, so PowerShell runs the `.cmd`.
+ */
+function createShellScript (targetDir: string, name: string, subcommand: string): void {
+  // windows can also use shell script via mingw or cygwin so no filter
+  const shellScript = `#!/bin/sh
+# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
+# and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
+#
+${RESOLVE_SELF_SCRIPT}# The walk has to end at a regular file. Running out of hops leaves $self a
 # symlink; a chain that changed under us can leave it dangling or a directory, and
 # a failed readlink leaves a trailing slash. Each case would take \`pnpm\` from the
 # wrong directory — the substitution this script exists to prevent.
