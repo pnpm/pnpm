@@ -43,16 +43,16 @@ test('ReadOnlyStoreIndex reads database growth after another connection runs a c
   let reader: ReadOnlyStoreIndex | undefined
   try {
     const initial = { value: 'x'.repeat(1000) }
-    for (let i = 0; i < 1000; i++) {
-      writer.set(`pkg-${String(i).padStart(6, '0')}`, initial)
+    for (let packageIndex = 0; packageIndex < 1000; packageIndex++) {
+      writer.set(`pkg-${String(packageIndex).padStart(6, '0')}`, initial)
     }
     writer.checkpoint()
     reader = new ReadOnlyStoreIndex(storeDir)
     expect(reader.get('pkg-000000')).toEqual(initial)
 
     const added = { value: 'y'.repeat(4096) }
-    for (let i = 1000; i < 1100; i++) {
-      writer.set(`pkg-${String(i).padStart(6, '0')}`, added)
+    for (let packageIndex = 1000; packageIndex < 1100; packageIndex++) {
+      writer.set(`pkg-${String(packageIndex).padStart(6, '0')}`, added)
     }
     writer.checkpoint()
     expect(reader.get('pkg-001099')).toEqual(added)
