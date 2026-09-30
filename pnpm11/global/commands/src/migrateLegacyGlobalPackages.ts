@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import type { Command } from '@pnpm/bins.resolver'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { isError } from '@pnpm/error'
 import {
   cleanOrphanedInstallDirs,
   getGlobalPackageDetails,
-  getInstalledBinNames,
+  getInstalledBins,
   isValidGlobalDependencyAlias,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
@@ -33,9 +34,9 @@ const MAX_SHIM_BYTES = 64 * 1024
 
 /**
  * The files pnpm 10 wrote for one bin: the sh shim, and on Windows the
- * `.cmd` and `.ps1` shims beside it.
+ * `.cmd` and `.ps1` shims beside it, or a hard-linked `.exe`.
  */
-const LEGACY_BIN_EXTENSIONS = ['', '.cmd', '.ps1']
+const LEGACY_BIN_EXTENSIONS = ['', '.cmd', '.ps1', '.exe']
 
 export type MigrateLegacyGlobalPackagesOptions = GlobalAddOptions & {
   pnpmHomeDir?: string
@@ -202,15 +203,15 @@ async function removeLegacyGlobalLayout (legacy: LegacyGlobalLayout, pnpmHomeDir
 
 /** Returns whether every bin of the previous project was removed. */
 async function removeHomeBins (legacy: LegacyGlobalLayout, pnpmHomeDir: string): Promise<boolean> {
-  let binNames: string[]
+  let bins: Command[]
   try {
-    binNames = await getInstalledBinNames({ hash: '', installDir: legacy.dir, dependencies: legacy.dependencies })
+    bins = await getInstalledBins({ hash: '', installDir: legacy.dir, dependencies: legacy.dependencies })
   } catch (err: unknown) {
     globalWarn(`Failed to read the bins linked from ${legacy.dir}: ${getSingleLineErrorMessage(err)}`)
     return false
   }
-  const removed = await Promise.all(binNames.map(async (name) => {
-    const files = await legacyBinFiles(path.join(pnpmHomeDir, name), legacy.dir)
+  const removed = await Promise.all(bins.map(async ({ name, path: target }) => {
+    const files = await legacyBinFiles(path.join(pnpmHomeDir, name), legacy.dir, target)
     const results = await Promise.all(files.map(async (file) => {
       try {
         await fs.promises.rm(file, { force: true })
@@ -227,20 +228,21 @@ async function removeHomeBins (legacy: LegacyGlobalLayout, pnpmHomeDir: string):
 
 /**
  * The files pnpm 10 wrote for the bin at `binPath` that are still a link
- * or shim into `legacyDir`. Each file is judged on its own: anything else
+ * or shim into `legacyDir`, or a hard link to `target`. Each file is judged
+ * on its own: anything else
  * at one of those paths, a same-named executable of the user's or a bin
  * linked there since, is not pnpm 10's and is kept.
  */
-export async function legacyBinFiles (binPath: string, legacyDir: string): Promise<string[]> {
+export async function legacyBinFiles (binPath: string, legacyDir: string, target?: string): Promise<string[]> {
   const files = LEGACY_BIN_EXTENSIONS.map((extension) => `${binPath}${extension}`)
-  const verdicts = await Promise.all(files.map((file) => isLegacyBin(file, legacyDir)))
+  const verdicts = await Promise.all(files.map((file) => isLegacyBin(file, legacyDir, target)))
   return files.filter((_, index) => verdicts[index])
 }
 
-export async function isLegacyBin (binPath: string, legacyDir: string): Promise<boolean> {
-  let stats: fs.Stats
+export async function isLegacyBin (binPath: string, legacyDir: string, target?: string): Promise<boolean> {
+  let stats: fs.BigIntStats
   try {
-    stats = await fs.promises.lstat(binPath)
+    stats = await fs.promises.lstat(binPath, { bigint: true })
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
@@ -250,7 +252,16 @@ export async function isLegacyBin (binPath: string, legacyDir: string): Promise<
     const target = path.resolve(binDir, await fs.promises.readlink(binPath))
     return pointsInto(target, legacyDir)
   }
-  if (!stats.isFile() || stats.size > MAX_SHIM_BYTES) return false
+  if (!stats.isFile()) return false
+  if (target != null) {
+    try {
+      const targetStats = await fs.promises.stat(target, { bigint: true })
+      if (stats.ino !== 0n && stats.ino === targetStats.ino && stats.dev === targetStats.dev) return true
+    } catch (err: unknown) {
+      if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    }
+  }
+  if (stats.size > MAX_SHIM_BYTES) return false
   return shimTargetsDir(await fs.promises.readFile(binPath, 'utf8'), binDir, legacyDir)
 }
 

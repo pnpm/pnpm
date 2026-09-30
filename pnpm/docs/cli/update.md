@@ -133,7 +133,7 @@ way [`pnprServer`](/pnpr/install-acceleration) does for an install.
 
 ### --global, -g
 
-Update global packages.
+Update global packages. Packages from the pnpm 10 global layout are migrated to the current layout. After a successful migration, pnpm removes the old installation and its symlinks, shims, and hard-linked executables from `PNPM_HOME`.
 
 ### --workspace
 

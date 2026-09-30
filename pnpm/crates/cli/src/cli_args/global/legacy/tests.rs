@@ -121,7 +121,7 @@ fn is_legacy_bin_accepts_a_shim_that_runs_the_legacy_project_relative_to_itself(
     )
     .expect("write the sh shim");
 
-    assert!(is_legacy_bin(&shim, &legacy_dir));
+    assert!(is_legacy_bin(&shim, &legacy_dir, None));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn is_legacy_bin_accepts_a_cmd_shim_with_backslashes_and_an_absolute_target() {
     let content = format!("@node \"{target}\" %*\r\n");
     fs::write(&shim, content).expect("write the cmd shim");
 
-    assert!(is_legacy_bin(&shim, &legacy_dir));
+    assert!(is_legacy_bin(&shim, &legacy_dir, None));
 }
 
 #[cfg(unix)]
@@ -151,7 +151,7 @@ fn is_legacy_bin_accepts_a_symlink_into_the_legacy_project() {
     std::os::unix::fs::symlink("global/5/node_modules/typescript/bin/tsc", &link)
         .expect("link into the legacy project");
 
-    assert!(is_legacy_bin(&link, &legacy_dir));
+    assert!(is_legacy_bin(&link, &legacy_dir, None));
 }
 
 #[test]
@@ -166,9 +166,9 @@ fn is_legacy_bin_keeps_a_shim_of_the_current_layout_and_an_unrelated_file() {
     let unrelated = home.join("my-script");
     fs::write(&unrelated, "#!/bin/sh\necho hi\n").expect("write an unrelated script");
 
-    assert!(!is_legacy_bin(&current, &legacy_dir));
-    assert!(!is_legacy_bin(&unrelated, &legacy_dir));
-    assert!(!is_legacy_bin(&home.join("missing"), &legacy_dir));
+    assert!(!is_legacy_bin(&current, &legacy_dir, None));
+    assert!(!is_legacy_bin(&unrelated, &legacy_dir, None));
+    assert!(!is_legacy_bin(&home.join("missing"), &legacy_dir, None));
 }
 
 #[test]
@@ -182,7 +182,28 @@ fn legacy_bin_files_lists_only_the_files_that_point_into_the_legacy_project() {
     fs::write(home.join("tool.exe"), "MZ").expect("write an unrelated executable");
     fs::write(home.join("tool"), "#!/bin/sh\necho mine\n").expect("write an unrelated script");
 
-    let files = legacy_bin_files(&home.join("tool"), &legacy_dir);
+    let files = legacy_bin_files(&home.join("tool"), &legacy_dir, None);
 
     assert_eq!(files, [home.join("tool.cmd")]);
+}
+
+#[test]
+fn legacy_bin_files_identifies_hard_links_by_identity() {
+    let (_root, home, legacy_dir) = home_with_legacy_dir();
+    let target = legacy_dir.join("node_modules/tool.exe");
+    fs::write(&target, vec![0xff; 128 * 1024]).expect("write a native executable");
+    let bin = home.join("tool.exe");
+    fs::hard_link(&target, &bin).expect("hard link the executable");
+    let copy = home.join("copy.exe");
+    fs::copy(&target, &copy).expect("copy the same executable");
+    let unrelated = home.join("tool.exe.cmd");
+    fs::write(&unrelated, "user script").expect("write an unrelated sibling");
+
+    assert_eq!(legacy_bin_files(&bin, &legacy_dir, Some(&target)), std::slice::from_ref(&bin));
+    assert_eq!(legacy_bin_files(&home.join("tool"), &legacy_dir, Some(&target)), [bin]);
+    assert_eq!(legacy_bin_files(&copy, &legacy_dir, Some(&target)), Vec::<PathBuf>::new());
+    assert_eq!(
+        legacy_bin_files(&copy, &legacy_dir, Some(&legacy_dir.join("missing"))),
+        Vec::<PathBuf>::new(),
+    );
 }

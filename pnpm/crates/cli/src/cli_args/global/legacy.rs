@@ -19,8 +19,8 @@ use pnpm_fs::{
     remove_file_with_retry,
 };
 use pnpm_global::{
-    GlobalPackageInfo, clean_orphaned_install_dirs, get_global_package_details,
-    get_installed_bin_names, read_direct_dependencies, scan_global_packages,
+    GlobalPackageInfo, clean_orphaned_install_dirs, get_global_package_details, get_installed_bins,
+    read_direct_dependencies, scan_global_packages,
 };
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
@@ -38,8 +38,8 @@ const LEGACY_GLOBAL_LAYOUT: &str = "5";
 const MAX_SHIM_BYTES: u64 = 64 * 1024;
 
 /// The files pnpm 10 wrote for one bin: the sh shim, and on Windows the
-/// `.cmd` and `.ps1` shims beside it.
-const LEGACY_BIN_EXTENSIONS: [&str; 3] = ["", ".cmd", ".ps1"];
+/// `.cmd` and `.ps1` shims beside it, or a hard-linked `.exe`.
+const LEGACY_BIN_EXTENSIONS: [&str; 4] = ["", ".cmd", ".ps1", ".exe"];
 
 /// The global project of the previous layout, next to the current one.
 pub(super) struct LegacyGlobalLayout {
@@ -162,8 +162,8 @@ impl LegacyGlobalLayout {
             install_dir: self.dir.clone(),
             dependencies: self.dependencies.clone(),
         };
-        let bin_names = match get_installed_bin_names(&info) {
-            Ok(bin_names) => bin_names,
+        let bins = match get_installed_bins(&info) {
+            Ok(bins) => bins,
             Err(error) => {
                 let dir = self.dir.display();
                 warn_global::<Reporter>(&format!(
@@ -173,8 +173,8 @@ impl LegacyGlobalLayout {
             }
         };
         let mut every_bin_removed = true;
-        for name in bin_names {
-            for file in legacy_bin_files(&pnpm_home.join(&name), &self.dir) {
+        for bin in bins {
+            for file in legacy_bin_files(&pnpm_home.join(&bin.name), &self.dir, Some(&bin.path)) {
                 if let Err(error) = remove_file_with_retry(&file) {
                     every_bin_removed = false;
                     let file = file.display();
@@ -187,10 +187,11 @@ impl LegacyGlobalLayout {
 }
 
 /// The files pnpm 10 wrote for the bin at `bin_path` that are still a link
-/// or shim into `legacy_dir`. Each file is judged on its own: anything else
+/// or shim into `legacy_dir`, or a hard link to `target`. Each file is judged
+/// on its own: anything else
 /// at one of those paths, a same-named executable of the user's or a bin
 /// linked there since, is not pnpm 10's and is kept.
-fn legacy_bin_files(bin_path: &Path, legacy_dir: &Path) -> Vec<PathBuf> {
+fn legacy_bin_files(bin_path: &Path, legacy_dir: &Path, target: Option<&Path>) -> Vec<PathBuf> {
     LEGACY_BIN_EXTENSIONS
         .iter()
         .map(|extension| {
@@ -198,11 +199,11 @@ fn legacy_bin_files(bin_path: &Path, legacy_dir: &Path) -> Vec<PathBuf> {
             file.push(extension);
             PathBuf::from(file)
         })
-        .filter(|file| is_legacy_bin(file, legacy_dir))
+        .filter(|file| is_legacy_bin(file, legacy_dir, target))
         .collect()
 }
 
-fn is_legacy_bin(bin_path: &Path, legacy_dir: &Path) -> bool {
+fn is_legacy_bin(bin_path: &Path, legacy_dir: &Path, target: Option<&Path>) -> bool {
     let Ok(metadata) = fs::symlink_metadata(bin_path) else {
         return false;
     };
@@ -213,7 +214,13 @@ fn is_legacy_bin(bin_path: &Path, legacy_dir: &Path) -> bool {
         return fs::read_link(bin_path)
             .is_ok_and(|target| points_into(&bin_dir.join(target), legacy_dir));
     }
-    if !metadata.is_file() || metadata.len() > MAX_SHIM_BYTES {
+    if !metadata.is_file() {
+        return false;
+    }
+    if target.is_some_and(|target| same_file::is_same_file(bin_path, target).unwrap_or(false)) {
+        return true;
+    }
+    if metadata.len() > MAX_SHIM_BYTES {
         return false;
     }
     fs::read_to_string(bin_path)

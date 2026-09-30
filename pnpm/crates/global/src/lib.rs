@@ -18,7 +18,7 @@ pub use global_package_dir::{
 pub use list::{ListReportAs, find_global_install_dirs, list_global_packages};
 pub use scan::{
     GlobalPackageInfo, InstalledGlobalPackage, clean_orphaned_install_dirs, find_global_package,
-    get_global_package_details, get_installed_bin_names, installed_versions,
+    get_global_package_details, get_installed_bin_names, get_installed_bins, installed_versions,
     read_direct_dependencies, read_direct_dependency_aliases, read_installed_packages,
     scan_global_packages,
 };

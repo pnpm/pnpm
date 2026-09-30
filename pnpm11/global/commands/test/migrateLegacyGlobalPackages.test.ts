@@ -101,6 +101,22 @@ test('legacyBinFiles lists only the files that point into the legacy project', a
   expect(await legacyBinFiles(path.join(home, 'tool'), legacyDir)).toStrictEqual([path.join(home, 'tool.cmd')])
 })
 
+test('legacyBinFiles identifies hard links by identity', async () => {
+  const { home, legacyDir } = homeWithLegacyDir()
+  const target = path.join(legacyDir, 'node_modules', 'tool.exe')
+  fs.writeFileSync(target, Buffer.alloc(128 * 1024, 0xff))
+  const bin = path.join(home, 'tool.exe')
+  fs.linkSync(target, bin)
+  const copy = path.join(home, 'copy.exe')
+  fs.copyFileSync(target, copy)
+  fs.writeFileSync(`${bin}.cmd`, 'user script')
+
+  expect(await legacyBinFiles(bin, legacyDir, target)).toStrictEqual([bin])
+  expect(await legacyBinFiles(path.join(home, 'tool'), legacyDir, target)).toStrictEqual([bin])
+  expect(await legacyBinFiles(copy, legacyDir, target)).toStrictEqual([])
+  expect(await legacyBinFiles(copy, legacyDir, path.join(legacyDir, 'missing'))).toStrictEqual([])
+})
+
 function tempDir (): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-legacy-global-'))
 }
