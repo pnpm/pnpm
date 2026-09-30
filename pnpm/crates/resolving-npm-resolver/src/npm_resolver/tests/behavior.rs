@@ -887,10 +887,13 @@ async fn offline_repick_keeps_a_missing_tag_unresolved() {
         ..ResolveOptions::default()
     };
 
-    let result = resolver.resolve(&wanted, &opts).await;
+    let error = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .expect_err("a tag the cached metadata lacks has no version to resolve");
     assert!(
-        !matches!(&result, Ok(Some(resolved)) if resolved.package.name_ver.is_some()),
-        "a tag the metadata lacks must not resolve to the locked version: {result:?}",
+        error.is::<pnpm_resolving_resolver_base::NoMatchingVersionError>(),
+        "expected no matching version, got {error:?}",
     );
     mock.assert_async().await;
 }
