@@ -18,6 +18,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
 const { maturePnpmVersionForRange } = await import('@pnpm/engine.pm.commands')
 
 const REGISTRY = 'https://registry.npmjs.org/'
+const OLDER = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
 const OLD = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 const FRESH = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()
 
@@ -55,6 +56,18 @@ test('an excluded running pnpm is recorded', async () => {
   expect(await maturePnpmVersionForRange(options({ minimumReleaseAgeExclude: ['pnpm@9.1.0'] }), '^9.0.0')).toBe('9.1.0')
 })
 
+test('the range fallback skips a trust downgrade', async () => {
+  mockPackageManager.version = '9.2.0'
+  servePnpm({ '9.0.0': OLDER, '9.1.0': OLD, '9.2.0': FRESH }, {
+    '9.0.0': {
+      _npmUser: { name: 'alice', trustedPublisher: { id: 'github', oidcConfigId: 'release' } },
+      dist: { attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } },
+    },
+  })
+
+  expect(await maturePnpmVersionForRange({ ...options(), trustPolicy: 'no-downgrade' }, '^9.0.0')).toBe('9.0.0')
+})
+
 test('the registry is not asked without a cutoff', async () => {
   expect(await maturePnpmVersionForRange(options({ minimumReleaseAge: 0 }), '^9.0.0')).toBe('9.1.0')
 })
@@ -69,7 +82,7 @@ function options (overrides: { minimumReleaseAge?: number, minimumReleaseAgeExcl
   }
 }
 
-function servePnpm (time: Record<string, string>): void {
+function servePnpm (time: Record<string, string>, extra: Record<string, { _npmUser?: object, dist?: object }> = {}): void {
   const versions = Object.keys(time)
   const metadata = {
     name: 'pnpm',
@@ -79,10 +92,12 @@ function servePnpm (time: Record<string, string>): void {
       {
         name: 'pnpm',
         version,
+        _npmUser: extra[version]?._npmUser,
         dist: {
           shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
           tarball: `${REGISTRY}pnpm/-/pnpm-${version}.tgz`,
           integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+          ...extra[version]?.dist,
         },
       },
     ])),

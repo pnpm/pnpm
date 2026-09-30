@@ -1,6 +1,7 @@
 use super::mature_pnpm_version_for_range;
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{Config, PNPM_VERSION, TrustPolicy};
 
+const OLDER: &str = "2023-01-10T08:30:00.000Z";
 const OLD: &str = "2024-01-10T08:30:00.000Z";
 
 /// The running pnpm is fresh, so the range falls back to its newest mature
@@ -57,6 +58,66 @@ async fn an_excluded_running_pnpm_is_recorded() {
         .expect("pick a version");
 
     assert_eq!(version, "1.1.0");
+}
+
+/// The version recorded in place of the running pnpm is one every other
+/// contributor installs, so it has to pass the trust policy too.
+#[tokio::test]
+async fn the_range_fallback_skips_a_trust_downgrade() {
+    let fresh = chrono::Utc::now().to_rfc3339();
+    let body = serde_json::json!({
+        "name": "pnpm",
+        "dist-tags": { "latest": "1.2.0" },
+        "time": { "1.0.0": OLDER, "1.1.0": OLD, "1.2.0": fresh },
+        "versions": {
+            "1.0.0": {
+                "name": "pnpm",
+                "version": "1.0.0",
+                "_npmUser": {
+                    "name": "alice",
+                    "trustedPublisher": { "id": "github", "oidcConfigId": "release" },
+                },
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": "https://registry/pnpm-1.0.0.tgz",
+                    "attestations": {
+                        "provenance": { "predicateType": "https://slsa.dev/provenance/v1" },
+                    },
+                },
+            },
+            "1.1.0": {
+                "name": "pnpm",
+                "version": "1.1.0",
+                "dist": {
+                    "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                    "tarball": "https://registry/pnpm-1.1.0.tgz",
+                },
+            },
+            "1.2.0": {
+                "name": "pnpm",
+                "version": "1.2.0",
+                "dist": {
+                    "integrity": "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==",
+                    "tarball": "https://registry/pnpm-1.2.0.tgz",
+                },
+            },
+        },
+    });
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/pnpm")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
+    let (mut config, _cache) = config_with_cutoff(&server, None);
+    config.trust_policy = TrustPolicy::NoDowngrade;
+
+    let version = mature_pnpm_version_for_range(&config, "^1.0.0", "1.2.0")
+        .await
+        .expect("pick a version");
+
+    assert_eq!(version, "1.0.0");
 }
 
 /// Without a cutoff there is nothing to check, so the registry is not asked.

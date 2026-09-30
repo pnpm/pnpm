@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-A `devEngines.packageManager` range now records a pnpm version in `pnpm-lock.yaml` that meets `minimumReleaseAge`. If the running pnpm is newer than the cutoff, pnpm records the newest version in the range that is old enough [#16431](https://github.com/pnpm/pnpm/issues/16431).
+A `devEngines.packageManager` range now records the running pnpm in `pnpm-lock.yaml` only if it meets `minimumReleaseAge`. Otherwise pnpm records the newest version in the range that meets it. If no version in the range does, pnpm still records the running pnpm [#16431](https://github.com/pnpm/pnpm/issues/16431).

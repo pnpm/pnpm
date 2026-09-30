@@ -5,7 +5,6 @@ use super::{
     Config, EnvInstallerContext, PNPM_VERSION, ResolveOptions, Result, resolve_engine_with,
 };
 use miette::{IntoDiagnostic, WrapErr};
-use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 
 /// The pnpm version to record for a range pin that `running_version`
 /// satisfies.
@@ -25,37 +24,34 @@ pub async fn mature_pnpm_version_for_range(
         return Ok(running_version.to_string());
     }
     let context = EnvInstallerContext::for_package_manager(config)?;
-    let opts = maturity_only_resolve_options(config)?;
-    for specifier in [running_version, range] {
-        if let Some(version) = mature_pick(&context, specifier, &opts).await? {
+    let range_opts = resolve_options_without_running_exemption(config)?;
+    // The running pnpm is already executing, so only its age is in question.
+    let mut running_opts = range_opts.clone();
+    running_opts.policy.trust_policy = None;
+    for (specifier, opts) in [(running_version, &running_opts), (range, &range_opts)] {
+        if let Some(version) = pick_without_violation(&context, specifier, opts).await? {
             return Ok(version);
         }
     }
     Ok(running_version.to_string())
 }
 
-/// The install path's maturity policy without the exemption it grants the
-/// running pnpm, which is the version under question here. The trust policy
-/// is left out: this decides only which version is old enough to record.
-fn maturity_only_resolve_options(config: &Config) -> Result<ResolveOptions> {
+/// The install path's resolve options without the maturity exemption they
+/// grant the running pnpm, which is the version under question here.
+fn resolve_options_without_running_exemption(config: &Config) -> Result<ResolveOptions> {
     let mut opts = engine_resolve_options(config, false)?;
     opts.policy.published_by_exclude = published_by_exclude(config, None)?;
-    opts.policy.trust_policy = None;
     Ok(opts)
 }
 
-async fn mature_pick(
+async fn pick_without_violation(
     context: &EnvInstallerContext,
     specifier: &str,
     opts: &ResolveOptions,
 ) -> Result<Option<String>> {
     let resolved = resolve_engine_with(context, "pnpm", specifier, opts).await?;
     Ok(resolved
-        .filter(|resolved| {
-            resolved.policy_violation
-                .as_ref()
-                .is_none_or(|violation| violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE)
-        })
+        .filter(|resolved| resolved.policy_violation.is_none())
         .map(|resolved| resolved.version))
 }
 

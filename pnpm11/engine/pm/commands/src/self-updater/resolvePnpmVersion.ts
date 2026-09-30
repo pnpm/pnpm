@@ -2,7 +2,6 @@ import { packageManager } from '@pnpm/cli.meta'
 import { type Config, getPackageManagerBootstrapConfig } from '@pnpm/config.reader'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { type ClientOptions, createResolver, type ResolutionPolicyViolation } from '@pnpm/installing.client'
-import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { type FullMetadataPolicyOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
 
 export type ResolvePnpmVersionOptions =
@@ -90,16 +89,11 @@ export async function maturePnpmVersionForRange (
   range: string
 ): Promise<string> {
   if (!opts.minimumReleaseAge) return packageManager.version
-  // The trust policy is left out: this decides only which version is old
-  // enough to record.
-  const lookup = createPnpmVersionLookup({ ...opts, trustPolicy: undefined })
-  for (const specifier of [packageManager.version, range]) {
-    // eslint-disable-next-line no-await-in-loop -- the range is looked up only when the running version is immature
-    const resolved = await lookup(specifier)
-    if (resolved != null && resolved.policyViolation?.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) {
-      return resolved.version
-    }
-  }
+  // The running pnpm is already executing, so only its age is in question.
+  const running = await createPnpmVersionLookup({ ...opts, trustPolicy: undefined })(packageManager.version)
+  if (running != null && running.policyViolation == null) return running.version
+  const fallback = await createPnpmVersionLookup(opts)(range)
+  if (fallback != null && fallback.policyViolation == null) return fallback.version
   return packageManager.version
 }
 
