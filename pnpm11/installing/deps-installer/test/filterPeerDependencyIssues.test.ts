@@ -311,3 +311,30 @@ test('filterPeerDependencyIssues() drops ignored missing peers named like Object
     },
   })
 })
+
+test('filterPeerDependencyIssues() keeps a bad peer named like an Object.prototype member', () => {
+  const issue = {
+    parents: [{ name: 'constructor', version: '1.0.0' }],
+    foundVersion: '2.0.0',
+    resolvedFrom: [],
+    optional: false,
+    wantedRange: '^1.0.0',
+  }
+  const { bad } = filterPeerDependencyIssues({
+    '.': {
+      missing: {},
+      bad: {
+        constructor: [issue],
+        bbb: [issue],
+      },
+      conflicts: [],
+      intersections: {},
+    },
+  }, {
+    allowedVersions: { 'yyy>bbb': '2' },
+  })['.']
+  // Compared key by key: `toStrictEqual` reads `constructor` as the object's type.
+  expect(Object.keys(bad)).toStrictEqual(['constructor', 'bbb'])
+  expect(bad.constructor).toStrictEqual([issue])
+  expect(bad.bbb).toStrictEqual([issue])
+})
