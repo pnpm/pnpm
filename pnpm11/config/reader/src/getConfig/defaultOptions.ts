@@ -15,16 +15,14 @@ export type KebabCaseConfig = {
 
 export function createDefaultOptions (workspaceDir: string | undefined): Partial<KebabCaseConfig> {
   return {
-    ...DEFAULTS_BEFORE_WORKSPACE_KEYS,
+    ...defaultOptions,
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': workspaceDir,
-    ...DEFAULTS_BEFORE_VIRTUAL_STORE_DIR_MAX_LENGTH,
     'virtual-store-dir-max-length': isWindows() ? 60 : 120,
-    ...DEFAULTS_AFTER_VIRTUAL_STORE_DIR_MAX_LENGTH,
   }
 }
 
-const DEFAULTS_BEFORE_WORKSPACE_KEYS: Partial<KebabCaseConfig> = {
+const defaultOptions: Partial<KebabCaseConfig> = {
   'auto-install-peers': true,
   bail: true,
   'catalog-mode': 'manual',
@@ -107,15 +105,13 @@ const DEFAULTS_BEFORE_WORKSPACE_KEYS: Partial<KebabCaseConfig> = {
   'verify-deps-before-run': 'install',
   'verify-store-integrity': true,
   'frozen-store': false,
-}
-
-const DEFAULTS_BEFORE_VIRTUAL_STORE_DIR_MAX_LENGTH: Partial<KebabCaseConfig> = {
+  'workspace-concurrency': 4,
+  'workspace-prefix': undefined,
   'embed-readme': false,
   'skip-manifest-obfuscation': false,
   'registry-supports-time-field': false,
-}
-
-const DEFAULTS_AFTER_VIRTUAL_STORE_DIR_MAX_LENGTH: Partial<KebabCaseConfig> = {
+  'virtual-store-dir-max-length': 120,
   'virtual-store-only': false,
   'peers-suffix-max-length': 1000,
 }
+

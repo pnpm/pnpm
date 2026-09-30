@@ -237,35 +237,47 @@ export async function legacyBinFiles (binPath: string, legacyDir: string, target
 }
 
 export async function isLegacyBin (binPath: string, legacyDir: string, target?: string): Promise<boolean> {
-  let stats: fs.BigIntStats
-  try {
-    stats = await fs.promises.lstat(binPath, { bigint: true })
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
-    throw err
-  }
+  const stats = await getPathStats(binPath)
+  if (!stats) return false
   const binDir = path.dirname(binPath)
   if (stats.isSymbolicLink()) {
-    const target = path.resolve(binDir, await fs.promises.readlink(binPath))
-    return pointsInto(target, legacyDir)
+    const linkTarget = path.resolve(binDir, await fs.promises.readlink(binPath))
+    return pointsInto(linkTarget, legacyDir)
   }
   if (!stats.isFile()) return false
-  if (target != null) {
-    try {
-      const [realTarget, realLegacyDir] = await Promise.all([
-        fs.promises.realpath(target),
-        fs.promises.realpath(legacyDir),
-      ])
-      if (isSubdir(realLegacyDir, realTarget)) {
-        const targetStats = await fs.promises.stat(realTarget, { bigint: true })
-        if (stats.ino !== 0n && stats.ino === targetStats.ino && stats.dev === targetStats.dev) return true
-      }
-    } catch (err: unknown) {
-      if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    }
+  if (target != null && await isHardLinkToTarget(stats, target, legacyDir)) {
+    return true
   }
   if (stats.size > MAX_SHIM_BYTES) return false
   return shimTargetsDir(await fs.promises.readFile(binPath, 'utf8'), binDir, legacyDir)
+}
+
+async function getPathStats (binPath: string): Promise<fs.BigIntStats | null> {
+  try {
+    return await fs.promises.lstat(binPath, { bigint: true })
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
+    throw err
+  }
+}
+
+async function isHardLinkToTarget (
+  stats: fs.BigIntStats,
+  target: string,
+  legacyDir: string
+): Promise<boolean> {
+  try {
+    const [realTarget, realLegacyDir] = await Promise.all([
+      fs.promises.realpath(target),
+      fs.promises.realpath(legacyDir),
+    ])
+    if (!isSubdir(realLegacyDir, realTarget)) return false
+    const targetStats = await fs.promises.stat(realTarget, { bigint: true })
+    return stats.ino !== 0n && stats.ino === targetStats.ino && stats.dev === targetStats.dev
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    return false
+  }
 }
 
 /**
