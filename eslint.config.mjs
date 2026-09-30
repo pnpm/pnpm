@@ -34,8 +34,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/resolving/local-resolver/**",
     "pnpm11/resolving/registry/pkg-metadata-filter/**",
     "pnpm11/store/commands/**",
-    "pnpm11/store/connection-manager/**",
-    "pnpm11/store/index/**",
     "pnpm11/text/comments-parser/**",
     "pnpm11/text/tree-renderer/**",
     "pnpm11/workspace/commands/**",

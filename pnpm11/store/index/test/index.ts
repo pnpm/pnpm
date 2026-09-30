@@ -116,27 +116,7 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
   try {
     const idx = new ReadOnlyStoreIndex(storeDir)
     try {
-      const result = idx.get(key) as typeof data
-      expect(result).toBeDefined()
-      expect(result.algo).toBe('sha512')
-      expect(result.files.get('index.js')?.digest).toBe('abc')
-      expect(idx.has(key)).toBe(true)
-
-      expect(() => {
-        idx.set(key, data)
-      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
-      expect(() => {
-        idx.delete(key)
-      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
-      expect(() => {
-        idx.update(key, value => value)
-      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
-
-      // The immutable open must not create any sidecar under the
-      // read-only directory.
-      for (const sidecar of ['index.db-shm', 'index.db-wal', 'index.db-journal']) {
-        expect(fs.existsSync(path.join(storeDir, sidecar))).toBe(false)
-      }
+      assertReadOnlyBehavior(idx, key, data, storeDir)
     } finally {
       idx.close()
     }
@@ -145,6 +125,30 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
     fs.chmodSync(storeDir, 0o755)
   }
 })
+
+function assertReadOnlyBehavior (idx: ReadOnlyStoreIndex, key: string, data: { algo: string, files: Map<string, { digest: string, size: number, mode: number }> }, storeDir: string): void {
+  const result = idx.get(key) as typeof data
+  expect(result).toBeDefined()
+  expect(result.algo).toBe('sha512')
+  expect(result.files.get('index.js')?.digest).toBe('abc')
+  expect(idx.has(key)).toBe(true)
+
+  expect(() => {
+    idx.set(key, data)
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+  expect(() => {
+    idx.delete(key)
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+  expect(() => {
+    idx.update(key, value => value)
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+
+  // The immutable open must not create any sidecar under the
+  // read-only directory.
+  for (const sidecar of ['index.db-shm', 'index.db-wal', 'index.db-journal']) {
+    expect(fs.existsSync(path.join(storeDir, sidecar))).toBe(false)
+  }
+}
 
 // `?` is a legal filename character on POSIX but a SQLite URI delimiter, so a
 // raw `file:${path}?immutable=1` would truncate the path here. (`?` is illegal

@@ -309,6 +309,27 @@ export class StoreIndex {
     this.pendingWrites = []
   }
 
+  private inTransaction (action: () => void): void {
+    sqliteRetry(() => {
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        action()
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        this.rollbackIfUncommitted(committed)
+      }
+    })
+  }
+
+  private rollbackIfUncommitted (committed: boolean): void {
+    if (committed) return
+    try {
+      this.db.exec('ROLLBACK')
+    } catch {}
+  }
+
   /**
    * Write multiple pre-packed entries in a single transaction.
    * The buffers must already be msgpack-encoded.
@@ -321,21 +342,9 @@ export class StoreIndex {
       })
       return
     }
-    sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        for (const { key, buffer } of entries) {
-          this.stmtSet.run(key, buffer)
-        }
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
+    this.inTransaction(() => {
+      for (const { key, buffer } of entries) {
+        this.stmtSet.run(key, buffer)
       }
     })
   }
@@ -351,21 +360,9 @@ export class StoreIndex {
       this.db.exec('VACUUM')
       return
     }
-    sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        for (const key of keys) {
-          this.stmtDel.run(key)
-        }
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
+    this.inTransaction(() => {
+      for (const key of keys) {
+        this.stmtDel.run(key)
       }
     })
     this.db.exec('VACUUM')
