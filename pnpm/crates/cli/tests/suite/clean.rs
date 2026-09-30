@@ -276,7 +276,7 @@ fn clean_removes_custom_virtual_store_dir_inside_the_project() {
         fs::write(
             workspace.join("pnpm-workspace.yaml"),
             format!(
-                "enableGlobalVirtualStore: {global_virtual_store}\nvirtualStoreDir: .pnpm-store\npackages:\n  - .\n"
+                "enableGlobalVirtualStore: {global_virtual_store}\nvirtualStoreDir: .pnpm-store\npackages:\n  - .\n",
             ),
         )
         .expect("write pnpm-workspace.yaml");
