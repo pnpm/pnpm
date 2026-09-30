@@ -19,7 +19,7 @@
     "rust"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm",
+  "homepage": "https://pnpm.io",
   "bugs": "https://github.com/pnpm/pnpm/issues",
   "repository": {
     "type": "git",
