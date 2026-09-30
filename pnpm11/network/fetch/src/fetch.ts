@@ -77,70 +77,104 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
   })
 
   try {
-    return await new Promise((resolve, reject) => {
-      op.attempt(async (attempt) => {
-        const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
-        const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
-        try {
-          // undici's Response type differs slightly from globalThis.Response (iterator types),
-          // requiring the double cast. This is a known TypeScript/undici compatibility issue.
-          const res = await undiciFetch(urlString, {
-            ...fetchOpts,
-            dispatcher: withInactivityTimeout(dispatcher, timeout),
-          } as Parameters<typeof undiciFetch>[1]) as unknown as Response
-          // A retry on 409 sometimes helps when making requests to the Bit registry.
-          if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
-            throw new ResponseError(res)
-          } else {
-            resolve(res)
-          }
-        } catch (error: unknown) {
-          if (isNonRetryableError(error)) {
-            // undici's "fetch failed" wrapper hides the TLS reason.
-            const cause = (error as { cause?: unknown }).cause
-            reject(isError(cause) && isNonRetryableError(cause) ? cause : error)
-            return
-          }
-          // Undici errors may not pass isNativeError check, so we handle them more carefully
-          const err = error as Error & { code?: string, cause?: { code?: string } }
-          const retryTimeout = op.retry(err)
-          if (retryTimeout === false) {
-            reject(op.mainError())
-            return
-          }
-          // Extract error properties into a plain object because Error properties
-          // are non-enumerable and don't serialize well through the logging system
-          const displayUrl = redactUrlForDisplay(urlString)
-          const errorInfo = {
-            name: err.name,
-            message: err.message?.replaceAll(urlString, displayUrl),
-            code: err.code,
-            errno: (err as Error & { errno?: number }).errno,
-            // For HTTP errors from ResponseError class
-            status: (err as Error & { status?: number }).status,
-            statusCode: (err as Error & { statusCode?: number }).statusCode,
-            // undici wraps the actual network error in a cause property
-            cause: err.cause ? {
-              code: err.cause.code,
-              errno: (err.cause as { errno?: number }).errno,
-            } : undefined,
-          }
-          requestRetryLogger.debug({
-            attempt,
-            error: errorInfo,
-            maxRetries,
-            method: opts.method ?? 'GET',
-            timeout: retryTimeout,
-            url: displayUrl,
-          })
-        }
-      })
-    })
+    return await attemptWithRetries(url, opts, { maxRetries, op })
   } catch (err) {
     if (err instanceof ResponseError) {
       return err.res
     }
     throw err
+  }
+}
+
+interface RetryState {
+  maxRetries: number
+  op: ReturnType<typeof operation>
+}
+
+function attemptWithRetries (url: RequestInfo, opts: RequestInit, { maxRetries, op }: RetryState): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    op.attempt(async (attempt) => {
+      const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
+      try {
+        resolve(await fetchOnce(urlString, opts))
+      } catch (error: unknown) {
+        handleFailedAttempt(error, { attempt, maxRetries, method: opts.method, op, reject, urlString })
+      }
+    })
+  })
+}
+
+async function fetchOnce (urlString: string, opts: RequestInit): Promise<Response> {
+  const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
+  // undici's Response type differs slightly from globalThis.Response (iterator types),
+  // requiring the double cast. This is a known TypeScript/undici compatibility issue.
+  const res = await undiciFetch(urlString, {
+    ...fetchOpts,
+    dispatcher: withInactivityTimeout(dispatcher, timeout),
+  } as Parameters<typeof undiciFetch>[1]) as unknown as Response
+  // A retry on 409 sometimes helps when making requests to the Bit registry.
+  if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
+    throw new ResponseError(res)
+  }
+  return res
+}
+
+type FetchError = Error & {
+  code?: string
+  errno?: number
+  status?: number
+  statusCode?: number
+  cause?: { code?: string, errno?: number }
+}
+
+interface FailedAttempt extends RetryState {
+  attempt: number
+  method?: string
+  reject: (reason: unknown) => void
+  urlString: string
+}
+
+function handleFailedAttempt (error: unknown, { attempt, maxRetries, method, op, reject, urlString }: FailedAttempt): void {
+  if (isNonRetryableError(error)) {
+    // undici's "fetch failed" wrapper hides the TLS reason.
+    const cause = (error as { cause?: unknown }).cause
+    reject(isError(cause) && isNonRetryableError(cause) ? cause : error)
+    return
+  }
+  // Undici errors may not pass isNativeError check, so we handle them more carefully
+  const err = error as FetchError
+  const retryTimeout = op.retry(err)
+  if (retryTimeout === false) {
+    reject(op.mainError())
+    return
+  }
+  const displayUrl = redactUrlForDisplay(urlString)
+  requestRetryLogger.debug({
+    attempt,
+    error: describeErrorForLog(err, { urlString, displayUrl }),
+    maxRetries,
+    method: method ?? 'GET',
+    timeout: retryTimeout,
+    url: displayUrl,
+  })
+}
+
+// Extract error properties into a plain object because Error properties
+// are non-enumerable and don't serialize well through the logging system
+function describeErrorForLog (err: FetchError, { urlString, displayUrl }: { urlString: string, displayUrl: string }) {
+  return {
+    name: err.name,
+    message: err.message?.replaceAll(urlString, displayUrl),
+    code: err.code,
+    errno: err.errno,
+    // For HTTP errors from ResponseError class
+    status: err.status,
+    statusCode: err.statusCode,
+    // undici wraps the actual network error in a cause property
+    cause: err.cause ? {
+      code: err.cause.code,
+      errno: err.cause.errno,
+    } : undefined,
   }
 }
 
