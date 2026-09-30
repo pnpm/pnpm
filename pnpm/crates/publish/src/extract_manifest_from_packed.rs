@@ -2,11 +2,17 @@
 //! a pre-built `.tgz` so a tarball passed to `pnpm publish <tarball>` can be
 //! published without repacking.
 
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::{self, Read},
+    path::Path,
+};
 
 use flate2::read::GzDecoder;
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_package_manifest::parse_manifest;
+use pnpm_package_manifest::{
+    ReadmeKind, decode_readme, is_preferred_readme, parse_manifest, readme_kind,
+};
 use serde_json::Value;
 
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
@@ -65,22 +71,8 @@ pub fn extract_publish_manifest_from_packed(
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let entries = archive.entries().map_err(read_err)?;
-
-    let mut manifest_text: Option<String> = None;
-    let mut readme: Option<String> = None;
-    for entry in entries {
-        let mut entry = entry.map_err(read_err)?;
-        let normalized = normalize_entry_path(&entry.path().map_err(read_err)?);
-        let target = if normalized == "package/package.json" {
-            &mut manifest_text
-        } else if is_root_readme(&normalized) {
-            &mut readme
-        } else {
-            continue;
-        };
-        *target = Some(read_entry_text(&mut entry).map_err(read_err)?);
-    }
+    let PackedEntries { manifest_text, readme } =
+        scan_packed_entries(&mut archive).map_err(read_err)?;
 
     let manifest_text = manifest_text.ok_or_else(|| {
         ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
@@ -92,34 +84,64 @@ pub fn extract_publish_manifest_from_packed(
             tarball_path: tarball_path.to_owned(),
             source,
         })?;
-    if let Some(readme) = readme {
-        attach_readme(&mut manifest, readme);
+    if let Some(readme) = readme
+        && manifest.get("readme").is_none_or(Value::is_null)
+        && let Some(object) = manifest.as_object_mut()
+    {
+        // A packed README fills a manifest's missing `readme`, as npm's
+        // publish document carries it.
+        object.insert("readme".to_string(), Value::String(readme.text));
     }
     Ok(manifest)
 }
 
-fn read_entry_text<Reader: Read>(entry: &mut tar::Entry<'_, Reader>) -> std::io::Result<String> {
-    let mut text = String::new();
-    entry.read_to_string(&mut text)?;
-    Ok(text)
+struct PackedEntries {
+    manifest_text: Option<String>,
+    readme: Option<PackedReadme>,
 }
 
-/// A packed README fills a manifest's missing `readme`, as npm's publish
-/// document carries it.
-fn attach_readme(manifest: &mut Value, readme: String) {
-    if manifest.get("readme").is_none_or(Value::is_null)
-        && let Some(object) = manifest.as_object_mut()
-    {
-        object.insert("readme".to_string(), Value::String(readme));
+struct PackedReadme {
+    kind: ReadmeKind,
+    name: String,
+    text: String,
+}
+
+/// Read `package/package.json` and the package-root README npm would pick.
+/// Only a README entry that beats the current selection is read. The whole
+/// archive is scanned, so a later duplicate entry wins as on extraction.
+fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Result<PackedEntries> {
+    let mut manifest_text = None;
+    let mut readme: Option<PackedReadme> = None;
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let normalized = normalize_entry_path(&entry.path()?);
+        if normalized == "package/package.json" {
+            let mut text = String::new();
+            entry.read_to_string(&mut text)?;
+            manifest_text = Some(text);
+        } else if entry.header().entry_type().is_file()
+            && let Some(name) = root_file_name(&normalized)
+            && let Some(kind) = readme_kind(name)
+            && is_preferred_readme(
+                (kind, name),
+                readme
+                    .as_ref()
+                    .map(|current| (current.kind, current.name.as_str())),
+            )
+        {
+            let mut bytes = Vec::new();
+            entry.read_to_end(&mut bytes)?;
+            let text = decode_readme(bytes);
+            readme = Some(PackedReadme { kind, name: name.to_owned(), text });
+        }
     }
+    Ok(PackedEntries { manifest_text, readme })
 }
 
-/// Whether a normalized tar entry path names the package's root README,
-/// matching pnpm's `/^package\/readme\.md$/i`.
-fn is_root_readme(normalized: &str) -> bool {
+fn root_file_name(normalized: &str) -> Option<&str> {
     normalized
         .strip_prefix("package/")
-        .is_some_and(|name| name.eq_ignore_ascii_case("readme.md"))
+        .filter(|name| !name.contains('/'))
 }
 
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`

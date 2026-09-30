@@ -3,7 +3,7 @@ import path from 'node:path'
 import { createGunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
-import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import { type ExportedManifest, getReadmeRank, isPreferredReadme, type ReadmeCandidate } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'
 
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const
@@ -29,21 +29,24 @@ export async function extractPublishManifestFromPacked (tarballPath: TarballPath
   const { manifest, readme } = await extractEntriesFromPacked(tarballPath, true)
   const parsed = JSON.parse(manifest) as ExportedManifest
   if (parsed.readme == null && readme != null) {
-    parsed.readme = readme
+    parsed.readme = readme.text
   }
   return parsed
 }
 
 interface PackedEntries {
   manifest: string
-  readme?: string
+  readme?: PackedReadme
+}
+
+interface PackedReadme extends ReadmeCandidate {
+  text: string
 }
 
 /**
- * Scan the tarball for `package/package.json` and, when `wantReadme` is set, the root
- * `README.md`. The manifest-only path (`wantReadme` false) resolves as soon as the manifest
- * entry is read and stops decompressing the rest of the archive; the publish path scans on
- * because a README can appear after the manifest.
+ * Read `package/package.json` from the tarball and, when `wantReadme` is set, the package-root
+ * README npm would pick. Rejects with `PublishArchiveMissingManifestError` when the archive has no
+ * manifest, and with the stream error when the archive cannot be read.
  */
 async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: boolean): Promise<PackedEntries> {
   const extract = tar.extract()
@@ -64,7 +67,7 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
   const promise = new Promise<PackedEntries>((resolve, reject) => {
     let settled = false
     let manifest: string | undefined
-    let readme: string | undefined
+    let readme: PackedReadme | undefined
 
     function handleError (error: unknown): void {
       cleanup()
@@ -88,9 +91,14 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
     extract.on('entry', (header, stream, next) => {
       const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
       const isManifest = normalizedPath === 'package/package.json'
-      const isReadme = wantReadme && /^package\/readme\.md$/i.test(normalizedPath)
+      const readmeCandidate = wantReadme && !isManifest && header.type === 'file'
+        ? getRootReadmeCandidate(normalizedPath)
+        : undefined
+      const wantedReadme = readmeCandidate != null && isPreferredReadme(readmeCandidate, readme)
+        ? readmeCandidate
+        : undefined
 
-      if (!isManifest && !isReadme) {
+      if (!isManifest && wantedReadme == null) {
         stream.once('end', next)
         stream.resume()
         return
@@ -103,14 +111,14 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
 
       stream.once('end', () => {
         const text = Buffer.concat(chunks).toString()
-        if (isManifest) {
+        if (wantedReadme == null) {
           manifest = text
         } else {
-          readme = text
+          readme = { ...wantedReadme, text }
         }
-        // Stop early once every wanted entry has been captured, so the manifest-only
-        // path doesn't stream and decompress the remainder of the tarball.
-        if (manifest != null && (!wantReadme || readme != null)) {
+        // The manifest-only path stops at the manifest so the rest of the tarball isn't
+        // decompressed. The README path scans on, so a later duplicate entry wins as on extraction.
+        if (manifest != null && !wantReadme) {
           settle()
           return
         }
@@ -127,6 +135,14 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
   tarballStream.pipe(gunzip).pipe(extract)
 
   return promise
+}
+
+function getRootReadmeCandidate (normalizedPath: string): ReadmeCandidate | undefined {
+  if (!normalizedPath.startsWith('package/')) return undefined
+  const fileName = normalizedPath.slice('package/'.length)
+  if (fileName.includes('/')) return undefined
+  const rank = getReadmeRank(fileName)
+  return rank == null ? undefined : { fileName, rank }
 }
 
 export class PublishArchiveMissingManifestError extends PnpmError {
