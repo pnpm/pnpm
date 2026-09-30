@@ -204,7 +204,8 @@ function getChildrenPaths (
 ): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
-    children[alias] = resolveChildPath(ctx, alias, ref, peerDeps, parent)
+    const childPath = resolveChildPath(ctx, alias, ref, peerDeps, parent)
+    if (childPath != null) children[alias] = childPath
   }
   return children
 }
@@ -215,7 +216,7 @@ function resolveChildPath (
   ref: string,
   peerDeps: Set<string> | null,
   parent: { importerId: string, pkgDir?: string }
-): string {
+): string | undefined {
   const packageRootLinkTarget = dp.packageRootLinkTarget(ref)
   if (packageRootLinkTarget != null && parent.pkgDir != null) {
     return path.join(parent.pkgDir, packageRootLinkTarget)
@@ -233,7 +234,7 @@ function resolveDepPathLocation (
   ref: string,
   alias: string,
   peerDeps: Set<string> | null
-): string {
+): string | undefined {
   if (ctx.locationByDepPath[childRelDepPath]) {
     return ctx.locationByDepPath[childRelDepPath]
   }
@@ -246,5 +247,5 @@ function resolveDepPathLocation (
   if (!ctx.skipped.has(childRelDepPath as DepPath) && (peerDeps == null || !peerDeps.has(alias))) {
     throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
   }
-  return ''
+  return undefined
 }
