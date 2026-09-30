@@ -7,7 +7,28 @@ use pnpm_resolving_resolver_base::{
     ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
     VersionSelectors,
 };
-use std::sync::Mutex;
+use std::{borrow::Cow, sync::Mutex};
+
+/// Keep an eligible edge on its own locked version even when its subtree
+/// needs fresh resolution. Other edges combine the workspace and level preferences.
+pub(crate) fn preferred_selectors<'a>(
+    opts: &'a ResolveOptions,
+    name: &str,
+) -> Option<Cow<'a, VersionSelectors>> {
+    if opts.refresh.prefer_current_version
+        && let Some(current) = &opts.refresh.current_pkg
+        && current.name.as_deref() == Some(name)
+        && let Some(version) = &current.version
+    {
+        return Some(Cow::Owned(VersionSelectors::from([(
+            version.clone(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )])));
+    }
+    overlay_merged_selectors(opts, name)
+        .map(Cow::Owned)
+        .or_else(|| opts.version.preferred_versions.get(name).map(Cow::Borrowed))
+}
 
 /// The picker's preferred selectors for `name` with the per-level
 /// overlay folded in: each overlay version joins as a weighted `version`
