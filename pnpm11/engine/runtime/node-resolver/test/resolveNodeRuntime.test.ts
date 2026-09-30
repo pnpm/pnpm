@@ -51,19 +51,18 @@ test('resolveNodeRuntime() authenticates release index and SHASUMS requests with
     return fetch(url)
   }
   const cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-node-resolver-auth-'))
+  const runResolve = async () => resolveNodeRuntime({
+    fetchFromRegistry: authenticatedFetch,
+    getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+    nodeDownloadMirrors: { rc: MIRROR },
+    cacheDir,
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22',
+  })
   try {
-    for (let run = 0; run < 2; run++) {
-      // eslint-disable-next-line no-await-in-loop -- the second run must see the cache written by the first
-      await resolveNodeRuntime({
-        fetchFromRegistry: authenticatedFetch,
-        getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
-        nodeDownloadMirrors: { rc: MIRROR },
-        cacheDir,
-      }, {
-        alias: 'node',
-        bareSpecifier: 'runtime:rc/22',
-      })
-    }
+    await runResolve()
+    await runResolve()
 
     expect(requests).toEqual([
       { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
