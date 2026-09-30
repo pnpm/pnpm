@@ -155,6 +155,6 @@ fn keeps_undecodable_rows_and_prunes_the_rest() {
             .unwrap()
             .keys()
             .unwrap(),
-        ["a-unreadable"]
+        ["a-unreadable"],
     );
 }
