@@ -9,6 +9,15 @@ const HOST: &str = "@pnpm.e2e/optional-peer-c-host@1.0.0";
 // <https://github.com/pnpm/pnpm/issues/16443>
 #[test]
 fn optional_peer_follows_the_version_its_provider_moves_to() {
+    assert_optional_peer_follows_provider("1.0.0", "1.0.1");
+}
+
+#[test]
+fn optional_peer_follows_its_provider_down_to_an_older_version() {
+    assert_optional_peer_follows_provider("1.0.1", "1.0.0");
+}
+
+fn assert_optional_peer_follows_provider(from: &str, to: &str) {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -22,14 +31,14 @@ fn optional_peer_follows_the_version_its_provider_moves_to() {
             },
         }),
     );
-    write_provider(&workspace, "1.0.0");
+    write_provider(&workspace, from);
     pnpm(&workspace, &["install", "--lockfile-only"]);
-    assert_eq!(host_keys(&workspace), [format!("{HOST}(@pnpm.e2e/peer-c@1.0.0)")]);
+    assert_eq!(host_keys(&workspace), [format!("{HOST}(@pnpm.e2e/peer-c@{from})")]);
 
-    write_provider(&workspace, "1.0.1");
+    write_provider(&workspace, to);
     pnpm(&workspace, &["install", "--lockfile-only"]);
-    assert_eq!(host_keys(&workspace), [format!("{HOST}(@pnpm.e2e/peer-c@1.0.1)")]);
-    assert_eq!(peer_c_versions(&workspace), ["1.0.1"]);
+    assert_eq!(host_keys(&workspace), [format!("{HOST}(@pnpm.e2e/peer-c@{to})")]);
+    assert_eq!(peer_c_versions(&workspace), [to]);
 
     drop((root, mock_instance));
 }

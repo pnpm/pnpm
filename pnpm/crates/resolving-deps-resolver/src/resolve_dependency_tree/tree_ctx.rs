@@ -527,10 +527,13 @@ impl TreeCtx {
         out
     }
 
-    /// The `locked` versions of `names` this run has resolved into the
-    /// settled reachable tree. A locked version outside it survives only
-    /// as a lockfile weight: whatever provided it has moved on.
-    pub(crate) fn run_resolved_locked_versions<'name>(
+    /// The versions the optional-peer picker should prefer for each of
+    /// `names`: the `locked` ones this run has resolved into the settled
+    /// reachable tree, else every version the run resolved, else the
+    /// `locked` ones. A locked version outside the run survives only as a
+    /// lockfile weight, whatever provided it has moved on, so it must not
+    /// outrank what the graph now holds, whichever way the provider moved.
+    pub(crate) fn preferred_optional_peer_versions<'name>(
         &self,
         locked: &HashMap<String, HashSet<String>>,
         names: impl Iterator<Item = &'name str>,
@@ -538,21 +541,33 @@ impl TreeCtx {
         let run = self.workspace.run_preferred_versions();
         let mut out = HashMap::default();
         for name in names {
-            let (Some(versions), Some(resolved)) = (locked.get(name), run.versions.get(name))
-            else {
-                continue;
-            };
-            let reached: HashSet<String> = versions
-                .iter()
-                .filter(|version| resolved.contains_key(version.as_str()))
-                .cloned()
+            let resolved: HashSet<String> = run.versions
+                .get(name)
+                .into_iter()
+                .flat_map(|bucket| bucket.keys().cloned())
                 .collect();
-            if !reached.is_empty() {
-                out.insert(name.to_string(), reached);
+            let preferred = prefer_locked_among_resolved(locked.get(name), resolved);
+            if !preferred.is_empty() {
+                out.insert(name.to_string(), preferred);
             }
         }
         out
     }
+}
+
+fn prefer_locked_among_resolved(
+    locked: Option<&HashSet<String>>,
+    resolved: HashSet<String>,
+) -> HashSet<String> {
+    let Some(locked) = locked else { return resolved };
+    if resolved.is_empty() {
+        return locked.clone();
+    }
+    let reached: HashSet<String> = locked
+        .intersection(&resolved)
+        .cloned()
+        .collect();
+    if reached.is_empty() { resolved } else { reached }
 }
 
 fn create_subdep_options(base_opts: &ResolveOptions) -> ResolveOptions {

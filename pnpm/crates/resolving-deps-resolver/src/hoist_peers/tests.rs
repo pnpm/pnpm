@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 
 use super::{
     HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-    get_hoistable_optional_peers_with_locked_versions, hoist_peers,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
 };
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
@@ -284,7 +284,7 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(
+        get_hoistable_optional_peers_with_preferred_versions(
             &missing,
             &preferred,
             &[],
@@ -310,7 +310,7 @@ fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph(
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(
+        get_hoistable_optional_peers_with_preferred_versions(
             &missing,
             &preferred,
             &[],

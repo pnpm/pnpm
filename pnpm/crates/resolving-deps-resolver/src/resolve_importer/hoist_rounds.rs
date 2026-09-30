@@ -3,7 +3,7 @@ use super::{
     HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
     PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver, WantedSpec,
     WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
-    get_hoistable_optional_peers_with_locked_versions, hoist_peers, index_missing_names,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
 
@@ -339,8 +339,8 @@ impl ImporterHoistState {
         let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
         let hoist_preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
-        let locked_versions =
-            self.ctx.run_resolved_locked_versions(&self.selection.locked_versions, names());
+        let preferred_versions =
+            self.ctx.preferred_optional_peer_versions(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let workspace = self.ctx.workspace();
         let peer_ranges = CandidatePeerRanges::new(workspace);
@@ -351,11 +351,11 @@ impl ImporterHoistState {
                     peers_accept_provided_versions(&ranges, &provided_peer_versions)
                 })
         };
-        get_hoistable_optional_peers_with_locked_versions(
+        get_hoistable_optional_peers_with_preferred_versions(
             &self.dependencies.all_missing_optional_peers,
             &hoist_preferred,
             self.hoist_root_deps(),
-            &locked_versions,
+            &preferred_versions,
             &accepts_candidate,
         )
     }
