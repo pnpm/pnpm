@@ -54,14 +54,6 @@ pub(super) struct UpdateScope<'a> {
     pub(super) max_depth: UpdateDepth,
 }
 
-impl UpdateScope<'_> {
-    /// Whether the update reopens every edge at every depth, so no locked
-    /// version survives it.
-    pub(super) fn unpins_every_edge(self) -> bool {
-        matches!(self.reuse, UpdateReuseScope::None) && self.max_depth == UpdateDepth::UNLIMITED
-    }
-}
-
 /// How the current [`fn@resolve_node`] call may reuse the prior
 /// lockfile's resolution instead of re-resolving from the registry.
 ///
