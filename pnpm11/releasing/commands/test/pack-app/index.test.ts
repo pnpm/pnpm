@@ -74,6 +74,16 @@ describe('pack-app command', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FILE' })
   })
 
+  it('accepts an entry inside a project directory whose name starts with two dots', async () => {
+    fs.mkdirSync(path.join(tempDir, '..build'))
+    fs.writeFileSync(path.join(tempDir, '..build', 'entry.cjs'), 'module.exports = {}')
+    // With a contained entry but no target, we hit MISSING_TARGET.
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+      handler({ ...baseOpts(), entry: '..build/entry.cjs' } as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
+  })
+
   it.each([
     ['parent traversal', '../outside.cjs'],
     ['deep traversal', '../../etc/passwd'],
