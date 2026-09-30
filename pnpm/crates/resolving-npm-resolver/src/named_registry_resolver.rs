@@ -192,10 +192,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         opts: &ResolveOptions,
         optional: bool,
     ) -> Result<RegistryPick, ResolveError> {
-        let overlay = crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors = overlay
-            .as_ref()
-            .or_else(|| opts.version.preferred_versions.get(&spec.name));
+        let selectors = crate::preferred_overlay::preferred_selectors(opts, &spec.name);
+        let base_selectors = selectors.as_deref();
         let ctx =
             self.metadata.pick_context(&self.format, self.cache_policy, self.store_view.as_ref());
         let pick_opts =

@@ -34,6 +34,7 @@ fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
         Vec::new(),
         None,
         false,
+        false,
     ))
 }
 
@@ -202,4 +203,22 @@ fn rejects_resolutions_that_are_not_shareable_workspace_links() {
     let mut mismatched = directory_result("link:../shared", "workspace");
     mismatched.id = PkgResolutionId::from("link:../other".to_string());
     assert_eq!(canonical_workspace_resolution(&mismatched, project_dir, lockfile_dir), None);
+}
+
+#[test]
+fn current_version_preference_separates_both_cache_keys() {
+    let wanted = wanted("workspace:^");
+    let options = opts("/repo/packages/a");
+    let ctx = TreeCtx::new(options.clone());
+    let unpinned = key(&wanted, "/repo/packages/a");
+    let mut fields = unpinned.fields().clone();
+    fields.11 = true;
+    let pinned = WantedKey::new(fields);
+    assert_ne!(unpinned, pinned);
+    assert_ne!(
+        super::super::workspace_resolution::shared_workspace_key(
+            &ctx, &unpinned, &wanted, &options
+        ),
+        super::super::workspace_resolution::shared_workspace_key(&ctx, &pinned, &wanted, &options),
+    );
 }

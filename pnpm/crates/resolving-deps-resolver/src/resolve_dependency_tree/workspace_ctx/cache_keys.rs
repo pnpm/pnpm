@@ -53,10 +53,11 @@ use super::{
 /// which from `packages/app` points at the non-existent
 /// `packages/app/packages/lib`.
 ///
-/// The final two fields isolate importers with active update policies
+/// The update fields isolate importers with active update policies
 /// and record whether this wanted dependency is an explicit update target.
 /// Ordinary keep-all importers use no importer scope and retain the existing
-/// cross-importer cache sharing.
+/// cross-importer cache sharing. The final field separates edges that prefer
+/// their current version from edges that use workspace-wide selectors.
 ///
 /// [`Resolver::resolve`]: pnpm_resolving_resolver_base::Resolver::resolve
 /// [`WantedDependency`]: pnpm_resolving_resolver_base::WantedDependency
@@ -73,6 +74,7 @@ pub(in super::super) type WantedKeyFields = (
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<(String, u32)>)>,
     Option<String>,
+    bool,
     bool,
 );
 
@@ -98,7 +100,7 @@ impl WantedKey {
         let mut hasher = rustc_hash::FxHasher::default();
         (
             &fields.0, &fields.1, &fields.2, &fields.3, &fields.4, &fields.5, &fields.7, &fields.8,
-            &fields.9, &fields.10,
+            &fields.9, &fields.10, &fields.11,
         )
             .hash(&mut hasher);
         let scopeless_hash = hasher.clone().finish();
@@ -125,6 +127,7 @@ impl WantedKey {
             && left.8 == right.8
             && left.9 == right.9
             && left.10 == right.10
+            && left.11 == right.11
     }
 }
 
