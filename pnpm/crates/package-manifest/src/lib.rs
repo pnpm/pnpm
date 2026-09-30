@@ -36,6 +36,7 @@ mod error;
 mod json5;
 mod project;
 mod truthiness;
+mod validation;
 
 #[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
 pub enum DependencyGroup {

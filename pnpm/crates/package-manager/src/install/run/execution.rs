@@ -28,12 +28,7 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        if scope.is_already_up_to_date::<Reporter>(
-            self.install,
-            &self.owned,
-            &self.mode,
-            &self.workspace,
-        )? {
+        if self.can_skip_install::<Reporter>(&scope)? {
             Reporter::emit(&LogEvent::Summary(SummaryLog {
                 level: LogLevel::Debug,
                 prefix: self.workspace.prefix,
@@ -52,6 +47,7 @@ impl<'a> RunExecution<'a> {
         .await?;
         let manifests = std::mem::take(&mut loaded.manifests);
         let project_manifests = manifests.view(&scope.project_manifests);
+        self.validate_project_manifests(&project_manifests)?;
         let lockfiles = settle_wanted_lockfile::<Reporter>(
             self.install,
             &self.mode,
