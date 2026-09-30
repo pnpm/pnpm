@@ -17,7 +17,7 @@ import {
 } from '../../src/install/tryFastUpdatePatchedDependencies.js'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 function trackRequestedPackages (storeController: StoreController): string[] {
   const requestedPackages: string[] = []
@@ -172,7 +172,7 @@ test('an unchanged configuration does not claim the install', () => {
 
 test('adding a patch for a locked package rekeys it without resolution', async () => {
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const manifest: ProjectManifest = { dependencies: { 'is-positive': '1.0.0' } }
   const options = testDefaults()
 
@@ -213,7 +213,7 @@ test('adding a patch for a locked package rekeys it without resolution', async (
 
 test('a removal that orphans an allowed unused patch still reports it', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const manifest: ProjectManifest = {
     dependencies: { 'is-positive': '1.0.0', '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
   }
@@ -251,7 +251,7 @@ test('a removal that orphans an allowed unused patch still reports it', async ()
 })
 
 test('the rekeyed lockfile matches what a full resolution writes', async () => {
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const manifest: ProjectManifest = { dependencies: { 'is-positive': '1.0.0' } }
 
   const rekeyed = prepareEmpty()

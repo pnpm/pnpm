@@ -12,7 +12,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = temporaryDirectory()
@@ -51,7 +51,7 @@ const DEFAULT_OPTS = {
 
 test('import from package-lock.json', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  f.prepare('has-package-lock-json')
+  testFixtures.prepare('has-package-lock-json')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -70,7 +70,7 @@ test('import from package-lock.json', async () => {
 
 test('import preserves the project lockfile when lockfileDir points elsewhere', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  f.prepare('has-package-lock-json')
+  testFixtures.prepare('has-package-lock-json')
   const dir = process.cwd()
   const lockfileDir = path.join(dir, 'lockfile')
   await fs.mkdir(lockfileDir)
@@ -91,7 +91,7 @@ test('import preserves the project lockfile when lockfileDir points elsewhere', 
 
 test('import preserves the env document in an external lockfile', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  f.prepare('has-package-lock-json')
+  testFixtures.prepare('has-package-lock-json')
   const dir = process.cwd()
   const lockfileDir = path.join(dir, 'lockfile')
   await fs.mkdir(lockfileDir)
@@ -112,7 +112,7 @@ test('import preserves the env document in an external lockfile', async () => {
 })
 
 test.each(['missing', 'malformed', 'unresolvable'])('failed import preserves the external lockfile with %s input', async (input) => {
-  f.prepare('has-package-lock-json')
+  testFixtures.prepare('has-package-lock-json')
   const dir = process.cwd()
   const lockfileDir = path.join(dir, 'lockfile')
   await fs.mkdir(lockfileDir)
@@ -145,7 +145,7 @@ test.each([
   { failure: true, existingBranch: false },
 ])('import preserves the shared lockfile with branch lockfiles ($failure, $existingBranch)', async ({ failure, existingBranch }) => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  f.prepare('has-package-lock-json')
+  testFixtures.prepare('has-package-lock-json')
   const dir = process.cwd()
   const lockfileDir = path.join(dir, 'lockfile')
   await fs.mkdir(lockfileDir)
@@ -204,7 +204,7 @@ test.each([
 test('import from yarn.lock', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  f.prepare('has-yarn-lock')
+  testFixtures.prepare('has-yarn-lock')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -222,7 +222,7 @@ test('import from yarn.lock', async () => {
 })
 
 test('import from yarn2 lock file', async () => {
-  f.prepare('has-yarn2-lock')
+  testFixtures.prepare('has-yarn2-lock')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -243,7 +243,7 @@ test('import from yarn2 lock file', async () => {
 test('import from npm-shrinkwrap.json', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  f.prepare('has-npm-shrinkwrap-json')
+  testFixtures.prepare('has-npm-shrinkwrap-json')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
@@ -275,7 +275,7 @@ test('import fails when no lockfiles are found', async () => {
 
 test('import from package-lock.json v3', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  f.prepare('has-package-lock-v3-json')
+  testFixtures.prepare('has-package-lock-v3-json')
 
   await importCommand.handler({
     ...DEFAULT_OPTS,

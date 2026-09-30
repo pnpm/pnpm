@@ -955,7 +955,7 @@ test('createVersionsOverrider() explicit overrides win over a convergence overri
   })
 })
 
-test('createVersionsOverrider() collects declared ranges of convergence-governed packages', () => {
+test('createVersionsOverrider() collects declared ranges of convergence-governed packages', async () => {
   const convergeDeclaredRanges = new Map<string, Set<string>>()
   const overrider = createVersionsOverrider([
     {
@@ -964,13 +964,13 @@ test('createVersionsOverrider() collects declared ranges of convergence-governed
       converge: true,
     },
   ], process.cwd(), { convergeDeclaredRanges })
-  overrider({
+  await overrider({
     dependencies: {
       foo: '^4.0.5',
       bar: '^1.0.0',
     },
   })
-  overrider({
+  await overrider({
     dependencies: {
       foo: '^3.0.0',
     },

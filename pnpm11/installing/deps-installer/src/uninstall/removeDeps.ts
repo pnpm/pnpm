@@ -17,40 +17,28 @@ export async function removeDeps (
     // `Object.hasOwn` rules out `__proto__`, `constructor`, etc. on `opts.saveType`,
     // so the dynamic read can never land on `Object.prototype`.
     if (Object.hasOwn(packageManifest, opts.saveType)) {
-      const targetDeps = packageManifest[opts.saveType]
-      if (targetDeps != null) {
-        for (const dependency of removedPackages) {
-          removeOwnEntry(targetDeps, dependency)
-        }
-      }
+      removeOwnEntries(packageManifest[opts.saveType], removedPackages)
     }
   } else {
     for (const depField of DEPENDENCIES_FIELDS) {
-      const fieldDeps = packageManifest[depField]
-      if (!fieldDeps) continue
-      for (const dependency of removedPackages) {
-        removeOwnEntry(fieldDeps, dependency)
-      }
+      removeOwnEntries(packageManifest[depField], removedPackages)
     }
   }
-  if (packageManifest.peerDependencies != null) {
-    const peerDeps = packageManifest.peerDependencies
-    for (const removedDependency of removedPackages) {
-      removeOwnEntry(peerDeps, removedDependency)
-    }
-  }
-  if (packageManifest.dependenciesMeta != null) {
-    const depsMeta = packageManifest.dependenciesMeta
-    for (const removedDependency of removedPackages) {
-      removeOwnEntry(depsMeta, removedDependency)
-    }
-  }
+  removeOwnEntries(packageManifest.peerDependencies, removedPackages)
+  removeOwnEntries(packageManifest.dependenciesMeta, removedPackages)
 
   packageManifestLogger.debug({
     prefix: opts.prefix,
     updated: packageManifest,
   })
   return packageManifest
+}
+
+function removeOwnEntries (target: Record<string, unknown> | undefined, keys: string[]): void {
+  if (!target) return
+  for (const key of keys) {
+    removeOwnEntry(target, key)
+  }
 }
 
 /**

@@ -1,6 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+import { once } from 'ramda'
 import semver from 'semver'
 
 export interface FindInjectedWorkspaceDepOptions {
@@ -17,38 +18,55 @@ export interface FindInjectedWorkspaceDepOptions {
  * `undefined` when there is none.
  */
 export function findInjectedWorkspaceDep (manifests: ProjectManifest[], opts: FindInjectedWorkspaceDepOptions): string | undefined {
-  let workspacePackages: Map<string, Array<string | undefined>> | undefined
-  const getWorkspacePackages = (): Map<string, Array<string | undefined>> => {
-    if (workspacePackages != null) return workspacePackages
-    workspacePackages = new Map()
-    for (const { name, version } of opts.workspaceManifests) {
-      if (typeof name !== 'string') continue
-      const ver = typeof version === 'string' ? version : undefined
-      const versions = workspacePackages.get(name)
-      if (versions != null) {
-        versions.push(ver)
-      } else {
-        workspacePackages.set(name, [ver])
-      }
-    }
-    return workspacePackages
+  const ctx: InjectedDepSearchContext = {
+    ...opts,
+    getWorkspacePackages: once(() => indexWorkspacePackages(opts.workspaceManifests)),
+    linkWorkspacePackages: opts.linkWorkspacePackages !== false,
   }
-  const linkWorkspacePackages = opts.linkWorkspacePackages !== false
   for (const manifest of manifests) {
-    for (const depField of DEPENDENCIES_FIELDS) {
-      if (opts.include?.[depField] === false) continue
-      const deps = manifest[depField]
-      if (deps == null) continue
-      for (const [alias, spec] of Object.entries(deps)) {
-        if (manifest.dependenciesMeta?.[alias]?.injected === true) return alias
-        if (opts.injectWorkspacePackages !== true) continue
-        if (typeof spec !== 'string') continue
-        const actualSpec = dereferenceCatalog(alias, spec, opts.catalogs)
-        if (actualSpec != null && resolvesToWorkspacePackage(alias, actualSpec, getWorkspacePackages(), linkWorkspacePackages)) return alias
-      }
+    const alias = findInjectedDepInManifest(manifest, ctx)
+    if (alias != null) return alias
+  }
+  return undefined
+}
+
+type WorkspacePackageVersions = Map<string, Array<string | undefined>>
+
+interface InjectedDepSearchContext extends Omit<FindInjectedWorkspaceDepOptions, 'linkWorkspacePackages'> {
+  getWorkspacePackages: () => WorkspacePackageVersions
+  linkWorkspacePackages: boolean
+}
+
+function indexWorkspacePackages (workspaceManifests: ProjectManifest[]): WorkspacePackageVersions {
+  const workspacePackages: WorkspacePackageVersions = new Map()
+  for (const { name, version } of workspaceManifests) {
+    if (typeof name !== 'string') continue
+    const ver = typeof version === 'string' ? version : undefined
+    const versions = workspacePackages.get(name)
+    if (versions != null) {
+      versions.push(ver)
+    } else {
+      workspacePackages.set(name, [ver])
+    }
+  }
+  return workspacePackages
+}
+
+function findInjectedDepInManifest (manifest: ProjectManifest, ctx: InjectedDepSearchContext): string | undefined {
+  for (const depField of DEPENDENCIES_FIELDS) {
+    if (ctx.include?.[depField] === false) continue
+    for (const [alias, spec] of Object.entries(manifest[depField] ?? {})) {
+      if (manifest.dependenciesMeta?.[alias]?.injected === true || resolvesToInjectedWorkspacePackage(alias, spec, ctx)) return alias
     }
   }
   return undefined
+}
+
+function resolvesToInjectedWorkspacePackage (alias: string, spec: unknown, ctx: InjectedDepSearchContext): boolean {
+  if (ctx.injectWorkspacePackages !== true) return false
+  if (typeof spec !== 'string') return false
+  const actualSpec = dereferenceCatalog(alias, spec, ctx.catalogs)
+  return actualSpec != null && resolvesToWorkspacePackage(alias, actualSpec, ctx.getWorkspacePackages(), ctx.linkWorkspacePackages)
 }
 
 function dereferenceCatalog (alias: string, spec: string, catalogs?: Catalogs): string | undefined {
@@ -60,7 +78,7 @@ function dereferenceCatalog (alias: string, spec: string, catalogs?: Catalogs): 
 function resolvesToWorkspacePackage (
   alias: string,
   spec: string,
-  workspacePackages: Map<string, Array<string | undefined>>,
+  workspacePackages: WorkspacePackageVersions,
   linkWorkspacePackages: boolean
 ): boolean {
   if (spec.startsWith('workspace:')) {

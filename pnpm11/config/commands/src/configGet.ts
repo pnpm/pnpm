@@ -21,19 +21,7 @@ interface Found<Value> {
 
 function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boolean): Found<unknown> | undefined {
   if (isScopedKey) {
-    // Scoped registry keys (e.g. `@scope:registry`) can be set in two places:
-    // `.npmrc` (which lands in authConfig) or pnpm-workspace.yaml's
-    // `registries` block (which lands in the merged Config.registries map).
-    // Prefer the merged map so this command reports the same value that
-    // `pnpm publish` and the resolvers actually use.
-    if (key.endsWith(':registry')) {
-      const scope = key.slice(0, key.length - ':registry'.length)
-      const merged = opts._config.registriesByScope?.[scope]
-      if (merged !== undefined) {
-        return { value: merged }
-      }
-    }
-    return { value: opts.authConfig[key] }
+    return lookupScopedKey(opts, key)
   }
   if (key === 'globalconfig') {
     return { value: getGlobalConfigPath(opts.configDir) }
@@ -45,19 +33,8 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   if (kebabKey === 'registry') {
     return { value: opts._config.registriesByScope?.default ?? opts.authConfig.registry }
   }
-  // Resolve typed keys from Config — check explicitly set values first,
-  // then fall back to authConfig (for keys like registry set in .npmrc)
   if (Object.hasOwn(types, kebabKey)) {
-    const camelKey = camelcase(kebabKey, { locale: 'en-US' })
-    const explicit = opts._context.explicitlySetKeys
-    if (!explicit || explicit.has(camelKey)) {
-      return { value: (opts._config as unknown as Record<string, unknown>)[camelKey] }
-    }
-    // Fall back to authConfig for INI keys (registry, ca, etc.)
-    if (kebabKey in opts.authConfig) {
-      return { value: opts.authConfig[kebabKey] }
-    }
-    return { value: undefined }
+    return lookupTypedKey(opts, kebabKey)
   }
   // Auth-specific INI keys (//host:_authToken, _auth, etc.) from authConfig
   if (isIniConfigKey(key)) {
@@ -71,6 +48,39 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
     return { value: record[camelKey] }
   }
   return undefined
+}
+
+function lookupScopedKey (opts: ConfigCommandOptions, key: string): Found<unknown> {
+  // Scoped registry keys (e.g. `@scope:registry`) can be set in two places:
+  // `.npmrc` (which lands in authConfig) or pnpm-workspace.yaml's
+  // `registries` block (which lands in the merged Config.registries map).
+  // Prefer the merged map so this command reports the same value that
+  // `pnpm publish` and the resolvers actually use.
+  if (key.endsWith(':registry')) {
+    const scope = key.slice(0, key.length - ':registry'.length)
+    const merged = opts._config.registriesByScope?.[scope]
+    if (merged !== undefined) {
+      return { value: merged }
+    }
+  }
+  return { value: opts.authConfig[key] }
+}
+
+/**
+ * Resolves typed keys from Config, checking explicitly set values first,
+ * then falling back to authConfig (for keys like registry set in .npmrc).
+ */
+function lookupTypedKey (opts: ConfigCommandOptions, kebabKey: string): Found<unknown> {
+  const camelKey = camelcase(kebabKey, { locale: 'en-US' })
+  const explicit = opts._context.explicitlySetKeys
+  if (!explicit || explicit.has(camelKey)) {
+    return { value: (opts._config as unknown as Record<string, unknown>)[camelKey] }
+  }
+  // Fall back to authConfig for INI keys (registry, ca, etc.)
+  if (kebabKey in opts.authConfig) {
+    return { value: opts.authConfig[kebabKey] }
+  }
+  return { value: undefined }
 }
 
 function lookupByPropertyPath (opts: ConfigCommandOptions, propertyPath: string): Found<unknown> {

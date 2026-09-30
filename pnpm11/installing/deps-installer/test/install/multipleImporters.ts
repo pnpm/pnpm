@@ -2112,7 +2112,7 @@ test("a direct-dependency bump in one importer converges another importer's tran
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   await mutateModules(importers, testDefaults({ allProjects: allProjects('100.1.0') }))
 
-  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   // All importers' direct deps resolve before any transitive, so project-2's
   // bumped 100.1.0 is in scope when project-1's transitive edge re-resolves.
   // The refresh converges that edge to 100.1.0 too — matching a fresh install
@@ -2147,7 +2147,7 @@ test('adding an unrelated dependency does not re-resolve existing dependency to 
     { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
   ], testDefaults({ allProjects: allProjects1 }))
 
-  let lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  let lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -2175,7 +2175,7 @@ test('adding an unrelated dependency does not re-resolve existing dependency to 
     { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
   ], testDefaults({ allProjects: allProjects2 }))
 
-  lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
 
@@ -2209,7 +2209,7 @@ test('adding an unrelated dependency does not re-resolve existing dependency to 
     },
   ], testDefaults({ allProjects: allProjects3 }))
 
-  lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
 })
@@ -2251,7 +2251,7 @@ test('secondary dependency resolves to local project direct dependency version i
     { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
   ], testDefaults({ allProjects }))
 
-  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
   expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')

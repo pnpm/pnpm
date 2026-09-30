@@ -68,25 +68,33 @@ async function killProcesses (status: number): Promise<void> {
     // recorded at their spawn sites.
     await killTrackedProcessTrees()
   } else {
-    try {
-      const descendentProcesses = await Promise.race([
-        getDescendentProcesses(process.pid).catch(() => [] as number[]),
-        new Promise<number[]>((resolve) => {
-          setTimeout(() => resolve([]), DESCENDANT_LOOKUP_TIMEOUT).unref()
-        }),
-      ])
-      for (const pid of descendentProcesses) {
-        try {
-          process.kill(pid)
-        } catch {
-          // ignore error here
-        }
-      }
-    } catch {
-      // ignore error here
-    }
+    await killDescendantProcesses()
   }
   await exit(status)
+}
+
+async function killDescendantProcesses (): Promise<void> {
+  try {
+    const descendentProcesses = await Promise.race([
+      getDescendentProcesses(process.pid).catch(() => [] as number[]),
+      new Promise<number[]>((resolve) => {
+        setTimeout(() => resolve([]), DESCENDANT_LOOKUP_TIMEOUT).unref()
+      }),
+    ])
+    for (const pid of descendentProcesses) {
+      killIgnoringErrors(pid)
+    }
+  } catch {
+    // ignore error here
+  }
+}
+
+function killIgnoringErrors (pid: number): void {
+  try {
+    process.kill(pid)
+  } catch {
+    // ignore error here
+  }
 }
 
 function getWebAuthUrls (error: Error & { code?: string, authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } | undefined {

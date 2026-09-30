@@ -20,13 +20,14 @@ export async function removeDirectDependency (
   }
 ): Promise<void> {
   const dependencyDir = path.join(opts.modulesDir, dependency.name)
-  const results = await Promise.all([
-    removeBinsOfDependency(dependencyDir, opts),
-    !opts.dryRun && removeBin(dependencyDir) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  ])
+  // The bins are found through the dependency's manifest, so the dependency
+  // directory is removed only after they are.
+  const uninstalledPkg = await removeBinsOfDependency(dependencyDir, opts)
+  if (!opts.dryRun) {
+    await removeBin(dependencyDir)
+  }
   await removeIfEmpty(opts.binsDir)
 
-  const uninstalledPkg = results[0]
   if (!opts.muteLogs) {
     rootLogger.debug({
       prefix: opts.rootDir,

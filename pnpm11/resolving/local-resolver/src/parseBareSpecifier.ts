@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
-// @ts-expect-error
+// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i

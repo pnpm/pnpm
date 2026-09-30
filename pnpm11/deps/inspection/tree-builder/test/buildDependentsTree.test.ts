@@ -17,13 +17,43 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
   return relative
 }
 
+type MockPackages = Record<string, { version: string, manifest: Record<string, unknown>, deps?: string[] }>
+
+function resolveMockDependencies (depNames: string[], packages: MockPackages): Record<string, string> {
+  const deps: Record<string, string> = {}
+  for (const dep of depNames) {
+    const depPkg = packages[dep]
+    if (depPkg) {
+      deps[dep] = refToRelativeOrThrow(depPkg.version, dep)
+    }
+  }
+  return deps
+}
+
+/**
+ * Adds leaf packages that are referenced as dependencies but not in the packages map.
+ */
+function addMissingLeafPackages (packages: MockPackages, currentPackages: PackageSnapshots): void {
+  for (const [, info] of Object.entries(packages)) {
+    for (const dep of info.deps ?? []) {
+      const depPath = refToRelativeOrThrow(packages[dep]?.version ?? '1.0.0', dep)
+      if (currentPackages[depPath] == null) {
+        currentPackages[depPath] = {
+          resolution: { integrity: `${dep}-mock-integrity` },
+          dependencies: {},
+        }
+      }
+    }
+  }
+}
+
 /**
  * Creates a temporary directory with a minimal virtual store structure so that
  * `buildDependentsTree` can resolve package paths and read manifests.
  *
  * Returns the lockfileDir path and a cleanup function.
  */
-function createMockProject (packages: Record<string, { version: string, manifest: Record<string, unknown>, deps?: string[] }>): {
+function createMockProject (packages: MockPackages): {
   lockfileDir: string
   currentPackages: PackageSnapshots
   importers: Record<ProjectId, ProjectSnapshot>
@@ -44,32 +74,13 @@ function createMockProject (packages: Record<string, { version: string, manifest
       ...info.manifest,
     }))
 
-    const deps: Record<string, string> = {}
-    for (const dep of info.deps ?? []) {
-      const depPkg = packages[dep]
-      if (depPkg) {
-        deps[dep] = refToRelativeOrThrow(depPkg.version, dep)
-      }
-    }
-
     currentPackages[depPath] = {
       resolution: { integrity: `${pkgName}-mock-integrity` },
-      dependencies: deps,
+      dependencies: resolveMockDependencies(info.deps ?? [], packages),
     }
   }
 
-  // Add leaf packages that are referenced as dependencies but not in the packages map
-  for (const [, info] of Object.entries(packages)) {
-    for (const dep of info.deps ?? []) {
-      const depPath = refToRelativeOrThrow(packages[dep]?.version ?? '1.0.0', dep)
-      if (currentPackages[depPath] == null) {
-        currentPackages[depPath] = {
-          resolution: { integrity: `${dep}-mock-integrity` },
-          dependencies: {},
-        }
-      }
-    }
-  }
+  addMissingLeafPackages(packages, currentPackages)
 
   // Single root importer that depends on all top-level packages
   const rootDeps: Record<string, string> = {}
@@ -132,6 +143,35 @@ describe('buildDependentsTree', () => {
     }
   })
 
+  test('a dependency named like an Object.prototype property is reported under its own field', async () => {
+    const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
+      constructor: { version: '1.0.0', manifest: {} },
+    })
+    try {
+      importers['.' as ProjectId] = {
+        dependencies: { constructor: '1.0.0' },
+        devDependencies: {},
+        optionalDependencies: {},
+        specifiers: {},
+      }
+      const trees = await buildDependentsTree(['constructor'], [lockfileDir], {
+        lockfileDir,
+        importerInfoMap: new Map([['.', { name: 'my-project', version: '0.0.0' }]]),
+        lockfile: {
+          lockfileVersion: '9.0',
+          importers,
+          packages: currentPackages,
+        },
+      })
+
+      expect(trees[0].dependents).toStrictEqual([
+        { name: 'my-project', version: '0.0.0', depField: 'dependencies' },
+      ])
+    } finally {
+      cleanup()
+    }
+  })
+
   describe('nameFormatter', () => {
     test('populates displayName on matched root and intermediate nodes', async () => {
       const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
@@ -161,8 +201,8 @@ describe('buildDependentsTree', () => {
             packages: currentPackages,
           },
           nameFormatter: ({ manifest }) => {
-            const m = manifest as unknown as Record<string, unknown>
-            return typeof m.componentName === 'string' ? m.componentName : undefined
+            const manifestFields = manifest as unknown as Record<string, unknown>
+            return typeof manifestFields.componentName === 'string' ? manifestFields.componentName : undefined
           },
         })
 
@@ -173,12 +213,12 @@ describe('buildDependentsTree', () => {
 
         // The dependents should include mid (which itself depends on target)
         // and the root importer
-        const midNode = trees[0].dependents.find(d => d.name === 'mid')
+        const midNode = trees[0].dependents.find(dependent => dependent.name === 'mid')
         expect(midNode).toBeDefined()
         expect(midNode!.displayName).toBe('utils/mid')
 
         // Importer node should not have displayName (nameFormatter is only for packages)
-        const importerNode = trees[0].dependents.find(d => d.name === 'my-project')
+        const importerNode = trees[0].dependents.find(dependent => dependent.name === 'my-project')
         if (importerNode) {
           expect(importerNode.displayName).toBeUndefined()
         }
@@ -239,8 +279,8 @@ describe('buildDependentsTree', () => {
             packages: currentPackages,
           },
           nameFormatter: ({ manifest }) => {
-            const m = manifest as unknown as Record<string, unknown>
-            return typeof m.componentName === 'string' ? m.componentName : undefined
+            const manifestFields = manifest as unknown as Record<string, unknown>
+            return typeof manifestFields.componentName === 'string' ? manifestFields.componentName : undefined
           },
         })
 

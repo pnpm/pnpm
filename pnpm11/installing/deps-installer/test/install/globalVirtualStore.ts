@@ -285,7 +285,7 @@ test('GVS re-links when allowBuilds changes', async () => {
   }))
 
   const hashAfter = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
-    .find((h) => h !== hashBefore)
+    .find((hash) => hash !== hashBefore)
 
   // A new hash directory should have been created
   expect(hashAfter).toBeDefined()
@@ -373,7 +373,7 @@ test('GVS: approve-builds scenario — install with no builds, then reinstall wi
 
   // Step 3: Verify the hash changed and build artifacts are in the new directory
   const hashesAfter = fs.readdirSync(pkgVersionDir)
-  const newHash = hashesAfter.find((h) => h !== hashBefore[0])
+  const newHash = hashesAfter.find((hash) => hash !== hashBefore[0])
   expect(newHash).toBeDefined()
   expect(newHash).not.toBe(hashBefore[0])
 
@@ -431,8 +431,8 @@ test('GVS removes an optional dependency whose build failed from its slot', asyn
   const parentVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-optional-dependency/1.0.0')
 
   // A repeat install leaves the package removed.
-  for (let i = 0; i < 2; i++) {
-    // eslint-disable-next-line no-await-in-loop
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // eslint-disable-next-line no-await-in-loop -- each install must see the store left by the previous one
     await install(manifest, opts)
 
     const hashes = fs.readdirSync(failedVersionDir)

@@ -21,48 +21,52 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['config', 'c']
 
+const SUBCOMMANDS_HELP = [
+  {
+    description: 'Set the config key to the value provided',
+    name: 'set',
+  },
+  {
+    description: 'Print the config value for the provided key',
+    name: 'get',
+  },
+  {
+    description: 'Remove the config key from the config file',
+    name: 'delete',
+  },
+  {
+    description: 'Show all the config settings',
+    name: 'list',
+  },
+]
+
+const OPTIONS_HELP = [
+  {
+    description: 'Sets the configuration in the global config file',
+    name: '--global',
+    shortAlias: '-g',
+  },
+  {
+    description: 'When set to "project", the pnpm-workspace.yaml file will be used if it exists. If only .npmrc exists, it will be used. If neither exists, a pnpm-workspace.yaml file will be created.',
+    name: '--location <project|global>',
+  },
+  {
+    description: 'Show all types of values in JSON format (not just objects and arrays)',
+    name: '--json',
+  },
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manage the pnpm configuration files.',
     descriptionLists: [
       {
         title: 'Commands',
-        list: [
-          {
-            description: 'Set the config key to the value provided',
-            name: 'set',
-          },
-          {
-            description: 'Print the config value for the provided key',
-            name: 'get',
-          },
-          {
-            description: 'Remove the config key from the config file',
-            name: 'delete',
-          },
-          {
-            description: 'Show all the config settings',
-            name: 'list',
-          },
-        ],
+        list: SUBCOMMANDS_HELP,
       },
       {
         title: 'Options',
-        list: [
-          {
-            description: 'Sets the configuration in the global config file',
-            name: '--global',
-            shortAlias: '-g',
-          },
-          {
-            description: 'When set to "project", the pnpm-workspace.yaml file will be used if it exists. If only .npmrc exists, it will be used. If neither exists, a pnpm-workspace.yaml file will be created.',
-            name: '--location <project|global>',
-          },
-          {
-            description: 'Show all types of values in JSON format (not just objects and arrays)',
-            name: '--json',
-          },
-        ],
+        list: OPTIONS_HELP,
       },
     ],
     url: docsUrl('config'),
@@ -84,28 +88,11 @@ export async function handler (opts: ConfigCommandOptions, params: string[]): Pr
       hint: help(),
     })
   }
-  if (opts.location) {
-    opts.global = opts.location === 'global'
-  } else if (opts.cliOptions['global'] == null) {
-    opts.global = true
-  }
+  applyConfigLocation(opts)
   switch (params[0]) {
     case 'set':
     case 'delete': {
-      if (!params[1]) {
-        throw new PnpmError('CONFIG_NO_PARAMS', `\`pnpm config ${params[0]}\` requires the config key`)
-      }
-      if (params[0] === 'set') {
-        let [key, value] = params.slice(1)
-        if (value == null) {
-          const parts = key.split('=')
-          key = parts.shift()!
-          value = parts.join('=')
-        }
-        return configSet(opts, key, value ?? '') as Promise<undefined>
-      } else {
-        return configSet(opts, params[1], null) as Promise<undefined>
-      }
+      return setOrDeleteConfig(opts, params)
     }
     case 'get': {
       if (params[1]) {
@@ -120,5 +107,30 @@ export async function handler (opts: ConfigCommandOptions, params: string[]): Pr
     default: {
       throw new PnpmError('CONFIG_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
     }
+  }
+}
+
+function applyConfigLocation (opts: ConfigCommandOptions): void {
+  if (opts.location) {
+    opts.global = opts.location === 'global'
+  } else if (opts.cliOptions['global'] == null) {
+    opts.global = true
+  }
+}
+
+async function setOrDeleteConfig (opts: ConfigCommandOptions, params: string[]): Promise<undefined> {
+  if (!params[1]) {
+    throw new PnpmError('CONFIG_NO_PARAMS', `\`pnpm config ${params[0]}\` requires the config key`)
+  }
+  if (params[0] === 'set') {
+    let [key, value] = params.slice(1)
+    if (value == null) {
+      const parts = key.split('=')
+      key = parts.shift()!
+      value = parts.join('=')
+    }
+    return configSet(opts, key, value ?? '') as Promise<undefined>
+  } else {
+    return configSet(opts, params[1], null) as Promise<undefined>
   }
 }

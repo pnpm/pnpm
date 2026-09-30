@@ -177,7 +177,7 @@ test('self-update', async () => {
   // hash symlink pointing to it. Use lstatSync to pick the real dir.
   const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
   const entries = fs.readdirSync(globalDir)
-  const installDirName = entries.find((e) => fs.lstatSync(path.join(globalDir, e)).isDirectory())
+  const installDirName = entries.find((entry) => fs.lstatSync(path.join(globalDir, entry)).isDirectory())
   expect(installDirName).toBeDefined()
   const installDir = path.join(globalDir, installDirName!)
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'node_modules/pnpm/package.json'), 'utf8'))
@@ -316,7 +316,7 @@ test('self-update by exact version', async () => {
   // Verify the package was installed in the global dir
   const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
   const entries = fs.readdirSync(globalDir)
-  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  const installDirName = entries.find((entry) => fs.statSync(path.join(globalDir, entry)).isDirectory())
   expect(installDirName).toBeDefined()
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
@@ -353,7 +353,7 @@ test('self-update installs the active pnpm version when it is missing from the g
 
   expect(output).toBe('Successfully updated pnpm to v9.1.0')
   const globalEntries = fs.readdirSync(opts.globalPkgDir)
-  const installDirName = globalEntries.find((e) => fs.lstatSync(path.join(opts.globalPkgDir, e)).isDirectory())
+  const installDirName = globalEntries.find((entry) => fs.lstatSync(path.join(opts.globalPkgDir, entry)).isDirectory())
   expect(installDirName).toBeDefined()
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.globalPkgDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
@@ -566,7 +566,7 @@ test('self-update does not write packageManagerDependencies when package manager
 })
 
 test('global self-update respects minimumReleaseAge: skips immature latest, no-op when older mature matches active', async () => {
-  // Reproduces #11655: a globally-installed pnpm (no project pin / no
+  // Reproduces pnpm/pnpm#11655: a globally-installed pnpm (no project pin / no
   // wantedPackageManager) must not jump to a "latest" version younger than
   // minimumReleaseAge. Active pnpm is mocked as 9.0.0 at the top of this
   // file. The registry's `latest` (9.1.0) is 8h old — immature — so the
@@ -1346,7 +1346,7 @@ test('self-update works globally without package.json', async () => {
   // Verify the package was installed in the global dir
   const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
   const globalEntries = fs.readdirSync(globalDir)
-  const globalInstallDir = globalEntries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  const globalInstallDir = globalEntries.find((entry) => fs.statSync(path.join(globalDir, entry)).isDirectory())
   expect(globalInstallDir).toBeDefined()
   expect(fs.existsSync(path.join(globalDir, globalInstallDir!, 'node_modules', 'pnpm', 'package.json'))).toBe(true)
 

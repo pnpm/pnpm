@@ -21,7 +21,7 @@ describe('parseLicenseFromManifest', () => {
   })
 
   // Pre-refactor license-scanner preferred `licenses` when both existed; we
-  // intentionally flip that to match npm's modern precedence — see #11248.
+  // intentionally flip that to match npm's modern precedence — see pnpm/pnpm#11248.
   test('prefers modern `license` over legacy `licenses` when both are present', () => {
     expect(parseLicenseFromManifest({
       license: 'Apache-2.0',

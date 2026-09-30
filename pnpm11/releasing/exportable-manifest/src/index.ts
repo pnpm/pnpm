@@ -127,7 +127,7 @@ export async function createExportableManifest (
   }
 
   for (const hook of opts?.hooks?.beforePacking ?? []) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- each hook receives the manifest returned by the previous one
     publishManifest = await hook(publishManifest, dir) ?? publishManifest
   }
 
@@ -180,7 +180,7 @@ function combineConverters (...converters: readonly PublishDependencyConverter[]
   return async (depName, depSpec, context) => {
     let bareSpecifier = depSpec
     for (const converter of converters) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- each converter receives the specifier returned by the previous one
       bareSpecifier = await converter(depName, bareSpecifier, context)
     }
     return bareSpecifier

@@ -31,7 +31,7 @@ import {
 } from './installGlobalPackages.js'
 import { hasPnpmCliDependency } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
-import { readInstalledPackages } from './readInstalledPackages.js'
+import { type InstalledGroupPackage, readInstalledPackages } from './readInstalledPackages.js'
 
 export type GlobalUpdateOptions = CreateStoreControllerOptions & {
   bin?: string
@@ -52,9 +52,29 @@ export async function handleGlobalUpdate (
   commands: CommandHandlerMap
 ): Promise<string | undefined> {
   const globalDir = opts.globalPkgDir!
-  const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
-  const scannedPackages = scanGlobalPackages(globalDir)
+  const packagesToUpdate = selectPackagesToUpdate(opts, params)
+  if (typeof packagesToUpdate === 'string') return packagesToUpdate
+
+  // Update each package group sequentially to avoid overwhelming the system
+
+  const { checked, changed } = await updateGlobalPackageGroups(
+    { opts, globalDir, globalBinDir: opts.bin!, commands },
+    packagesToUpdate
+  )
+  if (checked && !changed) {
+    logger.info({ message: 'Already up to date', prefix: opts.dir })
+  }
+  summaryLogger.debug({ prefix: globalDir })
+  return undefined
+}
+
+/**
+ * The groups `update -g` should update, or the message to print when there
+ * is nothing to update.
+ */
+function selectPackagesToUpdate (opts: GlobalUpdateOptions, params: string[]): GlobalPackageInfo[] | string {
+  const scannedPackages = scanGlobalPackages(opts.globalPkgDir!)
 
   if (scannedPackages.length === 0) {
     return 'No global packages found'
@@ -65,24 +85,33 @@ export async function handleGlobalUpdate (
   }
 
   // If specific packages are requested, filter to only groups containing them
-  let packagesToUpdate: GlobalPackageInfo[]
+  let packagesToUpdate = allPackages
   if (params.length > 0) {
     packagesToUpdate = allPackages.filter((pkg) =>
-      params.some((p) => Object.hasOwn(pkg.dependencies, p))
+      params.some((param) => Object.hasOwn(pkg.dependencies, param))
     )
     if (packagesToUpdate.length === 0) {
       return 'No matching global packages found'
     }
-  } else {
-    packagesToUpdate = allPackages
   }
   const selectedPackageHashes = opts.selectedPackageHashes
   if (selectedPackageHashes) {
     packagesToUpdate = packagesToUpdate.filter(({ hash }) => selectedPackageHashes.has(hash))
   }
+  return packagesToUpdate
+}
 
-  // Update each package group sequentially to avoid overwhelming the system
+interface GlobalUpdateContext {
+  opts: GlobalUpdateOptions
+  globalDir: string
+  globalBinDir: string
+  commands: CommandHandlerMap
+}
 
+async function updateGlobalPackageGroups (
+  ctx: GlobalUpdateContext,
+  packagesToUpdate: GlobalPackageInfo[]
+): Promise<{ checked: boolean, changed: boolean }> {
   let checked = false
   let changed = false
   for (const pkg of packagesToUpdate) {
@@ -92,13 +121,9 @@ export async function handleGlobalUpdate (
       continue
     }
     checked = true
-    changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop
+    changed = await updateGlobalPackageGroup(ctx, pkg) || changed // eslint-disable-line no-await-in-loop -- groups share the global bin directory, so they are updated one at a time
   }
-  if (checked && !changed) {
-    logger.info({ message: 'Already up to date', prefix: opts.dir })
-  }
-  summaryLogger.debug({ prefix: globalDir })
-  return undefined
+  return { checked, changed }
 }
 
 /**
@@ -119,23 +144,13 @@ function missingFileSourceWarning (pkg: GlobalPackageInfo): string | undefined {
 }
 
 async function updateGlobalPackageGroup (
-  opts: GlobalUpdateOptions,
-  globalDir: string,
-  globalBinDir: string,
-  pkg: GlobalPackageInfo,
-  commands: CommandHandlerMap
+  ctx: GlobalUpdateContext,
+  pkg: GlobalPackageInfo
 ): Promise<boolean> {
+  const { opts, globalDir, commands } = ctx
   const installDir = createInstallDir(globalDir)
   const groupOpts = withSharedApprovals(opts)
-  const downgradeCheck = await pinsForDowngrades(groupOpts, installDir, pkg)
-  const depSpecs = depSpecsForUpdate(pkg.dependencies, opts.latest, downgradeCheck.pins)
-  const comparison = downgradeCheck.candidate != null && downgradeCheck.pins.size === 0
-    ? downgradeCheck.candidate
-    : await installGroup(
-      { ...groupOpts, lockfileOnly: true, groupDependencies: pkg.dependencies },
-      installDir,
-      depSpecs
-    )
+  const { depSpecs, comparison } = await resolveGroupUpdate(groupOpts, installDir, pkg)
 
   // Equal lockfiles mean no new packages, not that the tree they describe is
   // still on disk. The modules manifest is what an install leaves behind.
@@ -163,32 +178,41 @@ async function updateGlobalPackageGroup (
     inheritedOpts: opts,
   }, commands)
 
+  await activateUpdatedGroup(ctx, { pkg, installDir })
+  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+  return true
+}
+
+/**
+ * The selectors to reinstall `pkg` with, and a lockfile-only resolution of
+ * them in `installDir` to compare against the active install.
+ */
+async function resolveGroupUpdate (
+  groupOpts: GlobalUpdateOptions,
+  installDir: string,
+  pkg: GlobalPackageInfo
+): Promise<{ depSpecs: string[], comparison: InstallGlobalPackagesResult }> {
+  const downgradeCheck = await pinsForDowngrades(groupOpts, installDir, pkg)
+  const depSpecs = depSpecsForUpdate(pkg.dependencies, groupOpts.latest, downgradeCheck.pins)
+  const comparison = downgradeCheck.candidate != null && downgradeCheck.pins.size === 0
+    ? downgradeCheck.candidate
+    : await installGroup(
+      { ...groupOpts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+      installDir,
+      depSpecs
+    )
+  return { depSpecs, comparison }
+}
+
+async function activateUpdatedGroup (
+  ctx: GlobalUpdateContext,
+  group: { pkg: GlobalPackageInfo, installDir: string }
+): Promise<void> {
+  const { globalDir, globalBinDir } = ctx
+  const { pkg, installDir } = group
   // Check for bin name conflicts with other global packages
   const pkgs = await readInstalledPackages(installDir)
-  let binsToSkip: Set<string>
-  try {
-    binsToSkip = await checkGlobalBinConflicts({
-      globalDir,
-      globalBinDir,
-      newPkgs: pkgs,
-      shouldSkip: (existingPkg) => existingPkg.hash === pkg.hash,
-    })
-  } catch (err) {
-    return cleanupFailedGlobalInstall(installDir, err)
-  }
-
-  let ownership: Awaited<ReturnType<typeof getGlobalBinOwnership>>
-  let retainedBinNames: Set<string>
-  try {
-    retainedBinNames = await getActualBinNames({ pkgs, binsToSkip })
-    ownership = await getGlobalBinOwnership(
-      globalDir,
-      [pkg],
-      retainedBinNames
-    )
-  } catch (err) {
-    return cleanupFailedGlobalInstall(installDir, err)
-  }
+  const { binsToSkip, retainedBinNames, ownership } = await planUpdatedGroupBins(ctx, { pkg, installDir, pkgs })
   const hashLink = getHashLink(globalDir, pkg.hash)
   const activatedBins = await activateGlobalInstall({
     installDir,
@@ -206,8 +230,36 @@ async function updateGlobalPackageGroup (
     activatedBins,
     protectedBins: ownership.protectedBins,
   })
-  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
-  return true
+}
+
+interface UpdatedGroupBins {
+  binsToSkip: Set<string>
+  retainedBinNames: Set<string>
+  ownership: Awaited<ReturnType<typeof getGlobalBinOwnership>>
+}
+
+async function planUpdatedGroupBins (
+  ctx: GlobalUpdateContext,
+  group: { pkg: GlobalPackageInfo, installDir: string, pkgs: InstalledGroupPackage[] }
+): Promise<UpdatedGroupBins> {
+  const { pkg, installDir, pkgs } = group
+  try {
+    const binsToSkip = await checkGlobalBinConflicts({
+      globalDir: ctx.globalDir,
+      globalBinDir: ctx.globalBinDir,
+      newPkgs: pkgs,
+      shouldSkip: (existingPkg) => existingPkg.hash === pkg.hash,
+    })
+    const retainedBinNames = await getActualBinNames({ pkgs, binsToSkip })
+    const ownership = await getGlobalBinOwnership(
+      ctx.globalDir,
+      [pkg],
+      retainedBinNames
+    )
+    return { binsToSkip, retainedBinNames, ownership }
+  } catch (err) {
+    return cleanupFailedGlobalInstall(installDir, err)
+  }
 }
 
 function withSharedApprovals (opts: GlobalUpdateOptions): GlobalUpdateOptions {

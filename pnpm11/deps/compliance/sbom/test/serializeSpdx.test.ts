@@ -99,7 +99,7 @@ describe('serializeSpdx', () => {
     const parsed = JSON.parse(serializeSpdx(result))
 
     const describes = parsed.relationships.find(
-      (r: { relationshipType: string }) => r.relationshipType === 'DESCRIBES'
+      (relationship: { relationshipType: string }) => relationship.relationshipType === 'DESCRIBES'
     )
     expect(describes).toBeDefined()
     expect(describes.spdxElementId).toBe('SPDXRef-DOCUMENT')
@@ -111,7 +111,7 @@ describe('serializeSpdx', () => {
     const parsed = JSON.parse(serializeSpdx(result))
 
     const dependsOn = parsed.relationships.filter(
-      (r: { relationshipType: string }) => r.relationshipType === 'DEPENDS_ON'
+      (relationship: { relationshipType: string }) => relationship.relationshipType === 'DEPENDS_ON'
     )
     expect(dependsOn).toHaveLength(1)
     expect(dependsOn[0].spdxElementId).toBe('SPDXRef-RootPackage')
@@ -183,7 +183,7 @@ describe('serializeSpdx', () => {
     const parsed = JSON.parse(serializeSpdx(result))
 
     const dependsOn = parsed.relationships.filter(
-      (r: { relationshipType: string }) => r.relationshipType === 'DEPENDS_ON'
+      (relationship: { relationshipType: string }) => relationship.relationshipType === 'DEPENDS_ON'
     )
     expect(dependsOn).toHaveLength(1)
   })

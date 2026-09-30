@@ -8,10 +8,10 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, spawnPnpm } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const PKG_FILES = [
-  ...fs.readdirSync(f.find('injected-dep-files')),
+  ...fs.readdirSync(testFixtures.find('injected-dep-files')),
   'package.json',
 ].sort()
 
@@ -49,7 +49,7 @@ function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
   ])
 
   for (const pkgName of ['foo', 'bar', 'baz']) {
-    f.copy('injected-dep-files', pkgName)
+    testFixtures.copy('injected-dep-files', pkgName)
   }
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -164,7 +164,7 @@ async function waitForContent (filePath: string, content: string): Promise<void>
     if (Date.now() > deadline) {
       throw new Error(`${filePath} never held ${JSON.stringify(content)}`)
     }
-    await new Promise(resolve => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+    await new Promise(resolve => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polls until the file holds the content
   }
 }
 

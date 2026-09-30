@@ -3,10 +3,10 @@ import { expect, test } from '@jest/globals'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { fixtures } from '@pnpm/test-fixtures'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('detects unmet peer dependencies', async () => {
-  const fixture = f.find('with-unmet-peers')
+  const fixture = testFixtures.find('with-unmet-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -26,7 +26,7 @@ test('detects unmet peer dependencies', async () => {
 })
 
 test('detects missing peer dependencies', async () => {
-  const fixture = f.find('with-missing-peer')
+  const fixture = testFixtures.find('with-missing-peer')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -46,7 +46,7 @@ test('detects missing peer dependencies', async () => {
 })
 
 test('reports no issues for satisfied peer dependencies', async () => {
-  const fixture = f.find('with-peer')
+  const fixture = testFixtures.find('with-peer')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -59,7 +59,7 @@ test('reports no issues for satisfied peer dependencies', async () => {
 })
 
 test('reports no issues for satisfied loose peer dependency ranges', async () => {
-  const fixture = f.find('with-loose-peer-range')
+  const fixture = testFixtures.find('with-loose-peer-range')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -72,7 +72,7 @@ test('reports no issues for satisfied loose peer dependency ranges', async () =>
 })
 
 test('respects peerDependencyRules.allowAny', async () => {
-  const fixture = f.find('with-unmet-peers')
+  const fixture = testFixtures.find('with-unmet-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -86,7 +86,7 @@ test('respects peerDependencyRules.allowAny', async () => {
 })
 
 test('respects peerDependencyRules.ignoreMissing', async () => {
-  const fixture = f.find('with-missing-peer')
+  const fixture = testFixtures.find('with-missing-peer')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -100,7 +100,7 @@ test('respects peerDependencyRules.ignoreMissing', async () => {
 })
 
 test('detects conflicting missing peer dependencies', async () => {
-  const fixture = f.find('with-conflicting-peers')
+  const fixture = testFixtures.find('with-conflicting-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -114,7 +114,7 @@ test('detects conflicting missing peer dependencies', async () => {
 })
 
 test('peerDependencyRules.ignoreMissing also removes the conflicts of ignored peers', async () => {
-  const fixture = f.find('with-conflicting-peers')
+  const fixture = testFixtures.find('with-conflicting-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -129,7 +129,7 @@ test('peerDependencyRules.ignoreMissing also removes the conflicts of ignored pe
 })
 
 test('returns no issues when there are no peer dependency problems', async () => {
-  const fixture = f.find('empty')
+  const fixture = testFixtures.find('empty')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,

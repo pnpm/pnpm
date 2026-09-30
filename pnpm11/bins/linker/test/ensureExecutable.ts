@@ -19,7 +19,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 
 const { linkBins } = await import('@pnpm/bins.linker')
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 beforeEach(() => {
   fixBinMock.mockReset()
@@ -34,7 +34,7 @@ testOnPosix('linkBins() skips fixBin when an executable source would reject chmo
   fixBinMock.mockRejectedValue(eperm)
 
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   // A complete seed already has executable bins, including on a read-only store.
   fs.chmodSync(binSource, 0o755)
@@ -51,7 +51,7 @@ testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source is not ex
   fixBinMock.mockRejectedValue(eperm)
 
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   // A broken seed: the bin is not executable, so the refused chmod is a real
   // problem and must surface rather than be silently swallowed.
@@ -68,7 +68,7 @@ testOnPosix('linkBins() skips fixBin when an executable source would reject chmo
   fixBinMock.mockRejectedValue(erofs)
 
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   fs.chmodSync(binSource, 0o755)
 
@@ -87,7 +87,7 @@ testOnPosix('linkBins() rethrows a chmod failure when the bin still has a CRLF s
   fixBinMock.mockRejectedValue(erofs)
 
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   fs.writeFileSync(binSource, '#!/usr/bin/env node\r\nconsole.log("hi")\n')
   fs.chmodSync(binSource, 0o755)
@@ -98,7 +98,7 @@ testOnPosix('linkBins() rethrows a chmod failure when the bin still has a CRLF s
 
 testOnPosix('linkBins() invokes fixBin when the bin source has only partial execute bits', async () => {
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   fs.chmodSync(binSource, 0o744)
 
@@ -111,7 +111,7 @@ testOnPosix('linkBins() invokes fixBin when the bin source has only partial exec
 
 testOnPosix('linkBins() keeps the read and write bits a strict umask gave the bin source', async () => {
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   // A bin imported from a store under a umask of 077.
   fs.chmodSync(binSource, 0o700)
@@ -127,7 +127,7 @@ testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source has only 
   fixBinMock.mockRejectedValue(eperm)
 
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
   fs.chmodSync(binSource, 0o744)
 
@@ -138,7 +138,7 @@ testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source has only 
 
 testOnPosix('linkBins() does not swallow non-ENOENT stat errors on already linked bins', async () => {
   const binTarget = temporaryDirectory()
-  const fixture = f.prepare('simple-fixture')
+  const fixture = testFixtures.prepare('simple-fixture')
   const warn = jest.fn()
 
   await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })

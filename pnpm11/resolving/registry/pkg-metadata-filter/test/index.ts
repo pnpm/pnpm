@@ -230,8 +230,8 @@ test('filtering is memoized per packument and the per-packument policy cache sta
 
   // Exceeding the per-packument cap with distinct cutoffs evicts the oldest
   // entry instead of growing forever: the original cutoff is recomputed.
-  for (let i = 1; i <= 4; i++) {
-    filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime() + i * 60_000))
+  for (let minutes = 1; minutes <= 4; minutes++) {
+    filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime() + minutes * 60_000))
   }
   expect(filterPkgMetadataByPublishDate(doc, cutoff)).not.toBe(first)
 })

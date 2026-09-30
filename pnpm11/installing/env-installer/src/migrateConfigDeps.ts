@@ -2,6 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { createEnvLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { ConfigDependencies, ConfigDependencySpecifiers, RegistriesByScope } from '@pnpm/types'
@@ -34,62 +35,22 @@ export async function migrateConfigDepsToLockfile (
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
-    const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
-
-    if (typeof pkgSpec === 'object') {
-      const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
-      const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
-
-      cleanSpecifiers[pkgName] = version
-      const pkgKey = `${pkgName}@${version}`
-      envLockfile.importers['.'].configDependencies[pkgName] = {
-        specifier: version,
-        version,
-      }
-      envLockfile.packages[pkgKey] = {
-        resolution: toLockfileResolution(
-          { name: pkgName, version },
-          { integrity, tarball },
-          { registry }
-        ),
-      }
-      envLockfile.snapshots[pkgKey] = {}
-      normalizedDeps[pkgName] = {
-        version,
-        resolution: { integrity, tarball },
-      }
-      continue
+    const migrated = migrateConfigDep(pkgName, pkgSpec, pickRegistryForPackage(opts.registriesByScope, pkgName))
+    if (!migrated) continue
+    const { version, lockfileResolution, resolution } = migrated
+    cleanSpecifiers[pkgName] = version
+    const pkgKey = `${pkgName}@${version}`
+    envLockfile.importers['.'].configDependencies[pkgName] = {
+      specifier: version,
+      version,
     }
-
-    if (typeof pkgSpec === 'string') {
-      // This branch only handles the legacy inline format (version+integrity).
-      // New clean specifiers (just version/range) require an existing pnpm-lock.yaml.
-      if (!pkgSpec.includes('+')) {
-        throw new PnpmError(
-          'CONFIG_DEP_MISSING_LOCKFILE',
-          `Config dependency "${pkgName}" is already in clean-specifier form (${pkgSpec}) ` +
-          'but no pnpm-lock.yaml was found to resolve it. ' +
-          'Please generate and commit pnpm-lock.yaml (for example by running ' +
-          '`pnpm install` in the workspace root) before attempting to migrate configDependencies.'
-        )
-      }
-      const { version, integrity } = parseIntegrity(pkgName, pkgSpec)
-      const tarball = getNpmTarballUrl(pkgName, version, { registry })
-
-      cleanSpecifiers[pkgName] = version
-      const pkgKey = `${pkgName}@${version}`
-      envLockfile.importers['.'].configDependencies[pkgName] = {
-        specifier: version,
-        version,
-      }
-      envLockfile.packages[pkgKey] = {
-        resolution: { integrity },
-      }
-      envLockfile.snapshots[pkgKey] = {}
-      normalizedDeps[pkgName] = {
-        version,
-        resolution: { integrity, tarball },
-      }
+    envLockfile.packages[pkgKey] = {
+      resolution: lockfileResolution,
+    }
+    envLockfile.snapshots[pkgKey] = {}
+    normalizedDeps[pkgName] = {
+      version,
+      resolution,
     }
   }
 
@@ -103,4 +64,49 @@ export async function migrateConfigDepsToLockfile (
   })
 
   return normalizedDeps
+}
+
+interface MigratedConfigDep {
+  version: string
+  lockfileResolution: LockfileResolution
+  resolution: NormalizedConfigDep['resolution']
+}
+
+function migrateConfigDep (
+  pkgName: string,
+  pkgSpec: ConfigDependencies[string],
+  registry: string
+): MigratedConfigDep | undefined {
+  if (typeof pkgSpec === 'object') {
+    const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
+    const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
+    return {
+      version,
+      lockfileResolution: toLockfileResolution(
+        { name: pkgName, version },
+        { integrity, tarball },
+        { registry }
+      ),
+      resolution: { integrity, tarball },
+    }
+  }
+
+  if (typeof pkgSpec !== 'string') return undefined
+  // This branch only handles the legacy inline format (version+integrity).
+  // New clean specifiers (just version/range) require an existing pnpm-lock.yaml.
+  if (!pkgSpec.includes('+')) {
+    throw new PnpmError(
+      'CONFIG_DEP_MISSING_LOCKFILE',
+      `Config dependency "${pkgName}" is already in clean-specifier form (${pkgSpec}) ` +
+      'but no pnpm-lock.yaml was found to resolve it. ' +
+      'Please generate and commit pnpm-lock.yaml (for example by running ' +
+      '`pnpm install` in the workspace root) before attempting to migrate configDependencies.'
+    )
+  }
+  const { version, integrity } = parseIntegrity(pkgName, pkgSpec)
+  return {
+    version,
+    lockfileResolution: { integrity },
+    resolution: { integrity, tarball: getNpmTarballUrl(pkgName, version, { registry }) },
+  }
 }

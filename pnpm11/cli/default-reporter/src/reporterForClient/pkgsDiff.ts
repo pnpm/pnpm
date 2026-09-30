@@ -14,8 +14,8 @@ export interface PackageDiff {
   latest?: string
 }
 
-export interface RecordByString<T> {
-  [index: string]: T
+export interface RecordByString<Value> {
+  [index: string]: Value
 }
 
 export const propertyByDependencyType = {
@@ -51,62 +51,19 @@ export function getPkgsDiff (
       scan((acc, log) => {
         acc.add(log.pkgId)
         return acc
-      }, new Set()),
-      startWith(new Set())
+      }, new Set<string>()),
+      startWith(new Set<string>())
     )
 
   const filterPrefix = opts.prefix
     ? filter((log: { prefix: string }) => log.prefix === opts.prefix)
-    : <T>(x: Rx.Observable<T>) => x
+    : <Entry>(stream: Rx.Observable<Entry>) => stream
   const pkgsDiff$ = Rx.combineLatest(
-    log$.root.pipe(filterPrefix),
+    log$.root.pipe(filterPrefix) as Rx.Observable<logs.RootLog>,
     deprecationSet$
   ).pipe(
-    scan((pkgsDiff, args) => {
-      const rootLog = args[0]
-      const deprecationSet = args[1] as Set<string>
-      let action: '-' | '+' | undefined
-      let log!: any // eslint-disable-line
-      if ('added' in rootLog) {
-        action = '+'
-        log = rootLog['added']
-      } else if ('removed' in rootLog) {
-        action = '-'
-        log = rootLog['removed']
-      } else {
-        return pkgsDiff
-      }
-      const depType = (log.dependencyType || 'nodeModulesOnly') as keyof typeof pkgsDiff
-      const oppositeKey = `${action === '-' ? '+' : '-'}${log.name as string}`
-      const previous = pkgsDiff[depType][oppositeKey]
-      if (previous && previous.version === log.version) {
-        delete pkgsDiff[depType][oppositeKey]
-        return pkgsDiff
-      }
-      pkgsDiff[depType][`${action}${log.name as string}`] = {
-        added: action === '+',
-        deprecated: deprecationSet.has(log.id),
-        from: log.linkedFrom,
-        latest: log.latest,
-        name: log.name,
-        realName: log.realName,
-        version: log.version ?? log.id,
-      }
-      return pkgsDiff
-    }, {
-      dev: {},
-      nodeModulesOnly: {},
-      optional: {},
-      peer: {},
-      prod: {},
-    } as PkgsDiff),
-    startWith({
-      dev: {},
-      nodeModulesOnly: {},
-      optional: {},
-      peer: {},
-      prod: {},
-    } as PkgsDiff)
+    scan(applyRootLog, createEmptyPkgsDiff()),
+    startWith(createEmptyPkgsDiff())
   )
 
   const packageManifest$ = Rx.merge(
@@ -115,7 +72,7 @@ export function getPkgsDiff (
   )
     .pipe(
       take(2),
-      reduce(mergeRight, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      reduce(mergeRight, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the result is cast to PackageManifestLog right below
     ) as Rx.Observable<logs.PackageManifestLog>
 
   return Rx.combineLatest(
@@ -123,45 +80,93 @@ export function getPkgsDiff (
     packageManifest$
   )
     .pipe(
-      map(
-        ([pkgsDiff, packageManifests]) => {
-          if ((packageManifests['initial'] == null) || (packageManifests['updated'] == null)) return pkgsDiff
-
-          const initialPackageManifest = removeOptionalFromProdDeps(packageManifests['initial'])
-          const updatedPackageManifest = removeOptionalFromProdDeps(packageManifests['updated'])
-
-          for (const depType of ['peer', 'prod', 'optional', 'dev'] as const) {
-            const prop = propertyByDependencyType[depType]
-            const initialDeps = Object.keys(initialPackageManifest[prop] ?? {})
-            const updatedDeps = Object.keys(updatedPackageManifest[prop] ?? {})
-            const removedDeps = difference(initialDeps, updatedDeps)
-
-            for (const removedDep of removedDeps) {
-              if (!pkgsDiff[depType][`-${removedDep}`]) {
-                pkgsDiff[depType][`-${removedDep}`] = {
-                  added: false,
-                  name: removedDep,
-                  version: initialPackageManifest[prop]?.[removedDep],
-                }
-              }
-            }
-
-            const addedDeps = difference(updatedDeps, initialDeps)
-
-            for (const addedDep of addedDeps) {
-              if (!pkgsDiff[depType][`+${addedDep}`]) {
-                pkgsDiff[depType][`+${addedDep}`] = {
-                  added: true,
-                  name: addedDep,
-                  version: updatedPackageManifest[prop]?.[addedDep],
-                }
-              }
-            }
-          }
-          return pkgsDiff
-        }
-      )
+      map(([pkgsDiff, packageManifests]) => addDirectDepsChanges(pkgsDiff, packageManifests))
     )
+}
+
+function createEmptyPkgsDiff (): PkgsDiff {
+  return {
+    dev: {},
+    nodeModulesOnly: {},
+    optional: {},
+    peer: {},
+    prod: {},
+  }
+}
+
+interface RootDepChange {
+  id?: string
+  name: string
+  realName?: string
+  version?: string
+  dependencyType?: string
+  latest?: string
+  linkedFrom?: string
+}
+
+function applyRootLog (pkgsDiff: PkgsDiff, [rootLog, deprecationSet]: [logs.RootLog, Set<string>]): PkgsDiff {
+  const change = getRootDepChange(rootLog)
+  if (change == null) return pkgsDiff
+  const { action, log } = change
+  const depType = (log.dependencyType || 'nodeModulesOnly') as keyof PkgsDiff
+  const oppositeKey = `${action === '-' ? '+' : '-'}${log.name}`
+  const previous = pkgsDiff[depType][oppositeKey]
+  if (previous && previous.version === log.version) {
+    delete pkgsDiff[depType][oppositeKey]
+    return pkgsDiff
+  }
+  pkgsDiff[depType][`${action}${log.name}`] = {
+    added: action === '+',
+    deprecated: deprecationSet.has(log.id!),
+    from: log.linkedFrom,
+    latest: log.latest,
+    name: log.name,
+    realName: log.realName,
+    version: log.version ?? log.id,
+  }
+  return pkgsDiff
+}
+
+function getRootDepChange (rootLog: logs.RootLog): { action: '-' | '+', log: RootDepChange } | undefined {
+  if ('added' in rootLog) return { action: '+', log: rootLog['added'] }
+  if ('removed' in rootLog) return { action: '-', log: rootLog['removed'] }
+  return undefined
+}
+
+function addDirectDepsChanges (pkgsDiff: PkgsDiff, packageManifests: logs.PackageManifestLog): PkgsDiff {
+  if ((packageManifests['initial'] == null) || (packageManifests['updated'] == null)) return pkgsDiff
+
+  const initialPackageManifest = removeOptionalFromProdDeps(packageManifests['initial'])
+  const updatedPackageManifest = removeOptionalFromProdDeps(packageManifests['updated'])
+
+  for (const depType of ['peer', 'prod', 'optional', 'dev'] as const) {
+    const prop = propertyByDependencyType[depType]
+    const initialDeps = initialPackageManifest[prop] ?? {}
+    const updatedDeps = updatedPackageManifest[prop] ?? {}
+    addMissingDepChanges(pkgsDiff[depType], { from: initialDeps, to: updatedDeps, added: false })
+    addMissingDepChanges(pkgsDiff[depType], { from: updatedDeps, to: initialDeps, added: true })
+  }
+  return pkgsDiff
+}
+
+/**
+ * Records the dependencies of `opts.from` that `opts.to` lacks, unless a
+ * change was already recorded for them.
+ */
+function addMissingDepChanges (
+  diff: RecordByString<PackageDiff>,
+  opts: { from: Record<string, string>, to: Record<string, string>, added: boolean }
+): void {
+  const action = opts.added ? '+' : '-'
+  for (const depName of difference(Object.keys(opts.from), Object.keys(opts.to))) {
+    if (!diff[`${action}${depName}`]) {
+      diff[`${action}${depName}`] = {
+        added: opts.added,
+        name: depName,
+        version: opts.from[depName],
+      }
+    }
+  }
 }
 
 function removeOptionalFromProdDeps<Pkg extends BaseManifest> (pkg: Pkg): Pkg {

@@ -13,7 +13,7 @@ interface HttpsProxyAgentInternals {
 }
 
 function mockHttpAgent (type: string) {
-  return function Agent (opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return function Agent (opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock accepts whatever options the agent constructor receives
     return {
       ...opts,
       __type: type,

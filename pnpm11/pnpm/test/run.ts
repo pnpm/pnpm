@@ -598,7 +598,7 @@ setInterval(() => {}, 1000)
   }
 })
 
-async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
+async function withDeadline<Result> (promise: Promise<Result>, timeout: number): Promise<Result> {
   let timer: NodeJS.Timeout | undefined
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`pnpm did not exit within ${timeout}ms`)), timeout)
@@ -614,7 +614,7 @@ async function waitForFile (file: string, timeout: number): Promise<void> {
   const deadline = Date.now() + timeout
   while (!fs.existsSync(file)) {
     if (Date.now() > deadline) throw new Error(`${file} did not appear within ${timeout}ms`)
-    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polls until the file appears
   }
 }
 

@@ -87,8 +87,8 @@ function getAuthHeaderByNerfedURI (authHeaders: Record<string, string>, maxParts
   const parsedUri = new URL(uri)
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
-  for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
-    const key = `${parts.slice(0, i).join('/')}/`
+  for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
+    const key = `${parts.slice(0, partCount).join('/')}/`
     if (authHeaders[key]) return authHeaders[key]
   }
   const urlWithoutPort = removePort(parsedUri)

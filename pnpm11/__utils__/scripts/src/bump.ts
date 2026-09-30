@@ -66,18 +66,18 @@ function main (): void {
 
 export function parseSelectedProducts (argv: readonly string[]): Set<Product> {
   const selected = new Set<Product>()
-  // `pnpm run bump -- --release …` forwards the `--` separator to the script,
+  // `pnpm run bump -- --release ...` forwards the `--` separator to the script,
   // so a single leading `--` is part of the normal calling convention.
   const start = argv[0] === '--' ? 1 : 0
-  for (let i = start; i < argv.length; i++) {
+  for (let argIndex = start; argIndex < argv.length; argIndex++) {
     // Fail closed: an unrecognized token (e.g. a `--releases` typo) must not be
     // silently skipped, which would leave the selection empty and release
     // every product. Only "--release <product>" is accepted; no args at all
     // still means a full release (see releaseFilterArgs).
-    if (argv[i] !== '--release') {
-      throw new Error(`Unexpected bump argument: ${String(argv[i])}. Only "--release <product>" is supported.`)
+    if (argv[argIndex] !== '--release') {
+      throw new Error(`Unexpected bump argument: ${String(argv[argIndex])}. Only "--release <product>" is supported.`)
     }
-    const product = argv[++i]
+    const product = argv[++argIndex]
     if (product === undefined || !(PRODUCTS as readonly string[]).includes(product)) {
       throw new Error(`Unknown --release product: ${String(product)}. Expected one of ${PRODUCTS.join(', ')}.`)
     }

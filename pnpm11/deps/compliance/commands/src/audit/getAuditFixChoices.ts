@@ -39,12 +39,18 @@ type AuditChoiceGroup = Array<{
   disabled?: boolean
 }>
 
+interface RawRow {
+  raw: string[]
+  key: string
+  disabled?: boolean
+}
+
 export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGroup {
   if (advisories.length === 0) {
     return []
   }
 
-  const fixable = advisories.filter(({ patched_versions: p }) => p != null)
+  const fixable = advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
   if (fixable.length === 0) {
     return []
   }
@@ -60,57 +66,54 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
   for (const severity of SEVERITY_ORDER) {
     const groupAdvisories = grouped[severity]
     if (!groupAdvisories?.length) continue
-
-    interface RawRow {
-      raw: string[]
-      key: string
-      disabled?: boolean
-    }
-
-    const rows: RawRow[] = [
-      { raw: COLUMN_HEADER, key: '', disabled: true },
-    ]
-
-    for (const advisory of groupAdvisories) {
-      const key = `${advisory.module_name}@${advisory.vulnerable_versions}`
-      rows.push({
-        raw: [
-          advisory.module_name,
-          advisory.vulnerable_versions,
-          advisory.patched_versions ? caretRangeForPatched(advisory.patched_versions) : '',
-          advisory.github_advisory_id ?? '',
-        ],
-        key,
-      })
-    }
-
-    const rendered = alignColumns(rows.map(r => r.raw))
-
-    const choices = rows.map((row, i) => {
-      if (i === 0) {
-        return {
-          name: rendered[i],
-          message: rendered[i],
-          value: '',
-          disabled: true,
-          hint: '',
-        }
-      }
-      return {
-        name: row.key,
-        message: rendered[i],
-        value: row.key,
-      }
-    })
-
-    finalChoices.push({
-      name: `[${severity}]`,
-      choices,
-      message: AUDIT_COLOR[severity as AuditLevelString](severity),
-    })
+    finalChoices.push(createSeverityChoiceGroup(severity, groupAdvisories))
   }
 
   return finalChoices
+}
+
+function createSeverityChoiceGroup (severity: AuditLevelString, groupAdvisories: AuditAdvisory[]): AuditChoiceGroup[number] {
+  const rows: RawRow[] = [
+    { raw: COLUMN_HEADER, key: '', disabled: true },
+    ...groupAdvisories.map(toRawRow),
+  ]
+
+  const rendered = alignColumns(rows.map(r => r.raw))
+
+  const choices = rows.map((row, i) => {
+    if (i === 0) {
+      return {
+        name: rendered[i],
+        message: rendered[i],
+        value: '',
+        disabled: true,
+        hint: '',
+      }
+    }
+    return {
+      name: row.key,
+      message: rendered[i],
+      value: row.key,
+    }
+  })
+
+  return {
+    name: `[${severity}]`,
+    choices,
+    message: AUDIT_COLOR[severity](severity),
+  }
+}
+
+function toRawRow (advisory: AuditAdvisory): RawRow {
+  return {
+    raw: [
+      advisory.module_name,
+      advisory.vulnerable_versions,
+      advisory.patched_versions ? caretRangeForPatched(advisory.patched_versions) : '',
+      advisory.github_advisory_id ?? '',
+    ],
+    key: `${advisory.module_name}@${advisory.vulnerable_versions}`,
+  }
 }
 
 function alignColumns (rows: string[][]): string[] {

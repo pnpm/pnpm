@@ -204,7 +204,7 @@ test('string nodes in array', () => {
 })
 
 test('treeChars formatter option', () => {
-  const wrapped = (s: string) => `[${s}]`
+  const wrapped = (text: string) => `[${text}]`
   expect(renderTree({
     label: 'root',
     nodes: [
@@ -219,7 +219,7 @@ test('treeChars formatter option', () => {
 })
 
 test('treeChars formatter with nested children', () => {
-  const wrapped = (s: string) => `[${s}]`
+  const wrapped = (text: string) => `[${text}]`
   expect(renderTree({
     label: 'root',
     nodes: [
@@ -238,7 +238,7 @@ test('treeChars formatter with nested children', () => {
 })
 
 test('treeChars formatter with multiline labels', () => {
-  const wrapped = (s: string) => `[${s}]`
+  const wrapped = (text: string) => `[${text}]`
   expect(renderTree({
     label: 'root',
     nodes: [
@@ -374,7 +374,7 @@ test('groups with nested children', () => {
 })
 
 test('groups with treeChars formatter', () => {
-  const wrapped = (s: string) => `[${s}]`
+  const wrapped = (text: string) => `[${text}]`
   expect(renderTree({
     label: 'root',
     nodes: [

@@ -195,7 +195,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * skipped on abort.
    *
    * Intentionally policy-neutral. Each verifier owns its violation
-   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
+   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, ...); the
    * install command filters by code to decide what to do. Future
    * resolvers can plug verifiers in without touching this signature.
    */
@@ -234,7 +234,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * where every commit comes from a trusted author, fully reproducible
    * CI runs against an already-verified lockfile, etc.
    *
-   * Added for #11860: on workspaces with thousands of locked entries,
+   * Added for pnpm/pnpm#11860: on workspaces with thousands of locked entries,
    * the verification pass holds the per-package registry metadata
    * needed for the trust check resident in memory and can OOM CI
    * runners with a 2GB heap cap.
@@ -318,31 +318,102 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     version: pnpmPkgJson.version,
   }
   return {
-    allowedDeprecatedVersions: {},
-    allowUnusedPatches: false,
+    ...SCALAR_DEFAULTS,
+    ...createObjectDefaults(),
     autoConfirmAllPrompts: opts.autoConfirmAllPrompts ?? false,
-    autoInstallPeers: true,
-    autoInstallPeersFromHighestMatch: false,
-    catalogs: {},
-    childConcurrency: 5,
     confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
-    depth: 0,
-    dedupeInjectedDeps: true,
     deploy: opts.deploy ?? false,
-    enableGlobalVirtualStore: false,
-    enablePnp: false,
-    engineStrict: false,
-    force: false,
-    forceIgnoresPlatform: true,
-    forceFullResolution: false,
-    frozenLockfile: false,
-    frozenStore: false,
-    hoistPattern: undefined,
-    publicHoistPattern: undefined,
+    lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+    workspaceDir: opts.workspaceDir,
+    nodeVersion: opts.nodeVersion,
+    packageManager,
+    storeController: opts.storeController,
+    storeDir: opts.storeDir,
+    unsafePerm: process.platform === 'win32' ||
+      process.platform === 'cygwin' ||
+      !process.setgid ||
+      process.getuid?.() !== 0,
+    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
+  } as StrictInstallOptions
+}
+
+const SCALAR_DEFAULTS = {
+  allowUnusedPatches: false,
+  autoInstallPeers: true,
+  autoInstallPeersFromHighestMatch: false,
+  childConcurrency: 5,
+  depth: 0,
+  dedupeInjectedDeps: true,
+  enableGlobalVirtualStore: false,
+  enablePnp: false,
+  engineStrict: false,
+  force: false,
+  forceIgnoresPlatform: true,
+  forceFullResolution: false,
+  frozenLockfile: false,
+  frozenStore: false,
+  hoistPattern: undefined,
+  publicHoistPattern: undefined,
+  ignoreCurrentSpecifiers: false,
+  ignoreScripts: false,
+  deferDependencyBuilds: false,
+  lockfileOnly: false,
+  updateChecksums: false,
+  nodeLinker: 'isolated',
+  nodeExperimentalPackageMap: false,
+  nodePackageMapType: 'standard',
+  ownLifecycleHooksStdio: 'inherit',
+  ignoreCompatibilityDb: false,
+  ignorePackageManifest: false,
+  ignoreLocalPackages: false,
+  preferFrozenLockfile: true,
+  preferWorkspacePackages: false,
+  preserveWorkspaceProtocol: true,
+  pruneLockfileImporters: false,
+  pruneStore: false,
+  resolutionMode: 'highest',
+  saveWorkspaceProtocol: 'rolling',
+  scriptsPrependNodePath: false,
+  shamefullyHoist: false,
+  shellEmulator: false,
+  sideEffectsCacheRead: false,
+  sideEffectsCacheWrite: false,
+  symlink: true,
+  strictPeerDependencies: false,
+  tag: 'latest',
+  catalogMode: 'manual',
+  catalogPrune: false,
+  minimumReleaseAgeExcludePrune: false,
+  useLockfile: true,
+  saveLockfile: true,
+  useGitBranchLockfile: false,
+  mergeGitBranchLockfiles: false,
+  verifyStoreIntegrity: true,
+  enableModulesDir: true,
+  virtualStoreOnly: false,
+  modulesCacheMaxAge: 7 * 24 * 60,
+  resolveSymlinksInInjectedDirs: false,
+  dedupeDirectDeps: true,
+  dedupePeerDependents: true,
+  dedupePeers: false,
+  resolvePeersFromWorkspaceRoot: true,
+  extendNodePath: true,
+  ignoreWorkspaceCycles: false,
+  disallowWorkspaceCycles: false,
+  excludeLinksFromLockfile: false,
+  skipRuntimes: false,
+  virtualStoreDirMaxLength: 120,
+  peersSuffixMaxLength: 1000,
+  blockExoticSubdeps: false,
+  omitSummaryLog: false,
+  materializeAfterResolution: false,
+} as const satisfies Partial<StrictInstallOptions>
+
+function createObjectDefaults (): Partial<StrictInstallOptions> {
+  return {
+    allowedDeprecatedVersions: {},
+    catalogs: {},
     hooks: {},
-    ignoreCurrentSpecifiers: false,
-    ignoreScripts: false,
-    deferDependencyBuilds: false,
     include: {
       dependencies: true,
       devDependencies: true,
@@ -353,74 +424,13 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
-    workspaceDir: opts.workspaceDir,
-    lockfileOnly: false,
-    updateChecksums: false,
-    nodeVersion: opts.nodeVersion,
-    nodeLinker: 'isolated',
-    nodeExperimentalPackageMap: false,
-    nodePackageMapType: 'standard',
     overrides: {},
-    ownLifecycleHooksStdio: 'inherit',
-    ignoreCompatibilityDb: false,
-    ignorePackageManifest: false,
-    ignoreLocalPackages: false,
     packageExtensions: {},
     ignoredOptionalDependencies: [] as string[],
-    packageManager,
-    preferFrozenLockfile: true,
-    preferWorkspacePackages: false,
-    preserveWorkspaceProtocol: true,
-    pruneLockfileImporters: false,
-    pruneStore: false,
     configByUri: {},
     registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
-    resolutionMode: 'highest',
-    saveWorkspaceProtocol: 'rolling',
-    scriptsPrependNodePath: false,
-    shamefullyHoist: false,
-    shellEmulator: false,
-    sideEffectsCacheRead: false,
-    sideEffectsCacheWrite: false,
-    symlink: true,
-    storeController: opts.storeController,
-    storeDir: opts.storeDir,
-    strictPeerDependencies: false,
-    tag: 'latest',
-    unsafePerm: process.platform === 'win32' ||
-      process.platform === 'cygwin' ||
-      !process.setgid ||
-      process.getuid?.() !== 0,
-    catalogMode: 'manual',
-    catalogPrune: false,
-    minimumReleaseAgeExcludePrune: false,
-    useLockfile: true,
-    saveLockfile: true,
-    useGitBranchLockfile: false,
-    mergeGitBranchLockfiles: false,
-    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
-    verifyStoreIntegrity: true,
-    enableModulesDir: true,
-    virtualStoreOnly: false,
-    modulesCacheMaxAge: 7 * 24 * 60,
-    resolveSymlinksInInjectedDirs: false,
-    dedupeDirectDeps: true,
-    dedupePeerDependents: true,
-    dedupePeers: false,
-    resolvePeersFromWorkspaceRoot: true,
-    extendNodePath: true,
-    ignoreWorkspaceCycles: false,
-    disallowWorkspaceCycles: false,
-    excludeLinksFromLockfile: false,
-    skipRuntimes: false,
-    virtualStoreDirMaxLength: 120,
-    peersSuffixMaxLength: 1000,
-    blockExoticSubdeps: false,
-    omitSummaryLog: false,
-    materializeAfterResolution: false,
     resolutionVerifiers: [] as ResolutionVerifier[],
-  } as StrictInstallOptions
+  }
 }
 
 export interface ProcessedInstallOptions extends StrictInstallOptions {
@@ -445,11 +455,7 @@ export function extendOptions (
   opts: InstallOptions
 ): ProcessedInstallOptions {
   if (opts) {
-    for (const key in opts) {
-      if (opts[key as keyof InstallOptions] === undefined) {
-        delete opts[key as keyof InstallOptions]
-      }
-    }
+    removeUndefinedOptions(opts)
   }
 
   const defaultOpts = defaults(opts)
@@ -463,49 +469,69 @@ export function extendOptions (
     extendedOpts.convergeDeclaredRanges = new Map()
   }
   extendedOpts.readPackageHook = createInstallReadPackageHook(extendedOpts, extendedOpts.parsedOverrides)
-  if (extendedOpts.virtualStoreOnly && !extendedOpts.enableModulesDir && !extendedOpts.enableGlobalVirtualStore) {
+  throwOnConflictingOptions(extendedOpts)
+  applyImpliedOptions(extendedOpts)
+  if (extendedOpts.userAgent.startsWith('npm/')) {
+    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
+  }
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
+  applyGlobalVirtualStoreOptions(extendedOpts)
+  return extendedOpts
+}
+
+function removeUndefinedOptions (opts: InstallOptions): void {
+  for (const key in opts) {
+    if (opts[key as keyof InstallOptions] === undefined) {
+      delete opts[key as keyof InstallOptions]
+    }
+  }
+}
+
+function throwOnConflictingOptions (opts: ProcessedInstallOptions): void {
+  if (opts.virtualStoreOnly && !opts.enableModulesDir && !opts.enableGlobalVirtualStore) {
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
       'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
   }
-  if (extendedOpts.virtualStoreOnly) {
-    // Ensure .modules.yaml records empty hoist patterns so a subsequent
-    // normal install knows hoisting must be redone from scratch.
-    extendedOpts.hoistPattern = []
-    extendedOpts.publicHoistPattern = []
+  if (opts.lockfileOnly && !opts.useLockfile) {
+    throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
+      `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
-  if (extendedOpts.lockfileOnly) {
-    extendedOpts.ignoreScripts = true
-    if (!extendedOpts.useLockfile) {
-      throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
-        `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
-    }
-  }
-  if (extendedOpts.frozenStore && extendedOpts.force) {
+  if (opts.frozenStore && opts.force) {
     throw new PnpmError('CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE',
       'Cannot use force together with frozenStore: --force re-imports packages into the store, which is opened read-only when frozenStore is enabled')
   }
-  if (extendedOpts.frozenStore) {
+}
+
+function applyImpliedOptions (opts: ProcessedInstallOptions): void {
+  if (opts.virtualStoreOnly) {
+    // Ensure .modules.yaml records empty hoist patterns so a subsequent
+    // normal install knows hoisting must be redone from scratch.
+    opts.hoistPattern = []
+    opts.publicHoistPattern = []
+  }
+  if (opts.lockfileOnly) {
+    opts.ignoreScripts = true
+  }
+  if (opts.frozenStore) {
     // The side-effects cache is written into the store, which frozenStore opens
     // read-only. Caching is an optimization, not a correctness requirement, so
     // force it off rather than failing (the writable seed-build already
     // populated it). Without this, a build under frozenStore (e.g. with the
     // global virtual store disabled) would attempt a store write.
-    extendedOpts.sideEffectsCacheWrite = false
+    opts.sideEffectsCacheWrite = false
   }
-  if (extendedOpts.userAgent.startsWith('npm/')) {
-    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
-  }
-  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
-  if (extendedOpts.enableGlobalVirtualStore) {
-    if (extendedOpts.virtualStoreDir == null) {
-      extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+}
+
+function applyGlobalVirtualStoreOptions (opts: ProcessedInstallOptions): void {
+  if (opts.enableGlobalVirtualStore) {
+    if (opts.virtualStoreDir == null) {
+      opts.virtualStoreDir = path.join(opts.storeDir, 'links')
     }
-    extendedOpts.allowBuilds ??= {}
+    opts.allowBuilds ??= {}
   }
-  extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
-    ? extendedOpts.virtualStoreDir!
-    : path.join(extendedOpts.storeDir, 'links')
-  return extendedOpts
+  opts.globalVirtualStoreDir = opts.enableGlobalVirtualStore
+    ? opts.virtualStoreDir!
+    : path.join(opts.storeDir, 'links')
 }
 
 export function createInstallReadPackageHook (

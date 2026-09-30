@@ -112,7 +112,7 @@ export async function runLifecycleHooksConcurrently (
             if (manifest.scripts?.preinstall != null) isBuilt = true
             continue
           }
-          if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop
+          if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop -- lifecycle stages of one project run in order
             isBuilt = true
           }
         }
@@ -129,10 +129,10 @@ export async function runLifecycleHooksConcurrently (
         // Re-import only the freshly-built source — fetchFromDir already
         // excludes the source's node_modules/. `keepModulesDir: true` makes
         // importIndexedDir skip the destructive makeEmptyDir fast path
-        // (#11088) and preserve the target's existing node_modules (bin
+        // (pnpm/pnpm#11088) and preserve the target's existing node_modules (bin
         // symlinks + transitive deps from the initial install) via its
         // staging/move path. Replaces the old scanDir-into-filesMap
-        // workaround (#4299) that the fast path then wiped, causing ENOENT
+        // workaround (pnpm/pnpm#4299) that the fast path then wiped, causing ENOENT
         // on .bin/<tool>. Stays on storeController.importPackage so source
         // files keep their hardlinks (no copy-loop).
         await Promise.all(

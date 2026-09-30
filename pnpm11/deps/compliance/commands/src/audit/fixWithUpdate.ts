@@ -36,25 +36,50 @@ export type FixWithUpdateOptions = AuditOptions & {
   include?: { [dependenciesField in DependenciesField]: boolean }
 }
 
+interface VulnerabilitiesByPackage {
+  fixable: Map<string, ExtendedPackageVulnerability[]>
+  unfixable: Map<string, Set<number>>
+}
+
 export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpdateOptions): Promise<FixWithUpdateResult> {
-  const vulnerabilitiesByPackage = new Map<string, ExtendedPackageVulnerability[]>()
-  const unfixableVulnerabilities = new Map<string, Set<number>>()
+  const vulnerabilities = groupVulnerabilitiesByPackage(auditReport)
+  const addedAgeExcludes = await addMinimumReleaseAgeExcludes(auditReport, opts)
+  const updateOpts = { ...opts } as Record<string, unknown>
+  if (addedAgeExcludes.length > 0) {
+    const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
+    updateOpts.minimumReleaseAgeExclude = [...existing, ...addedAgeExcludes]
+  }
+
+  await update.handler({
+    ...updateOpts as FixWithUpdateOptions,
+    // The audit command already ran its own prompt to select which
+    // vulnerabilities to fix. Forwarding `--interactive` would open the update
+    // command's dependency picker on top of that selection.
+    interactive: false,
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerabilities.fixable),
+  }, [])
+
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
+  if (lockfile == null) {
+    throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found after update: Cannot report fixed vulnerabilities`)
+  }
+  return {
+    ...classifyVulnerabilities(vulnerabilities, lockfileToPackages(lockfile, opts)),
+    addedAgeExcludes,
+  }
+}
+
+function groupVulnerabilitiesByPackage (auditReport: AuditReport): VulnerabilitiesByPackage {
+  const fixable = new Map<string, ExtendedPackageVulnerability[]>()
+  const unfixable = new Map<string, Set<number>>()
   for (const advisory of Object.values(auditReport.advisories)) {
-    let packageVulnerabilities = vulnerabilitiesByPackage.get(advisory.module_name)
-    if (!packageVulnerabilities) {
-      packageVulnerabilities = []
-      vulnerabilitiesByPackage.set(advisory.module_name, packageVulnerabilities)
-    }
+    const packageVulnerabilities = getOrCreate(fixable, advisory.module_name, () => [])
     const severity: VulnerabilitySeverity = advisory.severity
     const versionRange = advisory.vulnerable_versions
     if (versionRange === '>=0.0.0' || versionRange === '*') {
       // skip unfixable vulnerabilities
-      let unfixableForPackage = unfixableVulnerabilities.get(advisory.module_name)
-      if (!unfixableForPackage) {
-        unfixableForPackage = new Set()
-        unfixableVulnerabilities.set(advisory.module_name, unfixableForPackage)
-      }
-      unfixableForPackage.add(advisory.id)
+      getOrCreate(unfixable, advisory.module_name, () => new Set()).add(advisory.id)
       continue
     }
     packageVulnerabilities.push({
@@ -65,22 +90,24 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
       id: advisory.id,
     })
   }
+  return { fixable, unfixable }
+}
 
-  const packageVulnerabilityAudit: PackageVulnerabilityAudit = {
+function getOrCreate<Key, Value> (map: Map<Key, Value>, key: Key, createValue: () => Value): Value {
+  let value = map.get(key)
+  if (value === undefined) {
+    value = createValue()
+    map.set(key, value)
+  }
+  return value
+}
+
+function createPackageVulnerabilityAudit (vulnerabilitiesByPackage: Map<string, ExtendedPackageVulnerability[]>): PackageVulnerabilityAudit {
+  return {
     isVulnerable (packageName: string, version: string): boolean {
       const vulnerabilities = vulnerabilitiesByPackage.get(packageName)
       if (!vulnerabilities) return false
-      for (const vulnerabilityWithRange of vulnerabilities) {
-        let { semverRange } = vulnerabilityWithRange
-        if (!semverRange) {
-          semverRange = new semver.Range(vulnerabilityWithRange.vulnerability.versionRange)
-          vulnerabilityWithRange.semverRange = semverRange
-        }
-        if (semver.satisfies(version, semverRange)) {
-          return true
-        }
-      }
-      return false
+      return vulnerabilities.some((vulnerability) => semver.satisfies(version, getSemverRange(vulnerability)))
     },
     getVulnerabilities (): Map<string, PackageVulnerability[]> {
       const allVulnerabilities = new Map<string, PackageVulnerability[]>()
@@ -90,19 +117,24 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
       return allVulnerabilities
     },
   }
+}
 
-  // Add minimum patched versions to minimumReleaseAgeExclude so the resolver
-  // can install them even when minimumReleaseAge would otherwise block them.
-  const addedAgeExcludes = opts.minimumReleaseAge
-    ? await createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories), {
-      getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
-      minimumReleaseAge: opts.minimumReleaseAge,
-    })
-    : []
-  const updateOpts = { ...opts } as Record<string, unknown>
+function getSemverRange (vulnerability: ExtendedPackageVulnerability): semver.Range {
+  vulnerability.semverRange ??= new semver.Range(vulnerability.vulnerability.versionRange)
+  return vulnerability.semverRange
+}
+
+/**
+ * Adds minimum patched versions to minimumReleaseAgeExclude so the resolver
+ * can install them even when minimumReleaseAge would otherwise block them.
+ */
+async function addMinimumReleaseAgeExcludes (auditReport: AuditReport, opts: FixWithUpdateOptions): Promise<string[]> {
+  if (!opts.minimumReleaseAge) return []
+  const addedAgeExcludes = await createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories), {
+    getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
+    minimumReleaseAge: opts.minimumReleaseAge,
+  })
   if (addedAgeExcludes.length > 0) {
-    const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
-    updateOpts.minimumReleaseAgeExclude = [...existing, ...addedAgeExcludes]
     await writeSettings({
       addedMinimumReleaseAgeExcludes: addedAgeExcludes,
       rootProjectManifest: opts.rootProjectManifest,
@@ -110,60 +142,33 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
       workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     })
   }
+  return addedAgeExcludes
+}
 
-  await update.handler({
-    ...updateOpts as FixWithUpdateOptions,
-    // The audit command already ran its own prompt to select which
-    // vulnerabilities to fix. Forwarding `--interactive` would open the update
-    // command's dependency picker on top of that selection.
-    interactive: false,
-    packageVulnerabilityAudit,
-  }, [])
-
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (lockfile == null) {
-    throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found after update: Cannot report fixed vulnerabilities`)
-  }
-  const updatedPackages = lockfileToPackages(lockfile, opts)
-
+function classifyVulnerabilities (
+  vulnerabilities: VulnerabilitiesByPackage,
+  updatedPackages: Map<string, Set<string>>
+): Pick<FixWithUpdateResult, 'fixed' | 'remaining'> {
   const fixed: number[] = []
   const remaining: number[] = []
 
-  for (const [pkgName, vulnerabilities] of vulnerabilitiesByPackage) {
+  for (const [pkgName, packageVulnerabilities] of vulnerabilities.fixable) {
     const updatedVersions = updatedPackages.get(pkgName)
-    if (!updatedVersions) {
-      fixed.push(...vulnerabilities.map(v => v.id))
-      continue
-    }
-    for (const vulnerability of vulnerabilities) {
-      let wasFixed = true
-      for (const updatedVersion of updatedVersions) {
-        let { semverRange } = vulnerability
-        if (!semverRange) {
-          semverRange = new semver.Range(vulnerability.vulnerability.versionRange)
-          vulnerability.semverRange = semverRange
-        }
-        if (semver.satisfies(updatedVersion, semverRange)) {
-          wasFixed = false
-          break
-        }
-      }
-      if (wasFixed) {
-        fixed.push(vulnerability.id)
-      } else {
-        remaining.push(vulnerability.id)
-      }
+    for (const vulnerability of packageVulnerabilities) {
+      const ids = isStillVulnerable(vulnerability, updatedVersions) ? remaining : fixed
+      ids.push(vulnerability.id)
     }
   }
 
-  for (const [pkgName, unfixableIds] of unfixableVulnerabilities) {
-    if (updatedPackages.has(pkgName)) {
-      remaining.push(...unfixableIds)
-    } else {
-      fixed.push(...unfixableIds)
-    }
+  for (const [pkgName, unfixableIds] of vulnerabilities.unfixable) {
+    const ids = updatedPackages.has(pkgName) ? remaining : fixed
+    ids.push(...unfixableIds)
   }
 
-  return { fixed, remaining, addedAgeExcludes }
+  return { fixed, remaining }
+}
+
+function isStillVulnerable (vulnerability: ExtendedPackageVulnerability, updatedVersions: Set<string> | undefined): boolean {
+  if (!updatedVersions) return false
+  return Array.from(updatedVersions).some((updatedVersion) => semver.satisfies(updatedVersion, getSemverRange(vulnerability)))
 }

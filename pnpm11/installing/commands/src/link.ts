@@ -23,7 +23,7 @@ import { getSaveType } from './getSaveType.js'
 import * as install from './install.js'
 import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
-// @ts-expect-error
+// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 

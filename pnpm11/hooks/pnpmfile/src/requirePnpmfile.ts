@@ -96,6 +96,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     if (err instanceof SyntaxError) {
       console.error(chalk.red(`A syntax error in the "${pnpmFilePath}"\n`))
       console.error(err)
+      // eslint-disable-next-line n/no-process-exit -- a pnpmfile that does not parse aborts pnpm after printing the syntax error
       process.exit(1)
     }
     if (isModuleNotFoundError(err) && !pnpmFileExistsSync(pnpmFilePath)) {

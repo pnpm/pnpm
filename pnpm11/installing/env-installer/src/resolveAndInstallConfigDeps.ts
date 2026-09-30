@@ -36,52 +36,10 @@ export async function resolveAndInstallConfigDeps (
   opts: ResolveAndInstallConfigDepsOpts
 ): Promise<void> {
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
-  const lockfileConfigDeps = envLockfile.importers['.'].configDependencies
-
-  const depsToResolve: Array<{ name: string, specifier: string, pinnedIntegrity?: string }> = []
-  let lockfileChanged = false
-
-  for (const [name, value] of Object.entries(configDeps)) {
-    if (typeof value === 'object') {
-      // Old object format — migrate inline into lockfile
-      if (!lockfileConfigDeps[name]) {
-        const { version, integrity } = parseIntegrity(name, value.integrity)
-        assertValidMigratedConfigDep(name, version)
-        if (value.tarball != null) {
-          const registry = pickRegistryForPackage(opts.registriesByScope, name)
-          const pkgKey = `${name}@${version}`
-          lockfileConfigDeps[name] = { specifier: version, version }
-          envLockfile.packages[pkgKey] = {
-            resolution: toLockfileResolution({ name, version }, { integrity, tarball: value.tarball }, { registry }),
-          }
-          envLockfile.snapshots[pkgKey] = {}
-          lockfileChanged = true
-        } else {
-          depsToResolve.push({ name, specifier: version, pinnedIntegrity: integrity })
-        }
-      }
-      continue
-    }
-
-    if (value.includes('+')) {
-      // Old string format with inline integrity — resolve its tarball URL, then migrate
-      if (!lockfileConfigDeps[name]) {
-        const { version, integrity } = parseIntegrity(name, value)
-        assertValidMigratedConfigDep(name, version)
-        depsToResolve.push({ name, specifier: version, pinnedIntegrity: integrity })
-      }
-      continue
-    }
-
-    // New format (clean specifier like "1.2.0" or "^1.0.0")
-    const specifier = value
-    const existing = lockfileConfigDeps[name]
-    if (existing && existing.specifier === specifier) {
-      const pkgKey = `${name}@${existing.version}`
-      if (envLockfile.packages[pkgKey]) continue // fully resolved
-    }
-    depsToResolve.push({ name, specifier })
-  }
+  const { depsToResolve, lockfileChanged } = collectConfigDepsToResolve(configDeps, {
+    envLockfile,
+    registriesByScope: opts.registriesByScope,
+  })
 
   if (opts.frozenLockfile && (lockfileChanged || depsToResolve.length > 0)) {
     throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot update configDependencies with "frozen-lockfile" because the lockfile is not up to date')
@@ -99,52 +57,143 @@ export async function resolveAndInstallConfigDeps (
   const fetch = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
+  const resolveCtx: ResolveConfigDepContext = { envLockfile, opts, resolveFromNpm }
 
-  await Promise.all(depsToResolve.map(async ({ name, specifier, pinnedIntegrity }) => {
-    const resolution = await resolveFromNpm({ alias: name, bareSpecifier: specifier }, {
-      lockfileDir: opts.rootDir,
-      preferredVersions: {},
-      projectDir: opts.rootDir,
-    })
-    if (
-      resolution?.resolution == null ||
-      !('integrity' in resolution.resolution) ||
-      typeof resolution.resolution.integrity !== 'string' ||
-      !resolution.resolution.integrity
-    ) {
-      throw new PnpmError('BAD_CONFIG_DEP', `Cannot resolve ${name}@${specifier} as a configuration dependency because it has no integrity`)
-    }
-    const version = resolution.manifest.version
-    const registry = pickRegistryForPackage(opts.registriesByScope, name)
-    const pkgKey = `${name}@${version}`
-
-    lockfileConfigDeps[name] = {
-      specifier,
-      version,
-    }
-    // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
-    // so the registry hands over the tarball URL without loosening the pin.
-    const pkgResolution = pinnedIntegrity == null
-      ? resolution.resolution
-      : { ...resolution.resolution, integrity: pinnedIntegrity }
-    envLockfile.packages[pkgKey] = {
-      resolution: toLockfileResolution({ name, version }, pkgResolution, { registry }),
-    }
-    // A pinned dependency covers only itself, so its optional subdeps stay out
-    // of the lockfile until it is declared as a clean specifier.
-    const optionalSubdeps = pinnedIntegrity == null
-      ? await resolveOptionalSubdeps(name, resolution.manifest, {
-        envLockfile,
-        lockfileDir: opts.rootDir,
-        registriesByScope: opts.registriesByScope,
-        resolveFromNpm,
-      })
-      : undefined
-    envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
-  }))
+  await Promise.all(depsToResolve.map((dep) => resolveConfigDepIntoLockfile(resolveCtx, dep)))
 
   pruneEnvLockfile(envLockfile)
 
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await installConfigDeps(envLockfile, opts)
+}
+
+interface ConfigDepToResolve {
+  name: string
+  specifier: string
+  pinnedIntegrity?: string
+}
+
+interface ConfigDepPlanContext {
+  envLockfile: EnvLockfile
+  registriesByScope: ResolveAndInstallConfigDepsOpts['registriesByScope']
+}
+
+/**
+ * Written straight into the env lockfile, without resolving.
+ */
+const MIGRATED_INTO_LOCKFILE = 'migrated'
+
+type ConfigDepPlan = ConfigDepToResolve | typeof MIGRATED_INTO_LOCKFILE | undefined
+
+function collectConfigDepsToResolve (
+  configDeps: ConfigDependencies,
+  ctx: ConfigDepPlanContext
+): { depsToResolve: ConfigDepToResolve[], lockfileChanged: boolean } {
+  const depsToResolve: ConfigDepToResolve[] = []
+  let lockfileChanged = false
+  for (const [name, value] of Object.entries(configDeps)) {
+    const plan = planConfigDep(ctx, name, value)
+    if (plan === MIGRATED_INTO_LOCKFILE) {
+      lockfileChanged = true
+    } else if (plan) {
+      depsToResolve.push(plan)
+    }
+  }
+  return { depsToResolve, lockfileChanged }
+}
+
+function planConfigDep (ctx: ConfigDepPlanContext, name: string, value: ConfigDependencies[string]): ConfigDepPlan {
+  const lockfileConfigDeps = ctx.envLockfile.importers['.'].configDependencies
+  if (typeof value === 'object') {
+    // Old object format — migrate inline into lockfile
+    if (lockfileConfigDeps[name]) return undefined
+    return planObjectFormatConfigDep(ctx, name, value)
+  }
+
+  if (value.includes('+')) {
+    // Old string format with inline integrity — resolve its tarball URL, then migrate
+    if (lockfileConfigDeps[name]) return undefined
+    const { version, integrity } = parseIntegrity(name, value)
+    assertValidMigratedConfigDep(name, version)
+    return { name, specifier: version, pinnedIntegrity: integrity }
+  }
+
+  // New format (clean specifier like "1.2.0" or "^1.0.0")
+  const existing = lockfileConfigDeps[name]
+  if (existing && existing.specifier === value && ctx.envLockfile.packages[`${name}@${existing.version}`]) {
+    return undefined // fully resolved
+  }
+  return { name, specifier: value }
+}
+
+function planObjectFormatConfigDep (
+  ctx: ConfigDepPlanContext,
+  name: string,
+  value: Exclude<ConfigDependencies[string], string>
+): ConfigDepPlan {
+  const { version, integrity } = parseIntegrity(name, value.integrity)
+  assertValidMigratedConfigDep(name, version)
+  if (value.tarball == null) {
+    return { name, specifier: version, pinnedIntegrity: integrity }
+  }
+  const registry = pickRegistryForPackage(ctx.registriesByScope, name)
+  const pkgKey = `${name}@${version}`
+  ctx.envLockfile.importers['.'].configDependencies[name] = { specifier: version, version }
+  ctx.envLockfile.packages[pkgKey] = {
+    resolution: toLockfileResolution({ name, version }, { integrity, tarball: value.tarball }, { registry }),
+  }
+  ctx.envLockfile.snapshots[pkgKey] = {}
+  return MIGRATED_INTO_LOCKFILE
+}
+
+interface ResolveConfigDepContext {
+  envLockfile: EnvLockfile
+  opts: ResolveAndInstallConfigDepsOpts
+  resolveFromNpm: ReturnType<typeof createNpmResolver>['resolveFromNpm']
+}
+
+async function resolveConfigDepIntoLockfile (ctx: ResolveConfigDepContext, dep: ConfigDepToResolve): Promise<void> {
+  const { name, specifier, pinnedIntegrity } = dep
+  const { envLockfile, opts } = ctx
+  const resolution = await ctx.resolveFromNpm({ alias: name, bareSpecifier: specifier }, {
+    lockfileDir: opts.rootDir,
+    preferredVersions: {},
+    projectDir: opts.rootDir,
+  })
+  if (
+    resolution?.resolution == null ||
+    !('integrity' in resolution.resolution) ||
+    typeof resolution.resolution.integrity !== 'string' ||
+    !resolution.resolution.integrity
+  ) {
+    throw new PnpmError('BAD_CONFIG_DEP', `Cannot resolve ${name}@${specifier} as a configuration dependency because it has no integrity`)
+  }
+  const version = resolution.manifest.version
+  const pkgKey = `${name}@${version}`
+
+  envLockfile.importers['.'].configDependencies[name] = {
+    specifier,
+    version,
+  }
+  // A migrated dependency keeps the integrity pinned in pnpm-workspace.yaml,
+  // so the registry hands over the tarball URL without loosening the pin.
+  const pkgResolution = pinnedIntegrity == null
+    ? resolution.resolution
+    : { ...resolution.resolution, integrity: pinnedIntegrity }
+  envLockfile.packages[pkgKey] = {
+    resolution: toLockfileResolution({ name, version }, pkgResolution, {
+      registry: pickRegistryForPackage(opts.registriesByScope, name),
+    }),
+  }
+  // A pinned dependency covers only itself, so its optional subdeps stay out
+  // of the lockfile until it is declared as a clean specifier.
+  const optionalSubdeps = pinnedIntegrity == null
+    ? await resolveOptionalSubdeps(name, resolution.manifest, {
+      envLockfile,
+      lockfileDir: opts.rootDir,
+      registriesByScope: opts.registriesByScope,
+      resolveFromNpm: ctx.resolveFromNpm,
+    })
+    : undefined
+  envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
 }

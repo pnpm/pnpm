@@ -34,4 +34,19 @@ describe('readResponseBodyCapped', () => {
     await expect(readResponseBodyCapped(response, 4)).resolves.toBeUndefined()
     expect(cancelled).toBe(true)
   })
+
+  test('cancels reader if writing to temp file throws an error', async () => {
+    let cancelled = false
+    const badResponse = new Response(new ReadableStream({
+      cancel: () => {
+        cancelled = true
+      },
+      pull: (controller) => {
+        controller.enqueue({} as unknown as Uint8Array)
+      },
+    }))
+
+    await expect(readResponseBodyCapped(badResponse, 10)).rejects.toThrow()
+    expect(cancelled).toBe(true)
+  })
 })

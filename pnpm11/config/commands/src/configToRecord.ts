@@ -28,34 +28,10 @@ const NON_SETTING_CONFIG_KEYS = new Set([
  */
 export function configToRecord (config: Config, explicitlySetKeys: Set<string>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
-  // Add typed settings (only explicitly set ones if tracking is available)
-  for (const kebabKey of Object.keys(types)) {
-    const camelKey = camelcase(kebabKey, { locale: 'en-US' })
-    if (!explicitlySetKeys.has(camelKey) || NON_SETTING_CONFIG_KEYS.has(camelKey)) continue
-    const value = (config as unknown as Record<string, unknown>)[camelKey]
-    if (value !== undefined) {
-      result[camelKey] = value
-    }
-  }
-  // Add non-types config properties (e.g., packageExtensions, overrides)
-  for (const [key, value] of Object.entries(config)) {
-    if (value === undefined || NON_SETTING_CONFIG_KEYS.has(key)) continue
-    if (!(key in result) && explicitlySetKeys.has(key)) {
-      result[key] = value
-    }
-  }
-  // Add auth/registry keys (scoped keys, auth tokens) — keep original casing
-  for (const [key, value] of Object.entries(config.authConfig)) {
-    if (!(key in result)) {
-      result[key] = value
-    }
-  }
-  // The `registry` / `@scope:registry` rows show the merged routes — the
-  // values `config get` answers — so a raw `.npmrc` row cannot contradict
-  // the resolved `registries` view.
-  for (const [scope, url] of Object.entries(config.registriesByScope ?? {})) {
-    result[scope === 'default' ? 'registry' : `${scope}:registry`] = url
-  }
+  copyExplicitTypedSettings({ config, explicitlySetKeys, result })
+  copyExplicitUntypedSettings({ config, explicitlySetKeys, result })
+  copyAuthSettings(config.authConfig, result)
+  copyRegistryRoutes(config.registriesByScope, result)
   // Always include user-agent for debugging connectivity issues
   if (config.userAgent) {
     result.userAgent = config.userAgent
@@ -75,4 +51,52 @@ export function configToRecord (config: Config, explicitlySetKeys: Set<string>):
     result.catalogs = config.catalogs
   }
   return censorProtectedSettings(sortDirectKeys(result))
+}
+
+interface CopySettingsOptions {
+  config: Config
+  explicitlySetKeys: Set<string>
+  result: Record<string, unknown>
+}
+
+/** Adds typed settings, only explicitly set ones. */
+function copyExplicitTypedSettings ({ config, explicitlySetKeys, result }: CopySettingsOptions): void {
+  for (const kebabKey of Object.keys(types)) {
+    const camelKey = camelcase(kebabKey, { locale: 'en-US' })
+    if (!explicitlySetKeys.has(camelKey) || NON_SETTING_CONFIG_KEYS.has(camelKey)) continue
+    const value = (config as unknown as Record<string, unknown>)[camelKey]
+    if (value !== undefined) {
+      result[camelKey] = value
+    }
+  }
+}
+
+/** Adds non-types config properties (e.g., packageExtensions, overrides). */
+function copyExplicitUntypedSettings ({ config, explicitlySetKeys, result }: CopySettingsOptions): void {
+  for (const [key, value] of Object.entries(config)) {
+    if (value === undefined || NON_SETTING_CONFIG_KEYS.has(key)) continue
+    if (!(key in result) && explicitlySetKeys.has(key)) {
+      result[key] = value
+    }
+  }
+}
+
+/** Adds auth/registry keys (scoped keys, auth tokens), keeping their original casing. */
+function copyAuthSettings (authConfig: Config['authConfig'], result: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(authConfig)) {
+    if (!(key in result)) {
+      result[key] = value
+    }
+  }
+}
+
+/**
+ * The `registry` / `@scope:registry` rows show the merged routes — the
+ * values `config get` answers — so a raw `.npmrc` row cannot contradict
+ * the resolved `registries` view.
+ */
+function copyRegistryRoutes (registriesByScope: Config['registriesByScope'], result: Record<string, unknown>): void {
+  for (const [scope, url] of Object.entries(registriesByScope ?? {})) {
+    result[scope === 'default' ? 'registry' : `${scope}:registry`] = url
+  }
 }

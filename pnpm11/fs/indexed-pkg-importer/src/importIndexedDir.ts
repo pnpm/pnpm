@@ -103,7 +103,7 @@ export function importIndexedDir (
   } catch (err: unknown) {
     try {
       rimrafSync(stage)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
@@ -116,7 +116,7 @@ export function importIndexedDir (
   } catch (renameErr: unknown) {
     try {
       rimrafSync(stage)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     throw renameErr
   }
 }
@@ -169,17 +169,17 @@ function importIntoSharedDir (dirImport: IndexedDirImport): void {
 function repairIndexedDir ({ importer, newDir, filenames, opts }: IndexedDirImport): void {
   makeFileMapDirs(newDir, filenames, { clearBlockers: true })
   let packageJsonSrc: string | undefined
-  for (const [f, src] of filenames) {
-    if (f === 'package.json') {
+  for (const [relativePath, src] of filenames) {
+    if (relativePath === 'package.json') {
       packageJsonSrc = src
       continue
     }
-    replaceFileIfDifferent(importer.importFile, src, path.join(newDir, f))
+    replaceFileIfDifferent(importer.importFile, src, path.join(newDir, relativePath))
   }
-  for (const [f, target] of opts.symlinks ?? []) {
-    const dir = path.posix.dirname(f)
+  for (const [relativePath, target] of opts.symlinks ?? []) {
+    const dir = path.posix.dirname(relativePath)
     if (dir !== '.') clearDirentBlockingDir(newDir, dir)
-    replaceSymlinkIfDifferent(target, path.join(newDir, f))
+    replaceSymlinkIfDifferent(target, path.join(newDir, relativePath))
   }
   if (packageJsonSrc !== undefined) {
     replaceFileIfDifferent(importer.importFile, packageJsonSrc, path.join(newDir, 'package.json'))
@@ -197,7 +197,7 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
   } catch (err) {
     try {
       fs.unlinkSync(tmp)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     throw err
   }
   try {
@@ -206,7 +206,7 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
   } catch (err) {
     try {
       fs.unlinkSync(tmp)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     if (mismatchReason(dest, src) === undefined) return
     throw err
   }
@@ -223,7 +223,7 @@ function replaceSymlinkIfDifferent (target: string, dest: string): void {
   } catch (err) {
     try {
       fs.unlinkSync(tmp)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     if (symlinkMatches(dest, target)) return
     throw err
   }
@@ -355,7 +355,7 @@ function tryExclusiveImport (
   } catch {
     try {
       rimrafSync(newDir)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     return false
   }
 }
@@ -366,17 +366,17 @@ function allFilesMatch (dir: string, filenames: Map<string, string>): boolean {
   // wherever the map happens to hold it.
   const markerSrc = filenames.get('package.json')
   if (markerSrc !== undefined && !fileMatches(dir, 'package.json', markerSrc)) return false
-  for (const [f, src] of filenames) {
-    if (f === 'package.json') continue
-    if (!fileMatches(dir, f, src)) return false
+  for (const [relativePath, src] of filenames) {
+    if (relativePath === 'package.json') continue
+    if (!fileMatches(dir, relativePath, src)) return false
   }
   return true
 }
 
 function allSymlinksMatch (dir: string, symlinks: Map<string, string> | undefined): boolean {
-  for (const [f, target] of symlinks ?? []) {
-    if (!symlinkMatches(path.join(dir, f), target)) {
-      globalInfo(`Re-importing "${dir}" because symlink "${f}" does not point to "${target}"`)
+  for (const [relativePath, target] of symlinks ?? []) {
+    if (!symlinkMatches(path.join(dir, relativePath), target)) {
+      globalInfo(`Re-importing "${dir}" because symlink "${relativePath}" does not point to "${target}"`)
       return false
     }
   }
@@ -391,10 +391,10 @@ function symlinkMatches (dest: string, target: string): boolean {
   }
 }
 
-function fileMatches (dir: string, f: string, src: string): boolean {
-  const reason = mismatchReason(path.join(dir, f), src)
+function fileMatches (dir: string, relativePath: string, src: string): boolean {
+  const reason = mismatchReason(path.join(dir, relativePath), src)
   if (reason === undefined) return true
-  globalInfo(`Re-importing "${dir}" because file "${f}" ${reason}`)
+  globalInfo(`Re-importing "${dir}" because file "${relativePath}" ${reason}`)
   return false
 }
 
@@ -490,15 +490,15 @@ function tryImportIndexedDir (
   // is already imported — writing it last ensures a crash mid-import won't
   // leave a partially-populated directory that appears fully imported.
   let packageJsonSrc: string | undefined
-  for (const [f, src] of filenames) {
-    if (f === 'package.json') {
+  for (const [relativePath, src] of filenames) {
+    if (relativePath === 'package.json') {
       packageJsonSrc = src
       continue
     }
-    importEntry(importFile, src, path.join(newDir, f), links)
+    importEntry(importFile, src, path.join(newDir, relativePath), links)
   }
-  for (const [f, target] of symlinks ?? []) {
-    const dest = path.join(newDir, f)
+  for (const [relativePath, target] of symlinks ?? []) {
+    const dest = path.join(newDir, relativePath)
     fs.mkdirSync(path.dirname(dest), { recursive: true })
     fs.symlinkSync(target, dest)
   }
@@ -528,8 +528,8 @@ function symlinkDirs (
 ): SymlinkDirs | undefined {
   if (opts.resolvedFrom !== 'local-dir') return undefined
   const imported = new Set<string>([''])
-  for (const f of filenames.keys()) {
-    for (let entry = f; entry !== '' && !imported.has(entry); entry = path.posix.dirname(entry).replace(/^\.$/, '')) {
+  for (const relativePath of filenames.keys()) {
+    for (let entry = relativePath; entry !== '' && !imported.has(entry); entry = path.posix.dirname(entry).replace(/^\.$/, '')) {
       imported.add(entry)
     }
   }
@@ -605,8 +605,8 @@ function makeFileMapDirs (
   opts?: { clearBlockers: boolean }
 ): void {
   const allDirs = new Set<string>()
-  for (const f of filenames.keys()) {
-    const dir = path.dirname(f)
+  for (const relativePath of filenames.keys()) {
+    const dir = path.dirname(relativePath)
     if (dir === '.') continue
     allDirs.add(dir)
   }

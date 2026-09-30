@@ -22,47 +22,64 @@ export async function pickFetcher (
     packageId: string
   }
 ): Promise<PickedFetcher> {
-  // Try custom fetcher hooks first if available
-  // Custom fetchers act as complete fetcher replacements
   if (opts?.customFetchers && opts.customFetchers.length > 0) {
     const lockedIntegrity = getLockedArchiveIntegrity(resolution)
     const fetchers = lockedIntegrity == null
       ? fetcherByHostingType
       : bindArchiveIntegrity(fetcherByHostingType, lockedIntegrity)
-    for (const customFetcher of opts.customFetchers) {
-      if (customFetcher.canFetch && customFetcher.fetch) {
-        // eslint-disable-next-line no-await-in-loop
-        const canFetch = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.canFetch!(opts.packageId, resolution))
-
-        if (canFetch) {
-          // Preserve `this` for custom fetchers that implement their optional
-          // resolution contract as a method.
-          const resolutionNeedsFetch = typeof customFetcher.resolutionNeedsFetch === 'function'
-            ? customFetcher.resolutionNeedsFetch.bind(customFetcher)
-            : undefined
-          return Object.assign(
-            async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> => {
-              const result = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.fetch!(cafs, resolution, fetchOpts, fetchers))
-              if (isCustomFetcherDelegation(result)) {
-                const delegate = (lockedIntegrity == null
-                  ? result.delegate
-                  : preserveArchiveIntegrity(result.delegate, lockedIntegrity)) as AtomicResolution
-                const fetch = pickBuiltinFetcher(fetcherByHostingType, delegate) as FetchFunction
-                return fetch(cafs, delegate, fetchOpts)
-              }
-              return result
-            },
-            { resolutionNeedsFetch }
-          ) as FetchFunction
-        }
-      }
-    }
+    const custom = await tryPickCustomFetcher(opts.customFetchers, opts.packageId, resolution, lockedIntegrity, fetchers, fetcherByHostingType)
+    if (custom) return custom
     return pickBuiltinFetcher(fetchers, lockedIntegrity == null
       ? resolution
       : preserveArchiveIntegrity(resolution, lockedIntegrity))
   }
 
   return pickBuiltinFetcher(fetcherByHostingType, resolution)
+}
+
+async function tryPickCustomFetcher (
+  customFetchers: CustomFetcher[],
+  packageId: string,
+  resolution: AtomicResolution,
+  lockedIntegrity: string | undefined,
+  fetchers: Fetchers,
+  fetcherByHostingType: Fetchers
+): Promise<PickedFetcher | undefined> {
+  for (const customFetcher of customFetchers) {
+    if (!customFetcher.canFetch || !customFetcher.fetch) continue
+    // eslint-disable-next-line no-await-in-loop -- the first custom fetcher that accepts the resolution wins, so they are asked in order
+    const canFetch = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.canFetch!(packageId, resolution))
+    if (canFetch) {
+      return createCustomFetchFunction(customFetcher, resolution, lockedIntegrity, fetchers, fetcherByHostingType)
+    }
+  }
+  return undefined
+}
+
+function createCustomFetchFunction (
+  customFetcher: CustomFetcher,
+  _resolution: AtomicResolution,
+  lockedIntegrity: string | undefined,
+  fetchers: Fetchers,
+  fetcherByHostingType: Fetchers
+): FetchFunction {
+  const resolutionNeedsFetch = typeof customFetcher.resolutionNeedsFetch === 'function'
+    ? customFetcher.resolutionNeedsFetch.bind(customFetcher)
+    : undefined
+  return Object.assign(
+    async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> => {
+      const result = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.fetch!(cafs, resolution, fetchOpts, fetchers))
+      if (isCustomFetcherDelegation(result)) {
+        const delegate = (lockedIntegrity == null
+          ? result.delegate
+          : preserveArchiveIntegrity(result.delegate, lockedIntegrity)) as AtomicResolution
+        const fetch = pickBuiltinFetcher(fetcherByHostingType, delegate) as FetchFunction
+        return fetch(cafs, delegate, fetchOpts)
+      }
+      return result
+    },
+    { resolutionNeedsFetch }
+  ) as FetchFunction
 }
 
 function getLockedArchiveIntegrity (resolution: AtomicResolution): string | undefined {

@@ -13,42 +13,15 @@ import path from 'node:path'
  * dependency versions.
  */
 export async function getBinNodePaths (target: string, modulesDirNameOrPath: string = 'node_modules'): Promise<string[]> {
-  const targetDir = path.dirname(target)
-  let dir: string
-  try {
-    dir = await fs.realpath(targetDir)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw err
-    }
-    dir = targetDir
-  }
+  const dir = await realpathIfExists(path.dirname(target))
 
-  let currentDir = dir
-  let nodeModulesDir: string | undefined
-  while (true) {
-    if (path.basename(currentDir) === 'node_modules') {
-      if (path.basename(path.dirname(currentDir)) !== 'node_modules') {
-        nodeModulesDir = currentDir
-        break
-      }
-    }
-    const parent = path.dirname(currentDir)
-    if (parent === currentDir) break
-    currentDir = parent
-  }
-
+  const nodeModulesDir = findModulesDirAncestor(dir, 'node_modules', () => true)
   if (nodeModulesDir) {
     return getNodePathsForModulesDir(nodeModulesDir, dir)
   }
 
   if (path.isAbsolute(modulesDirNameOrPath)) {
-    let resolvedModulesDir: string
-    try {
-      resolvedModulesDir = await fs.realpath(modulesDirNameOrPath)
-    } catch {
-      resolvedModulesDir = modulesDirNameOrPath
-    }
+    const resolvedModulesDir = await realpathOrSelf(modulesDirNameOrPath)
     const rel = path.relative(resolvedModulesDir, dir)
     if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
       return getNodePathsForModulesDir(resolvedModulesDir, dir)
@@ -57,27 +30,66 @@ export async function getBinNodePaths (target: string, modulesDirNameOrPath: str
 
   const modulesDirName = path.basename(modulesDirNameOrPath)
   if (modulesDirName !== 'node_modules') {
-    currentDir = dir
-    while (true) {
-      if (path.basename(currentDir) === modulesDirName) {
-        if (path.basename(path.dirname(currentDir)) !== modulesDirName) {
-          const rel = path.relative(currentDir, dir)
-          if (rel && !rel.startsWith('..')) {
-            const relSegments = rel.split(path.sep)
-            const isScoped = relSegments[0].startsWith('@')
-            if (isScoped ? relSegments.length >= 2 : relSegments.length >= 1) {
-              return getNodePathsForModulesDir(currentDir, dir)
-            }
-          }
-        }
-      }
-      const parent = path.dirname(currentDir)
-      if (parent === currentDir) break
-      currentDir = parent
+    const customModulesDir = findModulesDirAncestor(dir, modulesDirName, (candidate) => containsPackageDir(candidate, dir))
+    if (customModulesDir) {
+      return getNodePathsForModulesDir(customModulesDir, dir)
     }
   }
 
   return []
+}
+
+async function realpathIfExists (dir: string): Promise<string> {
+  try {
+    return await fs.realpath(dir)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
+    return dir
+  }
+}
+
+async function realpathOrSelf (dir: string): Promise<string> {
+  try {
+    return await fs.realpath(dir)
+  } catch {
+    return dir
+  }
+}
+
+/**
+ * Walks up from `dir` and returns the first directory named `modulesDirName`
+ * that is not itself nested directly in another `modulesDirName` directory
+ * and that satisfies `accept`.
+ */
+function findModulesDirAncestor (
+  dir: string,
+  modulesDirName: string,
+  accept: (candidate: string) => boolean
+): string | undefined {
+  let currentDir = dir
+  while (true) {
+    if (isOutermostModulesDir(currentDir, modulesDirName) && accept(currentDir)) {
+      return currentDir
+    }
+    const parent = path.dirname(currentDir)
+    if (parent === currentDir) return undefined
+    currentDir = parent
+  }
+}
+
+function isOutermostModulesDir (candidate: string, modulesDirName: string): boolean {
+  return path.basename(candidate) === modulesDirName &&
+    path.basename(path.dirname(candidate)) !== modulesDirName
+}
+
+function containsPackageDir (modulesDir: string, dir: string): boolean {
+  const rel = path.relative(modulesDir, dir)
+  if (!rel || rel.startsWith('..')) return false
+  const relSegments = rel.split(path.sep)
+  const isScoped = relSegments[0].startsWith('@')
+  return isScoped ? relSegments.length >= 2 : relSegments.length >= 1
 }
 
 function getNodePathsForModulesDir (modulesDir: string, dir: string): string[] {

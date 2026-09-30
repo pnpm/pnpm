@@ -57,34 +57,41 @@ export async function resolveManifestDependencies (
         updatePackageManifest: false,
       },
     ],
-    {
-      allowedDeprecatedVersions: {},
-      allowUnusedPatches: true,
-      currentLockfile: emptyLockfile,
-      defaultUpdateDepth: 0,
-      dryRun: true,
-      engineStrict: false,
-      force: false,
-      forceFullResolution: true,
-      hooks: {},
-      lockfileDir: opts.dir,
-      nodeVersion: process.version,
-      pnpmVersion: '',
-      preferWorkspacePackages: false,
-      preserveWorkspaceProtocol: false,
-      registriesByScope: opts.registriesByScope,
-      saveWorkspaceProtocol: false,
-      storeController: opts.storeController,
-      tag: 'latest',
-      virtualStoreDir: path.join(opts.dir, 'node_modules', '.pnpm'),
-      globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
-      virtualStoreDirMaxLength: 120,
-      wantedLockfile: emptyLockfile,
-      workspacePackages: new Map(),
-      peersSuffixMaxLength: 1000,
-      allProjectIds: ['.'],
-    }
+    createResolveDependenciesOptions(opts, emptyLockfile)
   )
   await waitTillAllFetchingsFinish()
   return newLockfile
+}
+
+function createResolveDependenciesOptions (
+  opts: ResolveManifestDependenciesOpts,
+  emptyLockfile: LockfileObject
+): Parameters<typeof resolveDependencies>[1] {
+  return {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: true,
+    currentLockfile: emptyLockfile,
+    defaultUpdateDepth: 0,
+    dryRun: true,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: true,
+    hooks: {},
+    lockfileDir: opts.dir,
+    nodeVersion: process.version,
+    pnpmVersion: '',
+    preferWorkspacePackages: false,
+    preserveWorkspaceProtocol: false,
+    registriesByScope: opts.registriesByScope,
+    saveWorkspaceProtocol: false,
+    storeController: opts.storeController,
+    tag: 'latest',
+    virtualStoreDir: path.join(opts.dir, 'node_modules', '.pnpm'),
+    globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: emptyLockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    allProjectIds: ['.'],
+  }
 }

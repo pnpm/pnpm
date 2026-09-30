@@ -21,21 +21,31 @@ function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher 
       const latestManifest = await getLatest(alias)
       return { latestManifest: latestManifest ?? undefined }
     }
-    if (
-      bareSpecifier?.startsWith('http://') || bareSpecifier?.startsWith('https://') ||
-      bareSpecifier?.startsWith('github:') || bareSpecifier?.startsWith('git+') || bareSpecifier?.startsWith('git:')
-    ) {
+    if (isRemoteOrGitSpecifier(bareSpecifier)) {
       return {}
     }
-    let pkgName = alias ?? ''
-    if (bareSpecifier?.startsWith('npm:')) {
-      const inner = bareSpecifier.slice(4)
-      const atIdx = inner.lastIndexOf('@')
-      pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
-    }
+    const pkgName = extractPackageNameFromSpecifier(alias, bareSpecifier)
     const latestManifest = await getLatest(pkgName)
     return { latestManifest: latestManifest ?? undefined }
   }
+}
+
+function isRemoteOrGitSpecifier (bareSpecifier?: string): boolean {
+  if (!bareSpecifier) return false
+  return (
+    bareSpecifier.startsWith('http://') || bareSpecifier.startsWith('https://') ||
+    bareSpecifier.startsWith('github:') || bareSpecifier.startsWith('git+') || bareSpecifier.startsWith('git:')
+  )
+}
+
+function extractPackageNameFromSpecifier (alias: string | undefined, bareSpecifier?: string): string {
+  let pkgName = alias ?? ''
+  if (bareSpecifier?.startsWith('npm:')) {
+    const inner = bareSpecifier.slice(4)
+    const atIdx = inner.lastIndexOf('@')
+    pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
+  }
+  return pkgName
 }
 
 async function getLatestManifest (packageName: string): Promise<PackageManifest | null> {
@@ -1162,15 +1172,15 @@ test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
       ['deno@runtime:2.4.2' as DepPath]: {
         version: '2.4.2',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
       ['bun@runtime:1.1.40' as DepPath]: {
         version: '1.1.40',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }
@@ -1242,7 +1252,7 @@ test('outdated() runtime in --compatible mode resolves within the declared range
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }
@@ -1290,7 +1300,7 @@ test('outdated() does not list runtime that is already up to date', async () => 
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }

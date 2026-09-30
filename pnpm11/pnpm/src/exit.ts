@@ -8,5 +8,6 @@ export async function exit (status: number): Promise<never> {
       // ignore error here
     }
   }
+  // eslint-disable-next-line n/no-process-exit -- callers rely on the process ending here with this status
   process.exit(status)
 }

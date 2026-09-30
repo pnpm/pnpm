@@ -67,21 +67,14 @@ export function createReadPackageHook (
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
   }
 ): ReadPackageHook | undefined {
-  const hooks: ReadPackageHook[] = []
-  if (!isEmpty(packageExtensions ?? {})) {
-    hooks.push(createPackageExtender(packageExtensions!))
-  }
-  if (Array.isArray(readPackageHook)) {
-    hooks.push(...readPackageHook)
-  } else if (readPackageHook) {
-    hooks.push(readPackageHook)
-  }
-  if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { convergeDeclaredRanges }))
-  }
-  if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
-    hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))
-  }
+  const hooks = collectBaseHooks({
+    packageExtensions,
+    readPackageHook,
+    overrides,
+    lockfileDir,
+    convergeDeclaredRanges,
+    ignoredOptionalDependencies,
+  })
 
   const dependencyHooks = [...hooks]
   const compatibilityPackageExtensions = getEffectivePackageExtensions({
@@ -98,9 +91,44 @@ export function createReadPackageHook (
     const hooksForManifest = dir == null ? dependencyHooks : hooks
     if (hooksForManifest.length === 0) return pkg
     if (hooksForManifest.length === 1) return hooksForManifest[0](pkg, dir)
-    return pipeWith(async (f, res) => f(await res, dir), hooksForManifest as any)(pkg, dir) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return pipeWith(async (f, res) => f(await res, dir), hooksForManifest as any)(pkg, dir) // eslint-disable-line @typescript-eslint/no-explicit-any -- ramda's pipeWith typings cannot express a list of same-typed async hooks
   }) as ReadPackageHook
   return readPackageAndExtend
+}
+
+function collectBaseHooks (
+  {
+    packageExtensions,
+    readPackageHook,
+    overrides,
+    lockfileDir,
+    convergeDeclaredRanges,
+    ignoredOptionalDependencies,
+  }: {
+    packageExtensions?: Record<string, PackageExtension>
+    readPackageHook?: ReadPackageHook[] | ReadPackageHook
+    overrides?: VersionOverrideWithoutRawSelector[]
+    lockfileDir: string
+    convergeDeclaredRanges?: CreateVersionsOverriderOptions['convergeDeclaredRanges']
+    ignoredOptionalDependencies?: string[]
+  }
+): ReadPackageHook[] {
+  const hooks: ReadPackageHook[] = []
+  if (!isEmpty(packageExtensions ?? {})) {
+    hooks.push(createPackageExtender(packageExtensions!))
+  }
+  if (Array.isArray(readPackageHook)) {
+    hooks.push(...readPackageHook)
+  } else if (readPackageHook) {
+    hooks.push(readPackageHook)
+  }
+  if (!isEmpty(overrides ?? {})) {
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { convergeDeclaredRanges }))
+  }
+  if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
+    hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))
+  }
+  return hooks
 }
 
 function mergePackageExtensions (

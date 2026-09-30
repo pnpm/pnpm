@@ -18,7 +18,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -37,7 +37,7 @@ const PATCHED_MANIFEST = {
 test('patch package with exact version', async () => {
   const reporter = jest.fn()
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
@@ -133,7 +133,7 @@ test('patch package with exact version', async () => {
 test('patch package with version range', async () => {
   const reporter = jest.fn()
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1': patchPath,
@@ -229,7 +229,7 @@ test('patch package with version range', async () => {
 test('patch package reports warning if not all patches are applied and allowUnusedPatches is set', async () => {
   prepareEmpty()
   const reporter = jest.fn()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
@@ -258,7 +258,7 @@ test('patch package reports warning if not all patches are applied and allowUnus
 
 test('patch package throws an exception if not all patches are applied', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
@@ -281,7 +281,7 @@ test('patch package throws an exception if not all patches are applied', async (
 
 test('patch package throws an exception for an unused patch during an incremental install', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const manifest = {
     dependencies: {
       'is-positive': '1.0.0',
@@ -304,7 +304,7 @@ test('patch package throws an exception for an unused patch during an incrementa
 
 test('an incremental install recognizes a patch in an untouched locked subtree', async () => {
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
@@ -355,7 +355,7 @@ test('an incremental workspace install recognizes a patch used by an unchanged n
     { mutation: 'install', rootDir: project1Root },
     { mutation: 'install', rootDir: project2Root },
   ]
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
@@ -397,7 +397,7 @@ test('an incremental workspace install recognizes a patch used by an unchanged n
 
 test('the patched package is updated if the patch is modified', async () => {
   prepareEmpty()
-  f.copy('patch-pkg', 'patches')
+  testFixtures.copy('patch-pkg', 'patches')
   const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
@@ -424,7 +424,7 @@ test('the patched package is updated if the patch is modified', async () => {
 
 test('every patch_hash in the lockfile is updated when the patch file changes', async () => {
   const project = prepareEmpty()
-  f.copy('patch-pkg', 'patches')
+  testFixtures.copy('patch-pkg', 'patches')
   const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
   const opts = patchedInstallOpts(patchPath)
 
@@ -453,7 +453,7 @@ test('every patch_hash in the lockfile is updated when the patch file changes', 
 
 test('stale patch_hash depPaths are repaired when the patchedDependencies header is already up to date', async () => {
   prepareEmpty()
-  f.copy('patch-pkg', 'patches')
+  testFixtures.copy('patch-pkg', 'patches')
   const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
   const opts = patchedInstallOpts(patchPath)
 
@@ -474,7 +474,7 @@ test('stale patch_hash depPaths are repaired when the patchedDependencies header
 
 test('a lockfile whose patch_hash depPaths disagree with the patchedDependencies header is rejected with frozenLockfile', async () => {
   prepareEmpty()
-  f.copy('patch-pkg', 'patches')
+  testFixtures.copy('patch-pkg', 'patches')
   const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
   const opts = patchedInstallOpts(patchPath)
 
@@ -492,7 +492,7 @@ test('a lockfile whose patch_hash depPaths disagree with the patchedDependencies
 
 test('a lockfile whose dependency paths lack the patch_hash its patch calls for is rejected with frozenLockfile', async () => {
   prepareEmpty()
-  f.copy('patch-pkg', 'patches')
+  testFixtures.copy('patch-pkg', 'patches')
   const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
   const opts = patchedInstallOpts(patchPath)
 
@@ -512,7 +512,7 @@ test('a lockfile whose dependency paths lack the patch_hash its patch calls for 
 
 test('patch package when scripts are ignored', async () => {
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
@@ -601,7 +601,7 @@ test('patch package when scripts are ignored', async () => {
 
 test('patch package when the package is not in allowBuilds list', async () => {
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
@@ -691,7 +691,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
 test('a patch that adds install scripts asks for build approval', async () => {
   const reporter = jest.fn()
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-postinstall.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0-postinstall.patch')
   const patchFileHash = await createHexHashFromFile(patchPath)
   const marker = 'node_modules/is-positive/postinstall-ran.txt'
 
@@ -734,7 +734,7 @@ test('a patch that adds install scripts asks for build approval', async () => {
 
 test('a patch-added install script survives an install that ignored scripts', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-postinstall.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0-postinstall.patch')
   const marker = 'node_modules/is-positive/postinstall-ran.txt'
 
   const installOpts = (ignoreScripts: boolean) => testDefaults({
@@ -770,7 +770,7 @@ test('a patch-added install script survives an install that ignored scripts', as
 test('a patch that adds a binding.gyp asks for build approval', async () => {
   const reporter = jest.fn()
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-binding-gyp.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0-binding-gyp.patch')
   const patchFileHash = await createHexHashFromFile(patchPath)
 
   await install({
@@ -799,7 +799,7 @@ test('a patch that adds a binding.gyp asks for build approval', async () => {
 test('a patch that adds a .hooks file does not ask for build approval', async () => {
   const reporter = jest.fn()
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0-hooks-file.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0-hooks-file.patch')
 
   await install({
     dependencies: {
@@ -828,7 +828,7 @@ test('a patch that adds a .hooks file does not ask for build approval', async ()
 
 test('patch package when the patched package has no dependencies and appears multiple times', async () => {
   const project = prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
@@ -861,7 +861,7 @@ test('patch package when the patched package has no dependencies and appears mul
 
 test('patch package should fail when the exact version patch fails to apply', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@3.1.0': patchPath,
@@ -883,7 +883,7 @@ test('patch package should fail when the exact version patch fails to apply', as
 
 test('patch package should fail when the version range patch fails to apply', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive@>=3': patchPath,
@@ -905,7 +905,7 @@ test('patch package should fail when the version range patch fails to apply', as
 
 test('patch package should fail when the name-only range patch fails to apply', async () => {
   prepareEmpty()
-  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+  const patchPath = path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
     'is-positive': patchPath,
@@ -954,7 +954,7 @@ test('patch with relative paths resolved against lockfileDir', async () => {
   const patchesDir = path.join(lockfileDir, 'patches')
   fs.mkdirSync(patchesDir, { recursive: true })
   fs.copyFileSync(
-    path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch'),
+    path.join(testFixtures.find('patch-pkg'), 'is-positive@1.0.0.patch'),
     path.join(patchesDir, 'is-positive@1.0.0.patch')
   )
 

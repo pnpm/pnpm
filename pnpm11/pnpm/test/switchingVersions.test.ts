@@ -459,8 +459,8 @@ test('throws error if pnpm binary in store is corrupt', () => {
 
   // Find the pnpm binary in the global virtual store and corrupt it.
   const entries = fs.readdirSync(storeDir, { recursive: true }) as string[]
-  const pnpmBinEntry = entries.find(e => {
-    const normalized = e.replace(/\\/g, '/')
+  const pnpmBinEntry = entries.find(entry => {
+    const normalized = entry.replace(/\\/g, '/')
     return normalized.endsWith('/bin/pnpm') && !normalized.includes('node_modules')
   })
   if (!pnpmBinEntry) throw new Error('Could not find pnpm binary in store')

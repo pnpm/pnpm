@@ -62,7 +62,29 @@ export async function getPkgInfo (
   pkg: PackageInfo,
   opts: GetPackageInfoOptions
 ): Promise<PkgInfo> {
-  // Retrieve file index for the requested package
+  const { files, manifest } = await readPackageFilesAndManifest(pkg, opts)
+  const { packageModulePath, hoistedPaths } = await resolvePackageModulePath(pkg, opts, manifest)
+  const licenseInfo = await resolveLicense({ manifest, files })
+
+  return {
+    from: manifest.name,
+    path: packageModulePath,
+    ...(hoistedPaths.length ? { paths: [...new Set(hoistedPaths)] } : {}),
+    name: manifest.name,
+    version: manifest.version,
+    description: manifest.description,
+    license: licenseInfo?.name ?? 'Unknown',
+    licenseContents: licenseInfo?.licenseFile,
+    author: extractAuthor(manifest),
+    homepage: manifest.homepage,
+    repository: extractRepository(manifest),
+  }
+}
+
+async function readPackageFilesAndManifest (
+  pkg: PackageInfo,
+  opts: GetPackageInfoOptions
+): Promise<{ files: Map<string, string>, manifest: PackageManifest }> {
   const packageResolution = pkgSnapshotToResolution(
     pkg.depPath,
     pkg.snapshot,
@@ -83,10 +105,7 @@ export async function getPkgInfo (
       }
     )
     if (!result) {
-      throw new PnpmError(
-        'UNSUPPORTED_PACKAGE_TYPE',
-        `Unsupported package resolution type for ${pkg.id}`
-      )
+      throw new PnpmError('UNSUPPORTED_PACKAGE_TYPE', `Unsupported package resolution type for ${pkg.id}`)
     }
     files = result
   } catch (err: any) { // eslint-disable-line
@@ -107,19 +126,17 @@ export async function getPkgInfo (
     )
   }
   const manifest = await readPackageJson(manifestPath)
+  return { files, manifest }
+}
 
-  // Determine the path to the package as known by the user
+async function resolvePackageModulePath (
+  pkg: PackageInfo,
+  opts: GetPackageInfoOptions,
+  manifest: PackageManifest
+): Promise<{ packageModulePath: string, hoistedPaths: string[] }> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const isHoisted = opts.nodeLinker === 'hoisted'
-  const isShamefullyHoist = opts.shamefullyHoist ?? false
-
-  let packageModulePath: string
-
-  const virtualStoreDir = pathAbsolute(
-    opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
-    lockfileDir
-  )
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), lockfileDir)
   const virtualStorePath = path.join(
     virtualStoreDir,
     depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
@@ -127,71 +144,85 @@ export async function getPkgInfo (
     manifest.name
   )
 
-  const locations = opts.hoistedLocations?.[pkg.depPath] ??
-    opts.hoistedLocations?.[removeSuffix(pkg.depPath)] ??
-    (pkg.depPath.startsWith('/') ? opts.hoistedLocations?.[pkg.depPath.slice(1)] : opts.hoistedLocations?.[`/${pkg.depPath}`]) ??
+  const hoistedPaths = findHoistedPaths(pkg.depPath, opts.hoistedLocations, lockfileDir)
+  if (hoistedPaths.length) {
+    return { packageModulePath: pickBestHoistedPath(hoistedPaths, opts.dir), hoistedPaths }
+  }
+
+  if (opts.nodeLinker === 'hoisted') {
+    const pathInHoisted = await findCandidateInHoisted(opts.dir, lockfileDir, modulesDir, manifest)
+    return { packageModulePath: pathInHoisted ?? virtualStorePath, hoistedPaths }
+  }
+
+  if (opts.shamefullyHoist) {
+    const pathInShamefullyHoist = await findCandidateInShameful(opts.dir, lockfileDir, modulesDir, manifest.name, virtualStorePath)
+    return { packageModulePath: pathInShamefullyHoist ?? virtualStorePath, hoistedPaths }
+  }
+
+  return { packageModulePath: virtualStorePath, hoistedPaths }
+}
+
+function findHoistedPaths (
+  depPath: string,
+  hoistedLocations: Record<string, string[]> | undefined,
+  lockfileDir: string
+): string[] {
+  const locations = hoistedLocations?.[depPath] ??
+    hoistedLocations?.[removeSuffix(depPath)] ??
+    (depPath.startsWith('/') ? hoistedLocations?.[depPath.slice(1)] : hoistedLocations?.[`/${depPath}`]) ??
     []
-  const hoistedPaths = locations
+  return locations
     .map((location) => hoistedPackageDir(lockfileDir, location))
     .filter((location): location is string => location != null)
-  if (hoistedPaths.length) {
-    const resolvedDir = path.resolve(opts.dir)
-    const dirWithSep = resolvedDir.endsWith(path.sep) ? resolvedDir : resolvedDir + path.sep
-    packageModulePath =
-      hoistedPaths.find((loc) => (loc === resolvedDir || loc.startsWith(dirWithSep)) && fs.existsSync(loc)) ??
-      hoistedPaths.find((loc) => fs.existsSync(loc)) ??
-      hoistedPaths[0]
-  } else if (isHoisted) {
-    const candidateInDir = path.resolve(opts.dir, modulesDir, manifest.name)
-    const candidateInLockfileDir = path.resolve(lockfileDir, modulesDir, manifest.name)
-    if (await candidateMatchesVersion(candidateInDir, manifest.version)) {
-      packageModulePath = candidateInDir
-    } else if (await candidateMatchesVersion(candidateInLockfileDir, manifest.version)) {
-      packageModulePath = candidateInLockfileDir
-    } else {
-      packageModulePath = virtualStorePath
-    }
-  } else if (isShamefullyHoist) {
-    const candidateInDir = path.resolve(opts.dir, modulesDir, manifest.name)
-    const candidateInLockfileDir = path.resolve(lockfileDir, modulesDir, manifest.name)
-    if (await matchesVirtualStore(candidateInDir, virtualStorePath)) {
-      packageModulePath = candidateInDir
-    } else if (await matchesVirtualStore(candidateInLockfileDir, virtualStorePath)) {
-      packageModulePath = candidateInLockfileDir
-    } else {
-      packageModulePath = virtualStorePath
-    }
-  } else {
-    packageModulePath = virtualStorePath
-  }
+}
 
-  const licenseInfo = await resolveLicense({ manifest, files })
+function pickBestHoistedPath (hoistedPaths: string[], dir: string): string {
+  const resolvedDir = path.resolve(dir)
+  const dirWithSep = resolvedDir.endsWith(path.sep) ? resolvedDir : resolvedDir + path.sep
+  return (
+    hoistedPaths.find((loc) => (loc === resolvedDir || loc.startsWith(dirWithSep)) && fs.existsSync(loc)) ??
+    hoistedPaths.find((loc) => fs.existsSync(loc)) ??
+    hoistedPaths[0]
+  )
+}
 
-  const packageInfo = {
-    from: manifest.name,
-    path: packageModulePath,
-    ...(hoistedPaths.length ? { paths: [...new Set(hoistedPaths)] } : {}),
-    name: manifest.name,
-    version: manifest.version,
-    description: manifest.description,
-    license: licenseInfo?.name ?? 'Unknown',
-    licenseContents: licenseInfo?.licenseFile,
-    author:
-      (manifest.author &&
-        (typeof manifest.author === 'string'
-          ? manifest.author
-          : (manifest.author as { name: string }).name)) ??
-      undefined,
-    homepage: manifest.homepage,
-    repository:
-      (manifest.repository &&
-        (typeof manifest.repository === 'string'
-          ? manifest.repository
-          : manifest.repository.url)) ??
-      undefined,
-  }
+async function findCandidateInHoisted (
+  dir: string,
+  lockfileDir: string,
+  modulesDir: string,
+  manifest: PackageManifest
+): Promise<string | undefined> {
+  const candidateInDir = path.resolve(dir, modulesDir, manifest.name)
+  if (await candidateMatchesVersion(candidateInDir, manifest.version)) return candidateInDir
+  const candidateInLockfileDir = path.resolve(lockfileDir, modulesDir, manifest.name)
+  if (await candidateMatchesVersion(candidateInLockfileDir, manifest.version)) return candidateInLockfileDir
+  return undefined
+}
 
-  return packageInfo
+async function findCandidateInShameful (
+  dir: string,
+  lockfileDir: string,
+  modulesDir: string,
+  name: string,
+  virtualStorePath: string
+): Promise<string | undefined> {
+  const candidateInDir = path.resolve(dir, modulesDir, name)
+  if (await matchesVirtualStore(candidateInDir, virtualStorePath)) return candidateInDir
+  const candidateInLockfileDir = path.resolve(lockfileDir, modulesDir, name)
+  if (await matchesVirtualStore(candidateInLockfileDir, virtualStorePath)) return candidateInLockfileDir
+  return undefined
+}
+
+function extractAuthor (manifest: PackageManifest): string | undefined {
+  if (!manifest.author) return undefined
+  if (typeof manifest.author === 'string') return manifest.author
+  return (manifest.author as { name: string }).name
+}
+
+function extractRepository (manifest: PackageManifest): string | undefined {
+  if (!manifest.repository) return undefined
+  if (typeof manifest.repository === 'string') return manifest.repository
+  return manifest.repository.url
 }
 
 /**

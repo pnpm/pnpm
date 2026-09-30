@@ -242,6 +242,29 @@ test('filter using two selectors: one selects dependencies another selects depen
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual(['/project-2', '/project-4', '/packages/project-1', '/packages/project-0'])
 })
 
+test('dependencies of dependents are only picked for the selector that asks for them', async () => {
+  const selectors = [
+    {
+      excludeSelf: false,
+      includeDependents: true,
+      namePattern: 'project-4',
+    },
+    {
+      excludeSelf: false,
+      includeDependencies: true,
+      includeDependents: true,
+      namePattern: 'project-3',
+    },
+  ]
+  const expected = ['/project-4', '/packages/project-1', '/packages/project-0', '/project-3']
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(PROJECTS_GRAPH, selectors, { workspaceDir: process.cwd() })
+  expect(Object.keys(selectedProjectsGraph).sort()).toStrictEqual([...expected].sort())
+
+  const { selectedProjectsGraph: reversedOrderGraph } = await filterWorkspaceProjects(PROJECTS_GRAPH, [...selectors].reverse(), { workspaceDir: process.cwd() })
+  expect(Object.keys(reversedOrderGraph).sort()).toStrictEqual([...expected].sort())
+})
+
 test('select just a package by name', async () => {
   const { selectedProjectsGraph } = await filterWorkspaceProjects(PROJECTS_GRAPH, [
     {
@@ -539,6 +562,54 @@ test('select changed packages', async () => {
 
     expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkgKorDir, pkg2Dir])
   }
+})
+
+test('select changed packages whose directory name is not ASCII', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory() as ProjectRootDir
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const pkgDir = path.join(workspaceDir, 'package-한글') as ProjectRootDir
+  await mkdir(pkgDir)
+  await touch(path.join(pkgDir, 'index.js'))
+
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const projectsGraph: ProjectGraph<BaseProject> = {
+    [workspaceDir]: {
+      dependencies: [],
+      package: {
+        rootDir: workspaceDir,
+        manifest: {
+          name: 'root',
+          version: '0.0.0',
+        },
+      },
+    },
+    [pkgDir]: {
+      dependencies: [],
+      package: {
+        rootDir: pkgDir,
+        manifest: {
+          name: 'package-kor',
+          version: '0.0.0',
+        },
+      },
+    },
+  }
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+    diff: 'HEAD~1',
+  }], { workspaceDir })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgDir])
 })
 
 test('select changed packages when a file is moved between packages', async () => {

@@ -18,6 +18,8 @@ import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 
 import { prune } from './prune.js'
 
+type Cafs = ReturnType<typeof createCafsStore>
+
 const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS = 64
 
 export { type CafsLocker }
@@ -50,17 +52,7 @@ export function createPackageStore (
   initOpts: CreatePackageStoreOptions
 ): StoreController {
   const storeDir = initOpts.storeDir
-  if (!fs.existsSync(path.join(storeDir, 'files'))) {
-    // A missing `{storeDir}/files` means the store has no content directory yet.
-    // Under frozenStore the store is meant to be a complete, read-only seed, so
-    // this is a setup error: initializing it would be a write into a read-only
-    // store. Fail fast with actionable guidance instead of swallowing the write.
-    if (initOpts.frozenStore) {
-      throw new PnpmError('FROZEN_STORE_INCOMPLETE',
-        `frozenStore is enabled but the store at ${storeDir} is missing its content directory (${path.join(storeDir, 'files')}). The store must be fully seeded before it can be used read-only.`)
-    }
-    initStoreDir(storeDir).catch(() => {})
-  }
+  ensureStoreContentDir(storeDir, initOpts.frozenStore)
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
     packageImportMethod: initOpts.packageImportMethod,
@@ -90,78 +82,103 @@ export function createPackageStore (
     },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
-    importPackage: initOpts.importPackage
-      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: cafs.storeDir })
-      : (targetDir, opts) => importPackage({
-        ...opts,
-        packageImportMethod: initOpts.packageImportMethod,
-        storeDir: initOpts.storeDir,
-        targetDir,
-      }),
+    importPackage: createImportPackage(initOpts, cafs),
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir, storeIndex: initOpts.storeIndex }),
     requestPackage: packageRequester.requestPackage,
-    upload,
+    upload: uploadToStore.bind(null, { storeDir: cafs.storeDir, storeIndex: initOpts.storeIndex }),
     // A read-only store cannot accept new content, so it does not advertise the
     // direct write capability that remote side-effects hydration requires.
     addFileToStore: initOpts.frozenStore ? undefined : cafs.addFile,
-    locateFileInStore,
-    persistRemoteSideEffects: initOpts.frozenStore ? undefined : persistRemoteSideEffects,
-    quarantineRemoteSideEffects: initOpts.frozenStore ? undefined : quarantineRemoteSideEffects,
+    locateFileInStore: locateFileInStore.bind(null, cafs),
+    persistRemoteSideEffects: initOpts.frozenStore ? undefined : persistRemoteSideEffects.bind(null, initOpts.storeIndex),
+    quarantineRemoteSideEffects: initOpts.frozenStore ? undefined : quarantineRemoteSideEffects.bind(null, initOpts.storeIndex),
     clearResolutionCache: initOpts.clearResolutionCache,
   }
+}
 
-  async function locateFileInStore (hexDigest: string, mode: number): Promise<string | undefined> {
-    const filePath = cafs.getFilePathByModeInCafs(hexDigest, mode)
-    // Verified unconditionally rather than answering to `verifyStoreIntegrity`:
-    // the download this skips would have ended in a CAS write, and that path
-    // checks content already at the destination whatever the setting says.
-    // Hashing a local file is far cheaper than the transfer it avoids.
-    return await verifyFileIntegrityAsync(filePath, { algorithm: 'sha512', digest: hexDigest })
-      ? filePath
-      : undefined
+function ensureStoreContentDir (storeDir: string, frozenStore: boolean | undefined): void {
+  if (fs.existsSync(path.join(storeDir, 'files'))) return
+  // A missing `{storeDir}/files` means the store has no content directory yet.
+  // Under frozenStore the store is meant to be a complete, read-only seed, so
+  // this is a setup error: initializing it would be a write into a read-only
+  // store. Fail fast with actionable guidance instead of swallowing the write.
+  if (frozenStore) {
+    throw new PnpmError('FROZEN_STORE_INCOMPLETE',
+      `frozenStore is enabled but the store at ${storeDir} is missing its content directory (${path.join(storeDir, 'files')}). The store must be fully seeded before it can be used read-only.`)
   }
+  initStoreDir(storeDir).catch(() => {})
+}
 
-  function persistRemoteSideEffects (opts: {
-    filesIndexFile: string
-    sideEffectsCacheKey: string
-    sideEffects: SideEffectsDiff
-  }): boolean {
-    return initOpts.storeIndex.update(opts.filesIndexFile, (value) => {
-      const index = value as PackageFilesIndex
-      index.sideEffects ??= new Map()
-      index.sideEffects.set(opts.sideEffectsCacheKey, opts.sideEffects)
-      return index
-    })
+function createImportPackage (
+  initOpts: CreatePackageStoreOptions,
+  cafs: Cafs
+): StoreController['importPackage'] {
+  if (initOpts.importPackage) {
+    return createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: cafs.storeDir })
   }
+  return (targetDir, opts) => importPackage({
+    ...opts,
+    packageImportMethod: initOpts.packageImportMethod,
+    storeDir: initOpts.storeDir,
+    targetDir,
+  })
+}
 
-  function quarantineRemoteSideEffects (opts: {
-    channel: string
-    envelopeDigest: string
-    filesIndexFile: string
-  }): boolean {
-    return initOpts.storeIndex.update(opts.filesIndexFile, (value) => {
-      const index = value as PackageFilesIndex
-      index.remoteSideEffectsQuarantine ??= new Map()
-      const quarantined = index.remoteSideEffectsQuarantine.get(opts.channel) ?? []
-      const bounded = Array.from(new Set([...quarantined, opts.envelopeDigest]))
-        .slice(-MAX_QUARANTINED_REMOTE_SIDE_EFFECTS)
-      index.remoteSideEffectsQuarantine.set(opts.channel, bounded)
-      return index
-    })
-  }
+async function locateFileInStore (cafs: Cafs, hexDigest: string, mode: number): Promise<string | undefined> {
+  const filePath = cafs.getFilePathByModeInCafs(hexDigest, mode)
+  // Verified unconditionally rather than answering to `verifyStoreIntegrity`:
+  // the download this skips would have ended in a CAS write, and that path
+  // checks content already at the destination whatever the setting says.
+  // Hashing a local file is far cheaper than the transfer it avoids.
+  return await verifyFileIntegrityAsync(filePath, { algorithm: 'sha512', digest: hexDigest })
+    ? filePath
+    : undefined
+}
 
-  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
-    const result = await addFilesFromDir({
-      storeDir: cafs.storeDir,
-      storeIndex: initOpts.storeIndex,
-      dir: builtPkgLocation,
-      sideEffectsCacheKey: opts.sideEffectsCacheKey,
-      filesIndexFile: opts.filesIndexFile,
-      pkg: {},
-    })
-    return {
-      filesMap: result.filesMap,
-      sideEffects: result.sideEffects,
-    }
+function persistRemoteSideEffects (storeIndex: StoreIndex, opts: {
+  filesIndexFile: string
+  sideEffectsCacheKey: string
+  sideEffects: SideEffectsDiff
+}): boolean {
+  return storeIndex.update(opts.filesIndexFile, (value) => {
+    const index = value as PackageFilesIndex
+    index.sideEffects ??= new Map()
+    index.sideEffects.set(opts.sideEffectsCacheKey, opts.sideEffects)
+    return index
+  })
+}
+
+function quarantineRemoteSideEffects (storeIndex: StoreIndex, opts: {
+  channel: string
+  envelopeDigest: string
+  filesIndexFile: string
+}): boolean {
+  return storeIndex.update(opts.filesIndexFile, (value) => {
+    const index = value as PackageFilesIndex
+    index.remoteSideEffectsQuarantine ??= new Map()
+    const quarantined = index.remoteSideEffectsQuarantine.get(opts.channel) ?? []
+    const bounded = Array.from(new Set([...quarantined, opts.envelopeDigest]))
+      .slice(-MAX_QUARANTINED_REMOTE_SIDE_EFFECTS)
+    index.remoteSideEffectsQuarantine.set(opts.channel, bounded)
+    return index
+  })
+}
+
+async function uploadToStore (
+  store: { storeDir: string, storeIndex: StoreIndex },
+  builtPkgLocation: string,
+  opts: { filesIndexFile: string, sideEffectsCacheKey: string }
+) {
+  const result = await addFilesFromDir({
+    storeDir: store.storeDir,
+    storeIndex: store.storeIndex,
+    dir: builtPkgLocation,
+    sideEffectsCacheKey: opts.sideEffectsCacheKey,
+    filesIndexFile: opts.filesIndexFile,
+    pkg: {},
+  })
+  return {
+    filesMap: result.filesMap,
+    sideEffects: result.sideEffects,
   }
 }

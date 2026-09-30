@@ -7,12 +7,12 @@ import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectId } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const makeDedicatedLockfileBin = path.join(import.meta.dirname, '../bin/make-dedicated-lockfile.js')
 
 test('make-dedicated-lockfile creates a dedicated lockfile', async () => {
-  const tmp = f.prepare('fixture')
+  const tmp = testFixtures.prepare('fixture')
   await installWorkspace(tmp)
   const projectDir = path.join(tmp, 'packages/is-negative')
   await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir })
@@ -29,7 +29,7 @@ test('make-dedicated-lockfile creates a dedicated lockfile', async () => {
 })
 
 test('a workspace dependency stays linked instead of being fetched from the registry', async () => {
-  const tmp = f.prepare('workspace-protocol')
+  const tmp = testFixtures.prepare('workspace-protocol')
   await installWorkspace(tmp)
   const projectDir = path.join(tmp, 'packages/app')
   const originalModulesMarker = path.join(projectDir, 'node_modules/original-tree')
@@ -55,7 +55,7 @@ test('a workspace dependency stays linked instead of being fetched from the regi
 })
 
 test('a workspace dependency linked through linkWorkspacePackages stays linked', async () => {
-  const tmp = f.prepare('linked-by-range')
+  const tmp = testFixtures.prepare('linked-by-range')
   await installWorkspace(tmp)
   const projectDir = path.join(tmp, 'packages/app')
   const result = await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir, all: true })
@@ -72,7 +72,7 @@ test('a workspace dependency linked through linkWorkspacePackages stays linked',
 })
 
 test('a workspace peer dependency stays linked', async () => {
-  const tmp = f.prepare('workspace-peer')
+  const tmp = testFixtures.prepare('workspace-peer')
   await installWorkspace(tmp)
   const projectDir = path.join(tmp, 'packages/app')
   const result = await execa('node', [makeDedicatedLockfileBin], { cwd: projectDir, all: true })
@@ -87,7 +87,7 @@ test('a workspace peer dependency stays linked', async () => {
 })
 
 test('a node_modules left staged by an earlier run is not overwritten', async () => {
-  const tmp = f.prepare('workspace-protocol')
+  const tmp = testFixtures.prepare('workspace-protocol')
   await installWorkspace(tmp)
   const projectDir = path.join(tmp, 'packages/app')
   const stagedMarker = path.join(projectDir, '.tmp_node_modules/original-tree')

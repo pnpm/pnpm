@@ -41,7 +41,7 @@ const env = {
   PNPM_HOME: import.meta.dirname,
   [PATH]: path.join(import.meta.dirname, 'bin'),
 }
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 const testOnPosix = isWindows() ? test.skip : test
 
 test('getConfig()', async () => {
@@ -596,7 +596,7 @@ describe('"packageManager" / "devEngines.packageManager" conflict warning', () =
     })
     const warning = warnings.find(w => w.includes('different package managers'))
     expect(warning).toBeDefined()
-    // eslint-disable-next-line no-control-regex
+    // eslint-disable-next-line no-control-regex -- asserts that no control characters are left
     expect(warning).not.toMatch(/[\u0000-\u001f\u007f]/)
     expect(warning).toContain('"packageManager" (evi l)')
   })
@@ -4212,7 +4212,7 @@ test.skip('read only supported settings from config', async () => {
   })
 
   expect(config.storeDir).toBe('__store__')
-  // @ts-expect-error
+  // @ts-expect-error -- foo is not a Config field
   expect(config['foo']).toBeUndefined() // NOTE: This line current fails as there are yet a way to verify fields in pnpm-workspace.yaml
   expect(config.authConfig['foo']).toBe('bar')
 })
@@ -4228,7 +4228,7 @@ test('all CLI options are added to the config', async () => {
     },
   })
 
-  // @ts-expect-error
+  // @ts-expect-error -- fooBar is not a Config field
   expect(config['fooBar']).toBe('qar')
 })
 
@@ -4928,7 +4928,7 @@ test.each([undefined, '', 'dummy-token'])('expanded .npmrc auth key warning for 
 })
 
 test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
-  const prefix = f.find('pkg-using-workspaces')
+  const prefix = testFixtures.find('pkg-using-workspaces')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4943,7 +4943,7 @@ test('return a warning if a package.json has workspaces field but there is no pn
 })
 
 test('do not return a warning if a package.json has workspaces field and there is a pnpm-workspace.yaml file', async () => {
-  const prefix = f.find('pkg-using-workspaces')
+  const prefix = testFixtures.find('pkg-using-workspaces')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     workspaceDir: prefix,
@@ -4956,7 +4956,7 @@ test('do not return a warning if a package.json has workspaces field and there i
 })
 
 test('return a warning if a package.json has a legacy "pnpm" field with ignored settings', async () => {
-  const prefix = f.find('pkg-with-legacy-pnpm-field')
+  const prefix = testFixtures.find('pkg-with-legacy-pnpm-field')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4971,7 +4971,7 @@ test('return a warning if a package.json has a legacy "pnpm" field with ignored 
 })
 
 test('do not return a warning if a package.json "pnpm" field only contains keys that are still actively read (e.g. "pnpm.app")', async () => {
-  const prefix = f.find('pkg-with-pnpm-app-field')
+  const prefix = testFixtures.find('pkg-with-pnpm-app-field')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4984,7 +4984,7 @@ test('do not return a warning if a package.json "pnpm" field only contains keys 
 })
 
 test('do not return a warning if a package.json "pnpm" field only contains keys unrelated to migrated settings (e.g. set by third-party tooling)', async () => {
-  const prefix = f.find('pkg-with-unknown-pnpm-field')
+  const prefix = testFixtures.find('pkg-with-unknown-pnpm-field')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -5025,7 +5025,7 @@ test('project .npmrc does not expand env variables into registry keys', async ()
 
   const { config, warnings } = await getConfig({
     cliOptions: {
-      dir: f.find('has-env-in-key'),
+      dir: testFixtures.find('has-env-in-key'),
     },
     packageManager: {
       name: 'pnpm',
@@ -5041,7 +5041,7 @@ test('project .npmrc does not expand env variables into registry keys', async ()
 })
 
 test('settings from pnpm-workspace.yaml are read', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -5056,7 +5056,7 @@ test('settings from pnpm-workspace.yaml are read', async () => {
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -5073,7 +5073,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
 
 // shamefullyHoist → publicHoistPattern conversion is done in @pnpm/cli.utils
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -5088,7 +5088,7 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
 })
 
 test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},

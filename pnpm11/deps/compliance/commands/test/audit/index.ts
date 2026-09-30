@@ -14,12 +14,12 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const testFixtures = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const SCOPED_AUDIT_REGISTRY = 'http://scope.audit.registry/'
 
 describe('plugin-commands-audit', () => {
-  const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
-  const hasSignaturesDir = f.prepare('has-signatures')
+  const hasVulnerabilitiesDir = testFixtures.prepare('has-vulnerabilities')
+  const hasSignaturesDir = testFixtures.prepare('has-signatures')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
@@ -223,7 +223,7 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
   })
   test('audit signatures throws on unresolvable lockfile dependency', async () => {
-    const dir = f.prepare('has-signatures')
+    const dir = testFixtures.prepare('has-signatures')
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
     const lockfile = fs.readFileSync(lockfilePath, 'utf8')
     fs.writeFileSync(lockfilePath, lockfile.replaceAll('signed-pkg@1.0.0', 'signed-pkg@1.99.99'))
@@ -395,7 +395,7 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit: advisories in ignoreGhsas do not show up', async () => {
-    const tmp = f.prepare('has-vulnerabilities')
+    const tmp = testFixtures.prepare('has-vulnerabilities')
 
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -532,7 +532,7 @@ Severity: 1 high
   })
 
   test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {
-    const tmp = f.prepare('has-vulnerabilities')
+    const tmp = testFixtures.prepare('has-vulnerabilities')
 
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -602,7 +602,7 @@ describe('audit in a workspace', () => {
   })
 
   async function auditedPackageNames (filter: string[]): Promise<string[]> {
-    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
       workspaceDir,
       filter.map((namePattern) => ({ namePattern }))
@@ -635,7 +635,7 @@ describe('audit in a workspace', () => {
   })
 
   test('audit signatures checks only the projects selected by --filter', async () => {
-    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
     const key = createSigningKey()
     mockRegistryKey(AUDIT_REGISTRY, key)
@@ -672,7 +672,7 @@ describe('audit in a workspace', () => {
   })
 
   test('fails when a selected project has no entry in the lockfile', async () => {
-    const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+    const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
     fs.mkdirSync(path.join(workspaceDir, 'packages/c'))
     fs.writeFileSync(path.join(workspaceDir, 'packages/c/package.json'), JSON.stringify({ name: 'workspace-audit-c', version: '1.0.0' }))
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-c' }])

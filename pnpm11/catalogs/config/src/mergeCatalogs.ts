@@ -15,26 +15,36 @@ import type { Catalog, Catalogs } from '@pnpm/catalogs.types'
 export function mergeCatalogs (...catalogsList: Array<Catalogs | undefined>): Catalogs {
   const result = Object.create(null) as Record<string, Catalog>
   for (const catalogs of catalogsList) {
-    if (catalogs == null) continue
-    for (const catalogName of Object.keys(catalogs)) {
-      const catalog = catalogs[catalogName]
-      if (catalog == null) continue
-      const target: Record<string, string | undefined> = result[catalogName] ?? Object.create(null)
-      for (const dependencyName of Object.keys(catalog)) {
-        Object.defineProperty(target, dependencyName, {
-          value: catalog[dependencyName],
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        })
-      }
-      Object.defineProperty(result, catalogName, {
-        value: target,
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      })
+    if (catalogs != null) {
+      mergeCatalogsIntoResult(result, catalogs)
     }
   }
   return result
+}
+
+function mergeCatalogsIntoResult (result: Record<string, Catalog>, catalogs: Catalogs): void {
+  for (const catalogName of Object.keys(catalogs)) {
+    const catalog = catalogs[catalogName]
+    if (catalog != null) {
+      mergeSingleCatalog(result, catalogName, catalog)
+    }
+  }
+}
+
+function mergeSingleCatalog (result: Record<string, Catalog>, catalogName: string, catalog: Catalog): void {
+  const target: Record<string, string | undefined> = result[catalogName] ?? Object.create(null)
+  for (const dependencyName of Object.keys(catalog)) {
+    Object.defineProperty(target, dependencyName, {
+      value: catalog[dependencyName],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    })
+  }
+  Object.defineProperty(result, catalogName, {
+    value: target,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }

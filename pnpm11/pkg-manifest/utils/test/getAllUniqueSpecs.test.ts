@@ -27,3 +27,19 @@ test('getAllUniqueSpecs()', () => {
     bar: '1.0.0',
   })
 })
+
+test('getAllUniqueSpecs() keeps dependencies named like Object.prototype members', () => {
+  expect(getAllUniqueSpecs([
+    {
+      name: '',
+      version: '',
+      dependencies: {
+        constructor: '1.0.0',
+        toString: '2.0.0',
+      },
+    },
+  ])).toStrictEqual({
+    constructor: '1.0.0',
+    toString: '2.0.0',
+  })
+})

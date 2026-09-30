@@ -77,39 +77,54 @@ export function checkPkgFilesIntegrity (
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
+  const _checkFilesIntegrity: CheckFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
   const filesMap: FilesMap = new Map()
   if (!_checkFilesIntegrity(pkgIndex.files, (f, _fstat, filename) => filesMap.set(f, filename))) {
     return { passed: false, filesMap }
   }
 
+  // We verify all side effects cache. We could optimize it to verify only the side effects cache
+  // that satisfies the current os/arch/platform.
+  // However, it likely won't make a big difference.
+  const sideEffectsMaps = pkgIndex.sideEffects
+    ? verifySideEffectsMaps(pkgIndex.sideEffects, pkgIndex.files, _checkFilesIntegrity)
+    : new Map<string, SideEffectsFilesMap>()
+  return createPassedVerifyResult(pkgIndex, filesMap, sideEffectsMaps)
+}
+
+type CheckFilesIntegrity = (
+  files: PackageFiles,
+  record: (relativePath: string, fstat: PackageFileInfo, filename: string) => void
+) => boolean
+
+function verifySideEffectsMaps (
+  sideEffects: SideEffects,
+  pkgFiles: PackageFiles,
+  checkFiles: CheckFilesIntegrity
+): Map<string, SideEffectsFilesMap> {
   const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
-  if (pkgIndex.sideEffects) {
-    // We verify all side effects cache. We could optimize it to verify only the side effects cache
-    // that satisfies the current os/arch/platform.
-    // However, it likely won't make a big difference.
-    for (const [sideEffectName, diff] of pkgIndex.sideEffects) {
-      if (diff.added) {
-        const builder = createSideEffectsFilesMapBuilder()
-        if (!_checkFilesIntegrity(diff.added, (f, fstat, filename) => builder.add(f, fstat.mode, filename))) {
-          // Skip invalid side effects
-          continue
-        }
-        const sideEffectsMap = builder.finish(diff.deleted, pkgIndex.files.keys())
-        if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
-      } else if (diff.deleted) {
-        sideEffectsMaps.set(sideEffectName, { deleted: diff.deleted })
-      }
+  for (const [sideEffectName, diff] of sideEffects) {
+    if (diff.added) {
+      // Invalid side effects are skipped
+      const sideEffectsMap = verifyAddedSideEffects(diff.added, diff.deleted, { pkgFiles, checkFiles })
+      if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
+    } else if (diff.deleted) {
+      sideEffectsMaps.set(sideEffectName, { deleted: diff.deleted })
     }
   }
+  return sideEffectsMaps
+}
 
-  return {
-    passed: true,
-    filesMap,
-    sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
-    sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
-    remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
+function verifyAddedSideEffects (
+  added: PackageFiles,
+  deleted: string[] | undefined,
+  { pkgFiles, checkFiles }: { pkgFiles: PackageFiles, checkFiles: CheckFilesIntegrity }
+): SideEffectsFilesMap | undefined {
+  const builder = createSideEffectsFilesMapBuilder()
+  if (!checkFiles(added, (f, fstat, filename) => builder.add(f, fstat.mode, filename))) {
+    return undefined
   }
+  return builder.finish(deleted, pkgFiles.keys())
 }
 
 /**
@@ -122,27 +137,51 @@ export function buildFileMapsFromIndex (
 ): VerifyResult {
   const filesMap: FilesMap = new Map()
 
-  for (const [f, fstat] of pkgIndex.files) {
+  for (const [relativePath, fstat] of pkgIndex.files) {
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-    filesMap.set(f, filename)
+    filesMap.set(relativePath, filename)
   }
 
+  const sideEffectsMaps = pkgIndex.sideEffects
+    ? buildSideEffectsMaps(storeDir, pkgIndex.sideEffects, pkgIndex.files)
+    : new Map<string, SideEffectsFilesMap>()
+  return createPassedVerifyResult(pkgIndex, filesMap, sideEffectsMaps)
+}
+
+function buildSideEffectsMaps (
+  storeDir: string,
+  sideEffects: SideEffects,
+  pkgFiles: PackageFiles
+): Map<string, SideEffectsFilesMap> {
   const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
-  if (pkgIndex.sideEffects) {
-    for (const [sideEffectName, diff] of pkgIndex.sideEffects) {
-      if (diff.added) {
-        const builder = createSideEffectsFilesMapBuilder()
-        for (const [f, fstat] of diff.added) {
-          builder.add(f, fstat.mode, getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode))
-        }
-        const sideEffectsMap = builder.finish(diff.deleted, pkgIndex.files.keys())
-        if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
-      } else {
-        sideEffectsMaps.set(sideEffectName, diff.deleted ? { deleted: diff.deleted } : {})
-      }
+  for (const [sideEffectName, diff] of sideEffects) {
+    if (diff.added) {
+      const sideEffectsMap = buildAddedSideEffectsMap(storeDir, { added: diff.added, deleted: diff.deleted }, pkgFiles)
+      if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
+    } else {
+      sideEffectsMaps.set(sideEffectName, diff.deleted ? { deleted: diff.deleted } : {})
     }
   }
+  return sideEffectsMaps
+}
 
+function buildAddedSideEffectsMap (
+  storeDir: string,
+  diff: { added: PackageFiles, deleted: string[] | undefined },
+  pkgFiles: PackageFiles
+): SideEffectsFilesMap | undefined {
+  const builder = createSideEffectsFilesMapBuilder()
+  for (const [relativePath, fstat] of diff.added) {
+    builder.add(relativePath, fstat.mode, getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode))
+  }
+  return builder.finish(diff.deleted, pkgFiles.keys())
+}
+
+function createPassedVerifyResult (
+  pkgIndex: PackageFilesIndex,
+  filesMap: FilesMap,
+  sideEffectsMaps: Map<string, SideEffectsFilesMap>
+): VerifyResult {
   return {
     passed: true,
     filesMap,
@@ -175,12 +214,12 @@ function checkFilesIntegrity (
 ): boolean {
   let allVerified = true
 
-  for (const [f, fstat] of files) {
+  for (const [relativePath, fstat] of files) {
     if (!fstat.digest) {
-      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${f}`)
+      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${relativePath}`)
     }
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-    record(f, fstat, filename)
+    record(relativePath, fstat, filename)
 
     if (verifiedFilesCache.has(filename)) continue
     const passed = verifyFile(filename, fstat, algo)

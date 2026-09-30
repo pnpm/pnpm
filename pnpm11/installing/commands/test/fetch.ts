@@ -7,7 +7,7 @@ import { fetch, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
@@ -175,6 +175,7 @@ test.each([
   [true, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0', 'is-positive@1.0.0']],
   [false, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0']],
 ])('fetch only dev dependencies with optional = %s', async (optional, expectedVirtualStoreEntries) => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
   const project = prepare({
     dependencies: { 'is-negative': '1.0.0' },
     devDependencies: { '@pnpm.e2e/pkg-with-good-optional': '1.0.0' },
@@ -362,12 +363,12 @@ test('install after fetch completes linking without recreating node_modules', as
 })
 
 test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
-  const f = fixtures(import.meta.dirname)
+  const testFixtures = fixtures(import.meta.dirname)
   const project = prepare({
     dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
   })
   fs.mkdirSync('patches', { recursive: true })
-  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
 
   const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
   const cacheDir = path.resolve(project.dir(), 'cache')
@@ -401,12 +402,12 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
 
 // Regression test for https://github.com/pnpm/pnpm/issues/5268
 test('fetch fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is missing', async () => {
-  const f = fixtures(import.meta.dirname)
+  const testFixtures = fixtures(import.meta.dirname)
   const project = prepare({
     dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
   })
   fs.mkdirSync('patches', { recursive: true })
-  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
 
   const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
   const cacheDir = path.resolve(project.dir(), 'cache')

@@ -8,12 +8,12 @@ export function insertComments (json: string, comments: CommentSpecifier[]): str
   const jsonLines = json.split('\n')
   const index: Record<string, number> = {}
   const canonicalizer = /[\s'"]/g
-  for (let i = 0; i < jsonLines.length; ++i) {
-    const key = jsonLines[i].replace(canonicalizer, '')
+  for (let lineIndex = 0; lineIndex < jsonLines.length; ++lineIndex) {
+    const key = jsonLines[lineIndex].replace(canonicalizer, '')
     if (key in index) {
       index[key] = -1 // Mark this line as occurring twice
     } else {
-      index[key] = i
+      index[key] = lineIndex
     }
   }
 
@@ -73,9 +73,9 @@ export function insertComments (json: string, comments: CommentSpecifier[]): str
       ' /* [comment possibly relocated by pnpm] */'
   }
   // Insert the accumulated prefixes:
-  for (let i = 0; i < jsonLines.length; ++i) {
-    if (jsonPrefix[i]) {
-      jsonLines[i] = jsonPrefix[i] + '\n' + jsonLines[i]
+  for (let lineIndex = 0; lineIndex < jsonLines.length; ++lineIndex) {
+    if (jsonPrefix[lineIndex]) {
+      jsonLines[lineIndex] = jsonPrefix[lineIndex] + '\n' + jsonLines[lineIndex]
     }
   }
   // And reassemble the manifest:

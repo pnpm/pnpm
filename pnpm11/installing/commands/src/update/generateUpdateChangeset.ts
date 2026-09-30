@@ -86,25 +86,43 @@ export async function generateUpdateChangeset (ctx: UpdateChangesetContext): Pro
   const changedCatalogEntries = findChangedCatalogEntries(ctx.catalogsBefore, catalogsAfter)
   const isIgnored = createMatcher(Array.isArray(changesetConfig.ignore) ? changesetConfig.ignore : [])
   const releases = (await Promise.all(
-    ctx.rootDirs.map(async (rootDir) => {
-      const manifest = await safeReadProjectManifestOnly(rootDir)
-      if (!manifest?.name || manifest.private || isIgnored(manifest.name)) return undefined
-      const depSpecs = pickUpdateDepSpecs(manifest)
-      const depSpecsBefore = ctx.depSpecsBefore.get(rootDir)
-      const peerDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'peerDependencies') ||
-        usesChangedCatalogEntry([depSpecs.peerDependencies], changedCatalogEntries)
-      if (peerDependenciesChanged) return { name: manifest.name, type: 'major' as const }
-      const productionDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'dependencies') ||
-        dependencyGroupChanged(depSpecsBefore, depSpecs, 'optionalDependencies') ||
-        usesChangedCatalogEntry([depSpecs.dependencies, depSpecs.optionalDependencies], changedCatalogEntries)
-      return productionDependenciesChanged ? { name: manifest.name, type: 'patch' as const } : undefined
-    })
+    ctx.rootDirs.map(async (rootDir) => detectRelease({ ctx, rootDir, isIgnored, changedCatalogEntries }))
   )).filter((release) => release != null)
   if (releases.length === 0) {
     globalInfo('No changeset was generated because the update did not change the production or peer dependencies of any workspace package')
     return
   }
   releases.sort((a, b) => lexCompare(a.name, b.name))
+  await writeChangeset(changesetDir, releases)
+}
+
+interface Release {
+  name: string
+  type: ReleaseType
+}
+
+interface DetectReleaseOptions {
+  ctx: UpdateChangesetContext
+  rootDir: ProjectRootDir
+  isIgnored: (name: string) => boolean
+  changedCatalogEntries: Map<string, Set<string>>
+}
+
+async function detectRelease ({ ctx, rootDir, isIgnored, changedCatalogEntries }: DetectReleaseOptions): Promise<Release | undefined> {
+  const manifest = await safeReadProjectManifestOnly(rootDir)
+  if (!manifest?.name || manifest.private || isIgnored(manifest.name)) return undefined
+  const depSpecs = pickUpdateDepSpecs(manifest)
+  const depSpecsBefore = ctx.depSpecsBefore.get(rootDir)
+  const peerDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'peerDependencies') ||
+    usesChangedCatalogEntry([depSpecs.peerDependencies], changedCatalogEntries)
+  if (peerDependenciesChanged) return { name: manifest.name, type: 'major' }
+  const productionDependenciesChanged = dependencyGroupChanged(depSpecsBefore, depSpecs, 'dependencies') ||
+    dependencyGroupChanged(depSpecsBefore, depSpecs, 'optionalDependencies') ||
+    usesChangedCatalogEntry([depSpecs.dependencies, depSpecs.optionalDependencies], changedCatalogEntries)
+  return productionDependenciesChanged ? { name: manifest.name, type: 'patch' } : undefined
+}
+
+async function writeChangeset (changesetDir: string, releases: Release[]): Promise<void> {
   await ensureChangesetDirIsSafe(changesetDir)
   const changesetPath = path.join(changesetDir, `pnpm-update-${crypto.randomBytes(4).toString('hex')}.md`)
   await fs.promises.writeFile(changesetPath, formatChangeset(releases), { flag: 'wx' })
@@ -174,21 +192,22 @@ function dependencyGroupChanged (
 function findChangedCatalogEntries (before: Catalogs, after: Catalogs): Map<string, Set<string>> {
   const changedEntries = new Map<string, Set<string>>()
   for (const catalogName of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    for (const dependencyName of new Set([
-      ...Object.keys(before[catalogName] ?? {}),
-      ...Object.keys(after[catalogName] ?? {}),
-    ])) {
-      if (before[catalogName]?.[dependencyName] !== after[catalogName]?.[dependencyName]) {
-        let dependencyNames = changedEntries.get(catalogName)
-        if (dependencyNames == null) {
-          dependencyNames = new Set()
-          changedEntries.set(catalogName, dependencyNames)
-        }
-        dependencyNames.add(dependencyName)
-      }
+    const changedDependencyNames = findChangedDependencyNames(before[catalogName], after[catalogName])
+    if (changedDependencyNames.size > 0) {
+      changedEntries.set(catalogName, changedDependencyNames)
     }
   }
   return changedEntries
+}
+
+function findChangedDependencyNames (before: Catalogs[string], after: Catalogs[string]): Set<string> {
+  const changedDependencyNames = new Set<string>()
+  for (const dependencyName of new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])) {
+    if (before?.[dependencyName] !== after?.[dependencyName]) {
+      changedDependencyNames.add(dependencyName)
+    }
+  }
+  return changedDependencyNames
 }
 
 function usesChangedCatalogEntry (
@@ -207,7 +226,7 @@ function usesChangedCatalogEntry (
   return false
 }
 
-function formatChangeset (releases: Array<{ name: string, type: ReleaseType }>): string {
+function formatChangeset (releases: Release[]): string {
   const bumps = releases.map(({ name, type }) => `${JSON.stringify(name)}: ${type}`).join('\n')
   return `---\n${bumps}\n---\n\nUpdate dependencies.\n`
 }

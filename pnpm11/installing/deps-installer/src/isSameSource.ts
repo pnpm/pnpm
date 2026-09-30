@@ -17,29 +17,32 @@ function getSpecifierSource (spec: string, alias: string): string {
     const repoPart = spec.split('#')[0]
     return `git:${repoPart}`
   }
-  const parsed = parseWantedDependency(spec)
-  if (parsed.bareSpecifier) {
-    const bare = parsed.bareSpecifier
-    if (bare.startsWith('npm:')) {
-      const aliasedName = bare.slice(4)
-      const pkgName = aliasedName.startsWith('@')
-        ? (aliasedName.indexOf('@', 1) !== -1 ? aliasedName.slice(0, aliasedName.indexOf('@', 1)) : aliasedName)
-        : aliasedName.split('@')[0]
-      return `npm:${pkgName}`
-    }
-    if (bare.startsWith('file:') || bare.startsWith('link:') || bare.startsWith('portal:')) {
-      return `file:${bare}`
-    }
-    if (bare.startsWith('workspace:')) {
-      return `workspace:${alias}`
-    }
-    if (bare.startsWith('catalog:')) {
-      return `catalog:${bare}`
-    }
-    if (bare.startsWith('http:') || bare.startsWith('https:')) {
-      const urlPart = bare.split('#')[0]
-      return `url:${urlPart}`
-    }
+  const { bareSpecifier } = parseWantedDependency(spec)
+  return (bareSpecifier ? getBareSpecifierSource(bareSpecifier, alias) : undefined) ?? `npm:${alias}`
+}
+
+function getBareSpecifierSource (bare: string, alias: string): string | undefined {
+  if (bare.startsWith('npm:')) {
+    return `npm:${getAliasedPackageName(bare.slice(4))}`
   }
-  return `npm:${alias}`
+  if (bare.startsWith('file:') || bare.startsWith('link:') || bare.startsWith('portal:')) {
+    return `file:${bare}`
+  }
+  if (bare.startsWith('workspace:')) {
+    return `workspace:${alias}`
+  }
+  if (bare.startsWith('catalog:')) {
+    return `catalog:${bare}`
+  }
+  if (bare.startsWith('http:') || bare.startsWith('https:')) {
+    const urlPart = bare.split('#')[0]
+    return `url:${urlPart}`
+  }
+  return undefined
+}
+
+function getAliasedPackageName (aliasedName: string): string {
+  if (!aliasedName.startsWith('@')) return aliasedName.split('@')[0]
+  const versionSeparatorIndex = aliasedName.indexOf('@', 1)
+  return versionSeparatorIndex !== -1 ? aliasedName.slice(0, versionSeparatorIndex) : aliasedName
 }

@@ -307,7 +307,10 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
 /// config-reader source. Read live so the test tracks pnpm rather than
 /// a checked-in copy that could silently drift.
 fn read_pnpm_default_options() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../pnpm11/config/reader/src/index.ts");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../pnpm11/config/reader/src/getConfig/defaultOptions.ts",
+    );
     let src = std::fs::read_to_string(path)
         .unwrap_or_else(|err| {
             panic!(
@@ -319,13 +322,15 @@ fn read_pnpm_default_options() -> String {
     let marker = "const defaultOptions: Partial<KebabCaseConfig> = {";
     let start = src
         .find(marker)
-        .unwrap_or_else(|| panic!("`{marker}` not found in config/reader/src/index.ts"));
+        .unwrap_or_else(|| {
+            panic!("`{marker}` not found in config/reader/src/getConfig/defaultOptions.ts")
+        });
     let body = &src[start + marker.len()..];
     // The block ends at the first line that is exactly the closing brace
-    // at the object's indentation (`\n  }`).
+    // at the object's indentation (`\n}`).
     let end = body
-        .find("\n  }")
-        .expect("unterminated `defaultOptions` object literal in config/reader/src/index.ts");
+        .find("\n}")
+        .expect("unterminated `defaultOptions` object literal in config/reader/src/getConfig/defaultOptions.ts");
     body[..end].to_string()
 }
 

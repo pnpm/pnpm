@@ -9,7 +9,7 @@ import { symlinkDirSync } from 'symlink-dir'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('relative link is linked by the name of the alias', async () => {
   const linkedPkgName = 'hello-world-js-bin'
@@ -18,7 +18,7 @@ test('relative link is linked by the name of the alias', async () => {
 
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   await install({
     dependencies: {
       hello: `link:../${linkedPkgName}`,
@@ -44,7 +44,7 @@ test('relative link is not rewritten by argumentless install', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   symlinkDirSync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
   await install({}, testDefaults())
@@ -61,7 +61,7 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   const opts = testDefaults({ fastUnpack: false })
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   symlinkDirSync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], opts)

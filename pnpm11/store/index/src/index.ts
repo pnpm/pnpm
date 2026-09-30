@@ -32,7 +32,7 @@ const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
 const MAX_RETRIES = 100 // ~5 seconds total
 
-function sqliteRetry<T> (fn: () => T): T {
+function sqliteRetry<Result> (fn: () => Result): Result {
   for (let attempt = 0; ; attempt++) {
     try {
       return fn()
@@ -46,10 +46,11 @@ function sqliteRetry<T> (fn: () => T): T {
   }
 }
 
-function isSqliteBusy (err: any): boolean { // eslint-disable-line @typescript-eslint/no-explicit-any
+function isSqliteBusy (err: unknown): boolean {
+  const errcode = (err as { errcode?: unknown } | null | undefined)?.errcode
   // errcode may be an extended error code (e.g. SQLITE_BUSY_RECOVERY = 261),
   // so mask off the upper bits to get the primary error code.
-  return (err?.errcode & 0xFF) === SQLITE_BUSY
+  return typeof errcode === 'number' && (errcode & 0xFF) === SQLITE_BUSY
 }
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4))
@@ -289,8 +290,8 @@ export class StoreIndex {
    * Used by the fetch phase for throughput.
    */
   queueWrites (writes: Array<{ key: string, buffer: Uint8Array }>): void {
-    for (const w of writes) {
-      this.pendingWrites.push(w)
+    for (const write of writes) {
+      this.pendingWrites.push(write)
     }
     if (!this.flushScheduled) {
       this.flushScheduled = true
@@ -308,6 +309,27 @@ export class StoreIndex {
     this.pendingWrites = []
   }
 
+  private inTransaction (action: () => void): void {
+    sqliteRetry(() => {
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        action()
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        this.rollbackIfUncommitted(committed)
+      }
+    })
+  }
+
+  private rollbackIfUncommitted (committed: boolean): void {
+    if (committed) return
+    try {
+      this.db.exec('ROLLBACK')
+    } catch {}
+  }
+
   /**
    * Write multiple pre-packed entries in a single transaction.
    * The buffers must already be msgpack-encoded.
@@ -320,21 +342,9 @@ export class StoreIndex {
       })
       return
     }
-    sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        for (const { key, buffer } of entries) {
-          this.stmtSet.run(key, buffer)
-        }
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
+    this.inTransaction(() => {
+      for (const { key, buffer } of entries) {
+        this.stmtSet.run(key, buffer)
       }
     })
   }
@@ -350,21 +360,9 @@ export class StoreIndex {
       this.db.exec('VACUUM')
       return
     }
-    sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        for (const key of keys) {
-          this.stmtDel.run(key)
-        }
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
+    this.inTransaction(() => {
+      for (const key of keys) {
+        this.stmtDel.run(key)
       }
     })
     this.db.exec('VACUUM')
@@ -468,12 +466,12 @@ export class ReadOnlyStoreIndex extends StoreIndex {
 }
 
 /**
- * Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
+ * Build the `file://...?immutable=1` URI used to open `index.db` read-only (see
  * the frozen-store rationale at the call site). `pathToFileURL` yields a
  * canonical file URL on every platform: it percent-encodes the URI delimiters
  * that could otherwise truncate the path or inject a query/fragment (`?`, `#`,
  * `%`, spaces) and, on Windows, maps the drive letter and backslashes into a
- * valid `file:///C:/…` form. A raw `file:${path}` concatenation would mis-parse
+ * valid `file:///C:/...` form. A raw `file:${path}` concatenation would mis-parse
  * those. See https://sqlite.org/uri.html.
  */
 function immutableSqliteUri (dbPath: string): string {
@@ -483,7 +481,7 @@ function immutableSqliteUri (dbPath: string): string {
 }
 
 /**
- * Whether the running Node.js can open a `file:…?immutable=1` SQLite URI.
+ * Whether the running Node.js can open a `file:...?immutable=1` SQLite URI.
  *
  * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
  * query is honored rather than treated as part of a literal filename — starting

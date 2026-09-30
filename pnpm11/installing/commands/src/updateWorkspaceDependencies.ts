@@ -58,33 +58,39 @@ export function toWorkspaceSpecs (
  * keep their specifiers, or `skipPackagesOutsideWorkspace` when selectors were
  * derived from the manifest.
  */
+interface CreateWorkspaceSpecsOptions {
+  skipPackagesOutsideWorkspace?: boolean
+  preserveNonWorkspaceSpecs?: boolean
+}
+
 export function createWorkspaceSpecs (
   specs: string[],
   workspacePackages: WorkspacePackages,
-  opts?: {
-    skipPackagesOutsideWorkspace?: boolean
-    preserveNonWorkspaceSpecs?: boolean
-  }
+  opts?: CreateWorkspaceSpecsOptions
 ): string[] {
   const workspaceSpecs: string[] = []
   for (const spec of specs) {
-    const parsed = parseWantedDependency(spec)
-    if (!parsed.alias) throw new PnpmError('NO_PKG_NAME_IN_SPEC', `Cannot update/install from workspace through "${spec}"`)
-    if (!workspacePackages.has(parsed.alias)) {
-      if (opts?.preserveNonWorkspaceSpecs) {
-        workspaceSpecs.push(spec)
-        continue
-      }
-      if (opts?.skipPackagesOutsideWorkspace) continue
-      throw new PnpmError('WORKSPACE_PACKAGE_NOT_FOUND', `"${parsed.alias}" not found in the workspace`)
-    }
-    if (!parsed.bareSpecifier) {
-      workspaceSpecs.push(`${parsed.alias}@workspace:*`)
-    } else if (parsed.bareSpecifier.startsWith('workspace:')) {
-      workspaceSpecs.push(spec)
-    } else {
-      workspaceSpecs.push(`${parsed.alias}@workspace:${parsed.bareSpecifier}`)
+    const workspaceSpec = createWorkspaceSpec(spec, workspacePackages, opts)
+    if (workspaceSpec != null) {
+      workspaceSpecs.push(workspaceSpec)
     }
   }
   return workspaceSpecs
+}
+
+function createWorkspaceSpec (
+  spec: string,
+  workspacePackages: WorkspacePackages,
+  opts?: CreateWorkspaceSpecsOptions
+): string | undefined {
+  const parsed = parseWantedDependency(spec)
+  if (!parsed.alias) throw new PnpmError('NO_PKG_NAME_IN_SPEC', `Cannot update/install from workspace through "${spec}"`)
+  if (!workspacePackages.has(parsed.alias)) {
+    if (opts?.preserveNonWorkspaceSpecs) return spec
+    if (opts?.skipPackagesOutsideWorkspace) return undefined
+    throw new PnpmError('WORKSPACE_PACKAGE_NOT_FOUND', `"${parsed.alias}" not found in the workspace`)
+  }
+  if (!parsed.bareSpecifier) return `${parsed.alias}@workspace:*`
+  if (parsed.bareSpecifier.startsWith('workspace:')) return spec
+  return `${parsed.alias}@workspace:${parsed.bareSpecifier}`
 }

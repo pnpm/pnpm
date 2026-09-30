@@ -76,58 +76,87 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string, resolutionVerifiers: ResolutionVerifier[] }> {
-  const fullMetadata = shouldFetchFullMetadata(opts)
   if (!opts.frozenStore) {
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
   const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
   const ca = await getCA(opts)
-  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
+  const clientOptions = buildClientOptions(opts, ca, storeIndex)
+  const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient(clientOptions)
+  const storeOptions = buildPackageStoreOptions(opts, storeIndex, clearResolutionCache)
+  return {
+    ctrl: createPackageStore(resolve, fetchers, storeOptions),
+    dir: opts.storeDir,
+    resolutionVerifiers,
+  }
+}
+
+function buildClientOptions (
+  opts: CreateNewStoreControllerOptions,
+  ca: string | string[] | undefined,
+  storeIndex: StoreIndex
+): ClientOptions {
+  return {
+    ...buildClientNetworkOptions(opts, ca),
+    ...buildClientPolicyOptions(opts),
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
     unsafePerm: opts.unsafePerm,
-    ca,
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
-    cert: opts.cert,
     frozenStore: opts.frozenStore,
-    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
-    fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
-    fullMetadata,
+    fullMetadata: shouldFetchFullMetadata(opts),
     filterMetadata: shouldFilterMetadata(opts),
     needsFullMetadataFor: needsFullMetadataForRegistry(opts),
-    httpProxy: opts.httpProxy,
-    httpsProxy: opts.httpsProxy,
     ignoreScripts: opts.ignoreScripts,
-    key: opts.key,
-    localAddress: opts.localAddress,
     nodeDownloadMirrors: opts.nodeDownloadMirrors,
-    noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
     configByUri: opts.configByUri,
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    strictSsl: opts.strictSsl ?? true,
-    timeout: opts.fetchTimeout,
-    userAgent: opts.userAgent,
-    maxSockets: opts.maxSockets ?? (
-      opts.networkConcurrency != null
-        ? (opts.networkConcurrency * 3)
-        : undefined
-    ),
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     localDirPackageImportMethod: opts.localDirPackageImportMethod,
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
+    storeIndex,
+  }
+}
+
+function buildClientNetworkOptions (
+  opts: CreateNewStoreControllerOptions,
+  ca: string | string[] | undefined
+): Partial<ClientOptions> {
+  const maxSockets = opts.maxSockets ?? (
+    opts.networkConcurrency != null ? (opts.networkConcurrency * 3) : undefined
+  )
+  return {
+    ca,
+    cert: opts.cert,
+    key: opts.key,
+    httpProxy: opts.httpProxy,
+    httpsProxy: opts.httpsProxy,
+    localAddress: opts.localAddress,
+    noProxy: opts.noProxy,
+    strictSsl: opts.strictSsl ?? true,
+    timeout: opts.fetchTimeout,
+    userAgent: opts.userAgent,
+    maxSockets,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
+    fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+  }
+}
+
+function buildClientPolicyOptions (opts: CreateNewStoreControllerOptions): Partial<ClientOptions> {
+  return {
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
@@ -135,34 +164,36 @@ export async function createNewStoreController (
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-    storeIndex,
-  })
+  }
+}
+
+function buildPackageStoreOptions (
+  opts: CreateNewStoreControllerOptions,
+  storeIndex: StoreIndex,
+  clearResolutionCache: () => void
+): Parameters<typeof createPackageStore>[2] {
   return {
-    ctrl: createPackageStore(resolve, fetchers, {
-      cafsLocker: opts.cafsLocker,
-      engineStrict: opts.engineStrict,
-      force: opts.force,
-      forceIgnoresPlatform: opts.forceIgnoresPlatform,
-      nodeVersion: opts.nodeVersion,
-      pnpmVersion: packageManager.version,
-      ignoreFile: opts.ignoreFile,
-      importPackage: opts.hooks?.importPackage,
-      networkConcurrency: opts.networkConcurrency,
-      packageImportMethod: opts.packageImportMethod,
-      cacheDir: opts.cacheDir,
-      storeDir: opts.storeDir,
-      verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
-        ? opts.verifyStoreIntegrity
-        : true,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
-      clearResolutionCache,
-      customFetchers: opts.hooks?.customFetchers,
-      frozenStore: opts.frozenStore,
-      storeIndex,
-    }),
-    dir: opts.storeDir,
-    resolutionVerifiers,
+    cafsLocker: opts.cafsLocker,
+    engineStrict: opts.engineStrict,
+    force: opts.force,
+    forceIgnoresPlatform: opts.forceIgnoresPlatform,
+    nodeVersion: opts.nodeVersion,
+    pnpmVersion: packageManager.version,
+    ignoreFile: opts.ignoreFile,
+    importPackage: opts.hooks?.importPackage,
+    networkConcurrency: opts.networkConcurrency,
+    packageImportMethod: opts.packageImportMethod,
+    cacheDir: opts.cacheDir,
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
+      ? opts.verifyStoreIntegrity
+      : true,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+    clearResolutionCache,
+    customFetchers: opts.hooks?.customFetchers,
+    frozenStore: opts.frozenStore,
+    storeIndex,
   }
 }
 

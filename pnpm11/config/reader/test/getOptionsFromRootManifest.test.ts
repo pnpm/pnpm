@@ -728,6 +728,21 @@ test('getOptionsFromPnpmSettings() rejects one prefix declared by two registries
   })).toThrow(/The prefix "work" is declared by two registries/)
 })
 
+test('getOptionsFromPnpmSettings() reads a declared prefix that names an Object.prototype property', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: 'constructor' },
+    },
+  })
+  expect(options.registriesByPrefix).toStrictEqual({ constructor: 'https://npm.corp.example/' })
+})
+
+test('getOptionsFromPnpmSettings() rejects a "$" override reference to an Object.prototype property', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: { foo: '$toString' },
+  }, { dependencies: { foo: '1.0.0' } })).toThrow(/Cannot resolve version \$toString in overrides/)
+})
+
 test('getOptionsFromPnpmSettings() lets a declared prefix win over the deprecated namedRegistries', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     namedRegistries: {

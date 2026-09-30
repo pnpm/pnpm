@@ -108,14 +108,7 @@ const removeBin = jest.fn<RemoveBin>(async (cmd) => {
 async function onHashLinkSwap (): Promise<void> {
   symlinkCallCount++
   if (symlinkCallCount === 1) {
-    if (testRoot == null) throw new Error('Expected a activation fixture before linking the hash directory')
-    const backupDirs = await findBackupDirs(testRoot)
-    activationBackupFileContents.push(...(await Promise.all(backupDirs.map(readRegularFileContents))).flat())
-    if (obstructBackupCleanup) {
-      const [backupDir] = backupDirs
-      if (backupDir == null) throw new Error('Expected a global bin backup directory')
-      await fs.writeFile(path.join(backupDir, 'cleanup-obstruction'), 'keep backup directory non-empty\n')
-    }
+    await inspectBackupsAtActivationSwap()
   }
   if (symlinkCallCount === 2 && restorationLinkFailure != null) {
     throw restorationLinkFailure
@@ -123,6 +116,16 @@ async function onHashLinkSwap (): Promise<void> {
   if (symlinkCallCount === 1 && activationLinkFailure != null) {
     throw activationLinkFailure
   }
+}
+
+async function inspectBackupsAtActivationSwap (): Promise<void> {
+  if (testRoot == null) throw new Error('Expected a activation fixture before linking the hash directory')
+  const backupDirs = await findBackupDirs(testRoot)
+  activationBackupFileContents.push(...(await Promise.all(backupDirs.map(readRegularFileContents))).flat())
+  if (!obstructBackupCleanup) return
+  const [backupDir] = backupDirs
+  if (backupDir == null) throw new Error('Expected a global bin backup directory')
+  await fs.writeFile(path.join(backupDir, 'cleanup-obstruction'), 'keep backup directory non-empty\n')
 }
 
 // Used only on the Windows path, where the swap cannot be a rename.

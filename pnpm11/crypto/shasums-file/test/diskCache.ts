@@ -75,7 +75,7 @@ test('fetchVerifiedNodeShasumsFileCached() does not cache a body that failed ver
   })
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the second attempt must see whatever the first one left in the cache
     await expect(fetchVerifiedNodeShasumsFileCached(fetch, SHASUMS_URL, { cacheDir, trustedKeys })).rejects.toThrow()
   }
   expect(fs.existsSync(path.join(cacheDir, RUNTIME_SHASUMS_DIR))).toBe(false)

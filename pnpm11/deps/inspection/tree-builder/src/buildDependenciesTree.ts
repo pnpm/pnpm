@@ -100,109 +100,148 @@ async function buildProjectsTrees (
   const modulesDir = await realpathMissing(pathAbsolute(maybeOpts.modulesDir ?? 'node_modules', maybeOpts.lockfileDir))
   const modules = await readModulesManifest(modulesDir)
   const registriesByScope = normalizeRegistriesByScope(maybeOpts?.registriesByScope)
-  const internalPnpmDir = path.join(modulesDir, '.pnpm')
-  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-  const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
-  if (projectPaths == null) {
-    projectPaths = Object.keys(wantedLockfile?.importers ?? {})
-      .map((id) => path.join(maybeOpts.lockfileDir, id))
-  }
-
-  const result = {} as { [projectDir: string]: DependenciesTree }
+  const { currentLockfile, wantedLockfile } = await readLockfiles(modulesDir, maybeOpts.lockfileDir)
+  const projectDirs = projectPaths ?? getImporterDirs(wantedLockfile, maybeOpts.lockfileDir)
 
   const lockfileToUse = maybeOpts.checkWantedLockfileOnly ? wantedLockfile : (currentLockfile ?? wantedLockfile)
 
   if (!lockfileToUse) {
-    for (const projectPath of projectPaths) {
-      result[projectPath] = {}
-    }
-    return result
+    return Object.fromEntries(projectDirs.map((projectPath) => [projectPath, {}]))
   }
 
-  const storeDir = modules?.storeDir
-  const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
-  const opts = {
-    depth: maybeOpts.depth || 0,
-    excludePeerDependencies: maybeOpts.excludePeerDependencies,
-    include: maybeOpts.include ?? {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
-    lockfileDir: maybeOpts.lockfileDir,
-    checkWantedLockfileOnly: maybeOpts.checkWantedLockfileOnly,
-    onlyProjects: maybeOpts.onlyProjects,
-    registriesByScope,
-    registriesByPrefix: maybeOpts.registriesByPrefix,
-    search: maybeOpts.search,
-    showDedupedSearchMatches: maybeOpts.showDedupedSearchMatches ?? (maybeOpts.search != null),
-    skipped: new Set(modules?.skipped ?? []),
-    storeDir,
-    storeIndex,
+  const storeIndex = modules?.storeDir ? new StoreIndex(modules.storeDir) : undefined
+  const ctx = createHierarchyContext({
+    lockfile: lockfileToUse,
+    wantedLockfile,
+    projectDirs,
+    treeOpts: maybeOpts,
+    modules,
     modulesDir,
-    virtualStoreDir: modules?.virtualStoreDir,
-    virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
+    registriesByScope,
+    storeIndex,
+  })
+
+  const pairs = await Promise.all(projectDirs.map(async (projectPath) => {
+    return [
+      projectPath,
+      await dependenciesHierarchyForPackage(ctx, projectPath),
+    ] as [string, DependenciesTree]
+  }))
+  storeIndex?.close()
+  if (ctx.onlyProjects) {
+    await expandLinkedProjectsOfEach(pairs, {
+      importers: lockfileToUse.importers,
+      lockfileDir: ctx.lockfileDir,
+      depth: ctx.depth,
+      treeOpts: maybeOpts,
+      linkedWalk,
+    })
   }
+  return Object.fromEntries(pairs)
+}
+
+async function readLockfiles (
+  modulesDir: string,
+  lockfileDir: string
+): Promise<{ currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject | null }> {
+  const internalPnpmDir = path.join(modulesDir, '.pnpm')
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
+  const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+  return { currentLockfile, wantedLockfile }
+}
+
+function getImporterDirs (wantedLockfile: LockfileObject | null, lockfileDir: string): string[] {
+  return Object.keys(wantedLockfile?.importers ?? {})
+    .map((id) => path.join(lockfileDir, id))
+}
+
+interface HierarchyContextSources {
+  lockfile: LockfileObject
+  wantedLockfile: LockfileObject | null
+  projectDirs: string[]
+  treeOpts: BuildDependenciesTreeOptions
+  modules: Awaited<ReturnType<typeof readModulesManifest>>
+  modulesDir: string
+  registriesByScope: RegistriesByScope
+  storeIndex?: StoreIndex
+}
+
+function createHierarchyContext (sources: HierarchyContextSources): HierarchyContext {
+  const { lockfile, treeOpts } = sources
+  const opts = createTreeOptions(sources)
   // Build the dependency graph ONCE for all importers and share a single
   // MaterializationCache so that identical subtrees are only materialized once.
   const allRootIds: TreeNodeId[] = []
-  for (const projectPath of projectPaths) {
+  for (const projectPath of sources.projectDirs) {
     const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
-    if (lockfileToUse.importers[importerId]) {
+    if (lockfile.importers[importerId]) {
       allRootIds.push({ type: 'importer', importerId })
     }
   }
   const sharedGraph = buildDependencyGraph(allRootIds, {
-    currentPackages: lockfileToUse.packages ?? {},
-    importers: lockfileToUse.importers,
+    currentPackages: lockfile.packages ?? {},
+    importers: lockfile.importers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
-    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(lockfileToUse, {
+    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(lockfile, {
       include: opts.include,
-      resolvePeersFromWorkspaceRoot: maybeOpts.resolvePeersFromWorkspaceRoot,
+      resolvePeersFromWorkspaceRoot: treeOpts.resolvePeersFromWorkspaceRoot,
     }),
   })
   const sharedMaterializationCache: MaterializationCache = new Map()
-  const sharedDepTypes = detectDepTypes(lockfileToUse, maybeOpts)
+  const sharedDepTypes = detectDepTypes(lockfile, treeOpts)
 
-  const ctx: HierarchyContext = {
-    currentLockfile: lockfileToUse,
-    wantedLockfile,
+  return {
+    currentLockfile: lockfile,
+    wantedLockfile: sources.wantedLockfile,
     ...opts,
     graph: sharedGraph,
     materializationCache: sharedMaterializationCache,
     depTypes: sharedDepTypes,
   }
+}
 
-  const getHierarchy = dependenciesHierarchyForPackage.bind(null, ctx)
+function createTreeOptions ({ treeOpts, modules, modulesDir, registriesByScope, storeIndex }: HierarchyContextSources) {
+  return {
+    depth: treeOpts.depth || 0,
+    excludePeerDependencies: treeOpts.excludePeerDependencies,
+    include: treeOpts.include ?? {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir: treeOpts.lockfileDir,
+    checkWantedLockfileOnly: treeOpts.checkWantedLockfileOnly,
+    onlyProjects: treeOpts.onlyProjects,
+    registriesByScope,
+    registriesByPrefix: treeOpts.registriesByPrefix,
+    search: treeOpts.search,
+    showDedupedSearchMatches: treeOpts.showDedupedSearchMatches ?? (treeOpts.search != null),
+    skipped: new Set(modules?.skipped ?? []),
+    storeDir: modules?.storeDir,
+    storeIndex,
+    modulesDir,
+    virtualStoreDir: modules?.virtualStoreDir,
+    virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? treeOpts.virtualStoreDirMaxLength,
+  }
+}
 
-  const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
-    return [
-      projectPath,
-      await getHierarchy(projectPath),
-    ] as [string, DependenciesTree]
-  }))
-  storeIndex?.close()
+async function expandLinkedProjectsOfEach (
+  pairs: Array<[string, DependenciesTree]>,
+  opts: Omit<LinkedProjectsContext, 'walk' | 'rewriteLinkVersionDir'> & { linkedWalk: LinkedProjectsWalk }
+): Promise<void> {
+  const { linkedWalk, ...ctx } = opts
+  // Sequential, so that the first occurrence of a linked project is the
+  // one expanded, as with the deduplication of a shared lockfile.
   for (const [projectPath, dependenciesHierarchy] of pairs) {
-    result[projectPath] = dependenciesHierarchy
+    // eslint-disable-next-line no-await-in-loop -- the first occurrence of a linked project must be the one expanded, so projects are expanded in order
+    await expandLinkedProjects(dependenciesHierarchy, {
+      ...ctx,
+      walk: { ...linkedWalk, ancestors: new Set([...linkedWalk.ancestors, projectPath]) },
+      rewriteLinkVersionDir: projectPath,
+    })
   }
-  if (opts.onlyProjects) {
-    // Sequential, so that the first occurrence of a linked project is the
-    // one expanded, as with the deduplication of a shared lockfile.
-    for (const [projectPath, dependenciesHierarchy] of pairs) {
-      // eslint-disable-next-line no-await-in-loop
-      await expandLinkedProjects(dependenciesHierarchy, {
-        importers: lockfileToUse.importers,
-        lockfileDir: opts.lockfileDir,
-        depth: opts.depth,
-        treeOpts: maybeOpts,
-        walk: { ...linkedWalk, ancestors: new Set([...linkedWalk.ancestors, projectPath]) },
-        rewriteLinkVersionDir: projectPath,
-      })
-    }
-  }
-  return result
 }
 
 interface LinkedProjectsContext {
@@ -223,7 +262,7 @@ interface LinkedProjectsContext {
 async function expandLinkedProjects (tree: DependenciesTree, ctx: LinkedProjectsContext): Promise<void> {
   for (const field of DEPENDENCIES_FIELDS) {
     if (tree[field] != null) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the walk is sequential so the first occurrence of a linked project is the one expanded
       tree[field] = await expandLinkedProjectNodes(tree[field], 0, ctx)
     }
   }
@@ -238,10 +277,10 @@ async function expandLinkedProjectNodes (
   for (const node of nodes) {
     let expandedNode: DependencyNode | undefined = node
     if (node.dependencies != null) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the walk is sequential so the first occurrence of a linked project is the one expanded
       expandedNode = keepSearched({ ...node, dependencies: await expandLinkedProjectNodes(node.dependencies, level + 1, ctx) }, ctx)
     } else if (!node.circular && ctx.importers[getLockfileImporterId(ctx.lockfileDir, node.path)] == null) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the walk is sequential so the first occurrence of a linked project is the one expanded
       expandedNode = await expandLinkedProject(node, level, ctx)
     }
     if (expandedNode != null) expanded.push(expandedNode)
@@ -315,28 +354,15 @@ async function dependenciesHierarchyForPackage (
 ): Promise<DependenciesTree> {
   const { currentLockfile, wantedLockfile } = opts
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+  const projectSnapshot = currentLockfile.importers[importerId]
 
-  if (!currentLockfile.importers[importerId]) return {}
+  if (!projectSnapshot) return {}
 
   const modulesDir = opts.modulesDir && path.isAbsolute(opts.modulesDir)
     ? opts.modulesDir
     : path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
-  const currentPackages = currentLockfile.packages ?? {}
-  const wantedPackages = wantedLockfile?.packages ?? {}
-
-  // Build a map from alias → dependency field for post-categorization.
-  const result: DependenciesTree = {}
-  const fieldMap = new Map<string, DependenciesField>()
-  for (const field of DEPENDENCIES_FIELDS.sort().filter(f => opts.include[f])) {
-    result[field] = []
-    const fieldDeps = currentLockfile.importers[importerId][field] ?? {}
-    for (const alias in fieldDeps) {
-      fieldMap.set(alias, field)
-    }
-  }
-
-  const parentId: TreeNodeId = { type: 'importer', importerId }
+  const { result, fieldMap } = initDependencyFields(projectSnapshot, opts.include)
 
   // Materialize the tree rooted at this importer in a single getTree call.
   // materializeChildren handles all dedup, search, and circular detection.
@@ -344,13 +370,13 @@ async function dependenciesHierarchyForPackage (
   // opts.depth controls how deep *below* the direct dependencies we go.
   const nodes = getTree({
     ...opts,
-    currentPackages,
+    currentPackages: currentLockfile.packages ?? {},
     importers: currentLockfile.importers,
     rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth + 1,
-    wantedPackages,
+    wantedPackages: wantedLockfile?.packages ?? {},
     modulesDir,
-  }, parentId)
+  }, { type: 'importer', importerId })
 
   // Categorize the materialized nodes into their dependency fields.
   for (const node of nodes) {
@@ -365,36 +391,73 @@ async function dependenciesHierarchyForPackage (
   // graph and can't have dependency subtrees showing paths to the search target.
   // They aren't workspace projects either, which is all onlyProjects lists.
   if (!opts.search && !opts.onlyProjects) {
-    const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
-    const unsavedDeps = ((await readModulesDir(modulesDir)) ?? []).filter((directDep) => !savedDeps[directDep])
-    if (unsavedDeps.length > 0) await Promise.all(
-      unsavedDeps.map((unsavedDep) => limitUnsavedReads(async () => {
-        let pkgPath = path.join(modulesDir, unsavedDep)
-        let version!: string
-        try {
-          pkgPath = await resolveLinkTarget(pkgPath)
-          version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
-        } catch {
-          // if error happened. The package is not a link
-          const pkg = await safeReadPackageJsonFromDir(pkgPath)
-          version = pkg?.version ?? 'undefined'
-        }
-        const pkg: DependencyNode = {
-          alias: unsavedDep,
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: unsavedDep,
-          path: pkgPath,
-          version,
-        }
-        result.unsavedDependencies = result.unsavedDependencies ?? []
-        result.unsavedDependencies.push(pkg)
-      }))
-    )
+    await addUnsavedDependencies(result, { modulesDir, projectPath, projectSnapshot })
   }
 
   return result
+}
+
+function initDependencyFields (
+  projectSnapshot: ProjectSnapshot,
+  include: HierarchyContext['include']
+): { result: DependenciesTree, fieldMap: Map<string, DependenciesField> } {
+  // Build a map from alias → dependency field for post-categorization.
+  const result: DependenciesTree = {}
+  const fieldMap = new Map<string, DependenciesField>()
+  for (const field of DEPENDENCIES_FIELDS.sort().filter(f => include[f])) {
+    result[field] = []
+    for (const alias in projectSnapshot[field] ?? {}) {
+      fieldMap.set(alias, field)
+    }
+  }
+  return { result, fieldMap }
+}
+
+interface UnsavedDependenciesLocation {
+  modulesDir: string
+  projectPath: string
+  projectSnapshot: ProjectSnapshot
+}
+
+async function addUnsavedDependencies (
+  result: DependenciesTree,
+  { modulesDir, projectPath, projectSnapshot }: UnsavedDependenciesLocation
+): Promise<void> {
+  const savedDeps = getAllDirectDependencies(projectSnapshot)
+  const unsavedDeps = ((await readModulesDir(modulesDir)) ?? []).filter((directDep) => !Object.hasOwn(savedDeps, directDep))
+  if (unsavedDeps.length === 0) return
+  await Promise.all(
+    unsavedDeps.map((unsavedDep) => limitUnsavedReads(async () => {
+      const pkg = await readUnsavedDependency(unsavedDep, { modulesDir, projectPath })
+      result.unsavedDependencies = result.unsavedDependencies ?? []
+      result.unsavedDependencies.push(pkg)
+    }))
+  )
+}
+
+async function readUnsavedDependency (
+  unsavedDep: string,
+  { modulesDir, projectPath }: Pick<UnsavedDependenciesLocation, 'modulesDir' | 'projectPath'>
+): Promise<DependencyNode> {
+  let pkgPath = path.join(modulesDir, unsavedDep)
+  let version!: string
+  try {
+    pkgPath = await resolveLinkTarget(pkgPath)
+    version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
+  } catch {
+    // if error happened. The package is not a link
+    const pkg = await safeReadPackageJsonFromDir(pkgPath)
+    version = pkg?.version ?? 'undefined'
+  }
+  return {
+    alias: unsavedDep,
+    isMissing: false,
+    isPeer: false,
+    isSkipped: false,
+    name: unsavedDep,
+    path: pkgPath,
+    version,
+  }
 }
 
 function getAllDirectDependencies (projectSnapshot: ProjectSnapshot): ResolvedDependencies {

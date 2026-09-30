@@ -83,11 +83,13 @@ export function createDownloader (
         try {
           resolve(await fetch(attempt))
         } catch (error: any) { // eslint-disable-line
+          const status = error.response?.status
+          const isManualRedirect = opts.redirect === 'manual' && status >= 300 && status < 400
           if (
-            (opts.redirect === 'manual' && error.response?.status >= 300 && error.response.status < 400) ||
-            error.response?.status === 401 ||
-            error.response?.status === 403 ||
-            error.response?.status === 404 ||
+            isManualRedirect ||
+            status === 401 ||
+            status === 403 ||
+            status === 404 ||
             error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
             isNonRetryableError(error)
           ) {
@@ -170,8 +172,8 @@ export function createDownloader (
           // Known size: pre-allocate and copy directly (avoids intermediate array + second copy pass)
           data = Buffer.from(new SharedArrayBuffer(size))
           for await (const chunk of res.body!) {
-            const c = chunk as Uint8Array
-            const nextDownloaded = downloaded + c.byteLength
+            const bytes = chunk as Uint8Array
+            const nextDownloaded = downloaded + bytes.byteLength
             if (nextDownloaded > size) {
               throw new BadTarballError({
                 expectedSize: size,
@@ -179,7 +181,7 @@ export function createDownloader (
                 tarballUrl: url,
               })
             }
-            data.set(c, downloaded)
+            data.set(bytes, downloaded)
             downloaded = nextDownloaded
             onProgress?.(downloaded)
           }
@@ -193,9 +195,9 @@ export function createDownloader (
         } else {
           const chunks: Uint8Array[] = []
           for await (const chunk of res.body!) {
-            const c = chunk as Uint8Array
-            chunks.push(c)
-            downloaded += c.byteLength
+            const bytes = chunk as Uint8Array
+            chunks.push(bytes)
+            downloaded += bytes.byteLength
             onProgress?.(downloaded)
           }
           data = Buffer.from(new SharedArrayBuffer(downloaded))

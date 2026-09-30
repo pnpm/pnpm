@@ -17,7 +17,7 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -319,7 +319,7 @@ test('rebuild does not fail when a linked package is present', async () => {
   prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
-  f.copy('local-pkg', path.resolve('..', 'local-pkg'))
+  testFixtures.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
   await execa('node', [
     pnpmBin,

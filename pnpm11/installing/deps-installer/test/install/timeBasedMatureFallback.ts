@@ -43,7 +43,7 @@ test.each(['highest', 'time-based'] as const)('time-based fallback chooses a mat
   await install({ dependencies: { 'fallback-parent': '1.0.0' } }, {
     ...opts,
     handleResolutionPolicyViolations: async (found) => {
-      violations.push(...found.map((v) => `${v.name}@${v.version} ${v.reason}`))
+      violations.push(...found.map((violation) => `${violation.name}@${violation.version} ${violation.reason}`))
     },
   })
   expect(violations).toStrictEqual([])

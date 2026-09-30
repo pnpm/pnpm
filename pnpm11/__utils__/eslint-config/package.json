@@ -25,7 +25,10 @@
     "node": ">=18.18.0"
   },
   "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/__utils__/eslint-config",
-  "scripts": {},
+  "scripts": {
+    "test": "pn .test",
+    ".test": "node --test test/perfectionist.test.js"
+  },
   "dependencies": {
     "@eslint/js": "catalog:",
     "@stylistic/eslint-plugin": "catalog:",

@@ -140,7 +140,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
 
   const globalPkgDir = opts.globalPkgDir ?? (opts.pnpmHomeDir ? path.join(opts.pnpmHomeDir, 'global', 'v11') : undefined)
   const globalNode = globalPkgDir ? await findGlobalNodeGroup(globalPkgDir) : null
-  if (globalPkgDir && globalNode && versions.some((v) => matchesNodeVersion(globalNode.version, v))) {
+  if (globalPkgDir && globalNode && versions.some((version) => matchesNodeVersion(globalNode.version, version))) {
     // In-process rather than through `pnpm remove --global`, which refuses to
     // run when the global bin directory is not on PATH.
     // The group may hold other packages, whose bins go with its install dir.
@@ -165,7 +165,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
     }
 
     const entriesToRemove = entries.filter((entry) =>
-      versions.some((v) => matchesNodeVersion(entry, v))
+      versions.some((version) => matchesNodeVersion(entry, version))
     )
     if (entriesToRemove.length > 0) {
       await Promise.all(
