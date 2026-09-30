@@ -173,5 +173,5 @@ test('importYarnPatches records a patch of a package named like an Object.protot
     patchedDependencies: {},
   })
 
-  expect(patchedDependencies).toStrictEqual({ constructor: path.resolve('p.patch') })
+  expect(patchedDependencies).toStrictEqual({ 'constructor@1.0.0': path.resolve('p.patch') })
 })
