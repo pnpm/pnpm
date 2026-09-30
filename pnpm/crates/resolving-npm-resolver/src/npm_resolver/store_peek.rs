@@ -55,7 +55,7 @@ fn is_eligible_for_store_peek<'a>(
     spec: &RegistryPackageSpec,
 ) -> Option<&'a CurrentPkg> {
     let current_pkg = opts.refresh.current_pkg.as_ref()?;
-    if opts.refresh.update != UpdateBehavior::Off {
+    if opts.refresh.update != UpdateBehavior::Off || opts.refresh.repick_current_version {
         return None;
     }
     if opts.refresh.update_checksums {

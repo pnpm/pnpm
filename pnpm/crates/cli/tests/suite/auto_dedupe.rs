@@ -548,16 +548,19 @@ fn deduplication_converges_transitive_dependencies_on_the_direct_dependency_vers
 
 #[test]
 fn downgrading_a_dependency_moves_other_projects_to_the_named_version() {
-    for (group, filtered) in [
-        ("peerDependencies", true),
-        ("peerDependencies", false),
-        ("dependencies", true),
-        ("dependencies", false),
-    ] {
-        eprintln!("{group}, filtered: {filtered}");
+    let cases = ["peerDependencies", "dependencies"]
+        .into_iter()
+        .flat_map(|group| [true, false].map(|filtered| (group, filtered)))
+        .flat_map(|(group, filtered)| [None, Some(0)].map(|age| (group, filtered, age)));
+    for (group, filtered, minimum_release_age) in cases {
+        eprintln!("{group}, filtered: {filtered}, minimumReleaseAge: {minimum_release_age:?}");
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
-        write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+        let mut settings = String::from("packages:\n  - low\n  - high\nautoDedupe: true\n");
+        if let Some(age) = minimum_release_age {
+            settings.push_str(&format!("minimumReleaseAge: {age}\n"));
+        }
+        write_settings(&workspace, settings).unwrap();
         for (project, manifest) in [
             ("low", serde_json::json!({"name": "low", "dependencies": {DEP: "100.1.0"}})),
             ("high", serde_json::json!({"name": "high", group: {DEP: "^100.0.0"}})),
@@ -594,4 +597,48 @@ fn downgrading_a_dependency_moves_other_projects_to_the_named_version() {
         );
         drop((root, npmrc_info));
     }
+}
+
+#[test]
+fn filtered_downgrade_reaches_other_projects_on_the_next_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    for (project, version) in [("low", "100.1.0"), ("high", "^100.0.0")] {
+        fs::create_dir_all(workspace.join(project)).unwrap();
+        fs::write(
+            workspace.join(project).join("package.json"),
+            serde_json::json!({"name": project, "dependencies": {DEP: version}}).to_string(),
+        )
+        .unwrap();
+    }
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pnpm_at(&workspace)
+        .with_args(["--filter=low", "add", &format!("{DEP}@100.0.0")])
+        .assert()
+        .success();
+    let installed = |project: &str| {
+        let manifest = workspace
+            .join(project)
+            .join("node_modules")
+            .join(DEP)
+            .join("package.json");
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(manifest).unwrap()).unwrap();
+        manifest["version"].clone()
+    };
+    assert_eq!(installed("low"), "100.0.0");
+    assert_eq!(
+        importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "high", DEP),
+        "100.0.0",
+    );
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(installed("high"), "100.0.0");
+    drop((root, npmrc_info));
 }
