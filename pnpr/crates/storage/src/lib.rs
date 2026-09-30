@@ -474,6 +474,17 @@ impl Storage {
         self.cached.namespaced(namespace).remove_package(name).await
     }
 
+    /// Remove one cached upstream tarball. Returns `Ok(false)` when it is
+    /// already gone.
+    pub async fn remove_upstream_blob(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<bool> {
+        self.cached.namespaced(namespace).remove_blob(name, filename).await
+    }
+
     pub async fn open_upstream_blob_tmp(
         &self,
         namespace: &str,

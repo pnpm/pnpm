@@ -2,7 +2,7 @@ use super::{
     AppState, CanonicalPackageName, Duration, FetchOutcome, Integrity, MAX_TARBALL_BYTES,
     RegistryError, Upstream, is_osv_vulnerable_packument_version, streaming,
     tarball_integrity_error, tarball_stream_error_for_package, timed,
-    upstream_tarballs::tarball_cache_name,
+    upstream_packuments::lock_upstream_package, upstream_tarballs::tarball_cache_name,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -77,10 +77,14 @@ impl PackumentIntegrityResolver<'_> {
         if pins.is_empty() {
             return Ok(bytes);
         }
-        let _guard = self.package_lock().await;
-        let bytes = self.read_current_packument(bytes).await?;
-        let doc: Value = serde_json::from_slice(&bytes)?;
-        Ok(self.publish_pins(doc, pins).await.unwrap_or(bytes))
+        let _guard = lock_upstream_package(self.state, self.namespace, self.name).await;
+        let Some(current) = self.read_cached_packument().await? else {
+            // Purged, or never cached: there is no packument to pin into.
+            abandon(pins).await;
+            return Ok(bytes);
+        };
+        let doc: Value = serde_json::from_slice(&current)?;
+        Ok(self.publish_pins(doc, pins).await.unwrap_or(current))
     }
 
     /// Writes the pins that still apply into `doc` and persists it before
@@ -89,14 +93,16 @@ impl PackumentIntegrityResolver<'_> {
     /// nothing was published.
     async fn publish_pins(&self, mut doc: Value, pins: Vec<StagedPin>) -> Option<Vec<u8>> {
         let mut publishable = Vec::new();
+        let mut stale = Vec::new();
         for pin in pins {
             if pin_still_applies(&doc, self.name, &pin.tarball) {
                 set_integrity(&mut doc, &pin.tarball.version, &pin.integrity);
                 publishable.push(pin);
             } else {
-                pin.blob.abandon().await;
+                stale.push(pin);
             }
         }
+        abandon(stale).await;
         if publishable.is_empty() {
             return None;
         }
@@ -104,9 +110,7 @@ impl PackumentIntegrityResolver<'_> {
             Ok(persisted) => persisted,
             Err(err) => {
                 tracing::warn!(?err, package = %self.name.as_str(), "pinned packument cache write failed");
-                for pin in publishable {
-                    pin.blob.abandon().await;
-                }
+                abandon(publishable).await;
                 return None;
             }
         };
@@ -116,15 +120,28 @@ impl PackumentIntegrityResolver<'_> {
         Some(persisted)
     }
 
-    /// A pin whose tarball fails to promote stays published: the tarball route
-    /// then fetches that version again and verifies it against the pin.
+    /// A pin whose tarball fails to promote stays published, and any older
+    /// tarball cached under that name is evicted, so the tarball route fetches
+    /// the version again and verifies it against the pin.
     async fn promote(&self, pin: StagedPin) {
-        if let Err(err) = pin.blob.promote().await {
+        let Err(err) = pin.blob.promote().await else {
+            return;
+        };
+        tracing::warn!(
+            ?err,
+            package = %self.name.as_str(),
+            version = %pin.tarball.version,
+            "pinned tarball cache promotion failed",
+        );
+        let storage = &self.state.inner.storage;
+        if let Err(err) =
+            storage.remove_upstream_blob(self.namespace, self.name, &pin.tarball.filename).await
+        {
             tracing::warn!(
                 ?err,
                 package = %self.name.as_str(),
                 version = %pin.tarball.version,
-                "pinned tarball cache promotion failed",
+                "failed to evict the tarball cached before the pin",
             );
         }
     }
@@ -133,16 +150,8 @@ impl PackumentIntegrityResolver<'_> {
         self.state.inner.osv_index.as_ref()
     }
 
-    async fn package_lock(&self) -> tokio::sync::MutexGuard<'_, ()> {
-        let lock_key = format!("upstream:{}:{}", self.namespace, self.name.as_str());
-        self.state.inner.locks.packages.lock(&lock_key).await
-    }
-
-    async fn read_current_packument(&self, fallback: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
-        Ok(self.state.inner.storage
-            .read_upstream_document(self.namespace, self.name, self.ttl)
-            .await?
-            .unwrap_or(fallback))
+    async fn read_cached_packument(&self) -> Result<Option<Vec<u8>>, RegistryError> {
+        self.state.inner.storage.read_upstream_document(self.namespace, self.name, self.ttl).await
     }
 
     async fn compute_integrities(
@@ -219,6 +228,12 @@ impl PackumentIntegrityResolver<'_> {
         let bytes = serde_json::to_vec(doc)?;
         self.state.inner.storage.write_upstream_document(self.namespace, self.name, &bytes).await?;
         Ok(bytes)
+    }
+}
+
+async fn abandon(pins: Vec<StagedPin>) {
+    for pin in pins {
+        pin.blob.abandon().await;
     }
 }
 

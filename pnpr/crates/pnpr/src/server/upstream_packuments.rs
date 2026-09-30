@@ -88,12 +88,8 @@ pub(super) async fn cache_upstream_packument(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match fetched {
         PackumentFetch::Modified(fetched) => {
-            if upstream.caches()
-                && let Err(err) =
-                    state.inner.storage.write_upstream_document(namespace, name, &fetched.bytes)
-                        .await
-            {
-                tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
+            if upstream.caches() {
+                write_cached_packument(state, namespace, name, &fetched.bytes).await;
             }
             Ok(Some(fetched.bytes))
         }
@@ -102,14 +98,8 @@ pub(super) async fn cache_upstream_packument(
             // so drop its cached entry too. Otherwise the stale copy would
             // outlive every TTL and a later transient outage could resurrect
             // the unpublished package through the stale-if-error fallback.
-            if upstream.caches()
-                && let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await
-            {
-                tracing::warn!(
-                    ?err,
-                    package = %name.as_str(),
-                    "failed to purge cached entry after an upstream 404",
-                );
+            if upstream.caches() {
+                purge_cached_package(state, namespace, name).await;
             }
             Ok(None)
         }
@@ -123,6 +113,41 @@ pub(super) async fn cache_upstream_packument(
             state.inner.storage.read_upstream_document_any(namespace, name).await
         }
     }
+}
+
+async fn write_cached_packument(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    bytes: &[u8],
+) {
+    let _guard = lock_upstream_package(state, namespace, name).await;
+    if let Err(err) = state.inner.storage.write_upstream_document(namespace, name, bytes).await {
+        tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
+    }
+}
+
+async fn purge_cached_package(state: &AppState, namespace: &str, name: &CanonicalPackageName) {
+    let _guard = lock_upstream_package(state, namespace, name).await;
+    if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
+        tracing::warn!(
+            ?err,
+            package = %name.as_str(),
+            "failed to purge cached entry after an upstream 404",
+        );
+    }
+}
+
+/// Serializes the writes to one upstream package's cached packument: a refresh,
+/// a purge, and publishing computed integrities. The lock is striped and shared
+/// with hosted publishes, so no network I/O may run under it.
+pub(super) async fn lock_upstream_package<'a>(
+    state: &'a AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) -> tokio::sync::MutexGuard<'a, ()> {
+    let lock_key = format!("upstream:{namespace}:{}", name.as_str());
+    state.inner.locks.packages.lock(&lock_key).await
 }
 
 /// Serve a stale cache entry only when an upstream fetch failed transiently.
