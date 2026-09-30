@@ -505,7 +505,7 @@ test('an unsaved dependency named like an Object.prototype property is listed', 
         isPeer: false,
         isSkipped: false,
         name: 'constructor',
-        path: pkgDir,
+        path: fs.realpathSync(pkgDir),
         version: '1.0.0',
       },
     ])
