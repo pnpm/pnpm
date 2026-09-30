@@ -689,3 +689,54 @@ fn claimed_dotted_settings_are_not_passed_on() {
     ]));
     assert!(overrides.unported_settings().is_empty());
 }
+
+/// A setting the `--config.` tables claim has to leave the same mark on
+/// [`Config::explicit_settings`] as one from a config file, because that
+/// record is what `pnpm config get` and `pnpm config list` answer from.
+#[test]
+fn claimed_dotted_settings_are_recorded_as_explicitly_set() {
+    use serde_json::json;
+
+    let cases: [(&str, &str, &str, serde_json::Value); 22] = [
+        ("bail", "true", "bail", json!(true)),
+        ("ci", "true", "ci", json!(true)),
+        ("color", "always", "color", json!("always")),
+        ("embed-readme", "true", "embedReadme", json!(true)),
+        ("ignore-workspace-root-check", "true", "ignoreWorkspaceRootCheck", json!(true)),
+        ("optional", "true", "optional", json!(true)),
+        ("pending", "true", "pending", json!(true)),
+        ("progress", "true", "progress", json!(true)),
+        ("recursive-install", "true", "recursiveInstall", json!(true)),
+        ("reverse", "true", "reverse", json!(true)),
+        ("shell-emulator", "true", "shellEmulator", json!(true)),
+        ("skip-manifest-obfuscation", "true", "skipManifestObfuscation", json!(true)),
+        ("sort", "true", "sort", json!(true)),
+        ("use-beta-cli", "true", "useBetaCli", json!(true)),
+        ("deploy-all-files", "true", "deployAllFiles", json!(true)),
+        ("force-legacy-deploy", "true", "forceLegacyDeploy", json!(true)),
+        ("inject-workspace-packages", "true", "injectWorkspacePackages", json!(true)),
+        ("node-linker", "hoisted", "nodeLinker", json!("hoisted")),
+        ("pm-on-fail", "ignore", "pmOnFail", json!("ignore")),
+        ("runtime-on-fail", "warn", "runtimeOnFail", json!("warn")),
+        // A number, like every other numeric setting pnpm 12 records.
+        ("max-sockets", "5", "maxSockets", json!(5)),
+        ("package-lock", "false", "packageLock", json!(false)),
+    ];
+
+    for (key, value, recorded_as, expected) in cases {
+        let (overrides, remaining) = ConfigOverrides::extract([
+            OsString::from("pacquet"),
+            OsString::from(format!("--config.{key}={value}")),
+            OsString::from("install"),
+        ]);
+        assert_eq!(remaining, argv(["pacquet", "install"]), "{key}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(
+            config.explicit_settings.get(recorded_as),
+            Some(&expected),
+            "--config.{key}={value} was not recorded as {recorded_as} = {expected}",
+        );
+    }
+}

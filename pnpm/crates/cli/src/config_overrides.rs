@@ -133,18 +133,8 @@ pub struct ConfigOverrides {
     unported: BTreeMap<String, String>,
 }
 
-/// Copy each override that the command line set onto the config.
-macro_rules! copy_overrides {
-    ($self:ident, $config:ident, $($field:ident),* $(,)?) => {
-        $(
-            if let Some(value) = $self.$field {
-                $config.$field = value;
-            }
-        )*
-    };
-}
-
-/// Like [`copy_overrides!`], and record each setting as explicitly set.
+/// Copy each override that the command line set onto the config, recording
+/// it as explicitly set.
 /// `pnpm config get <setting>` answers from the explicitly-set settings,
 /// and pnpm seeds those from the command line as well as from the config
 /// files, so a command-line override has to leave its mark there too.
