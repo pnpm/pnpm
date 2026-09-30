@@ -148,7 +148,7 @@ export class StoreIndex {
     openInstances.add(this)
   }
 
-  /** Open the SQLite connection. Overridden by {@link ConcurrentReadOnlyStoreIndex}. */
+  /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
     mkdirInheritingMode(storeDir)
     if (process.platform !== 'win32') createIndexWithInheritedMode(storeDir)
@@ -192,7 +192,7 @@ export class StoreIndex {
     })
   }
 
-  /** Prepare the prepared statements. Overridden by {@link ConcurrentReadOnlyStoreIndex} to skip the write statements. */
+  /** Prepare the prepared statements. Overridden by {@link ReadOnlyStoreIndex} to skip the write statements. */
   protected prepareStatements (): void {
     this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
     this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
@@ -391,7 +391,7 @@ export class StoreIndex {
     }
   }
 
-  /** Run `PRAGMA optimize` before closing. Overridden by {@link ConcurrentReadOnlyStoreIndex} to skip database writes. */
+  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip database writes. */
   protected optimizeBeforeClose (): void {
     try {
       this.db.exec('PRAGMA optimize')
@@ -404,10 +404,10 @@ export class StoreIndex {
 /**
  * A read-only connection to a store that other processes may write to.
  * Participates in WAL locking and change detection. SQLite may create sidecar
- * files in the store directory. Use {@link ReadOnlyStoreIndex} for a frozen
+ * files in the store directory. Use {@link ImmutableStoreIndex} for a frozen
  * store on a read-only filesystem.
  */
-export class ConcurrentReadOnlyStoreIndex extends StoreIndex {
+export class ReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
     this.db = this.openConnection(storeDir)
     this.db.prepare('PRAGMA busy_timeout=5000').run()
@@ -465,7 +465,7 @@ export class ConcurrentReadOnlyStoreIndex extends StoreIndex {
  * sidecars, allowing reads on a read-only filesystem. Concurrent writes can
  * cause incorrect results or SQLITE_CORRUPT errors.
  */
-export class ReadOnlyStoreIndex extends ConcurrentReadOnlyStoreIndex {
+export class ImmutableStoreIndex extends ReadOnlyStoreIndex {
   protected override openDatabase (storeDir: string): void {
     if (!nodeSupportsImmutableSqliteUri()) {
       throw new PnpmError(

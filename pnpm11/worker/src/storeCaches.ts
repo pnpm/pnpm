@@ -1,7 +1,7 @@
 import { type CafsFunctions, createCafs } from '@pnpm/store.cafs'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
-import { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
+import { ImmutableStoreIndex, StoreIndex } from '@pnpm/store.index'
 
 import type { LinkPkgMessage } from './types.js'
 
@@ -15,7 +15,7 @@ export function getStoreIndex (storeDir: string, frozen = false): StoreIndex {
   // cached handle with a writable open of the same directory. Key on both.
   const cacheKey = frozen ? `${storeDir}\0frozen` : storeDir
   if (!storeIndexCache.has(cacheKey)) {
-    storeIndexCache.set(cacheKey, frozen ? new ReadOnlyStoreIndex(storeDir) : new StoreIndex(storeDir))
+    storeIndexCache.set(cacheKey, frozen ? new ImmutableStoreIndex(storeDir) : new StoreIndex(storeDir))
   }
   return storeIndexCache.get(cacheKey)!
 }

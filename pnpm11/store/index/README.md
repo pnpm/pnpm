@@ -26,16 +26,16 @@ these issues:
 
 ## Concurrent access
 
-`StoreIndex` and `ConcurrentReadOnlyStoreIndex` coordinate access through SQLite WAL locking.
-Use `ConcurrentReadOnlyStoreIndex` to read a store while other connections write to it.
+`StoreIndex` and `ReadOnlyStoreIndex` coordinate access through SQLite WAL locking.
+Use `ReadOnlyStoreIndex` to read a store while other connections write to it.
 It observes committed updates and may create SQLite sidecar files in the store
 directory. All processes must use the same local filesystem on the same host;
 sharing the live WAL database across hosts over a network filesystem is unsupported.
 
-Use `ReadOnlyStoreIndex` only for a finalized store that no process will change,
+Use `ImmutableStoreIndex` only for a finalized store that no process will change,
 such as a store shipped in a read-only image. It creates no sidecar files and is
-used by `frozenStore`. Callers reading a shared store that other jobs modify
-should use `ConcurrentReadOnlyStoreIndex`.
+used by `frozenStore`. Callers that used `ReadOnlyStoreIndex` for finalized
+stores on read-only filesystems must switch to `ImmutableStoreIndex`.
 
 ## Incomplete `node:sqlite`
 
