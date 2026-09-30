@@ -30,10 +30,25 @@ export function isCompatibleAndHasMoreDeps<Pkg extends PartialResolvedPackage> (
   depPath1: DepPath,
   depPath2: DepPath
 ): boolean {
+  const queue = createDepPathPairQueue()
+  queue.push(depPath1, depPath2)
+  // Breadth-first, so the shallowest incompatible pair settles the check.
+  for (let cursor = 0; cursor < queue.pending.length; cursor++) {
+    const [supersetDepPath, subsetDepPath] = queue.pending[cursor]
+    if (!isPairCompatible(depGraph, { supersetDepPath, subsetDepPath, queue })) return false
+  }
+  return true
+}
+
+interface DepPathPairQueue {
+  pending: Array<[DepPath, DepPath]>
+  push: (supersetDepPath: DepPath, subsetDepPath: DepPath) => void
+}
+
+function createDepPathPairQueue (): DepPathPairQueue {
   const queued = new Map<DepPath, Set<DepPath>>()
   const pending: Array<[DepPath, DepPath]> = []
-  // Breadth-first, so the shallowest incompatible pair settles the check.
-  const queuePair = (supersetDepPath: DepPath, subsetDepPath: DepPath): void => {
+  const push = (supersetDepPath: DepPath, subsetDepPath: DepPath): void => {
     if (supersetDepPath === subsetDepPath) return
     let subsets = queued.get(supersetDepPath)
     if (subsets == null) {
@@ -44,34 +59,62 @@ export function isCompatibleAndHasMoreDeps<Pkg extends PartialResolvedPackage> (
     subsets.add(subsetDepPath)
     pending.push([supersetDepPath, subsetDepPath])
   }
+  return { pending, push }
+}
 
-  queuePair(depPath1, depPath2)
-  for (let cursor = 0; cursor < pending.length; cursor++) {
-    const [supersetDepPath, subsetDepPath] = pending[cursor]
-    const supersetNode = depGraph[supersetDepPath]
-    const subsetNode = depGraph[subsetDepPath]
-    if (supersetNode == null || subsetNode == null) return false
-    if (nodeDepsCount(supersetNode) < nodeDepsCount(subsetNode)) return false
+/**
+ * Checks one pair's own dependency and peer sets and queues the pairs of
+ * differing children that still have to be compared.
+ */
+function isPairCompatible<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  pair: { supersetDepPath: DepPath, subsetDepPath: DepPath, queue: DepPathPairQueue }
+): boolean {
+  const supersetNode = depGraph[pair.supersetDepPath]
+  const subsetNode = depGraph[pair.subsetDepPath]
+  if (supersetNode == null || subsetNode == null) return false
+  if (nodeDepsCount(supersetNode) < nodeDepsCount(subsetNode)) return false
 
-    for (const peerName of subsetNode.resolvedPeerNames) {
-      if (!supersetNode.resolvedPeerNames.has(peerName)) return false
-    }
+  if (!isSupersetOf(supersetNode.resolvedPeerNames, subsetNode.resolvedPeerNames)) return false
+  return queueDifferingChildren(depGraph, { supersetNode, subsetNode, queue: pair.queue })
+}
 
-    for (const [alias, subsetChildDepPath] of Object.entries(subsetNode.children!)) {
-      const supersetChildDepPath = supersetNode.children![alias]
-      if (supersetChildDepPath == null) return false
-      if (supersetChildDepPath === subsetChildDepPath) continue
-      const supersetChildNode = depGraph[supersetChildDepPath]
-      const subsetChildNode = depGraph[subsetChildDepPath]
-      if (
-        supersetChildNode == null ||
-        subsetChildNode == null ||
-        supersetChildNode.pkgIdWithPatchHash !== subsetChildNode.pkgIdWithPatchHash
-      ) {
-        return false
-      }
-      queuePair(supersetChildDepPath, subsetChildDepPath)
-    }
+/**
+ * Queues each child pair that resolves to different variants of the same
+ * package. Returns false when a child of the subset is missing from the
+ * superset or resolves to another package there.
+ */
+function queueDifferingChildren<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  { supersetNode, subsetNode, queue }: {
+    supersetNode: GenericDependenciesGraphNodeWithResolvedChildren
+    subsetNode: GenericDependenciesGraphNodeWithResolvedChildren
+    queue: DepPathPairQueue
+  }
+): boolean {
+  for (const [alias, subsetChildDepPath] of Object.entries(subsetNode.children!)) {
+    const supersetChildDepPath = supersetNode.children![alias]
+    if (supersetChildDepPath == null) return false
+    if (supersetChildDepPath === subsetChildDepPath) continue
+    if (!isSamePackage(depGraph, supersetChildDepPath, subsetChildDepPath)) return false
+    queue.push(supersetChildDepPath, subsetChildDepPath)
   }
   return true
+}
+
+function isSupersetOf (superset: Set<string>, subset: Set<string>): boolean {
+  for (const item of subset) {
+    if (!superset.has(item)) return false
+  }
+  return true
+}
+
+function isSamePackage<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  depPathA: DepPath,
+  depPathB: DepPath
+): boolean {
+  const nodeA = depGraph[depPathA]
+  const nodeB = depGraph[depPathB]
+  return nodeA != null && nodeB != null && nodeA.pkgIdWithPatchHash === nodeB.pkgIdWithPatchHash
 }

@@ -53,8 +53,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/hooks/pnpmfile/**",
     "pnpm11/hooks/read-package-hook/**",
     "pnpm11/installing/context/**",
-    "pnpm11/installing/deps-installer/**",
-    "pnpm11/installing/deps-resolver/**",
     "pnpm11/installing/linking/direct-dep-linker/**",
     "pnpm11/installing/linking/modules-cleaner/**",
     "pnpm11/installing/linking/real-hoist/**",

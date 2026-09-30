@@ -20,32 +20,46 @@ export function linkPathToPeerVersion (relPath: string): string {
   let out = ''
   let lastWasPlus = true // pretend we just emitted '+' so leading '+' chars are suppressed
   for (; pos < relPath.length; pos++) {
-    const charCode = relPath.charCodeAt(pos)
-    // Reserved filename chars, C0 controls, and literal '+' all collapse into a single '+'.
-    const replace = charCode < 32 ||
-      charCode === 34 /* " */ || charCode === 42 /* * */ || charCode === 43 /* + */ ||
-      charCode === 47 /* / */ || charCode === 58 /* : */ || charCode === 60 /* < */ ||
-      charCode === 62 /* > */ || charCode === 63 /* ? */ || charCode === 92 /* \ */ ||
-      charCode === 124 /* | */
-    if (replace) {
-      if (!lastWasPlus) {
-        out += '+'
-        lastWasPlus = true
-      }
-    } else {
+    if (!isReplacedChar(relPath.charCodeAt(pos))) {
       out += relPath[pos]
       lastWasPlus = false
+    } else if (!lastWasPlus) {
+      out += '+'
+      lastWasPlus = true
     }
   }
 
-  // Trim trailing '+' and '.' (v4 stripped trailing periods and outer replacement).
-  let end = out.length
-  while (end > 0) {
-    const ch = out.charCodeAt(end - 1)
-    if (ch !== 43 /* + */ && ch !== 46 /* . */) break
-    end--
-  }
+  const end = findEndWithoutTrailingPlusesAndDots(out)
   if (end > 0) return out.slice(0, end)
   // Empty result with something consumed collapses to a single '+'.
   return relPath.length === 0 ? '' : '+'
+}
+
+// Reserved filename chars and literal '+', which collapse into a single '+' together with C0 controls.
+const REPLACED_CHAR_CODES = new Set([
+  34, // "
+  42, // *
+  43, // +
+  47, // /
+  58, // :
+  60, // <
+  62, // >
+  63, // ?
+  92, // \
+  124, // |
+])
+
+function isReplacedChar (charCode: number): boolean {
+  return charCode < 32 || REPLACED_CHAR_CODES.has(charCode)
+}
+
+// Trim trailing '+' and '.' (v4 stripped trailing periods and outer replacement).
+function findEndWithoutTrailingPlusesAndDots (out: string): number {
+  let end = out.length
+  while (end > 0) {
+    const charCode = out.charCodeAt(end - 1)
+    if (charCode !== 43 /* + */ && charCode !== 46 /* . */) break
+    end--
+  }
+  return end
 }
