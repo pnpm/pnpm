@@ -194,9 +194,10 @@ pub(super) fn check_lifecycle_scripts(project_dir: &Path, benchmark: bool) -> Ch
         .map_err(|error| error.to_string())
         .and_then(|pnpm| run_script_probes(&pnpm, base.path(), project_dir));
     match probes {
-        Ok(detail) => CheckResult::pass(title, detail).timed(benchmark, started),
+        Ok(detail) => CheckResult::pass(title, detail),
         Err(detail) => CheckResult::fail(title, detail, NODE_FIX),
     }
+    .timed(benchmark, started)
 }
 
 fn run_script_probes(pnpm: &Path, base: &Path, project_dir: &Path) -> Result<String, String> {
@@ -271,7 +272,7 @@ impl Probe<'_> {
     }
 
     /// `failure` followed by an `sh -x` trace of the shim run in `dir`, which
-    /// shows the `PATH` the shim searched and where `node` went missing.
+    /// shows the `PATH` the shim searched and which `node` it started, if any.
     fn describe(&self, failure: String, dir: &Path) -> String {
         let mut detail = failure;
         for line in trace_shim(self, dir) {
