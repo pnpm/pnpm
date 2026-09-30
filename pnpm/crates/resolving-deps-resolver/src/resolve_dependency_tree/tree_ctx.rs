@@ -10,6 +10,7 @@ use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
     LinkWorkspacePackages, ResolveOptions, VersionSelectorType, WantedDependency,
 };
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -521,6 +522,33 @@ impl TreeCtx {
             }
             if !bucket.is_empty() {
                 out.insert(name.to_string(), bucket);
+            }
+        }
+        out
+    }
+
+    /// The `locked` versions of `names` this run has resolved into the
+    /// settled reachable tree. A locked version outside it survives only
+    /// as a lockfile weight: whatever provided it has moved on.
+    pub(crate) fn run_resolved_locked_versions<'name>(
+        &self,
+        locked: &HashMap<String, HashSet<String>>,
+        names: impl Iterator<Item = &'name str>,
+    ) -> HashMap<String, HashSet<String>> {
+        let run = self.workspace.run_preferred_versions();
+        let mut out = HashMap::default();
+        for name in names {
+            let (Some(versions), Some(resolved)) = (locked.get(name), run.versions.get(name))
+            else {
+                continue;
+            };
+            let reached: HashSet<String> = versions
+                .iter()
+                .filter(|version| resolved.contains_key(version.as_str()))
+                .cloned()
+                .collect();
+            if !reached.is_empty() {
+                out.insert(name.to_string(), reached);
             }
         }
         out

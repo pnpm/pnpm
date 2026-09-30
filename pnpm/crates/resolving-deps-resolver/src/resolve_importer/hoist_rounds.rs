@@ -336,10 +336,11 @@ impl ImporterHoistState {
     /// the graph can supply. A candidate is skipped when the importer
     /// provides one of its own peers at a version its range rejects.
     fn hoistable_optional_peers(&self) -> BTreeMap<String, String> {
-        let hoist_preferred = self.ctx.preferred_versions_for_names(
-            &self.selection.preferred_versions,
-            self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
-        );
+        let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
+        let hoist_preferred =
+            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
+        let locked_versions =
+            self.ctx.run_resolved_locked_versions(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let workspace = self.ctx.workspace();
         let peer_ranges = CandidatePeerRanges::new(workspace);
@@ -354,7 +355,7 @@ impl ImporterHoistState {
             &self.dependencies.all_missing_optional_peers,
             &hoist_preferred,
             self.hoist_root_deps(),
-            &self.selection.locked_versions,
+            &locked_versions,
             &accepts_candidate,
         )
     }
