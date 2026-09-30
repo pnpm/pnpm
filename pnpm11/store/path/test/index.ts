@@ -124,7 +124,7 @@ test('the store is created in the project when only the project directory is lin
 test('fail when pnpm home directory is not defined', async () => {
   expect(() => getStorePath({
     pkgRoot: 'pkgRoot',
-    // @ts-expect-error
+    // @ts-expect-error -- simulates a caller that has no pnpm home directory
     pnpmHomeDir: undefined,
   })).toThrow('The pnpm home directory is unknown. Cannot calculate the store directory location.')
 })

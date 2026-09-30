@@ -47,6 +47,11 @@ briefly slowing down the installation process.
 
 After pruning, pnpm displays the total size of removed files.
 
+If pnpm cannot decode a package index entry, it keeps the entry and reports the
+number of undecodable entries in the summary. Pruning continues for other entries.
+Keeping an index entry does not preserve its unreferenced files. A later install
+downloads the package again if it cannot reuse the stored files.
+
 Since v12.7.0, `pnpm store prune` also removes private copies of pnpm or a
 runtime that a killed pnpm process left behind. pnpm makes such a copy when a
 project pins a version that another pnpm process is installing at that moment.

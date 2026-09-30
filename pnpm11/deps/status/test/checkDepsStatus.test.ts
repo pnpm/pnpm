@@ -1180,6 +1180,52 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
     })
   })
 
+  // The wanted lockfile is read eagerly, but a manifest not newer than the
+  // lockfiles ends the check without reading it. A read that fails must not
+  // surface as an unhandled rejection, which crashes the pnpm process.
+  it('does not leave the failed read of an unused wanted lockfile unhandled', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    mockSingleProjectStats({
+      wantedLockfileExists: true,
+      currentLockfileMtime: lastValidatedTimestamp - 10_000,
+      manifestMtime: lastValidatedTimestamp - 20_000,
+    })
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => {
+      throw new Error('The lockfile is broken')
+    })
+    const unhandledRejections: unknown[] = []
+    const recordUnhandledRejection = (reason: unknown): void => {
+      unhandledRejections.push(reason)
+    }
+    process.on('unhandledRejection', recordUnhandledRejection)
+    try {
+      const result = await checkDepsStatus({
+        rootProjectManifest: {},
+        rootProjectManifestDir: '/project',
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      })
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(result.upToDate).toBe(true)
+      expect(unhandledRejections).toStrictEqual([])
+    } finally {
+      process.off('unhandledRejection', recordUnhandledRejection)
+    }
+  })
+
   it('does not set a lockfile to restore when pnpm-lock.yaml exists', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const mockWorkspaceState: WorkspaceState = {
@@ -2563,13 +2609,12 @@ describe('checkDepsStatus - filtered install', () => {
         isDirectory: () => true,
       } as unknown as Stats
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
-      jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
-        filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
       // The filtered install materialized the root's modules directory and left
       // the project it did not select without one, unless something else
       // created it.
       const existingModulesDirs = new Set([path.resolve(rootDir, modulesDir)])
       if (strayModulesDir) existingModulesDirs.add(path.resolve(siblingDir, modulesDir))
+      mockStatsAfterFilteredInstall(existingModulesDirs, beforeValidation)
       // The current lockfile keeps every importer but records only the
       // packages of the project the install selected.
       const currentLockfile: LockfileObject = {
@@ -2582,14 +2627,7 @@ describe('checkDepsStatus - filtered install', () => {
           ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-aaa' } },
         },
       }
-      const currentLockfileDir = path.join(path.resolve(workspaceDir, modulesDir), '.pnpm')
-      jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async (virtualStoreDir: string) =>
-        virtualStoreDir === currentLockfileDir ? currentLockfile : null)
-      jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
-        if (existingModulesDirs.has(filePath)) return beforeValidation
-        if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
-        return undefined
-      })
+      mockCurrentLockfileIn(path.join(path.resolve(workspaceDir, modulesDir), '.pnpm'), currentLockfile)
       jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(beforeValidation)
 
       const rootProject = { rootDir, rootDirRealPath, manifest: rootManifest, writeProjectManifest: async () => {} }
@@ -2603,9 +2641,7 @@ describe('checkDepsStatus - filtered install', () => {
       const siblingNode = { dependencies: [], package: siblingProject }
       const opts: CheckDepsStatusOptions = {
         allProjects: [rootProject, siblingProject],
-        ...(selectedBy === 'graph'
-          ? { selectedProjectsGraph: selectedProject === 'root' ? { [rootDir]: rootNode } : { [siblingDir]: siblingNode } }
-          : { dir: selectedProject === 'root' ? rootDir : siblingDir }),
+        ...selectProject(selectedBy, selectedProject === 'root' ? rootNode : siblingNode),
         workspaceDir,
         sharedWorkspaceLockfile: true,
         modulesDir,
@@ -2618,6 +2654,29 @@ describe('checkDepsStatus - filtered install', () => {
     } finally {
       await fs.rm(workspaceDir, { force: true, recursive: true })
     }
+  }
+
+  function mockStatsAfterFilteredInstall (existingModulesDirs: Set<string>, beforeValidation: Stats): void {
+    jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
+      filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
+    jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+      if (existingModulesDirs.has(filePath)) return beforeValidation
+      if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
+      return undefined
+    })
+  }
+
+  function mockCurrentLockfileIn (currentLockfileDir: string, currentLockfile: LockfileObject): void {
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async (virtualStoreDir: string) =>
+      virtualStoreDir === currentLockfileDir ? currentLockfile : null)
+  }
+
+  function selectProject (
+    selectedBy: 'graph' | 'dir',
+    node: NonNullable<CheckDepsStatusOptions['selectedProjectsGraph']>[ProjectRootDir]
+  ): Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'> {
+    if (selectedBy === 'dir') return { dir: node.package.rootDir }
+    return { selectedProjectsGraph: { [node.package.rootDir]: node } }
   }
 
   // A filtered install legitimately leaves the projects it did not select

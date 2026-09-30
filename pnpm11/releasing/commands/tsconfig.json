@@ -136,9 +136,6 @@
       "path": "../../text/sanitize"
     },
     {
-      "path": "../../workspace/project-manifest-reader"
-    },
-    {
       "path": "../../workspace/projects-filter"
     },
     {

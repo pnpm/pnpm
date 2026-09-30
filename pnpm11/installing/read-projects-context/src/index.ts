@@ -22,8 +22,8 @@ export interface ProjectOptions {
   rootDirRealPath?: ProjectRootDirRealPath
 }
 
-export async function readProjectsContext<T> (
-  projects: Array<ProjectOptions & T>,
+export async function readProjectsContext<ExtraProjectFields> (
+  projects: Array<ProjectOptions & ExtraProjectFields>,
   opts: {
     lockfileDir: string
     modulesDir?: string
@@ -35,7 +35,7 @@ export async function readProjectsContext<T> (
   hoistedDependencies: HoistedDependencies
   projects: Array<{
     id: ProjectId
-  } & T & Required<ProjectOptions>>
+  } & ExtraProjectFields & Required<ProjectOptions>>
   include: Record<DependenciesField, boolean>
   modules: Modules | null
   pendingBuilds: string[]

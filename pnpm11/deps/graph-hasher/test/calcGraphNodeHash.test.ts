@@ -363,7 +363,7 @@ describe('calcGraphNodeHash', () => {
     // matching the Node the bin linker spawns for its lifecycle
     // scripts (`bins/linker/src/index.ts`'s per-package
     // `runtimeHasNodeDownloaded` branch) — instead of the
-    // install-wide `nodeVersion` fallback that PR #11689 introduced.
+    // install-wide `nodeVersion` fallback that PR pnpm/pnpm#11689 introduced.
     const graph: DepsGraph<DepPath> = {
       ['pinned@1.0.0' as DepPath]: {
         children: { node: 'node@runtime:22.11.0' as DepPath },

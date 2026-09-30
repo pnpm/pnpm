@@ -680,10 +680,14 @@ jobs:
           VERSION: ${{ needs.plan.outputs.rust_version }}
         # Run against a modern libc: optional symbols absent from the build
         # sysroot must still be callable when the runtime provides them.
+        # Run outside the checkout: the repository's packageManager pin would
+        # otherwise make the new binary hand off to the pinned pnpm.
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-user libc6-ppc64el-cross libgcc-s1-ppc64el-cross
-          actual=$(qemu-ppc64le -L /usr/powerpc64le-linux-gnu target/powerpc64le-unknown-linux-gnu/release/pnpm --version)
+          binary="$PWD/target/powerpc64le-unknown-linux-gnu/release/pnpm"
+          cd "$RUNNER_TEMP"
+          actual=$(qemu-ppc64le -L /usr/powerpc64le-linux-gnu "$binary" --version)
           echo "$actual"
           test "$actual" = "$VERSION"
 

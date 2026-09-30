@@ -1,37 +1,23 @@
 import path from 'node:path'
 
-import { pickRegistryContext } from '@pnpm/config.normalize-registries'
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import type {
   DependenciesGraph,
   DepHierarchy,
   DirectDependenciesByImporterId,
   LockfileToDepGraphResult,
 } from '@pnpm/deps.graph-builder'
-import * as dp from '@pnpm/deps.path'
-import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
-import { getHoisterPkgId, hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
+import { hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type {
   LockfileObject,
-  PackageSnapshot,
   ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
-import {
-  nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
-  pkgSnapshotToResolution,
-} from '@pnpm/lockfile.utils'
-import { logger } from '@pnpm/logger'
-import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import type {
-  FetchPackageToStoreFunction,
-  StoreController,
-} from '@pnpm/store.controller-types'
+import type { PatchGroupRecord } from '@pnpm/patching.config'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitectures } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
-import { pathExists } from 'path-exists'
+
+import { fetchDeps, type FetchDepsOptions, type SkipFetchingOption } from './fetchHoistedDeps.js'
 
 export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
@@ -100,43 +86,14 @@ export async function lockfileToHoistedDepGraph (
   }
 }
 
-interface SkipFetchingOption {
-  /**
-   * Build the graph without reaching the store. The previous graph is
-   * only diffed by directory name, and its forced walk visits packages
-   * the earlier install skipped and never downloaded.
-   */
-  skipFetching?: boolean
-}
-
 async function _lockfileToHoistedDepGraph (
   lockfile: LockfileObject,
   opts: LockfileToHoistedDepGraphOptions & SkipFetchingOption
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
-  const importerIdsSet = opts.importerIds ? new Set(opts.importerIds) : undefined
-  let importers: LockfileObject['importers'] = importerIdsSet
-    ? Object.fromEntries(
-      Object.entries(lockfile.importers).filter(([importerId]) => importerIdsSet.has(importerId as ProjectId))
-    ) as LockfileObject['importers']
-    : lockfile.importers
-  const rootImporterId = opts.rootImporterId != null && importers[opts.rootImporterId] != null && importers['.' as ProjectId] == null
-    ? opts.rootImporterId
-    : undefined
-  if (rootImporterId != null) {
-    const { [rootImporterId]: rootImporter, ...otherImporters } = importers
-    importers = { ...otherImporters, ['.' as ProjectId]: rootImporter }
-  }
-  const tree = hoist({
-    ...lockfile,
-    importers,
-  }, {
-    hoistingLimits: opts.hoistingLimits,
-    externalDependencies: opts.externalDependencies,
-    autoInstallPeers: opts.autoInstallPeers,
-  })
+  const { tree, rootImporterId } = hoistImporters(lockfile, opts)
   const graph: DependenciesGraph = {}
   const modulesDir = pathAbsolute(opts.modulesDir ?? 'node_modules', opts.lockfileDir)
-  const fetchDepsOpts = {
+  const fetchDepsOpts: FetchDepsOptions = {
     ...opts,
     lockfile,
     graph,
@@ -147,51 +104,104 @@ async function _lockfileToHoistedDepGraph (
   const hierarchy = {
     [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies),
   }
-  const directDependenciesByImporterId: DirectDependenciesByImporterId = {
-    '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
+  const projectsCtx: ProjectDepsContext = {
+    directDependenciesByImporterId: {
+      '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
+    },
+    fetchDepsOpts,
+    hierarchy,
+    symlinkedDirectDependenciesByImporterId: { '.': {} },
   }
-  const symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId = { '.': {} }
   if (rootImporterId != null) {
-    directDependenciesByImporterId[rootImporterId] = directDependenciesByImporterId['.']
-    symlinkedDirectDependenciesByImporterId[rootImporterId] = pickLinkedDirectDeps(
-      lockfile.importers[rootImporterId],
-      path.join(opts.lockfileDir, rootImporterId),
-      opts.include
-    )
+    addRootImporterDeps(projectsCtx, rootImporterId)
   }
   await Promise.all(
-    Array.from(tree.dependencies).map(async (rootDep) => {
-      const reference = Array.from(rootDep.references)[0]
-      if (reference.startsWith('workspace:')) {
-        const importerId = reference.replace('workspace:', '') as ProjectId
-        const projectDir = path.join(opts.lockfileDir, importerId)
-        const modulesDir = path.join(projectDir, 'node_modules')
-        const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
-        const importer = lockfile.importers[importerId]
-        const hasDeps = Boolean(
-          (importer.dependencies && Object.keys(importer.dependencies).length) ||
-          (importer.devDependencies && Object.keys(importer.devDependencies).length) ||
-          (importer.optionalDependencies && Object.keys(importer.optionalDependencies).length) ||
-          rootDep.dependencies.size > 0
-        )
-        if (hasDeps) {
-          hierarchy[projectDir] = nextHierarchy
-        }
-
-        const importerDir = path.join(opts.lockfileDir, importerId)
-        symlinkedDirectDependenciesByImporterId[importerId] = pickLinkedDirectDeps(importer, importerDir, opts.include)
-        directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), graph)
-      }
-    })
+    Array.from(tree.dependencies).map(async (rootDep) => addWorkspaceProjectDeps(projectsCtx, rootDep))
   )
   return {
-    directDependenciesByImporterId,
+    directDependenciesByImporterId: projectsCtx.directDependenciesByImporterId,
     graph,
     hierarchy,
-    symlinkedDirectDependenciesByImporterId,
+    symlinkedDirectDependenciesByImporterId: projectsCtx.symlinkedDirectDependenciesByImporterId,
     hoistedLocations: fetchDepsOpts.hoistedLocations,
     injectionTargetsByDepPath: fetchDepsOpts.injectionTargetsByDepPath,
   }
+}
+
+function hoistImporters (
+  lockfile: LockfileObject,
+  opts: LockfileToHoistedDepGraphOptions
+): { tree: HoisterResult, rootImporterId?: ProjectId } {
+  const { importers, rootImporterId } = pickImportersToHoist(lockfile, opts)
+  const tree = hoist({
+    ...lockfile,
+    importers,
+  }, {
+    hoistingLimits: opts.hoistingLimits,
+    externalDependencies: opts.externalDependencies,
+    autoInstallPeers: opts.autoInstallPeers,
+  })
+  return { tree, rootImporterId }
+}
+
+function pickImportersToHoist (
+  lockfile: LockfileObject,
+  opts: Pick<LockfileToHoistedDepGraphOptions, 'importerIds' | 'rootImporterId'>
+): { importers: LockfileObject['importers'], rootImporterId?: ProjectId } {
+  const importerIdsSet = opts.importerIds ? new Set(opts.importerIds) : undefined
+  const importers: LockfileObject['importers'] = importerIdsSet
+    ? Object.fromEntries(
+      Object.entries(lockfile.importers).filter(([importerId]) => importerIdsSet.has(importerId as ProjectId))
+    ) as LockfileObject['importers']
+    : lockfile.importers
+  const rootImporterId = opts.rootImporterId != null && importers[opts.rootImporterId] != null && importers['.' as ProjectId] == null
+    ? opts.rootImporterId
+    : undefined
+  if (rootImporterId == null) return { importers }
+  const { [rootImporterId]: rootImporter, ...otherImporters } = importers
+  return {
+    importers: { ...otherImporters, ['.' as ProjectId]: rootImporter },
+    rootImporterId,
+  }
+}
+
+interface ProjectDepsContext {
+  directDependenciesByImporterId: DirectDependenciesByImporterId
+  fetchDepsOpts: FetchDepsOptions
+  hierarchy: Record<string, DepHierarchy>
+  symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId
+}
+
+function addRootImporterDeps (ctx: ProjectDepsContext, rootImporterId: ProjectId): void {
+  const { lockfile, lockfileDir, include } = ctx.fetchDepsOpts
+  ctx.directDependenciesByImporterId[rootImporterId] = ctx.directDependenciesByImporterId['.']
+  ctx.symlinkedDirectDependenciesByImporterId[rootImporterId] = pickLinkedDirectDeps(
+    lockfile.importers[rootImporterId],
+    path.join(lockfileDir, rootImporterId),
+    include
+  )
+}
+
+async function addWorkspaceProjectDeps (ctx: ProjectDepsContext, rootDep: HoisterResult): Promise<void> {
+  const reference = Array.from(rootDep.references)[0]
+  if (!reference.startsWith('workspace:')) return
+  const { fetchDepsOpts } = ctx
+  const importerId = reference.replace('workspace:', '') as ProjectId
+  const projectDir = path.join(fetchDepsOpts.lockfileDir, importerId)
+  const modulesDir = path.join(projectDir, 'node_modules')
+  const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
+  const importer = fetchDepsOpts.lockfile.importers[importerId]
+  if (importerHasDeps(importer) || rootDep.dependencies.size > 0) {
+    ctx.hierarchy[projectDir] = nextHierarchy
+  }
+
+  ctx.symlinkedDirectDependenciesByImporterId[importerId] = pickLinkedDirectDeps(importer, projectDir, fetchDepsOpts.include)
+  ctx.directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), fetchDepsOpts.graph)
+}
+
+function importerHasDeps (importer: ProjectSnapshot): boolean {
+  return [importer.dependencies, importer.devDependencies, importer.optionalDependencies]
+    .some((deps) => deps != null && Object.keys(deps).length > 0)
 }
 
 function directDepsMap (directDepDirs: string[], graph: DependenciesGraph): Record<string, string> {
@@ -220,212 +230,4 @@ function pickLinkedDirectDeps (
     }
   }
   return directDeps
-}
-
-async function fetchDeps (
-  opts: {
-    graph: DependenciesGraph
-    lockfile: LockfileObject
-    /**
-     * Every directory a package landed in, in visit order; the first
-     * entry wins for parent → child wiring. Keyed by
-     * {@link getHoisterPkgId}, not depPath: the hoister collapses
-     * every peer variant of one version onto one node, so only the
-     * first variant's depPath reaches this walk. Sharing the
-     * hoister's own identity function is what lets an edge declared
-     * against another variant still find the copy that survived.
-     */
-    pkgLocationsByPkgId: Record<string, string[]>
-    injectionTargetsByDepPath: Map<string, string[]>
-    hoistedLocations: Record<string, string[]>
-  } & LockfileToHoistedDepGraphOptions & SkipFetchingOption,
-  modules: string,
-  deps: Set<HoisterResult>
-): Promise<DepHierarchy> {
-  const depHierarchy: Record<string, DepHierarchy> = {}
-  await Promise.all(Array.from(deps).map(async (dep) => {
-    const depPath = Array.from(dep.references)[0] as DepPath
-    if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
-    const pkgSnapshot = opts.lockfile.packages![depPath]
-    if (!pkgSnapshot) {
-      // it is a link
-      return
-    }
-    const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-    const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
-
-    const pkg = {
-      name: pkgName,
-      version: pkgVersion,
-      engines: opts.engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
-      cpu: pkgSnapshot.cpu,
-      os: pkgSnapshot.os,
-      libc: pkgSnapshot.libc,
-    }
-    if (!opts.includeIncompatiblePackages &&
-      packageIsInstallable(packageId, pkg, {
-        // An incompatibility inside an `optionalDependencies` subtree is
-        // reported, not fatal — see `filterLockfileByImportersAndEngine`,
-        // which classifies these dep paths.
-        engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
-        lockfileDir: opts.lockfileDir,
-        nodeVersion: opts.nodeVersion,
-        optional: !opts.requiredDepPaths.has(depPath),
-        supportedArchitectures: opts.supportedArchitectures,
-      }) === false
-    ) {
-      opts.skipped.add(depPath)
-      return
-    }
-
-    const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
-    if (isDirectoryDep && opts.ignoreLocalPackages) {
-      logger.info({
-        message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
-        prefix: opts.lockfileDir,
-      })
-      return
-    }
-
-    const dir = safeJoinModulesDir(modules, dep.name)
-    const depLocation = path.relative(opts.lockfileDir, dir)
-    let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    if (opts.skipFetching) {
-      fetchResponse = {} as unknown as ReturnType<FetchPackageToStoreFunction>
-    } else {
-      // We check for the existence of the package inside node_modules.
-      // It will only be missing if the user manually removed it.
-      // That shouldn't normally happen but Bit CLI does remove node_modules in component directories:
-      // https://github.com/teambit/bit/blob/5e1eed7cd122813ad5ea124df956ee89d661d770/scopes/dependencies/dependency-resolver/dependency-installer.ts#L169
-      //
-      // We also verify that the package that is present has the expected version.
-      // This check is required because there is no guarantee the modules manifest and current lockfile were
-      // successfully saved after node_modules was changed during installation.
-      const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation) &&
-        await dirHasPackageJsonWithVersion(path.join(opts.lockfileDir, depLocation), pkgVersion)
-      const pkgResolution = {
-        id: packageId,
-        resolution: pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts)),
-        name: pkgName,
-        version: pkgVersion,
-      }
-      if (skipFetch) {
-        const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
-          ignoreScripts: opts.ignoreScripts,
-          pkg: pkgResolution,
-        })
-        fetchResponse = { filesIndexFile } as unknown as ReturnType<FetchPackageToStoreFunction>
-      } else {
-        try {
-          fetchResponse = opts.storeController.fetchPackage({
-            allowBuild: opts.allowBuild,
-            force: false,
-            lockfileDir: opts.lockfileDir,
-            ignoreScripts: opts.ignoreScripts,
-            pkg: pkgResolution,
-            supportedArchitectures: opts.supportedArchitectures,
-          }) as unknown as ReturnType<FetchPackageToStoreFunction>
-          if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        } catch (err: unknown) {
-          if (pkgSnapshot.optional) return
-          throw err
-        }
-      }
-    }
-    opts.graph[dir] = {
-      alias: dep.name,
-      children: {},
-      depPath,
-      pkgIdWithPatchHash,
-      dir,
-      fetching: fetchResponse.fetching,
-      filesIndexFile: fetchResponse.filesIndexFile,
-      hasBin: pkgSnapshot.hasBin === true,
-      hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
-      modules,
-      name: pkgName,
-      version: pkgVersion,
-      optional: !!pkgSnapshot.optional,
-      optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-      patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
-      resolution: pkgSnapshot.resolution,
-    }
-    const pkgId = getHoisterPkgId(depPath, pkgSnapshot)
-    if (!opts.pkgLocationsByPkgId[pkgId]) {
-      opts.pkgLocationsByPkgId[pkgId] = []
-    }
-    opts.pkgLocationsByPkgId[pkgId].push(dir)
-    // Track directory deps for injected workspace packages
-    if ('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) {
-      const locations = opts.injectionTargetsByDepPath.get(depPath)
-      if (locations) {
-        locations.push(dir)
-      } else {
-        opts.injectionTargetsByDepPath.set(depPath, [dir])
-      }
-    }
-    depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
-    if (!opts.hoistedLocations[depPath]) {
-      opts.hoistedLocations[depPath] = []
-    }
-    opts.hoistedLocations[depPath].push(depLocation)
-    opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByPkgId, opts)
-    if (!opts.skipFetching) {
-      opts.graph[dir].packageRootLinks = getPackageRootLinks(pkgSnapshot, opts.include)
-    }
-  }))
-  return depHierarchy
-}
-
-async function dirHasPackageJsonWithVersion (dir: string, expectedVersion?: string): Promise<boolean> {
-  if (!expectedVersion) return pathExists(dir)
-  try {
-    const manifest = await safeReadPackageJsonFromDir(dir)
-    return manifest?.version === expectedVersion
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      return pathExists(dir)
-    }
-    throw err
-  }
-}
-
-function getPackageRootLinks (pkgSnapshot: PackageSnapshot, include: IncludedDependencies): Record<string, string> | undefined {
-  let links: Record<string, string> | undefined
-  const allDeps = {
-    ...pkgSnapshot.dependencies,
-    ...(include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
-  }
-  for (const [alias, ref] of Object.entries(allDeps)) {
-    const target = dp.packageRootLinkTarget(ref)
-    if (target != null) {
-      links ??= {}
-      links[alias] = target
-    }
-  }
-  return links
-}
-
-function getChildren (
-  pkgSnapshot: PackageSnapshot,
-  pkgLocationsByPkgId: Record<string, string[]>,
-  opts: { include: IncludedDependencies, lockfile: LockfileObject }
-): Record<string, string> {
-  const allDeps = {
-    ...pkgSnapshot.dependencies,
-    ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
-  }
-  const children: Record<string, string> = {}
-  for (const [childName, childRef] of Object.entries(allDeps)) {
-    const childDepPath = dp.refToRelative(childRef, childName)
-    if (!childDepPath) continue
-    const childSnapshot = opts.lockfile.packages?.[childDepPath]
-    if (!childSnapshot) continue
-    const locations = pkgLocationsByPkgId[getHoisterPkgId(childDepPath, childSnapshot)]
-    if (locations) {
-      children[childName] = locations[0]
-    }
-  }
-  return children
 }

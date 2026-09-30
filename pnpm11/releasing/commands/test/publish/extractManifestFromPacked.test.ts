@@ -14,13 +14,20 @@ import {
   type TarballPath,
 } from '../../src/publish/extractManifestFromPacked.js'
 
-async function createTarball (tarballPath: string, contents: Record<string, string | ExportedManifest>): Promise<void> {
+async function createTarball (
+  tarballPath: string,
+  contents: Record<string, string | ExportedManifest>,
+  nonFiles: Array<{ name: string, type: 'symlink' | 'directory', linkname?: string }> = []
+): Promise<void> {
   const pack = tar.pack()
 
   for (const name in contents) {
     const content = contents[name]
     const textContent = typeof content === 'string' ? content : JSON.stringify(content, undefined, 2)
     pack.entry({ name }, textContent)
+  }
+  for (const { name, type, linkname } of nonFiles) {
+    pack.entry({ name, type, linkname }, '')
   }
 
   const tarball = fs.createWriteStream(tarballPath)
@@ -102,31 +109,122 @@ describe('extractManifestFromPacked', () => {
 })
 
 describe('extractPublishManifestFromPacked', () => {
-  test('fills the manifest readme from the tarball README when the manifest lacks one', async () => {
+  test.each(['README.md', 'README', 'readme.markdown'])(
+    'fills the manifest readme from tarball %s when the manifest lacks one',
+    async (readmeFileName) => {
+      prepareEmpty()
+
+      const tarballPath: TarballPath = 'my-package.tgz'
+
+      await createTarball(tarballPath, {
+        'package/package.json': { name: 'hello-world', version: '0.0.0' },
+        [`package/${readmeFileName}`]: '# Hello',
+      })
+
+      expect(await extractPublishManifestFromPacked(tarballPath)).toStrictEqual({
+        name: 'hello-world',
+        version: '0.0.0',
+        readme: '# Hello',
+      })
+    }
+  )
+
+  test('prefers a Markdown README over bare README in a tarball', async () => {
     prepareEmpty()
 
     const tarballPath: TarballPath = 'my-package.tgz'
 
     await createTarball(tarballPath, {
+      'package/README': '# Bare',
       'package/package.json': { name: 'hello-world', version: '0.0.0' },
-      'package/README.md': '# Hello',
+      'package/readme.markdown': '# Markdown',
     })
 
-    expect(await extractPublishManifestFromPacked(tarballPath)).toStrictEqual({
-      name: 'hello-world',
-      version: '0.0.0',
-      readme: '# Hello',
-    })
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Markdown')
   })
 
-  test('keeps a readme already declared in the manifest', async () => {
+  test('keeps a Markdown README when bare README follows in a tarball', async () => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+
+    await createTarball(tarballPath, {
+      'package/readme.markdown': '# Markdown',
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README': '# Bare',
+    })
+
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Markdown')
+  })
+
+  test('prefers README.md when the tarball contains multiple README candidates', async () => {
+    prepareEmpty()
+
+    const tarballPath: TarballPath = 'my-package.tgz'
+
+    await createTarball(tarballPath, {
+      'package/readme.markdown': '# Fallback',
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README.md': '# Preferred',
+      'package/README': '# Bare',
+    })
+
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Preferred')
+  })
+
+  test('prefers README.md over bare README in a tarball', async () => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+    await createTarball(tarballPath, {
+      'package/README': '# Bare',
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README.md': '# Preferred',
+    })
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Preferred')
+  })
+
+  test('picks the lowest name among Markdown READMEs in a tarball', async () => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+    await createTarball(tarballPath, {
+      'package/README.mdown': '# Mdown',
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README.markdown': '# Markdown',
+    })
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Markdown')
+  })
+
+  test('picks a lower-named README.MD that follows the manifest and README.md', async () => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README.md': '# First',
+      'package/README.MD': '# Upper',
+    })
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Upper')
+  })
+
+  test('ignores non-file README entries in a tarball', async () => {
+    prepareEmpty()
+    const tarballPath: TarballPath = 'my-package.tgz'
+    await createTarball(tarballPath, {
+      'package/package.json': { name: 'hello-world', version: '0.0.0' },
+      'package/README': '# Bare',
+    }, [
+      { name: 'package/README.md', type: 'symlink', linkname: 'README' },
+      { name: 'package/readme.markdown', type: 'directory' },
+    ])
+    expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('# Bare')
+  })
+
+  test.each(['README.md', 'README'])('keeps a readme already declared in the manifest with %s', async (readmeName) => {
     prepareEmpty()
 
     const tarballPath: TarballPath = 'my-package.tgz'
 
     await createTarball(tarballPath, {
       'package/package.json': { name: 'hello-world', version: '0.0.0', readme: 'embedded' },
-      'package/README.md': '# Hello',
+      [`package/${readmeName}`]: '# Hello',
     })
 
     expect((await extractPublishManifestFromPacked(tarballPath)).readme).toBe('embedded')

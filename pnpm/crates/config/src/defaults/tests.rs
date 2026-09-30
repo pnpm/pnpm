@@ -1,9 +1,9 @@
 use super::{
-    PNPM_VERSION, default_cache_dir, default_child_concurrency,
-    default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
-    default_pnpm_home_dir, default_store_dir, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir, default_workspace_concurrency, install_command_for,
-    is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    PNPM_VERSION, default_cache_dir, default_child_concurrency, default_config_dir,
+    default_fetch_timeout, default_pnpm_home_dir, default_store_dir, default_unsafe_perm,
+    default_user_agent, default_virtual_store_dir, default_workspace_concurrency,
+    default_workspace_concurrency_with_parallelism, install_command_for, is_unsafe_perm_posix,
+    resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
     resolve_configured_state_dir, store_dir_for_os,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
@@ -324,29 +324,32 @@ fn test_default_config_dir_without_home_returns_none() {
 
 /// Default workspace concurrency when the CPU count is below 4.
 #[test]
-fn default_child_concurrency_with_parallelism_below_four() {
-    assert_eq!(default_child_concurrency_with_parallelism(1), 1);
+fn default_workspace_concurrency_with_parallelism_below_four() {
+    assert_eq!(default_workspace_concurrency_with_parallelism(1), 1);
 }
 
 /// Default workspace concurrency when the CPU count is above 4.
 #[test]
-fn default_child_concurrency_with_parallelism_above_four() {
-    assert_eq!(default_child_concurrency_with_parallelism(5), 4);
+fn default_workspace_concurrency_with_parallelism_above_four() {
+    assert_eq!(default_workspace_concurrency_with_parallelism(5), 4);
 }
 
 /// Default workspace concurrency when the CPU count is exactly 4.
 #[test]
-fn default_child_concurrency_with_parallelism_at_four() {
-    assert_eq!(default_child_concurrency_with_parallelism(4), 4);
+fn default_workspace_concurrency_with_parallelism_at_four() {
+    assert_eq!(default_workspace_concurrency_with_parallelism(4), 4);
 }
 
-/// `workspaceConcurrency` and `childConcurrency` resolve through the
-/// same default-concurrency formula, so the two pacquet defaults must
-/// agree. This pins that parity so a future change to one default that
-/// forgets the other fails here.
+/// pnpm's install and build entry points default `childConcurrency` to
+/// `5` on every host, so pacquet must too. `workspaceConcurrency` is the
+/// setting that scales with the core count, capped at 4.
 #[test]
-fn default_workspace_concurrency_matches_default_child_concurrency() {
-    assert_eq!(default_workspace_concurrency(), default_child_concurrency());
+fn default_child_concurrency_is_five() {
+    assert_eq!(default_child_concurrency(), 5);
+    assert_eq!(default_workspace_concurrency_with_parallelism(2), 2);
+    assert_eq!(default_workspace_concurrency_with_parallelism(4), 4);
+    assert_eq!(default_workspace_concurrency_with_parallelism(8), 4);
+    assert!(default_workspace_concurrency() <= 4, "the workspace default is capped at 4");
 }
 
 /// Default workspace concurrency resolves to 4 when at least 4 cores

@@ -28,28 +28,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
     return []
   }
 
-  const pkgUniqueKey = (outdatedPkg: UpdateChoiceDependency) => {
-    return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current, outdatedPkg.dependencyType])
-  }
-
-  // Entries that differ only by the project they came from collapse into
-  // one choice, because selecting it updates the package in every
-  // project. Their workspaces are collected onto the survivor so the
-  // Workspace column names all of them rather than whichever came first.
-  const deduped: UpdateChoiceDependency[] = []
-  const workspacesByKey = new Map<string, Set<string>>()
-  for (const outdatedPkg of outdatedPkgsOfProjects) {
-    const key = pkgUniqueKey(outdatedPkg)
-    let workspaces = workspacesByKey.get(key)
-    if (workspaces == null) {
-      workspaces = new Set()
-      workspacesByKey.set(key, workspaces)
-      deduped.push(outdatedPkg)
-    }
-    if (outdatedPkg.workspace) {
-      workspaces.add(outdatedPkg.workspace)
-    }
-  }
+  const { deduped, workspacesByKey } = dedupeOutdatedPkgs(outdatedPkgsOfProjects)
 
   const groupPkgsByType = groupBy(
     (outdatedPkg: UpdateChoiceDependency) => outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
@@ -70,43 +49,8 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
   const finalChoices: ChoiceGroup = []
   for (const [depGroup, choiceRows] of Object.entries(groupPkgsByType)) {
     if (choiceRows.length === 0) continue
-    const rawChoices: RawChoice[] = []
-    for (const choice of choiceRows) {
-      // The list of outdated dependencies also contains deprecated packages
-      // and entries from registries we cannot resolve against (no manifest).
-      // We only want to show those dependencies that have a known newer version.
-      if (choice.latestManifest != null && choice.latestManifest.version !== choice.current) {
-        rawChoices.push(buildPkgChoice(choice, workspacesEnabled, workspacesByKey.get(pkgUniqueKey(choice))))
-      }
-    }
-    if (rawChoices.length === 0) continue
-    // add in a header row for each group
-    rawChoices.unshift({
-      raw: header,
-      name: '',
-      disabled: true,
-    })
-    const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
-
-    const choices = rawChoices.map((outdatedPkg, i) => {
-      if (i === 0) {
-        return {
-          name: renderedTable[i],
-          message: renderedTable[i],
-          value: '',
-          short: '',
-          disabled: true,
-          hint: '',
-        }
-      }
-      return {
-        name: outdatedPkg.name,
-        message: renderedTable[i],
-        value: outdatedPkg.name,
-        short: sanitizeInline(outdatedPkg.name),
-      }
-    })
-
+    const choices = buildGroupChoices(choiceRows, { header, workspacesEnabled, workspacesByKey })
+    if (choices == null) continue
     // The prompt renderer treats bracketed names as group labels rather than selectable values.
     finalChoices.push({
       name: `[${depGroup}]`,
@@ -115,6 +59,82 @@ export function getUpdateChoices (outdatedPkgsOfProjects: UpdateChoiceDependency
     })
   }
   return finalChoices
+}
+
+function getPkgUniqueKey (outdatedPkg: UpdateChoiceDependency): string {
+  return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current, outdatedPkg.dependencyType])
+}
+
+interface DedupedOutdatedPkgs {
+  deduped: UpdateChoiceDependency[]
+  workspacesByKey: Map<string, Set<string>>
+}
+
+// Entries that differ only by the project they came from collapse into
+// one choice, because selecting it updates the package in every
+// project. Their workspaces are collected onto the survivor so the
+// Workspace column names all of them rather than whichever came first.
+function dedupeOutdatedPkgs (outdatedPkgsOfProjects: UpdateChoiceDependency[]): DedupedOutdatedPkgs {
+  const deduped: UpdateChoiceDependency[] = []
+  const workspacesByKey = new Map<string, Set<string>>()
+  for (const outdatedPkg of outdatedPkgsOfProjects) {
+    const key = getPkgUniqueKey(outdatedPkg)
+    let workspaces = workspacesByKey.get(key)
+    if (workspaces == null) {
+      workspaces = new Set()
+      workspacesByKey.set(key, workspaces)
+      deduped.push(outdatedPkg)
+    }
+    if (outdatedPkg.workspace) {
+      workspaces.add(outdatedPkg.workspace)
+    }
+  }
+  return { deduped, workspacesByKey }
+}
+
+interface BuildGroupChoicesOptions {
+  header: string[]
+  workspacesEnabled: boolean
+  workspacesByKey: Map<string, Set<string>>
+}
+
+function buildGroupChoices (choiceRows: UpdateChoiceDependency[], opts: BuildGroupChoicesOptions): ChoiceRow[] | undefined {
+  const rawChoices: RawChoice[] = []
+  for (const choice of choiceRows) {
+    // The list of outdated dependencies also contains deprecated packages
+    // and entries from registries we cannot resolve against (no manifest).
+    // We only want to show those dependencies that have a known newer version.
+    if (choice.latestManifest != null && choice.latestManifest.version !== choice.current) {
+      rawChoices.push(buildPkgChoice(choice, opts.workspacesEnabled, opts.workspacesByKey.get(getPkgUniqueKey(choice))))
+    }
+  }
+  if (rawChoices.length === 0) return undefined
+  // add in a header row for each group
+  rawChoices.unshift({
+    raw: opts.header,
+    name: '',
+    disabled: true,
+  })
+  const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
+
+  return rawChoices.map((outdatedPkg, index) => {
+    if (index === 0) {
+      return {
+        name: renderedTable[index],
+        message: renderedTable[index],
+        value: '',
+        short: '',
+        disabled: true,
+        hint: '',
+      }
+    }
+    return {
+      name: outdatedPkg.name,
+      message: renderedTable[index],
+      value: outdatedPkg.name,
+      short: sanitizeInline(outdatedPkg.name),
+    }
+  })
 }
 
 interface RawChoice {
@@ -127,7 +147,7 @@ function buildPkgChoice (outdatedPkg: UpdateChoiceDependency, workspacesEnabled:
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : colorizeSemverDiff({ change: sdiff.change, diff: sdiff.diff })
   const label = outdatedPkg.packageName
 
   const raw: string[] = [

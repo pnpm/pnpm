@@ -1089,7 +1089,7 @@ fn global_update_migrates_the_packages_of_the_previous_layout() {
     .expect("write the legacy package manifest");
     fs::write(legacy_pkg_dir.join("cli.js"), "").expect("write the legacy bin");
     let stray_bin = pnpm_home.join("touch-file-one-bin");
-    std::os::unix::fs::symlink(legacy_pkg_dir.join("cli.js"), &stray_bin)
+    fs::hard_link(legacy_pkg_dir.join("cli.js"), &stray_bin)
         .expect("link the bin the way pnpm 10 did");
     let legacy_pnpm_dir = legacy_dir.join("node_modules").join("pnpm");
     fs::create_dir_all(legacy_pnpm_dir.join("bin")).expect("create the legacy pnpm dir");

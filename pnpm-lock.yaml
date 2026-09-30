@@ -362,6 +362,9 @@ catalogs:
     '@typescript/native-preview':
       specifier: 7.0.0-dev.20260707.2
       version: 7.0.0-dev.20260707.2
+    '@webcontainer/api':
+      specifier: ^1.6.4
+      version: 1.6.4
     '@yarnpkg/core':
       specifier: 4.9.1
       version: 4.9.1
@@ -707,6 +710,9 @@ catalogs:
     pidtree:
       specifier: ^1.0.0
       version: 1.0.0
+    playwright-core:
+      specifier: ^1.63.0
+      version: 1.63.0
     preferred-pm:
       specifier: ^5.0.1
       version: 5.0.1
@@ -1111,6 +1117,19 @@ importers:
       nm-prune:
         specifier: 'catalog:'
         version: 5.0.0
+
+  pnpm/tasks/ecosystem-e2e/webcontainer:
+    dependencies:
+      '@webcontainer/api':
+        specifier: 'catalog:'
+        version: 1.6.4
+      playwright-core:
+        specifier: 'catalog:'
+        version: 1.63.0
+    devDependencies:
+      '@pnpm-private/ecosystem-e2e-webcontainer':
+        specifier: workspace:*
+        version: 'link:'
 
   pnpm/tasks/registry-mock:
     devDependencies:
@@ -9054,9 +9073,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/workspace.project-manifest-reader':
-        specifier: workspace:*
-        version: link:../../workspace/project-manifest-reader
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../workspace/projects-filter
@@ -13611,6 +13627,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@webcontainer/api@1.6.4':
+    resolution: {integrity: sha512-r9sHCXg1FcC1AMgppGwAc0vYWaQhqvg282cnsuPbJEzYnWifAdCVvg+8ngJUEHyHcomhJJp+/zuytite4ITHLw==}
+
   '@yarnpkg/core@4.9.1':
     resolution: {integrity: sha512-P8H10ehQBFWL5eR1y/8nLRzFHx1yumgE9P1DQjJ+EIVvqeWo0MjbwQ+ZJjPDT+HqVDslE+e6I/9GrJ7Arbx/8A==}
     engines: {node: '>=18.12.0'}
@@ -16832,6 +16851,11 @@ packages:
   pkg-dir@5.0.0:
     resolution: {integrity: sha512-NPE8TDbzl/3YQYY7CSS228s3g2ollTFnc+Qi3tqmqJp9Vg2ovUpixcJEo2HJScN2Ez+kEaal6y70c0ehqJBJeA==}
     engines: {node: '>=10'}
+
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   pnpm@11.28.2:
     resolution: {integrity: sha512-dVzi/jwFv9e7QStCr/PFxVzTjFKcbsqBBHVJeuNnRsVx5LbhgU5ufkuX1+6GS4oORGc8Oyl6UOCsKHccXOFdJw==}
@@ -21163,6 +21187,8 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
+  '@webcontainer/api@1.6.4': {}
+
   '@yarnpkg/core@4.9.1(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
@@ -24755,6 +24781,8 @@ snapshots:
   pkg-dir@5.0.0:
     dependencies:
       find-up: 5.0.0
+
+  playwright-core@1.63.0: {}
 
   pnpm@11.28.2: {}
 

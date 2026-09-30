@@ -398,6 +398,8 @@ pub struct VersionSelectionOptions {
 pub struct ResolutionRefreshOptions {
     /// Previously-resolved lockfile entry. The `currentPkg` field.
     pub current_pkg: Option<CurrentPkg>,
+    /// Prefer this edge's current version over workspace-wide selectors.
+    pub prefer_current_version: bool,
     pub update: UpdateBehavior,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for

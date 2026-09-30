@@ -4,13 +4,13 @@ use super::{
     SeededPackage, SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency,
     WantedKey, async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
     current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
-    extract_peer_dependencies, is_exotic_resolved_via, is_update_target, lock_recoverable,
-    node_alias, node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
-    overlay_version_view, package_root_link_result, parent_ids_contain_sequence,
-    peer_shadowed_dependencies, pin_locked_version, pin_patched_revision, pkg_is_leaf,
-    pkgs_info_from_ids, project_relative_cache_scope, register_peer_dep_names, resolve_reused_node,
-    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
-    wanted_lockfile_contains_satisfying_entry,
+    extract_peer_dependencies, is_exotic_resolved_via, is_update_target, keeps_locked_version,
+    lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
+    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
+    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
+    pin_patched_revision, pkg_is_leaf, pkgs_info_from_ids, project_relative_cache_scope,
+    register_peer_dep_names, resolve_reused_node, resolve_wanted_cached,
+    resolves_children_through_catalogs, try_reuse_node, wanted_lockfile_contains_satisfying_entry,
 };
 
 #[async_recursion]
@@ -135,9 +135,8 @@ where
 /// `resolutionMode` makes the version pick depend on whether this is a
 /// direct (`depth == 0`) or transitive dep, so the options key off the
 /// depth. The prior lockfile entry rides along as `currentPkg`, handed
-/// to the resolver. Only custom resolvers read it today; the clone of
-/// the shared per-depth options is paid only when a prior entry exists
-/// for a freshly resolving edge.
+/// to the resolver. Eligible direct edges prefer their current version
+/// without changing the specifier used to save the dependency.
 pub(super) fn edge_opts<'c>(
     ctx: &'c TreeCtx,
     wanted: &mut WantedDependency,
@@ -155,6 +154,10 @@ pub(super) fn edge_opts<'c>(
     match current_pkg {
         Some(current_pkg) => Cow::Owned(ResolveOptions {
             refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                prefer_current_version: edge.depth == 0
+                    && prior_key.is_some_and(|key| {
+                        keeps_locked_version(ctx, wanted, key, edge.depth)
+                    }),
                 current_pkg: Some(current_pkg),
                 ..opts.refresh.clone()
             },
@@ -208,6 +211,7 @@ pub(super) fn edge_cache_key(
         overlay_versions,
         ctx.update_cache_scope(),
         update_target,
+        opts.refresh.prefer_current_version,
     ))
 }
 

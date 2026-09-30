@@ -82,6 +82,36 @@ const createMockContext = (overrides?: MockContextOverrides): LoginContext => ({
   },
 })
 
+const OTP_CHALLENGE_HEADERS: LoginFetchResponse['headers'] = {
+  get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null,
+}
+
+interface CredentialAnswers {
+  username: string
+  email: string
+  password: string
+  otp?: string
+}
+
+function createCredentialsEnquirer (answers: CredentialAnswers): LoginContext['enquirer'] {
+  const inputAnswers: Record<string, string | undefined> = {
+    'Username:': answers.username,
+    'Email (this IS public):': answers.email,
+    'This operation requires a one-time password.\nEnter OTP:': answers.otp,
+  }
+  return {
+    input: async (opts: { message: string }): Promise<string> => {
+      const answer = inputAnswers[opts.message]
+      if (answer == null) throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+      return answer
+    },
+    password: async (opts: { message: string }): Promise<string> => {
+      if (opts.message === 'Password:') return answers.password
+      throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
+    },
+  }
+}
+
 describe('login', () => {
   it('should throw in non-interactive terminal when the registry does not support web login', async () => {
     const context = createMockContext({
@@ -548,17 +578,7 @@ describe('login', () => {
         }
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
-      enquirer: {
-        input: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Username:') return 'john'
-          if (opts.message === 'Email (this IS public):') return 'john@example.com'
-          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
-        },
-        password: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Password:') return 'secret'
-          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
-        },
-      },
+      enquirer: createCredentialsEnquirer({ username: 'john', email: 'john@example.com', password: 'secret' }),
     })
     const opts = { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
@@ -592,7 +612,7 @@ describe('login', () => {
               status: 401,
               json: { error: 'otp required' },
               text: 'OTP required',
-              headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
+              headers: OTP_CHALLENGE_HEADERS,
             })
           }
           expect(options?.headers?.['npm-otp']).toBe('999999')
@@ -604,18 +624,7 @@ describe('login', () => {
         }
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
-      enquirer: {
-        input: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Username:') return 'alice'
-          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
-          if (opts.message === 'This operation requires a one-time password.\nEnter OTP:') return '999999'
-          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
-        },
-        password: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Password:') return 'pass'
-          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
-        },
-      },
+      enquirer: createCredentialsEnquirer({ username: 'alice', email: 'alice@example.com', password: 'pass', otp: '999999' }),
     })
     const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
@@ -650,7 +659,7 @@ describe('login', () => {
                 authUrl: 'https://example.org/auth/web',
                 doneUrl: 'https://example.org/auth/web/done',
               }),
-              headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
+              headers: OTP_CHALLENGE_HEADERS,
             })
           }
           expect(options?.headers?.['npm-otp']).toBe('web-tok')
@@ -670,17 +679,7 @@ describe('login', () => {
         }
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
-      enquirer: {
-        input: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Username:') return 'bob'
-          if (opts.message === 'Email (this IS public):') return 'bob@example.com'
-          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
-        },
-        password: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Password:') return 'pass'
-          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
-        },
-      },
+      enquirer: createCredentialsEnquirer({ username: 'bob', email: 'bob@example.com', password: 'pass' }),
     })
     const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })

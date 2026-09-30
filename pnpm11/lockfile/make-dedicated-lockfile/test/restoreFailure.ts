@@ -15,10 +15,10 @@ jest.unstable_mockModule('@pnpm/exec', () => ({ pnpmExec }))
 
 const { makeDedicatedLockfile } = await import('@pnpm/lockfile.make-dedicated-lockfile')
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('package.json is restored when node_modules cannot be moved back', async () => {
-  const tmp = f.prepare('fixture')
+  const tmp = testFixtures.prepare('fixture')
   const projectDir = path.join(tmp, 'packages/published')
   const manifestPath = path.join(projectDir, 'package.json')
   const manifestBefore = { name: 'published', version: '1.0.0', publishConfig: { main: 'dist/index.js' } }
@@ -36,7 +36,7 @@ test('package.json is restored when node_modules cannot be moved back', async ()
 })
 
 test('an install failure and a restore failure are reported together', async () => {
-  const tmp = f.prepare('fixture')
+  const tmp = testFixtures.prepare('fixture')
   const projectDir = path.join(tmp, 'packages/published')
   fs.mkdirSync(path.join(projectDir, 'node_modules'), { recursive: true })
   fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'published', version: '1.0.0' }))

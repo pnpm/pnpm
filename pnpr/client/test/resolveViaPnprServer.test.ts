@@ -184,6 +184,25 @@ test('does not check a project that the server did not return', async () => {
   }])
 })
 
+test('does not check an unreturned project whose dir names an Object.prototype member', async () => {
+  const request = await captureResolveRequest({
+    projects: [{
+      dir: 'constructor',
+      name: 'lib',
+      publishConfig: { directory: 'dist' },
+    }],
+  }, {
+    lockfileVersion: '9.0',
+    importers: {},
+  })
+
+  expect(request.projects).toEqual([{
+    dir: 'constructor',
+    name: 'lib',
+    publishConfig: { directory: 'dist' },
+  }])
+})
+
 test('serializes publishConfig for the single-project compatibility options', async () => {
   const request = await captureResolveRequest({
     name: 'lib',
@@ -264,8 +283,15 @@ async function captureResolveRequest (
     }
     return capturedRequest
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error == null ? resolve() : reject(error))
-    })
+    await closeServer(server)
   }
+}
+
+async function closeServer (server: http.Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error == null) resolve()
+      else reject(error)
+    })
+  })
 }

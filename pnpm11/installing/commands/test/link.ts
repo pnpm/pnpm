@@ -27,7 +27,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 const { logger } = await import('@pnpm/logger')
 const { add, install, link } = await import('@pnpm/installing.commands')
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('linking multiple packages', async () => {
   const project = prepare()
@@ -89,7 +89,7 @@ test('relative link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -127,7 +127,7 @@ test('absolute link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -325,7 +325,7 @@ test('relative link from workspace package', async () => {
   const workspaceDir = path.resolve('workspace')
   writeYamlFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
 
-  f.copy('hello-world-js-bin', 'hello-world-js-bin')
+  testFixtures.copy('hello-world-js-bin', 'hello-world-js-bin')
 
   const projectDir = path.resolve('workspace/packages/project')
   const helloWorldJsBinDir = path.resolve('hello-world-js-bin')

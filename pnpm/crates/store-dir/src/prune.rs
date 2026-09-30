@@ -66,6 +66,14 @@ pub enum PruneError {
         error: io::Error,
     },
 
+    #[display("Failed to read project directory during mark phase {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_MARK_DIR))]
+    ReadMarkDir {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[diagnostic(transparent)]
     PruneCas(#[error(source)] PruneCasError),
 }
@@ -98,6 +106,13 @@ impl StoreDir {
             stats.packages,
             if stats.packages == 1 { "" } else { "s" },
         );
+        if stats.undecodable_packages > 0 {
+            eprintln!(
+                "Kept {} package index entr{} that could not be read",
+                stats.undecodable_packages,
+                if stats.undecodable_packages == 1 { "y" } else { "ies" },
+            );
+        }
         Ok(())
     }
 
@@ -126,13 +141,13 @@ impl StoreDir {
         let mut reachable: HashSet<PathBuf> = HashSet::new();
         let mut visited: HashSet<PathBuf> = HashSet::new();
         for project_dir in &projects {
-            for modules_dir in find_all_node_modules_dirs(project_dir) {
+            for modules_dir in find_all_node_modules_dirs(project_dir)? {
                 walk_symlinks_to_store(
                     &modules_dir,
                     &canonical_links,
                     &mut reachable,
                     &mut visited,
-                );
+                )?;
             }
         }
 
@@ -156,27 +171,30 @@ impl StoreDir {
 /// records the path and stops descending — the
 /// hoisted deps inside `node_modules/.pnpm` and friends are picked up
 /// by [`walk_symlinks_to_store`]'s transitive recursion instead.
-fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
+fn find_all_node_modules_dirs(project_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
     let mut out = Vec::new();
-    scan(project_dir, &mut out);
-    return out;
+    scan(project_dir, &mut out)?;
+    return Ok(out);
 
-    fn scan(dir: &Path, out: &mut Vec<PathBuf>) {
-        // Swallow every `read_dir` error, as pnpm does. A permission
-        // failure inside a workspace package would make `prune`
-        // over-aggressive (its node_modules wouldn't be marked), but
-        // tightening this would diverge from pnpm's behaviour — and
-        // `pacquet store prune` shares a store directory with `pnpm
-        // store prune`, so the two must agree on what counts as
-        // reachable.
-        let Ok(entries) = fs::read_dir(dir) else {
-            return;
+    fn scan(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), PruneError> {
+        let entries = match fs::read_dir(dir) {
+            Ok(entries) => entries,
+            Err(error)
+                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
+            {
+                return Ok(());
+            }
+            Err(error) => {
+                return Err(PruneError::ReadMarkDir { path: dir.to_path_buf(), error });
+            }
         };
         let mut subdirs = Vec::new();
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
+        for entry in entries {
+            let entry =
+                entry.map_err(|error| PruneError::ReadMarkDir { path: dir.to_path_buf(), error })?;
+            let file_type = entry
+                .file_type()
+                .map_err(|error| PruneError::ReadMarkDir { path: entry.path(), error })?;
             if !file_type.is_dir() {
                 continue;
             }
@@ -191,8 +209,9 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
             }
         }
         for sub in subdirs {
-            scan(&sub, out);
+            scan(&sub, out)?;
         }
+        Ok(())
     }
 }
 
@@ -215,24 +234,29 @@ fn walk_symlinks_to_store(
     canonical_links: &Path,
     reachable: &mut HashSet<PathBuf>,
     visited: &mut HashSet<PathBuf>,
-) {
+) -> Result<(), PruneError> {
     let canonical_dir = dunce::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
     if !visited.insert(canonical_dir) {
-        return;
+        return Ok(());
     }
 
-    // Swallow every `read_dir` error, as pnpm does. Same caveat as in
-    // [`find_all_node_modules_dirs`]: tightening this would diverge
-    // from pnpm and risk a `pacquet store prune` deciding more slots
-    // are unreachable than a parallel `pnpm store prune` would.
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            return Ok(());
+        }
+        Err(error) => {
+            return Err(PruneError::ReadMarkDir { path: dir.to_path_buf(), error });
+        }
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| PruneError::ReadMarkDir { path: dir.to_path_buf(), error })?;
         if let Some(next_dir) = next_walk_dir(&entry, canonical_links, reachable) {
-            walk_symlinks_to_store(&next_dir, canonical_links, reachable, visited);
+            walk_symlinks_to_store(&next_dir, canonical_links, reachable, visited)?;
         }
     }
+    Ok(())
 }
 
 /// The directory to descend into for one entry: the store slot a symlink

@@ -16,7 +16,7 @@ export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: Exist
   if (detachedHeadCandidates.length === 0) {
     return fileExists(path.join(pkgPath, fileName))
   }
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- the check stops at the first candidate that exists */
   for (const candidate of [...detachedHeadCandidates, fileName]) {
     if (await fileExists(path.join(pkgPath, candidate))) return true
   }

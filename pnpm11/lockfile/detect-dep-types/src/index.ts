@@ -67,22 +67,31 @@ function detectDepTypesInSubGraph (
     const key = `${depPath}:${opts.dev.toString()}`
     if (ctx.walked.has(key)) continue
     ctx.walked.add(key)
-    if (!ctx.packages[depPath]) {
-      continue
-    }
-    if (opts.dev) {
-      ctx.notProdOnly.add(depPath)
-      ctx.dev[depPath] = DepType.DevOnly
-    } else if (ctx.dev[depPath] === DepType.DevOnly) { // keeping if dev is explicitly false
-      ctx.dev[depPath] = DepType.DevAndProd
-    } else if (ctx.dev[depPath] === undefined && !ctx.notProdOnly.has(depPath)) {
-      ctx.dev[depPath] = DepType.ProdOnly
-    }
     const depLockfile = ctx.packages[depPath]
+    if (!depLockfile) continue
+    updateDepTypeRecord(ctx, depPath, opts.dev)
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {}, ctx.peerSatisfactionEdges, depPath)
     detectDepTypesInSubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {}, ctx.peerSatisfactionEdges, depPath)
     detectDepTypesInSubGraph(ctx, newOptionalDependencies, { dev: opts.dev })
+  }
+}
+
+function updateDepTypeRecord (
+  ctx: {
+    notProdOnly: Set<string>
+    dev: Record<string, DepType>
+  },
+  depPath: DepPath,
+  isDev: boolean
+): void {
+  if (isDev) {
+    ctx.notProdOnly.add(depPath)
+    ctx.dev[depPath] = DepType.DevOnly
+  } else if (ctx.dev[depPath] === DepType.DevOnly) {
+    ctx.dev[depPath] = DepType.DevAndProd
+  } else if (ctx.dev[depPath] === undefined && !ctx.notProdOnly.has(depPath)) {
+    ctx.dev[depPath] = DepType.ProdOnly
   }
 }
 

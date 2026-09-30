@@ -1,10 +1,11 @@
 import type { PlatformAssetTarget } from '@pnpm/resolving.resolver-base'
 import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
+import type { SpecifierAndResolution } from './lockfileFileTypes.js'
+
 export type { ProjectId }
 
 export * from './lockfileFileTypes.js'
-import type { SpecifierAndResolution } from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean

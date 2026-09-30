@@ -8,7 +8,7 @@ test('custom resolver intercepts matching packages', async () => {
     canResolve: (wantedDependency: WantedDependency) => {
       return wantedDependency.alias === 'test-package'
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test resolver ignores its options
     resolve: async (wantedDependency: WantedDependency, _opts: any) => {
       return {
         id: `custom:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,
@@ -474,14 +474,14 @@ test('custom resolver receives currentPkg when provided', async () => {
       projectDir: '/test',
       preferredVersions: {},
       currentPkg: {
-        id: 'existing:test-package@1.0.0' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        id: 'existing:test-package@1.0.0' as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- a plain string stands in for the branded package id
         resolution: existingResolution,
       },
     }
   )
 
   expect(receivedCurrentPkg).toBeTruthy()
-  expect((receivedCurrentPkg as any).id).toBe('existing:test-package@1.0.0') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect((receivedCurrentPkg as any).id).toBe('existing:test-package@1.0.0') // eslint-disable-line @typescript-eslint/no-explicit-any -- the captured value is untyped test state
   expect(result2.id).toBe('existing:test-package@1.0.0')
   expect(result2.resolution).toBe(existingResolution)
 })

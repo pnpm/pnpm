@@ -86,33 +86,59 @@ export async function importYarnPatches (opts: ImportYarnPatchesOptions): Promis
     .map((project) => ({ project, patches: replacePatchSpecifiers(project.manifest) }))
     .filter(({ patches }) => patches.length > 0)
   await Promise.all(patchedProjects.map(({ project }) => project.writeProjectManifest(project.manifest)))
-  const recorded: Record<string, string> = {}
   const patchFiles = patchedProjects.flatMap(({ project, patches }) => patches.map(([alias, patch]) => ({
     alias,
     patch,
     patchFile: patch.patchPaths.length === 1 ? resolvePatchFile(patch.patchPaths[0], opts.yarnRootDir, project.rootDir) : undefined,
   })))
   const patchFileExists = await Promise.all(patchFiles.map(({ patchFile }) => patchFile != null && isFile(patchFile)))
-  for (const [index, { alias, patch, patchFile }] of patchFiles.entries()) {
-    if (patch.patchPaths.length > 1) {
-      globalWarn(`"${alias}" has several Yarn patches, and pnpm applies one patch per dependency. "${alias}" was imported without the patches.`)
-      continue
-    }
-    if (patchFile == null) continue
-    const kept = opts.patchedDependencies?.[patch.patchKey] ?? recorded[patch.patchKey]
-    if (!patchFileExists[index]) {
-      if (kept == null) {
-        globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
-      }
-      continue
-    }
-    if (kept == null) {
-      recorded[patch.patchKey] = patchFile
-    } else if (path.resolve(opts.workspaceDir, kept) !== patchFile) {
-      globalWarn(`The Yarn patch ${toWorkspacePath(patchFile, opts.workspaceDir)} of "${alias}" was not applied, because "${patch.patchKey}" already uses the patch ${toWorkspacePath(kept, opts.workspaceDir)}.`)
-    }
+  const recorded: Record<string, string> = Object.create(null)
+  for (const [index, patchFile] of patchFiles.entries()) {
+    recordPatchFile(opts, recorded, { ...patchFile, patchFileExists: patchFileExists[index] })
   }
   if (Object.keys(recorded).length === 0) return undefined
+  return writeRecordedPatches(opts, recorded)
+}
+
+interface ImportedPatchFile {
+  alias: string
+  patch: YarnPatchSpecifier
+  patchFile?: string
+  patchFileExists: boolean
+}
+
+function recordPatchFile (
+  opts: ImportYarnPatchesOptions,
+  recorded: Record<string, string>,
+  { alias, patch, patchFile, patchFileExists }: ImportedPatchFile
+): void {
+  if (patch.patchPaths.length > 1) {
+    globalWarn(`"${alias}" has several Yarn patches, and pnpm applies one patch per dependency. "${alias}" was imported without the patches.`)
+    return
+  }
+  if (patchFile == null) return
+  const kept = getOwnValue(opts.patchedDependencies, patch.patchKey) ?? recorded[patch.patchKey]
+  if (!patchFileExists) {
+    if (kept == null) {
+      globalWarn(`The patch file ${patchFile} of "${alias}" does not exist. "${alias}" was imported without the patch.`)
+    }
+    return
+  }
+  if (kept == null) {
+    recorded[patch.patchKey] = patchFile
+  } else if (path.resolve(opts.workspaceDir, kept) !== patchFile) {
+    globalWarn(`The Yarn patch ${toWorkspacePath(patchFile, opts.workspaceDir)} of "${alias}" was not applied, because "${patch.patchKey}" already uses the patch ${toWorkspacePath(kept, opts.workspaceDir)}.`)
+  }
+}
+
+function getOwnValue (record: Record<string, string> | undefined, key: string): string | undefined {
+  return record != null && Object.hasOwn(record, key) ? record[key] : undefined
+}
+
+async function writeRecordedPatches (
+  opts: ImportYarnPatchesOptions,
+  recorded: Record<string, string>
+): Promise<Record<string, string>> {
   const patchedDependencies = { ...opts.patchedDependencies, ...recorded }
   await writeSettings({
     rootProjectManifestDir: opts.workspaceDir,

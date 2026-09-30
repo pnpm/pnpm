@@ -56,49 +56,12 @@ interface ChangelogEntry {
 }
 
 export function getChangelogEntry (changelog: string, version: string): ChangelogEntry {
-  const ast = unified().use(remarkParse).parse(changelog)
-
-  let highestLevel: number = BumpLevels.dep
-
-  const nodes = ast['children'] as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
-  let headingStartInfo:
-  | {
-    index: number
-    depth: number
-  }
-  | undefined
-  let endIndex: number | undefined
-
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]
-    if (node.type === 'heading') {
-      const stringified: string = mdastToString(node)
-      const match = stringified.toLowerCase().match(/(major|minor|patch)/)
-      if (match !== null) {
-        const level = BumpLevels[match[0] as 'major' | 'minor' | 'patch']
-        highestLevel = Math.max(level, highestLevel)
-      }
-      if (headingStartInfo === undefined && stringified === version) {
-        headingStartInfo = {
-          index: i,
-          depth: node.depth,
-        }
-        continue
-      }
-      if (
-        endIndex === undefined &&
-        headingStartInfo !== undefined &&
-        headingStartInfo.depth === node.depth
-      ) {
-        endIndex = i
-        break
-      }
-    }
-  }
+  const ast = parseMarkdown(changelog)
+  const { headingStartInfo, endIndex, highestLevel } = findVersionSection(ast.children, version)
   if (headingStartInfo == null) {
     throw new PnpmError('MISSING_CHANGELOG_ENTRY', `No changelog entry found for pnpm ${version}`)
   }
-  ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
+  ast.children = ast.children.slice(
     headingStartInfo.index + 1,
     endIndex
   )
@@ -106,6 +69,49 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
     content: unified().use(remarkStringify).stringify(ast),
     highestLevel,
   }
+}
+
+function parseMarkdown (markdown: string) {
+  return unified().use(remarkParse).parse(markdown)
+}
+
+type MarkdownNode = ReturnType<typeof parseMarkdown>['children'][number]
+
+interface HeadingStartInfo {
+  index: number
+  depth: number
+}
+
+interface VersionSection {
+  headingStartInfo?: HeadingStartInfo
+  endIndex?: number
+  highestLevel: number
+}
+
+function findVersionSection (nodes: MarkdownNode[], version: string): VersionSection {
+  let highestLevel: number = BumpLevels.dep
+  let headingStartInfo: HeadingStartInfo | undefined
+  for (const [nodeIndex, node] of nodes.entries()) {
+    if (node.type !== 'heading') continue
+    const stringified: string = mdastToString(node)
+    highestLevel = Math.max(getBumpLevel(stringified), highestLevel)
+    if (headingStartInfo === undefined && stringified === version) {
+      headingStartInfo = {
+        index: nodeIndex,
+        depth: node.depth,
+      }
+      continue
+    }
+    if (headingStartInfo !== undefined && headingStartInfo.depth === node.depth) {
+      return { headingStartInfo, endIndex: nodeIndex, highestLevel }
+    }
+  }
+  return { headingStartInfo, highestLevel }
+}
+
+function getBumpLevel (headingText: string): number {
+  const match = headingText.toLowerCase().match(/(major|minor|patch)/)
+  return match === null ? BumpLevels.dep : BumpLevels[match[0] as 'major' | 'minor' | 'patch']
 }
 
 // The entry point stays at the bottom: a top-level `await` above a module-level

@@ -99,7 +99,7 @@ Since v11.28.0, symlinks that point to files or directories included in the depl
 
 Since v11.28.0:
 
-* The `packageManager` and `devEngines.packageManager` fields of the workspace root `package.json` are copied into the deployed `package.json`, unless the deployed project pins a package manager itself.
+* The `packageManager` and `devEngines.packageManager` fields of the workspace root `package.json` are not copied into the deployed `package.json`. Versions v11.28.0 through v11.28.x copied them.
 * The virtual store is created at [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir), resolved against the deploy directory. A deploy from a shared lockfile records `virtualStoreDir` in the deployed `pnpm-workspace.yaml`. With the global virtual store enabled or an absolute `virtualStoreDir`, the deploy uses `node_modules/.pnpm`.
 * The `prepare` script of the deployed project is not run.
 * `--package-import-method` passed on the command line is respected.

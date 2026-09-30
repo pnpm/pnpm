@@ -21,6 +21,7 @@ import deepRequireCwd from 'deep-require-cwd'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
+import { closeServer } from '../utils/closeServer.js'
 import { testDefaults } from '../utils/index.js'
 
 test('successfully install optional dependency with subdependencies', async () => {
@@ -177,16 +178,7 @@ test('skip optional dependencies whose names declare unsupported platforms when 
       supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
     }))
   } finally {
-    server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err == null) {
-          resolve()
-        } else {
-          reject(err)
-        }
-      })
-    })
+    await closeServer(server)
   }
 
   expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
@@ -207,30 +199,40 @@ test('skip optional dependencies whose names declare unsupported platforms when 
 // (some registry proxies do this), forwarding everything else to the registry mock.
 function createMetadataStrippingRegistryProxy (): http.Server {
   return http.createServer((req, res) => {
-    (async () => {
-      const upstream = await fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
-        method: req.method,
-        headers: { accept: req.headers.accept ?? '*/*' },
-      })
-      const contentType = upstream.headers.get('content-type') ?? ''
-      if (contentType.includes('json')) {
-        const doc = await upstream.json() as { versions?: Record<string, Record<string, unknown>> }
-        for (const versionMeta of Object.values(doc.versions ?? {})) {
-          delete versionMeta.os
-          delete versionMeta.cpu
-          delete versionMeta.libc
-        }
-        res.writeHead(upstream.status, { 'content-type': 'application/json' })
-        res.end(JSON.stringify(doc))
-      } else {
-        res.writeHead(upstream.status, { 'content-type': contentType })
-        res.end(Buffer.from(await upstream.arrayBuffer()))
-      }
-    })().catch((err) => {
+    forwardWithoutPlatformFields(req, res).catch((err) => {
       res.writeHead(500)
       res.end(String(err))
     })
   })
+}
+
+async function forwardWithoutPlatformFields (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  const upstream = await fetchFromRegistryMock(req)
+  const contentType = upstream.headers.get('content-type') ?? ''
+  if (!contentType.includes('json')) {
+    await sendUpstreamBody(upstream, res, contentType)
+    return
+  }
+  const doc = await upstream.json() as { versions?: Record<string, Record<string, unknown>> }
+  for (const versionMeta of Object.values(doc.versions ?? {})) {
+    delete versionMeta.os
+    delete versionMeta.cpu
+    delete versionMeta.libc
+  }
+  res.writeHead(upstream.status, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(doc))
+}
+
+async function fetchFromRegistryMock (req: http.IncomingMessage): Promise<Response> {
+  return fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
+    method: req.method,
+    headers: { accept: req.headers.accept ?? '*/*' },
+  })
+}
+
+async function sendUpstreamBody (upstream: Response, res: http.ServerResponse, contentType: string): Promise<void> {
+  res.writeHead(upstream.status, { 'content-type': contentType })
+  res.end(Buffer.from(await upstream.arrayBuffer()))
 }
 
 // Covers https://github.com/pnpm/pnpm/issues/12853: a registry that can no
@@ -279,16 +281,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
       hint: expect.stringContaining('the lockfile contains a resolution for it'),
     })
   } finally {
-    server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err == null) {
-          resolve()
-        } else {
-          reject(err)
-        }
-      })
-    })
+    await closeServer(server)
   }
 
   expect(project.readLockfile()).toStrictEqual(lockfileBefore)
@@ -300,32 +293,49 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
 function createVersionHidingRegistryProxy (pkgNames: string[], hiddenVersion: string): http.Server {
   const hiddenPkgPaths = new Set(pkgNames.map((pkgName) => `/${pkgName}`))
   return http.createServer((req, res) => {
-    (async () => {
-      const upstream = await fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
-        method: req.method,
-        headers: { accept: req.headers.accept ?? '*/*' },
-      })
-      const contentType = upstream.headers.get('content-type') ?? ''
-      if (hiddenPkgPaths.has(decodeURIComponent(req.url!)) && contentType.includes('json')) {
-        const doc = await upstream.json() as { versions?: Record<string, unknown>, time?: Record<string, string>, 'dist-tags'?: Record<string, string> }
-        delete doc.versions?.[hiddenVersion]
-        delete doc.time?.[hiddenVersion]
-        for (const [distTag, version] of Object.entries(doc['dist-tags'] ?? {})) {
-          if (version === hiddenVersion) {
-            delete doc['dist-tags']![distTag]
-          }
-        }
-        res.writeHead(upstream.status, { 'content-type': 'application/json' })
-        res.end(JSON.stringify(doc))
-      } else {
-        res.writeHead(upstream.status, { 'content-type': contentType })
-        res.end(Buffer.from(await upstream.arrayBuffer()))
-      }
-    })().catch((err) => {
+    forwardHidingVersion({ hiddenPkgPaths, hiddenVersion }, req, res).catch((err) => {
       res.writeHead(500, { 'content-type': 'text/plain' })
       res.end(String(err))
     })
   })
+}
+
+interface HiddenVersion {
+  hiddenPkgPaths: Set<string>
+  hiddenVersion: string
+}
+
+interface VersionListing {
+  versions?: Record<string, unknown>
+  time?: Record<string, string>
+  'dist-tags'?: Record<string, string>
+}
+
+async function forwardHidingVersion (
+  { hiddenPkgPaths, hiddenVersion }: HiddenVersion,
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+): Promise<void> {
+  const upstream = await fetchFromRegistryMock(req)
+  const contentType = upstream.headers.get('content-type') ?? ''
+  if (!hiddenPkgPaths.has(decodeURIComponent(req.url!)) || !contentType.includes('json')) {
+    await sendUpstreamBody(upstream, res, contentType)
+    return
+  }
+  const doc = await upstream.json() as VersionListing
+  removeVersionFromListing(doc, hiddenVersion)
+  res.writeHead(upstream.status, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(doc))
+}
+
+function removeVersionFromListing (doc: VersionListing, hiddenVersion: string): void {
+  delete doc.versions?.[hiddenVersion]
+  delete doc.time?.[hiddenVersion]
+  for (const [distTag, version] of Object.entries(doc['dist-tags'] ?? {})) {
+    if (version === hiddenVersion) {
+      delete doc['dist-tags']![distTag]
+    }
+  }
 }
 
 test('skip optional dependency that does not support the current Node version', async () => {

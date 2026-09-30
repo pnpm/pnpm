@@ -6,7 +6,7 @@ import type { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Finder, RegistriesByScope } from '@pnpm/types'
 
-import { type DependencyGraph, isProjectEdge } from './buildDependencyGraph.js'
+import { type DependencyEdge, type DependencyGraph, isProjectEdge } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
@@ -146,16 +146,21 @@ function materializeChildren (
     throw new Error(`Node ${parentSerialized} not found in the dependency graph`)
   }
 
-  const childTreeMaxDepth = maxDepth - 1
-
-  const linkedPathBaseDir = parentId.type === 'importer'
-    ? path.join(ctx.lockfileDir, parentId.importerId)
-    : ctx.lockfileDir
-
-  const resultDependencies: DependencyNode[] = []
-  let resultCount = 0
-  let resultHasSearchMatch = false
-  const resultSearchMessages = ctx.showDedupedSearchMatches ? [] as string[] : undefined
+  const parent: MaterializationParent = {
+    id: parentId,
+    dir: parentDir,
+    peers: graphNode.peers,
+    childTreeMaxDepth: maxDepth - 1,
+    linkedPathBaseDir: parentId.type === 'importer'
+      ? path.join(ctx.lockfileDir, parentId.importerId)
+      : ctx.lockfileDir,
+  }
+  const result: MaterializationAccumulator = {
+    nodes: [],
+    count: 0,
+    hasSearchMatch: false,
+    searchMessages: ctx.showDedupedSearchMatches ? [] as string[] : undefined,
+  }
 
   // Sort edges by alias so that deduplication is deterministic:
   // the alphabetically-first dependency always gets fully expanded.
@@ -165,136 +170,217 @@ function materializeChildren (
     if (ctx.onlyProjects && !isProjectEdge(parentId, edge)) {
       continue
     }
-
-    const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
-      ...ctx,
-      alias: edge.alias,
-      ref: edge.ref,
-      peers: graphNode.peers,
-      linkedPathBaseDir,
-      parentDir,
-    })
-    // A project linked through its publish directory is listed at its own
-    // directory.
-    if (ctx.onlyProjects && edge.target?.nodeId.type === 'importer') {
-      packageInfo.path = path.join(ctx.lockfileDir, edge.target.nodeId.importerId)
-    }
-
-    const searchMatch = ctx.search?.({
-      alias: edge.alias,
-      name: packageInfo.name,
-      version: packageInfo.version,
-      readManifest,
-    })
-
-    let newEntry: DependencyNode | null = null
-    let childCount = 0
-    let dedupedHasSearchMatch = false
-    let dedupedSearchMessages: string[] = []
-
-    if (edge.target == null) {
-      // External link or unresolvable — no traversal possible. With
-      // onlyProjects, this is a link to a project outside the lockfile, which
-      // buildDependenciesTree walks and prunes for the search afterwards.
-      if (ctx.search == null || searchMatch || ctx.onlyProjects) {
-        newEntry = packageInfo
-      } else {
-        continue
-      }
-    } else {
-      let dependencies: DependencyNode[]
-      let childHasSearchMatch = false
-      let childSearchMessages: string[] = []
-      let dedupedCount: number | undefined
-      const circular = ctx.ancestors.has(edge.target.id)
-
-      if (circular) {
-        dependencies = []
-      } else {
-        const cacheKey = materializeCacheKey(edge.target.id, childTreeMaxDepth)
-        const cached = ctx.materializationCache.get(cacheKey)
-
-        if (cached !== undefined) {
-          // This subtree was already returned to a parent elsewhere in
-          // the output tree — elide it to avoid repeating the same nodes.
-          dependencies = []
-          if (cached.count > 0) {
-            dedupedCount = cached.count
-          }
-          if (ctx.showDedupedSearchMatches) {
-            dedupedHasSearchMatch = cached.hasSearchMatch
-            dedupedSearchMessages = cached.searchMessages
-          }
-        } else {
-          ctx.ancestors.add(edge.target.id)
-          const childResult = materializeChildren(ctx, edge.target.nodeId, childTreeMaxDepth, packageInfo.path)
-          ctx.ancestors.delete(edge.target.id)
-
-          dependencies = childResult.nodes
-          childCount = childResult.count
-          childHasSearchMatch = childResult.hasSearchMatch
-          childSearchMessages = childResult.searchMessages
-
-          // Always cache — even results with circular truncations.
-          ctx.materializationCache.set(cacheKey, {
-            count: childCount,
-            hasSearchMatch: childHasSearchMatch,
-            searchMessages: childSearchMessages,
-          })
-        }
-        if (childHasSearchMatch || dedupedHasSearchMatch) {
-          resultHasSearchMatch = true
-        }
-        resultSearchMessages?.push(...childSearchMessages, ...dedupedSearchMessages)
-      }
-
-      if (dependencies.length > 0) {
-        newEntry = {
-          ...packageInfo,
-          dependencies,
-        }
-      } else if (ctx.search == null || searchMatch || dedupedHasSearchMatch) {
-        newEntry = packageInfo
-      } else {
-        continue
-      }
-
-      if (dedupedCount != null) {
-        newEntry.deduped = true
-        newEntry.dedupedDependenciesCount = dedupedCount
-      }
-      if (edge.target.nodeId.type === 'package') {
-        const peerHash = peersSuffixHashFromDepPath(edge.target.nodeId.depPath)
-        if (peerHash != null) {
-          newEntry.peersSuffixHash = peerHash
-        }
-      }
-    }
-
-    if (searchMatch) {
-      newEntry.searched = true
-      resultHasSearchMatch = true
-      if (typeof searchMatch === 'string') {
-        newEntry.searchMessage = searchMatch
-        resultSearchMessages?.push(searchMatch)
-      }
-    } else if (dedupedHasSearchMatch) {
-      newEntry.searched = true
-      if (dedupedSearchMessages.length > 0) {
-        newEntry.searchMessage = dedupedSearchMessages.join('\n')
-      }
-    }
-    if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {
-      resultDependencies.push(newEntry)
-      resultCount += 1 + (newEntry.dependencies?.length ? childCount : 0)
-    }
+    materializeEdge(ctx, { parent, edge, result })
   }
 
   return {
-    count: resultCount,
-    hasSearchMatch: resultHasSearchMatch,
-    nodes: resultDependencies,
-    searchMessages: resultSearchMessages ?? [],
+    count: result.count,
+    hasSearchMatch: result.hasSearchMatch,
+    nodes: result.nodes,
+    searchMessages: result.searchMessages ?? [],
+  }
+}
+
+interface MaterializationParent {
+  id: TreeNodeId
+  dir?: string
+  peers: Set<string>
+  childTreeMaxDepth: number
+  linkedPathBaseDir: string
+}
+
+interface MaterializationAccumulator {
+  nodes: DependencyNode[]
+  count: number
+  hasSearchMatch: boolean
+  searchMessages?: string[]
+}
+
+interface EdgeMaterialization {
+  parent: MaterializationParent
+  edge: DependencyEdge
+  result: MaterializationAccumulator
+}
+
+/**
+ * The children of an edge's target. A subtree that was already materialized
+ * elsewhere is elided and only described by its `deduped*` fields.
+ */
+interface TargetSubtree {
+  dependencies: DependencyNode[]
+  count: number
+  hasSearchMatch: boolean
+  searchMessages: string[]
+  dedupedCount?: number
+  dedupedHasSearchMatch: boolean
+  dedupedSearchMessages: string[]
+}
+
+function materializeEdge (ctx: MaterializationContext, { parent, edge, result }: EdgeMaterialization): void {
+  const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
+    ...ctx,
+    alias: edge.alias,
+    ref: edge.ref,
+    peers: parent.peers,
+    linkedPathBaseDir: parent.linkedPathBaseDir,
+    parentDir: parent.dir,
+  })
+  // A project linked through its publish directory is listed at its own
+  // directory.
+  if (ctx.onlyProjects && edge.target?.nodeId.type === 'importer') {
+    packageInfo.path = path.join(ctx.lockfileDir, edge.target.nodeId.importerId)
+  }
+
+  const searchMatch = ctx.search?.({
+    alias: edge.alias,
+    name: packageInfo.name,
+    version: packageInfo.version,
+    readManifest,
+  })
+
+  const subtree = edge.target == null
+    ? createEmptySubtree()
+    : materializeTarget(ctx, { target: edge.target, maxDepth: parent.childTreeMaxDepth, dir: packageInfo.path })
+  collectSubtreeSearchMatches(result, subtree)
+
+  const newEntry = edge.target == null
+    ? selectUnresolvedEntry(ctx, packageInfo, searchMatch)
+    : selectTargetEntry(ctx, { packageInfo, searchMatch, subtree, target: edge.target })
+  if (newEntry == null) return
+
+  markSearchMatch(newEntry, { searchMatch, subtree, result })
+  if (!newEntry.isPeer || !ctx.excludePeerDependencies || newEntry.dependencies?.length) {
+    result.nodes.push(newEntry)
+    result.count += 1 + (newEntry.dependencies?.length ? subtree.count : 0)
+  }
+}
+
+function collectSubtreeSearchMatches (result: MaterializationAccumulator, subtree: TargetSubtree): void {
+  if (subtree.hasSearchMatch || subtree.dedupedHasSearchMatch) {
+    result.hasSearchMatch = true
+  }
+  result.searchMessages?.push(...subtree.searchMessages, ...subtree.dedupedSearchMessages)
+}
+
+function createEmptySubtree (): TargetSubtree {
+  return {
+    dependencies: [],
+    count: 0,
+    hasSearchMatch: false,
+    searchMessages: [],
+    dedupedHasSearchMatch: false,
+    dedupedSearchMessages: [],
+  }
+}
+
+type EdgeTarget = NonNullable<DependencyEdge['target']>
+
+function materializeTarget (
+  ctx: MaterializationContext,
+  { target, maxDepth, dir }: { target: EdgeTarget, maxDepth: number, dir: string }
+): TargetSubtree {
+  if (ctx.ancestors.has(target.id)) return createEmptySubtree()
+
+  const cacheKey = materializeCacheKey(target.id, maxDepth)
+  const cached = ctx.materializationCache.get(cacheKey)
+  if (cached !== undefined) {
+    // This subtree was already returned to a parent elsewhere in
+    // the output tree — elide it to avoid repeating the same nodes.
+    return {
+      ...createEmptySubtree(),
+      dedupedCount: cached.count > 0 ? cached.count : undefined,
+      dedupedHasSearchMatch: ctx.showDedupedSearchMatches ? cached.hasSearchMatch : false,
+      dedupedSearchMessages: ctx.showDedupedSearchMatches ? cached.searchMessages : [],
+    }
+  }
+
+  ctx.ancestors.add(target.id)
+  const childResult = materializeChildren(ctx, target.nodeId, maxDepth, dir)
+  ctx.ancestors.delete(target.id)
+
+  // Always cache — even results with circular truncations.
+  ctx.materializationCache.set(cacheKey, {
+    count: childResult.count,
+    hasSearchMatch: childResult.hasSearchMatch,
+    searchMessages: childResult.searchMessages,
+  })
+  return {
+    dependencies: childResult.nodes,
+    count: childResult.count,
+    hasSearchMatch: childResult.hasSearchMatch,
+    searchMessages: childResult.searchMessages,
+    dedupedHasSearchMatch: false,
+    dedupedSearchMessages: [],
+  }
+}
+
+type SearchMatch = ReturnType<Finder> | undefined
+
+// External link or unresolvable — no traversal possible. With
+// onlyProjects, this is a link to a project outside the lockfile, which
+// buildDependenciesTree walks and prunes for the search afterwards.
+function selectUnresolvedEntry (
+  ctx: MaterializationContext,
+  packageInfo: DependencyNode,
+  searchMatch: SearchMatch
+): DependencyNode | undefined {
+  return ctx.search == null || searchMatch || ctx.onlyProjects ? packageInfo : undefined
+}
+
+interface TargetEntrySelection {
+  packageInfo: DependencyNode
+  searchMatch: SearchMatch
+  subtree: TargetSubtree
+  target: EdgeTarget
+}
+
+function selectTargetEntry (
+  ctx: MaterializationContext,
+  { packageInfo, searchMatch, subtree, target }: TargetEntrySelection
+): DependencyNode | undefined {
+  let newEntry: DependencyNode
+  if (subtree.dependencies.length > 0) {
+    newEntry = {
+      ...packageInfo,
+      dependencies: subtree.dependencies,
+    }
+  } else if (ctx.search == null || searchMatch || subtree.dedupedHasSearchMatch) {
+    newEntry = packageInfo
+  } else {
+    return undefined
+  }
+
+  if (subtree.dedupedCount != null) {
+    newEntry.deduped = true
+    newEntry.dedupedDependenciesCount = subtree.dedupedCount
+  }
+  if (target.nodeId.type === 'package') {
+    const peerHash = peersSuffixHashFromDepPath(target.nodeId.depPath)
+    if (peerHash != null) {
+      newEntry.peersSuffixHash = peerHash
+    }
+  }
+  return newEntry
+}
+
+function markSearchMatch (
+  newEntry: DependencyNode,
+  { searchMatch, subtree, result }: { searchMatch: SearchMatch, subtree: TargetSubtree, result: MaterializationAccumulator }
+): void {
+  if (searchMatch) {
+    newEntry.searched = true
+    result.hasSearchMatch = true
+    if (typeof searchMatch === 'string') {
+      newEntry.searchMessage = searchMatch
+      result.searchMessages?.push(searchMatch)
+    }
+    return
+  }
+  if (subtree.dedupedHasSearchMatch) {
+    newEntry.searched = true
+    if (subtree.dedupedSearchMessages.length > 0) {
+      newEntry.searchMessage = subtree.dedupedSearchMessages.join('\n')
+    }
   }
 }
 

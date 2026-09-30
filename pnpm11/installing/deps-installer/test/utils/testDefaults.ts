@@ -8,8 +8,8 @@ import type { RegistriesByScope } from '@pnpm/types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-export function testDefaults<T> (
-  opts?: T & {
+export function testDefaults<ExtraOptions> (
+  opts?: ExtraOptions & {
     fastUnpack?: boolean
     storeDir?: string
     prefix?: string
@@ -21,12 +21,12 @@ export function testDefaults<T> (
     minimumReleaseAgeExclude?: string[]
     /**
      * Renamed to `registriesByScope`, and kept here so an options object that
-     * still carries the old key fails to compile: `T` is inferred from the
+     * still carries the old key fails to compile: `ExtraOptions` is inferred from the
      * argument, so an unknown key is otherwise absorbed into it and the test
      * silently exercises the default registry instead.
      *
      * Typed as the replacement's name rather than `never` so the compiler
-     * prints the fix — `not assignable to type '… & "renamed: use
+     * prints the fix — `not assignable to type '... & "renamed: use
      * registriesByScope"'`.
      */
     registries?: 'renamed: use registriesByScope'
@@ -46,7 +46,7 @@ export function testDefaults<T> (
     storeDir: string
     resolutionVerifiers: ResolutionVerifier[]
   } &
-  T {
+  ExtraOptions {
   // Forward minimumReleaseAge policy into the Client so it builds the
   // matching ResolutionVerifier; tests that set these options exercise the
   // same code path the CLI command would.
@@ -91,7 +91,7 @@ export function testDefaults<T> (
       storeDir: string
       resolutionVerifiers: ResolutionVerifier[]
     } &
-    T
+    ExtraOptions
   )
   return result
 }

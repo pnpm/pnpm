@@ -72,7 +72,7 @@ test('waiters taking over one ended holder\'s lock end up with one holder', asyn
     fs.mkdirSync(lockPath)
     fs.writeFileSync(path.join(lockPath, 'owner'), `${os.hostname()}:${pid}:0:ended`)
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- repeats one four-way race at a time, so trials do not contend with each other
     const locks = await Promise.all(Array.from({ length: 4 }, async () => DirLock.acquire(lockPath, OPTS)))
     expect(locks.filter(Boolean)).toHaveLength(1)
   }

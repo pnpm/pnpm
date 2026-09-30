@@ -14,6 +14,10 @@ Inside a [workspace], `pnpm install` installs all dependencies in all the
 projects. If you want to disable this behavior, set the `recursive-install`
 setting to `false`.
 
+When a workspace project changes, unchanged direct dependencies in other projects
+keep their locked versions if those versions still satisfy their declared ranges.
+Use [`pnpm update`](update.md) to request dependency updates.
+
 ![](/img/demos/pnpm-install.svg)
 
 [workspace]: ../workspaces.md

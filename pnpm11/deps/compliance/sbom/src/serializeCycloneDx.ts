@@ -5,7 +5,7 @@ import { DepType } from '@pnpm/lockfile.detect-dep-types'
 import { integrityToHashes } from './integrity.js'
 import { classifyLicense } from './license.js'
 import { encodePurlName } from './purl.js'
-import type { SbomResult } from './types.js'
+import type { SbomComponent, SbomRelationship, SbomResult, SbomRootComponent } from './types.js'
 
 export interface CycloneDxOptions {
   pnpmVersion?: string
@@ -18,172 +18,11 @@ export interface CycloneDxOptions {
 
 export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions): string {
   const { rootComponent, components, relationships } = result
-
   const rootBomRef = `pkg:npm/${encodePurlName(rootComponent.name)}@${rootComponent.version}`
 
-  const bomComponents = components.map((comp) => {
-    const { group, name } = splitScopedName(comp.name)
-
-    const cdxComp: Record<string, unknown> = {
-      type: 'library',
-      name,
-      version: comp.version,
-      purl: comp.purl,
-      'bom-ref': comp.purl,
-    }
-
-    // CycloneDX `excluded` scope (valid in every exported spec version):
-    // "component usage for test and other non-runtime purposes", which is the
-    // semantics of a devDependency.
-    // Components reachable through prod (ProdOnly/DevAndProd) omit scope and
-    // default to `required`. Installed optionalDependencies are runtime-reachable,
-    // so they stay `required` too, not `optional`.
-    if (comp.depType === DepType.DevOnly) {
-      cdxComp.scope = 'excluded'
-      // Also emit the CycloneDX npm-taxonomy marker. `scope` is the modern
-      // signal; `cdx:npm:package:development` is what @cyclonedx/cyclonedx-npm
-      // emits and what older consumers read, so we provide both.
-      cdxComp.properties = [{ name: 'cdx:npm:package:development', value: 'true' }]
-    }
-
-    if (group) {
-      cdxComp.group = group
-    }
-
-    if (comp.description) {
-      cdxComp.description = comp.description
-    }
-
-    // CycloneDX supplier is the registry/distributor, not the package author
-    if (comp.author) {
-      cdxComp.authors = [{ name: comp.author }]
-    }
-
-    if (comp.license) {
-      cdxComp.licenses = [classifyLicense(comp.license)]
-    }
-
-    const externalRefs: Array<Record<string, unknown>> = []
-
-    // Lockfile integrity is a tarball hash, not a source hash — belongs on the
-    // distribution reference, not component.hashes
-    if (comp.tarballUrl) {
-      const hashes = integrityToHashes(comp.integrity)
-      const distRef: Record<string, unknown> = {
-        type: 'distribution',
-        url: comp.tarballUrl,
-      }
-      if (hashes.length > 0) {
-        distRef.hashes = hashes.map((h) => ({
-          alg: h.algorithm,
-          content: h.digest,
-        }))
-      }
-      externalRefs.push(distRef)
-    }
-
-    if (comp.homepage) {
-      externalRefs.push({
-        type: 'website',
-        url: comp.homepage,
-      })
-    }
-
-    if (comp.repository) {
-      externalRefs.push({
-        type: 'vcs',
-        url: comp.repository,
-      })
-    }
-
-    if (comp.bugsUrl) {
-      externalRefs.push({
-        type: 'issue-tracker',
-        url: comp.bugsUrl,
-      })
-    }
-
-    if (externalRefs.length > 0) {
-      cdxComp.externalReferences = externalRefs
-    }
-
-    return cdxComp
-  })
-
-  // Group relationships by source
-  const depMap = new Map<string, string[]>()
-  depMap.set(rootBomRef, [])
-  for (const comp of components) {
-    depMap.set(comp.purl, [])
-  }
-  for (const rel of relationships) {
-    const deps = depMap.get(rel.from)
-    if (deps) {
-      deps.push(rel.to)
-    }
-  }
-
-  const bomDependencies = Array.from(depMap.entries()).map(([ref, dependsOn]) => ({
-    ref,
-    dependsOn: [...new Set(dependsOn)],
-  }))
-
-  const { group: rootGroup, name: rootName } = splitScopedName(rootComponent.name)
-
-  const rootCdxComponent: Record<string, unknown> = {
-    type: rootComponent.type,
-    name: rootName,
-    version: rootComponent.version,
-    purl: rootBomRef,
-    'bom-ref': rootBomRef,
-  }
-  if (rootGroup) {
-    rootCdxComponent.group = rootGroup
-  }
-  if (rootComponent.author) {
-    rootCdxComponent.authors = [{ name: rootComponent.author }]
-  }
-  if (rootComponent.license) {
-    rootCdxComponent.licenses = [classifyLicense(rootComponent.license)]
-  }
-  if (rootComponent.description) {
-    rootCdxComponent.description = rootComponent.description
-  }
-  const rootExternalRefs: Array<Record<string, unknown>> = []
-  if (rootComponent.repository) {
-    rootExternalRefs.push({ type: 'vcs', url: rootComponent.repository })
-  }
-  if (rootComponent.bugsUrl) {
-    rootExternalRefs.push({ type: 'issue-tracker', url: rootComponent.bugsUrl })
-  }
-  if (rootExternalRefs.length > 0) {
-    rootCdxComponent.externalReferences = rootExternalRefs
-  }
-
-  const toolComponents: Array<Record<string, unknown>> = []
-  if (opts?.pnpmVersion) {
-    toolComponents.push({
-      type: 'application',
-      name: 'pnpm',
-      version: opts.pnpmVersion,
-    })
-  }
-
-  const metadata: Record<string, unknown> = {
-    timestamp: new Date().toISOString(),
-    lifecycles: [{ phase: opts?.lockfileOnly ? 'pre-build' : 'build' }],
-    tools: { components: toolComponents },
-    component: rootCdxComponent,
-  }
-  // authors/supplier describe who authored/supplies the BOM document,
-  // not the tool — opt-in via --sbom-authors and --sbom-supplier
-  if (opts?.sbomAuthors?.length) {
-    metadata.authors = opts.sbomAuthors.map((name) => ({ name }))
-  }
-  if (opts?.sbomSupplier) {
-    metadata.supplier = { name: opts.sbomSupplier }
-  }
-
+  const bomComponents = components.map(createCycloneDxComponent)
+  const bomDependencies = groupCycloneDxDependencies(rootBomRef, components, relationships)
+  const metadata = createCycloneDxMetadata(rootComponent, rootBomRef, opts)
   const version = opts?.specVersion || '1.7'
 
   const bom: Record<string, unknown> = {
@@ -198,6 +37,152 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
   }
 
   return JSON.stringify(bom, null, opts?.compact ? undefined : 2)
+}
+
+function createCycloneDxComponent (comp: SbomComponent): Record<string, unknown> {
+  const { group, name } = splitScopedName(comp.name)
+  const cdxComp: Record<string, unknown> = {
+    type: 'library',
+    name,
+    version: comp.version,
+    purl: comp.purl,
+    'bom-ref': comp.purl,
+  }
+
+  if (comp.depType === DepType.DevOnly) {
+    cdxComp.scope = 'excluded'
+    cdxComp.properties = [{ name: 'cdx:npm:package:development', value: 'true' }]
+  }
+  if (group) cdxComp.group = group
+  if (comp.description) cdxComp.description = comp.description
+  if (comp.author) cdxComp.authors = [{ name: comp.author }]
+  if (comp.license) cdxComp.licenses = [classifyLicense(comp.license)]
+
+  const externalRefs = buildComponentExternalRefs(comp)
+  if (externalRefs.length > 0) {
+    cdxComp.externalReferences = externalRefs
+  }
+
+  return cdxComp
+}
+
+function buildComponentExternalRefs (comp: SbomComponent): Array<Record<string, unknown>> {
+  const externalRefs: Array<Record<string, unknown>> = []
+
+  if (comp.tarballUrl) {
+    const hashes = integrityToHashes(comp.integrity)
+    const distRef: Record<string, unknown> = {
+      type: 'distribution',
+      url: comp.tarballUrl,
+    }
+    if (hashes.length > 0) {
+      distRef.hashes = hashes.map((hash) => ({
+        alg: hash.algorithm,
+        content: hash.digest,
+      }))
+    }
+    externalRefs.push(distRef)
+  }
+  if (comp.homepage) {
+    externalRefs.push({ type: 'website', url: comp.homepage })
+  }
+  if (comp.repository) {
+    externalRefs.push({ type: 'vcs', url: comp.repository })
+  }
+  if (comp.bugsUrl) {
+    externalRefs.push({ type: 'issue-tracker', url: comp.bugsUrl })
+  }
+
+  return externalRefs
+}
+
+function groupCycloneDxDependencies (
+  rootBomRef: string,
+  components: SbomComponent[],
+  relationships: SbomRelationship[]
+): Array<{ ref: string, dependsOn: string[] }> {
+  const depMap = new Map<string, string[]>()
+  depMap.set(rootBomRef, [])
+  for (const comp of components) {
+    depMap.set(comp.purl, [])
+  }
+  for (const rel of relationships) {
+    const deps = depMap.get(rel.from)
+    if (deps) {
+      deps.push(rel.to)
+    }
+  }
+
+  return Array.from(depMap.entries()).map(([ref, dependsOn]) => ({
+    ref,
+    dependsOn: [...new Set(dependsOn)],
+  }))
+}
+
+function createCycloneDxRootComponent (
+  rootComponent: SbomRootComponent,
+  rootBomRef: string
+): Record<string, unknown> {
+  const { group: rootGroup, name: rootName } = splitScopedName(rootComponent.name)
+  const rootCdxComponent: Record<string, unknown> = {
+    type: rootComponent.type,
+    name: rootName,
+    version: rootComponent.version,
+    purl: rootBomRef,
+    'bom-ref': rootBomRef,
+  }
+  if (rootGroup) rootCdxComponent.group = rootGroup
+  if (rootComponent.author) rootCdxComponent.authors = [{ name: rootComponent.author }]
+  if (rootComponent.license) rootCdxComponent.licenses = [classifyLicense(rootComponent.license)]
+  if (rootComponent.description) rootCdxComponent.description = rootComponent.description
+
+  const rootExternalRefs = buildRootExternalRefs(rootComponent)
+  if (rootExternalRefs.length > 0) {
+    rootCdxComponent.externalReferences = rootExternalRefs
+  }
+
+  return rootCdxComponent
+}
+
+function buildRootExternalRefs (rootComponent: SbomRootComponent): Array<Record<string, unknown>> {
+  const rootExternalRefs: Array<Record<string, unknown>> = []
+  if (rootComponent.repository) {
+    rootExternalRefs.push({ type: 'vcs', url: rootComponent.repository })
+  }
+  if (rootComponent.bugsUrl) {
+    rootExternalRefs.push({ type: 'issue-tracker', url: rootComponent.bugsUrl })
+  }
+  return rootExternalRefs
+}
+
+function createCycloneDxMetadata (
+  rootComponent: SbomRootComponent,
+  rootBomRef: string,
+  opts?: CycloneDxOptions
+): Record<string, unknown> {
+  const toolComponents: Array<Record<string, unknown>> = []
+  if (opts?.pnpmVersion) {
+    toolComponents.push({
+      type: 'application',
+      name: 'pnpm',
+      version: opts.pnpmVersion,
+    })
+  }
+
+  const metadata: Record<string, unknown> = {
+    timestamp: new Date().toISOString(),
+    lifecycles: [{ phase: opts?.lockfileOnly ? 'pre-build' : 'build' }],
+    tools: { components: toolComponents },
+    component: createCycloneDxRootComponent(rootComponent, rootBomRef),
+  }
+  if (opts?.sbomAuthors?.length) {
+    metadata.authors = opts.sbomAuthors.map((name) => ({ name }))
+  }
+  if (opts?.sbomSupplier) {
+    metadata.supplier = { name: opts.sbomSupplier }
+  }
+
+  return metadata
 }
 
 function splitScopedName (fullName: string): { group: string | undefined, name: string } {

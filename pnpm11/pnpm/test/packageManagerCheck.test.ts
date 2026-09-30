@@ -743,7 +743,7 @@ test('devEngines.packageManager check runs even when pnpm is invoked via corepac
 
   // COREPACK_ROOT signals corepack-managed invocation. The package-manager
   // handling block (check + lockfile sync) used to be guarded out entirely
-  // when this was set, leaving packageManagerDependencies stale (#11397).
+  // when this was set, leaving packageManagerDependencies stale (pnpm/pnpm#11397).
   // The check (and sync) must run regardless of how pnpm was invoked, since
   // different developers on the same project may use either path.
   const { status, stdout } = execPnpmSync(['install'], {
@@ -805,7 +805,7 @@ test('pmOnFail=ignore set in pnpm-workspace.yaml bypasses the devEngines.package
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
-// Regression for #11487. The --version and --help short-circuits in
+// Regression for pnpm/pnpm#11487. The --version and --help short-circuits in
 // parse-cli-args used to drop every parsed option, so `--pm-on-fail=ignore`
 // silently disappeared whenever it was combined with `--version` or
 // `--help` — leaving users with no way to opt out of the strict

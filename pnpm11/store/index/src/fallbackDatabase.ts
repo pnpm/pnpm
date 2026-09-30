@@ -51,223 +51,262 @@ export function adaptStoreDatabase (db: SqliteConnection, storeDir: string): Dat
 }
 
 export function createFallbackDatabase (storeDir: string): DatabaseSyncType {
-  const dataPath = path.join(storeDir, FALLBACK_INDEX_FILE)
-  let rows = new Map<string, Uint8Array>()
-  let revision = -1
-  let tx: Map<string, Uint8Array> | null = null
+  const state: FallbackState = {
+    dataPath: path.join(storeDir, FALLBACK_INDEX_FILE),
+    rows: new Map(),
+    revision: -1,
+    tx: null,
+  }
 
   const db = {
     exec (sql: string): void {
-      prepare(sql).run()
+      prepareFallbackStatement(state, sql).run()
     },
     prepare (sql: string): StatementSync {
-      return prepare(sql) as unknown as StatementSync
+      return prepareFallbackStatement(state, sql) as unknown as StatementSync
     },
     close (): void {
-      tx = null
+      state.tx = null
     },
   }
   fallbackDatabases.add(db)
   return db as unknown as DatabaseSyncType
+}
 
-  function prepare (sql: string): BoundStatement {
-    const normalized = normalizeSql(sql)
-    if (
-      normalized.startsWith('pragma ') ||
-      normalized.startsWith('vacuum') ||
-      normalized.startsWith('create table')
-    ) {
-      return statement({})
-    }
-    if (normalized.startsWith('begin')) {
-      return statement({
-        run: () => {
-          begin()
-          return done(0)
-        },
-      })
-    }
-    if (normalized === 'commit') {
-      return statement({
-        run: () => {
-          commit()
-          return done(0)
-        },
-      })
-    }
-    if (normalized === 'rollback') {
-      return statement({
-        run: () => {
-          rollback()
-          return done(0)
-        },
-      })
-    }
-    if (normalized.startsWith('select data from package_index where key')) {
-      return statement({
-        get: (key: unknown) => {
-          const data = view().get(String(key))
-          return data == null ? undefined : { data }
-        },
-      })
-    }
-    if (normalized.startsWith('select 1 from package_index where key')) {
-      return statement({
-        get: (key: unknown) => view().has(String(key)) ? { 1: 1 } : undefined,
-      })
-    }
-    if (normalized.startsWith('select key, data from package_index')) {
-      return statement({
-        iterate: () => iterateEntries(view()),
-      })
-    }
-    if (normalized.startsWith('select key from package_index')) {
-      return statement({
-        iterate: () => iterateKeys(view()),
-      })
-    }
-    if (normalized.startsWith('insert or replace into package_index')) {
-      return statement({
-        run: (key: unknown, data: unknown) => {
-          const bytes = copyBytes(data)
-          mutate(map => {
-            map.set(String(key), bytes)
-          })
-          return done(1)
-        },
-      })
-    }
-    if (normalized.startsWith('delete from package_index where key')) {
-      return statement({
-        run: (key: unknown) => {
-          let changes = 0
-          mutate(map => {
-            changes = map.delete(String(key)) ? 1 : 0
-          })
-          return done(changes)
-        },
-      })
-    }
+interface FallbackState {
+  dataPath: string
+  rows: Map<string, Uint8Array>
+  revision: number
+  tx: Map<string, Uint8Array> | null
+}
+
+interface Snapshot {
+  generation: number
+  rows: Map<string, Uint8Array>
+}
+
+interface FallbackStatementDefinition {
+  matches: (normalizedSql: string) => boolean
+  createHandlers: (state: FallbackState) => Partial<BoundStatement>
+}
+
+const NO_OP_SQL_PREFIXES = ['pragma ', 'vacuum', 'create table']
+
+const FALLBACK_STATEMENTS: FallbackStatementDefinition[] = [
+  {
+    matches: (normalizedSql) => NO_OP_SQL_PREFIXES.some((prefix) => normalizedSql.startsWith(prefix)),
+    createHandlers: () => ({}),
+  },
+  {
+    matches: sqlStartsWith('begin'),
+    createHandlers: (state) => ({ run: () => runAndReportNoChanges(() => begin(state)) }),
+  },
+  {
+    matches: sqlEquals('commit'),
+    createHandlers: (state) => ({ run: () => runAndReportNoChanges(() => commit(state)) }),
+  },
+  {
+    matches: sqlEquals('rollback'),
+    createHandlers: (state) => ({ run: () => runAndReportNoChanges(() => rollback(state)) }),
+  },
+  {
+    matches: sqlStartsWith('select data from package_index where key'),
+    createHandlers: (state) => ({
+      get: (key: unknown) => {
+        const data = view(state).get(String(key))
+        return data == null ? undefined : { data }
+      },
+    }),
+  },
+  {
+    matches: sqlStartsWith('select 1 from package_index where key'),
+    createHandlers: (state) => ({
+      get: (key: unknown) => view(state).has(String(key)) ? { 1: 1 } : undefined,
+    }),
+  },
+  {
+    matches: sqlStartsWith('select key, data from package_index'),
+    createHandlers: (state) => ({
+      iterate: () => iterateEntries(view(state)),
+    }),
+  },
+  {
+    matches: sqlStartsWith('select key from package_index'),
+    createHandlers: (state) => ({
+      iterate: () => iterateKeys(view(state)),
+    }),
+  },
+  {
+    matches: sqlStartsWith('insert or replace into package_index'),
+    createHandlers: (state) => ({
+      run: (key: unknown, data: unknown) => {
+        const bytes = copyBytes(data)
+        mutate(state, map => {
+          map.set(String(key), bytes)
+        })
+        return done(1)
+      },
+    }),
+  },
+  {
+    matches: sqlStartsWith('delete from package_index where key'),
+    createHandlers: (state) => ({
+      run: (key: unknown) => {
+        let changes = 0
+        mutate(state, map => {
+          changes = map.delete(String(key)) ? 1 : 0
+        })
+        return done(changes)
+      },
+    }),
+  },
+]
+
+function prepareFallbackStatement (state: FallbackState, sql: string): BoundStatement {
+  const normalized = normalizeSql(sql)
+  const definition = FALLBACK_STATEMENTS.find(({ matches }) => matches(normalized))
+  if (definition == null) {
     throw new Error(`The store index fallback cannot run this SQL: ${sql}`)
   }
+  return statement(definition.createHandlers(state))
+}
 
-  function begin (): void {
-    if (tx != null) {
-      throw new Error('Cannot begin a store index fallback transaction while one is open')
-    }
-    reloadIfStale()
-    tx = new Map(rows)
+function sqlStartsWith (prefix: string): (normalizedSql: string) => boolean {
+  return (normalizedSql) => normalizedSql.startsWith(prefix)
+}
+
+function sqlEquals (expected: string): (normalizedSql: string) => boolean {
+  return (normalizedSql) => normalizedSql === expected
+}
+
+function runAndReportNoChanges (action: () => void): RunResult {
+  action()
+  return done(0)
+}
+
+function begin (state: FallbackState): void {
+  if (state.tx != null) {
+    throw new Error('Cannot begin a store index fallback transaction while one is open')
   }
+  reloadIfStale(state)
+  state.tx = new Map(state.rows)
+}
 
-  function commit (): void {
-    if (tx == null) {
-      throw new Error('Cannot commit a store index fallback transaction when none is open')
-    }
-    const committed = tx
-    const previous = rows
-    tx = null
-    rows = committed
+function commit (state: FallbackState): void {
+  if (state.tx == null) {
+    throw new Error('Cannot commit a store index fallback transaction when none is open')
+  }
+  const committed = state.tx
+  const previous = state.rows
+  state.tx = null
+  state.rows = committed
+  try {
+    writeThrough(state)
+  } catch (err: unknown) {
+    state.rows = previous
+    state.revision = -1
+    reloadIfStale(state)
+    throw err
+  }
+}
+
+function rollback (state: FallbackState): void {
+  state.tx = null
+}
+
+function view (state: FallbackState): Map<string, Uint8Array> {
+  if (state.tx != null) return state.tx
+  reloadIfStale(state)
+  return state.rows
+}
+
+function mutate (state: FallbackState, apply: (map: Map<string, Uint8Array>) => void): void {
+  if (state.tx != null) {
+    apply(state.tx)
+    return
+  }
+  reloadIfStale(state)
+  const previous = state.rows
+  const nextRows = new Map(state.rows)
+  apply(nextRows)
+  state.rows = nextRows
+  try {
+    writeThrough(state)
+  } catch (err: unknown) {
+    state.rows = previous
+    throw err
+  }
+}
+
+function reloadIfStale (state: FallbackState): void {
+  if (state.tx != null) return
+  const snapshot = readSnapshot(state)
+  if (snapshot.generation === state.revision) return
+  state.rows = snapshot.rows
+  state.revision = snapshot.generation
+}
+
+function readSnapshot (state: FallbackState): Snapshot {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const snapshot = tryReadSnapshot(state)
+    if (snapshot != null) return snapshot
+    sleepSync(1)
+  }
+  throw new PnpmError(
+    'STORE_INDEX_FALLBACK_CORRUPT',
+    `Could not read the store index fallback file at ${state.dataPath}`
+  )
+}
+
+/**
+ * Returns undefined when the file is mid-write (torn header, a header that
+ * does not match the body, or an undecodable body), so the caller retries.
+ */
+function tryReadSnapshot (state: FallbackState): Snapshot | undefined {
+  const generation = readGeneration(state.dataPath)
+  if (generation === undefined) return undefined
+  if (generation === state.revision) {
+    return { generation, rows: state.rows }
+  }
+  if (generation === 0) {
+    return { generation: 0, rows: new Map() }
+  }
+  const packed = readFallbackFile(state.dataPath)
+  if (packed == null) {
+    return { generation: 0, rows: new Map() }
+  }
+  if (packed.length < 4 || packed.readUInt32BE(0) !== generation) return undefined
+  const decodedRows = decodeRows(packed.subarray(4))
+  if (decodedRows == null) return undefined
+  return { generation, rows: decodedRows }
+}
+
+function readFallbackFile (dataPath: string): Buffer | undefined {
+  try {
+    return fs.readFileSync(dataPath)
+  } catch (err: unknown) {
+    if (!isEnoent(err)) throw err
+    return undefined
+  }
+}
+
+function writeThrough (state: FallbackState): void {
+  const next = nextGeneration(state.revision)
+  const body = fallbackPackr.pack([...state.rows.entries()])
+  const payload = new Uint8Array(4 + body.length)
+  new DataView(payload.buffer, payload.byteOffset, payload.byteLength).setUint32(0, next)
+  payload.set(body, 4)
+  const tmp = `${state.dataPath}.${process.pid}.${threadId}.tmp`
+  try {
+    fs.writeFileSync(tmp, payload)
+    renameFileWithRetry(tmp, state.dataPath)
+  } catch (err: unknown) {
     try {
-      writeThrough()
-    } catch (err: unknown) {
-      rows = previous
-      revision = -1
-      reloadIfStale()
-      throw err
-    }
+      fs.rmSync(tmp, { force: true })
+    } catch {}
+    throw err
   }
-
-  function rollback (): void {
-    tx = null
-  }
-
-  function view (): Map<string, Uint8Array> {
-    if (tx != null) return tx
-    reloadIfStale()
-    return rows
-  }
-
-  function mutate (apply: (map: Map<string, Uint8Array>) => void): void {
-    if (tx != null) {
-      apply(tx)
-      return
-    }
-    reloadIfStale()
-    const previous = rows
-    const nextRows = new Map(rows)
-    apply(nextRows)
-    rows = nextRows
-    try {
-      writeThrough()
-    } catch (err: unknown) {
-      rows = previous
-      throw err
-    }
-  }
-
-  function reloadIfStale (): void {
-    if (tx != null) return
-    const snapshot = readSnapshot()
-    if (snapshot.generation === revision) return
-    rows = snapshot.rows
-    revision = snapshot.generation
-  }
-
-  function readSnapshot (): { generation: number, rows: Map<string, Uint8Array> } {
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const generation = readGeneration(dataPath)
-      if (generation === undefined) {
-        sleepSync(1)
-        continue
-      }
-      if (generation === revision) {
-        return { generation, rows }
-      }
-      if (generation === 0) {
-        return { generation: 0, rows: new Map() }
-      }
-      let packed: Buffer
-      try {
-        packed = fs.readFileSync(dataPath)
-      } catch (err: unknown) {
-        if (!isEnoent(err)) throw err
-        return { generation: 0, rows: new Map() }
-      }
-      if (packed.length < 4 || packed.readUInt32BE(0) !== generation) {
-        sleepSync(1)
-        continue
-      }
-      const decodedRows = decodeRows(packed.subarray(4))
-      if (decodedRows == null) {
-        sleepSync(1)
-        continue
-      }
-      return { generation, rows: decodedRows }
-    }
-    throw new PnpmError(
-      'STORE_INDEX_FALLBACK_CORRUPT',
-      `Could not read the store index fallback file at ${dataPath}`
-    )
-  }
-
-  function writeThrough (): void {
-    const next = nextGeneration(revision)
-    const body = fallbackPackr.pack([...rows.entries()])
-    const payload = new Uint8Array(4 + body.length)
-    new DataView(payload.buffer, payload.byteOffset, payload.byteLength).setUint32(0, next)
-    payload.set(body, 4)
-    const tmp = `${dataPath}.${process.pid}.${threadId}.tmp`
-    try {
-      fs.writeFileSync(tmp, payload)
-      renameFileWithRetry(tmp, dataPath)
-    } catch (err: unknown) {
-      try {
-        fs.rmSync(tmp, { force: true })
-      } catch {}
-      throw err
-    }
-    revision = next
-  }
+  state.revision = next
 }
 
 export function isFallbackDatabase (db: object): boolean {

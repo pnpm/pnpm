@@ -13,7 +13,7 @@ import { temporaryDirectory } from 'tempy'
 
 import { setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
 const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(path.join(import.meta.dirname, 'fixtures/is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

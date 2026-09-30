@@ -55,7 +55,7 @@ export interface DirDiff {
 
 // length comparison should place every directory before the files it contains because
 // a directory path is always shorter than any file path it contains
-const comparePaths = (a: string, b: string): number => (a.split(/\\|\//).length - b.split(/\\|\//).length) || a.localeCompare(b)
+const comparePaths = (left: string, right: string): number => (left.split(/\\|\//).length - right.split(/\\|\//).length) || left.localeCompare(right)
 
 /**
  * Get the difference between 2 files tree.
@@ -69,15 +69,15 @@ export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
   const newPaths = Object.keys(newIndex).sort(comparePaths)
 
   const removed: RemovedItem[] = oldPaths
-    .filter(path => !(path in newIndex))
+    .filter(path => !Object.hasOwn(newIndex, path))
     .map(path => ({ path, oldValue: oldIndex[path] }))
 
   const added: AddedItem[] = newPaths
-    .filter(path => !(path in oldIndex))
+    .filter(path => !Object.hasOwn(oldIndex, path))
     .map(path => ({ path, newValue: newIndex[path] }))
 
   const modified: ModifiedItem[] = oldPaths
-    .filter(path => path in newIndex && oldIndex[path] !== newIndex[path])
+    .filter(path => Object.hasOwn(newIndex, path) && oldIndex[path] !== newIndex[path])
     .map(path => ({ path, oldValue: oldIndex[path], newValue: newIndex[path] }))
 
   return { added, removed, modified }
@@ -89,104 +89,86 @@ export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
  * The {@link optimizedDirPatch} is assumed to be already optimized (i.e. `removed` is already reversed).
  */
 export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string, targetDir: string): Promise<void> {
-  async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
-    if (value === DIR) {
-      await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
-    } else if (typeof value === 'string') {
-      fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-      await retryOverBlockingInode(targetPath, async () => linkOrCopy(sourcePath, targetPath))
-    } else {
-      const _: never = value // static type guard
-    }
-  }
-
-  async function linkOrCopy (sourcePath: string, targetPath: string): Promise<void> {
-    try {
-      await fs.promises.link(sourcePath, targetPath)
-    } catch (error) {
-      if (isError(error) && 'code' in error && error.code === 'EXDEV') {
-        await copyIntoPlace(sourcePath, targetPath)
-        return
-      }
-      throw error
-    }
-  }
-
-  /**
-   * Copy through a temp sibling, so that a reader of the target never sees a
-   * partial copy. The rename replaces a symlink at the target without following
-   * it.
-   */
-  async function copyIntoPlace (sourcePath: string, targetPath: string): Promise<void> {
-    // A random name, since concurrent syncs share the thread that writes it.
-    const tempPath = pathTemp(path.dirname(targetPath))
-    try {
-      await fs.promises.copyFile(sourcePath, tempPath, fs.constants.COPYFILE_EXCL)
-      renameFileWithRetry(tempPath, targetPath)
-    } catch (error) {
-      await fs.promises.rm(tempPath, { force: true })
-      throw error
-    }
-  }
-
-  /**
-   * The target may hold an inode that {@link extendFilesMap} skips — a FIFO, a
-   * socket, a device. The diff cannot see it, so it is never scheduled for
-   * removal, and adding over it fails with `EEXIST`. Clear that path and retry
-   * once instead of aborting the sync partway through.
-   */
-  async function retryOverBlockingInode (targetPath: string, add: () => Promise<unknown>): Promise<void> {
-    try {
-      await add()
-    } catch (error) {
-      if (!isError(error) || !('code' in error) || (error.code !== 'EEXIST')) {
-        throw error
-      }
-      await removeRecursive(targetPath)
-      await add()
-    }
-  }
-
-  async function removeRecursive (targetPath: string): Promise<void> {
-    try {
-      await fs.promises.rm(targetPath, { recursive: true, force: true })
-    } catch (error) {
-      if (!isError(error) || !('code' in error) || (error.code !== 'ENOENT')) {
-        throw error
-      }
-    }
-  }
-
-  async function applyChange (item: AddedItem | ModifiedItem): Promise<void> {
-    const sourcePath = path.join(sourceDir, item.path)
-    const targetPath = path.join(targetDir, item.path)
-    if (item.oldValue !== undefined) {
-      await removeRecursive(targetPath)
-    }
-    await addRecursive(sourcePath, targetPath, item.newValue)
-  }
-
-  const changes: Array<AddedItem | ModifiedItem> = [...optimizedDirPatch.added, ...optimizedDirPatch.modified]
-    .filter(item => item.oldValue !== item.newValue)
+  const changes = collectPatchChanges(optimizedDirPatch)
   const newDirs = changes.filter(item => item.newValue === DIR).sort((a, b) => comparePaths(a.path, b.path))
   const newFiles = changes.filter(item => item.newValue !== DIR)
 
-  // The phase order is load-bearing twice over. Removals go first, so a path
-  // the source turned from a directory into a file still has a directory in it
-  // when its dropped children are unlinked. Directories then go in ahead of the
-  // files they hold, so a directory is always empty when it displaces what the
-  // target held at its path — otherwise a removal landing late would take out
-  // files a sibling had already linked. A path the target holds as a file and
-  // the source as a directory lands in `modified` rather than `added`, so both
-  // arrays feed the directory pass.
   for (const item of optimizedDirPatch.removed) {
-    await removeRecursive(path.join(targetDir, item.path)) // eslint-disable-line no-await-in-loop
+    await removeRecursive(path.join(targetDir, item.path)) // eslint-disable-line no-await-in-loop -- removals finish before the directory pass
   }
 
   for (const item of newDirs) {
-    await applyChange(item) // eslint-disable-line no-await-in-loop
+    await applyPatchChange(item, sourceDir, targetDir) // eslint-disable-line no-await-in-loop -- a directory is created only after its parent
   }
-  await Promise.all(newFiles.map(applyChange))
+  await Promise.all(newFiles.map(item => applyPatchChange(item, sourceDir, targetDir)))
+}
+
+function collectPatchChanges (optimizedDirPatch: DirDiff): Array<AddedItem | ModifiedItem> {
+  return [...optimizedDirPatch.added, ...optimizedDirPatch.modified]
+    .filter(item => item.oldValue !== item.newValue)
+}
+
+async function applyPatchChange (item: AddedItem | ModifiedItem, sourceDir: string, targetDir: string): Promise<void> {
+  const sourcePath = path.join(sourceDir, item.path)
+  const targetPath = path.join(targetDir, item.path)
+  if (item.oldValue !== undefined) {
+    await removeRecursive(targetPath)
+  }
+  await addRecursive(sourcePath, targetPath, item.newValue)
+}
+
+async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
+  if (value === DIR) {
+    await retryOverBlockingInode(targetPath, async () => fs.promises.mkdir(targetPath, { recursive: true }))
+  } else if (typeof value === 'string') {
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+    await retryOverBlockingInode(targetPath, async () => linkOrCopy(sourcePath, targetPath))
+  }
+}
+
+async function linkOrCopy (sourcePath: string, targetPath: string): Promise<void> {
+  try {
+    await fs.promises.link(sourcePath, targetPath)
+  } catch (error) {
+    if (isError(error) && 'code' in error && error.code === 'EXDEV') {
+      await copyIntoPlace(sourcePath, targetPath)
+      return
+    }
+    throw error
+  }
+}
+
+async function copyIntoPlace (sourcePath: string, targetPath: string): Promise<void> {
+  const tempPath = pathTemp(path.dirname(targetPath))
+  try {
+    await fs.promises.copyFile(sourcePath, tempPath, fs.constants.COPYFILE_EXCL)
+    renameFileWithRetry(tempPath, targetPath)
+  } catch (error) {
+    await fs.promises.rm(tempPath, { force: true })
+    throw error
+  }
+}
+
+async function retryOverBlockingInode (targetPath: string, add: () => Promise<unknown>): Promise<void> {
+  try {
+    await add()
+  } catch (error) {
+    if (!isError(error) || !('code' in error) || (error.code !== 'EEXIST')) {
+      throw error
+    }
+    await removeRecursive(targetPath)
+    await add()
+  }
+}
+
+async function removeRecursive (targetPath: string): Promise<void> {
+  try {
+    await fs.promises.rm(targetPath, { recursive: true, force: true })
+  } catch (error) {
+    if (!isError(error) || !('code' in error) || (error.code !== 'ENOENT')) {
+      throw error
+    }
+  }
 }
 
 export type ExtendFilesMapStats = Pick<fs.Stats, 'dev' | 'ino' | 'isFile' | 'isDirectory'>
@@ -209,8 +191,9 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   }
 
   function addInodeAndAncestors (relativePath: string, value: Value): void {
-    if (relativePath && relativePath !== '.' && !result[relativePath]) {
-      result[relativePath] = value
+    if (relativePath && relativePath !== '.' && !Object.hasOwn(result, relativePath)) {
+      // A plain assignment would set the prototype for a file named `__proto__`.
+      Object.defineProperty(result, relativePath, { value, writable: true, enumerable: true, configurable: true })
       addInodeAndAncestors(path.dirname(relativePath), DIR)
     }
   }
@@ -259,36 +242,65 @@ export async function publishEditsForWatchers (
   const { dir: sourceDir, map: sourceMap } = source
   const targetMap = await extendFilesMap(await fetchFromDir(targetDir, WATCH_FETCH_OPTIONS))
 
+  await syncRemovedWatchPaths(targetMap, sourceMap, targetDir)
+  const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
+  await syncDirectoryWatchPaths(sourcePaths, sourceMap, targetMap, targetDir)
+  await syncFileWatchPaths({ sourcePaths, sourceMap, targetMap, sourceDir, targetDir, editedSinceMs })
+}
+
+async function syncRemovedWatchPaths (targetMap: InodeMap, sourceMap: InodeMap, targetDir: string): Promise<void> {
   const removed = Object.keys(targetMap)
-    .filter(relPath => !(relPath in sourceMap) && relPath !== '.')
+    .filter(relPath => !Object.hasOwn(sourceMap, relPath) && relPath !== '.')
     .sort(comparePaths)
     .reverse()
   for (const relPath of removed) {
-    await removePath(path.join(targetDir, relPath)) // eslint-disable-line no-await-in-loop
+    await removePath(path.join(targetDir, relPath)) // eslint-disable-line no-await-in-loop -- children are removed before parent
   }
+}
 
-  const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
+async function syncDirectoryWatchPaths (
+  sourcePaths: string[],
+  sourceMap: InodeMap,
+  targetMap: InodeMap,
+  targetDir: string
+): Promise<void> {
   for (const relPath of sourcePaths) {
     if (sourceMap[relPath] !== DIR || relPath === '.') continue
     const targetPath = path.join(targetDir, relPath)
-    if (targetMap[relPath] != null && targetMap[relPath] !== DIR) {
-      await removePath(targetPath) // eslint-disable-line no-await-in-loop
+    if (Object.hasOwn(targetMap, relPath) && targetMap[relPath] !== DIR) {
+      await removePath(targetPath) // eslint-disable-line no-await-in-loop -- directory created after parent
     }
-    await fs.promises.mkdir(targetPath, { recursive: true }) // eslint-disable-line no-await-in-loop
+    await fs.promises.mkdir(targetPath, { recursive: true }) // eslint-disable-line no-await-in-loop -- directory created after parent
   }
+}
 
+async function syncFileWatchPaths ({
+  sourcePaths,
+  sourceMap,
+  targetMap,
+  sourceDir,
+  targetDir,
+  editedSinceMs,
+}: {
+  sourcePaths: string[]
+  sourceMap: InodeMap
+  targetMap: InodeMap
+  sourceDir: string
+  targetDir: string
+  editedSinceMs: number
+}): Promise<void> {
   for (const relPath of sourcePaths) {
     const sourceValue = sourceMap[relPath]
     if (typeof sourceValue !== 'string') continue
     const sourcePath = path.join(sourceDir, relPath)
     const targetPath = path.join(targetDir, relPath)
-    const sourceStat = await fs.promises.stat(sourcePath) // eslint-disable-line no-await-in-loop
+    const sourceStat = await fs.promises.stat(sourcePath) // eslint-disable-line no-await-in-loop -- published in path order
     const targetValue = targetMap[relPath]
     const targetStat = typeof targetValue === 'string'
-      ? await statFile(targetPath) // eslint-disable-line no-await-in-loop
+      ? await statFile(targetPath) // eslint-disable-line no-await-in-loop -- published in path order
       : null
     if (!shouldPublish({ sourceStat, targetStat, sourceId: sourceValue, targetValue, editedSinceMs })) continue
-    await copyForWatchers(sourcePath, targetPath, sourceStat) // eslint-disable-line no-await-in-loop
+    await copyForWatchers(sourcePath, targetPath, sourceStat) // eslint-disable-line no-await-in-loop -- published in path order
   }
 }
 

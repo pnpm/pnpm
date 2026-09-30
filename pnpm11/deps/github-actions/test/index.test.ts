@@ -382,6 +382,24 @@ jobs:
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'b'.repeat(40)} # v5.0.0`)
   })
 
+  test('updates the comment version when the action name contains the same text', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: owner/setup-v4.1.0@${'a'.repeat(40)} # v4.1.0
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: owner/setup-v4.1.0@${'b'.repeat(40)} # v4.2.0`)
+  })
+
   test('pins an already-current floating major tag', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:

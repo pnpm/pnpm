@@ -5,8 +5,9 @@ pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
-    ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
-    check_lockfile_settings_drift, parse_config_overrides,
+    ImporterSatisfactionCheck, OptionalDependencyExclusions, WorkspaceProjects,
+    check_importer_satisfies, check_lockfile_settings_drift, parse_config_overrides,
+    project_manifests_by_dir,
 };
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,

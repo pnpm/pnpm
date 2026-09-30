@@ -108,7 +108,7 @@ jobs:
         .github/scripts/npm-staged-publication.test.sh
         .github/scripts/issue-fix-intent.test.sh
         .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
-        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs .github/scripts/assert-windows-crt-static.test.mjs
+        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/wait-for-pnpr.test.mjs
     - name: Compile and lint TypeScript
       run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts

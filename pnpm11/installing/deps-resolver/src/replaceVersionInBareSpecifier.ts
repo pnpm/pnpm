@@ -8,19 +8,7 @@ export function replaceVersionInBareSpecifier (
   if (semver.validRange(bareSpecifier)) {
     return version
   }
-  let prefix: string | undefined
-  if (bareSpecifier.startsWith('npm:')) {
-    prefix = 'npm:'
-  } else if (bareSpecifier.startsWith('jsr:')) {
-    prefix = 'jsr:'
-  } else {
-    for (const candidate of namedRegistryPrefixes) {
-      if (bareSpecifier.startsWith(candidate)) {
-        prefix = candidate
-        break
-      }
-    }
-  }
+  const prefix = findSpecifierPrefix(bareSpecifier, namedRegistryPrefixes)
   if (prefix == null) {
     return bareSpecifier
   }
@@ -35,4 +23,10 @@ export function replaceVersionInBareSpecifier (
     return `${bareSpecifier}@${version}`
   }
   return `${bareSpecifier.substring(0, versionDelimiter + 1)}${version}`
+}
+
+function findSpecifierPrefix (bareSpecifier: string, namedRegistryPrefixes: readonly string[]): string | undefined {
+  if (bareSpecifier.startsWith('npm:')) return 'npm:'
+  if (bareSpecifier.startsWith('jsr:')) return 'jsr:'
+  return namedRegistryPrefixes.find((candidate) => bareSpecifier.startsWith(candidate))
 }

@@ -11,6 +11,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
+    ffi::OsString,
     fs, io,
     os::unix::process::ExitStatusExt,
     path::Path,
@@ -19,6 +20,9 @@ use std::{
     thread::{self, sleep},
     time::{Duration, Instant},
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
 
 /// How long a script is given to shut down before the test gives up. Well
 /// past the second the fixtures take, and short enough to report a stuck
@@ -192,15 +196,7 @@ fn ctrl_c_interrupts_the_script_once() {
 #[test]
 fn a_nested_run_keeps_the_scripts_exit_status_after_ctrl_c() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let pnpm = pacquet.get_program().to_owned();
-    let bin = root.path().join("bin");
-    fs::create_dir_all(&bin).expect("create a bin directory");
-    std::os::unix::fs::symlink(&pnpm, bin.join("pnpm")).expect("expose the test pnpm as pnpm");
-    let path = std::env::join_paths(
-        std::iter::once(bin)
-            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
-    )
-    .expect("join PATH");
+    let path = path_with_the_tested_pnpm(&pacquet, root.path());
     write_project_running(&workspace, "test", "node dev.js", GRACEFUL_SCRIPT);
     let manifest = json!({
         "name": "test",
@@ -329,6 +325,41 @@ fn a_termination_without_a_terminal_reaches_the_script_behind_its_shell() {
     write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
 
     let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    signal(&process, libc::SIGTERM);
+    wait_for_shutdown(&mut process);
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
+
+    drop(root);
+}
+
+/// As a container's PID 1, pnpm adopts the processes whose parent died. A
+/// relayed `SIGTERM` ends both shells of a nested `pnpm run` at once, so the
+/// script becomes a child of the outer pnpm and stays a zombie in the inner
+/// pnpm's process group until the outer pnpm reaps it. The inner pnpm must
+/// not wait for that zombie, or neither pnpm ever exits.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_nested_run_ends_after_a_termination_when_pnpm_adopts_the_orphans() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let path = path_with_the_tested_pnpm(&pacquet, root.path());
+    fs::write(workspace.join("dev.js"), SIGNAL_SCRIPT).expect("write the script");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "dev": "node dev.js", "nested": "pnpm run dev" },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    let mut command = pacquet
+        .with_env("PATH", path)
+        .with_args(["--config.verify-deps-before-run=false", "run", "nested"]);
+    adopt_orphans(&mut command);
+    let mut process = spawn_without_terminal(command);
     wait_for_file(&workspace.join("started.txt"), &mut process);
     signal(&process, libc::SIGTERM);
     wait_for_shutdown(&mut process);
@@ -549,6 +580,37 @@ fn write_workspace(workspace: &Path, projects: &[&str], script: &str) {
         let dir = workspace.join(name);
         fs::create_dir_all(&dir).expect("create the project directory");
         write_project(&dir, name, script);
+    }
+}
+
+/// A `PATH` on which the pnpm under test is `pnpm`, so a script that runs
+/// `pnpm` again runs the same build.
+fn path_with_the_tested_pnpm(pacquet: &Command, root: &Path) -> OsString {
+    let bin = root.join("bin");
+    fs::create_dir_all(&bin).expect("create a bin directory");
+    std::os::unix::fs::symlink(pacquet.get_program(), bin.join("pnpm"))
+        .expect("expose the test pnpm as pnpm");
+    std::env::join_paths(
+        std::iter::once(bin)
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
+    )
+    .expect("join PATH")
+}
+
+/// Make the process that `command` starts adopt the orphans among its
+/// descendants, as a container's PID 1 does, without making the test
+/// itself their parent.
+#[cfg(target_os = "linux")]
+fn adopt_orphans(command: &mut Command) {
+    // SAFETY: `prctl` is async-signal-safe, which is all a `pre_exec` hook
+    // between `fork` and `exec` may call. The attribute survives `exec`.
+    unsafe {
+        command.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1) < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
     }
 }
 

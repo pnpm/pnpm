@@ -301,9 +301,9 @@ test('still able to shallow fetch for allowed hosts', async () => {
       [...prefixGitArgs(), 'fetch', '--depth', '1', 'origin', resolution.commit],
     ],
   ]
-  for (let i = 1; i < expectedCalls.length; i++) {
+  for (let callIndex = 1; callIndex < expectedCalls.length; callIndex++) {
     // Discard final argument as it passes temporary directory
-    expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
+    expect(calls[callIndex].slice(0, -1)).toEqual(expectedCalls[callIndex])
   }
   expect(filesMap.has('package.json')).toBeTruthy()
   expect(manifest?.name).toBe('is-positive')
@@ -639,7 +639,7 @@ function failGit (err: Error): void {
   jest.mocked(execa).mockImplementation(((_file: string, args?: readonly string[]) => {
     if (args?.[0] === 'config') return Promise.reject(new Error('core.sshCommand is not configured'))
     throw err
-  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }) as unknown as typeof execa)
 }
 
 async function fetchFailure (fetching: Promise<unknown>): Promise<PnpmError> {
@@ -651,11 +651,11 @@ async function fetchFailure (fetching: Promise<unknown>): Promise<PnpmError> {
   )
 }
 
-async function withoutSsh<T> (fn: () => Promise<T>): Promise<T> {
+async function withoutSsh<Result> (fn: () => Promise<Result>): Promise<Result> {
   return withEnv({ GIT_SSH_COMMAND: 'false' }, fn)
 }
 
-async function withEnv<T> (vars: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
+async function withEnv<Result> (vars: Record<string, string | undefined>, fn: () => Promise<Result>): Promise<Result> {
   const original = Object.fromEntries(Object.keys(vars).map((name) => [name, process.env[name]]))
   setEnv(vars)
   try {

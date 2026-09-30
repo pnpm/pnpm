@@ -3,7 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use pretty_assertions::assert_eq;
 use std::{fs, process::Command};
 
@@ -220,6 +220,35 @@ fn config_set_ca_array_json_writes_unbracketed_ca_keys_to_clean_file() {
     assert!(text.contains("ca=cert-y"));
     assert!(!text.contains("ca[]="));
     assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    drop(root);
+}
+
+/// A project's `pnpm-workspace.yaml` carries no machine-level state, so
+/// `--location=project` refuses one and tells the user where it belongs.
+#[test]
+fn config_set_refuses_a_machine_level_key_in_the_project_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: ~/store\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["config", "set", "--location=project", "state-dir", "/somewhere"])
+        .output()
+        .expect("run pnpm config set");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "unexpected success: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING"), "stderr={stderr}");
+    assert_diagnostic_contains(
+        &stderr,
+        "Set it for the machine instead: pnpm config set --global state-dir",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml"),
+        "storeDir: ~/store\n",
+    );
 
     drop(root);
 }

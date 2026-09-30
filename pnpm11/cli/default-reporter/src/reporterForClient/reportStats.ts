@@ -54,6 +54,15 @@ export function reportStats (
   return outputs
 }
 
+// These commands log the stats of the current package twice: once for the
+// added and once for the removed packages.
+const COMMANDS_WITH_TWO_STATS_LOGS = new Set(['install', 'install-test', 'add', 'update', 'dlx'])
+
+interface PackageStats {
+  added?: number
+  removed?: number
+}
+
 function statsForCurrentPackage (
   stats$: Rx.Observable<StatsLog>,
   opts: {
@@ -62,15 +71,8 @@ function statsForCurrentPackage (
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return stats$.pipe(
-    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update' || opts.cmd === 'dlx') ? 2 : 1),
-    reduce((acc, log) => {
-      if (typeof log['added'] === 'number') {
-        acc['added'] = log['added']
-      } else if (typeof log['removed'] === 'number') {
-        acc['removed'] = log['removed']
-      }
-      return acc
-    }, {} as { added?: number, removed?: number }),
+    take(COMMANDS_WITH_TWO_STATS_LOGS.has(opts.cmd) ? 2 : 1),
+    reduce(addStatsLog, {} as PackageStats),
     map((stats) => {
       if (!stats['removed'] && !stats['added']) {
         if (opts.cmd === 'link') {
@@ -78,19 +80,37 @@ function statsForCurrentPackage (
         }
         return Rx.of({ msg: 'Already up to date' })
       }
-
-      let msg = 'Packages:'
-      if (stats['added']) {
-        msg += ' ' + chalk.green(`+${stats['added'].toString()}`)
-      }
-      if (stats['removed']) {
-        msg += ' ' + chalk.red(`-${stats['removed'].toString()}`)
-      }
-      msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] ?? 0), (stats['removed'] ?? 0))
-      return Rx.of({ msg })
+      return Rx.of({ msg: formatCurrentPackageStats(stats, opts.width) })
     })
   )
 }
+
+function addStatsLog (acc: PackageStats, log: StatsLog): PackageStats {
+  if (typeof log['added'] === 'number') {
+    acc['added'] = log['added']
+  } else if (typeof log['removed'] === 'number') {
+    acc['removed'] = log['removed']
+  }
+  return acc
+}
+
+function formatCurrentPackageStats (stats: PackageStats, width: number): string {
+  let msg = 'Packages:'
+  if (stats['added']) {
+    msg += ' ' + chalk.green(`+${stats['added'].toString()}`)
+  }
+  if (stats['removed']) {
+    msg += ' ' + chalk.red(`-${stats['removed'].toString()}`)
+  }
+  msg += EOL + printPlusesAndMinuses(width, (stats['added'] ?? 0), (stats['removed'] ?? 0))
+  return msg
+}
+
+type StatsByPrefix = Record<string, StatsLog>
+
+type CookedStats =
+  | { prefix: string, added?: number, removed?: number }
+  | { seed: StatsByPrefix, value: null, prefix?: never, added?: never, removed?: never }
 
 function statsForNotCurrentPackage (
   stats$: Rx.Observable<StatsLog>,
@@ -100,64 +120,69 @@ function statsForNotCurrentPackage (
     width: number
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
-  const stats: Record<string, StatsLog> = {}
-  type CookedStats =
-    | { prefix: string, added?: number, removed?: number }
-    | { seed: typeof stats, value: null, prefix?: never, added?: never, removed?: never }
+  const stats: StatsByPrefix = {}
   const cookedStats$ = (
     opts.cmd !== 'remove'
       ? stats$.pipe(
-        map((log): CookedStats => {
-          // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
-          //  1. during linking
-          //  2. during installing
-          // Hence, the stats are added before reported
-          const { prefix } = log
-          if (!stats[prefix]) {
-            stats[prefix] = log
-            return { seed: stats, value: null }
-          } else if (typeof stats[prefix].added === 'number' && typeof log['added'] === 'number') {
-            stats[prefix].added += log['added']
-            return { seed: stats, value: null }
-          } else if (typeof stats[prefix].removed === 'number' && typeof log['removed'] === 'number') {
-            stats[prefix].removed += log['removed']
-            return { seed: stats, value: null }
-          } else {
-            const value = { ...stats[prefix], ...log }
-            delete stats[prefix]
-            return value
-          }
-        }, {})
+        map((log): CookedStats => mergeStatsLog(stats, log), {})
       )
       : stats$
   )
   return cookedStats$.pipe(
     filter((stats) => stats !== null && Boolean(stats['removed'] || stats['added'])),
-    map((stats) => {
-      const parts = [] as string[]
-
-      if (stats['added']) {
-        parts.push(padStep(chalk.green(`+${stats['added'].toString()}`), 4))
-      }
-      if (stats['removed']) {
-        parts.push(padStep(chalk.red(`-${stats['removed'].toString()}`), 4))
-      }
-
-      let msg = zoomOut(opts.currentPrefix, stats.prefix!, parts.join(' '))
-      const rest = Math.max(0, opts.width - 1 - stringLength(msg))
-      msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
-      return Rx.of({ msg })
-    })
+    map((stats) => Rx.of({ msg: formatNotCurrentPackageStats(stats, opts) }))
   )
 }
 
-function padStep (s: string, step: number): string {
-  const sLength = stringLength(s)
-  const placeholderLength = Math.ceil(sLength / step) * step
-  if (sLength < placeholderLength) {
-    return repeat(' ', placeholderLength - sLength).join('') + s
+function mergeStatsLog (stats: StatsByPrefix, log: StatsLog): CookedStats {
+  // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
+  //  1. during linking
+  //  2. during installing
+  // Hence, the stats are added before reported
+  const { prefix } = log
+  if (!stats[prefix]) {
+    stats[prefix] = log
+    return { seed: stats, value: null }
   }
-  return s
+  if (typeof stats[prefix].added === 'number' && typeof log['added'] === 'number') {
+    stats[prefix].added += log['added']
+    return { seed: stats, value: null }
+  }
+  if (typeof stats[prefix].removed === 'number' && typeof log['removed'] === 'number') {
+    stats[prefix].removed += log['removed']
+    return { seed: stats, value: null }
+  }
+  const value = { ...stats[prefix], ...log }
+  delete stats[prefix]
+  return value
+}
+
+function formatNotCurrentPackageStats (
+  stats: CookedStats,
+  opts: { currentPrefix: string, width: number }
+): string {
+  const parts = [] as string[]
+
+  if (stats['added']) {
+    parts.push(padStep(chalk.green(`+${stats['added'].toString()}`), 4))
+  }
+  if (stats['removed']) {
+    parts.push(padStep(chalk.red(`-${stats['removed'].toString()}`), 4))
+  }
+
+  let msg = zoomOut(opts.currentPrefix, stats.prefix!, parts.join(' '))
+  const rest = Math.max(0, opts.width - 1 - stringLength(msg))
+  msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
+  return msg
+}
+
+function padStep (text: string, step: number): string {
+  const textLength = stringLength(text)
+  const placeholderLength = Math.ceil(textLength / step) * step
+  if (textLength < placeholderLength) {
+    return repeat(' ', placeholderLength - textLength).join('') + text
+  }
+  return text
 }
 
 function roundStats (stat: number): number {
@@ -178,8 +203,8 @@ function printPlusesAndMinuses (maxWidth: number, added: number, removed: number
       addedChars = maxWidth
       removedChars = 0
     } else {
-      const p = maxWidth / changes
-      addedChars = Math.min(Math.max(Math.floor(added * p), 1), maxWidth - 1)
+      const charsPerChange = maxWidth / changes
+      addedChars = Math.min(Math.max(Math.floor(added * charsPerChange), 1), maxWidth - 1)
       removedChars = maxWidth - addedChars
     }
   } else {

@@ -122,11 +122,11 @@ async function waitForFile (file: string): Promise<void> {
   const deadline = Date.now() + shutdownTimeout
   while (!fs.existsSync(file)) {
     if (Date.now() > deadline) throw new Error(`${file} did not appear within ${shutdownTimeout}ms`)
-    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polling: each check must wait for the previous delay
   }
 }
 
-async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
+async function withDeadline<Value> (promise: Promise<Value>, timeout: number): Promise<Value | 'timed out'> {
   let timer: NodeJS.Timeout | undefined
   const deadline = new Promise<'timed out'>((resolve) => {
     timer = setTimeout(() => resolve('timed out'), timeout)

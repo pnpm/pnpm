@@ -62,8 +62,8 @@ const MAX_KEY_LENGTH = 255
  * `https://r:443` and `https://r:443/` keeps one cache rather than three. A
  * path that is not all lowercase gets a sha256 suffix, the guard
  * `encodePkgName` applies to package names, because HFS+ and NTFS would
- * otherwise merge `…/Team` into `…/team`. A trailing `.` is escaped because
- * Win32 strips one, which would alias `…/foo.` onto `…/foo`. A key that would
+ * otherwise merge `.../Team` into `.../team`. A trailing `.` is escaped because
+ * Win32 strips one, which would alias `.../foo.` onto `.../foo`. A key that would
  * not fit a 255-byte filename is replaced by its own hash.
  *
  * `registry` must be a URL with a host; a resolver always has both, so
@@ -107,8 +107,8 @@ export function encodeRegistry (registry: string): string {
  * it is dropped.
  *
  * The result is the registry in the trailing-slashed form the resolver
- * normalizes to, which is what makes it the exact inverse: `…%2F` names
- * `https://r//`, one slash more than `…` alone.
+ * normalizes to, which is what makes it the exact inverse: `...%2F` names
+ * `https://r//`, one slash more than `...` alone.
  *
  * `pnpm cache view` labels its output with this. A key carrying no scheme
  * separator decodes to the `host[:port]` it names, so a cache root holding
@@ -149,7 +149,7 @@ function escapeComponent (component: string): string {
  *
  * The only spelling difference that does not reach the registry is a missing
  * trailing slash, because the resolver appends one to a registry configured
- * without it — so `…/a` and `…/a/` share a cache. Every other slash is
+ * without it — so `.../a` and `.../a/` share a cache. Every other slash is
  * significant: `https://r/`, `https://r//` and `https://r///` request
  * `/lodash`, `//lodash` and `///lodash` respectively, so they are three
  * registries and get three directories, carrying one, two and three segments.

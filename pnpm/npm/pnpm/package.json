@@ -11,7 +11,7 @@
       "./dist/node_modules/node-gyp/gyp/gyp"
     ]
   },
-  "version": "12.8.1",
+  "version": "12.8.2",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -19,7 +19,7 @@
     "rust"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm",
+  "homepage": "https://pnpm.io",
   "bugs": "https://github.com/pnpm/pnpm/issues",
   "repository": {
     "type": "git",

@@ -26,6 +26,8 @@ mod in_memory_manifests;
 
 mod overrides;
 
+mod injected;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},

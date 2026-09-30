@@ -28,38 +28,55 @@ export function addFilesFromDir (
     recordSymlinks?: boolean
   } = {}
 ): AddToStoreResult {
-  const filesIndex = new Map() as FilesIndex
-  let hasUnrecordedSymlinks = false
-  let symlinks: Symlink[] = []
-  let manifest: DependencyManifest | undefined
-  let files: File[]
   // Resolve the package root to a canonical path for security validation
   const resolvedRoot = fs.realpathSync(dirname)
-  if (opts.files) {
-    files = []
-    for (const file of opts.files) {
-      const absolutePath = path.join(dirname, file)
-      const result = getStatIfContained(absolutePath, resolvedRoot)
-      hasUnrecordedSymlinks ||= result.isSymbolicLink
-      const { stat } = result
-      if (!stat) {
-        continue
-      }
-      files.push({
-        absolutePath,
-        relativePath: file,
-        stat,
-      })
+  const { files, hasUnrecordedSymlinks, symlinks } = opts.files
+    ? statListedFiles(dirname, resolvedRoot, opts.files)
+    : findFilesInDir(dirname, resolvedRoot, opts)
+  const filesIndex = new Map() as FilesIndex
+  const manifest = addFilesToIndex({ addBuffer, filesIndex, files, readManifest: opts.readManifest })
+  addSymlinksToIndex(addBuffer, filesIndex, symlinks)
+  return { manifest, filesIndex, hasUnrecordedSymlinks }
+}
+
+interface FoundFiles {
+  files: File[]
+  hasUnrecordedSymlinks: boolean
+  symlinks: Symlink[]
+}
+
+function statListedFiles (dirname: string, resolvedRoot: string, listedFiles: string[]): FoundFiles {
+  const files: File[] = []
+  let hasUnrecordedSymlinks = false
+  for (const file of listedFiles) {
+    const absolutePath = path.join(dirname, file)
+    const result = getStatIfContained(absolutePath, resolvedRoot)
+    hasUnrecordedSymlinks ||= result.isSymbolicLink
+    const { stat } = result
+    if (!stat) {
+      continue
     }
-  } else {
-    const result = findFilesInDir(dirname, resolvedRoot, opts)
-    files = result.files
-    hasUnrecordedSymlinks = result.hasUnrecordedSymlinks
-    symlinks = result.symlinks
+    files.push({
+      absolutePath,
+      relativePath: file,
+      stat,
+    })
   }
+  return { files, hasUnrecordedSymlinks, symlinks: [] }
+}
+
+function addFilesToIndex (
+  { addBuffer, filesIndex, files, readManifest }: {
+    addBuffer: (buffer: Buffer, mode: number) => FileWriteResult
+    filesIndex: FilesIndex
+    files: File[]
+    readManifest?: boolean
+  }
+): DependencyManifest | undefined {
+  let manifest: DependencyManifest | undefined
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
-    if (opts.readManifest && relativePath === 'package.json') {
+    if (readManifest && relativePath === 'package.json') {
       manifest = parseJsonBufferSync(buffer) as DependencyManifest
     }
     // Remove the file type information (regular file, directory, etc.) and leave just the permission bits (rwx for owner, group, and others)
@@ -70,6 +87,14 @@ export function addFilesFromDir (
       ...addBuffer(buffer, mode),
     })
   }
+  return manifest
+}
+
+function addSymlinksToIndex (
+  addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
+  filesIndex: FilesIndex,
+  symlinks: Symlink[]
+): void {
   for (const { relativePath, target } of symlinks) {
     const buffer = Buffer.from(target, 'utf8')
     filesIndex.set(relativePath, {
@@ -78,7 +103,6 @@ export function addFilesFromDir (
       ...addBuffer(buffer, SYMLINK_MODE),
     })
   }
-  return { manifest, filesIndex, hasUnrecordedSymlinks }
 }
 
 interface Symlink {
@@ -148,7 +172,7 @@ function findFilesInDir (
   dir: string,
   rootDir: string,
   opts: { includeNodeModules?: boolean, recordSymlinks?: boolean }
-): { files: File[], hasUnrecordedSymlinks: boolean, symlinks: Symlink[] } {
+): FoundFiles {
   const ctx: FindFilesContext = {
     filesList: [],
     includeNodeModules: opts.includeNodeModules ?? false,
@@ -178,65 +202,97 @@ function findFiles (
   relativeDir: string,
   currentRealPath: string
 ): void {
-  const files = fs.readdirSync(dir, { withFileTypes: true })
-  for (const file of files) {
-    const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
-    const absolutePath = path.join(dir, file.name)
-    let nextRealDir: string | undefined
-
-    if (file.isSymbolicLink()) {
-      if (relativeDir === '' && file.name === 'node_modules' && !ctx.includeNodeModules) {
-        continue
+  const dirents = fs.readdirSync(dir, { withFileTypes: true })
+  for (const dirent of dirents) {
+    const entry = toDirEntry(ctx, { dir, relativeDir, name: dirent.name })
+    if (dirent.isSymbolicLink()) {
+      const symlinkedDir = collectSymlink(ctx, entry)
+      if (symlinkedDir) {
+        descendIntoDir(ctx, entry, symlinkedDir)
       }
-      if (ctx.recordSymlinks) {
-        const target = normalizeSymlinkTarget(relativeSubdir, fs.readlinkSync(absolutePath))
-        if (target != null) {
-          ctx.symlinks.push({ relativePath: relativeSubdir, target })
-          continue
-        }
-      }
-      ctx.hasUnrecordedSymlinks = true
-      const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
-      if (!res) {
-        continue
-      }
-      if (res.stat.isDirectory()) {
-        nextRealDir = res.realPath
-      } else {
-        ctx.filesList.push({
-          relativePath: relativeSubdir,
-          absolutePath,
-          stat: res.stat,
-        })
-        continue
-      }
-    } else if (file.isDirectory()) {
-      nextRealDir = path.join(currentRealPath, file.name)
+    } else if (dirent.isDirectory()) {
+      descendIntoDir(ctx, entry, path.join(currentRealPath, dirent.name))
+    } else {
+      collectFile(ctx, entry)
     }
-
-    if (nextRealDir) {
-      if (ctx.visited.has(nextRealDir)) continue
-      if (relativeDir !== '' || file.name !== 'node_modules' || ctx.includeNodeModules) {
-        ctx.visited.add(nextRealDir)
-        findFiles(ctx, absolutePath, relativeSubdir, nextRealDir)
-        ctx.visited.delete(nextRealDir)
-      }
-      continue
-    }
-
-    let stat: Stats
-    try {
-      stat = fs.statSync(absolutePath)
-    } catch (err: unknown) {
-      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
-        continue
-      }
-      throw err
-    }
-    ctx.filesList.push({
-      relativePath: relativeSubdir,
-      absolutePath,
-      stat,
-    })
   }
+}
+
+interface DirEntry {
+  absolutePath: string
+  isExcludedNodeModules: boolean
+  relativePath: string
+}
+
+function toDirEntry (
+  ctx: FindFilesContext,
+  { dir, relativeDir, name }: { dir: string, relativeDir: string, name: string }
+): DirEntry {
+  return {
+    absolutePath: path.join(dir, name),
+    isExcludedNodeModules: relativeDir === '' && name === 'node_modules' && !ctx.includeNodeModules,
+    relativePath: `${relativeDir}${relativeDir ? '/' : ''}${name}`,
+  }
+}
+
+/**
+ * Records the symlink or the file it points to.
+ * Returns the real path of the target when it is a directory that should be walked.
+ */
+function collectSymlink (ctx: FindFilesContext, entry: DirEntry): string | undefined {
+  if (entry.isExcludedNodeModules) {
+    return undefined
+  }
+  if (ctx.recordSymlinks && recordSymlink(ctx, entry)) {
+    return undefined
+  }
+  ctx.hasUnrecordedSymlinks = true
+  const res = getSymlinkStatIfContained(entry.absolutePath, ctx.rootDir)
+  if (!res) {
+    return undefined
+  }
+  if (res.stat.isDirectory()) {
+    return res.realPath
+  }
+  ctx.filesList.push({
+    relativePath: entry.relativePath,
+    absolutePath: entry.absolutePath,
+    stat: res.stat,
+  })
+  return undefined
+}
+
+function recordSymlink (ctx: FindFilesContext, entry: DirEntry): boolean {
+  const target = normalizeSymlinkTarget(entry.relativePath, fs.readlinkSync(entry.absolutePath))
+  if (target == null) {
+    return false
+  }
+  ctx.symlinks.push({ relativePath: entry.relativePath, target })
+  return true
+}
+
+function descendIntoDir (ctx: FindFilesContext, entry: DirEntry, realDir: string): void {
+  if (ctx.visited.has(realDir) || entry.isExcludedNodeModules) {
+    return
+  }
+  ctx.visited.add(realDir)
+  findFiles(ctx, entry.absolutePath, entry.relativePath, realDir)
+  ctx.visited.delete(realDir)
+}
+
+function collectFile (ctx: FindFilesContext, entry: DirEntry): void {
+  let stat: Stats
+  try {
+    stat = fs.statSync(entry.absolutePath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+      return
+    }
+    throw err
+  }
+  ctx.filesList.push({
+    relativePath: entry.relativePath,
+    absolutePath: entry.absolutePath,
+    stat,
+  })
 }

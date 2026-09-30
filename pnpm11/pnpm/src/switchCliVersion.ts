@@ -13,14 +13,13 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
+import { pnpmVersionToRecord } from './syncEnvLockfile.js'
 
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
 
   const wantedVersion = pm.version
-  const satisfiesPin = (version: string): boolean =>
-    semver.satisfies(version, wantedVersion, { includePrerelease: true })
 
   // `lockfile: false` opts the project out of pnpm-lock.yaml, so the version
   // this switch resolves has nowhere in the project to persist to. Switching
@@ -31,142 +30,224 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   // is no recorded resolution to prefer over the running CLI. Whenever the
   // running CLI satisfies the pin it is the one the project uses, so both
   // resolution and store access can be skipped.
-  if (!persistLockfile && satisfiesPin(packageManager.version)) return
+  if (!persistLockfile && satisfiesPin(packageManager.version, wantedVersion)) return
 
-  let envLockfile = persistLockfile
+  const envLockfile = persistLockfile
     ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
     : undefined
-  let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
-  const packageManagerConfig = getPackageManagerBootstrapConfig(config)
+  const versionSwitch: VersionSwitch = {
+    config,
+    context,
+    wantedVersion,
+    persistLockfile,
+    packageManagerConfig: getPackageManagerBootstrapConfig(config),
+    envLockfile,
+    freshlyResolved: false,
+  }
 
+  const pmVersion = await resolveSwitchTargetVersion(versionSwitch)
+  if (pmVersion == null) return
+
+  // If the wanted version matches the current version, no switch needed.
+  // Skip install-to-store entirely — we're already running this version.
+  if (pmVersion === packageManager.version) {
+    await versionSwitch.store?.ctrl.close()
+    return
+  }
+
+  const target = await verifySwitchTarget(versionSwitch, pmVersion)
+  if (target == null) return
+  await installAndSpawnPnpm(versionSwitch, target)
+}
+
+type StoreController = Awaited<ReturnType<typeof createStoreController>>
+
+interface VersionSwitch {
+  config: Config
+  context: ConfigContext
+  wantedVersion: string
+  persistLockfile: boolean
+  packageManagerConfig: ReturnType<typeof getPackageManagerBootstrapConfig>
+  envLockfile: EnvLockfile | undefined
+  store?: StoreController
+  freshlyResolved: boolean
+}
+
+interface SwitchTarget {
+  version: string
+  envLockfile: EnvLockfile
+}
+
+function satisfiesPin (version: string, wantedVersion: string): boolean {
+  return semver.satisfies(version, wantedVersion, { includePrerelease: true })
+}
+
+/**
+ * The exact pnpm version the pin resolves to, with its integrities recorded in
+ * `versionSwitch.envLockfile`. Returns `undefined`, after warning and closing
+ * the store, when the registry has no version matching the pin.
+ */
+async function resolveSwitchTargetVersion (versionSwitch: VersionSwitch): Promise<string | undefined> {
+  const { config, envLockfile, wantedVersion } = versionSwitch
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
-  if (pmVersion != null && !satisfiesPin(pmVersion)) {
+  if (pmVersion != null && !satisfiesPin(pmVersion, wantedVersion)) {
     pmVersion = undefined
   }
   // A range pin names no exact version, so the running pnpm's version is the
   // one the project actually uses. Asking the registry instead would pin a
   // version nobody is running and switch away from a satisfying one.
-  if (pmVersion == null && satisfiesPin(packageManager.version)) {
-    pmVersion = packageManager.version
+  if (pmVersion == null && satisfiesPin(packageManager.version, wantedVersion)) {
+    const version = await pnpmVersionToRecord(config, wantedVersion)
+    if (version != null) await recordPin(versionSwitch, version)
+    return packageManager.version
   }
-  let freshlyResolved = false
   if (pmVersion == null) {
-    // Resolve to an exact version from the registry.
-    storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
-    envLockfile = await resolvePackageManagerIntegrities(wantedVersion, {
-      envLockfile,
-      registriesByScope: packageManagerConfig.registriesByScope,
-      rootDir: context.rootProjectManifestDir,
-      storeController: storeToUse.ctrl,
-      storeDir: storeToUse.dir,
-      save: persistLockfile,
-      frozenLockfile: config.frozenLockfile,
-    })
-    freshlyResolved = true
-    pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
-    if (!pmVersion) {
-      globalWarn(`Cannot resolve pnpm version for "${wantedVersion}"`)
-      await storeToUse.ctrl.close()
-      return
-    }
-  } else if (!isPackageManagerResolved(envLockfile, pmVersion, config.frozenLockfile ? undefined : wantedVersion)) {
-    storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
-    envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
-      envLockfile,
-      registriesByScope: packageManagerConfig.registriesByScope,
-      rootDir: context.rootProjectManifestDir,
-      storeController: storeToUse.ctrl,
-      storeDir: storeToUse.dir,
-      save: persistLockfile,
-      frozenLockfile: config.frozenLockfile,
-      specifier: wantedVersion,
-    })
-    freshlyResolved = true
+    return resolvePinFromRegistry(versionSwitch)
   }
+  await recordPin(versionSwitch, pmVersion)
+  return pmVersion
+}
 
-  // If the wanted version matches the current version, no switch needed.
-  // Skip install-to-store entirely — we're already running this version.
-  if (pmVersion === packageManager.version) {
-    await storeToUse?.ctrl.close()
-    return
+async function recordPin (versionSwitch: VersionSwitch, pmVersion: string): Promise<void> {
+  const { config, envLockfile, wantedVersion } = versionSwitch
+  if (isPackageManagerResolved(envLockfile, pmVersion, config.frozenLockfile ? undefined : wantedVersion)) return
+  await resolveIntegrities(versionSwitch, pmVersion, {
+    save: versionSwitch.persistLockfile,
+    frozenLockfile: config.frozenLockfile,
+    specifier: wantedVersion,
+  })
+  versionSwitch.freshlyResolved = true
+}
+
+async function resolvePinFromRegistry (versionSwitch: VersionSwitch): Promise<string | undefined> {
+  // Resolve to an exact version from the registry.
+  const resolved = await resolveIntegrities(versionSwitch, versionSwitch.wantedVersion, {
+    save: versionSwitch.persistLockfile,
+    frozenLockfile: versionSwitch.config.frozenLockfile,
+  })
+  versionSwitch.freshlyResolved = true
+  const pmVersion = resolved.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (!pmVersion) {
+    globalWarn(`Cannot resolve pnpm version for "${versionSwitch.wantedVersion}"`)
+    await versionSwitch.store?.ctrl.close()
+    return undefined
   }
+  return pmVersion
+}
 
-  // Deliberately after the check above: switching to a broken release is
+type ResolveIntegritiesOptions = Parameters<typeof resolvePackageManagerIntegrities>[1]
+
+async function resolveIntegrities (
+  versionSwitch: VersionSwitch,
+  version: string,
+  extraOptions: Pick<ResolveIntegritiesOptions, 'save' | 'frozenLockfile' | 'specifier'>
+): Promise<EnvLockfile> {
+  versionSwitch.store ??= await createPackageManagerStore(versionSwitch)
+  versionSwitch.envLockfile = await resolvePackageManagerIntegrities(version, {
+    envLockfile: versionSwitch.envLockfile,
+    registriesByScope: versionSwitch.packageManagerConfig.registriesByScope,
+    rootDir: versionSwitch.context.rootProjectManifestDir,
+    storeController: versionSwitch.store.ctrl,
+    storeDir: versionSwitch.store.dir,
+    ...extraOptions,
+  })
+  return versionSwitch.envLockfile
+}
+
+async function createPackageManagerStore ({ config, context, packageManagerConfig }: VersionSwitch): Promise<StoreController> {
+  return createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
+}
+
+/**
+ * Checks that the version to switch to may be installed from the env
+ * lockfile, repairing lockfile entries that do not satisfy the bootstrap
+ * rules. Returns `undefined` when no switch should happen. The store is closed
+ * on every path that does not lead to a switch.
+ */
+async function verifySwitchTarget (versionSwitch: VersionSwitch, pmVersion: string): Promise<SwitchTarget | undefined> {
+  // Deliberately after the version-match check: switching to a broken release is
   // refused, but running one already installed is not. Someone whose pnpm is a
   // broken release still needs it to work well enough to move off it.
   try {
     assertReleaseIsInstallable(pmVersion)
   } catch (err: unknown) {
-    await storeToUse?.ctrl.close()
+    await versionSwitch.store?.ctrl.close()
     throw err
   }
 
+  const { envLockfile } = versionSwitch
   if (!envLockfile) {
-    await storeToUse?.ctrl.close()
+    await versionSwitch.store?.ctrl.close()
     throw new PnpmError('NO_PKG_MANAGER_INTEGRITY', `The packageManager dependency ${pmVersion} was not found in pnpm-lock.yaml`)
   }
 
   try {
-    try {
-      assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
-    } catch (err: unknown) {
-      if (
-        freshlyResolved ||
-        !isError(err) ||
-        !('code' in err) ||
-        err.code !== 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
-      ) {
-        throw err
-      }
-      // The persisted entries do not satisfy the bootstrap rules — a
-      // resolution carrying a tarball URL, say. Rather than refusing to run,
-      // discard them and resolve afresh through the trusted bootstrap
-      // registries, which yields entries in the accepted shape.
-      //
-      // They already record a version that satisfies the pin, so a frozen
-      // lockfile has nothing to reject: the repair resolves that version
-      // rather than the range around it, keeps the result in memory, and
-      // leaves the lockfile as it is.
-      delete envLockfile.importers['.'].packageManagerDependencies
-      storeToUse ??= await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
-      envLockfile = await resolvePackageManagerIntegrities(config.frozenLockfile ? pmVersion : pm.version, {
-        envLockfile,
-        registriesByScope: packageManagerConfig.registriesByScope,
-        rootDir: context.rootProjectManifestDir,
-        storeController: storeToUse.ctrl,
-        storeDir: storeToUse.dir,
-        save: persistLockfile && !config.frozenLockfile,
-      })
-      pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
-      if (!pmVersion) {
-        globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
-        await storeToUse.ctrl.close()
-        return
-      }
-      if (pmVersion === packageManager.version) {
-        await storeToUse.ctrl.close()
-        return
-      }
-      assertReleaseIsInstallable(pmVersion)
-      assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
-    }
+    return await ensureRegistryResolutions(versionSwitch, { version: pmVersion, envLockfile })
   } catch (err: unknown) {
-    await storeToUse?.ctrl.close()
+    await versionSwitch.store?.ctrl.close()
     throw err
   }
+}
 
+async function ensureRegistryResolutions (versionSwitch: VersionSwitch, target: SwitchTarget): Promise<SwitchTarget | undefined> {
+  try {
+    assertPackageManagerLockfileUsesRegistryResolutions(target.envLockfile)
+    return target
+  } catch (err: unknown) {
+    if (versionSwitch.freshlyResolved || !isInvalidPackageManagerLockfileError(err)) {
+      throw err
+    }
+    return repairPackageManagerLockfile(versionSwitch, target)
+  }
+}
+
+function isInvalidPackageManagerLockfileError (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
+}
+
+/**
+ * The persisted entries do not satisfy the bootstrap rules — a
+ * resolution carrying a tarball URL, say. Rather than refusing to run,
+ * discard them and resolve afresh through the trusted bootstrap
+ * registries, which yields entries in the accepted shape.
+ *
+ * They already record a version that satisfies the pin, so a frozen
+ * lockfile has nothing to reject: the repair resolves that version
+ * rather than the range around it, keeps the result in memory, and
+ * leaves the lockfile as it is.
+ */
+async function repairPackageManagerLockfile (versionSwitch: VersionSwitch, target: SwitchTarget): Promise<SwitchTarget | undefined> {
+  const { config, wantedVersion } = versionSwitch
+  delete target.envLockfile.importers['.'].packageManagerDependencies
+  const envLockfile = await resolveIntegrities(versionSwitch, config.frozenLockfile ? target.version : wantedVersion, {
+    save: versionSwitch.persistLockfile && !config.frozenLockfile,
+  })
+  const pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (!pmVersion) {
+    globalWarn(`Cannot resolve pnpm version for "${wantedVersion}"`)
+    await versionSwitch.store?.ctrl.close()
+    return undefined
+  }
+  if (pmVersion === packageManager.version) {
+    await versionSwitch.store?.ctrl.close()
+    return undefined
+  }
+  assertReleaseIsInstallable(pmVersion)
+  assertPackageManagerLockfileUsesRegistryResolutions(envLockfile)
+  return { version: pmVersion, envLockfile }
+}
+
+async function installAndSpawnPnpm (versionSwitch: VersionSwitch, target: SwitchTarget): Promise<void> {
   // We need a store controller to install pnpm. If it wasn't created during
   // integrity resolution (because integrities were already cached), create it now.
-  if (!storeToUse) {
-    storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
-  }
+  const store = versionSwitch.store ?? await createPackageManagerStore(versionSwitch)
 
   let wantedPnpmBinDir: string
   try {
-    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(pmVersion, installPnpmToStoreOptions(config, envLockfile, storeToUse)))
+    ;({ binDir: wantedPnpmBinDir } = await installPnpmToStore(target.version, installPnpmToStoreOptions(versionSwitch.config, target.envLockfile, store)))
   } finally {
-    await storeToUse.ctrl.close()
+    await store.ctrl.close()
   }
 
   // Specify the exact pnpm file path that's expected to execute to spawn()
@@ -185,7 +266,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   try {
     ;({ status, signal } = await spawnPnpm(pnpmBinPath, process.argv.slice(2)))
   } catch (err: unknown) {
-    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir, err)
+    throw new VersionSwitchFail(target.version, wantedPnpmBinDir, err)
   }
 
   if (signal) {

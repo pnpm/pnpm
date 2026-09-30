@@ -49,21 +49,17 @@ impl BlobWrite {
     }
 
     /// Sync the file to disk and rename it to its final cache path.
-    pub async fn finalize(mut self) -> std::io::Result<()> {
-        match self.file.as_mut() {
+    pub async fn finalize(self) -> std::io::Result<()> {
+        self.seal().await?.promote().await
+    }
+
+    /// Sync the file to disk and close it, leaving it unpromoted.
+    pub async fn seal(mut self) -> std::io::Result<SealedBlob> {
+        match self.file.take() {
             Some(file) => file.sync_all().await?,
             None => return Err(std::io::Error::other("blob cache writer is closed")),
         }
-        drop(self.file.take());
-        if let Some(parent) = self.final_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        let tmp_path = self.tmp_path
-            .as_ref()
-            .ok_or_else(|| std::io::Error::other("blob cache temp path is missing"))?;
-        fs::rename(tmp_path, &self.final_path).await?;
-        self.tmp_path = None;
-        Ok(())
+        Ok(SealedBlob { write: self })
     }
 
     /// Rewind the verified write handle so the caller streams the exact
@@ -92,6 +88,32 @@ impl BlobWrite {
             Err(err) if err.kind() == ErrorKind::NotFound => self.tmp_path = None,
             Err(_) => {}
         }
+    }
+}
+
+/// A [`BlobWrite`] whose bytes are on disk and whose file is closed, so it
+/// holds no descriptor while it waits. [`Self::promote`] renames it to its
+/// final cache path; dropping it removes the temp file.
+pub struct SealedBlob {
+    write: BlobWrite,
+}
+
+impl SealedBlob {
+    pub async fn promote(mut self) -> std::io::Result<()> {
+        let write = &mut self.write;
+        if let Some(parent) = write.final_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let tmp_path = write.tmp_path
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("blob cache temp path is missing"))?;
+        fs::rename(tmp_path, &write.final_path).await?;
+        write.tmp_path = None;
+        Ok(())
+    }
+
+    pub async fn abandon(self) {
+        self.write.abandon().await;
     }
 }
 

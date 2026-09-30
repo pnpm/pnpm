@@ -16,6 +16,12 @@ Since v11, `pnpm publish` is implemented natively and no longer delegates to the
 
 :::
 
+When publishing a folder or a tarball, pnpm includes a package-root README in
+the registry metadata if the manifest has no `readme` value. It recognizes
+`README.md`, other README files with npm-compatible Markdown extensions (such
+as `README.markdown` and `README.mdown`), and `README`. It prefers `README.md`,
+then another Markdown README, then `README`.
+
 When publishing a package inside a [workspace](../workspaces.md), the LICENSE file
 from the root of the workspace is packed with the package (unless the package
 has a license of its own).

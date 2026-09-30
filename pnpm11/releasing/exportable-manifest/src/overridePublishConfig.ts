@@ -35,11 +35,11 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 export function overridePublishConfig (publishManifest: ProjectManifest): void {
   if (!publishManifest.publishConfig) return
   const publishConfig = { ...publishManifest.publishConfig }
+  const manifestFields = publishManifest as Record<string, unknown>
 
   for (const key in publishConfig) {
     if (!PUBLISH_CONFIG_WHITELIST.has(key)) continue
-    const value = publishConfig[key]
-    publishManifest[key as keyof ProjectManifest] = value as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    manifestFields[key] = publishConfig[key]
     delete publishConfig[key]
   }
 

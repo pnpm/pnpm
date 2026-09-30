@@ -11,10 +11,11 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync, spawnPnpm, waitForPnpmExit } from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
+import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
-const f = fixtures(import.meta.dirname)
-const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
-const execErrorExit = f.find('exec-error-exit')
+const testFixtures = fixtures(import.meta.dirname)
+const multipleScriptsErrorExit = testFixtures.find('multiple-scripts-error-exit')
+const execErrorExit = testFixtures.find('exec-error-exit')
 const testOnPosix = isWindows() ? test.skip : test
 
 test('should print json format error when publish --json failed', async () => {
@@ -54,10 +55,7 @@ test('should print webauth URLs in json format error when OTP is required non-in
   })
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, '127.0.0.1', resolve)
-    })
+    await listenOnLocalhost(server)
     const { port } = server.address() as AddressInfo
     const proc = spawnPnpm([
       'publish',
@@ -79,12 +77,7 @@ test('should print webauth URLs in json format error when OTP is required non-in
       doneUrl: 'https://registry.npmjs.org/-/auth/done/abc123',
     })
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+    await closeServer(server)
   }
 })
 

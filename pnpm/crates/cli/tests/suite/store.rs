@@ -513,6 +513,33 @@ fn store_add_waits_for_the_store_operation_lock() {
     assert!(output.contains("Acquired the store add operation lock"), "{output}");
 }
 
+#[cfg(unix)]
+#[test]
+fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let runtime_dir = workspace.join("runtime");
+    fs::create_dir(&runtime_dir).expect("create XDG_RUNTIME_DIR");
+
+    pacquet
+        .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])
+        .env("XDG_RUNTIME_DIR", &runtime_dir)
+        .assert()
+        .success();
+
+    let lock_dirs: Vec<_> = fs::read_dir(&runtime_dir)
+        .expect("read XDG_RUNTIME_DIR")
+        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry").path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("pnpm-store-operation-locks-"))
+        })
+        .collect();
+    assert_eq!(lock_dirs.len(), 1, "{lock_dirs:?}");
+    assert!(lock_dirs[0].join("all-stores.lock").is_file());
+}
+
 #[test]
 fn store_add_fails_when_a_package_cannot_be_fetched() {
     let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
@@ -525,6 +552,55 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
     eprintln!("stderr={stderr}");
     assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
+}
+
+#[test]
+fn store_prune_reports_undecodable_entries() {
+    for count in [0, 1, 2] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+        let store_dir = pnpm_store_dir::StoreDir::from(root.path().join("store"));
+        drop(pnpm_store_dir::StoreIndex::open_in(&store_dir).expect("initialize store index"));
+        Command::new("node")
+            .with_args([
+                "-e",
+                r"
+                const { DatabaseSync } = require('node:sqlite');
+                const db = new DatabaseSync(process.argv[1]);
+                const insert = db.prepare('INSERT INTO package_index (key, data) VALUES (?, ?)');
+                for (let i = 0; i < Number(process.argv[2]); i++) {
+                    insert.run(`unreadable-${i}`, Buffer.from([0xc1]));
+                }
+                db.close();
+                ",
+            ])
+            .with_arg(store_dir.root().join("index.db"))
+            .with_arg(count.to_string())
+            .assert()
+            .success();
+
+        let output = pacquet
+            .with_args(["store", "prune", "--store-dir"])
+            .with_arg(store_dir.root())
+            .output()
+            .expect("run store prune");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "store prune failed: {stderr}");
+        if count == 0 {
+            assert!(!stderr.contains("could not be read"), "stderr={stderr}");
+        } else {
+            let noun = if count == 1 { "entry" } else { "entries" };
+            let notice = format!("Kept {count} package index {noun} that could not be read");
+            assert!(stderr.contains(&notice), "stderr={stderr}");
+        }
+        assert_eq!(
+            pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+                .expect("open pruned store index")
+                .keys()
+                .expect("read retained keys")
+                .len(),
+            count,
+        );
+    }
 }
 
 #[test]
@@ -652,6 +728,48 @@ fn store_prune_honors_dlx_cache_max_age() {
             );
         }
     }
+}
+
+/// The dlx cache holds hard links into the store, so one prune must drop an
+/// expired entry and reclaim the packages only that entry used.
+#[test]
+fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
+    pacquet_at(&workspace)
+        .with_args(["dlx", "--package=is-positive@1.0.0", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let package_keys = || {
+        pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+            .expect("open store index")
+            .keys()
+            .expect("read store index keys")
+    };
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+    );
+
+    _utils::append_workspace_yaml_key(&workspace, "dlxCacheMaxAge", 0);
+    pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    let dlx_entries = fs::read_dir(npmrc_info.cache_dir.join("dlx")).map_or(0, Iterator::count);
+    assert_eq!(dlx_entries, 0, "store prune must remove the expired dlx cache entry");
+    assert!(
+        !package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+        "store prune must reclaim the packages of the expired dlx cache entry",
+    );
 }
 
 /// A group-writable, setgid store stands in for a multi-user store. Install

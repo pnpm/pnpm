@@ -1180,6 +1180,41 @@ describe('local file dependency', () => {
       lockfileDir: process.cwd(),
     })).toBeFalsy()
   })
+
+  test('allProjectsAreUpToDate(): returns false if a dependency named like an Object.prototype property is added to local file', async () => {
+    await writeFile('./local-dir/package.json', JSON.stringify({
+      name: 'local-dir',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '2.0.0',
+        constructor: '1.0.0',
+      },
+    }))
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if a dependency named like an Object.prototype property is removed from local file', async () => {
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      wantedLockfile: {
+        ...options.wantedLockfile,
+        packages: {
+          'local@file:./local-dir': {
+            ...localDirSnapshot,
+            dependencies: {
+              ...localDirSnapshot.dependencies,
+              constructor: '1.0.0',
+            },
+          },
+        } as LockfileObject['packages'],
+      },
+      lockfileDir: process.cwd(),
+    })).toBeFalsy()
+  })
 })
 
 describe('local tgz file dependency', () => {

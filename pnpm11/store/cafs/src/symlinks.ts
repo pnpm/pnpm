@@ -31,14 +31,7 @@ export function isSymlinkMode (mode: number): boolean {
  */
 export function normalizeSymlinkTarget (linkPath: string, target: string): string | undefined {
   const linkSegments = linkPath.split('/')
-  if (
-    !linkSegments.every(isPlainName) ||
-    isName(linkSegments[0], 'node_modules') ||
-    (linkSegments.length === 1 && isName(linkSegments[0], 'package.json'))
-  ) {
-    return undefined
-  }
-  if (target === '' || target.startsWith('/') || target.includes('\\') || target.includes('\0') || path.win32.parse(target).root !== '') {
+  if (!isRecordableLinkPath(linkSegments) || !hasRecordableTargetForm(target)) {
     return undefined
   }
   const segments = target.split('/').filter((segment) => segment !== '' && segment !== '.')
@@ -48,6 +41,16 @@ export function normalizeSymlinkTarget (linkPath: string, target: string): strin
   if (names.length === 0 || names.some((name) => name === '..' || isName(name, 'node_modules'))) return undefined
   if (parents > linkSegments.length - 1) return undefined
   return segments.join('/')
+}
+
+function isRecordableLinkPath (linkSegments: string[]): boolean {
+  return linkSegments.every(isPlainName) &&
+    !isName(linkSegments[0], 'node_modules') &&
+    !(linkSegments.length === 1 && isName(linkSegments[0], 'package.json'))
+}
+
+function hasRecordableTargetForm (target: string): boolean {
+  return target !== '' && !target.startsWith('/') && !target.includes('\\') && !target.includes('\0') && path.win32.parse(target).root === ''
 }
 
 function isPlainName (segment: string): boolean {

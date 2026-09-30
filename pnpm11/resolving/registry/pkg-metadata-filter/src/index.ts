@@ -108,35 +108,35 @@ export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
       keptDistTags[tag] = distTagVersion
       continue
     }
-    // Repopulate the tag to the highest version still kept
+    // Repopulate the tag to the best version still kept
     const originalSemVer = tryParseSemver(distTagVersion)
     if (!originalSemVer) continue
-    const originalIsPrerelease = (originalSemVer.prerelease.length > 0)
     let bestVersion: string | undefined
     let bestParsed: semver.SemVer | undefined
+    let bestTier: TagCandidateTier | undefined
     for (const candidate in keptVersions) {
       if (!Object.hasOwn(keptVersions, candidate)) continue
       const candidateParsed = tryParseSemver(candidate)
-      if (
-        !candidateParsed ||
-        candidateParsed.compare(originalSemVer) > 0 ||
-        (tag !== 'latest' && candidateParsed.major !== originalSemVer.major) ||
-        (candidateParsed.prerelease.length > 0) !== originalIsPrerelease
-      ) continue
-      if (bestVersion == null || bestParsed == null) {
+      if (!candidateParsed || candidateParsed.compare(originalSemVer) > 0) continue
+      const tier = getTagCandidateTier(tag, originalSemVer, candidateParsed)
+      if (tier == null) continue
+      if (bestVersion == null || bestParsed == null || bestTier == null) {
         bestVersion = candidate
         bestParsed = candidateParsed
+        bestTier = tier
         continue
       }
       try {
         const candidateIsDeprecated = pkgDoc.versions[candidate].deprecated != null
         const bestVersionIsDeprecated = pkgDoc.versions[bestVersion].deprecated != null
+        const candidateRanksHigher = tier !== bestTier ? tier > bestTier : candidateParsed.compare(bestParsed) > 0
         if (
-          (candidateParsed.compare(bestParsed) > 0 && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
+          (candidateRanksHigher && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
           (bestVersionIsDeprecated && !candidateIsDeprecated)
         ) {
           bestVersion = candidate
           bestParsed = candidateParsed
+          bestTier = tier
         }
       } catch (_err) {
         globalWarn(`Failed to compare semver versions ${candidate} and ${bestVersion} from packument of ${pkgDoc.name}, skipping candidate version.`)
@@ -152,4 +152,40 @@ export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
     versions: keptVersions,
     'dist-tags': keptDistTags,
   }
+}
+
+/**
+ * How well a kept version stands in for a dropped dist-tag target, worst
+ * first. The tier is compared before the version.
+ */
+const TagCandidateTier = {
+  /** Same prerelease-ness as the target, on a lower major (`latest` only). */
+  LowerMajor: 0,
+  /** A prerelease of the stable target's major, below the target. */
+  PrereleaseOfMajor: 1,
+  /** Same prerelease-ness as the target, on its major. */
+  SameLane: 2,
+} as const
+
+type TagCandidateTier = typeof TagCandidateTier[keyof typeof TagCandidateTier]
+
+/**
+ * A tag keeps its own major and prerelease-ness, except that `latest` may
+ * move to a lower major, and a tag that pointed at a stable version may move to a
+ * prerelease of its major. That prerelease ranks above any stable version
+ * of a lower major: when `1.0.0` is too new, `1.0.0-beta.4` is what
+ * `latest` named before it, not `0.0.1`.
+ */
+function getTagCandidateTier (tag: string, original: semver.SemVer, candidate: semver.SemVer): TagCandidateTier | undefined {
+  const originalIsPrerelease = original.prerelease.length > 0
+  const candidateIsPrerelease = candidate.prerelease.length > 0
+  if (candidateIsPrerelease === originalIsPrerelease) {
+    if (candidate.major === original.major) return TagCandidateTier.SameLane
+    if (tag !== 'latest') return undefined
+    return TagCandidateTier.LowerMajor
+  }
+  if (candidateIsPrerelease && candidate.major === original.major && candidate.compare(original) < 0) {
+    return TagCandidateTier.PrereleaseOfMajor
+  }
+  return undefined
 }

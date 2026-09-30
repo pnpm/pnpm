@@ -22,20 +22,27 @@ export function collectDirectDependencySpecs (
   const specsByName = new Map<string, Set<string>>()
   for (const manifest of manifests) {
     for (const deps of [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]) {
-      for (const [alias, bareSpecifier] of Object.entries(deps ?? {})) {
-        const catalogLookup = resolveFromCatalog(catalogs, { alias, bareSpecifier })
-        const spec = catalogLookup.type === 'found' ? catalogLookup.resolution.specifier : bareSpecifier
-        if (semver.validRange(spec) == null) continue
-        const specs = specsByName.get(alias)
-        if (specs == null) {
-          specsByName.set(alias, new Set([spec]))
-        } else {
-          specs.add(spec)
-        }
-      }
+      addSemverSpecs(specsByName, { catalogs, deps })
     }
   }
   return specsByName
+}
+
+function addSemverSpecs (
+  specsByName: Map<string, Set<string>>,
+  opts: { catalogs: Catalogs, deps: Record<string, string> | undefined }
+): void {
+  for (const [alias, bareSpecifier] of Object.entries(opts.deps ?? {})) {
+    const catalogLookup = resolveFromCatalog(opts.catalogs, { alias, bareSpecifier })
+    const spec = catalogLookup.type === 'found' ? catalogLookup.resolution.specifier : bareSpecifier
+    if (semver.validRange(spec) == null) continue
+    const specs = specsByName.get(alias)
+    if (specs == null) {
+      specsByName.set(alias, new Set([spec]))
+    } else {
+      specs.add(spec)
+    }
+  }
 }
 
 /**
@@ -57,13 +64,7 @@ export function findStalePeerPins (
   const { manifest } = opts
   const stale = new Map<string, string>()
   for (const [alias, peerRange] of Object.entries(manifest.peerDependencies ?? {})) {
-    if (
-      !Object.hasOwn(resolvedDependencies, alias) ||
-      manifest.dependencies?.[alias] != null ||
-      manifest.devDependencies?.[alias] != null ||
-      manifest.optionalDependencies?.[alias] != null ||
-      semver.validRange(peerRange) == null
-    ) continue
+    if (!isAutoInstalledPeerWithRange({ alias, manifest, peerRange, resolvedDependencies })) continue
     const directSpecs = opts.directSpecsByName.get(alias)
     if (directSpecs == null) continue
     const overlappingSpecs = [...directSpecs].filter((spec) => semver.intersects(spec, peerRange))
@@ -74,6 +75,22 @@ export function findStalePeerPins (
     }
   }
   return stale
+}
+
+function isAutoInstalledPeerWithRange (
+  opts: {
+    alias: string
+    manifest: ProjectManifest
+    peerRange: string
+    resolvedDependencies: ResolvedDependencies
+  }
+): boolean {
+  const { alias, manifest } = opts
+  return Object.hasOwn(opts.resolvedDependencies, alias) &&
+    manifest.dependencies?.[alias] == null &&
+    manifest.devDependencies?.[alias] == null &&
+    manifest.optionalDependencies?.[alias] == null &&
+    semver.validRange(opts.peerRange) != null
 }
 
 /**

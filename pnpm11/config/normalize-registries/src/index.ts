@@ -117,18 +117,42 @@ interface RegistryRoutes {
 function buildRegistryDeclarations (context: RegistryRoutes): Record<string, RegistryDeclaration> {
   const declarations: Record<string, RegistryDeclaration> = {}
   const declarationFor = (registry: string): RegistryDeclaration => (declarations[registry] ??= {})
-  for (const [scope, registry] of Object.entries(context.registriesByScope ?? {})) {
+
+  applyScopeRoutes(declarationFor, context.registriesByScope)
+  applyPrefixRoutes(declarationFor, context.registriesByPrefix)
+  applyRegistryOptions(declarationFor, context.registryOptionsByUrl)
+
+  return declarations
+}
+
+function applyScopeRoutes (
+  declarationFor: (registry: string) => RegistryDeclaration,
+  registriesByScope?: Record<string, string>
+): void {
+  for (const [scope, registry] of Object.entries(registriesByScope ?? {})) {
     const declaration = declarationFor(registry)
     declaration.scopes = [...declaration.scopes ?? [], scope === 'default' ? DEFAULT_REGISTRY_SCOPE : scope]
   }
-  for (const [prefix, registry] of Object.entries(context.registriesByPrefix ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+}
+
+function applyPrefixRoutes (
+  declarationFor: (registry: string) => RegistryDeclaration,
+  registriesByPrefix?: Record<string, string>
+): void {
+  const sortedPrefixEntries = Object.entries(registriesByPrefix ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  for (const [prefix, registry] of sortedPrefixEntries) {
     declarationFor(registry).prefix = prefix
   }
-  for (const [registry, options] of Object.entries(context.registryOptionsByUrl ?? {})) {
+}
+
+function applyRegistryOptions (
+  declarationFor: (registry: string) => RegistryDeclaration,
+  registryOptionsByUrl?: Record<string, RegistryOptions>
+): void {
+  for (const [registry, options] of Object.entries(registryOptionsByUrl ?? {})) {
     if (options.serverType != null) declarationFor(registry).serverType = options.serverType
     if (options.supportsTimeField != null) declarationFor(registry).supportsTimeField = options.supportsTimeField
   }
-  return declarations
 }
 
 function sortRegistryDeclarations (declarations: Record<string, RegistryDeclaration>): Record<string, RegistryDeclaration> {

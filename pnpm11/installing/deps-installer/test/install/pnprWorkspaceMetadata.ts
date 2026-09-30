@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import type { MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
+import { logger } from '@pnpm/logger'
 import type { ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -226,6 +227,26 @@ test('pnpr skips the root pnpm:devPreinstall when devDependencies are excluded',
 
   expect(resolveViaPnprServer).toHaveBeenCalled()
   expect(fs.existsSync(marker)).toBe(false)
+})
+
+test('mutateModules detaches its reporter after a pnpr install', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const reportedMessages: unknown[] = []
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+    reporter: (logObj) => {
+      reportedMessages.push((logObj as { message?: unknown }).message)
+    },
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
+  logger.info({ message: 'logged after the install', prefix: rootDir })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+  expect(reportedMessages).not.toContain('logged after the install')
 })
 
 test('pnpr returns the resolution policy violations the install command reacts to', async () => {

@@ -119,7 +119,7 @@ function prepareWorkspace (packages: string[]): string {
   return workspaceDir
 }
 
-async function withWorkspaceDirEnv<T> (env: Record<string, string>, fn: () => T | Promise<T>): Promise<T> {
+async function withWorkspaceDirEnv<Result> (env: Record<string, string>, fn: () => Result | Promise<Result>): Promise<Result> {
   const oldValues = Object.fromEntries(WORKSPACE_DIR_ENV_VARS.map((name) => [name, process.env[name]]))
   for (const name of WORKSPACE_DIR_ENV_VARS) {
     delete process.env[name]

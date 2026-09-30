@@ -18,47 +18,30 @@ function violation (
 // original descriptor — not just the value — so the property's
 // configurability/enumerability shape doesn't leak between tests when
 // the host process didn't define an own `isTTY` at all.
-function withStdinTTY (value: boolean | undefined, fn: () => void | Promise<void>): void | Promise<void> {
+async function withStdinTTY (value: boolean | undefined, fn: () => void | Promise<void>): Promise<void> {
   const originalDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
   Object.defineProperty(process.stdin, 'isTTY', { value, configurable: true, writable: true })
-  const restore = (): void => {
+  try {
+    await fn()
+  } finally {
     if (originalDescriptor) {
       Object.defineProperty(process.stdin, 'isTTY', originalDescriptor)
     } else {
       delete (process.stdin as { isTTY?: boolean }).isTTY
     }
   }
-  let result: void | Promise<void>
-  try {
-    result = fn()
-  } catch (err) {
-    restore()
-    throw err
-  }
-  if (result && typeof (result as Promise<void>).then === 'function') {
-    return (result as Promise<void>).then(
-      (v) => {
-        restore(); return v
-      },
-      (err) => {
-        restore(); throw err
-      }
-    )
-  }
-  restore()
-  return result
 }
 
 test('setupPolicyHandlers returns undefined when no policy is active', () => {
   expect(setupPolicyHandlers({})).toBeUndefined()
 })
 
-test('setupPolicyHandlers returns a plan even when strict mode is on without a TTY', () => {
+test('setupPolicyHandlers returns a plan even when strict mode is on without a TTY', async () => {
   // Pre-refactor this returned undefined and the resolver did the fail-fast
   // throw. Now the plan is always returned: the strict-no-TTY case throws
   // from the handler with the full violation list, not just the first
   // immature pick the resolver happened to hit.
-  withStdinTTY(false, () => {
+  await withStdinTTY(false, () => {
     expect(setupPolicyHandlers({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,
@@ -83,8 +66,8 @@ test('strict no-TTY plan throws from the hook with the full violation list', asy
   })
 })
 
-test('setupPolicyHandlers returns a plan when ci=false and stdin is a TTY', () => {
-  withStdinTTY(true, () => {
+test('setupPolicyHandlers returns a plan when ci=false and stdin is a TTY', async () => {
+  await withStdinTTY(true, () => {
     const plan = setupPolicyHandlers({
       minimumReleaseAge: 60,
       minimumReleaseAgeStrict: true,

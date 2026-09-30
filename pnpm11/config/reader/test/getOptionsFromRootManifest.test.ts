@@ -728,6 +728,21 @@ test('getOptionsFromPnpmSettings() rejects one prefix declared by two registries
   })).toThrow(/The prefix "work" is declared by two registries/)
 })
 
+test('getOptionsFromPnpmSettings() reads a declared prefix that names an Object.prototype property', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: 'constructor' },
+    },
+  })
+  expect(options.registriesByPrefix).toStrictEqual({ constructor: 'https://npm.corp.example/' })
+})
+
+test('getOptionsFromPnpmSettings() rejects a "$" override reference to an Object.prototype property', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: { foo: '$toString' },
+  }, { dependencies: { foo: '1.0.0' } })).toThrow(/Cannot resolve version \$toString in overrides/)
+})
+
 test('getOptionsFromPnpmSettings() lets a declared prefix win over the deprecated namedRegistries', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     namedRegistries: {
@@ -876,4 +891,37 @@ test.each([0, -1, 1.5, '2'])('getOptionsFromPnpmSettings() rejects invalid task 
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     tasks: { build: { concurrency } } as never,
   })).toThrow(/The "tasks\['build'\].concurrency" setting should be a positive integer/)
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object allowBuilds', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: ['esbuild'] as unknown as Record<string, boolean | string>,
+  })).toThrow(/The allowBuilds field should be an object, but got array/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: 'all' as unknown as Record<string, boolean | string>,
+  })).toThrow(/The allowBuilds field should be an object, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects invalid allowBuilds value types', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: { esbuild: 123 as unknown as boolean },
+  })).toThrow(/The value of allowBuilds\.esbuild should be a boolean or string, but got number/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: { esbuild: null as unknown as boolean },
+  })).toThrow(/The value of allowBuilds\.esbuild should be a boolean or string, but got null/)
+})
+
+test('getOptionsFromPnpmSettings() accepts valid allowBuilds', () => {
+  const allowBuilds = { esbuild: true, 'node-gyp': false, other: 'set this to true or false' }
+  const options = getOptionsFromPnpmSettings(process.cwd(), { allowBuilds })
+  expect(options.allowBuilds).toStrictEqual(allowBuilds)
+})
+
+test('getOptionsFromPnpmSettings() treats a null allowBuilds as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: null as unknown as Record<string, boolean | string>,
+  })
+  expect(options.allowBuilds).toBeNull()
 })

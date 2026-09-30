@@ -443,3 +443,31 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
   const manifest = await readProjectManifestOnly('project-1')
   expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
 })
+
+test('recursive update --depth 0 of a filtered selection fails when no selected project has the package, even with a workspace root project', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '1.0.0' },
+    },
+    {
+      location: './project-1',
+      package: { name: 'project-1', version: '1.0.0' },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await expect(update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    depth: 0,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['is-positive'])).rejects.toHaveProperty('code', 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+})

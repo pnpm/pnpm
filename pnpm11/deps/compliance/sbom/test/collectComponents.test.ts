@@ -280,22 +280,22 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       lockfileOnly: false,
     })
 
-    const installable = components.find((c) => c.name === 'installable')
+    const installable = components.find((component) => component.name === 'installable')
     expect(installable).toBeDefined()
     expect(installable?.license).toBe('MIT')
 
     // Optional packages for other platforms are not installed, so they have no
     // store metadata and are omitted from the SBOM — as is the edge pointing
     // at them, which would otherwise dangle.
-    expect(components.find((c) => c.name === 'never-installable')).toBeUndefined()
-    expect(relationships.some((r) => r.to === 'pkg:npm/never-installable@1.0.0')).toBe(false)
+    expect(components.find((component) => component.name === 'never-installable')).toBeUndefined()
+    expect(relationships.some((relationship) => relationship.to === 'pkg:npm/never-installable@1.0.0')).toBe(false)
 
     // Non-optional packages are not filtered by this optional-platform logic:
     // the component and its relationship stay in the SBOM.
-    const required = components.find((c) => c.name === 'never-installable-required')
+    const required = components.find((component) => component.name === 'never-installable-required')
     expect(required).toBeDefined()
     expect(
-      relationships.some((r) => r.to === 'pkg:npm/never-installable-required@1.0.0')
+      relationships.some((relationship) => relationship.to === 'pkg:npm/never-installable-required@1.0.0')
     ).toBe(true)
   })
 
@@ -311,10 +311,10 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       lockfileOnly: true,
     })
 
-    expect(components.find((c) => c.name === 'installable')).toBeDefined()
+    expect(components.find((component) => component.name === 'installable')).toBeDefined()
     // --lockfile-only describes the full lockfile graph, so an optional
     // package for another platform remains a component.
-    expect(components.find((c) => c.name === 'never-installable')).toBeDefined()
+    expect(components.find((component) => component.name === 'never-installable')).toBeDefined()
   })
 })
 

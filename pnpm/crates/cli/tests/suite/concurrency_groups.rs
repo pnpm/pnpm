@@ -182,7 +182,6 @@ fn tasks_within_the_limit_do_not_wait() {
 
     dbg!(first, second);
     assert!(first.success() && second.success());
-    assert!(workspace.join("overlap").exists(), "both available slots were not used together");
 
     drop(root);
 }

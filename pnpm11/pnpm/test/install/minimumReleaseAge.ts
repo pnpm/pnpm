@@ -147,7 +147,7 @@ describe('lockfile minimumReleaseAge verification', () => {
       policy: Record<string, unknown>
     })
     const lockfilePath = path.resolve('pnpm-lock.yaml')
-    const recordForLockfile = records.find((r) => r.lockfile.path === lockfilePath)
+    const recordForLockfile = records.find((record) => record.lockfile.path === lockfilePath)
     expect(recordForLockfile).toBeDefined()
     expect(recordForLockfile!.policy).toMatchObject({ minimumReleaseAge: 1 })
 

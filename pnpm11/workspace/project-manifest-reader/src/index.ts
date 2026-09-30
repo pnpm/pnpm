@@ -47,7 +47,7 @@ export async function safeReadParentPublishManifest (publishDir: string): Promis
   const normalizedTarget = path.resolve(publishDir)
   let searchDir = path.dirname(normalizedTarget)
   while (true) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the search climbs one ancestor at a time and stops at the first match
     const parentManifest = await safeReadProjectManifestOnly(searchDir)
     if (
       parentManifest?.publishConfig?.directory &&
@@ -136,17 +136,14 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   }
   if (isWindows()) {
     // ENOTDIR isn't used on Windows, but pnpm expects it.
-    let s: Stats | undefined
+    let projectDirStats: Stats | undefined
     try {
-      s = await fs.stat(projectDir)
+      projectDirStats = await fs.stat(projectDir)
     } catch (err: any) { // eslint-disable-line
       // Ignore
     }
-    if ((s != null) && !s.isDirectory()) {
-      const err = new Error(`"${projectDir}" is not a directory`)
-      // @ts-expect-error
-      err['code'] = 'ENOTDIR'
-      throw err
+    if ((projectDirStats != null) && !projectDirStats.isDirectory()) {
+      throw Object.assign(new Error(`"${projectDir}" is not a directory`), { code: 'ENOTDIR' })
     }
   }
   const filePath = path.join(projectDir, 'package.json')
@@ -482,9 +479,9 @@ function normalize (manifest: ProjectManifest, keepEmptyDependencyFields: Readon
         if (keys.length !== 0) {
           keys.sort()
           const sortedValue: Record<string, unknown> = {}
-          for (const k of keys) {
+          for (const nestedKey of keys) {
             // @ts-expect-error this is fine
-            sortedValue[k] = value[k]
+            sortedValue[nestedKey] = value[nestedKey]
           }
           result[key] = sortedValue
         } else if (keepEmptyDependencyFields.has(key)) {

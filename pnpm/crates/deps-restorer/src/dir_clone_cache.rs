@@ -21,8 +21,8 @@
 //!
 //! Two install shapes consult the cache: isolated installs with a
 //! project-local virtual store, which clone into each virtual-store
-//! slot, and frozen-lockfile hoisted installs, which clone into each
-//! package's directory under `node_modules`. Both only when the
+//! slot, and hoisted installs, which clone into each package's
+//! directory under `node_modules`. Both only when the
 //! resolved import method may clone (`auto`, `clone`, `clone-or-copy`):
 //! an explicit `hardlink` promises store-shared inodes and an explicit
 //! `copy` promises independent data, and a clone of the canonical copy

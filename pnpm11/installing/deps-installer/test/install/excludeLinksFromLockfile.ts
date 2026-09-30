@@ -22,7 +22,7 @@ import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('links are not added to the lockfile when excludeLinksFromLockfile is true', async () => {
   const externalPkg1 = tempDir(false)
@@ -126,7 +126,7 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
 test('local file using absolute path is correctly installed on repeat install', async () => {
   const project = prepareEmpty()
   const absolutePath = path.resolve('..', 'local-pkg')
-  f.copy('local-pkg', absolutePath)
+  testFixtures.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
@@ -143,15 +143,15 @@ test('local file using absolute path is correctly installed on repeat install', 
   rimrafSync('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true, excludeLinksFromLockfile: true }))
   {
-    const m = project.requireModule('local-pkg')
-    expect(m).toBeTruthy()
+    const moduleExports = project.requireModule('local-pkg')
+    expect(moduleExports).toBeTruthy()
   }
 })
 
 test('hoisted install should not fail with excludeLinksFromLockfile true', async () => {
   const project = prepareEmpty()
   const absolutePath = path.resolve('..', 'local-pkg')
-  f.copy('local-pkg', absolutePath)
+  testFixtures.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
@@ -165,8 +165,8 @@ test('hoisted install should not fail with excludeLinksFromLockfile true', async
   }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
-  const m = project.requireModule('local-pkg')
-  expect(m).toBeTruthy()
+  const moduleExports = project.requireModule('local-pkg')
+  expect(moduleExports).toBeTruthy()
 })
 
 test('update the lockfile when a new project is added to the workspace but do not add external links', async () => {
@@ -177,7 +177,7 @@ test('update the lockfile when a new project is added to the workspace but do no
     },
   ])
   const absolutePath = path.resolve('..', 'local-pkg')
-  f.copy('local-pkg', absolutePath)
+  testFixtures.copy('local-pkg', absolutePath)
 
   const importers: MutatedProject[] = [
     {

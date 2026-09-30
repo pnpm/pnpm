@@ -18,6 +18,10 @@ next script will fail on non-POSIX-compliant systems:
 But if the `shellEmulator` setting is set to `true`, it will work on all
 platforms.
 
+Since v12.8.0, a configured non-empty `scriptShell` wins over `shellEmulator`
+for `pnpm run` and lifecycle scripts. The emulator runs only when `scriptShell`
+is unset or empty.
+
 :::note
 
 Node.js 22 or higher supports running scripts without pnpm's assistance. For the example above, you can run the `test` script with `node --run test`. However, the `shellEmulator` option has no effect on this. Scripts that depend on POSIX features are required to be run `pnpm run` instead of `node --run` to work in non-POSIX-compliant environments.

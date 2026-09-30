@@ -8,15 +8,60 @@ use std::io::Write;
 use tempfile::TempDir;
 
 fn write_tarball(dir: &TempDir, entries: &[(&str, &str)]) -> String {
+    let entries = entries
+        .iter()
+        .map(|(name, contents)| (*name, contents.as_bytes()))
+        .collect::<Vec<_>>();
+    write_tarball_bytes(dir, &entries)
+}
+
+fn write_tarball_bytes(dir: &TempDir, entries: &[(&str, &[u8])]) -> String {
     let path = dir.path().join("pkg.tgz");
     let file = std::fs::File::create(&path).unwrap();
     let mut builder = tar::Builder::new(GzEncoder::new(file, Compression::default()));
     for (name, contents) in entries {
         let mut header = tar::Header::new_gnu();
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_size(contents.len() as u64);
+        header.set_cksum();
+        builder.append_data(&mut header, name, *contents).unwrap();
+    }
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
+        .flush()
+        .unwrap();
+    path.to_string_lossy().into_owned()
+}
+
+fn write_tarball_with_non_files(dir: &TempDir) -> String {
+    let path = dir.path().join("pkg.tgz");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut builder = tar::Builder::new(GzEncoder::new(file, Compression::default()));
+    for (name, contents) in [
+        ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+        ("package/README", "# Bare"),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(tar::EntryType::Regular);
         header.set_size(contents.len() as u64);
         header.set_cksum();
         builder.append_data(&mut header, name, contents.as_bytes()).unwrap();
     }
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Symlink);
+    header.set_size(0);
+    header.set_cksum();
+    builder.append_link(&mut header, "package/README.md", "README").unwrap();
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Directory);
+    header.set_size(0);
+    header.set_cksum();
+    builder
+        .append_data(&mut header, "package/readme.markdown", std::io::empty())
+        .unwrap();
     builder
         .into_inner()
         .unwrap()
@@ -97,31 +142,163 @@ fn errors_when_manifest_missing() {
 }
 
 #[test]
-fn publish_manifest_fills_readme_from_the_tarball_readme() {
+fn publish_manifest_fills_readme_from_npm_readme_names() {
+    for readme_entry in ["package/README.md", "package/README", "package/readme.markdown"] {
+        let dir = TempDir::new().unwrap();
+        let path = write_tarball(
+            &dir,
+            &[
+                ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+                (readme_entry, "# Hello"),
+            ],
+        );
+        let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+        assert_eq!(manifest["readme"], "# Hello", "{readme_entry}");
+    }
+}
+
+#[test]
+fn publish_manifest_prefers_markdown_readme_over_bare_readme() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/README", "# Bare"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/readme.markdown", "# Markdown"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Markdown");
+}
+
+#[test]
+fn publish_manifest_keeps_markdown_readme_when_bare_readme_follows() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/readme.markdown", "# Markdown"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README", "# Bare"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Markdown");
+}
+
+#[test]
+fn publish_manifest_prefers_readme_md_when_multiple_readmes_exist() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/readme.markdown", "# Fallback"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.md", "# Preferred"),
+            ("package/README", "# Bare"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Preferred");
+}
+
+#[test]
+fn publish_manifest_prefers_readme_md_over_bare_readme() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/README", "# Bare"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.md", "# Preferred"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Preferred");
+}
+
+#[test]
+fn publish_manifest_keeps_last_duplicate_readme_md() {
     let dir = TempDir::new().unwrap();
     let path = write_tarball(
         &dir,
         &[
             ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
-            ("package/README.md", "# Hello"),
+            ("package/README.md", "# First"),
+            ("package/README.md", "# Last"),
         ],
     );
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
-    assert_eq!(manifest["readme"], "# Hello");
+    assert_eq!(manifest["readme"], "# Last");
 }
 
 #[test]
-fn publish_manifest_keeps_a_readme_already_in_the_manifest() {
+fn publish_manifest_picks_a_lower_named_readme_md_after_the_manifest() {
     let dir = TempDir::new().unwrap();
     let path = write_tarball(
         &dir,
         &[
-            ("package/package.json", r#"{"name":"foo","version":"1.0.0","readme":"embedded"}"#),
-            ("package/README.md", "# Hello"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.md", "# Lower"),
+            ("package/README.MD", "# Upper"),
         ],
     );
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
-    assert_eq!(manifest["readme"], "embedded");
+    assert_eq!(manifest["readme"], "# Upper");
+}
+
+#[test]
+fn publish_manifest_ignores_non_file_readme_entries() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball_with_non_files(&dir);
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Bare");
+}
+
+#[test]
+fn publish_manifest_keeps_a_readme_already_in_the_manifest() {
+    for readme_entry in ["package/README.md", "package/README"] {
+        let dir = TempDir::new().unwrap();
+        let path = write_tarball(
+            &dir,
+            &[
+                ("package/package.json", r#"{"name":"foo","version":"1.0.0","readme":"embedded"}"#),
+                (readme_entry, "# Hello"),
+            ],
+        );
+        let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+        assert_eq!(manifest["readme"], "embedded", "{readme_entry}");
+    }
+}
+
+#[test]
+fn publish_manifest_replaces_invalid_utf8_in_the_readme() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball_bytes(
+        &dir,
+        &[
+            ("package/package.json", br#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README", b"text\xff"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "text\u{FFFD}");
+}
+
+#[test]
+fn publish_manifest_picks_the_lowest_name_among_markdown_readmes() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(
+        &dir,
+        &[
+            ("package/README.mdown", "# Mdown"),
+            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+            ("package/README.markdown", "# Markdown"),
+        ],
+    );
+    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["readme"], "# Markdown");
 }
 
 #[test]

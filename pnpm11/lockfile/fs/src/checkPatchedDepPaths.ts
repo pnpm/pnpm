@@ -19,11 +19,12 @@ const PATCH_HASH_PREFIX = '(patch_hash='
 /**
  * A patched dependency's hash is recorded in a lockfile multiple times.
  * 1) In the `patchedDependencies` map, which is the authoritative source of truth.
- * n) As a `(patch_hash=...)` suffix on every reference to patched packages (importers,
- *    snapshot keys and dependency edges).
+ * n) As a `(patch_hash=...)` suffix on references that carry a package's full dependency path
+ *    (importers, snapshot keys and dependency edges). A peer collapsed to `name@version` to break
+ *    a peer cycle carries no hash, as does every peer when peers are deduped.
  *
- * A dependency path missing the suffix its patch calls for disagrees as much as one carrying the
- * wrong hash.
+ * A full dependency path missing the suffix its patch calls for disagrees as much as one carrying
+ * the wrong hash.
  *
  * Judging a dependency path needs the package's version, which comes off its `packages` entry,
  * and the patch set, which comes off `patchedDependencies`. Either can be missing or malformed in
@@ -63,8 +64,8 @@ interface JudgeContext {
    */
   patchedNames: Set<string>
   /**
-   * Whether a peer segment is the peer's whole dependency path, and so carries the peer's own
-   * patch hash. With `dedupePeers` it is only the peer's `name@version`.
+   * Whether peer segments can carry the peer's whole dependency path and patch hash. Bare peer
+   * segments carry no hash whether produced by deduplication or cycle collapse.
    */
   peersCarryPatchHashes: boolean
   packages: PackageSnapshots
@@ -98,11 +99,11 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
  * The worst verdict among the dependency path and the peer paths nested in its suffix, cached in
  * `ctx.verdicts`.
  *
- * pnpm writes a package's own hash as the first segment of the suffix. Unless peers are deduped,
- * a peer segment is that peer's whole dependency path, so a patched peer carries its hash inside
- * it, and that hash is part of this path's identity. A peer segment is judged when it carries a
- * marker, or when it should: it names a registry version of a patched package, the path itself is
- * a registry version, and peers are not deduped.
+ * pnpm writes a package's own hash as the first segment of the suffix. A peer segment carrying the
+ * peer's whole dependency path includes its hash, which is part of this path's identity. A bare
+ * peer segment does not. A peer segment is judged when it carries a marker, or when it should: it
+ * names a registry version of a patched package, the path itself is a registry version, and peers
+ * are not deduped.
  *
  * A path holding a marker is `'indeterminate'` when the marker is anywhere but the leading segment
  * of its suffix, which is the trailing run of balanced, back-to-back parenthesized segments that
@@ -130,13 +131,7 @@ function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
 /** The verdict on the path's own hash, and the peer paths in its suffix that carry one. */
 function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict, peers: DepPath[] } {
   const suffix = splitSuffix(depPath)
-  if (
-    depPath.includes(PATCH_HASH_PREFIX) && (
-      suffix == null ||
-      suffix.locator.includes(PATCH_HASH_PREFIX) ||
-      suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
-    )
-  ) {
+  if (depPath.includes(PATCH_HASH_PREFIX) && !isPatchHashLeadingSuffix(suffix)) {
     return { verdict: 'indeterminate', peers: [] }
   }
   // Only a registry version is known to end before the suffix. A `file:` or other locator can end
@@ -156,16 +151,23 @@ function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict,
 /**
  * Whether a peer segment names a registry version of a patched package, so it has to carry that
  * package's hash. A `link:` peer is written with a path where the version goes, and patches never
- * apply to it.
+ * apply to it. A bare `name@version` peer may be the resolver's hashless cycle collapse, so its
+ * missing hash cannot establish staleness.
  */
-function isPatchedRegistryPeer (peer: DepPath, ctx: JudgeContext): boolean {
-  const { name, version } = parse(peer)
-  return name != null && version != null && ctx.patchedNames.has(name)
+function isPatchHashLeadingSuffix (suffix: DepPathSuffix | undefined): boolean {
+  return suffix != null &&
+    !suffix.locator.includes(PATCH_HASH_PREFIX) &&
+    !suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
 }
 
-function worseVerdict (a: Verdict, b: Verdict): Verdict {
-  if (a === 'stale' || b === 'stale') return 'stale'
-  return a === 'indeterminate' || b === 'indeterminate' ? 'indeterminate' : 'ok'
+function isPatchedRegistryPeer (peer: DepPath, ctx: JudgeContext): boolean {
+  const { name, version, peerDepGraphHash } = parse(peer)
+  return name != null && version != null && peerDepGraphHash != null && ctx.patchedNames.has(name)
+}
+
+function worseVerdict (left: Verdict, right: Verdict): Verdict {
+  if (left === 'stale' || right === 'stale') return 'stale'
+  return left === 'indeterminate' || right === 'indeterminate' ? 'indeterminate' : 'ok'
 }
 
 /**
@@ -174,25 +176,35 @@ function worseVerdict (a: Verdict, b: Verdict): Verdict {
  * such as a `file:` path can hold parentheses of its own. `undefined` when a segment's opening
  * parenthesis is missing.
  */
-function splitSuffix (depPath: string): { locator: string, segments: string[] } | undefined {
+function splitSuffix (depPath: string): DepPathSuffix | undefined {
   const segments: string[] = []
   let end = depPath.length
   while (end > 0 && depPath[end - 1] === ')') {
-    let depth = 0
-    let start = end - 1
-    for (; start >= 0; start--) {
-      if (depPath[start] === ')') {
-        depth++
-      } else if (depPath[start] === '(') {
-        depth--
-        if (depth === 0) break
-      }
-    }
+    const start = findSegmentStart(depPath, end)
     if (start < 0) return undefined
     segments.push(depPath.slice(start, end))
     end = start
   }
   return { locator: depPath.slice(0, end), segments: segments.reverse() }
+}
+
+interface DepPathSuffix {
+  locator: string
+  segments: string[]
+}
+
+/** The index of the parenthesis that opens the segment closed at `end - 1`, or -1 when it is missing. */
+function findSegmentStart (depPath: string, end: number): number {
+  let depth = 0
+  for (let start = end - 1; start >= 0; start--) {
+    if (depPath[start] === ')') {
+      depth++
+    } else if (depPath[start] === '(') {
+      depth--
+      if (depth === 0) return start
+    }
+  }
+  return -1
 }
 
 function judge (depPath: DepPath, ctx: JudgeContext): Verdict {

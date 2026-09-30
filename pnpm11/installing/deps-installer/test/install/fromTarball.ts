@@ -6,7 +6,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('tarball from npm registry', async () => {
   const project = prepareEmpty()
@@ -43,6 +43,6 @@ test('a tarball dependency whose manifest name is a path traversal is rejected',
   prepareEmpty()
 
   await expect(
-    addDependenciesToPackage({}, [`file:${f.find('pkg-with-path-traversal-name.tgz')}`], testDefaults())
+    addDependenciesToPackage({}, [`file:${testFixtures.find('pkg-with-path-traversal-name.tgz')}`], testDefaults())
   ).rejects.toThrow('Refusing to place a dependency')
 })

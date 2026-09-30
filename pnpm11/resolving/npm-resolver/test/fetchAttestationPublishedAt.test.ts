@@ -20,11 +20,11 @@ const REGISTRY = 'https://registry.npmjs.org/'
 
 function attestationResponse (...integratedTimes: Array<string | number>): unknown {
   return {
-    attestations: integratedTimes.map((t) => ({
+    attestations: integratedTimes.map((integratedTime) => ({
       predicateType: 'https://github.com/npm/attestation/tree/main/specs/publish/v0.1',
       bundle: {
         verificationMaterial: {
-          tlogEntries: [{ integratedTime: t }],
+          tlogEntries: [{ integratedTime }],
         },
       },
     })),

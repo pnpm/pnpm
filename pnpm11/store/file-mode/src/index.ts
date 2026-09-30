@@ -83,17 +83,22 @@ function directoryExists (dir: string): boolean {
 function nearestExistingAncestor (dir: string): string | undefined {
   let current = dir
   for (;;) {
-    try {
-      if (fs.statSync(current).isDirectory()) return current
-    } catch (err: unknown) {
-      if (!isMissing(err)) {
-        if (isUnchangeable(err)) return undefined
-        throw err
-      }
-    }
+    const isDir = isAccessibleDirectory(current)
+    if (isDir === undefined) return undefined
+    if (isDir) return current
     const parent = path.dirname(current)
     if (parent === current) return undefined
     current = parent
+  }
+}
+
+function isAccessibleDirectory (dir: string): boolean | undefined {
+  try {
+    return fs.statSync(dir).isDirectory()
+  } catch (err: unknown) {
+    if (isUnchangeable(err)) return undefined
+    if (isMissing(err)) return false
+    throw err
   }
 }
 

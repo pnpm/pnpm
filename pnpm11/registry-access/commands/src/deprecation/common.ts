@@ -1,7 +1,7 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
@@ -45,38 +45,8 @@ export async function updateDeprecation (
   const packageUrl = new URL(npa(packageName).escapedName, registryUrl).href
 
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getResponse = await fetchFromRegistry(packageUrl, {
-    authHeaderValue: authHeader,
-    fullMetadata: true,
-  })
-
-  if (!getResponse.ok) {
-    if (getResponse.status === 404) {
-      throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
-    }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${getResponse.status} ${getResponse.statusText}`)
-  }
-
-  const pkg = await getResponse.json() as PackageMeta
-
-  if (!pkg.versions || Object.keys(pkg.versions).length === 0) {
-    throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
-  }
-
-  const versionsToUpdate = versionRange
-    ? getVersionsMatchingRange(pkg.versions, versionRange)
-    : Object.keys(pkg.versions)
-
-  if (versionsToUpdate.length === 0) {
-    throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
-  }
-
-  if (deprecated == null) {
-    const deprecatedVersions = versionsToUpdate.filter((ver) => pkg.versions[ver].deprecated)
-    if (deprecatedVersions.length === 0) {
-      throw new PnpmError('NOT_DEPRECATED', `No deprecated versions found in "${packageName}"${versionRange ? ` matching "${versionRange}"` : ''}`)
-    }
-  }
+  const pkg = await fetchPackageMeta(fetchFromRegistry, { authHeader, packageName, packageUrl })
+  const versionsToUpdate = selectVersionsToUpdate(pkg, { deprecated, packageName, versionRange })
 
   for (const ver of versionsToUpdate) {
     pkg.versions[ver].deprecated = deprecated ?? ''
@@ -95,23 +65,76 @@ export async function updateDeprecation (
   })
 
   if (!putResponse.ok) {
-    const verb = deprecated != null ? 'deprecate' : 'undeprecate'
-    const errorBody = await putResponse.text()
-    if (putResponse.status === 401) {
-      throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages. ${errorBody}`)
-    }
-    if (putResponse.status === 403) {
-      throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package. ${errorBody}`)
-    }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
+    await throwPublishError(putResponse, deprecated != null ? 'deprecate' : 'undeprecate')
   }
 
   return `Successfully ${deprecated != null ? 'deprecated' : 'un-deprecated'} ${versionsToUpdate.length} version(s) of ${packageName}`
+}
+
+interface PackageMetaRequest {
+  authHeader: string | undefined
+  packageName: string
+  packageUrl: string
+}
+
+async function fetchPackageMeta (
+  fetchFromRegistry: FetchFromRegistry,
+  { authHeader, packageName, packageUrl }: PackageMetaRequest
+): Promise<PackageMeta> {
+  const getResponse = await fetchFromRegistry(packageUrl, {
+    authHeaderValue: authHeader,
+    fullMetadata: true,
+  })
+
+  if (!getResponse.ok) {
+    if (getResponse.status === 404) {
+      throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
+    }
+    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${getResponse.status} ${getResponse.statusText}`)
+  }
+
+  return await getResponse.json() as PackageMeta
+}
+
+function selectVersionsToUpdate (
+  pkg: PackageMeta,
+  { deprecated, packageName, versionRange }: UpdateDeprecationOptions
+): string[] {
+  if (!pkg.versions || Object.keys(pkg.versions).length === 0) {
+    throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
+  }
+
+  const versionsToUpdate = versionRange
+    ? getVersionsMatchingRange(pkg.versions, versionRange)
+    : Object.keys(pkg.versions)
+
+  if (versionsToUpdate.length === 0) {
+    throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
+  }
+
+  if (deprecated == null) {
+    const deprecatedVersions = versionsToUpdate.filter((ver) => pkg.versions[ver].deprecated)
+    if (deprecatedVersions.length === 0) {
+      throw new PnpmError('NOT_DEPRECATED', `No deprecated versions found in "${packageName}"${versionRange ? ` matching "${versionRange}"` : ''}`)
+    }
+  }
+  return versionsToUpdate
+}
+
+async function throwPublishError (putResponse: Response, verb: string): Promise<never> {
+  const errorBody = await putResponse.text()
+  if (putResponse.status === 401) {
+    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${verb} packages. ${errorBody}`)
+  }
+  if (putResponse.status === 403) {
+    throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package. ${errorBody}`)
+  }
+  throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${putResponse.status} ${putResponse.statusText}. ${errorBody}`)
 }
 
 function getVersionsMatchingRange (
   versions: Record<string, PackageInRegistry>,
   range: string
 ): string[] {
-  return Object.keys(versions).filter((v) => semver.satisfies(v, range))
+  return Object.keys(versions).filter((version) => semver.satisfies(version, range))
 }

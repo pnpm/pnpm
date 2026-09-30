@@ -290,6 +290,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     &self.shape,
                     &self.stores.caches,
                     &plan.layout,
+                    plan.dir_clone_cache.as_ref(),
                     allow_build_policy,
                 ),
                 include_transitive_optional_dependencies: self.shape
@@ -304,11 +305,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     engine_name: plan.engine_name.take(),
                     deferred_engine_name: plan.deferred_engine_name.take(),
                 },
-                projects: crate::install_with_fresh_lockfile::on_disk::OnDiskProjects {
-                    materialization_lockfile: scope.lockfile(built_lockfile),
-                    importer_manifests: &self.resolved.importer_manifests,
-                    project_anchor_importer_ids: &scope.project_anchor_importer_ids,
-                },
+                projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
             &mut plan.skipped,
             &mut self.resources.lockfile_verification_gate,
@@ -321,6 +318,7 @@ pub(super) fn fresh_install_context<'b>(
     shape: &'b InstallShape,
     caches: &'b resolver_setup::StoreCaches,
     layout: &'b VirtualStoreLayout,
+    dir_clone_cache: Option<&'b pnpm_deps_restorer::DirCloneCache<'b>>,
     allow_build_policy: &'b AllowBuildPolicy,
 ) -> pnpm_deps_restorer::InstallContext<'b> {
     pnpm_deps_restorer::InstallContext {
@@ -337,6 +335,6 @@ pub(super) fn fresh_install_context<'b>(
 
         logged_methods: install.drivers.logged_methods,
         git_source_cache: &caches.git_source_cache,
-        dir_clone_cache: None,
+        dir_clone_cache,
     }
 }

@@ -128,6 +128,143 @@ fn frozen_install_does_not_record_a_dedupe_baseline_and_repeat_install_skips_aft
     drop((root, mock_instance));
 }
 
+/// The `autoDedupe` the workspace state records, `None` when the key is
+/// absent — what the next command's settings comparison reads as "no dedupe
+/// baseline has been established".
+fn recorded_auto_dedupe(workspace: &Path) -> Option<bool> {
+    let path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+    let state: pnpm_workspace_state::WorkspaceState =
+        serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    state.settings.auto_dedupe
+}
+
+/// Gives a project a `hello` script for the verify-deps gate to run. `node
+/// -e` is the portable stand-in for the shell programs Windows has none of.
+fn write_project_with_script(workspace: &Path, project: &str, version: &str) {
+    let dir = workspace.join(project);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("package.json"),
+        serde_json::json!({
+            "name": project,
+            "dependencies": {DEP: version, PARENT: "100.0.0"},
+            "scripts": { "hello": r#"node -e "console.log('script-output')""# },
+        })
+        .to_string(),
+    )
+    .unwrap();
+}
+
+/// The workspace root is an importer of the shared lockfile, and the run
+/// gate reads its manifest before it can check anything at all.
+fn write_root_manifest(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .unwrap();
+}
+
+/// The `$ <script>` echo a gated run writes to stderr; an install the gate
+/// spawns adds its own output below it.
+const SCRIPT_ECHO: &str = r#"$ node -e "console.log('script-output')""#;
+
+/// Runs a project's script through the verify-deps gate with the given CI
+/// verdict, which decides whether the install the gate spawns is frozen.
+fn gate_run(project_dir: &Path, ci: &str) -> std::process::Output {
+    pnpm_at(project_dir)
+        .with_env("PNPM_CONFIG_CI", ci)
+        .with_args(["run", "hello"])
+        .output()
+        .unwrap()
+}
+
+/// A no-op frozen install still refreshes the workspace state, and that
+/// refresh must carry the recorded dedupe baseline forward: dropping it
+/// makes the next command treat the tree as one that was never deduped
+/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+#[test]
+fn an_up_to_date_frozen_install_keeps_the_recorded_dedupe_baseline() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    write_project_with_script(&workspace, "low", "100.0.0");
+    write_project(&workspace, "high", "100.1.0");
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(recorded_auto_dedupe(&workspace), Some(true));
+
+    let output = pnpm_at(&workspace)
+        .with_env("PNPM_CONFIG_CI", "true")
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    assert_eq!(
+        recorded_auto_dedupe(&workspace),
+        Some(true),
+        "the up-to-date refresh must keep the baseline the resolving install recorded",
+    );
+    drop((root, mock_instance));
+}
+
+/// On CI the install the verify-deps gate spawns runs frozen, so it never
+/// re-resolves and can never record the dedupe baseline a pending
+/// `autoDedupe` setting asks for. The gate must not spawn an install before
+/// every script for it ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+#[test]
+fn a_pending_dedupe_baseline_does_not_spawn_an_install_on_ci() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    // Installed without the setting, so the recorded settings carry no
+    // dedupe baseline.
+    write_root_manifest(&workspace);
+    write_settings(&workspace, "packages:\n  - low\n  - high\n").unwrap();
+    write_project_with_script(&workspace, "low", "100.0.0");
+    write_project(&workspace, "high", "100.1.0");
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    // Enabling it now leaves the baseline pending.
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    assert_eq!(recorded_auto_dedupe(&workspace), None);
+
+    let output = gate_run(&workspace.join("low"), "true");
+    assert!(output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("script-output"), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        stderr.trim(),
+        SCRIPT_ECHO,
+        "the gate must not spawn an install a frozen lockfile cannot complete",
+    );
+
+    // Outside CI the spawned install can resolve, so the gate still runs
+    // one, and the baseline it records settles the runs after it.
+    let output = gate_run(&workspace.join("low"), "false");
+    assert!(output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Done in"),
+        "a resolving install must still run for the pending baseline: {stderr}",
+    );
+    assert_eq!(recorded_auto_dedupe(&workspace), Some(true));
+    let output = gate_run(&workspace.join("low"), "false");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr).trim(),
+        SCRIPT_ECHO,
+        "the recorded baseline must settle the gate",
+    );
+    drop((root, mock_instance));
+}
+
 #[test]
 fn auto_dedupe_preserves_incompatible_exact_versions_and_can_be_disabled() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

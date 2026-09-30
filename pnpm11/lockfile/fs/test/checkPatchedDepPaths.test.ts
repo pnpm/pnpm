@@ -507,10 +507,12 @@ test('checkPatchedDepPaths() does not read parentheses in a file locator as suff
 
 // Unless peers are deduped, a peer segment is the peer's whole dependency path, so a patched peer
 // missing its hash there is as stale as anywhere else. With `dedupePeers` it is only
-// `name@version`, and a `link:` peer is written with a path where the version goes.
+// `name@version`, and so is a peer the resolver collapsed to break a peer cycle. A `link:` peer is
+// written with a path where the version goes.
 test('checkPatchedDepPaths() judges a patched peer segment that carries no hash', () => {
   const cases = [
-    { settings: undefined, peer: 'react@18.0.0', expected: 'stale' },
+    { settings: undefined, peer: 'react@18.0.0(scheduler@0.23.0)', expected: 'stale' },
+    { settings: undefined, peer: 'react@18.0.0', expected: 'up-to-date' },
     { settings: { dedupePeers: true }, peer: 'react@18.0.0', expected: 'up-to-date' },
     { settings: undefined, peer: 'react@packages+react', expected: 'up-to-date' },
   ] as const

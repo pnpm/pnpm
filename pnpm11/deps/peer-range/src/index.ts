@@ -45,12 +45,20 @@ export function getPeerVersionRange (version: string): string {
     return version.split('||').map((part) => getPeerVersionRange(part.trim())).join(' || ')
   }
   if (isValidPeerRange(version)) {
-    if (!version.startsWith('workspace:')) return version
-    const stripped = version.slice('workspace:'.length)
-    // `validRange('')` accepts the empty string, so it needs its own check to
-    // reach the fallback rather than being returned as an empty range.
-    return stripped !== '' && validRange(stripped) != null ? stripped : '*'
+    return extractWorkspaceRange(version)
   }
+  return extractSchemeRange(version)
+}
+
+function extractWorkspaceRange (version: string): string {
+  if (!version.startsWith('workspace:')) return version
+  const stripped = version.slice('workspace:'.length)
+  // `validRange('')` accepts the empty string, so it needs its own check to
+  // reach the fallback rather than being returned as an empty range.
+  return stripped !== '' && validRange(stripped) != null ? stripped : '*'
+}
+
+function extractSchemeRange (version: string): string {
   const colon = version.indexOf(':')
   if (colon > 0) {
     const body = version.slice(colon + 1)

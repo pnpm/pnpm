@@ -25,13 +25,13 @@ const STAT_DEFAULT = {
 }
 
 export interface FuseHandlers {
-  open: (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) => void
-  release: (p: string, fd: number, cb: (exitCode: number) => void) => void
-  read: (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) => void
-  readlink: (p: string, cb: (returnCode: number, target?: string) => void) => void
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  getattr: (p: string, cb: (returnCode: number, files?: any) => void) => void
-  readdir: (p: string, cb: (returnCode: number, files?: string[]) => void) => void
+  open: (entryPath: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) => void
+  release: (entryPath: string, fd: number, cb: (exitCode: number) => void) => void
+  read: (entryPath: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) => void
+  readlink: (entryPath: string, cb: (returnCode: number, target?: string) => void) => void
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stat objects come from hyperdrive-schemas, which has no types */
+  getattr: (entryPath: string, cb: (returnCode: number, files?: any) => void) => void
+  readdir: (entryPath: string, cb: (returnCode: number, files?: string[]) => void) => void
 }
 
 export async function createFuseHandlers (lockfileDir: string, storeDir: string): Promise<FuseHandlers> {
@@ -45,8 +45,8 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
-    open (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
-      const dirEnt = getDirEnt(p)
+    open (entryPath: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
+      const dirEnt = getDirEnt(entryPath)
       if (dirEnt?.entryType !== 'index') {
         cb(-1)
         return
@@ -65,12 +65,12 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(0, fd)
       })
     },
-    release (p: string, fd: number, cb: (exitCode: number) => void) {
+    release (entryPath: string, fd: number, cb: (exitCode: number) => void) {
       fs.close(fd, (err) => {
         cb((err != null) ? -1 : 0)
       })
     },
-    read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
+    read (entryPath: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
       fs.read(fd, buffer, 0, length, position, (err, bytesRead) => {
         if (err != null) {
           cb(-1)
@@ -79,17 +79,17 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
         cb(bytesRead)
       })
     },
-    readlink (p: string, cb: (returnCode: number, target?: string) => void) {
-      const dirEnt = getDirEnt(p)
+    readlink (entryPath: string, cb: (returnCode: number, target?: string) => void) {
+      const dirEnt = getDirEnt(entryPath)
       if (dirEnt?.entryType !== 'symlink') {
         cb(Fuse.ENOENT)
         return
       }
       cb(0, dirEnt.target)
     },
-    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-    getattr (p: string, cb: (returnCode: number, files?: any) => void) {
-      const dirEnt = getDirEnt(p)
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stat objects come from hyperdrive-schemas, which has no types */
+    getattr (entryPath: string, cb: (returnCode: number, files?: any) => void) {
+      const dirEnt = getDirEnt(entryPath)
       if (dirEnt == null) {
         cb(Fuse.ENOENT)
         return
@@ -134,8 +134,8 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
     },
     readdir,
   }
-  function readdir (p: string, cb: (returnCode: number, files?: string[]) => void) {
-    const dirEnt = getDirEnt(p)
+  function readdir (entryPath: string, cb: (returnCode: number, files?: string[]) => void) {
+    const dirEnt = getDirEnt(entryPath)
     if (dirEnt?.entryType === 'index') {
       const dirEnts = cafsExplorer.readdir(dirEnt.index, dirEnt.subPath)
       if (dirEnts.length === 0) {
@@ -151,9 +151,9 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
     }
     cb(0, Object.keys(dirEnt.entries))
   }
-  function getDirEnt (p: string) {
+  function getDirEnt (entryPath: string) {
     let currentDirEntry = virtualNodeModules
-    const parts = p === '/' ? [] : p.split('/')
+    const parts = entryPath === '/' ? [] : entryPath.split('/')
     parts.shift()
     while ((parts.length > 0) && currentDirEntry && currentDirEntry.entryType === 'directory') {
       currentDirEntry = currentDirEntry.entries[parts.shift()!]

@@ -54,8 +54,9 @@ impl StoreCommand {
             StoreCommand::Status => status::run::<Reporter>(config, dir).await,
             StoreCommand::Add(args) => add::run::<Reporter>(config, dir, &args.packages).await,
             StoreCommand::Prune => {
-                config.store_dir.prune().wrap_err("pruning store")?;
-                remove_orphaned_private_engine_installs(config)?;
+                // The dlx cache holds hard links into the store, so it is
+                // cleaned first to let this prune reclaim what the expired
+                // entries used.
                 clean_expired_dlx_cache(
                     &config.cache_dir,
                     config.dlx_cache_max_age,
@@ -63,6 +64,8 @@ impl StoreCommand {
                 )
                 .into_diagnostic()
                 .wrap_err("cleaning the expired dlx cache")?;
+                config.store_dir.prune().wrap_err("pruning store")?;
+                remove_orphaned_private_engine_installs(config)?;
                 Ok(())
             }
             StoreCommand::Path => {

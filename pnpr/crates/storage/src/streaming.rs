@@ -1,19 +1,21 @@
 //! Streaming helpers for the blob path.
 //!
-//! Three flows live here:
+//! Four flows live here:
 //!
 //! * [`stream_verified_to_cache`] streams an upstream response to the client
 //!   while teeing it into the cache, promoting the entry only if the SRI
 //!   matches the full body.
 //! * [`download_verified_to_temp`] hashes an upstream response into a
 //!   temp file for mirror-less pass-through.
+//! * [`download_computing_sha512`] seals an upstream response next to the
+//!   cache and returns the SHA-512 integrity it computed over the bytes.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::BlobWrite;
+use crate::{BlobWrite, SealedBlob};
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
 use pnpm_network::ThrottledResponse;
-use ssri::{Integrity, IntegrityChecker};
+use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 use std::{io, path::PathBuf, pin::Pin};
 use tokio::{fs::File, io::AsyncReadExt};
 
@@ -205,11 +207,70 @@ pub async fn download_verified_to_temp(
     write.into_temp_file().await.map_err(BlobStreamError::Io)
 }
 
+/// Download an upstream response into `write` and return the SHA-512 integrity
+/// of its bytes, sealed but not yet promoted, so the caller decides whether to
+/// promote or abandon it. When `expected` is given, the bytes must also match
+/// it, or the write is abandoned and an error returned.
+pub async fn download_computing_sha512(
+    response: ThrottledResponse,
+    mut write: BlobWrite,
+    expected: Option<&Integrity>,
+    max_bytes: u64,
+) -> Result<(SealedBlob, Integrity), BlobStreamError> {
+    let computed = match hash_download_as_sha512(response, &mut write, expected, max_bytes).await {
+        Ok(computed) => computed,
+        Err(err) => {
+            write.abandon().await;
+            return Err(err);
+        }
+    };
+    let sealed = write.seal().await.map_err(BlobStreamError::Io)?;
+    Ok((sealed, computed))
+}
+
 async fn download_verified(
     response: ThrottledResponse,
     write: &mut BlobWrite,
     integrity: &Integrity,
     max_bytes: u64,
+) -> Result<u64, BlobStreamError> {
+    let mut checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
+    let written = download(response, write, max_bytes, |chunk| checker.input(chunk)).await?;
+    checker.result().map_err(BlobStreamError::Integrity)?;
+    Ok(written)
+}
+
+async fn hash_download_as_sha512(
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
+    expected: Option<&Integrity>,
+    max_bytes: u64,
+) -> Result<Integrity, BlobStreamError> {
+    let mut checker = expected
+        .map(integrity_checker)
+        .transpose()
+        .map_err(BlobStreamError::Integrity)?;
+    let mut sha512 = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    download(response, write, max_bytes, |chunk| {
+        if let Some(checker) = checker.as_mut() {
+            checker.input(chunk);
+        }
+        sha512.input(chunk);
+    })
+    .await?;
+    if let Some(checker) = checker {
+        checker.result().map_err(BlobStreamError::Integrity)?;
+    }
+    Ok(sha512.result())
+}
+
+/// Write every chunk of `response` to `write`, feeding each to `hash`, and
+/// return the byte count.
+async fn download(
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
+    max_bytes: u64,
+    mut hash: impl FnMut(&[u8]),
 ) -> Result<u64, BlobStreamError> {
     let url = response.url().to_string();
     if let Some(received) = response.content_length()
@@ -218,7 +279,6 @@ async fn download_verified(
         return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
     let mut upstream = Box::pin(response.bytes_stream());
-    let mut checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
     let mut written = 0u64;
     while let Some(chunk_result) = upstream.next().await {
         let chunk = match chunk_result {
@@ -232,12 +292,8 @@ async fn download_verified(
         if let Err(err) = write.write_all(&chunk).await {
             return Err(BlobStreamError::Io(err));
         }
-        checker.input(&chunk);
+        hash(&chunk);
         written = received;
-    }
-
-    if let Err(err) = checker.result() {
-        return Err(BlobStreamError::Integrity(err));
     }
     Ok(written)
 }

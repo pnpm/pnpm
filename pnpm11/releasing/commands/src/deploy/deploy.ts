@@ -3,25 +3,22 @@ import path from 'node:path'
 
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, types as configTypes } from '@pnpm/config.reader'
+import { type Config, types as configTypes } from '@pnpm/config.reader'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/installing.commands'
 import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
-import { globalWarn, logger } from '@pnpm/logger'
+import { globalWarn } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
-import { rimraf } from '@zkochan/rimraf'
-import { isSubdir } from 'is-subdir'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { writeYamlFile } from 'write-yaml-file'
 
-import { createDeployFiles } from './createDeployFiles.js'
+import { createDeployFiles, type DeployFiles } from './createDeployFiles.js'
 import { deployHook } from './deployHook.js'
-import { inheritPackageManager, writeInheritedPackageManager } from './inheritPackageManager.js'
+import { prepareDeployDir, validateDeployTarget } from './deployTarget.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -87,14 +84,38 @@ export function help (): string {
 export type DeployOptions =
   & Omit<install.InstallCommandOptions, 'useLockfile'>
   & Pick<Config, 'allowBuilds' | 'forceLegacyDeploy' | 'resolvePeersFromWorkspaceRoot'>
-  & Pick<ConfigContext, 'enginePinManifest'>
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
+  const { deployDir, selectedProject, workspaceDir } = resolveDeployRequest(opts, params)
+  validateDeployTarget(deployDir, {
+    dir: opts.dir,
+    force: opts.force,
+    projectDir: selectedProject.rootDir,
+    workspaceDir,
+  })
+  await prepareDeployDir(deployDir, { force: opts.force, workspaceDir })
+  const includeOnlyPackageFiles = !opts.deployAllFiles
+  await copyProject(selectedProject.rootDir, deployDir, { includeOnlyPackageFiles })
+
+  if (opts.sharedWorkspaceLockfile) {
+    const warning = opts.forceLegacyDeploy
+      ? 'Shared workspace lockfile detected but configuration forces legacy deploy implementation.'
+      : await deployFromSharedLockfile(opts, selectedProject, deployDir)
+    if (!warning) return
+    globalWarn(warning)
+  }
+
+  await deployWithoutSharedLockfile(opts, { deployDir, includeOnlyPackageFiles, workspaceDir })
+}
+
+function resolveDeployRequest (
+  opts: DeployOptions,
+  params: string[]
+): { deployDir: string, selectedProject: Project, workspaceDir: string } {
   if (!opts.workspaceDir) {
-    let hint: string | undefined
-    if (opts.rootProjectManifest?.scripts?.['deploy'] != null) {
-      hint = 'Maybe you wanted to invoke "pnpm run deploy"'
-    }
+    const hint = opts.rootProjectManifest?.scripts?.['deploy'] != null
+      ? 'Maybe you wanted to invoke "pnpm run deploy"'
+      : undefined
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace', { hint })
   }
   const selectedProjects = Object.values(opts.selectedProjectsGraph ?? {})
@@ -107,55 +128,19 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   if (params.length !== 1) {
     throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
   }
-  const selectedProject = selectedProjects[0].package
   const deployDirParam = params[0]
-  const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
-  validateDeployTarget(deployDir, {
-    dir: opts.dir,
-    force: opts.force,
-    projectDir: selectedProject.rootDir,
+  return {
+    deployDir: path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam),
+    selectedProject: selectedProjects[0].package,
     workspaceDir: opts.workspaceDir,
-  })
-  const normalizedDeployDir = path.resolve(deployDir)
-  const normalizedWorkspaceDir = path.resolve(opts.workspaceDir)
-  const workspaceChildTarget = isChildPath(normalizedDeployDir, normalizedWorkspaceDir)
-  if (workspaceChildTarget) {
-    createWorkspaceChildTargetParents(normalizedWorkspaceDir, normalizedDeployDir)
   }
+}
 
-  if (!isEmptyDirOrNothing(deployDir)) {
-    if (!opts.force) {
-      throw new PnpmError('DEPLOY_DIR_NOT_EMPTY', `Deploy path ${deployDir} is not empty`)
-    }
-
-    logger.warn({ message: 'using --force, deleting deploy path', prefix: deployDir })
-  }
-
-  if (workspaceChildTarget) {
-    validateWorkspaceChildTargetComponents(normalizedWorkspaceDir, normalizedDeployDir)
-  }
-  await rimraf(deployDir)
-  if (workspaceChildTarget) {
-    createWorkspaceChildTargetParents(normalizedWorkspaceDir, normalizedDeployDir)
-    createWorkspaceChildTargetDir(normalizedWorkspaceDir, normalizedDeployDir)
-  } else {
-    await fs.promises.mkdir(deployDir, { recursive: true })
-  }
-  const includeOnlyPackageFiles = !opts.deployAllFiles
-  await copyProject(selectedProject.rootDir, deployDir, { includeOnlyPackageFiles })
-
-  if (opts.sharedWorkspaceLockfile) {
-    const warning = opts.forceLegacyDeploy
-      ? 'Shared workspace lockfile detected but configuration forces legacy deploy implementation.'
-      : await deployFromSharedLockfile(opts, selectedProject, deployDir)
-    if (warning) {
-      globalWarn(warning)
-    } else {
-      return
-    }
-  }
-
-  await writeInheritedPackageManager(deployDir, opts.enginePinManifest)
+async function deployWithoutSharedLockfile (
+  opts: DeployOptions,
+  target: { deployDir: string, includeOnlyPackageFiles: boolean, workspaceDir: string }
+): Promise<void> {
+  const { deployDir, includeOnlyPackageFiles, workspaceDir } = target
   const deployNodeModules = path.join(deployDir, 'node_modules')
   if (opts.allProjects) {
     for (const project of opts.allProjects) {
@@ -228,7 +213,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     optimisticRepeatInstall: false,
     saveWorkspaceState: false,
     virtualStoreDir: resolveDeployVirtualStoreDir(deployDir, opts),
-    modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
+    modulesDir: path.relative(workspaceDir, path.join(deployDir, 'node_modules')),
     includeOnlyPackageFiles,
   })
 }
@@ -240,137 +225,18 @@ async function copyProject (src: string, dest: string, opts: { includeOnlyPackag
 }
 
 
-function validateDeployTarget (
-  deployDir: string,
-  opts: {
-    dir: string
-    force?: boolean
-    projectDir: string
-    workspaceDir: string
-  }
-): void {
-  const normalizedDeployDir = path.resolve(deployDir)
-  const workspaceDir = path.resolve(opts.workspaceDir)
-  const projectDir = path.resolve(opts.projectDir)
-  const dir = path.resolve(opts.dir)
-  if (samePath(normalizedDeployDir, workspaceDir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target is the workspace root')
-  }
-  if (isAncestorPath(normalizedDeployDir, workspaceDir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target contains the workspace root')
-  }
-  if (samePath(normalizedDeployDir, projectDir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target is the selected project root')
-  }
-  if (isAncestorPath(normalizedDeployDir, projectDir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target contains the selected project')
-  }
-  if (samePath(normalizedDeployDir, dir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target is the current directory')
-  }
-  if (isAncestorPath(normalizedDeployDir, dir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target contains the current directory')
-  }
-  if (opts.force && !isChildPath(normalizedDeployDir, workspaceDir)) {
-    throw unsafeDeployTarget(normalizedDeployDir, 'target is outside the workspace')
-  }
-  if (isChildPath(normalizedDeployDir, workspaceDir)) {
-    validateWorkspaceChildTargetComponents(workspaceDir, normalizedDeployDir)
-  }
-}
-
-function validateWorkspaceChildTargetComponents (workspaceDir: string, deployDir: string): void {
-  const relative = path.relative(workspaceDir, deployDir)
-  let current = workspaceDir
-  for (const component of relative.split(path.sep)) {
-    if (!component) continue
-    current = path.join(current, component)
-    let stat: fs.Stats
-    try {
-      stat = fs.lstatSync(current)
-    } catch (error: unknown) {
-      if (isENOENT(error)) return
-      throw error
-    }
-    if (stat.isSymbolicLink()) {
-      throw unsafeDeployTarget(current, 'target path contains a symlink')
-    }
-  }
-}
-
-function createWorkspaceChildTargetParents (workspaceDir: string, deployDir: string): void {
-  const parent = path.dirname(deployDir)
-  const relative = path.relative(workspaceDir, parent)
-  let current = workspaceDir
-  for (const component of relative.split(path.sep)) {
-    if (!component) continue
-    current = path.join(current, component)
-    createWorkspaceChildTargetComponent(current)
-  }
-}
-
-function createWorkspaceChildTargetDir (workspaceDir: string, deployDir: string): void {
-  try {
-    fs.mkdirSync(deployDir)
-  } catch (error: unknown) {
-    if (isEEXIST(error)) {
-      throw unsafeDeployTarget(deployDir, 'target changed during deploy preparation')
-    }
-    throw error
-  }
-  validateWorkspaceChildTargetComponents(workspaceDir, deployDir)
-}
-
-function createWorkspaceChildTargetComponent (component: string): void {
-  try {
-    fs.mkdirSync(component)
-  } catch (error: unknown) {
-    if (!isEEXIST(error)) throw error
-  }
-  const stat = fs.lstatSync(component)
-  if (stat.isSymbolicLink()) {
-    throw unsafeDeployTarget(component, 'target path contains a symlink')
-  }
-  if (!stat.isDirectory()) {
-    throw unsafeDeployTarget(component, 'target path contains a non-directory')
-  }
-}
-
-function unsafeDeployTarget (deployDir: string, reason: string): PnpmError {
-  return new PnpmError('INVALID_DEPLOY_TARGET', `Refusing to deploy to unsafe target ${deployDir}: ${reason}`)
-}
-
-function samePath (left: string, right: string): boolean {
-  return path.normalize(left) === path.normalize(right)
-}
-
-function isAncestorPath (parent: string, child: string): boolean {
-  return isChildPath(child, parent)
-}
-
-function isChildPath (child: string, parent: string): boolean {
-  return !samePath(child, parent) && isSubdir(parent, child)
-}
-
-function isENOENT (error: unknown): boolean {
-  return typeof error === 'object' && error != null && 'code' in error && error.code === 'ENOENT'
-}
-
-function isEEXIST (error: unknown): boolean {
-  return typeof error === 'object' && error != null && 'code' in error && error.code === 'EEXIST'
+type DeployedProject = Pick<Project, 'rootDir'> & {
+  manifest: Pick<Project['manifest'], 'name' | 'version'>
 }
 
 async function deployFromSharedLockfile (
   opts: DeployOptions,
-  selectedProject: Pick<Project, 'rootDir'> & {
-    manifest: Pick<Project['manifest'], 'name' | 'version'>
-  },
+  selectedProject: DeployedProject,
   deployDir: string
 ): Promise<string | undefined> {
   const {
     allProjects,
     lockfileDir,
-    rootProjectManifestDir,
     workspaceDir,
   } = opts
 
@@ -384,8 +250,6 @@ async function deployFromSharedLockfile (
     return 'Shared lockfile not found. Falling back to installing without a lockfile.'
   }
 
-  const projectId = getLockfileImporterId(lockfileDir, selectedProject.rootDir)
-
   const deployFiles = createDeployFiles({
     allProjects,
     deployDir,
@@ -397,10 +261,10 @@ async function deployFromSharedLockfile (
     lockfile,
     lockfileDir,
     patchedDependencies: opts.patchedDependencies,
-    selectedProjectManifest: inheritPackageManager(selectedProject.manifest, opts.enginePinManifest),
-    projectId,
+    selectedProjectManifest: selectedProject.manifest,
+    projectId: getLockfileImporterId(lockfileDir, selectedProject.rootDir),
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
-    rootProjectManifestDir,
+    rootProjectManifestDir: opts.rootProjectManifestDir,
     allowBuilds: opts.allowBuilds,
   })
 
@@ -409,6 +273,12 @@ async function deployFromSharedLockfile (
     deployFiles.workspaceManifest.virtualStoreDir = virtualStoreDir
   }
 
+  await writeDeployFiles(deployDir, deployFiles)
+  await installFromDeployFiles(opts, { deployDir, deployFiles })
+  return undefined
+}
+
+async function writeDeployFiles (deployDir: string, deployFiles: DeployFiles): Promise<void> {
   const filesToWrite: Array<Promise<unknown>> = [
     fs.promises.writeFile(
       path.join(deployDir, 'package.json'),
@@ -420,7 +290,12 @@ async function deployFromSharedLockfile (
     writeYamlFile(path.join(deployDir, WORKSPACE_MANIFEST_FILENAME), deployFiles.workspaceManifest)
   )
   await Promise.all(filesToWrite)
+}
 
+async function installFromDeployFiles (
+  opts: DeployOptions,
+  { deployDir, deployFiles }: { deployDir: string, deployFiles: DeployFiles }
+): Promise<void> {
   try {
     await install.handler({
       ...opts,
@@ -462,8 +337,6 @@ As a workaround, add the following to pnpm-workspace.yaml:
   forceLegacyDeploy: true`)
     throw error
   }
-
-  return undefined
 }
 
 // A global virtual store or an absolute virtualStoreDir is shared with the

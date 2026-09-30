@@ -54,35 +54,25 @@ export interface Platform {
 export type WantedPlatform = Partial<Platform>
 
 function checkList (value: string | string[], list: string | string[]): boolean {
-  let tmp
-  let match = false
+  const entries = (typeof list === 'string' ? [list] : list).filter((entry) => typeof entry === 'string')
 
-  if (typeof list === 'string') {
-    list = [list]
-  }
-
-  list = list.filter((value) => typeof value === 'string')
-
-  if (list.length === 1 && list[0] === 'any') {
+  if (entries.length === 1 && entries[0] === 'any') {
     return true
   }
   const values = Array.isArray(value) ? value : [value]
-  for (const value of values) {
-    for (let i = 0; i < list.length; ++i) {
-      tmp = list[i]
-      if (tmp[0] === '!') {
-        tmp = tmp.slice(1)
-        if (tmp === value) {
-          return false
-        }
-      } else {
-        match = match || tmp === value
-      }
-    }
+  const negatedEntries = entries.filter(isNegation)
+  const excludedValues = negatedEntries.map((entry) => entry.slice(1))
+  if (values.some((current) => excludedValues.includes(current))) {
+    return false
   }
+  const allowedValues = entries.filter((entry) => !isNegation(entry))
   // No negation rejected any value. Accept if a positive entry matched, or if the list
   // contains only negations (no positive constraints to satisfy).
-  return match || list.every(entry => entry[0] === '!')
+  return values.some((current) => allowedValues.includes(current)) || negatedEntries.length === entries.length
+}
+
+function isNegation (entry: string): boolean {
+  return entry[0] === '!'
 }
 
 function dedupeCurrent (current: string, supported: string[]): string[] {
