@@ -20,7 +20,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType, WantedDependency,
+    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, VersionSelectorType, WantedDependency,
 };
 use std::sync::Arc;
 
@@ -76,18 +76,7 @@ pub(super) async fn latest_specifier(
     if get_version_selector_type(&effective) == Some(VersionSelectorType::Tag) {
         return Ok(None);
     }
-    let chain = ensure_latest_resolver_chain(chain, ctx)?;
-    // The entry being resolved is also the entry whose operator the rewrite
-    // keeps, so it is the previous specifier as well.
-    let wanted = WantedDependency {
-        alias: Some(name.to_string()),
-        bare_specifier: Some(effective.clone()),
-        prev_specifier: Some(effective.clone()),
-        ..WantedDependency::default()
-    };
-    let opts = ctx.resolve_options(chain);
-    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
-        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })?;
+    let resolved = resolve_latest(ctx, chain, name, &effective).await?;
     // A resolver that reports back what the manifest already says has
     // nothing to rewrite. Recording it anyway would mark the manifest dirty
     // and persist it, which for a `runtime:` dependency means rewriting the
@@ -148,6 +137,40 @@ pub(super) async fn tag_version(
             error,
         })?;
     Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
+}
+/// The version `--latest` picks for a dependency whose resolution answers to
+/// `spec` — for an update that moves an override, the override's own value:
+/// the higher of that range and the `latest` tag, the same pick
+/// [`latest_specifier`] makes for a declaration.
+pub(super) async fn latest_version_for_spec(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    spec: &str,
+) -> Result<Option<Version>, UpdateError> {
+    let resolved = resolve_latest(ctx, chain, name, spec).await?;
+    Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
+}
+/// Resolve `name` at `spec` with `--latest`'s selection, or `None` when no
+/// resolver in the chain claims the dependency. The spec being resolved is
+/// also the one whose operator a rewrite keeps, so it doubles as the
+/// previous specifier.
+async fn resolve_latest(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    spec: &str,
+) -> Result<Option<ResolveResult>, UpdateError> {
+    let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(spec.to_string()),
+        prev_specifier: Some(spec.to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ctx.resolve_options(chain);
+    Resolver::resolve(&chain.resolver, &wanted, &opts).await
+        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })
 }
 /// The resolvers that can answer "what is the latest for this dependency",
 /// built on first use so an update whose deps are all local opens no

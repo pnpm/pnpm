@@ -631,6 +631,141 @@ test('update --latest preserves override-owned dependency resolutions', async ()
   })
 })
 
+test('update --latest moves the override that pins a named dependency', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  const overrides = {
+    '@pnpm.e2e/foo': '1.0.0',
+  }
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    overrides,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    overrides,
+  }, ['@pnpm.e2e/foo'])
+
+  // The override owns the resolution, so the declaration is not the update's
+  // to move; the override entry itself moves, keeping its exact shape.
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^1.0.0',
+  })
+  expect(readYamlFileSync<{ overrides: Record<string, string> }>('pnpm-workspace.yaml').overrides).toStrictEqual({
+    '@pnpm.e2e/foo': '2.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '2.0.0',
+    version: '2.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    overrides: {
+      '@pnpm.e2e/foo': '2.0.0',
+    },
+  })
+})
+
+test('update --latest moves an override keeping its range shape', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  const overrides = {
+    '@pnpm.e2e/foo': '~1.0.0',
+  }
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    overrides,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    overrides,
+  }, ['@pnpm.e2e/foo'])
+
+  expect(readYamlFileSync<{ overrides: Record<string, string> }>('pnpm-workspace.yaml').overrides).toStrictEqual({
+    '@pnpm.e2e/foo': '~2.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '~2.0.0',
+    version: '2.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    overrides: {
+      '@pnpm.e2e/foo': '~2.0.0',
+    },
+  })
+})
+
+test('update warns when a compatible update cannot move an exact override pin', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  const overrides = {
+    '@pnpm.e2e/foo': '1.0.0',
+  }
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    overrides,
+  })
+
+  const warnings: string[] = []
+  const reporter = (log: { level?: string, message?: string }) => {
+    if (log.level === 'warn' && log.message != null) warnings.push(log.message)
+  }
+  streamParser.on('data', reporter as never)
+  try {
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      overrides,
+    }, ['@pnpm.e2e/foo'])
+  } finally {
+    streamParser.removeListener('data', reporter as never)
+  }
+
+  expect(warnings.some((message) => message.includes('is pinned to "1.0.0" by an override'))).toBe(true)
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^1.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+})
+
 test('add saves a dependency that packageExtensions already injected', async () => {
   const packageExtensions = {
     'project@*': {

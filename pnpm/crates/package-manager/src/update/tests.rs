@@ -408,7 +408,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     assert_eq!(saved_dependency_specifier(&projects[0].manifest), "^1.0.0");
     assert!(prepared.persist_indices.is_empty());
     assert_eq!(
-        prepared.catalogs_override
+        prepared.catalogs.catalogs_override
             .as_ref()
             .and_then(|catalogs| catalogs.get("default"))
             .and_then(|catalog| catalog.get("foo"))
@@ -448,7 +448,7 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
     // recorded for resolution.
     assert_eq!(dependency_specifier(&projects[0].manifest), "^1.0.0");
     assert!(prepared.persist_indices.is_empty());
-    assert!(prepared.catalogs_override.is_none());
+    assert!(prepared.catalogs.catalogs_override.is_none());
     assert!(prepared.take_seed(update).preferred_versions_override.is_empty());
 }
 
