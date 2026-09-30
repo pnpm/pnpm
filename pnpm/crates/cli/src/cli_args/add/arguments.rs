@@ -143,10 +143,11 @@ pub struct AddInstallArgs {
     /// Exclude optionalDependencies while materializing the updated project.
     #[clap(long = "no-optional", overrides_with = "optional")]
     pub no_optional: bool,
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
+    /// Reinstall every package the lockfile names, relinking packages an
+    /// earlier install already materialized. Optional dependencies whose
+    /// `cpu` / `os` / `libc` don't match the host stay skipped unless
+    /// `forceIgnoresPlatform` is set. To install them for other
+    /// platforms, use `--os` / `--cpu` / `--libc`.
     #[clap(long)]
     pub force: bool,
 }
