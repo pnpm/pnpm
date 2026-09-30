@@ -13,9 +13,9 @@
 //! ESM loader, which rejects file extensions that only CommonJS require
 //! hooks handle, such as the `.ts` entry point of ts-node. The hook marks
 //! such an entry point as CommonJS, which hands it back to the CommonJS
-//! loader, as Node.js does without `--import`. `.js` and extensionless
-//! entry points are left alone, because Node.js may detect module syntax in
-//! them.
+//! loader, as Node.js does without `--import`. Entry points ending in `.js`
+//! or without an extension are left alone, because Node.js may detect
+//! module syntax in them.
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
 //! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
