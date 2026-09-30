@@ -266,13 +266,7 @@ fn check_peer_dependencies_meta_freshness(
         .get("peerDependenciesMeta")
         .and_then(serde_json::Value::as_object);
     let recorded_meta = pkg_meta.peer_dependencies_meta.as_ref();
-    let manifest_optional_count = manifest_meta.map_or(0, |meta| {
-        meta.values()
-            .filter(|entry| {
-                entry.get("optional").and_then(serde_json::Value::as_bool) == Some(true)
-            })
-            .count()
-    });
+    let manifest_optional_count = optional_peer_names(local_manifest).count();
     let recorded_optional_count = recorded_meta.map_or(0, |meta| {
         meta.values()
             .filter(|m| m.optional)
