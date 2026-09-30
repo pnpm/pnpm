@@ -36,6 +36,7 @@ pnpm-env-replace = { path = "pnpm/crates/env-replace" }
 pnpm-fs = { path = "pnpm/crates/fs" }
 pnpm-fs-packlist = { path = "pnpm/crates/fs-packlist" }
 pnpm-git-utils = { path = "pnpm/crates/git-utils" }
+pnpm-json-bridge = { path = "pnpm/crates/json-bridge" }
 pnpm-registry = { path = "pnpm/crates/registry" }
 pnpm-tarball = { path = "pnpm/crates/tarball" }
 pnpm-testing-utils = { path = "pnpm/crates/testing-utils" }

@@ -156,10 +156,16 @@ fn package_manifest_from_version(version: &PackageVersion) -> Value {
     let mut map = serde_json::Map::new();
     map.insert("name".to_string(), Value::String(version.name.clone()));
     if let Some(bugs) = version.other.get("bugs") {
-        map.insert("bugs".to_string(), pnpm_registry::json::to_serde_json(bugs));
+        map.insert(
+            "bugs".to_string(),
+            pnpm_registry::json::to_serde_json(bugs).unwrap_or_default(),
+        );
     }
     if let Some(repo) = version.other.get("repository") {
-        map.insert("repository".to_string(), pnpm_registry::json::to_serde_json(repo));
+        map.insert(
+            "repository".to_string(),
+            pnpm_registry::json::to_serde_json(repo).unwrap_or_default(),
+        );
     }
     Value::Object(map)
 }

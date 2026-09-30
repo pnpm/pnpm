@@ -138,7 +138,8 @@ async fn get_repo_url_from_registry(
 
     let selected = select_package_version(&package, range);
     let repository = selected.and_then(|ver| {
-        ver.other.get("repository").map(pnpm_registry::json::to_serde_json)
+        let repository = ver.other.get("repository")?;
+        pnpm_registry::json::to_serde_json(repository).ok()
     });
     pick_repo_url(repository.as_ref())
         .ok_or_else(|| RepoError::NoRepoUrlRegistry { name: package.name.clone() }.into())

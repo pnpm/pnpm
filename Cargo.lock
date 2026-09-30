@@ -1798,6 +1798,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "deser-yaml"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "728645c3d2f7eb1bc58353d7f9c05ef5392f1ccc49ac604aae8e25fdb085a5f3"
+dependencies = [
+ "deser-core",
+ "zmij",
+]
+
+[[package]]
 name = "dialoguer"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5485,6 +5495,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-json-bridge"
+version = "0.0.1"
+dependencies = [
+ "deser",
+ "deser-json",
+ "deser-value",
+ "deser-yaml",
+ "pretty_assertions",
+ "serde_json",
+]
+
+[[package]]
 name = "pnpm-local-spec"
 version = "0.0.1"
 dependencies = [
@@ -6072,6 +6094,7 @@ dependencies = [
  "node-semver",
  "pipe-trait",
  "pnpm-diagnostics",
+ "pnpm-json-bridge",
  "pnpm-network",
  "pnpm-package-manifest",
  "pretty_assertions",

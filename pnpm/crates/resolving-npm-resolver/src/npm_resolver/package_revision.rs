@@ -94,7 +94,9 @@ pub(super) fn apply_revision_record<'a>(
     }
     for field in REVISION_MANIFEST_FIELDS {
         if let Some(value) = record.manifest.get(field) {
-            selected_object.insert(field.to_string(), json::to_serde_json(value));
+            let value = json::to_serde_json(value)
+                .map_err(|error| malformed_revision_history(picked, error.to_string()))?;
+            selected_object.insert(field.to_string(), value);
         }
     }
     let dist = selected_object
@@ -178,7 +180,7 @@ pub(super) fn validate_current_package_revision(
                 picked,
                 format!(
                     "current revision {} is not a canonical positive safe integer",
-                    json::to_serde_json(raw_revision),
+                    json::to_serde_json(raw_revision).unwrap_or_default(),
                 ),
             )
         })?;

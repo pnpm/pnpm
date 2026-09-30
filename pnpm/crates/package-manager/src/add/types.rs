@@ -160,7 +160,8 @@ fn has_bundled_types(package: &PackageVersion) -> bool {
         })
         || package.other
             .get("exports")
-            .is_some_and(|exports| exports_types(&pnpm_registry::json::to_serde_json(exports)))
+            .and_then(|exports| pnpm_registry::json::to_serde_json(exports).ok())
+            .is_some_and(|exports| exports_types(&exports))
 }
 
 fn exports_types(value: &serde_json::Value) -> bool {

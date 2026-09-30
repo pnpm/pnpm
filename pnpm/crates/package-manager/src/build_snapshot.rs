@@ -126,15 +126,19 @@ fn registry_resolution(package: &PackageVersion) -> Result<RegistryResolution, B
         })?;
     let revision = package.dist.revision
         .as_ref()
-        .map(pnpm_registry::json::to_serde_json)
-        .map(serde_json::from_value::<TarballRevision>)
+        .map(decode_revision)
         .transpose()
-        .map_err(|source| {
+        .map_err(|reason| {
             BuildSnapshotError::InvalidRevision(InvalidTarballRevisionMetadataError::new(
                 &package.dist.tarball,
-                source.to_string(),
+                reason,
             ))
         })?;
 
     Ok(RegistryResolution { integrity, revision })
+}
+
+fn decode_revision(revision: &pnpm_registry::json::Value) -> Result<TarballRevision, String> {
+    let revision = pnpm_registry::json::to_serde_json(revision).map_err(|error| error.to_string())?;
+    serde_json::from_value(revision).map_err(|error| error.to_string())
 }

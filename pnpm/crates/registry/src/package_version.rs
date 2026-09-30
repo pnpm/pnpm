@@ -181,7 +181,7 @@ impl PackageVersion {
     /// The manifest as the `serde_json` tree the resolver hands on as the
     /// picked package's manifest.
     pub fn to_json_value(&self) -> Result<serde_json::Value, deser::Error> {
-        deser_value::to_value(self).map(|value| json::to_serde_json(&value))
+        deser_value::to_value(self).and_then(|value| json::to_serde_json(&value))
     }
 
     pub async fn fetch_from_registry(

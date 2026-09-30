@@ -6,23 +6,20 @@
 //! - A key given more than once keeps its last value, the way JavaScript's
 //!   `JSON.parse` (and so the npm CLI and pnpm v11) reads these documents.
 //!   deser rejects repeated keys unless told otherwise.
-//! - Nesting is capped at [`MAX_DEPTH`] levels, the cap `serde_json`
-//!   enforces. deser itself does not recurse, but decoded values are
-//!   converted into `serde_json` trees (see [`to_serde_json`]), which are
-//!   walked and dropped recursively.
 //! - Floats decode as plain `f64`. The exact decimal text is not kept.
+//!
+//! Decoding does not limit nesting: see [`pnpm_json_bridge`] for where the
+//! depth is capped instead.
+
+pub use pnpm_json_bridge::{MAX_DEPTH, Value, from_serde_json, to_serde_json};
 
 use std::sync::Arc;
 
 use deser::{
     Source, State,
-    de::{Deserialize, DeserializeDriver, DuplicateKeys, Limits, SinkHandle},
+    de::{Deserialize, DeserializeDriver, DuplicateKeys, SinkHandle},
 };
 use deser_json::{Deserializer, DeserializerConfig};
-use deser_value::{Kind, Map, Value};
-
-/// How deeply a registry document may nest.
-pub const MAX_DEPTH: usize = 128;
 
 const CONFIG: DeserializerConfig = DeserializerConfig::new().exact_numbers(false);
 
@@ -84,88 +81,6 @@ pub fn to_string<Input: deser::Serialize>(value: &Input) -> Result<String, deser
 
 fn configure(driver: &mut DeserializeDriver<'_, '_>) {
     DuplicateKeys::Last.set(driver.state_mut());
-    driver.push_layer(Limits::new().max_depth(MAX_DEPTH));
-}
-
-/// Convert a decoded value into the `serde_json` tree the rest of pnpm
-/// still passes manifests around as.
-///
-/// Registry documents only hold JSON's own types. Any other kind of value
-/// (bytes, extension values) is converted through its string or number
-/// fallback, and becomes `null` without one.
-#[must_use]
-pub fn to_serde_json(value: &Value) -> serde_json::Value {
-    match value.kind() {
-        Kind::Null => serde_json::Value::Null,
-        Kind::Bool(boolean) => serde_json::Value::Bool(*boolean),
-        Kind::U64(number) => serde_json::Value::from(*number),
-        Kind::I64(number) => serde_json::Value::from(*number),
-        Kind::Seq(items) => items
-            .iter()
-            .map(to_serde_json)
-            .collect(),
-        Kind::Map(entries) => entries
-            .iter()
-            .map(|(key, value)| (key_text(key), to_serde_json(value)))
-            .collect::<serde_json::Map<_, _>>()
-            .into(),
-        _ => scalar_fallback(value),
-    }
-}
-
-/// Convert a `serde_json` tree into a dynamic [`Value`], the inverse of
-/// [`to_serde_json`], for code that still builds manifests with
-/// `serde_json`.
-#[must_use]
-pub fn from_serde_json(value: &serde_json::Value) -> Value {
-    match value {
-        serde_json::Value::Null => Value::from(()),
-        serde_json::Value::Bool(boolean) => Value::from(*boolean),
-        serde_json::Value::Number(number) => number_value(number),
-        serde_json::Value::String(text) => Value::from(text.as_str()),
-        serde_json::Value::Array(items) => Value::from(
-            items
-                .iter()
-                .map(from_serde_json)
-                .collect::<Vec<_>>(),
-        ),
-        serde_json::Value::Object(entries) => {
-            let mut map = Map::with_capacity(entries.len());
-            for (key, value) in entries {
-                map.insert(key.as_str(), from_serde_json(value));
-            }
-            Value::from(map)
-        }
-    }
-}
-
-fn number_value(number: &serde_json::Number) -> Value {
-    if let Some(unsigned) = number.as_u64() {
-        return Value::from(unsigned);
-    }
-    if let Some(signed) = number.as_i64() {
-        return Value::from(signed);
-    }
-    number
-        .as_f64()
-        .map_or_else(|| Value::from(()), Value::from)
-}
-
-fn scalar_fallback(value: &Value) -> serde_json::Value {
-    if let Some(text) = value.as_str() {
-        return serde_json::Value::String(text.to_owned());
-    }
-    value
-        .as_f64()
-        .and_then(serde_json::Number::from_f64)
-        .map_or(serde_json::Value::Null, serde_json::Value::Number)
-}
-
-fn key_text(key: &Value) -> String {
-    match key.as_str() {
-        Some(text) => text.to_owned(),
-        None => to_serde_json(key).to_string(),
-    }
 }
 
 #[cfg(test)]

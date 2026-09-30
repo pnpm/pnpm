@@ -1,0 +1,24 @@
+[package]
+name = "pnpm-json-bridge"
+description = "Conversion between deser values and serde_json trees"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+deser = { workspace = true }
+deser-value = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+deser-json = { workspace = true }
+deser-yaml = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

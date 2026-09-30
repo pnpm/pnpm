@@ -161,7 +161,9 @@ pub(super) fn project_artifact_history(
         .into_iter()
         .flatten()
         .map(|revision| crate::lookup_context::RegistryArtifact {
-            revision: revision.get("revision").map(pnpm_registry::json::to_serde_json),
+            revision: revision
+                .get("revision")
+                .and_then(|revision| pnpm_registry::json::to_serde_json(revision).ok()),
             integrity: revision
                 .get("integrity")
                 .and_then(|integrity| integrity.as_str())
@@ -174,7 +176,9 @@ pub(super) fn project_artifact_history(
         .collect();
     crate::lookup_context::RegistryArtifactHistory {
         current: crate::lookup_context::RegistryArtifact {
-            revision: dist.revision.as_ref().map(pnpm_registry::json::to_serde_json),
+            revision: dist.revision
+                .as_ref()
+                .and_then(|revision| pnpm_registry::json::to_serde_json(revision).ok()),
             integrity: dist.integrity.clone(),
             tarball: Some(dist.tarball.clone()),
         },

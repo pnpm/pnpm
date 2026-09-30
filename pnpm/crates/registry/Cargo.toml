@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-diagnostics = { workspace = true }
+pnpm-json-bridge = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 

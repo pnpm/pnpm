@@ -249,7 +249,9 @@ fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageV
     if let Some(time) = &meta.time {
         let time = time
             .iter()
-            .map(|(key, value)| (key.clone(), pnpm_registry::json::to_serde_json(value)))
+            .map(|(key, value)| {
+                (key.clone(), pnpm_registry::json::to_serde_json(value).unwrap_or_default())
+            })
             .collect::<serde_json::Map<_, _>>();
         info.insert("time".to_string(), Value::Object(time));
     }
