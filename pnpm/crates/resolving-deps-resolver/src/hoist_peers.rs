@@ -188,7 +188,7 @@ pub(crate) fn get_hoistable_optional_peers_with_preferred_versions(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
     workspace_root_deps: &[WorkspaceRootDep],
-    preferred_peer_versions: &HashMap<String, HashSet<String>>,
+    preferred_peer_versions: &HashMap<String, Vec<HashSet<String>>>,
     accepts_candidate: &dyn Fn(&str, &str) -> bool,
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
@@ -198,7 +198,9 @@ pub(crate) fn get_hoistable_optional_peers_with_preferred_versions(
             selectors,
             ranges,
             find_workspace_root_dep(workspace_root_deps, peer_name),
-            preferred_peer_versions.get(peer_name),
+            preferred_peer_versions
+                .get(peer_name)
+                .map_or(&[], Vec::as_slice),
             &|version| accepts_candidate(peer_name, version),
         );
         if let Some(version) = version {
@@ -209,13 +211,14 @@ pub(crate) fn get_hoistable_optional_peers_with_preferred_versions(
 }
 
 /// The highest preferred version satisfying every range recorded for one
-/// missing optional peer, or `None` when no candidate qualifies. One of
-/// the `preferred_versions` wins whenever one of them still qualifies.
+/// missing optional peer, or `None` when no candidate qualifies. The
+/// `preferred_tiers` are tried in order, and the first tier holding a
+/// qualifying version wins over the rest of the candidates.
 fn max_hoistable_optional_version(
     selectors: &VersionSelectors,
     ranges: &[String],
     root_dep: Option<&WorkspaceRootDep>,
-    preferred_versions: Option<&HashSet<String>>,
+    preferred_tiers: &[HashSet<String>],
     accepts_candidate: &dyn Fn(&str) -> bool,
 ) -> Option<Version> {
     // An unparsable range is satisfied by nothing, so bailing on the
@@ -259,15 +262,35 @@ fn max_hoistable_optional_version(
             })
             .max()
     };
-    let Some(preferred_versions) = preferred_versions else {
-        return max_hoistable(None);
-    };
     // A preference no remaining candidate satisfies — its provider left the
     // graph, or it fell outside the ranges — is stale, and must not veto
     // the hoist: leaving the peer bare drops it from the direct
     // dependency key, and the run after that re-attaches it from these
     // very candidates. Picking from them here keeps one run enough.
-    max_hoistable(Some(preferred_versions)).or_else(|| max_hoistable(None))
+    preferred_tiers
+        .iter()
+        .find_map(|tier| max_hoistable(Some(tier)))
+        .or_else(|| max_hoistable(None))
+}
+
+/// The version tiers the optional-peer picker tries in order: the
+/// `locked` versions this run `resolved`, then every version it
+/// resolved, then the `locked` ones. A locked version the run no longer
+/// resolves survives only as a lockfile weight, since whatever provided
+/// it has moved on, so it must not outrank what the graph now holds.
+pub(crate) fn optional_peer_version_tiers(
+    locked: Option<&HashSet<String>>,
+    resolved: HashSet<String>,
+) -> Vec<HashSet<String>> {
+    let locked = locked.cloned().unwrap_or_default();
+    let reached: HashSet<String> = locked
+        .intersection(&resolved)
+        .cloned()
+        .collect();
+    [reached, resolved, locked]
+        .into_iter()
+        .filter(|tier| !tier.is_empty())
+        .collect()
 }
 
 /// One preferred-version selector as an installable candidate, or `None` when

@@ -527,17 +527,14 @@ impl TreeCtx {
         out
     }
 
-    /// The versions the optional-peer picker should prefer for each of
-    /// `names`: the `locked` ones this run has resolved into the settled
-    /// reachable tree, else every version the run resolved, else the
-    /// `locked` ones. A locked version outside the run survives only as a
-    /// lockfile weight, whatever provided it has moved on, so it must not
-    /// outrank what the graph now holds, whichever way the provider moved.
-    pub(crate) fn preferred_optional_peer_versions<'name>(
+    /// [`crate::hoist_peers::optional_peer_version_tiers`] for each of
+    /// `names`, from the `locked` versions and the versions this run has
+    /// resolved into the settled reachable tree.
+    pub(crate) fn optional_peer_version_tiers<'name>(
         &self,
         locked: &HashMap<String, HashSet<String>>,
         names: impl Iterator<Item = &'name str>,
-    ) -> HashMap<String, HashSet<String>> {
+    ) -> HashMap<String, Vec<HashSet<String>>> {
         let run = self.workspace.run_preferred_versions();
         let mut out = HashMap::default();
         for name in names {
@@ -546,28 +543,13 @@ impl TreeCtx {
                 .into_iter()
                 .flat_map(|bucket| bucket.keys().cloned())
                 .collect();
-            let preferred = prefer_locked_among_resolved(locked.get(name), resolved);
-            if !preferred.is_empty() {
-                out.insert(name.to_string(), preferred);
+            let tiers = crate::hoist_peers::optional_peer_version_tiers(locked.get(name), resolved);
+            if !tiers.is_empty() {
+                out.insert(name.to_string(), tiers);
             }
         }
         out
     }
-}
-
-fn prefer_locked_among_resolved(
-    locked: Option<&HashSet<String>>,
-    resolved: HashSet<String>,
-) -> HashSet<String> {
-    let Some(locked) = locked else { return resolved };
-    if resolved.is_empty() {
-        return locked.clone();
-    }
-    let reached: HashSet<String> = locked
-        .intersection(&resolved)
-        .cloned()
-        .collect();
-    if reached.is_empty() { resolved } else { reached }
 }
 
 fn create_subdep_options(base_opts: &ResolveOptions) -> ResolveOptions {
