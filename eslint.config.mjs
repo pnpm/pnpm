@@ -10,7 +10,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/bins/cmd-shim/**",
     "pnpm11/deps/compliance/license-scanner/**",
     "pnpm11/deps/graph-builder/**",
-    "pnpm11/deps/inspection/outdated/**",
     "pnpm11/deps/security/signatures/**",
     "pnpm11/engine/runtime/commands/**",
     "pnpm11/exec/lifecycle/**",

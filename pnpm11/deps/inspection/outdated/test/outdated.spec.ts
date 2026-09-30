@@ -21,21 +21,31 @@ function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher 
       const latestManifest = await getLatest(alias)
       return { latestManifest: latestManifest ?? undefined }
     }
-    if (
-      bareSpecifier?.startsWith('http://') || bareSpecifier?.startsWith('https://') ||
-      bareSpecifier?.startsWith('github:') || bareSpecifier?.startsWith('git+') || bareSpecifier?.startsWith('git:')
-    ) {
+    if (isRemoteOrGitSpecifier(bareSpecifier)) {
       return {}
     }
-    let pkgName = alias ?? ''
-    if (bareSpecifier?.startsWith('npm:')) {
-      const inner = bareSpecifier.slice(4)
-      const atIdx = inner.lastIndexOf('@')
-      pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
-    }
+    const pkgName = extractPackageNameFromSpecifier(alias, bareSpecifier)
     const latestManifest = await getLatest(pkgName)
     return { latestManifest: latestManifest ?? undefined }
   }
+}
+
+function isRemoteOrGitSpecifier (bareSpecifier?: string): boolean {
+  if (!bareSpecifier) return false
+  return (
+    bareSpecifier.startsWith('http://') || bareSpecifier.startsWith('https://') ||
+    bareSpecifier.startsWith('github:') || bareSpecifier.startsWith('git+') || bareSpecifier.startsWith('git:')
+  )
+}
+
+function extractPackageNameFromSpecifier (alias: string | undefined, bareSpecifier?: string): string {
+  let pkgName = alias ?? ''
+  if (bareSpecifier?.startsWith('npm:')) {
+    const inner = bareSpecifier.slice(4)
+    const atIdx = inner.lastIndexOf('@')
+    pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
+  }
+  return pkgName
 }
 
 async function getLatestManifest (packageName: string): Promise<PackageManifest | null> {
