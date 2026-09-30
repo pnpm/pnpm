@@ -35,9 +35,9 @@ struct PackumentIntegrityResolver<'a> {
     name: &'a CanonicalPackageName,
 }
 
-/// Pins a computed `dist.integrity` into every version of a freshly fetched
-/// packument that lacks a usable one, so a client that requires integrity can
-/// install it. Reads of the cached copy do not retry versions that could not be
+/// Pins a computed `dist.integrity` into every version of a packument pnpr
+/// just fetched and cached that lacks a usable one, so a client that requires
+/// integrity can install it. Reads of the cached copy do not retry versions that could not be
 /// pinned; the next refresh does.
 ///
 /// Pinning is per version and never fails the document. A version the upstream
@@ -63,9 +63,6 @@ impl PackumentIntegrityResolver<'_> {
     /// tarballs runs under it, so a published pin always describes the cached
     /// bytes.
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
-        if !self.upstream.caches() {
-            return Ok(bytes);
-        }
         let candidates = {
             let doc: Value = serde_json::from_slice(&bytes)?;
             missing_integrity_tarballs(&doc, self.name, self.osv_index())
@@ -75,13 +72,11 @@ impl PackumentIntegrityResolver<'_> {
             return Ok(bytes);
         }
         let _guard = lock_upstream_package(self.state, self.namespace, self.name).await;
-        let Some(current) = self.read_cached_packument().await? else {
-            // Purged, or never cached: there is no packument to pin into.
+        let Some(doc) = self.read_cached_packument().await? else {
             abandon(pins).await;
             return Ok(bytes);
         };
-        let doc: Value = serde_json::from_slice(&current)?;
-        Ok(self.publish_pins(doc, pins).await.unwrap_or(current))
+        Ok(self.publish_pins(doc, pins).await.unwrap_or(bytes))
     }
 
     /// Writes the pins that still apply into `doc` and persists it before
@@ -147,10 +142,13 @@ impl PackumentIntegrityResolver<'_> {
         self.state.inner.osv_index.as_ref()
     }
 
-    /// Any cached copy, however old: the downloads may outlast a short
-    /// `maxage`, and only a purge means there is nothing to pin into.
-    async fn read_cached_packument(&self) -> Result<Option<Vec<u8>>, RegistryError> {
-        self.state.inner.storage.read_upstream_document_any(self.namespace, self.name).await
+    /// Any cached copy, however old, since the downloads may outlast a short
+    /// `maxage`. `None` means there is nothing to pin into: the package was
+    /// purged meanwhile, or its cached body does not parse.
+    async fn read_cached_packument(&self) -> Result<Option<Value>, RegistryError> {
+        let cached =
+            self.state.inner.storage.read_upstream_document_any(self.namespace, self.name).await?;
+        Ok(cached.and_then(|bytes| serde_json::from_slice(&bytes).ok()))
     }
 
     async fn compute_integrities(
