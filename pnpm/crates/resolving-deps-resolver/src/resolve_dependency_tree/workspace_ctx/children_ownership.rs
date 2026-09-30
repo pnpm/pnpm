@@ -58,7 +58,9 @@ pub(in super::super) struct RecordedChildrenContext {
     /// the walk drops from its children.
     pub(in super::super) peer_shadowed: Arc<HashSet<String>>,
     /// The prior-lockfile key whose snapshot pinned the children, if the
-    /// walk reused one.
+    /// walk reused one. `None` under an update that unpins every edge,
+    /// where the key pins nothing and an occurrence reached without one
+    /// produces the same children.
     pub(in super::super) prior_key: Option<PkgNameVerPeer>,
     /// Whether the resolving importer had an active update policy, which
     /// re-resolves what a keep-all importer reuses.

@@ -159,5 +159,13 @@ impl UpdateDepth {
     }
 }
 
+impl super::reuse::UpdateScope<'_> {
+    /// Whether the update reopens every edge at every depth, so no locked
+    /// version survives it.
+    pub(super) fn unpins_every_edge(self) -> bool {
+        matches!(self.reuse, UpdateReuseScope::None) && self.max_depth == UpdateDepth::UNLIMITED
+    }
+}
+
 #[cfg(test)]
 mod tests;
