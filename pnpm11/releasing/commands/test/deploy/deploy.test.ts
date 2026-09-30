@@ -1577,10 +1577,11 @@ test('deploy: preserves symlinks in a nested node_modules listed in files', asyn
   expect(fs.readFileSync(`${deployedModules}/@scope/bar/index.js`, 'utf8')).toBe('module.exports = "bar"')
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/16403
 test.each([
   { mode: 'native', forceLegacyDeploy: false },
   { mode: 'legacy', forceLegacyDeploy: true },
-])('$mode deploy copies the package manager pin of the workspace root', async ({ forceLegacyDeploy }) => {
+])('$mode deploy does not copy the package manager pin of the workspace root', async ({ forceLegacyDeploy }) => {
   const workspaceRootManifest = {
     name: 'root',
     version: '1.0.0',
@@ -1627,60 +1628,12 @@ test.each([
   await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
 
   const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
-  expect(deployedManifest.packageManager).toBe('pnpm@10.18.0')
+  expect(deployedManifest.packageManager).toBeUndefined()
   expect(deployedManifest.devEngines).toStrictEqual({
-    packageManager: { name: 'pnpm', version: '^10.18.0', onFail: 'download' },
     runtime: { name: 'node', version: '*' },
   })
 })
 
-test.each([
-  { mode: 'native', forceLegacyDeploy: false },
-  { mode: 'legacy', forceLegacyDeploy: true },
-])('$mode deploy keeps the package manager pin of the deployed project', async ({ forceLegacyDeploy }) => {
-  const rootProjectManifest = {
-    name: 'root',
-    version: '1.0.0',
-    private: true,
-    packageManager: 'pnpm@10.18.0',
-  }
-  preparePackages([
-    {
-      location: '.',
-      package: rootProjectManifest,
-    },
-    {
-      name: 'project-1',
-      version: '1.0.0',
-      devEngines: {
-        packageManager: { name: 'pnpm', version: '^11.0.0' },
-      },
-    },
-  ])
-
-  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
-  const opts = {
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    rootProjectManifest,
-    enginePinManifest: rootProjectManifest,
-    sharedWorkspaceLockfile: true,
-    lockfileDir: process.cwd(),
-    workspaceDir: process.cwd(),
-  }
-
-  await install.handler({ ...opts, dev: true, production: true })
-  await deploy.handler({ ...opts, dev: false, forceLegacyDeploy, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
-
-  const deployedManifest = loadJsonFileSync<Record<string, unknown>>(path.resolve('deploy/package.json'))
-  expect(deployedManifest.packageManager).toBeUndefined()
-  expect(deployedManifest.devEngines).toStrictEqual({
-    packageManager: { name: 'pnpm', version: '^11.0.0' },
-  })
-})
-
-// Regression test for https://github.com/pnpm/pnpm/issues/15703
 test('prod deploy skips the devEngines runtime without failing the frozen lockfile check', async () => {
   preparePackages([
     {
