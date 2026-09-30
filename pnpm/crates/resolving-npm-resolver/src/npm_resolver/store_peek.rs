@@ -10,11 +10,17 @@ use pnpm_resolving_resolver_base::{
 use pnpm_store_dir::{SharedReadonlyStoreIndex, store_index_key};
 
 use super::{
-    NPM_REGISTRY_RESOLVED_VIA, release_policy::detect_min_release_age_violation,
-    workspace_pick::prefer_workspace_pick,
+    NPM_REGISTRY_RESOLVED_VIA, NpmResolver,
+    guarded_pick::RegistryPick,
+    release_policy::detect_min_release_age_violation,
+    workspace_pick::{prefer_workspace_pick, workspace_fallback_for},
 };
-use crate::pick_package_from_meta::{
-    RegistryPackageSpec, RegistryPackageSpecType, semver_range::semver_satisfies_loose,
+use crate::{
+    OfflineStoreView,
+    pick_package::PackageMetaCache,
+    pick_package_from_meta::{
+        RegistryPackageSpec, RegistryPackageSpecType, semver_range::semver_satisfies_loose,
+    },
 };
 
 pub(crate) async fn fast_path_pick(
@@ -31,6 +37,43 @@ pub(crate) async fn fast_path_pick(
         return Ok(Some(result));
     }
     Ok(prefer_workspace_pick(workspace_packages_active, spec, wanted_dependency, opts))
+}
+
+impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
+    /// What a registry lookup that picked nothing resolves to. An offline
+    /// repick without usable metadata keeps the locked version when the store
+    /// holds its manifest, since there is nothing to deduplicate against.
+    /// Otherwise a workspace package may stand in, or the outcome's error
+    /// surfaces.
+    pub(super) async fn unpicked_fallback(
+        &self,
+        outcome: Result<RegistryPick, ResolveError>,
+        wanted_dependency: &WantedDependency,
+        registry: &str,
+        workspace_packages_active: Option<&Arc<WorkspacePackages>>,
+        spec: &RegistryPackageSpec,
+        opts: &ResolveOptions,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        if self.cache_policy.offline
+            && opts.refresh.repick_current_version
+            && let Some(result) =
+                peek_manifest_from_store(self.store_index(), wanted_dependency, opts, spec).await?
+        {
+            return Ok(Some(result));
+        }
+        workspace_fallback_for(
+            outcome,
+            wanted_dependency,
+            registry,
+            workspace_packages_active,
+            spec,
+            opts,
+        )
+    }
+
+    pub(super) fn store_index(&self) -> Option<&SharedReadonlyStoreIndex> {
+        self.store_view.as_ref().map(OfflineStoreView::index)
+    }
 }
 
 pub(crate) async fn peek_manifest_from_store(

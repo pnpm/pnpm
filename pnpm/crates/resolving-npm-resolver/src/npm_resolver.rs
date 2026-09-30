@@ -42,12 +42,11 @@ mod guarded_pick;
 
 mod workspace_pick;
 use workspace_pick::{
-    resolve_workspace_protocol, wanted_spec, workspace_fallback_for, workspace_packages_active,
-    workspace_shadow_pick,
+    resolve_workspace_protocol, wanted_spec, workspace_packages_active, workspace_shadow_pick,
 };
 
 mod store_peek;
-use store_peek::{fast_path_pick, peek_manifest_from_store};
+use store_peek::fast_path_pick;
 
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -222,27 +221,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         self.resolve_registry_dependency(wanted_dependency, opts, default_tag).await
     }
 
-    /// An offline repick that found no usable metadata keeps the locked
-    /// version when the store holds its manifest: without metadata there is
-    /// nothing to deduplicate against.
-    async fn offline_locked_fallback(
-        &self,
-        wanted_dependency: &WantedDependency,
-        opts: &ResolveOptions,
-        spec: &RegistryPackageSpec,
-    ) -> Result<Option<ResolveResult>, ResolveError> {
-        if !self.cache_policy.offline || !opts.refresh.repick_current_version {
-            return Ok(None);
-        }
-        peek_manifest_from_store(
-            self.store_view.as_ref().map(OfflineStoreView::index),
-            wanted_dependency,
-            opts,
-            spec,
-        )
-        .await
-    }
-
     async fn resolve_registry_dependency(
         &self,
         wanted_dependency: &WantedDependency,
@@ -257,14 +235,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let optional = wanted_dependency.optional.unwrap_or(false);
         let workspace_packages_active = workspace_packages_active(opts, &spec);
 
-        if let Some(result) = fast_path_pick(
-            self.store_view.as_ref().map(OfflineStoreView::index),
-            wanted_dependency,
-            opts,
-            &spec,
-            workspace_packages_active,
-        )
-        .await?
+        let store_index = self.store_index();
+        if let Some(result) =
+            fast_path_pick(store_index, wanted_dependency, opts, &spec, workspace_packages_active)
+                .await?
         {
             return Ok(Some(result));
         }
@@ -274,19 +248,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             match self.pick_from_registry(&registry, &spec, opts, optional, trust_check).await {
                 Ok(RegistryPick::Picked(picked)) => picked,
                 outcome => {
-                    if let Some(result) =
-                        self.offline_locked_fallback(wanted_dependency, opts, &spec).await?
-                    {
-                        return Ok(Some(result));
-                    }
-                    return workspace_fallback_for(
+                    return self.unpicked_fallback(
                         outcome,
                         wanted_dependency,
                         &registry,
                         workspace_packages_active,
                         &spec,
                         opts,
-                    );
+                    )
+                    .await;
                 }
             };
 
