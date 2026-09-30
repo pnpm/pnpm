@@ -156,33 +156,38 @@ export async function resolvePackageManagerIntegrities (
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
   stripRegistryTarballUrls(lockfile)
 
-  if (lockfile.packages) {
-    // Build packageManagerDependencies from the resolved lockfile importers
-    const importer = lockfile.importers['.' as ProjectId]
-    const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
-    for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
-      packageManagerDependencies[name] = {
-        specifier: importer.specifiers[name],
-        version,
-      }
-    }
-    envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
-
-    // Merge new packages into the env lockfile object, then prune stale entries
-    const merged = convertToLockfileEnvObject(envLockfile)
-    for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
-      merged.packages![depPath as DepPath] = pkg
-    }
-    const pruned = pruneSharedLockfile(merged)
-    const prunedFile = convertToLockfileFile(pruned)
-    envLockfile.packages = prunedFile.packages ?? {}
-    envLockfile.snapshots = prunedFile.snapshots ?? {}
-
-    if (save) {
-      await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
-    }
+  if (!lockfile.packages) return envLockfile
+  mergeResolvedPackageManagerDeps(envLockfile, { ...lockfile, packages: lockfile.packages })
+  if (save) {
+    await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   }
   return envLockfile
+}
+
+function mergeResolvedPackageManagerDeps (
+  envLockfile: EnvLockfile,
+  lockfile: LockfileObject & Required<Pick<LockfileObject, 'packages'>>
+): void {
+  // Build packageManagerDependencies from the resolved lockfile importers
+  const importer = lockfile.importers['.' as ProjectId]
+  const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
+  for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
+    packageManagerDependencies[name] = {
+      specifier: importer.specifiers[name],
+      version,
+    }
+  }
+  envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
+
+  // Merge new packages into the env lockfile object, then prune stale entries
+  const merged = convertToLockfileEnvObject(envLockfile)
+  for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
+    merged.packages![depPath as DepPath] = pkg
+  }
+  const pruned = pruneSharedLockfile(merged)
+  const prunedFile = convertToLockfileFile(pruned)
+  envLockfile.packages = prunedFile.packages ?? {}
+  envLockfile.snapshots = prunedFile.snapshots ?? {}
 }
 
 /**
