@@ -67,31 +67,33 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]): string
   const output: Record<string, LicensePackageJson[]> = {}
   const groupedByLicense = groupBy((item) => item.license, data)
   for (const license in groupedByLicense) {
-    const outputList: LicensePackageJson[] = []
     // Group by the registry too: the same name from two registries is two
     // packages, and collapsing them would drop one from the report.
     const groupedByName = groupBy(
       (item) => item.registryName == null ? item.name : `${item.name}\u0000${item.registryName}`,
       groupedByLicense[license] ?? []
     )
-    for (const inputList of Object.values(groupedByName)) {
-      if (inputList == null) continue
-      inputList.sort((a, b) => compareVersions(a.version, b.version))
-      const versions = inputList.map((item) => item.version)
-      const paths = [...new Set(inputList.flatMap((item) => item.paths ?? [item.path ?? null]))]
-      const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
-      const outputItem: LicensePackageJson = {
-        name: lastInputItem.name,
-        versions,
-        paths,
-        ...omit(['name', 'version', 'path', 'paths'], lastInputItem),
-      }
-      outputList.push(outputItem)
-    }
-    output[license] = outputList
+    output[license] = Object.values(groupedByName)
+      .filter((inputList) => inputList != null)
+      .map(mergeLicensePackageVersions)
   }
 
   return JSON.stringify(output, null, 2)
+}
+
+type PickedLicensePackage = Pick<LicensePackage, 'name' | 'version' | 'path' | 'paths' | 'license' | 'author' | 'homepage' | 'description' | 'registryName'>
+
+function mergeLicensePackageVersions (inputList: PickedLicensePackage[]): LicensePackageJson {
+  inputList.sort((a, b) => compareVersions(a.version, b.version))
+  const versions = inputList.map((item) => item.version)
+  const paths = [...new Set(inputList.flatMap((item) => item.paths ?? [item.path ?? null]))]
+  const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
+  return {
+    name: lastInputItem.name,
+    versions,
+    paths,
+    ...omit(['name', 'version', 'path', 'paths'], lastInputItem),
+  }
 }
 
 export interface LicensePackageJson {
@@ -127,27 +129,7 @@ function renderLicensesTable (
     ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
       .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
   ]
-  let detailsColumnMaxWidth = 40
-  let packageColumnMaxWidth = 0
-  let licenseColumnMaxWidth = 0
-  if (opts.long) {
-    // Use the package link to determine the width of the details column
-    detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
-    for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
-      const row = data[rowIndex]
-      const detailsLineCount = row[2].split('\n').length
-      const linesNumber = Math.max(0, detailsLineCount - 1)
-      row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
-      row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
-      packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
-      licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
-    }
-    const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
-    if (detailsColumnMaxWidth > remainColumnWidth) {
-      detailsColumnMaxWidth = remainColumnWidth
-    }
-    detailsColumnMaxWidth = Math.max(detailsColumnMaxWidth, 40)
-  }
+  const detailsColumnMaxWidth = opts.long ? fitDetailsColumn(data, licensePackages) : 40
   try {
     return table(
       data,
@@ -169,6 +151,31 @@ function renderLicensesTable (
       TABLE_OPTIONS
     )
   }
+}
+
+/**
+ * Pads the package and license cells of each row to the height of its details
+ * cell and returns the width the details column can take.
+ */
+function fitDetailsColumn (data: string[][], licensePackages: readonly LicensePackage[]): number {
+  // Use the package link to determine the width of the details column
+  let detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
+  let packageColumnMaxWidth = 0
+  let licenseColumnMaxWidth = 0
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
+    const row = data[rowIndex]
+    const detailsLineCount = row[2].split('\n').length
+    const linesNumber = Math.max(0, detailsLineCount - 1)
+    row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
+    row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
+    packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
+    licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
+  }
+  const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
+  if (detailsColumnMaxWidth > remainColumnWidth) {
+    detailsColumnMaxWidth = remainColumnWidth
+  }
+  return Math.max(detailsColumnMaxWidth, 40)
 }
 
 function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {

@@ -49,32 +49,13 @@ export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: 
 }
 
 function renderSignatureVerificationResult (result: SignatureVerificationResult): string {
-  const lines: string[] = []
-  lines.push(`audited ${result.audited} package${result.audited === 1 ? '' : 's'}`)
-  lines.push('')
-
-  if (result.verified > 0) {
-    lines.push(`${result.verified} package${result.verified === 1 ? ' has a' : 's have'} ${chalk.bold('verified')} registry signature${result.verified === 1 ? '' : 's'}`)
-    lines.push('')
-  }
-
-  if (result.missing.length > 0) {
-    lines.push(`${result.missing.length} package${result.missing.length === 1 ? ' is' : 's are'} ${chalk.redBright('missing')} registry signature${result.missing.length === 1 ? '' : 's'} but the registry is providing signing keys:`)
-    lines.push('')
-    lines.push(table(result.missing.map(({ name, registry, version }) => [chalk.red(`${name}@${version}`), registry]), TABLE_OPTIONS))
-    lines.push('')
-  }
-
-  if (result.invalid.length > 0) {
-    lines.push(`${result.invalid.length} package${result.invalid.length === 1 ? ' has an' : 's have'} ${chalk.redBright('invalid')} registry signature${result.invalid.length === 1 ? '' : 's'}:`)
-    lines.push('')
-    lines.push(table(result.invalid.map(({ name, reason, registry, version }) => [chalk.red(`${name}@${version}`), registry, reason ?? 'Invalid registry signature']), TABLE_OPTIONS))
-    lines.push('')
-    lines.push(result.invalid.length === 1
-      ? 'Someone might have tampered with this package since it was published on the registry!'
-      : 'Someone might have tampered with these packages since they were published on the registry!')
-    lines.push('')
-  }
+  const lines: string[] = [
+    `audited ${result.audited} package${result.audited === 1 ? '' : 's'}`,
+    '',
+    ...renderVerifiedPackages(result),
+    ...renderMissingSignatures(result),
+    ...renderInvalidSignatures(result),
+  ]
 
   if (result.audited === 0 && result.invalid.length === 0 && result.missing.length === 0 && result.verified === 0) {
     lines.push('No dependencies were installed from a registry with signing keys')
@@ -82,4 +63,36 @@ function renderSignatureVerificationResult (result: SignatureVerificationResult)
   }
 
   return lines.join('\n')
+}
+
+function renderVerifiedPackages (result: SignatureVerificationResult): string[] {
+  if (result.verified === 0) return []
+  return [
+    `${result.verified} package${result.verified === 1 ? ' has a' : 's have'} ${chalk.bold('verified')} registry signature${result.verified === 1 ? '' : 's'}`,
+    '',
+  ]
+}
+
+function renderMissingSignatures (result: SignatureVerificationResult): string[] {
+  if (result.missing.length === 0) return []
+  return [
+    `${result.missing.length} package${result.missing.length === 1 ? ' is' : 's are'} ${chalk.redBright('missing')} registry signature${result.missing.length === 1 ? '' : 's'} but the registry is providing signing keys:`,
+    '',
+    table(result.missing.map(({ name, registry, version }) => [chalk.red(`${name}@${version}`), registry]), TABLE_OPTIONS),
+    '',
+  ]
+}
+
+function renderInvalidSignatures (result: SignatureVerificationResult): string[] {
+  if (result.invalid.length === 0) return []
+  return [
+    `${result.invalid.length} package${result.invalid.length === 1 ? ' has an' : 's have'} ${chalk.redBright('invalid')} registry signature${result.invalid.length === 1 ? '' : 's'}:`,
+    '',
+    table(result.invalid.map(({ name, reason, registry, version }) => [chalk.red(`${name}@${version}`), registry, reason ?? 'Invalid registry signature']), TABLE_OPTIONS),
+    '',
+    result.invalid.length === 1
+      ? 'Someone might have tampered with this package since it was published on the registry!'
+      : 'Someone might have tampered with these packages since they were published on the registry!',
+    '',
+  ]
 }
