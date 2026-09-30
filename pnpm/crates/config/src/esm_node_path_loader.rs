@@ -10,9 +10,9 @@
 //! default ESM resolution fails to find.
 //!
 //! Any `--import` flag makes Node.js run the main entry point through the
-//! ESM loader, which rejects file extensions that only CommonJS require
-//! hooks handle, such as the `.ts` entry point of ts-node. The hook marks
-//! such an entry point as CommonJS, which hands it back to the CommonJS
+//! ESM loader, which rejects file extensions that only CJS require hooks
+//! handle, such as the `.ts` entry point of ts-node. The hook marks such an
+//! entry point with the `commonjs` format, which hands it back to the CJS
 //! loader, as Node.js does without `--import`. Entry points ending in `.js`
 //! or without an extension are left alone, because Node.js may detect
 //! module syntax in them.
