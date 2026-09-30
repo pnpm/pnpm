@@ -133,9 +133,7 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/workspace/projects-reader/**",
     "pnpm11/workspace/task-scheduler/**",
     "pnpm11/workspace/workspace-manifest-reader/**",
-    "pnpm11/workspace/workspace-manifest-writer/**",
     "pnpm11/yaml/document-sync/**",
-    "pnpr/client/**",
 ]
 
 export default [
