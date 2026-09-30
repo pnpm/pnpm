@@ -111,7 +111,7 @@ impl ChildOutputs {
 /// Index, for every package id in the tree, which of its child edges can
 /// stand in as a peer-dependency provider. Entries carried over from an
 /// earlier walk are left alone.
-pub(super) fn index_peer_provider_children(
+pub(in super::super) fn index_peer_provider_children(
     tree: &ResolvedTree,
     index: &mut HashMap<Arc<str>, PeerProviderChildren>,
 ) {

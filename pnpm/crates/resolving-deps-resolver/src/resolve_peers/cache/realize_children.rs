@@ -136,7 +136,8 @@ impl Walker<'_> {
             .get(&lazy.pkg_id)
             .cloned()
             .unwrap_or_default();
-        let provider_edge_indices = self.caches.peer_provider_children_by_pkg_id
+        let provider_edge_indices = self.caches.peer_providers
+            .children_by_pkg_id
             .get(&*lazy.pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
         let canonical_scc = self.canonical_scc();

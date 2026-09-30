@@ -107,7 +107,7 @@ impl Walker<'_> {
         let Some(children) = self.tree.children_by_id.get(pkg_id) else {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
-        let Some(edge_indices) = self.caches.peer_provider_children_by_pkg_id
+        let Some(edge_indices) = self.caches.peer_providers.children_by_pkg_id
             .get(pkg_id)
             .and_then(|providers| providers.edge_indices_by_name.get(name))
         else {

@@ -7,6 +7,7 @@ pub(crate) use walk_context::MissingSummary;
 
 pub(super) use walk_context::{
     MissingPeerInfo, NodeOutput, NodeWalkContext, RootWalk, SubtreeMissingByPkg,
+    index_peer_provider_children,
 };
 
 pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_names};
@@ -15,7 +16,6 @@ mod walk_context;
 use walk_context::{
     ChildAliases, ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren,
     LockedPinContext, NodeEntry, NodePeers, NodePeersContext, SettledPeers, WalkResult,
-    index_peer_provider_children,
 };
 
 mod missing_names;
@@ -164,10 +164,10 @@ impl<'tree> Walker<'tree> {
         opts: ResolvePeersOptions,
         node_ids_by_previous_dep_path: HashMap<DepPath, NodeId>,
         current_provider_sources: Vec<CurrentProviderSource>,
-        caches: PeerDiscoveryCaches,
+        mut caches: PeerDiscoveryCaches,
         discovery: bool,
     ) -> Self {
-        let caches = prepare_discovery_caches(tree, caches);
+        caches.peer_providers.refresh(tree);
         Walker {
             tree,
             opts,
@@ -487,18 +487,6 @@ fn chain_with_pkg_id(chain: &SharedChain<Arc<str>>, pkg_id: &Arc<str>) -> Shared
 
 #[cfg(test)]
 mod tests;
-
-fn prepare_discovery_caches(
-    tree: &ResolvedTree,
-    mut caches: PeerDiscoveryCaches,
-) -> PeerDiscoveryCaches {
-    if caches.peer_provider_index_peer_names != tree.all_peer_dep_names {
-        caches.peer_provider_children_by_pkg_id.clear();
-        caches.peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
-    }
-    index_peer_provider_children(tree, &mut caches.peer_provider_children_by_pkg_id);
-    caches
-}
 
 impl SettledPeers {
     fn node_output(self, walked: &mut ChildrenWalk) -> NodeOutput {

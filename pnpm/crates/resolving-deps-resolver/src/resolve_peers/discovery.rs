@@ -10,7 +10,10 @@ use crate::{
         HoistMissingScope, ResolvePeersOptions,
         cache::{PeerProviderChildren, PeersCacheItem},
         context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
-        walker::{MissingSummary, NodeOutput, RootWalk, Walker, children_scc_ids},
+        walker::{
+            MissingSummary, NodeOutput, RootWalk, Walker, children_scc_ids,
+            index_peer_provider_children,
+        },
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
@@ -116,8 +119,7 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) peers_cache: HashMap<Arc<str>, Vec<PeersCacheItem>>,
     pub(super) parent_pkgs_of_node: HashMap<NodeId, Arc<HashMap<String, ParentPkgInfo>>>,
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
-    pub(super) peer_provider_children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
-    pub(super) peer_provider_index_peer_names: HashSet<String>,
+    pub(super) peer_providers: PeerProviderIndex,
     pub(super) canonical_cycles: CanonicalCycleGate,
     /// How many times the engine has refreshed or rebuilt the view these
     /// caches belong to. A cache derived from the view records the
@@ -129,6 +131,31 @@ pub(crate) struct PeerDiscoveryCaches {
 impl PeerDiscoveryCaches {
     pub(super) fn view_generation(&self) -> u64 {
         self.view_generation
+    }
+}
+
+/// Which child edges of each package can stand in as peer-dependency
+/// providers (see [`index_peer_provider_children`]), indexed for the
+/// walkers of one tree view.
+#[derive(Debug, Default)]
+pub(super) struct PeerProviderIndex {
+    pub(super) children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
+    /// The tree's peer names the index was built under. Which edges
+    /// count as providers depends on them, so a tree with other peer
+    /// names gets a fresh index.
+    peer_names: HashSet<String>,
+}
+
+impl PeerProviderIndex {
+    /// Bring the index up to `tree`: rebuilt when the tree's peer names
+    /// differ from the ones it was built under, then extended with the
+    /// packages it does not cover yet.
+    pub(super) fn refresh(&mut self, tree: &ResolvedTree) {
+        if self.peer_names != tree.all_peer_dep_names {
+            self.children_by_pkg_id.clear();
+            self.peer_names.clone_from(&tree.all_peer_dep_names);
+        }
+        index_peer_provider_children(tree, &mut self.children_by_pkg_id);
     }
 }
 
