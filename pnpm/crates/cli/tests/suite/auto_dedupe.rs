@@ -556,11 +556,14 @@ fn downgrading_a_dependency_moves_other_projects_to_the_named_version() {
         eprintln!("{group}, filtered: {filtered}, minimumReleaseAge: {minimum_release_age:?}");
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
-        let mut settings = String::from("packages:\n  - low\n  - high\nautoDedupe: true\n");
-        if let Some(age) = minimum_release_age {
-            settings.push_str(&format!("minimumReleaseAge: {age}\n"));
-        }
-        write_settings(&workspace, settings).unwrap();
+        let age_setting = minimum_release_age.map_or_else(String::new, |age| {
+            format!("minimumReleaseAge: {age}\n")
+        });
+        write_settings(
+            &workspace,
+            format!("packages:\n  - low\n  - high\nautoDedupe: true\n{age_setting}"),
+        )
+        .unwrap();
         for (project, manifest) in [
             ("low", serde_json::json!({"name": "low", "dependencies": {DEP: "100.1.0"}})),
             ("high", serde_json::json!({"name": "high", group: {DEP: "^100.0.0"}})),
