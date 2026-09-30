@@ -7,14 +7,14 @@ import { expect, test } from '@jest/globals'
 import { ConcurrentReadOnlyStoreIndex, packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
-test('ConcurrentReadOnlyStoreIndex sees WAL commits and refuses writes', () => {
+test.each([false, true])('ConcurrentReadOnlyStoreIndex sees WAL commits and refuses writes (missing exec: %s)', (missingExec) => {
   const storeDir = temporaryDirectory()
   const writer = new StoreIndex(storeDir)
   let reader: ConcurrentReadOnlyStoreIndex | undefined
   try {
     writer.set('present', { value: 1 })
     writer.checkpoint()
-    reader = new ConcurrentReadOnlyStoreIndex(storeDir)
+    reader = missingExec ? new MissingExecConcurrentReadOnlyStoreIndex(storeDir) : new ConcurrentReadOnlyStoreIndex(storeDir)
     expect(reader.get('present')).toEqual({ value: 1 })
 
     writer.set('present', { value: 2 })
@@ -467,6 +467,14 @@ class TracingPrepareStoreIndex extends StoreIndex {
 class MissingExecStoreIndex extends StoreIndex {
   protected override openConnection (storeDir: string): DatabaseSync {
     const db = tracePrepare(this, super.openConnection(storeDir))
+    ;(db as { exec?: unknown }).exec = undefined
+    return db
+  }
+}
+
+class MissingExecConcurrentReadOnlyStoreIndex extends ConcurrentReadOnlyStoreIndex {
+  protected override openConnection (storeDir: string): DatabaseSync {
+    const db = super.openConnection(storeDir)
     ;(db as { exec?: unknown }).exec = undefined
     return db
   }

@@ -409,8 +409,12 @@ export class StoreIndex {
  */
 export class ConcurrentReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
-    this.db = new DatabaseSync(`${storeDir}/index.db`, { readOnly: true })
-    this.db.exec('PRAGMA busy_timeout=5000')
+    this.db = this.openConnection(storeDir)
+    this.db.prepare('PRAGMA busy_timeout=5000').run()
+  }
+
+  protected override openConnection (storeDir: string): DatabaseSyncType {
+    return new DatabaseSync(`${storeDir}/index.db`, { readOnly: true })
   }
 
   protected override prepareStatements (): void {
