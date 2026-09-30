@@ -479,6 +479,70 @@ async fn pins_land_even_when_the_cached_packument_went_stale_meanwhile() {
     assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
 }
 
+/// Pins are published into the cached packument. When a refresh cannot be
+/// cached, pnpr serves what it fetched and spends no downloads on pins it
+/// could not store.
+#[tokio::test]
+async fn a_refresh_that_fails_to_cache_is_served_unpinned() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"cache-write-fails";
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+    packument["versions"]["1.0.0"]["dist"]["shasum"] = json!(sha1_hex_of(bytes));
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(2)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let mut config = config_for(&upstream.url(), storage.clone());
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
+        Some(Duration::ZERO);
+    let app = router(config);
+    let resolve = || {
+        app.clone()
+            .oneshot(
+                Request::get("/foo")
+                    .header("accept", "application/vnd.npm.install-v1+json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+    };
+
+    let response = resolve().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
+
+    // A directory where the packument file belongs makes the next cache write fail.
+    let document = public_cache_pkg(&storage, "foo").join("package.json");
+    std::fs::remove_file(&document).unwrap();
+    std::fs::create_dir_all(document.join("blocker")).unwrap();
+
+    let response = resolve().await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert!(resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none());
+    assert_eq!(resolved["versions"]["1.0.0"]["dist"]["shasum"], sha1_hex_of(bytes));
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
 /// Pinning runs when pnpr fetches a packument, not on every read of the cached
 /// copy, so a version that could not be pinned costs one upstream request per
 /// refresh rather than one per read.
