@@ -87,17 +87,19 @@ fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> 
 /// `virtual-store-dir`) is removed separately; the default
 /// `node_modules/.pnpm` is cleaned along with the modules dir's
 /// contents. Under a global virtual store the setting names the shared
-/// store's root, which pnpm 11 removes as well.
+/// store's root, which pnpm 11 removes as well, unless
+/// `globalVirtualStoreDir` moves the store elsewhere.
 fn remove_external_virtual_store(
     cwd: &Path,
     config: &Config,
     root_dir: &Path,
     modules_leaf: &Path,
 ) -> miette::Result<()> {
-    let virtual_store_dir = config.configured_virtual_store_dir
-        .as_deref()
-        .filter(|_| config.explicit_settings.contains_key("virtualStoreDir"))
-        .unwrap_or(&config.virtual_store_dir);
+    let virtual_store_dir = if config.explicit_settings.contains_key("virtualStoreDir") {
+        config.effective_virtual_store_dir()
+    } else {
+        &config.virtual_store_dir
+    };
     let resolved_virtual_store_dir: PathBuf = if virtual_store_dir.is_absolute() {
         virtual_store_dir.to_path_buf()
     } else {

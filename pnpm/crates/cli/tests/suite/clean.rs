@@ -305,6 +305,37 @@ fn clean_removes_custom_virtual_store_dir_inside_the_project() {
     }
 }
 
+/// `globalVirtualStoreDir` takes precedence over `virtualStoreDir` as the
+/// shared store's root, so `clean` removes the store it names.
+#[test]
+fn clean_removes_the_global_virtual_store_dir_that_takes_precedence() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "enableGlobalVirtualStore: true\nvirtualStoreDir: .unused-links\nglobalVirtualStoreDir: .shared-links\npackages:\n  - .\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+    let unused_store = workspace.join(".unused-links");
+    let shared_store = workspace.join(".shared-links");
+    fs::create_dir_all(&unused_store).expect("create unused store");
+    fs::create_dir_all(&shared_store).expect("create shared store");
+
+    let output = pacquet
+        .with_args(["clean"])
+        .output()
+        .expect("run pacquet clean");
+    assert!(output.status.success(), "pacquet clean should succeed");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Removing .shared-links"), "expected shared store removal: {stdout}");
+    assert!(!shared_store.exists(), "the shared store should be removed");
+    assert!(unused_store.exists(), "a directory pnpm did not populate should be kept");
+
+    drop(root);
+}
+
 #[test]
 fn clean_does_not_remove_virtual_store_dir_outside_the_project_root() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
