@@ -16,7 +16,7 @@ Each check reports how to fix what it finds, and the command exits with a non-ze
 ```
 ✓ Versions: pnpm 12.3.4, Node.js 22.20.0
 ✓ Install method: pnpm
-✓ Node.js on PATH: /Users/example/.local/state/fnm_multishells/1234_1790000000000/bin/node
+✓ Node.js on PATH: /Users/example/.local/share/fnm/node-versions/v22.20.0/installation/bin/node
 ✓ Script shell: scripts run in /bin/sh (/bin/bash), package executables in /bin/sh (/bin/bash)
 ✓ Global bin directory: /Users/example/Library/pnpm/bin
 ✓ Cache directory: /Users/example/Library/Caches/pnpm
@@ -89,9 +89,9 @@ Added in: v12.9.0
 
 Installs a temporary project whose `postinstall` script calls a dependency's executable, then runs the same executable through `pnpm exec` in the current project, if there is one. Both go through the executable's `node_modules/.bin` shim, which has to find `node` on `PATH`. The check reports the `node` each run used.
 
-If a run fails, the report includes the error and, outside Windows, the end of an `sh -x` trace of the shim. The trace shows the `PATH` the shim searched and where it failed to find `node`, which is the usual cause of a script failing with exit status 127.
+If a run fails, the report includes the error and, outside Windows, the end of an `sh -x` trace of the shim. The trace shows the `PATH` the shim searched and which `node`, if any, it started. A shim that finds no `node` is the usual cause of a script failing with exit status 127.
 
-The run in the current project does not install its dependencies. Skipped when there is no `node` on `PATH`.
+The run in the current project goes through `pnpm exec`, so the project's pnpmfile and `nodeOptions` apply to it as they do to `pnpm exec`. It does not install the project's dependencies. The whole check is skipped when there is no `node` on `PATH`.
 
 ## Options
 
