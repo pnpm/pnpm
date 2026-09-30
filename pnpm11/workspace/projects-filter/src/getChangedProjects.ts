@@ -8,6 +8,7 @@ import { isError, PnpmError } from '@pnpm/error'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import * as find from 'empathic/find'
 import { safeExeca as execa } from 'execa'
+import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
 import * as yaml from 'yaml'
 
@@ -97,11 +98,6 @@ export async function getChangedProjects (
     }
   }
   return [changedProjects, ignoreDependentForPkgs]
-}
-
-function isSubdir (parent: string, child: string): boolean {
-  const rel = path.relative(parent, child)
-  return !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
 function projectMatchesWorkingDir (
