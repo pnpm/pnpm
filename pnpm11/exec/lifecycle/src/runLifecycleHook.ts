@@ -11,7 +11,7 @@ import isWindows from 'is-windows'
 
 import { trackChildProcess } from './trackChildProcess.js'
 
-function noop () {} // eslint-disable-line:no-empty
+function noop () {}
 
 export interface RunLifecycleHookOptions {
   args?: string[]
@@ -77,31 +77,31 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     })
   }
 
-  const m = { _id: getId(manifest), ...manifest }
-  m.scripts = { ...m.scripts }
+  const hookManifest = { _id: getId(manifest), ...manifest }
+  hookManifest.scripts = { ...hookManifest.scripts }
 
   switch (stage) {
     case 'start':
-      if (!m.scripts.start) {
+      if (!hookManifest.scripts.start) {
         if (!existsSync('server.js')) {
           throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
         }
-        m.scripts.start = 'node server.js'
+        hookManifest.scripts.start = 'node server.js'
       }
       break
     case 'install':
-      if (!m.scripts.install && !m.scripts.preinstall && m.gypfile !== false) {
-        checkBindingGyp(opts.pkgRoot, m.scripts)
+      if (!hookManifest.scripts.install && !hookManifest.scripts.preinstall && hookManifest.gypfile !== false) {
+        checkBindingGyp(opts.pkgRoot, hookManifest.scripts)
       }
       break
   }
   const scriptShell = typeof opts.scriptShell === 'string' && opts.scriptShell !== ''
     ? opts.scriptShell
     : undefined
-  let shownScript = m.scripts[stage]
-  if (opts.args?.length && m.scripts?.[stage]) {
-    shownScript = showScriptWithArgs(m.scripts[stage], opts.args)
-    m.scripts[stage] = appendScriptArgs(m.scripts[stage], opts.args, {
+  let shownScript = hookManifest.scripts[stage]
+  if (opts.args?.length && hookManifest.scripts?.[stage]) {
+    shownScript = showScriptWithArgs(hookManifest.scripts[stage], opts.args)
+    hookManifest.scripts[stage] = appendScriptArgs(hookManifest.scripts[stage], opts.args, {
       platform: isWindows() ? 'win32' : 'linux',
       scriptShell,
       shellEmulator: opts.shellEmulator,
@@ -111,7 +111,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
-  if (m.scripts[stage] === 'npx only-allow pnpm' || !m.scripts[stage]) return false
+  if (hookManifest.scripts[stage] === 'npx only-allow pnpm' || !hookManifest.scripts[stage]) return false
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
@@ -126,7 +126,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  await lifecycle(m, stage, opts.pkgRoot, {
+  await lifecycle(hookManifest, stage, opts.pkgRoot, {
     dir: opts.rootModulesDir,
     wdBinDir: opts.wdBinDir,
     extraBinPaths: opts.extraBinPaths,

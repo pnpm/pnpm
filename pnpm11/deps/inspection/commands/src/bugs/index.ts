@@ -37,7 +37,7 @@ export async function handler (
     ? [await getBugsUrlFromCurrentProject(opts)]
     : await Promise.all(params.map((spec) => getBugsUrlFromRegistry(opts, spec)))
   for (const url of urls) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- opening the URLs one at a time keeps the browser tabs in the order the packages were given
     await open(url)
   }
 }
@@ -89,7 +89,7 @@ function pickBugsUrl (
 function repositoryToIssuesUrl (rawUrl: string): string | undefined {
   // hosted-git-info handles GitHub/GitLab/Bitbucket/etc. shorthand and SSH forms
   // (`owner/repo`, `github:owner/repo`, `git+ssh://git@github.com/owner/repo.git`,
-  // `git@github.com:owner/repo.git`, …) and yields the canonical bugs URL directly.
+  // `git@github.com:owner/repo.git`, ...) and yields the canonical bugs URL directly.
   const hosted = HostedGit.fromUrl(rawUrl)
   if (hosted != null) {
     const url = hosted.bugs()

@@ -78,36 +78,36 @@ export function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdv
       result.push(...moduleAdvisories)
       continue
     }
-    for (let i = 0; i < moduleAdvisories.length; i++) {
-      const a = moduleAdvisories[i]
-      const subsumed = moduleAdvisories.some((b, j) => isAdvisorySubsumed(a, i, b, j))
+    for (let candidateIndex = 0; candidateIndex < moduleAdvisories.length; candidateIndex++) {
+      const candidate = moduleAdvisories[candidateIndex]
+      const subsumed = moduleAdvisories.some((other, otherIndex) => isAdvisorySubsumed(candidate, candidateIndex, other, otherIndex))
       if (!subsumed) {
-        result.push(a)
+        result.push(candidate)
       }
     }
   }
   return result
 }
 
-function isAdvisorySubsumed (a: AuditAdvisory, idxA: number, b: AuditAdvisory, idxB: number): boolean {
-  if (idxA === idxB) return false
-  if (!a.patched_versions || !b.patched_versions) return false
+function isAdvisorySubsumed (candidate: AuditAdvisory, candidateIndex: number, other: AuditAdvisory, otherIndex: number): boolean {
+  if (candidateIndex === otherIndex) return false
+  if (!candidate.patched_versions || !other.patched_versions) return false
 
-  const aRange = a.vulnerable_versions.trim()
-  const bRange = b.vulnerable_versions.trim()
+  const candidateRange = candidate.vulnerable_versions.trim()
+  const otherRange = other.vulnerable_versions.trim()
 
-  if (!semver.validRange(aRange) || !semver.validRange(bRange)) return false
-  if (!semver.subset(aRange, bRange)) return false
+  if (!semver.validRange(candidateRange) || !semver.validRange(otherRange)) return false
+  if (!semver.subset(candidateRange, otherRange)) return false
 
-  const minA = semver.minVersion(a.patched_versions)
-  const minB = semver.minVersion(b.patched_versions)
-  if (!minA || !minB || semver.lt(minB, minA)) return false
+  const minCandidate = semver.minVersion(candidate.patched_versions)
+  const minOther = semver.minVersion(other.patched_versions)
+  if (!minCandidate || !minOther || semver.lt(minOther, minCandidate)) return false
 
-  if (semver.subset(bRange, aRange)) {
-    const comp = semver.compare(minB, minA)
+  if (semver.subset(otherRange, candidateRange)) {
+    const comp = semver.compare(minOther, minCandidate)
     if (comp > 0) return true
     if (comp < 0) return false
-    return idxA > idxB
+    return candidateIndex > otherIndex
   }
 
   return true

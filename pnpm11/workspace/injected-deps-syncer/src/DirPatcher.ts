@@ -55,7 +55,7 @@ export interface DirDiff {
 
 // length comparison should place every directory before the files it contains because
 // a directory path is always shorter than any file path it contains
-const comparePaths = (a: string, b: string): number => (a.split(/\\|\//).length - b.split(/\\|\//).length) || a.localeCompare(b)
+const comparePaths = (left: string, right: string): number => (left.split(/\\|\//).length - right.split(/\\|\//).length) || left.localeCompare(right)
 
 /**
  * Get the difference between 2 files tree.
@@ -69,15 +69,15 @@ export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
   const newPaths = Object.keys(newIndex).sort(comparePaths)
 
   const removed: RemovedItem[] = oldPaths
-    .filter(path => !(path in newIndex))
+    .filter(path => !Object.hasOwn(newIndex, path))
     .map(path => ({ path, oldValue: oldIndex[path] }))
 
   const added: AddedItem[] = newPaths
-    .filter(path => !(path in oldIndex))
+    .filter(path => !Object.hasOwn(oldIndex, path))
     .map(path => ({ path, newValue: newIndex[path] }))
 
   const modified: ModifiedItem[] = oldPaths
-    .filter(path => path in newIndex && oldIndex[path] !== newIndex[path])
+    .filter(path => Object.hasOwn(newIndex, path) && oldIndex[path] !== newIndex[path])
     .map(path => ({ path, oldValue: oldIndex[path], newValue: newIndex[path] }))
 
   return { added, removed, modified }
@@ -180,11 +180,11 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   // the source as a directory lands in `modified` rather than `added`, so both
   // arrays feed the directory pass.
   for (const item of optimizedDirPatch.removed) {
-    await removeRecursive(path.join(targetDir, item.path)) // eslint-disable-line no-await-in-loop
+    await removeRecursive(path.join(targetDir, item.path)) // eslint-disable-line no-await-in-loop -- removals finish before the directory pass, as the comment above explains
   }
 
   for (const item of newDirs) {
-    await applyChange(item) // eslint-disable-line no-await-in-loop
+    await applyChange(item) // eslint-disable-line no-await-in-loop -- a directory is created only after its parent, in path order
   }
   await Promise.all(newFiles.map(applyChange))
 }
@@ -209,8 +209,9 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
   }
 
   function addInodeAndAncestors (relativePath: string, value: Value): void {
-    if (relativePath && relativePath !== '.' && !result[relativePath]) {
-      result[relativePath] = value
+    if (relativePath && relativePath !== '.' && !Object.hasOwn(result, relativePath)) {
+      // A plain assignment would set the prototype for a file named `__proto__`.
+      Object.defineProperty(result, relativePath, { value, writable: true, enumerable: true, configurable: true })
       addInodeAndAncestors(path.dirname(relativePath), DIR)
     }
   }
@@ -260,21 +261,21 @@ export async function publishEditsForWatchers (
   const targetMap = await extendFilesMap(await fetchFromDir(targetDir, WATCH_FETCH_OPTIONS))
 
   const removed = Object.keys(targetMap)
-    .filter(relPath => !(relPath in sourceMap) && relPath !== '.')
+    .filter(relPath => !Object.hasOwn(sourceMap, relPath) && relPath !== '.')
     .sort(comparePaths)
     .reverse()
   for (const relPath of removed) {
-    await removePath(path.join(targetDir, relPath)) // eslint-disable-line no-await-in-loop
+    await removePath(path.join(targetDir, relPath)) // eslint-disable-line no-await-in-loop -- children are removed before their parent directory
   }
 
   const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
   for (const relPath of sourcePaths) {
     if (sourceMap[relPath] !== DIR || relPath === '.') continue
     const targetPath = path.join(targetDir, relPath)
-    if (targetMap[relPath] != null && targetMap[relPath] !== DIR) {
-      await removePath(targetPath) // eslint-disable-line no-await-in-loop
+    if (Object.hasOwn(targetMap, relPath) && targetMap[relPath] !== DIR) {
+      await removePath(targetPath) // eslint-disable-line no-await-in-loop -- a directory is created only after its parent, in path order
     }
-    await fs.promises.mkdir(targetPath, { recursive: true }) // eslint-disable-line no-await-in-loop
+    await fs.promises.mkdir(targetPath, { recursive: true }) // eslint-disable-line no-await-in-loop -- a directory is created only after its parent, in path order
   }
 
   for (const relPath of sourcePaths) {
@@ -282,13 +283,13 @@ export async function publishEditsForWatchers (
     if (typeof sourceValue !== 'string') continue
     const sourcePath = path.join(sourceDir, relPath)
     const targetPath = path.join(targetDir, relPath)
-    const sourceStat = await fs.promises.stat(sourcePath) // eslint-disable-line no-await-in-loop
+    const sourceStat = await fs.promises.stat(sourcePath) // eslint-disable-line no-await-in-loop -- files are published in path order, one at a time
     const targetValue = targetMap[relPath]
     const targetStat = typeof targetValue === 'string'
-      ? await statFile(targetPath) // eslint-disable-line no-await-in-loop
+      ? await statFile(targetPath) // eslint-disable-line no-await-in-loop -- files are published in path order, one at a time
       : null
     if (!shouldPublish({ sourceStat, targetStat, sourceId: sourceValue, targetValue, editedSinceMs })) continue
-    await copyForWatchers(sourcePath, targetPath, sourceStat) // eslint-disable-line no-await-in-loop
+    await copyForWatchers(sourcePath, targetPath, sourceStat) // eslint-disable-line no-await-in-loop -- files are published in path order, one at a time
   }
 }
 

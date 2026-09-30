@@ -106,8 +106,8 @@ async function readLinkedDepsWithRealLocations (modulesDir: string) {
 async function resolveLinkTargetOrFile (filePath: string): Promise<string> {
   try {
     return await resolveLinkTarget(filePath)
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (err.code !== 'EINVAL' && err.code !== 'UNKNOWN') throw err
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || (err.code !== 'EINVAL' && err.code !== 'UNKNOWN')) throw err
     return filePath
   }
 }

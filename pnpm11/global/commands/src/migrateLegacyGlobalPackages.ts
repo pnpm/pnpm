@@ -169,7 +169,7 @@ async function installMigratedGroups (
   let everyPackageMigrated = true
   for (const { alias, selector } of selectors) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- groups share the global bin directory, so they are installed one at a time
       await installGroup({
         opts,
         globalDir: opts.globalPkgDir!,
@@ -278,23 +278,22 @@ async function shimTargetsDir (shimContent: string, shimDir: string, dir: string
 }
 
 /**
- * Resolve symlinks through the deepest existing ancestor of `p`, then
+ * Resolve symlinks through the deepest existing ancestor of `targetPath`, then
  * re-append its missing tail. A path with no existing ancestor is returned
  * as it is.
  */
-async function realpathMissing (p: string): Promise<string> {
+async function realpathMissing (targetPath: string): Promise<string> {
   const missing: string[] = []
-  let current = p
+  let current = targetPath
   for (;;) {
     try {
-      // Each step depends on the previous one: the walk climbs one ancestor at a time.
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the walk climbs one ancestor at a time, so each step depends on the previous one
       return path.join(await fs.promises.realpath(current), ...missing.reverse())
     } catch (err: unknown) {
       if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
     }
     const parent = path.dirname(current)
-    if (parent === current) return p
+    if (parent === current) return targetPath
     missing.push(path.basename(current))
     current = parent
   }

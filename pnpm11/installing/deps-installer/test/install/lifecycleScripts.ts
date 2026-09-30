@@ -416,9 +416,9 @@ testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
 
   process.env[PATH] = initialPath
     .split(path.delimiter)
-    .filter((p: string) => !p.includes('node-gyp-bin') &&
-      !p.includes(`${path.sep}npm${path.sep}`) &&
-      !p.includes(`${path.sep}.npm${path.sep}`))
+    .filter((dir: string) => !dir.includes('node-gyp-bin') &&
+      !dir.includes(`${path.sep}npm${path.sep}`) &&
+      !dir.includes(`${path.sep}.npm${path.sep}`))
     .join(path.delimiter)
 
   await addDependenciesToPackage({}, ['drivelist@5.1.8'], testDefaults({ fastUnpack: false, allowBuilds: { drivelist: true } }))
@@ -551,7 +551,7 @@ test.each(['test-git-fetch', 'artifact', 'repository'])('explicitly denied git p
   const opts = testDefaults({ fastUnpack: false, allowBuilds: { [key]: false } })
   for (const allowed of [false, false, true, false]) {
     fs.rmSync('node_modules', { force: true, recursive: true })
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- each install reuses the store populated by the previous one
     await install(manifest, {
       ...opts,
       allowBuilds: allowed ? { [`test-git-fetch@${gitDependency}`]: true } : { [key]: false },

@@ -504,19 +504,7 @@ async function runRegistryArtifactCheck (
     }
     currentRevision = metadataRevision
     const currentHistory = artifact.revisions.filter(candidate => candidate.revision === currentRevision)
-    if (
-      currentHistory.length !== 1 ||
-      currentHistory[0].integrity !== artifact.current.integrity ||
-      typeof currentHistory[0].tarball !== 'string' ||
-      typeof artifact.current.tarball !== 'string' ||
-      typeof artifact.current.integrity !== 'string' ||
-      !isIntegrityAddressedRegistryTarballUrl(
-        normalizeRegistryUrl(artifact.current.tarball),
-        artifact.current.integrity,
-        registry
-      ) ||
-      !sameTarballUrl(currentHistory[0].tarball, artifact.current.tarball)
-    ) {
+    if (!isConsistentCurrentRevision(artifact.current, currentHistory, registry)) {
       return {
         ok: false,
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
@@ -571,8 +559,28 @@ async function runRegistryArtifactCheck (
   return undefined
 }
 
-function sameTarballUrl (a: string, b: string): boolean {
-  return canonicalTarballUrl(a) === canonicalTarballUrl(b)
+/**
+ * The registry's current artifact must have exactly one history entry for its
+ * revision, that entry must agree with it, and its tarball URL must be
+ * addressed by its own integrity.
+ */
+function isConsistentCurrentRevision (
+  current: RegistryArtifact,
+  currentHistory: RegistryArtifact[],
+  registry: string
+): boolean {
+  if (currentHistory.length !== 1) return false
+  const [historyEntry] = currentHistory
+  return historyEntry.integrity === current.integrity &&
+    typeof historyEntry.tarball === 'string' &&
+    typeof current.tarball === 'string' &&
+    typeof current.integrity === 'string' &&
+    isIntegrityAddressedRegistryTarballUrl(normalizeRegistryUrl(current.tarball), current.integrity, registry) &&
+    sameTarballUrl(historyEntry.tarball, current.tarball)
+}
+
+function sameTarballUrl (leftUrl: string, rightUrl: string): boolean {
+  return canonicalTarballUrl(leftUrl) === canonicalTarballUrl(rightUrl)
 }
 
 // Both URLs come from the registry, so ignore the protocol and `%2f` scope
@@ -661,7 +669,7 @@ function fetchFullMetaForTrust (
       // before being stored. The full document — dependency maps, scripts,
       // READMEs for every version — would otherwise stay resident in this
       // map for the entire install, which on multi-thousand-entry
-      // workspaces OOMs CI runners with a 2GB heap (see #11860).
+      // workspaces OOMs CI runners with a 2GB heap (see pnpm/pnpm#11860).
       cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
@@ -990,7 +998,7 @@ function validateSharedMeta (meta: PackageMeta | undefined, name: string): Packa
 // resolver populates the abbreviated mirror with every version's
 // dependency / engine / dist info, which can run to hundreds of KB per
 // package and accumulate to many GB across a multi-thousand-entry
-// lockfile (see #11860). The full document is GC-able as soon as this
+// lockfile (see pnpm/pnpm#11860). The full document is GC-able as soon as this
 // closure returns; only the short tarball-URL strings are retained.
 function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
   let versionArtifacts: Map<string, RegistryArtifactHistory> | undefined
@@ -1125,9 +1133,9 @@ function pickRegistryForVersion (
         : Object.entries(registriesByScope)
           .filter((entry): entry is [string, string] => entry[0] !== 'default' && typeof entry[1] === 'string')
           .map(([, url]) => url)),
-    ].sort((a, b) => {
-      const diff = canonicalTarballUrl(b).length - canonicalTarballUrl(a).length
-      return diff !== 0 ? diff : a.localeCompare(b)
+    ].sort((leftPrefix, rightPrefix) => {
+      const diff = canonicalTarballUrl(rightPrefix).length - canonicalTarballUrl(leftPrefix).length
+      return diff !== 0 ? diff : leftPrefix.localeCompare(rightPrefix)
     })
     const seen = new Set<string>()
     for (const prefix of candidatePrefixes) {

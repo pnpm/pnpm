@@ -73,7 +73,6 @@ import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { RegistryContext } from '@pnpm/types'
 import {
   type AllowBuild,
   DEPENDENCIES_FIELDS,
@@ -86,6 +85,7 @@ import {
   type ProjectRootDir,
   type RegistriesByScope,
   type RegistryConfig,
+  type RegistryContext,
   type RemoteSideEffectsCacheSettings,
   type SupportedArchitectures,
 } from '@pnpm/types'
@@ -1095,7 +1095,7 @@ async function findImporterOwningRootModulesDir (
   if (importerIdsSet.has('.' as ProjectId)) return undefined
   for (const { id, modulesDir, rootDir } of projects) {
     if (!importerIdsSet.has(id)) continue
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the first project in order whose modules dir is the root one wins, so later ones need not be resolved
     if (await realpathMissing(pathAbsolute(modulesDir, rootDir)) === rootModulesDir) return id
   }
   return undefined

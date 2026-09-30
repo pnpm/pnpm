@@ -362,12 +362,12 @@ test('install after fetch completes linking without recreating node_modules', as
 })
 
 test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
-  const f = fixtures(import.meta.dirname)
+  const testFixtures = fixtures(import.meta.dirname)
   const project = prepare({
     dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
   })
   fs.mkdirSync('patches', { recursive: true })
-  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
 
   const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
   const cacheDir = path.resolve(project.dir(), 'cache')
@@ -401,12 +401,12 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
 
 // Regression test for https://github.com/pnpm/pnpm/issues/5268
 test('fetch fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is missing', async () => {
-  const f = fixtures(import.meta.dirname)
+  const testFixtures = fixtures(import.meta.dirname)
   const project = prepare({
     dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
   })
   fs.mkdirSync('patches', { recursive: true })
-  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
 
   const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
   const cacheDir = path.resolve(project.dir(), 'cache')

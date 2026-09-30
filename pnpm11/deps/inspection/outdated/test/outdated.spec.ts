@@ -1162,15 +1162,15 @@ test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
       ['deno@runtime:2.4.2' as DepPath]: {
         version: '2.4.2',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
       ['bun@runtime:1.1.40' as DepPath]: {
         version: '1.1.40',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }
@@ -1242,7 +1242,7 @@ test('outdated() runtime in --compatible mode resolves within the declared range
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }
@@ -1290,7 +1290,7 @@ test('outdated() does not list runtime that is already up to date', async () => 
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }

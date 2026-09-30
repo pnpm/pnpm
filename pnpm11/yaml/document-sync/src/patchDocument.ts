@@ -237,9 +237,9 @@ function patchSeqPrimitive (seq: yaml.YAMLSeq, target: Array<boolean | number | 
 function patchSeqComplex (seq: yaml.YAMLSeq, target: unknown[], ctx: PatchContext): yaml.Node {
   const nextItems: yaml.Node[] = []
 
-  for (let i = 0; i < target.length; i++) {
-    const existingItem = seq.items[i]
-    const targetItem = target[i]
+  for (let itemIndex = 0; itemIndex < target.length; itemIndex++) {
+    const existingItem = seq.items[itemIndex]
+    const targetItem = target[itemIndex]
 
     if (existingItem != null && !yaml.isNode(existingItem)) {
       throw new Error('Encountered unexpected non-node value: ' + String(existingItem))

@@ -230,7 +230,7 @@ async function installImportedLockfile (
       }
       await recursive(allProjects,
         params,
-        // @ts-expect-error
+        // @ts-expect-error -- the import options do not declare bail and linkWorkspacePackages, which RecursiveOptions requires
         {
           ...opts,
           lockfileOnly: true,

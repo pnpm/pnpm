@@ -355,7 +355,7 @@ async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, 
 function canReflink (source: string, dest: string): boolean {
   try {
     if (process.platform === 'darwin' || process.platform === 'win32') {
-      // eslint-disable-next-line
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the native addon is loaded synchronously and only on the platforms that need it
       const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
       reflinkFileSync(source, dest)
     } else {
@@ -393,7 +393,7 @@ async function dirIsInPath (dir: string, pathEnv: string): Promise<boolean> {
   }
 }
 
-const areSameDir = (a: string, b: string): boolean => a !== '' && b !== '' && path.relative(a, b) === ''
+const areSameDir = (dir1: string, dir2: string): boolean => dir1 !== '' && dir2 !== '' && path.relative(dir1, dir2) === ''
 
 function canWriteToDir (dir: string): boolean {
   const probe = path.join(dir, `.pnpm-doctor-write-${process.pid}`)

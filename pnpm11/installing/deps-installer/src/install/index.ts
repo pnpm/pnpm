@@ -143,7 +143,6 @@ import {
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions.js'
-export type { BeforeLifecycleScriptsResult }
 import { getStaleOverrideTargets, omitPackagesNamed } from './getStaleOverrideTargets.js'
 import { linkPackages } from './link.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
@@ -158,6 +157,8 @@ import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { warnOnStaleConvergenceOverrides } from './warnOnStaleConvergenceOverrides.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
+
+export type { BeforeLifecycleScriptsResult }
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -659,7 +660,7 @@ export async function mutateModules (
 
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- preResolution hooks run one after another, in the order they were registered
       await preResolution({
         currentLockfile: ctx.currentLockfile,
         wantedLockfile: ctx.wantedLockfile,
@@ -730,7 +731,7 @@ export async function mutateModules (
   if (
     ctx.modulesFile?.allowBuilds &&
     ctx.wantedLockfile.packages &&
-    Object.values(ctx.modulesFile.allowBuilds).some((v) => v === true)
+    Object.values(ctx.modulesFile.allowBuilds).some((allowed) => allowed === true)
   ) {
     const oldAllowBuild = createAllowBuildFunction({ allowBuilds: ctx.modulesFile.allowBuilds })
     if (oldAllowBuild) {
@@ -1176,7 +1177,7 @@ export async function mutateModules (
     let preferredSpecs: Record<string, string> | null = null
 
     // TODO: make it concurrent
-    /* eslint-disable no-await-in-loop */
+    /* eslint-disable no-await-in-loop -- projects share the lazily computed preferredSpecs */
     for (const project of projects) {
       const projectOpts = {
         ...project,
@@ -1578,7 +1579,7 @@ export async function mutateModules (
         ? undefined
         : getAllDependenciesFromManifest(await applyOverrides(clone(declared), project.rootDir), { autoInstallPeers: opts.autoInstallPeers, peerAliases: project.peerAliases })
       let probed: ProjectManifest = declared
-      /* eslint-disable no-await-in-loop */
+      /* eslint-disable no-await-in-loop -- each hook receives the manifest returned by the previous one */
       for (const hook of hooks) {
         probed = await hook(probed, project.rootDir)
       }
@@ -1962,9 +1963,7 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (
       opts.runPacquet != null &&
-      opts.useLockfile &&
-      !opts.useGitBranchLockfile &&
-      !opts.mergeGitBranchLockfiles &&
+      usesSingleLockfile(opts) &&
       !isCheckOnlyInstall(opts) &&
       opts.enableModulesDir &&
       !hasUninstallMutations(projects)
@@ -2050,12 +2049,10 @@ Note that in CI environments, this setting is enabled by default.`,
       }
     } catch (error: any) { // eslint-disable-line
       const isIntegrityError = BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+      const isBrokenLockfileError = error.code === 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' || isIntegrityError
       if (
         frozenLockfile ||
-        (
-          error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
-          !isIntegrityError
-        ) ||
+        !isBrokenLockfileError ||
         (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
         (isIntegrityError && !opts.updateChecksums)
       ) throw error
@@ -3237,6 +3234,16 @@ function hasUninstallMutations (projects: MutatedProject[]): boolean {
 }
 
 /**
+ * Whether the install reads a lockfile and that lockfile is a single file,
+ * not one per git branch. An unset setting counts as its default.
+ */
+function usesSingleLockfile (opts: { mergeGitBranchLockfiles?: boolean, useGitBranchLockfile?: boolean, useLockfile?: boolean }): boolean {
+  return opts.useLockfile !== false &&
+    opts.useGitBranchLockfile !== true &&
+    opts.mergeGitBranchLockfiles !== true
+}
+
+/**
  * Whether pacquet resolves this install itself instead of materializing a
  * lockfile pnpm resolved. The caller adds the guards every delegation shares
  * (`enableModulesDir`, not `lockfileOnly`, not a check-only run).
@@ -3312,10 +3319,8 @@ async function materializeOrDelegate (
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (
     opts.runPacquet != null &&
-    opts.useLockfile !== false &&
+    usesSingleLockfile(opts) &&
     opts.saveLockfile !== false &&
-    opts.useGitBranchLockfile !== true &&
-    opts.mergeGitBranchLockfiles !== true &&
     (projects == null || !hasUninstallMutations(projects))
   ) {
     // Reached only from the resolve-then-materialize call sites
@@ -3470,12 +3475,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // Isolated `nodeLinker` (the default) with a non-frozen install.
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // branch above runs a resolve-then-materialize sequence.
+    const writesSingleLockfile = opts.saveLockfile && usesSingleLockfile(opts)
     if (
       opts.runPacquet != null &&
-      opts.useLockfile &&
-      opts.saveLockfile &&
-      !opts.useGitBranchLockfile &&
-      !opts.mergeGitBranchLockfiles &&
+      writesSingleLockfile &&
       !opts.lockfileOnly &&
       !isCheckOnlyInstall(opts) &&
       opts.enableModulesDir &&
@@ -3681,11 +3684,11 @@ function canUsePnprForMutations (
       project.updateMatching == null
     )
   }
-  return projects.every((p) => {
-    if (p.mutation === 'uninstallSome') return true
-    if (p.mutation !== 'install' && p.mutation !== 'installSome') return false
-    const m = p as InstallDepsMutation | InstallSomeDepsMutation
-    return !m.update && !m.updateToLatest && m.updateMatching == null
+  return projects.every((project) => {
+    if (project.mutation === 'uninstallSome') return true
+    if (project.mutation !== 'install' && project.mutation !== 'installSome') return false
+    const mutation = project as InstallDepsMutation | InstallSomeDepsMutation
+    return !mutation.update && !mutation.updateToLatest && mutation.updateMatching == null
   })
 }
 
@@ -3790,8 +3793,8 @@ async function preparePnprProjects (
 ): Promise<PnprInstallProject[] | null> {
   const allProjects = opts.allProjects ?? []
   const mutationByRootDir = new Map<ProjectRootDir, MutatedProject>()
-  for (const p of projects) {
-    mutationByRootDir.set(p.rootDir, p)
+  for (const project of projects) {
+    mutationByRootDir.set(project.rootDir, project)
   }
   // Include every workspace project, not just the mutated ones — otherwise
   // the pnpr server's resulting lockfile would only contain the targeted importer
@@ -3805,23 +3808,23 @@ async function preparePnprProjects (
         manifest: ap.manifest,
         mutation: mutationByRootDir.get(ap.rootDir),
       }))
-      : projects.map((p) => {
-        const proj = allProjects.find((ap) => ap.rootDir === p.rootDir)
+      : projects.map((project) => {
+        const proj = allProjects.find((ap) => ap.rootDir === project.rootDir)
         return {
-          rootDir: p.rootDir,
+          rootDir: project.rootDir,
           manifest: proj?.manifest ?? ({} as ProjectManifest),
-          mutation: p,
+          mutation: project,
         }
       })
   // Bail to the normal flow if any mutated project isn't in allProjects —
   // we can't pre-process its manifest correctly.
-  for (const p of projects) {
-    if (!targetSet.some((t) => t.rootDir === p.rootDir)) return null
+  for (const project of projects) {
+    if (!targetSet.some((target) => target.rootDir === project.rootDir)) return null
   }
-  return Promise.all(targetSet.map(async (t) => {
-    let manifest: ProjectManifest = clone(t.manifest)
+  return Promise.all(targetSet.map(async (target) => {
+    let manifest: ProjectManifest = clone(target.manifest)
     const newDeps: PnprNewDep[] = []
-    const mutation = t.mutation
+    const mutation = target.mutation
     let rangeSpecStyle: RangeSpecStyle | undefined
     if (mutation?.mutation === 'uninstallSome') {
       manifest = await removeDeps(manifest, mutation.dependencyNames, {
@@ -3839,7 +3842,7 @@ async function preparePnprProjects (
       }
     }
     return {
-      rootDir: t.rootDir,
+      rootDir: target.rootDir,
       manifest,
       mutation: mutation?.mutation ?? 'install',
       newDeps,
@@ -3948,13 +3951,13 @@ async function mutateModulesViaPnpr (
 
   const projectOptionsByDir = new Map(opts.allProjects?.map(project => [project.rootDir, project]))
 
-  const allInstallProjects = pnprProjects.map((p) => ({
-    ...projectOptionsByDir.get(p.rootDir),
-    rootDir: p.rootDir,
-    manifest: p.manifest,
-    mutation: p.mutation,
-    newDeps: p.newDeps,
-    rangeSpecStyle: p.rangeSpecStyle,
+  const allInstallProjects = pnprProjects.map((pnprProject) => ({
+    ...projectOptionsByDir.get(pnprProject.rootDir),
+    rootDir: pnprProject.rootDir,
+    manifest: pnprProject.manifest,
+    mutation: pnprProject.mutation,
+    newDeps: pnprProject.newDeps,
+    rangeSpecStyle: pnprProject.rangeSpecStyle,
   }))
 
   // installViaPnprServer runs the headless install for the first
@@ -3976,10 +3979,10 @@ async function mutateModulesViaPnpr (
     ),
   })
 
-  const mutatedRootDirs = new Set(projects.map((p) => p.rootDir))
+  const mutatedRootDirs = new Set(projects.map((project) => project.rootDir))
   const updatedProjects = allInstallProjects
-    .filter((p) => mutatedRootDirs.has(p.rootDir))
-    .map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
+    .filter((project) => mutatedRootDirs.has(project.rootDir))
+    .map((project) => ({ rootDir: project.rootDir, manifest: project.manifest }))
 
   return {
     updatedProjects,
@@ -4102,18 +4105,18 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     // backslashes, which the pnpr server rejects (it treats `\` as an
     // unsafe/YAML-injection character and normalizes paths as POSIX).
     const projectsList = allInstallProjects && allInstallProjects.length > 1
-      ? allInstallProjects.map(p => ({
-        dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
-        name: p.manifest.name,
-        version: p.manifest.version,
-        publishConfig: p.manifest.publishConfig?.directory == null ? undefined : {
-          directory: p.manifest.publishConfig.directory,
-          linkDirectory: p.manifest.publishConfig.linkDirectory,
+      ? allInstallProjects.map(project => ({
+        dir: (path.relative(lockfileDir, project.rootDir) || '.').split(path.sep).join('/'),
+        name: project.manifest.name,
+        version: project.manifest.version,
+        publishConfig: project.manifest.publishConfig?.directory == null ? undefined : {
+          directory: project.manifest.publishConfig.directory,
+          linkDirectory: project.manifest.publishConfig.linkDirectory,
         },
-        dependencies: p.manifest.dependencies,
-        devDependencies: p.manifest.devDependencies,
-        optionalDependencies: p.manifest.optionalDependencies,
-        peerDependencies: p.manifest.peerDependencies,
+        dependencies: project.manifest.dependencies,
+        devDependencies: project.manifest.devDependencies,
+        optionalDependencies: project.manifest.optionalDependencies,
+        peerDependencies: project.manifest.peerDependencies,
       }))
       : undefined
 
@@ -4181,12 +4184,12 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     // entries back into the client manifest so save-prefix/catalog/etc. take
     // effect (the server applies these during its resolution step).
     if (allInstallProjects) {
-      for (const p of allInstallProjects) {
-        if (p.mutation === 'installSome' && p.newDeps && p.newDeps.length > 0) {
-          const relative = path.relative(lockfileDir, p.rootDir).split(path.sep).join('/')
+      for (const project of allInstallProjects) {
+        if (project.mutation === 'installSome' && project.newDeps && project.newDeps.length > 0) {
+          const relative = path.relative(lockfileDir, project.rootDir).split(path.sep).join('/')
           const importerId = (relative || '.') as ProjectId
           const snapshot = lockfile?.importers?.[importerId]
-          p.manifest = applyResolvedSpecsFromLockfile(p.manifest, snapshot, p.newDeps, p.rangeSpecStyle)
+          project.manifest = applyResolvedSpecsFromLockfile(project.manifest, snapshot, project.newDeps, project.rangeSpecStyle)
         }
       }
     }
@@ -4230,17 +4233,17 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
         pnpmVersion: opts.packageManager?.version ?? '',
       },
       rootProjectPreinstallRan,
-      selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(p => p.rootDir),
+      selectedProjectDirs: (allInstallProjects ?? [{ rootDir }]).map(project => project.rootDir),
       allProjects: Object.fromEntries(
-        (allInstallProjects ?? [{ rootDir, manifest, binsDir: opts.binsDir }]).map((p, i) => {
-          const modulesDir = pathAbsolute(p.modulesDir ?? opts.modulesDir ?? 'node_modules', p.rootDir)
-          return [p.rootDir, {
-            binsDir: p.binsDir ?? path.join(modulesDir, '.bin'),
-            buildIndex: i,
-            id: getLockfileImporterId(lockfileDir, p.rootDir),
-            manifest: p.manifest,
+        (allInstallProjects ?? [{ rootDir, manifest, binsDir: opts.binsDir }]).map((project, index) => {
+          const modulesDir = pathAbsolute(project.modulesDir ?? opts.modulesDir ?? 'node_modules', project.rootDir)
+          return [project.rootDir, {
+            binsDir: project.binsDir ?? path.join(modulesDir, '.bin'),
+            buildIndex: index,
+            id: getLockfileImporterId(lockfileDir, project.rootDir),
+            manifest: project.manifest,
             modulesDir,
-            rootDir: p.rootDir,
+            rootDir: project.rootDir,
           }]
         })
       ),
@@ -4251,9 +4254,9 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       wantedLockfile: lockfile,
     }
     if (opts.beforeLifecycleScripts) {
-      const updatedProjects = (allInstallProjects ?? [{ rootDir, manifest }]).map((p) => ({
-        manifest: p.manifest,
-        rootDir: p.rootDir,
+      const updatedProjects = (allInstallProjects ?? [{ rootDir, manifest }]).map((project) => ({
+        manifest: project.manifest,
+        rootDir: project.rootDir,
       }))
       await opts.beforeLifecycleScripts({
         updatedProjects,
@@ -4264,7 +4267,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     }
     const { ignoredBuilds, stats } = await materializeOrDelegate(
       { ...opts, rootProjectPreinstallRan },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- these install options leave settings such as registriesByScope optional, while HeadlessOptions requires them
       () => headlessInstall(headlessOpts as any)
     )
 
@@ -4334,7 +4337,7 @@ async function findImporterWithoutProjectManifest (
   const projectIds = new Set(opts.projectIds)
   for (const importerId of Object.keys(lockfile.importers)) {
     if (projectIds.has(importerId)) continue
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the search stops at the first importer without a manifest
     const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(opts.lockfileDir, importerId, basename))))
     if (!manifestExists.some(Boolean)) return importerId
   }

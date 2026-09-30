@@ -121,7 +121,7 @@ test('import converts the yarn patches of workspace projects and warns about a c
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),

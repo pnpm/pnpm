@@ -19,14 +19,14 @@ import {
 import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
+const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -500,7 +500,7 @@ test('store etag from 200 response in cache', async () => {
 
   // Verify etag was saved to disk cache
   const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/is-positive.jsonl`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   const savedMeta = await retryLoadJsonFile<any>(cachePath)
   expect(savedMeta.etag).toBe('"xyz789"')
 })

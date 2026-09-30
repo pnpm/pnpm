@@ -216,10 +216,10 @@ export async function handler (
 
 function formatBytes (bytes: number): string {
   if (bytes === 0) return '0 B'
-  const k = 1000
+  const unitBase = 1000
   const sizes = ['B', 'kB', 'MB', 'GB', 'TB', 'PB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(unitBase)), sizes.length - 1)
+  return Math.round((bytes / Math.pow(unitBase, unitIndex)) * 100) / 100 + ' ' + sizes[unitIndex]
 }
 
 function getNestedProperty (obj: Record<string, unknown>, path: string): unknown {

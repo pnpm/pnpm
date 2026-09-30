@@ -514,7 +514,7 @@ function dropIsPositive (manifest: PackageManifest): PackageManifest {
   return { ...manifest, dependencies }
 }
 
-async function captureWarnings<T> (run: () => Promise<T>): Promise<{ result: T, warnings: string[] }> {
+async function captureWarnings<Result> (run: () => Promise<Result>): Promise<{ result: Result, warnings: string[] }> {
   const warnings: string[] = []
   const reporter = (log: { level?: string, message?: string }) => {
     if (log.level === 'warn' && log.message != null) warnings.push(log.message)

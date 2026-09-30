@@ -8,10 +8,10 @@ export interface Person {
 
 export function personToString (person: Person): string {
   const name = person.name ?? ''
-  const u = person.url ?? person.web
-  const url = u ? ` (${u})` : ''
-  const e = person.email ?? person.mail
-  const email = e ? ` <${e}>` : ''
+  const personUrl = person.url ?? person.web
+  const url = personUrl ? ` (${personUrl})` : ''
+  const personEmail = person.email ?? person.mail
+  const email = personEmail ? ` <${personEmail}>` : ''
   return name + email + url
 }
 

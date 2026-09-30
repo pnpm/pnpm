@@ -131,7 +131,7 @@ export async function handler (
   if (pinsPnpm && isImplicitLatest && opts.wantedPackageManager?.version !== targetVersion) {
     // Prefer the lockfile-pinned version when available — for range
     // specs like `>=8.0.0`, the spec's lower bound understates the
-    // version that was actually installed (see #11418 review).
+    // version that was actually installed (see pnpm/pnpm#11418 review).
     const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
     if (projectCurrentVersion != null && semver.lt(targetVersion, projectCurrentVersion)) {
       return implicitLatestNoUpgradeMessage({
@@ -248,7 +248,7 @@ async function updateProjectPin (
     const legacyPinsPnpm = legacyPm?.name === 'pnpm' && legacyPm.version != null
     const devEnginesPm = manifest.devEngines.packageManager
     const pnpmEntry = Array.isArray(devEnginesPm)
-      ? devEnginesPm.find((e) => e.name === 'pnpm')
+      ? devEnginesPm.find((entry) => entry.name === 'pnpm')
       : devEnginesPm.name === 'pnpm' ? devEnginesPm : undefined
     if (pnpmEntry) {
       const updated = legacyPinsPnpm

@@ -126,9 +126,9 @@ export interface SignedArtifactEnvelope {
   signature: string
 }
 
-export interface ArtifactCandidate<S extends ArtifactSubject = ArtifactSubject> {
+export interface ArtifactCandidate<Subject extends ArtifactSubject = ArtifactSubject> {
   key: string
-  subject: S
+  subject: Subject
   owner: OwnerScope
 }
 
@@ -1028,13 +1028,9 @@ function validateP256DerSignature (signature: Buffer): void {
     const length = signature[offset + 1]
     const start = offset + 2
     const end = start + length
-    if (
-      length === 0 ||
-      length > 33 ||
-      end > signature.length ||
-      (signature[start] & 0x80) !== 0 ||
-      (length > 1 && signature[start] === 0 && (signature[start + 1] & 0x80) === 0)
-    ) {
+    const isNegative = (signature[start] & 0x80) !== 0
+    const hasRedundantLeadingZero = length > 1 && signature[start] === 0 && (signature[start + 1] & 0x80) === 0
+    if (length === 0 || length > 33 || end > signature.length || isNegative || hasRedundantLeadingZero) {
       throw new Error('Shared artifact signature is not canonical P-256 DER')
     }
     offset = end

@@ -21,7 +21,7 @@ import { DEFAULT_OPTS } from './utils/index.js'
 // through CJS to bypass the broken bridge.
 const { diff } = createRequire(import.meta.url)('jest-diff') as { diff: typeof DiffFn }
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const noColor = (str: string) => str
 const diffOptsForLockfile = {
@@ -143,11 +143,9 @@ describe('pnpm dedupe', () => {
       version: '0.0.0',
 
       scripts: {
-        // eslint-disable:object-literal-sort-keys
         preinstall: server.sendLineScript('preinstall'),
         prepare: server.sendLineScript('prepare'),
         postinstall: server.sendLineScript('postinstall'),
-        // eslint-enable:object-literal-sort-keys
       },
     })
 
@@ -219,7 +217,7 @@ describe('pnpm dedupe', () => {
 
 async function testFixture (fixtureName: string) {
   const project = prepare(undefined)
-  f.copy(fixtureName, project.dir())
+  testFixtures.copy(fixtureName, project.dir())
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(project.dir(), [])
 

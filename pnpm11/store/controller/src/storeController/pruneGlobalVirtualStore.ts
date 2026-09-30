@@ -165,12 +165,12 @@ async function walkSymlinksToStore (
 /**
  * Resolve symlinks and return a hash of the real path (for cycle detection)
  */
-async function getRealPathHash (p: string): Promise<string> {
+async function getRealPathHash (dir: string): Promise<string> {
   let realPath: string
   try {
-    realPath = await fs.realpath(p)
+    realPath = await fs.realpath(dir)
   } catch {
-    realPath = p
+    realPath = dir
   }
   // Create a compact hash for in-memory use (base64url is shorter than hex that we use for file name hashes)
   return crypto.createHash('sha256').update(realPath).digest('base64url')
@@ -270,9 +270,9 @@ async function removeUnreachableVersions (
   }
 }
 
-async function pathExists (p: string): Promise<boolean> {
+async function pathExists (checkedPath: string): Promise<boolean> {
   try {
-    await fs.stat(p)
+    await fs.stat(checkedPath)
     return true
   } catch {
     return false

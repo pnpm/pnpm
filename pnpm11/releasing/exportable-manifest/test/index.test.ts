@@ -293,11 +293,11 @@ test('a Markdown README is preferred over bare README', async () => {
   }
 })
 
-async function withTempProjectReadme<T> (
+async function withTempProjectReadme<Result> (
   readmeContent: string,
-  fn: (projectDir: string) => Promise<T>,
+  fn: (projectDir: string) => Promise<Result>,
   readmeFileName = 'README.md'
-): Promise<T> {
+): Promise<Result> {
   const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
   try {
     await fs.promises.writeFile(path.join(projectDir, readmeFileName), readmeContent, 'utf8')

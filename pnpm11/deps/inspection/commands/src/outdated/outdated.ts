@@ -327,8 +327,8 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedItem[], opts: {
   }
 
   // Avoid the overhead of allocating a new array caused by calling `array.map()`
-  for (let i = 0; i < columnNames.length; i++)
-    columnNames[i] = chalk.blueBright(columnNames[i])
+  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex++)
+    columnNames[columnIndex] = chalk.blueBright(columnNames[columnIndex])
 
   const data = [
     columnNames,

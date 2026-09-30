@@ -1260,7 +1260,7 @@ async function findProjectMissingFromCurrentLockfile (
     if (!currentLockfiles.has(virtualStoreDir)) {
       currentLockfiles.set(virtualStoreDir, readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false }))
     }
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the scan stops at the first stale project, so later lockfiles are not read
     const currentLockfile = await currentLockfiles.get(virtualStoreDir)
     const importer = currentLockfile?.importers[importerId]
     if (importer == null || !directDependenciesRecorded(importer, currentLockfile?.packages ?? {})) {

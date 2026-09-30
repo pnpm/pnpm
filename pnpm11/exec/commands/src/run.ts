@@ -480,7 +480,7 @@ export async function runScript (opts: {
       await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
     } else {
       for (const stage of stages) {
-        await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop
+        await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop -- pre, main, and post scripts run in order
           ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
           : opts.lifecycleOpts)
       }

@@ -206,10 +206,10 @@ function getEnvKeySuffix (envKey: string): string | undefined {
   return undefined
 }
 
-function isLowerSnakeCase (s: string): boolean {
-  return s.length > 0 && s.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
+function isLowerSnakeCase (text: string): boolean {
+  return text.length > 0 && text.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
 }
 
-function isUpperSnakeCase (s: string): boolean {
-  return s.length > 0 && s.split('_').every(segment => /^[A-Z0-9]+$/.test(segment))
+function isUpperSnakeCase (text: string): boolean {
+  return text.length > 0 && text.split('_').every(segment => /^[A-Z0-9]+$/.test(segment))
 }

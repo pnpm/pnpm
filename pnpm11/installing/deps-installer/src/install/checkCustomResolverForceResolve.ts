@@ -36,8 +36,8 @@ async function anyTrue (promises: Promise<boolean>[]): Promise<boolean> {
   return new Promise((resolve, reject) => {
     let remaining = promises.length
     if (remaining === 0) return resolve(false)
-    for (const p of promises) {
-      p.then(value => {
+    for (const promise of promises) {
+      promise.then(value => {
         if (value) resolve(true)
         else if (--remaining === 0) resolve(false)
       }, reject)

@@ -107,7 +107,7 @@ const isWindows = process.platform === 'win32'
 
 
 // Interpreter paths may contain whitespace other than spaces and tabs.
-// eslint-disable-next-line regexp/no-super-linear-backtracking
+// eslint-disable-next-line regexp/no-super-linear-backtracking -- only matched against the first line of a script, after the `#!` anchor
 const shebangExpr = /^#!\s*(?:\/usr\/bin\/env(?:\s+-S)?\s*)?([^ \t]+)(.*)$/
 const DEFAULT_OPTIONS = {
   createPwshFile: true,
@@ -940,14 +940,14 @@ function normalizePathEnvVar (nodePath: undefined | string | string[]): Normaliz
   }
   let split = (typeof nodePath === 'string' ? nodePath.split(path.delimiter) : Array.from(nodePath))
   let result = {} as NormalizedPathEnvVar
-  for (let i = 0; i < split.length; i++) {
-    const win32 = split[i].split('/').join('\\')
-    const posix = isWindows ? split[i].split('\\').join('/').replace(/^([^:\\/]*):/, (_, $1) => `/mnt/${$1.toLowerCase()}`) : split[i]
+  for (let entryIndex = 0; entryIndex < split.length; entryIndex++) {
+    const win32 = split[entryIndex].split('/').join('\\')
+    const posix = isWindows ? split[entryIndex].split('\\').join('/').replace(/^([^:\\/]*):/, (_, $1) => `/mnt/${$1.toLowerCase()}`) : split[entryIndex]
 
     result.win32 = result.win32 ? `${result.win32};${win32}` : win32
     result.posix = result.posix ? `${result.posix}:${posix}` : posix
 
-    result[i] = {win32, posix}
+    result[entryIndex] = {win32, posix}
   }
   return result
 }

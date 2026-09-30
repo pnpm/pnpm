@@ -469,8 +469,8 @@ function detectKeyLayout (keys: string[]): KeyLayout {
   if (keys.length === 0) return 'packages-first'
   const packagesFirst = keys[0] === 'packages'
   const start = packagesFirst ? 1 : 0
-  for (let i = start + 1; i < keys.length; i++) {
-    if (lexCompare(keys[i - 1], keys[i]) > 0) return 'unordered'
+  for (let keyIndex = start + 1; keyIndex < keys.length; keyIndex++) {
+    if (lexCompare(keys[keyIndex - 1], keys[keyIndex]) > 0) return 'unordered'
   }
   return packagesFirst ? 'packages-first' : 'alphabetical'
 }
@@ -511,24 +511,24 @@ function propagateBlankLinesToNewPairs (document: yaml.Document, originalTopLeve
   let originalNonFirstCount = 0
   let originalNonFirstWithBlank = 0
   for (const item of items) {
-    const k = keyOf(item)
-    if (k == null || !originalKeySet.has(k.value) || k.value === originalFirstKey) continue
+    const itemKey = keyOf(item)
+    if (itemKey == null || !originalKeySet.has(itemKey.value) || itemKey.value === originalFirstKey) continue
     originalNonFirstCount++
-    if (k.spaceBefore) originalNonFirstWithBlank++
+    if (itemKey.spaceBefore) originalNonFirstWithBlank++
   }
   const usesBlankLineStyle =
     originalNonFirstCount > 0 && originalNonFirstWithBlank === originalNonFirstCount
 
-  for (let i = 1; i < items.length; i++) {
-    const key = keyOf(items[i])
+  for (let itemIndex = 1; itemIndex < items.length; itemIndex++) {
+    const key = keyOf(items[itemIndex])
     if (key == null || key.spaceBefore) continue
     if (usesBlankLineStyle) {
       key.spaceBefore = true
       continue
     }
     if (originalKeySet.has(key.value)) continue
-    const nextKey = items[i + 1] ? keyOf(items[i + 1]) : null
-    const prevKey = items[i - 1] ? keyOf(items[i - 1]) : null
+    const nextKey = items[itemIndex + 1] ? keyOf(items[itemIndex + 1]) : null
+    const prevKey = items[itemIndex - 1] ? keyOf(items[itemIndex - 1]) : null
     if (nextKey?.spaceBefore || (nextKey == null && prevKey?.spaceBefore)) {
       key.spaceBefore = true
     }

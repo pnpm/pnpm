@@ -78,12 +78,12 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
       maxSockets,
       rejectUnauthorized: strictSsl,
       timeout: agentTimeout,
-    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- localAddress is an undocumented agent option missing from the typings
     : new HttpAgent({
       localAddress: opts.localAddress,
       maxSockets,
       timeout: agentTimeout,
-    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- localAddress is an undocumented agent option missing from the typings
   AGENT_CACHE.set(key, agent)
   return agent
 }
@@ -91,20 +91,20 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
 function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
   const host = new URL(uri).hostname
     .split('.')
-    .filter(x => x)
+    .filter(label => label)
     .reverse()
   if (typeof opts.noProxy === 'string') {
     const noproxyArr = opts.noProxy.split(',').map((entry) => entry.trim())
     return noproxyArr.some(no => {
       const noParts = no
         .split('.')
-        .filter(x => x)
+        .filter(label => label)
         .reverse()
       if (noParts.length === 0) {
         return false
       }
-      for (let i = 0; i < noParts.length; i++) {
-        if (host[i] !== noParts[i]) {
+      for (let labelIndex = 0; labelIndex < noParts.length; labelIndex++) {
+        if (host[labelIndex] !== noParts[labelIndex]) {
           return false
         }
       }

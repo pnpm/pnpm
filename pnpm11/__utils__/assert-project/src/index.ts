@@ -13,14 +13,14 @@ import yaml from 'js-yaml'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 
-import isExecutable from './isExecutable.js'
+import { isExecutable } from './isExecutable.js'
 
 const require = createRequire(import.meta.url)
 
 export { isExecutable, type Modules }
 
 export interface Project {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a required module can export any shape and tests read arbitrary members from it
   requireModule: (moduleName: string) => any
   dir: () => string
   has: (pkgName: string, modulesDir?: string) => void
@@ -88,10 +88,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     return path.join(modules, modulesYaml.virtualStoreDir)
   }
 
-  // eslint-disable-next-line
-  const ok = (value: any) => expect(value).toBeTruthy()
-  // eslint-disable-next-line
-  const notOk = (value: any) => expect(value).toBeFalsy()
+  const ok = (value: unknown): void => expect(value).toBeTruthy()
+  const notOk = (value: unknown): void => expect(value).toBeFalsy()
   return {
     dir: () => projectPath,
     requireModule (pkgName: string) {

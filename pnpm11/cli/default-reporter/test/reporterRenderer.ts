@@ -44,7 +44,7 @@ async function waitFor (
     if (Date.now() - start > timeoutMs) {
       throw new Error(`waitFor timed out after ${timeoutMs}ms; ${writes.length} writes`)
     }
-    await new Promise(resolve => setTimeout(resolve, 5)) // eslint-disable-line no-await-in-loop
+    await new Promise(resolve => setTimeout(resolve, 5)) // eslint-disable-line no-await-in-loop -- polls until the predicate holds
   }
 }
 
@@ -89,17 +89,17 @@ test('differential renderer does not reprint unchanged sticky blocks', async () 
     stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
     progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
 
-    await waitFor(writes, w => w.some(s => stripAnsi(s).includes(LOCKFILE_TEXT)))
+    await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes(LOCKFILE_TEXT)))
 
     const writesBeforeFetch = writes.length
     progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'fetched' })
 
-    await waitFor(writes, w => w.length > writesBeforeFetch)
+    await waitFor(writes, written => written.length > writesBeforeFetch)
 
     // The sticky verdict must be written exactly once. Locate its first render
     // rather than assuming it lands in writes[0] (the reporter may emit an
     // initial frame before the verdict), then assert no later write reprints it.
-    const firstStickyIndex = writes.findIndex(w => stripAnsi(w).includes(LOCKFILE_TEXT))
+    const firstStickyIndex = writes.findIndex(write => stripAnsi(write).includes(LOCKFILE_TEXT))
     expect(firstStickyIndex).toBeGreaterThanOrEqual(0)
 
     for (const write of writes.slice(firstStickyIndex + 1)) {
@@ -146,7 +146,7 @@ test('each write clears external output below the frame', async () => {
 
     statsLogger.debug({ added: 1, prefix: cwd })
     statsLogger.debug({ added: 2, prefix: cwd })
-    await waitFor(writes, w => w.length >= 1)
+    await waitFor(writes, written => written.length >= 1)
 
     expect(writes.length).toBeGreaterThanOrEqual(1)
     for (const write of writes) {
@@ -199,7 +199,7 @@ test('holds frame redraws while an interactive prompt owns the terminal', async 
     stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
     reportResolved('a')
     reportResolved('b')
-    await waitFor(writes, w => w.length >= 1)
+    await waitFor(writes, written => written.length >= 1)
     const writesBeforePrompt = writes.length
 
     promptLogger.debug({ action: 'start' })
@@ -214,7 +214,7 @@ test('holds frame redraws while an interactive prompt owns the terminal', async 
     promptLogger.debug({ action: 'end' })
     reportResolved('e')
     reportResolved('f')
-    await waitFor(writes, w => w.length > writesBeforePrompt)
+    await waitFor(writes, written => written.length > writesBeforePrompt)
 
     expect(writes.length).toBeGreaterThan(writesBeforePrompt)
   } finally {
@@ -273,13 +273,13 @@ test('never redraws above the top of the terminal', async () => {
       stageLogger.debug({ prefix: groupDir(group), stage: 'resolution_started' })
       reportResolved(group, 'foo')
     }
-    await waitFor(writes, w => w.some(s => stripAnsi(s).includes(`install-${groupCount - 1}`)))
+    await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes(`install-${groupCount - 1}`)))
 
     // The first group's line sits at the top of the frame, which by now has
     // scrolled off the screen. Redrawing it is what walked the cursor too far.
     const writesBeforeRedraw = writes.length
     reportResolved(0, 'bar')
-    await waitFor(writes, w => w.length > writesBeforeRedraw)
+    await waitFor(writes, written => written.length > writesBeforeRedraw)
 
     const ups = writes.flatMap(cursorUps)
     expect(ups.length).toBeGreaterThan(0)
@@ -321,12 +321,12 @@ test('a resize starts a fresh frame', async () => {
 
     stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
     progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
-    await waitFor(writes, w => w.some(s => stripAnsi(s).includes('resolved 1')))
+    await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes('resolved 1')))
 
     stdout.columns = 40
     const writesBeforeResize = writes.length
     progressLogger.debug({ packageId: 'registry.npmjs.org/bar/1.0.0', requester: cwd, status: 'resolved' })
-    await waitFor(writes, w => w.length > writesBeforeResize)
+    await waitFor(writes, written => written.length > writesBeforeResize)
 
     const afterResize = writes.slice(writesBeforeResize).join('')
     expect(stripAnsi(afterResize)).toContain('resolved 2')
@@ -371,14 +371,14 @@ test('never revises a frame that outgrew the terminal', async () => {
     const requester = `${cwd}/packages/a-fairly-long-workspace-package-name`
     stageLogger.debug({ prefix: requester, stage: 'resolution_started' })
     progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester, status: 'resolved' })
-    await waitFor(writes, w => w.some(s => stripAnsi(s).includes('resolved 1')))
+    await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes('resolved 1')))
 
     // The terminal grows enough for the next frame to fit, but the one on
     // screen has already scrolled.
     stdout.rows = 24
     const writesBeforeGrow = writes.length
     progressLogger.debug({ packageId: 'registry.npmjs.org/bar/1.0.0', requester, status: 'resolved' })
-    await waitFor(writes, w => w.length > writesBeforeGrow)
+    await waitFor(writes, written => written.length > writesBeforeGrow)
 
     const afterGrow = writes.slice(writesBeforeGrow).join('')
     expect(stripAnsi(afterGrow)).toContain('resolved 2')
@@ -429,7 +429,7 @@ test('a shrinking window starts a fresh frame', async () => {
         status: 'resolved',
       })
     }
-    await waitFor(writes, w => w.some(s => stripAnsi(s).includes(`install-${groupCount - 1}`)))
+    await waitFor(writes, written => written.some(chunk => stripAnsi(chunk).includes(`install-${groupCount - 1}`)))
 
     stdout.rows = 6
     const writesBeforeShrink = writes.length
@@ -438,7 +438,7 @@ test('a shrinking window starts a fresh frame', async () => {
       requester: groupDir(0),
       status: 'resolved',
     })
-    await waitFor(writes, w => w.length > writesBeforeShrink)
+    await waitFor(writes, written => written.length > writesBeforeShrink)
 
     const afterShrink = writes.slice(writesBeforeShrink).join('')
     expect(Math.max(0, ...cursorUps(afterShrink))).toBeLessThan(stdout.rows)

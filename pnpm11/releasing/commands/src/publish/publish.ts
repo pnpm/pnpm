@@ -308,6 +308,6 @@ export async function runScriptsIfPresent (
 ): Promise<void> {
   for (const scriptName of scriptNames) {
     if (!manifest.scripts?.[scriptName]) continue
-    await runLifecycleHook(scriptName, manifest, opts) // eslint-disable-line no-await-in-loop
+    await runLifecycleHook(scriptName, manifest, opts) // eslint-disable-line no-await-in-loop -- lifecycle scripts run in their defined order
   }
 }

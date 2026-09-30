@@ -45,7 +45,7 @@ export interface NpmrcConfigResult {
 /**
  * Result of parsing the structured `_auth` value.
  *
- * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, …)
+ * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, ...)
  *   ready to merge into the existing auth-config pipeline.
  * - `registries` — trusted scope→URL routes inferred from the `_auth`
  *   **environment variable**. `"default"` is set by the `"@"` scope;
@@ -134,8 +134,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // We clone first to avoid mutating the caller's cliOptions object.
   const cliOptions = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
 
-  // URL-scoped auth/registry settings supplied via `npm_config_//…` and
-  // `pnpm_config_//…` environment variables. The registry a credential is
+  // URL-scoped auth/registry settings supplied via `npm_config_//...` and
+  // `pnpm_config_//...` environment variables. The registry a credential is
   // bound to is encoded in the (trusted) variable name, so unlike a project
   // `.npmrc` these cannot be redirected to another host by the repository —
   // making them a safe, file-free way to configure registry authentication.
@@ -246,13 +246,13 @@ function readDeclaredRegistries (sources: Array<Record<string, unknown>>): Recor
   return registries
 }
 
-// Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is
+// Matches `npm_config_//...` and `pnpm_config_//...` env var names. The prefix is
 // matched case-insensitively (as npm does), but the captured key keeps its
 // original case because URL-scoped keys are case-sensitive (e.g. `:_authToken`).
 const URL_SCOPED_ENV_RE = /^p?npm_config_(\/\/.+)$/i
 
-// Collect URL-scoped settings (keys beginning with `//host…`, such as
-// `//registry.npmjs.org/:_authToken`) from `npm_config_//…` and `pnpm_config_//…`
+// Collect URL-scoped settings (keys beginning with `//host...`, such as
+// `//registry.npmjs.org/:_authToken`) from `npm_config_//...` and `pnpm_config_//...`
 // environment variables. These are host-scoped by construction — the registry
 // the value applies to is part of the variable name — so they are safe to honor
 // from the trusted environment without a config file. When the same key is set
@@ -656,12 +656,12 @@ function findEmptyEnvPlaceholders (value: string, env: Record<string, string | u
   return placeholders
 }
 
-function normalizePath (p: string | undefined): string | undefined {
-  if (p == null) return undefined
-  if (p.startsWith('~/') || p.startsWith('~\\')) {
-    p = path.join(os.homedir(), p.slice(2))
+function normalizePath (filePath: string | undefined): string | undefined {
+  if (filePath == null) return undefined
+  if (filePath.startsWith('~/') || filePath.startsWith('~\\')) {
+    filePath = path.join(os.homedir(), filePath.slice(2))
   }
-  return path.resolve(p)
+  return path.resolve(filePath)
 }
 
 function isErrorWithCode (err: unknown, code: string): boolean {

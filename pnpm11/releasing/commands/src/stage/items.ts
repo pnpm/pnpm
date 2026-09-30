@@ -21,7 +21,7 @@ export async function fetchStageItems (context: StageContext, packageFilter?: st
     if (packageFilter) {
       url.searchParams.set('package', packageFilter)
     }
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the previous page decides whether another page is requested
     const res = await stageJsonRequest<StageListResponse>(context, { url: url.href, action: 'list staged packages' })
     items.push(...res.items)
     if (items.length >= res.total || res.items.length < PER_PAGE) break

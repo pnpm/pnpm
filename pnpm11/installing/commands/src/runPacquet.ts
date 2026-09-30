@@ -370,17 +370,17 @@ function collectForwardedFlags (argv: { original: string[], remain: string[] }):
   // an option's value that happens to equal a positional (e.g.
   // `--node-linker install`) isn't mistaken for the positional itself.
   let positionalIdx = 0
-  for (let i = 0; i < argv.original.length; i++) {
-    const arg = argv.original[i]
+  for (let argIndex = 0; argIndex < argv.original.length; argIndex++) {
+    const arg = argv.original[argIndex]
     if (positionalIdx < argv.remain.length && arg === argv.remain[positionalIdx]) {
       positionalIdx++
       continue
     }
     if (isAlwaysInjected(arg)) continue
-    const translated = translateReportingFlag(argv.original, i)
+    const translated = translateReportingFlag(argv.original, argIndex)
     if (translated != null) {
       if (translated.replacement != null) result.push(translated.replacement)
-      i += translated.width - 1
+      argIndex += translated.width - 1
       continue
     }
     result.push(arg)
@@ -414,15 +414,15 @@ function isAlwaysInjected (arg: string): boolean {
  */
 function collectDroppedFlags (argv: { original: string[] }): string[] {
   const result: string[] = []
-  for (let i = 0; i < argv.original.length; i++) {
-    const arg = argv.original[i]
+  for (let argIndex = 0; argIndex < argv.original.length; argIndex++) {
+    const arg = argv.original[argIndex]
     if (!arg.startsWith('-')) continue
     if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--config.')) continue
-    const translated = translateReportingFlag(argv.original, i)
+    const translated = translateReportingFlag(argv.original, argIndex)
     if (translated != null) {
       if (translated.replacement != null) result.push(translated.replacement)
-      i += translated.width - 1
+      argIndex += translated.width - 1
       continue
     }
     result.push(arg)

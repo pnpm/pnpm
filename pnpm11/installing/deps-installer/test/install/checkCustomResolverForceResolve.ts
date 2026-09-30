@@ -4,7 +4,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 
 import { checkCustomResolverForceResolve } from '../../src/install/checkCustomResolverForceResolve.js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the fixtures are partial lockfile sections that the lockfile types reject
 type AnyPackages = any
 
 function lockfileWithPackages (packages?: Record<string, object>): LockfileObject {

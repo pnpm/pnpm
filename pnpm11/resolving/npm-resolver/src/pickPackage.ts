@@ -69,7 +69,7 @@ const metafileOperationLimits = {} as {
  * once they are no longer needed. Callers of this function should ensure
  * that the limiter is no longer referenced once fn's Promise has resolved.
  */
-async function runLimited<T> (pkgMirror: string, fn: (limit: LimitFunction) => Promise<T>): Promise<T> {
+async function runLimited<Result> (pkgMirror: string, fn: (limit: LimitFunction) => Promise<Result>): Promise<Result> {
   let entry!: RefCountedLimiter
   try {
     entry = metafileOperationLimits[pkgMirror] ??= { count: 0, limit: pLimit(1) }
@@ -172,12 +172,12 @@ function runPicker (
 
 // Returns whichever pick has the higher version, treating null as "no match".
 function pickMax (
-  a: PackageInRegistry | null,
-  b: PackageInRegistry | null
+  firstPick: PackageInRegistry | null,
+  secondPick: PackageInRegistry | null
 ): PackageInRegistry | null {
-  if (!a) return b
-  if (!b) return a
-  return semver.lt(a.version, b.version) ? b : a
+  if (!firstPick) return secondPick
+  if (!secondPick) return firstPick
+  return semver.lt(firstPick.version, secondPick.version) ? secondPick : firstPick
 }
 
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)

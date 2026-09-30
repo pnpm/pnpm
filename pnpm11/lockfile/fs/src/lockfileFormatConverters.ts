@@ -250,8 +250,8 @@ function revertProjectSnapshot (from: LockfileFileProjectSnapshot): ProjectSnaps
   }
 }
 
-function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) => U): Record<string, U> {
-  const result: Record<string, U> = {}
+function mapValues<Value, Mapped> (obj: Record<string, Value>, mapper: (val: Value, key: string) => Mapped): Record<string, Mapped> {
+  const result: Record<string, Mapped> = {}
   for (const [key, value] of Object.entries(obj)) {
     setOwnProperty(result, key, mapper(value, key))
   }
@@ -261,7 +261,7 @@ function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) 
 // Keys in these records come from the lockfile. A plain assignment of the key
 // `__proto__` would invoke the prototype setter, so that key is defined as an
 // own property instead.
-function setOwnProperty<K extends string, V> (obj: Record<K, V>, key: K, value: V): void {
+export function setOwnProperty<Key extends string, Value> (obj: Record<Key, Value>, key: Key, value: Value): void {
   if (key === '__proto__') {
     Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true })
   } else {

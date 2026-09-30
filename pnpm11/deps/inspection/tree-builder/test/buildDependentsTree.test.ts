@@ -161,8 +161,8 @@ describe('buildDependentsTree', () => {
             packages: currentPackages,
           },
           nameFormatter: ({ manifest }) => {
-            const m = manifest as unknown as Record<string, unknown>
-            return typeof m.componentName === 'string' ? m.componentName : undefined
+            const manifestFields = manifest as unknown as Record<string, unknown>
+            return typeof manifestFields.componentName === 'string' ? manifestFields.componentName : undefined
           },
         })
 
@@ -173,12 +173,12 @@ describe('buildDependentsTree', () => {
 
         // The dependents should include mid (which itself depends on target)
         // and the root importer
-        const midNode = trees[0].dependents.find(d => d.name === 'mid')
+        const midNode = trees[0].dependents.find(dependent => dependent.name === 'mid')
         expect(midNode).toBeDefined()
         expect(midNode!.displayName).toBe('utils/mid')
 
         // Importer node should not have displayName (nameFormatter is only for packages)
-        const importerNode = trees[0].dependents.find(d => d.name === 'my-project')
+        const importerNode = trees[0].dependents.find(dependent => dependent.name === 'my-project')
         if (importerNode) {
           expect(importerNode.displayName).toBeUndefined()
         }
@@ -239,8 +239,8 @@ describe('buildDependentsTree', () => {
             packages: currentPackages,
           },
           nameFormatter: ({ manifest }) => {
-            const m = manifest as unknown as Record<string, unknown>
-            return typeof m.componentName === 'string' ? m.componentName : undefined
+            const manifestFields = manifest as unknown as Record<string, unknown>
+            return typeof manifestFields.componentName === 'string' ? manifestFields.componentName : undefined
           },
         })
 

@@ -89,26 +89,26 @@ export interface ChildrenMap {
   [alias: string]: NodeId
 }
 
-export type DependenciesTreeNode<T> = {
+export type DependenciesTreeNode<Pkg> = {
   children: (() => ChildrenMap) | ChildrenMap
   installable: boolean
   dependencyNamesWhoseCurrentProviderMustWin?: Set<string>
   lockedPeerContext?: LockedPeerContext
   previousDepPath?: DepPath
 } & ({
-  resolvedPackage: T & { name: string, version: string }
+  resolvedPackage: Pkg & { name: string, version: string }
   depth: number
 } | {
   resolvedPackage: { name: string, version: string }
   depth: -1
 })
 
-export type DependenciesTree<T> = Map<
+export type DependenciesTree<Pkg> = Map<
 // a node ID is the join of the package's keypath with a colon
 // E.g., a subdeps node ID which parent is `foo` will be
 // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
   NodeId,
-  DependenciesTreeNode<T>
+  DependenciesTreeNode<Pkg>
 >
 
 export type ResolvedPkgsById = Record<PkgResolutionId, ResolvedPackage>
@@ -215,7 +215,7 @@ export interface ResolutionContext extends RegistryContext {
    * resolveDependencyTree hands the populated array back to the install
    * command via its return so the post-tree gate can prompt / abort /
    * persist without re-walking the resolved tree. Each verifier code
-   * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …) is the
+   * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, ...) is the
    * contract surface for downstream UX.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
@@ -425,7 +425,7 @@ export async function resolveRootDependencies (
     workspaceRootDeps = []
   }
   const hoistedPeersUpdateDepths = importers.map(getHoistedPeersUpdateDepth)
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- each round hoists the peers that the previous round found missing */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
@@ -1585,19 +1585,19 @@ function compareChildrenResolutionOwners (owner1: ChildrenResolutionOwner, owner
   if (owner1.depth !== owner2.depth) return owner1.depth - owner2.depth
   if (owner1.importerOrder !== owner2.importerOrder) return owner1.importerOrder - owner2.importerOrder
   const pathLength = Math.min(owner1.parentPath.length, owner2.parentPath.length)
-  for (let i = 0; i < pathLength; i++) {
-    const result = lexCompare(owner1.parentPath[i], owner2.parentPath[i])
+  for (let index = 0; index < pathLength; index++) {
+    const result = lexCompare(owner1.parentPath[index], owner2.parentPath[index])
     if (result !== 0) return result
   }
   return owner1.parentPath.length - owner2.parentPath.length
 }
 
 function createMissingPeersOfChildren (): MissingPeersOfChildren {
-  const p = pDefer<MissingPeers>()
+  const missingPeers = pDefer<MissingPeers>()
   return {
-    resolve: p.resolve,
-    reject: p.reject,
-    get: pShare(p.promise),
+    resolve: missingPeers.resolve,
+    reject: missingPeers.reject,
+    get: pShare(missingPeers.promise),
   }
 }
 
@@ -2049,12 +2049,13 @@ function findHigherDirectDepVersion (
   if (selectors == null) return undefined
   let best: string | undefined
   for (const [candidate, selector] of Object.entries(selectors)) {
-    if (
-      typeof selector === 'object' &&
+    const isDirectDepVersionSelector = typeof selector === 'object' &&
       selector !== null &&
       selector.selectorType === 'version' &&
       selector.weight >= DIRECT_DEP_SELECTOR_WEIGHT &&
-      selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
+      selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT
+    if (
+      isDirectDepVersionSelector &&
       semver.valid(candidate) &&
       semver.gt(candidate, pinnedVersion) &&
       semver.satisfies(candidate, bareSpecifier, true) &&

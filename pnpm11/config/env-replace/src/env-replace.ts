@@ -62,9 +62,9 @@ function getEnvValue (env: NodeJS.ProcessEnv, name: string): string | undefined 
   const withFallback = parseFallback(name)
   if (!withFallback) return readEnv(env, name)
   const { variableName, fallback, fallbackOnEmpty } = withFallback
-  const v = readEnv(env, variableName)
-  if (v === undefined) return fallback
-  return !v && fallbackOnEmpty ? fallback : v
+  const value = readEnv(env, variableName)
+  if (value === undefined) return fallback
+  return !value && fallbackOnEmpty ? fallback : value
 }
 
 /**

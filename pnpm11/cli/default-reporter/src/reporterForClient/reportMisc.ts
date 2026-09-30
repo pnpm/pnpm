@@ -10,14 +10,12 @@ import { reportError } from '../reportError.js'
 import { formatWarn } from './utils/formatWarn.js'
 import { autozoom } from './utils/zooming.js'
 
-// eslint-disable:object-literal-sort-keys
 export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
   error: 0,
   warn: 1,
   info: 2,
   debug: 3,
 }
-// eslint-enable:object-literal-sort-keys
 
 const MAX_SHOWN_WARNINGS = 5
 

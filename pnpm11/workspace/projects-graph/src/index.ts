@@ -28,7 +28,7 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
 } {
   const projectMap = createProjectMap(projects)
   const projectMapValues = Object.values(projectMap)
-  let projectMapByManifestName: Record<string, BaseProject[] | undefined> | undefined
+  let projectMapByManifestName: Map<string, BaseProject[]> | undefined
   let projectMapByDir: Record<string, BaseProject | undefined> | undefined
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = mapValues((project) => ({
@@ -80,7 +80,7 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
           }
 
           // Slow path; only needed when there are case mismatches on case-insensitive filesystems.
-          const matchedProject = projectMapValues.find(p => path.relative(p.rootDir, spec.fetchSpec) === '')
+          const matchedProject = projectMapValues.find(project => path.relative(project.rootDir, spec.fetchSpec) === '')
           if (matchedProject == null) {
             return ''
           }
@@ -91,10 +91,10 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
         projectMapByManifestName ??= getProjectMapByManifestName(projectMapValues)
-        const candidates = projectMapByManifestName[depName]
+        const candidates = projectMapByManifestName.get(depName)
         if (!candidates || candidates.length === 0) return ''
         const versions = candidates.filter(({ manifest }) => manifest.version)
-          .map(p => p.manifest.version) as string[]
+          .map(candidate => candidate.manifest.version) as string[]
 
         // explicitly check if false, backwards-compatibility (can be undefined)
         const strictWorkspaceMatching = opts?.linkWorkspacePackages === false && !isWorkspaceSpec
@@ -103,11 +103,11 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
           return ''
         }
         if (isWorkspaceSpec && versions.length === 0) {
-          const matchedProject = candidates.find(p => p.manifest.name === depName)
+          const matchedProject = candidates.find(candidate => candidate.manifest.name === depName)
           return matchedProject!.rootDir
         }
         if (versions.includes(rawSpec)) {
-          const matchedProject = candidates.find(p => p.manifest.name === depName && p.manifest.version === rawSpec)
+          const matchedProject = candidates.find(candidate => candidate.manifest.name === depName && candidate.manifest.version === rawSpec)
           return matchedProject!.rootDir
         }
         const matched = resolveWorkspaceRange(rawSpec, versions)
@@ -115,7 +115,7 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
           unmatched.push({ pkgName: depName, range: rawSpec })
           return ''
         }
-        const matchedProject = candidates.find(p => p.manifest.name === depName && p.manifest.version === matched)
+        const matchedProject = candidates.find(candidate => candidate.manifest.name === depName && candidate.manifest.version === matched)
         return matchedProject!.rootDir
       })
       .filter(Boolean)
@@ -146,11 +146,16 @@ function createProjectMap (projects: BaseProject[]): Record<ProjectRootDir, Base
   return projectMap
 }
 
-function getProjectMapByManifestName (projectMapValues: BaseProject[]): Record<string, BaseProject[] | undefined> {
-  const projectMapByManifestName: Record<string, BaseProject[] | undefined> = {}
+function getProjectMapByManifestName (projectMapValues: BaseProject[]): Map<string, BaseProject[]> {
+  const projectMapByManifestName = new Map<string, BaseProject[]>()
   for (const project of projectMapValues) {
-    if (project.manifest.name) {
-      (projectMapByManifestName[project.manifest.name] ??= []).push(project)
+    const { name } = project.manifest
+    if (!name) continue
+    const projects = projectMapByManifestName.get(name)
+    if (projects == null) {
+      projectMapByManifestName.set(name, [project])
+    } else {
+      projects.push(project)
     }
   }
   return projectMapByManifestName

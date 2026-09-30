@@ -512,6 +512,6 @@ function isWindowsAbsolutePath (pathLike: string): boolean {
   return WINDOWS_ABSOLUTE_PATH_REGEXP.test(pathLike)
 }
 
-function compareStrings (a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0
+function compareStrings (left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }

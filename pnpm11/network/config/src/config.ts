@@ -7,10 +7,10 @@ function getMaxParts (uris: string[]) {
   }, 0)
 }
 
-export function pickSettingByUrl<T> (
-  generic: { [key: string]: T } | undefined,
+export function pickSettingByUrl<Setting> (
+  generic: { [key: string]: Setting } | undefined,
   uri: string
-): T | undefined {
+): Setting | undefined {
   if (!generic) return undefined
   if (Object.hasOwn(generic, uri)) return generic[uri]
   const nerf = nerfDart(uri)
@@ -19,8 +19,8 @@ export function pickSettingByUrl<T> (
   if (Object.hasOwn(generic, withoutPort)) return generic[withoutPort]
   const maxParts = getMaxParts(Object.keys(generic))
   const parts = nerf.split('/')
-  for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
-    const key = `${parts.slice(0, i).join('/')}/`
+  for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
+    const key = `${parts.slice(0, partCount).join('/')}/`
     if (Object.hasOwn(generic, key)) {
       return generic[key]
     }

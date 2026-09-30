@@ -8,13 +8,13 @@ jest.unstable_mockModule('is-windows', () => ({ default: () => true }))
 
 const { runLifecycleHook } = await import('../lib/index.js')
 
-const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const testFixtures = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
 
 // `is-windows` is mocked because the branch under test is otherwise
 // reachable only from a Windows host.
 test('runLifecycleHook() quotes arguments for the emulator rather than for cmd on Windows', async () => {
-  const pkgRoot = f.prepare('escape-args')
+  const pkgRoot = testFixtures.prepare('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   const args = [
     'C:\\Program Files\\tool\\',
@@ -46,7 +46,7 @@ test('runLifecycleHook() quotes arguments for the emulator rather than for cmd o
 const skipOnRealWindows = process.platform === 'win32' ? test.skip : test
 
 skipOnRealWindows.each([false, true])('runLifecycleHook() quotes arguments for a configured non-cmd scriptShell on Windows (shellEmulator: %s)', async (shellEmulator) => {
-  const pkgRoot = f.prepare('escape-args')
+  const pkgRoot = testFixtures.prepare('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   const args = [
     'C:\\Program Files\\tool\\',
@@ -71,7 +71,7 @@ skipOnRealWindows.each([false, true])('runLifecycleHook() quotes arguments for a
 })
 
 test('runLifecycleHook() shows the arguments quoted the POSIX way when cmd quoting runs', async () => {
-  const pkgRoot = f.prepare('escape-args')
+  const pkgRoot = testFixtures.prepare('escape-args')
 
   await expect(runLifecycleHook('fail', { name: 'fail', version: '1.0.0', scripts: { fail: 'node -e "process.exit(1)"' } }, {
     args: ['a b', '%PATH%'],

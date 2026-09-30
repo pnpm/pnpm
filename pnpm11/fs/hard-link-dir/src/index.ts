@@ -131,7 +131,7 @@ function replaceFile (srcFile: string, destFile: string): void {
   } catch (err: unknown) {
     try {
       fs.unlinkSync(tempFile)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     throw err
   }
 }

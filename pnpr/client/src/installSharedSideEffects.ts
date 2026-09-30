@@ -38,8 +38,8 @@ import {
   windowsSupportedTags,
 } from './sharedSideEffects.js'
 
-export interface RemoteSideEffectsInstallNode<T extends string> {
-  graphKey: T
+export interface RemoteSideEffectsInstallNode<GraphKey extends string> {
+  graphKey: GraphKey
   depPath: DepPath
   files: PackageFilesResponse
   filesIndexFile?: string
@@ -49,10 +49,10 @@ export interface RemoteSideEffectsInstallNode<T extends string> {
   version: string
 }
 
-export interface RemoteSideEffectsRestorerOptions<T extends string> {
+export interface RemoteSideEffectsRestorerOptions<GraphKey extends string> {
   allowBuild?: AllowBuild
   configByUri: Record<string, RegistryConfig>
-  depsGraph: DepsGraph<T>
+  depsGraph: DepsGraph<GraphKey>
   depsStateCache: DepsStateCache
   ignoreScripts: boolean
   nodeVersion?: string
@@ -72,7 +72,7 @@ export interface RemoteSideEffectsPrerequisites {
   storeController: StoreController
 }
 
-export interface RemoteSideEffectsRestorer<T extends string> {
+export interface RemoteSideEffectsRestorer<GraphKey extends string> {
   /**
    * Install pnpr's verified build of `node`, when it has one, into that node's
    * own `sideEffectsMaps` and return the key it was stored under. `undefined`
@@ -82,7 +82,7 @@ export interface RemoteSideEffectsRestorer<T extends string> {
    * waits on an unrelated fetch. Calls raised close together still leave as a
    * single lookup request.
    */
-  restore: (node: RemoteSideEffectsInstallNode<T>) => Promise<string | undefined>
+  restore: (node: RemoteSideEffectsInstallNode<GraphKey>) => Promise<string | undefined>
 }
 
 type ArtifactPlatform =
@@ -119,9 +119,9 @@ export function canRestoreRemoteSideEffects (opts: RemoteSideEffectsPrerequisite
     currentArtifactPlatform(opts.nodeVersion) != null
 }
 
-export function createRemoteSideEffectsRestorer<T extends string> (
-  opts: RemoteSideEffectsRestorerOptions<T>
-): RemoteSideEffectsRestorer<T> | undefined {
+export function createRemoteSideEffectsRestorer<GraphKey extends string> (
+  opts: RemoteSideEffectsRestorerOptions<GraphKey>
+): RemoteSideEffectsRestorer<GraphKey> | undefined {
   if (!canRestoreRemoteSideEffects(opts)) return undefined
   const artifactPlatform = currentArtifactPlatform(opts.nodeVersion)
   const { pnprServer, settings } = opts
@@ -161,7 +161,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
 
   return { restore }
 
-  async function restore (node: RemoteSideEffectsInstallNode<T>): Promise<string | undefined> {
+  async function restore (node: RemoteSideEffectsInstallNode<GraphKey>): Promise<string | undefined> {
     if (node.files.requiresBuild !== true || !eligiblePackages.has(node.name)) return undefined
     if (opts.allowBuild?.(node.depPath) !== true) return undefined
     const sourceIntegrity = verifiedIntegrity(node.resolution)
@@ -537,10 +537,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   }
 }
 
-export interface PublishBuiltSharedSideEffectsOptions<T extends string> {
+export interface PublishBuiltSharedSideEffectsOptions<GraphKey extends string> {
   configByUri: Record<string, RegistryConfig>
-  depsGraph: DepsGraph<T>
-  graphKey: T
+  depsGraph: DepsGraph<GraphKey>
+  graphKey: GraphKey
   name: string
   nodeVersion?: string
   patchFileHash?: string
@@ -552,8 +552,8 @@ export interface PublishBuiltSharedSideEffectsOptions<T extends string> {
   version: string
 }
 
-export async function publishBuiltSharedSideEffects<T extends string> (
-  opts: PublishBuiltSharedSideEffectsOptions<T>
+export async function publishBuiltSharedSideEffects<GraphKey extends string> (
+  opts: PublishBuiltSharedSideEffectsOptions<GraphKey>
 ): Promise<void> {
   if (
     opts.settings?.publish !== true ||
@@ -711,8 +711,7 @@ function macOSProductVersion (): { major: number, minor: number } | undefined {
       timeout: 5_000,
     }).trim().split('.').map(Number)
     cachedMacOSProductVersion =
-      Number.isSafeInteger(major) && major > 0 && major < 1_000_000 &&
-      Number.isSafeInteger(minor) && minor >= 0 && minor < 1_000_000
+      isIntegerInRange(major, 1, 1_000_000) && isIntegerInRange(minor, 0, 1_000_000)
         ? { major, minor }
         : null
   } catch {
@@ -726,11 +725,15 @@ function windowsKernelVersion (release: string): { major: number, minor: number,
   if (components.length !== 3) return undefined
   const [major, minor, build] = components.map(Number)
   if (
-    !Number.isSafeInteger(major) || major <= 0 || major >= 1_000 ||
-    !Number.isSafeInteger(minor) || minor < 0 || minor >= 1_000 ||
-    !Number.isSafeInteger(build) || build <= 0 || build >= 1_000_000
+    !isIntegerInRange(major, 1, 1_000) ||
+    !isIntegerInRange(minor, 0, 1_000) ||
+    !isIntegerInRange(build, 1, 1_000_000)
   ) return undefined
   return { major, minor, build }
+}
+
+function isIntegerInRange (value: number, min: number, exclusiveMax: number): boolean {
+  return Number.isSafeInteger(value) && value >= min && value < exclusiveMax
 }
 
 function verifiedIntegrity (resolution: LockfileResolution): string | undefined {

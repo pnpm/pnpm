@@ -64,7 +64,7 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
   const packedByRegistry = new Map<string, PackedPkg[]>()
   const packedPkgs: PackedPkg[] = []
   for (const project of pkgs) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- projects run their prepublish scripts and pack one at a time, in the order given
     const packedPkg = await packPkgForBatch(project, opts)
     const { publishedManifest } = packedPkg
     const { registry } = findRegistryInfo(publishedManifest, opts, getPublishConfigRegistry(publishedManifest.publishConfig, publishedManifest.name))
@@ -78,10 +78,9 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
   }
   const publishOptionsByRegistry = new Map<string, Awaited<ReturnType<typeof createPublishOptions>>>()
   if (!opts.dryRun) {
-    for (const [registry, group] of packedByRegistry.entries()) {
-      // eslint-disable-next-line no-await-in-loop
+    await Promise.all(Array.from(packedByRegistry.entries(), async ([registry, group]) => {
       publishOptionsByRegistry.set(registry, await createBatchPublishOptions(registry, group, opts))
-    }
+    }))
   }
   for (const [registry, group] of packedByRegistry.entries()) {
     for (const { summary } of group) {
@@ -94,13 +93,13 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
       if (publishOptions == null) {
         throw new Error(`Missing precomputed publish options for ${registry}`)
       }
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- a failed registry request stops the publish before the next registry
       await multiPublishToRegistry({ registry, group, opts, publishOptions })
       globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
     }
     if (!opts.ignoreScripts) {
       for (const { project } of group) {
-        // eslint-disable-next-line no-await-in-loop
+        // eslint-disable-next-line no-await-in-loop -- publish scripts run one project at a time, in the order given
         await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
       }
     }

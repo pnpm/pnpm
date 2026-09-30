@@ -60,7 +60,7 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
 
   let highestLevel: number = BumpLevels.dep
 
-  const nodes = ast['children'] as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
+  const nodes = ast.children
   let headingStartInfo:
   | {
     index: number
@@ -69,8 +69,7 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
   | undefined
   let endIndex: number | undefined
 
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]
+  for (const [nodeIndex, node] of nodes.entries()) {
     if (node.type === 'heading') {
       const stringified: string = mdastToString(node)
       const match = stringified.toLowerCase().match(/(major|minor|patch)/)
@@ -80,7 +79,7 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
       }
       if (headingStartInfo === undefined && stringified === version) {
         headingStartInfo = {
-          index: i,
+          index: nodeIndex,
           depth: node.depth,
         }
         continue
@@ -90,7 +89,7 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
         headingStartInfo !== undefined &&
         headingStartInfo.depth === node.depth
       ) {
-        endIndex = i
+        endIndex = nodeIndex
         break
       }
     }
@@ -98,7 +97,7 @@ export function getChangelogEntry (changelog: string, version: string): Changelo
   if (headingStartInfo == null) {
     throw new PnpmError('MISSING_CHANGELOG_ENTRY', `No changelog entry found for pnpm ${version}`)
   }
-  ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
+  ast.children = ast.children.slice(
     headingStartInfo.index + 1,
     endIndex
   )

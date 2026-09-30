@@ -38,9 +38,9 @@ export async function readStageApprovalOrder (
   const projects: Array<{ manifest: BaseManifest, rootDir: ProjectRootDir }> = []
   const stageIdByVersionByPackageName = new Map<string, Map<string, string>>()
   for (const item of items) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- one tarball at a time keeps a single tarball in memory
     const tarball = await fetchStageTarball(context, item.id)
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- reads the tarball fetched above
     const manifest = await readTarballManifest(tarball)
     const stageIdByVersion = stageIdByVersionByPackageName.get(manifest.name) ?? new Map<string, string>()
     const duplicateStageId = stageIdByVersion.get(manifest.version)

@@ -16,10 +16,10 @@ test('global update --latest keeps a package that latest would downgrade', async
   const options = globalOptions()
 
   await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
-  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@2.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await add.handler(options as any, ['@pnpm.e2e/multi-version-a@2.1.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
   await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '1.0.0', distTag: 'latest' })
 
-  await update.handler({ ...options, latest: true } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await update.handler({ ...options, latest: true } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options these handlers read, not a full Config
 
   const groups = scanGlobalPackages(path.resolve('global'))
   const installed = (await Promise.all(groups.map(getGlobalPackageDetails))).flat()

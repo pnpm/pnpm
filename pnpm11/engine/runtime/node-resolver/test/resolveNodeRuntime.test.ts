@@ -53,7 +53,7 @@ test('resolveNodeRuntime() authenticates release index and SHASUMS requests with
   const cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-node-resolver-auth-'))
   try {
     for (let run = 0; run < 2; run++) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the second run must see the cache written by the first
       await resolveNodeRuntime({
         fetchFromRegistry: authenticatedFetch,
         getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
@@ -186,7 +186,7 @@ test('resolveNodeRuntime() serves repeat asset reads from the cache', async () =
     })
 
     for (let run = 0; run < 2; run++) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the second run must see the cache written by the first
       const resolution = await resolveNodeRuntime({
         fetchFromRegistry: countedFetch,
         nodeDownloadMirrors: { rc: MIRROR },
@@ -299,7 +299,7 @@ test('resolveNodeRuntime() resolves native win-arm64 variant for Node 20+', asyn
   })
 
   const variants = resolution!.resolution.variants
-  const winArm64 = variants.find(v => v.targets.some(t => t.os === 'win32' && t.cpu === 'arm64'))
+  const winArm64 = variants.find(variant => variant.targets.some(target => target.os === 'win32' && target.cpu === 'arm64'))
   expect(winArm64).toBeDefined()
   expect(winArm64!.targets).toStrictEqual([{ os: 'win32', cpu: 'arm64' }])
   expect(winArm64!.resolution).toMatchObject({

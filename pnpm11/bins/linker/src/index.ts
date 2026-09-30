@@ -203,21 +203,21 @@ function deduplicateCommands (commands: CommandInfo[], binsDir?: string): Comman
 }
 
 function resolveCommandConflicts (group: CommandInfo[], binsDir?: string): CommandInfo {
-  return group.reduce((a, b) => {
-    const [chosen, skipped] = compareCommandsInConflict(a, b) >= 0 ? [a, b] : [b, a]
+  return group.reduce((chosenSoFar, candidate) => {
+    const [chosen, skipped] = compareCommandsInConflict(chosenSoFar, candidate) >= 0 ? [chosenSoFar, candidate] : [candidate, chosenSoFar]
     if (binsDir != null) logCommandConflict(chosen, skipped, binsDir)
     return chosen
   })
 }
 
-function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
+function compareCommandsInConflict (left: CommandInfo, right: CommandInfo): number {
   // Check ownership: a package that owns the bin name gets priority
-  const aOwns = pkgOwnsBin(a.name, a.pkgName)
-  const bOwns = pkgOwnsBin(b.name, b.pkgName)
-  if (aOwns && !bOwns) return 1
-  if (!aOwns && bOwns) return -1
-  if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
-  return semver.compare(a.pkgVersion, b.pkgVersion)
+  const leftOwns = pkgOwnsBin(left.name, left.pkgName)
+  const rightOwns = pkgOwnsBin(right.name, right.pkgName)
+  if (leftOwns && !rightOwns) return 1
+  if (!leftOwns && rightOwns) return -1
+  if (left.pkgName !== right.pkgName) return left.pkgName.localeCompare(right.pkgName) // it's pointless to compare versions of 2 different package
+  return semver.compare(left.pkgVersion, right.pkgVersion)
 }
 
 function logCommandConflict (chosen: CommandInfo, skipped: CommandInfo, binsDir: string): void {
@@ -279,7 +279,7 @@ async function readLinkedPublishManifest (target: string): Promise<ProjectManife
   const candidates = new Set<string>()
   for (const resolve of [readLinkTarget, fs.realpath]) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- two cheap lookups whose errors are filtered one at a time
       candidates.add(await resolve(target))
     } catch (err: unknown) {
       const code = (err as NodeJS.ErrnoException).code
@@ -287,7 +287,7 @@ async function readLinkedPublishManifest (target: string): Promise<ProjectManife
     }
   }
   for (const candidate of candidates) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- stops at the first candidate that has a publish manifest
     const manifest = await safeReadParentPublishManifest(candidate)
     if (manifest != null) return manifest
   }
@@ -395,7 +395,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions 
           isShimNodePath(content, {
             first: opts.projectModulesDir,
             // The shim lists every entry once, at its first position.
-            last: opts.extraNodePaths && Array.from(new Set(opts.extraNodePaths)).filter((p) => p !== opts.projectModulesDir),
+            last: opts.extraNodePaths && Array.from(new Set(opts.extraNodePaths)).filter((nodePath) => nodePath !== opts.projectModulesDir),
           })
         )
     }
@@ -551,7 +551,7 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
     for (;;) {
       // Reading sequentially is intentional: each iteration compares one chunk
       // and stops early on a mismatch or EOF.
-      const [readA, readB] = await Promise.all([ // eslint-disable-line no-await-in-loop
+      const [readA, readB] = await Promise.all([ // eslint-disable-line no-await-in-loop -- a mismatch or EOF in this chunk ends the comparison
         fhA.read(bufA, 0, FILE_COMPARE_CHUNK_SIZE, position),
         fhB.read(bufB, 0, FILE_COMPARE_CHUNK_SIZE, position),
       ])

@@ -18,8 +18,8 @@ export function deleteObjectValueByPropertyPath (object: ObjectOrArray, property
   rejectUnsafeKeys(path)
 
   let obj: ObjectOrArray = object
-  for (let i = 0; i < path.length - 1; i++) {
-    const key = path[i]
+  for (let depth = 0; depth < path.length - 1; depth++) {
+    const key = path[depth]
     if (
       typeof obj !== 'object' ||
       obj === null ||

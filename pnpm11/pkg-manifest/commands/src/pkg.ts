@@ -171,24 +171,24 @@ async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void
 
 async function pkgFix (opts: PkgCommandOptions): Promise<void> {
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
-  const m = manifest as ProjectManifest & Record<string, unknown>
+  const untypedManifest = manifest as ProjectManifest & Record<string, unknown>
 
-  if ('name' in m && typeof m.name !== 'string') {
-    delete m.name
+  if ('name' in untypedManifest && typeof untypedManifest.name !== 'string') {
+    delete untypedManifest.name
   }
 
-  if ('version' in m && typeof m.version !== 'string') {
-    delete m.version
+  if ('version' in untypedManifest && typeof untypedManifest.version !== 'string') {
+    delete untypedManifest.version
   }
 
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    if (field in m && !isPlainObject(m[field])) {
-      delete m[field]
+    if (field in untypedManifest && !isPlainObject(untypedManifest[field])) {
+      delete untypedManifest[field]
     }
   }
 
-  if ('bin' in m && typeof m.bin !== 'string' && !isPlainObject(m.bin)) {
-    delete m.bin
+  if ('bin' in untypedManifest && typeof untypedManifest.bin !== 'string' && !isPlainObject(untypedManifest.bin)) {
+    delete untypedManifest.bin
   }
 
   await writeProjectManifest(manifest)

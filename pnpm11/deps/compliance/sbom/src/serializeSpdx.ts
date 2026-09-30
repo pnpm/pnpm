@@ -100,9 +100,9 @@ export function serializeSpdx (result: SbomResult, opts?: SpdxOptions): string {
 
     const hashes = integrityToHashes(comp.integrity)
     if (hashes.length > 0) {
-      pkg.checksums = hashes.map((h) => ({
-        algorithm: spdxHashAlgorithm(h.algorithm),
-        checksumValue: h.digest,
+      pkg.checksums = hashes.map((hash) => ({
+        algorithm: spdxHashAlgorithm(hash.algorithm),
+        checksumValue: hash.digest,
       }))
     }
 

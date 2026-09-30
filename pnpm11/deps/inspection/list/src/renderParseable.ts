@@ -17,7 +17,7 @@ export async function renderParseable (
   const depPaths = new Set<string>()
   return pkgs
     .map(renderParseableForPackage.bind(null, depPaths, opts))
-    .filter(p => p.length !== 0)
+    .filter((rendered) => rendered.length !== 0)
     .join('\n')
 }
 

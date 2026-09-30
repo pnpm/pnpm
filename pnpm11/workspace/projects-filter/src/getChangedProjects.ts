@@ -94,6 +94,8 @@ export async function getChangedProjects (
       case 'test':
         ignoreDependentForPkgs.push(changedDir)
         break
+      case undefined:
+        break
     }
   }
   return [changedProjects, ignoreDependentForPkgs]
@@ -199,7 +201,7 @@ async function loadProjects (
 ): Promise<Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>> {
   if (allProjects != null && allProjects.length > 0) {
     const projectDirSet = new Set(projectDirs)
-    return allProjects.filter(p => projectDirSet.has(p.rootDir))
+    return allProjects.filter(project => projectDirSet.has(project.rootDir))
   }
   return Promise.all(
     projectDirs.map(async (rootDir) => {

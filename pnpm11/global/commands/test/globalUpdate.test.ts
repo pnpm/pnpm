@@ -96,7 +96,7 @@ test('global update emits a single summary after updating all isolated groups', 
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     updateResolutionPolicyManifest,
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(installGlobalPackages).toHaveBeenCalledTimes(4)
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
@@ -195,7 +195,7 @@ test('global update reports already up to date without replacing an equal candid
       bin: path.join(root, 'bin'),
       globalPkgDir: globalDir,
       updateResolutionPolicyManifest,
-    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
     expect(output).toBeUndefined()
     expect(info).toHaveBeenCalledWith({ message: 'Already up to date', prefix: root })
@@ -242,7 +242,7 @@ test('global update does not report already up to date when the active group los
       dir: root,
       bin: path.join(root, 'bin'),
       globalPkgDir: globalDir,
-    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
     expect(info).not.toHaveBeenCalled()
     expect(installGlobalPackages).toHaveBeenCalledTimes(2)
@@ -284,7 +284,7 @@ test('global update fails without replacing the active group when equal-candidat
     await expect(handleGlobalUpdate({
       bin: path.join(root, 'bin'),
       globalPkgDir: globalDir,
-    } as any, [], {})).rejects.toBe(cleanupError) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, [], {})).rejects.toBe(cleanupError) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
     expect(fs.readFileSync(oldMarker, 'utf8')).toBe('active\n')
     expect(activateGlobalInstall).not.toHaveBeenCalled()
     expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
@@ -317,7 +317,7 @@ test('global update ignores incomplete survivors when every replaced bin is reta
   await handleGlobalUpdate({
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
-  } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(getInstalledBinNames).toHaveBeenCalledTimes(1)
   expect(getInstalledBinNames).toHaveBeenCalledWith(target)
@@ -367,7 +367,7 @@ test('global update removes the fresh install and does not activate when target 
       await handleGlobalUpdate({
         bin: globalBinDir,
         globalPkgDir: globalDir,
-      } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
     } catch (err) {
       thrown = err
     }
@@ -457,7 +457,7 @@ test('global update preserves ownership state and both errors when fresh install
       await handleGlobalUpdate({
         bin: globalBinDir,
         globalPkgDir: globalDir,
-      } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['foo'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
     } catch (err) {
       thrown = err
     }
@@ -496,7 +496,7 @@ test('global update only updates interactively selected groups', async () => {
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     selectedPackageHashes: new Set(['hash-foo']),
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(installGlobalPackages).toHaveBeenCalledTimes(2)
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
@@ -523,7 +523,7 @@ test('global update does not clean up or persist policy when activation fails', 
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     updateResolutionPolicyManifest,
-  } as any, [], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()
@@ -557,7 +557,7 @@ test('global update --latest drops the spec only of plain version dependencies',
       bin: '/global/bin',
       globalPkgDir: '/global/v11',
       latest: true,
-    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
   } finally {
     fs.rmSync(tarballsDir, { recursive: true, force: true })
   }
@@ -606,7 +606,7 @@ test('global update skips a group whose file: source no longer exists and update
     await handleGlobalUpdate({
       bin: '/global/bin',
       globalPkgDir: '/global/v11',
-    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
@@ -632,7 +632,7 @@ test('global update does not report already up to date when every group was skip
   await handleGlobalUpdate({
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(globalWarn).toHaveBeenCalledTimes(1)
   expect(installGlobalPackages).not.toHaveBeenCalled()
@@ -668,7 +668,7 @@ test('global update leaves the pnpm CLI to self-update', async () => {
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     latest: true,
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(installGlobalPackages).toHaveBeenCalledTimes(2)
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
@@ -690,7 +690,7 @@ test('global update reports nothing to do when only the pnpm CLI is installed gl
   const output = await handleGlobalUpdate({
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(output).toBe('No global packages to update. Run "pnpm self-update" to update pnpm itself.')
   expect(installGlobalPackages).not.toHaveBeenCalled()
@@ -725,7 +725,7 @@ test('global update --latest holds a package that latest would downgrade', async
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     latest: true,
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   // The probe resolves without installing, so a rejected release never gets to
   // run its lifecycle scripts. It resolves into the group's own directory, so
@@ -762,7 +762,7 @@ test('global update without --latest resolves once before materialization', asyn
   await handleGlobalUpdate({
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(installGlobalPackages).toHaveBeenCalledTimes(2)
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
@@ -795,7 +795,7 @@ test('global update approves an immature version once across its resolution pass
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     handleResolutionPolicyViolations,
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(installGlobalPackages).toHaveBeenCalledTimes(2)
   expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(1)
@@ -827,7 +827,7 @@ test('global update approves a version only a later resolution pass reports', as
     globalPkgDir: '/global/v11',
     handleResolutionPolicyViolations,
     updateResolutionPolicyManifest,
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(2)
   expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(1, [first])
@@ -854,7 +854,7 @@ test('global update aborts without installing when the immature version is not a
     bin: '/global/bin',
     globalPkgDir: '/global/v11',
     handleResolutionPolicyViolations,
-  } as any, [], {})) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, [], {})) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
     .rejects.toThrow('Aborted: the immature versions were not approved.')
 
   expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(1)

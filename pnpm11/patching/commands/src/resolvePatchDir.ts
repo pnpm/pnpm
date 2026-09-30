@@ -121,7 +121,7 @@ export async function resolvePatchDir (
   }
 
   if (exactMatches.length > 1) {
-    const list = exactMatches.map(m => m.editDir).sort().map(d => `  ${d}`).join('\n')
+    const list = exactMatches.map(m => m.editDir).sort().map(editDir => `  ${editDir}`).join('\n')
     throw new PnpmError('AMBIGUOUS_PATCH_TARGET', `Found multiple patch directories for "${userParam}":\n${list}`, {
       hint: 'Specify the exact patch directory or version',
     })
@@ -132,7 +132,7 @@ export async function resolvePatchDir (
   }
 
   if (nameMatches.length > 1) {
-    const list = nameMatches.map(m => m.editDir).sort().map(d => `  ${d}`).join('\n')
+    const list = nameMatches.map(m => m.editDir).sort().map(editDir => `  ${editDir}`).join('\n')
     throw new PnpmError('AMBIGUOUS_PATCH_TARGET', `Found multiple patch directories for "${userParam}":\n${list}`, {
       hint: 'Specify the exact patch directory or version',
     })

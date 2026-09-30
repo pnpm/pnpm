@@ -148,7 +148,7 @@ test('global add does not inspect survivors when every replaced bin is retained'
     globalPkgDir: '/global/v11',
     registriesByScope: {},
     updateResolutionPolicyManifest,
-  } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', '@pnpm/exe')
   expect(findGlobalPackage).toHaveBeenCalledWith('/global/v11', 'pnpm')
@@ -205,7 +205,7 @@ test('global add inspects survivors when a declared retained bin target is missi
     dir: '/project',
     globalPkgDir: '/global/v11',
     registriesByScope: {},
-  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(survivorError) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(survivorError) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(getInstalledBinNames).toHaveBeenCalledWith(survivor)
   expect(activateGlobalInstall).not.toHaveBeenCalled()
@@ -265,7 +265,7 @@ test('global add retries safely and activates from a complete replacement owners
     dir: root,
     globalPkgDir: globalDir,
     registriesByScope: {},
-  } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
   const snapshotBeforeActivation = (): unknown => ({
     binEntries: fs.readdirSync(globalBinDir).sort(),
     globalEntries: fs.readdirSync(globalDir).sort(),
@@ -387,7 +387,7 @@ test('global add preserves ownership state and both errors when fresh install cl
         dir: root,
         globalPkgDir: globalDir,
         registriesByScope: {},
-      } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['file:/tmp/pnpm'], {}) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
     } catch (err) {
       thrown = err
     }
@@ -417,7 +417,7 @@ test('global add does not clean up or persist policy when activation fails', asy
     globalPkgDir: '/global/v11',
     registriesByScope: {},
     updateResolutionPolicyManifest,
-  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any, ['file:/tmp/pnpm'], {})).rejects.toBe(activationError) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes only the options the handler reads
 
   expect(cleanupReplacedGlobalInstalls).not.toHaveBeenCalled()
   expect(updateResolutionPolicyManifest).not.toHaveBeenCalled()

@@ -126,5 +126,6 @@ A shared lockfile also means that all dependencies of all projects will be in a 
 
 export function handler (): void {
   console.log(help())
+  // eslint-disable-next-line n/no-process-exit -- the bare command only prints its help and fails
   process.exit(1)
 }

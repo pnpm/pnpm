@@ -15,16 +15,16 @@ import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
-const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive-full.json'))
-const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
+const badDatesMeta = loadJsonFileSync<any>(testFixtures.find('bad-dates.json'))
+const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive-full.json'))
+const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -360,9 +360,9 @@ test('a replacement packument under the same cache key gets its own upgrade', as
   // Four requests: an abbreviated fetch and its upgrade per resolve. The
   // second resolve gets a fresh document, so its upgrade must run again.
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
-  for (let i = 0; i < 4; i++) {
+  for (let requestIndex = 0; requestIndex < 4; requestIndex++) {
     agent.intercept({ path: '/is-positive', method: 'GET' })
-      .reply(200, partialTimeMeta(), { headers: { etag: `"partial-time-${i}"` } })
+      .reply(200, partialTimeMeta(), { headers: { etag: `"partial-time-${requestIndex}"` } })
   }
 
   const { clearCache, resolveFromNpm } = createResolveFromNpm({
@@ -644,7 +644,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
 
   // The upgraded full metadata should be persisted to disk so the next
   // install doesn't re-trigger the upgrade fetch.
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta?.time).toBeDefined()
@@ -1001,7 +1001,7 @@ test('the release-age upgrade of a validated mirror writes no etag', async () =>
     publishedBy: new Date('2015-06-05T00:00:00.000Z'),
   })
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
@@ -1043,7 +1043,7 @@ test('the release-age upgrade of a freshly fetched packument writes no etag', as
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()

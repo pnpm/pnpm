@@ -82,8 +82,8 @@ function lastCommand (script: string): string {
   // An `&` right after an unescaped `>` or `<` duplicates a handle, as in `2>&1`.
   let redirecting = false
   let start = 0
-  for (let i = 0; i < script.length; i++) {
-    const char = script[i]
+  for (let charIndex = 0; charIndex < script.length; charIndex++) {
+    const char = script[charIndex]
     const afterRedirection = redirecting
     redirecting = false
     if (char === '"') {
@@ -91,11 +91,11 @@ function lastCommand (script: string): string {
     } else if (insideQuotes) {
       continue
     } else if (char === '^') {
-      i++
+      charIndex++
     } else if (char === '>' || char === '<') {
       redirecting = true
     } else if (char === '|' || (char === '&' && !afterRedirection)) {
-      start = i + 1
+      start = charIndex + 1
     }
   }
   return script.slice(start)

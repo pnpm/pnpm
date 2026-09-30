@@ -45,9 +45,9 @@ const SLOT_LOCK_WAIT_MS = 10 * 60_000
 // Comfortably above how long a build can take, so a live holder never has its lock stolen mid-build.
 const SLOT_LOCK_ABANDONED_MS = 30 * 60_000
 
-export async function buildModules<T extends string> (
-  depGraph: DependenciesGraph<T>,
-  rootDepPaths: T[],
+export async function buildModules<NodeId extends string> (
+  depGraph: DependenciesGraph<NodeId>,
+  rootDepPaths: NodeId[],
   opts: {
     allowBuild?: AllowBuild
     childConcurrency?: number
@@ -102,7 +102,7 @@ export async function buildModules<T extends string> (
     builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
     warn,
   }
-  const dependencyGraph = buildGraph<T>(depGraph, rootDepPaths)
+  const dependencyGraph = buildGraph<NodeId>(depGraph, rootDepPaths)
   if (dependencyGraph.size === 0) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
@@ -191,7 +191,7 @@ export async function buildModules<T extends string> (
   }
   return { ignoredBuilds }
 
-  function shouldBuild (depPath: T): boolean {
+  function shouldBuild (depPath: NodeId): boolean {
     const node = depGraph[depPath]
     return (node.requiresBuild || node.patch != null) && !node.isBuilt &&
       (opts.depsToBuild == null || opts.depsToBuild.has(depPath))
@@ -225,9 +225,9 @@ function throwFrozenStoreNeedsBuild (blocked: Set<string>): never {
   )
 }
 
-async function buildDependency<T extends string> (
-  depPath: T,
-  depGraph: DependenciesGraph<T>,
+async function buildDependency<NodeId extends string> (
+  depPath: NodeId,
+  depGraph: DependenciesGraph<NodeId>,
   opts: {
     allowBuild: AllowBuild
     ignoredBuilds: Set<DepPath>
@@ -458,7 +458,7 @@ async function buildDependency<T extends string> (
  * `undefined` when another install built the slot while this one waited for
  * its lock, or when another install's build of it did not finish.
  */
-async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<{ lock?: DirLock } | undefined> {
+async function lockSlotForBuild<NodeId extends string> (depNode: DependenciesGraphNode<NodeId>, lockfileDir: string): Promise<{ lock?: DirLock } | undefined> {
   const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
   const awaitingBuild = await pathExists(marker)
   const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
@@ -511,7 +511,7 @@ async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
  * removed, because other projects may already link the shared slot. The next
  * install that reaches it then re-imports its pristine files and builds again.
  */
-async function markBuildStarted<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
+async function markBuildStarted<NodeId extends string> (depNode: DependenciesGraphNode<NodeId>, lockfileDir: string): Promise<void> {
   try {
     await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), STARTED_BUILD_MARKER_CONTENT)
   } catch (err: unknown) {
@@ -525,10 +525,10 @@ async function markBuildStarted<T extends string> (depNode: DependenciesGraphNod
   }
 }
 
-async function removeIncompatibleOptional<T extends string> (
-  depPath: T,
-  depNode: DependenciesGraphNode<T>,
-  depGraph: DependenciesGraph<T>,
+async function removeIncompatibleOptional<NodeId extends string> (
+  depPath: NodeId,
+  depNode: DependenciesGraphNode<NodeId>,
+  depGraph: DependenciesGraph<NodeId>,
   opts: {
     enableGlobalVirtualStore?: boolean
     hoistedLocations?: Record<string, string[]>
@@ -549,7 +549,7 @@ async function removeIncompatibleOptional<T extends string> (
   // every other project that resolves to them.
   if (!opts.enableGlobalVirtualStore) {
     removed.push(depNode.dir)
-    for (const node of Object.values(depGraph) as Array<DependenciesGraphNode<T>>) {
+    for (const node of Object.values(depGraph) as Array<DependenciesGraphNode<NodeId>>) {
       for (const [alias, child] of Object.entries(node.children)) {
         if (child !== depPath) continue
         const link = containedNodeModulesLink(node.modules, alias)
@@ -634,8 +634,8 @@ function containedNodeModulesLink (modulesDir: string, alias: string): string | 
  * A hoisted location outside the lockfile directory is never removed.
  * Rejects if a removal fails, so the package is not reported as skipped.
  */
-async function removeSkippedOptionalDependency<T extends string> (
-  depNode: DependenciesGraphNode<T>,
+async function removeSkippedOptionalDependency<NodeId extends string> (
+  depNode: DependenciesGraphNode<NodeId>,
   opts: { hoistedLocations?: Record<string, string[]>, lockfileDir: string }
 ): Promise<void> {
   const dirs = new Set([
@@ -647,9 +647,9 @@ async function removeSkippedOptionalDependency<T extends string> (
   await Promise.all(Array.from(dirs, (dir) => fs.rm(dir, { recursive: true, force: true })))
 }
 
-export async function linkBinsOfDependencies<T extends string> (
-  depNode: DependenciesGraphNode<T>,
-  depGraph: DependenciesGraph<T>,
+export async function linkBinsOfDependencies<NodeId extends string> (
+  depNode: DependenciesGraphNode<NodeId>,
+  depGraph: DependenciesGraph<NodeId>,
   opts: {
     extraNodePaths?: string[]
     optional: boolean
@@ -657,7 +657,7 @@ export async function linkBinsOfDependencies<T extends string> (
     warn: (message: string) => void
   }
 ): Promise<void> {
-  const childrenToLink: Record<string, T> = opts.optional
+  const childrenToLink: Record<string, NodeId> = opts.optional
     ? depNode.children
     : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
@@ -700,15 +700,15 @@ export async function linkBinsOfDependencies<T extends string> (
   }
 }
 
-export async function linkBinsOfRuntimeDependencies<T extends string> (
-  depNodes: Array<DependenciesGraphNode<T> | undefined>,
+export async function linkBinsOfRuntimeDependencies<NodeId extends string> (
+  depNodes: Array<DependenciesGraphNode<NodeId> | undefined>,
   binPath: string,
   opts: {
     extraNodePaths?: string[]
     preferSymlinkedExecutables?: boolean
   }
 ): Promise<void> {
-  const runtimeNodes = depNodes.filter((dep): dep is DependenciesGraphNode<T> => dep != null && isRuntimeDepPath(dep.depPath))
+  const runtimeNodes = depNodes.filter((dep): dep is DependenciesGraphNode<NodeId> => dep != null && isRuntimeDepPath(dep.depPath))
   if (runtimeNodes.length === 0) return
   const pkgs = await Promise.all(runtimeNodes.map(async (dep) => ({
     location: dep.dir,

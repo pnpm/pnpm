@@ -151,13 +151,13 @@ function statsForNotCurrentPackage (
   )
 }
 
-function padStep (s: string, step: number): string {
-  const sLength = stringLength(s)
-  const placeholderLength = Math.ceil(sLength / step) * step
-  if (sLength < placeholderLength) {
-    return repeat(' ', placeholderLength - sLength).join('') + s
+function padStep (text: string, step: number): string {
+  const textLength = stringLength(text)
+  const placeholderLength = Math.ceil(textLength / step) * step
+  if (textLength < placeholderLength) {
+    return repeat(' ', placeholderLength - textLength).join('') + text
   }
-  return s
+  return text
 }
 
 function roundStats (stat: number): number {
@@ -178,8 +178,8 @@ function printPlusesAndMinuses (maxWidth: number, added: number, removed: number
       addedChars = maxWidth
       removedChars = 0
     } else {
-      const p = maxWidth / changes
-      addedChars = Math.min(Math.max(Math.floor(added * p), 1), maxWidth - 1)
+      const charsPerChange = maxWidth / changes
+      addedChars = Math.min(Math.max(Math.floor(added * charsPerChange), 1), maxWidth - 1)
       removedChars = maxWidth - addedChars
     }
   } else {

@@ -6,8 +6,7 @@ import type {
   PackageSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { toLockfileResolution } from '@pnpm/lockfile.utils'
+import { nameVerFromPkgSnapshot, toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { RequestPackageFunction } from '@pnpm/store.controller-types'
 import type {
   DepPath,
@@ -179,11 +178,19 @@ function getFastOverrides (
     if (
       override == null ||
       override.targetPkg.bareSpecifier != null ||
-      override.converge === true ||
+      override.converge === true
+    ) {
+      return null
+    }
+    if (
       !removesDependency && (
         overriddenVersion(lockfile, override.targetPkg.name, newValue) == null ||
         oldVersion != null && semver.valid(oldVersion) == null
-      ) ||
+      )
+    ) {
+      return null
+    }
+    if (
       changedNames.has(override.targetPkg.name) ||
       parsedOverrides.some((candidate) =>
         candidate.selector !== selector &&
@@ -261,12 +268,20 @@ function collectReplacements (
         // would drop the registry qualifier of a named-registry package.
         parsed.registryName != null ||
         parsed.peerDepGraphHash != null ||
-        parsed.patchHash != null ||
-        override.oldVersion != null && parsed.version !== override.oldVersion ||
+        parsed.patchHash != null
+      ) {
+        return null
+      }
+      if (override.oldVersion != null && parsed.version !== override.oldVersion) return null
+      if (
         snapshot == null ||
         snapshot.optional === true ||
         snapshot.peerDependencies != null ||
-        snapshot.peerDependenciesMeta != null ||
+        snapshot.peerDependenciesMeta != null
+      ) {
+        return null
+      }
+      if (
         !('integrity' in snapshot.resolution) ||
         typeof snapshot.resolution.integrity !== 'string' ||
         'type' in snapshot.resolution && snapshot.resolution.type != null
@@ -353,7 +368,11 @@ async function resolveNewManifests (
       response.body.manifest == null ||
       response.body.policyViolation != null ||
       response.body.resolvedVia !== 'npm-registry' ||
-      response.resolutionNeedsFetch === true ||
+      response.resolutionNeedsFetch === true
+    ) {
+      return undefined
+    }
+    if (
       !('integrity' in response.body.resolution) ||
       typeof response.body.resolution.integrity !== 'string' ||
       response.body.resolution.type != null
@@ -361,33 +380,13 @@ async function resolveNewManifests (
       return undefined
     }
     const rawManifest = response.body.manifest
-    if (
-      rawManifest.name !== name ||
-      rawManifest.version !== newVersion ||
-      rawManifest.deprecated != null ||
-      hasInvalidManifestMaps(rawManifest) ||
-      hasPeerDependencies(rawManifest) ||
-      rawManifest.engines?.runtime != null ||
-      rawManifest.bundledDependencies != null ||
-      rawManifest.bundleDependencies != null
-    ) {
-      return undefined
-    }
+    if (!manifestFitsFastPath(rawManifest, { name, version: newVersion })) return undefined
     const manifest = opts.readPackageHook == null
       ? rawManifest
       : await opts.readPackageHook(clone(rawManifest))
     // pacquet validates after its manifest hook, so a hook that introduces
     // any of these must send both stacks down the same fallback.
-    if (
-      manifest.name !== name ||
-      manifest.version !== newVersion ||
-      manifest.deprecated != null ||
-      hasInvalidManifestMaps(manifest) ||
-      hasPeerDependencies(manifest) ||
-      manifest.engines?.runtime != null ||
-      manifest.bundledDependencies != null ||
-      manifest.bundleDependencies != null
-    ) return undefined
+    if (!manifestFitsFastPath(manifest, { name, version: newVersion })) return undefined
     return {
       name,
       manifest,
@@ -398,6 +397,22 @@ async function resolveNewManifests (
   return new Map(results
     .filter((result) => result != null)
     .map(({ name, ...value }) => [name, value]))
+}
+
+/**
+ * Whether the fast path can link this manifest in place of a resolution:
+ * it is the requested version and declares nothing the fast path does not
+ * reproduce.
+ */
+function manifestFitsFastPath (manifest: PackageManifest, expected: { name: string, version: string }): boolean {
+  return manifest.name === expected.name &&
+    manifest.version === expected.version &&
+    manifest.deprecated == null &&
+    !hasInvalidManifestMaps(manifest) &&
+    !hasPeerDependencies(manifest) &&
+    manifest.engines?.runtime == null &&
+    manifest.bundledDependencies == null &&
+    manifest.bundleDependencies == null
 }
 
 function hasInvalidManifestMaps (manifest: PackageManifest): boolean {

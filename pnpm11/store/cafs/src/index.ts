@@ -96,12 +96,12 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
 }
 
 function combineIgnore (
-  a?: (filename: string) => boolean,
-  b?: (filename: string) => boolean
+  storeIgnore?: (filename: string) => boolean,
+  callIgnore?: (filename: string) => boolean
 ): ((filename: string) => boolean) | undefined {
-  if (!a) return b
-  if (!b) return a
-  return (filename) => a(filename) || b(filename)
+  if (!storeIgnore) return callIgnore
+  if (!callIgnore) return storeIgnore
+  return (filename) => storeIgnore(filename) || callIgnore(filename)
 }
 
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: Integrity) => { checkedAt: number, filePath: string }

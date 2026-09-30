@@ -423,8 +423,8 @@ function readPackageJson (dir: string): Record<string, unknown> {
   }
 }
 
-function stripDotSlash (p: string): string {
-  return p.replace(/^\.[/\\]/, '')
+function stripDotSlash (filePath: string): string {
+  return filePath.replace(/^\.[/\\]/, '')
 }
 
 function normalizePackage (pkg: Record<string, unknown>): Record<string, unknown> {

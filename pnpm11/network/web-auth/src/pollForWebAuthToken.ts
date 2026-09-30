@@ -79,11 +79,11 @@ export async function pollForWebAuthToken ({
     if (now - startTime > timeoutMs) {
       throw new WebAuthTimeoutError(now, startTime, timeoutMs)
     }
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
     await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs))
     let response: WebAuthFetchResponse
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
       response = await fetch(doneUrl, fetchOptions)
     } catch {
       continue
@@ -110,14 +110,14 @@ export async function pollForWebAuthToken ({
             throw new WebAuthTimeoutError(nowAfterPoll, startTime, timeoutMs)
           }
           const sleepMs = Math.min(additionalMs, remainingMs)
-          // eslint-disable-next-line no-await-in-loop
+          // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
           await new Promise<void>(resolve => setTimeout(resolve, sleepMs))
         }
       }
       continue
     }
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the body decides whether polling continues
     const body = await readTokenBody(response) as { token?: string } | undefined
     if (body?.token) {
       return body.token
@@ -160,7 +160,7 @@ async function readTokenBody (response: WebAuthFetchResponse): Promise<unknown> 
   let total = 0
   try {
     while (true) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- stream chunks must be read one after another
       const { done, value } = await reader.read()
       if (done) break
       if (value == null) continue

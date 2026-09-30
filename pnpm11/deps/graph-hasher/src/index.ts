@@ -51,10 +51,10 @@ export function readSnapshotRuntimePin (
   return ref != null ? extractRuntimeNodeVersion(ref) : undefined
 }
 
-export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
+export type DepsGraph<NodeId extends string> = Record<NodeId, DepsGraphNode<NodeId>>
 
-export interface DepsGraphNode<T extends string> {
-  children: { [alias: string]: T }
+export interface DepsGraphNode<NodeId extends string> {
+  children: { [alias: string]: NodeId }
   pkgIdWithPatchHash?: PkgIdWithPatchHash
   resolution?: LockfileResolution
   // The full package ID is a unique fingerprint based on the package’s
@@ -68,9 +68,9 @@ export interface DepsStateCache {
 
 export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
 
-export interface CalcDepStateInputKeyOptions<T extends string> {
-  depsGraph: DepsGraph<T>
-  depPath: T
+export interface CalcDepStateInputKeyOptions<NodeId extends string> {
+  depsGraph: DepsGraph<NodeId>
+  depPath: NodeId
   patchFileHash?: string
   supportedArchitectures?: SupportedArchitectures
 }
@@ -92,8 +92,8 @@ export interface CalcDepStateInputKeyOptions<T extends string> {
  * variations, `supportedArchitectures` selects the source integrity included
  * in the graph hash.
  */
-export function calcDepStateInputKey<T extends string> (
-  opts: CalcDepStateInputKeyOptions<T>
+export function calcDepStateInputKey<NodeId extends string> (
+  opts: CalcDepStateInputKeyOptions<NodeId>
 ): string {
   if (opts.depsGraph[opts.depPath] == null) {
     throw new Error(`Dependency side-effects input-key root ${opts.depPath} is not present in depsGraph`)
@@ -119,8 +119,8 @@ export function calcDepStateInputKey<T extends string> (
  */
 export const SIDE_EFFECTS_FORMAT_KEY = 'format=2'
 
-export function calcDepState<T extends string> (
-  depsGraph: DepsGraph<T>,
+export function calcDepState<NodeId extends string> (
+  depsGraph: DepsGraph<NodeId>,
   cache: DepsStateCache,
   depPath: string,
   opts: {
@@ -140,14 +140,14 @@ export function calcDepState<T extends string> (
     nodeVersion?: string
   }
 ): string {
-  const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
+  const ownPin = readSnapshotRuntimePin(depsGraph[depPath as NodeId]?.children)
   let result = `${engineName(ownPin ?? opts.nodeVersion)};${SIDE_EFFECTS_FORMAT_KEY}`
   if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash({
       depsGraph,
       cache,
       parents: new Set(),
-      depPath: depPath as T,
+      depPath: depPath as NodeId,
       context: createDepGraphHashContext(opts.supportedArchitectures),
     })
     result += `;deps=${depGraphHash}`
@@ -166,21 +166,21 @@ export function shouldIncludeDepGraphHash (opts: {
   return (!opts.ignoreScripts || opts.deferDependencyBuilds) && opts.requiresBuild === true
 }
 
-interface CalcDepGraphHashOptions<T extends string> {
-  depsGraph: DepsGraph<T>
+interface CalcDepGraphHashOptions<NodeId extends string> {
+  depsGraph: DepsGraph<NodeId>
   cache: DepsStateCache
   parents: Set<string>
-  depPath: T
+  depPath: NodeId
   context: DepGraphHashContext
 }
 
-function calcDepGraphHash<T extends string> ({
+function calcDepGraphHash<NodeId extends string> ({
   depsGraph,
   cache,
   parents,
   depPath,
   context,
-}: CalcDepGraphHashOptions<T>): string {
+}: CalcDepGraphHashOptions<NodeId>): string {
   const cacheKey = `${context.cacheKeyPrefix}${depPath}`
   if (cache[cacheKey]) return cache[cacheKey]
   const node = depsGraph[depPath]
@@ -234,10 +234,10 @@ export interface PkgMeta {
   version: string
 }
 
-export type PkgMetaIterator<T extends PkgMeta> = IterableIterator<T>
+export type PkgMetaIterator<Meta extends PkgMeta> = IterableIterator<Meta>
 
-export interface HashedDepPath<T extends PkgMeta> {
-  pkgMeta: T
+export interface HashedDepPath<Meta extends PkgMeta> {
+  pkgMeta: Meta
   hash: string
 }
 
@@ -265,13 +265,13 @@ export interface GraphNodeHashOptions {
   lockfileDir?: string
 }
 
-export function * iterateHashedGraphNodes<T extends PkgMeta> (
+export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
   graph: DepsGraph<DepPath>,
-  pkgMetaIterator: PkgMetaIterator<T>,
+  pkgMetaIterator: PkgMetaIterator<Meta>,
   opts: GraphNodeHashOptions = {}
-): IterableIterator<HashedDepPath<T>> {
+): IterableIterator<HashedDepPath<Meta>> {
   let buildRequiredDepPaths: Set<DepPath> | undefined
-  let entries: Iterable<T>
+  let entries: Iterable<Meta>
   if (opts.allowBuild != null) {
     const pkgMetaList = Array.from(pkgMetaIterator)
     buildRequiredDepPaths = computeBuildRequiredDepPaths(graph, computeBuiltDepPaths(pkgMetaList, opts.allowBuild))
@@ -295,7 +295,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   }
 }
 
-export function calcGraphNodeHash<T extends PkgMeta> (
+export function calcGraphNodeHash<Meta extends PkgMeta> (
   { graph, cache, buildRequiredDepPaths, supportedArchitectures, nodeVersion, lockfileDir }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
@@ -307,7 +307,7 @@ export function calcGraphNodeHash<T extends PkgMeta> (
     /** See {@link GraphNodeHashOptions.lockfileDir}. */
     lockfileDir?: string
   },
-  pkgMeta: T
+  pkgMeta: Meta
 ): string {
   const { name, version, depPath } = pkgMeta
   // When buildRequiredDepPaths is provided (derived from the allowBuilds

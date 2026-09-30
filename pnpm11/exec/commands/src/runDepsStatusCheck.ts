@@ -66,6 +66,7 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
         })
       } catch (err: unknown) {
         if (isError(err) && err.name === 'ExitPromptError') {
+          // eslint-disable-next-line n/no-process-exit -- the user cancelled the prompt, so the command ends without an error report
           process.exit(1)
         }
         throw err
@@ -81,6 +82,9 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
       })
     case 'warn':
       globalWarn(`Your node_modules are out of sync with your lockfile. ${issue}`)
+      break
+    case false:
+    case undefined:
       break
   }
 }

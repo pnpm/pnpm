@@ -95,7 +95,7 @@ test.each([
   expect(parsed?.fetchSpec).toBe(output)
 })
 
-// Test for https:// URLs ending in .git (issue #10468)
+// Test for https:// URLs ending in .git (issue pnpm/pnpm#10468)
 test.each([
   ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
   ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git#6daccff309fca1e7561a43984d42fa4f829ce06d', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],

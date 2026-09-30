@@ -237,8 +237,8 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   })
 
   const results: string[] = []
+  /* eslint-disable no-await-in-loop -- targets build one at a time so the builders' inherited output does not interleave */
   for (const target of targets) {
-    // eslint-disable-next-line no-await-in-loop
     const embeddedNodeBin = await ensureNodeRuntime({
       buildRoot,
       version: resolvedTargetVersion,
@@ -248,7 +248,6 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     })
 
     const targetOutputDir = path.join(outputDir, target.raw)
-    // eslint-disable-next-line no-await-in-loop
     await mkdir(targetOutputDir, { recursive: true })
     // A repo could symlink `dist-app/<target>` out of the project even when
     // `dist-app` itself is contained; re-check the real path before any
@@ -275,25 +274,21 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     // Write the SEA config into a fresh, unpredictable temp directory (0700
     // by default) rather than a predictable path under os.tmpdir(). Avoids
     // TOCTOU/symlink attacks on multi-user systems.
-    // eslint-disable-next-line no-await-in-loop
     const tmpConfigDir = await mkdtemp(path.join(os.tmpdir(), 'pnpm-pack-app-'))
     const configPath = path.join(tmpConfigDir, 'sea-config.json')
-    // eslint-disable-next-line no-await-in-loop
     await writeFile(configPath, JSON.stringify(seaConfig, null, 2), { flag: 'wx' })
 
     try {
-      // eslint-disable-next-line no-await-in-loop
       await execa(builderBin, ['--build-sea', configPath], { stdio: 'inherit' })
     } finally {
-      // eslint-disable-next-line no-await-in-loop
       await rm(tmpConfigDir, { recursive: true, force: true }).catch(() => {})
     }
 
-    // eslint-disable-next-line no-await-in-loop
     await adHocSignMacBinary(target, outputFile, opts.dir)
 
     results.push(`  ${target.raw}: ${outputFile} (Node.js ${resolvedTargetVersion})`)
   }
+  /* eslint-enable no-await-in-loop */
 
   return `Built ${targets.length} executable${targets.length === 1 ? '' : 's'}:\n${results.join('\n')}`
 }
@@ -478,12 +473,13 @@ const RESERVED_WINDOWS_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/
 // Reject anything that would let the output escape its target directory, or
 // that would fail filesystem-level validation on any supported host. This
 // surfaces problems at `pack-app` invocation time instead of letting them
-// blow up later in `writeFile(outputFile, …)`.
+// blow up later in `writeFile(outputFile, ...)`.
 function validateOutputName (name: string): string {
+  const hasPathSeparator = name !== path.basename(name) || name.includes('/') || name.includes('\\')
+  const isEmptyOrDotName = name === '' || name === '.' || name === '..'
   if (
-    name !== path.basename(name) ||
-    name === '' || name === '.' || name === '..' ||
-    name.includes('/') || name.includes('\\') ||
+    hasPathSeparator ||
+    isEmptyOrDotName ||
     INVALID_FILENAME_CHARS.test(name) ||
     RESERVED_WINDOWS_NAME.test(name) ||
     /[. ]$/.test(name)
@@ -551,7 +547,7 @@ function validateAppConfig (raw: Record<string, unknown>): ProjectAppConfig {
     config.entry = raw.entry
   }
   if (raw.targets != null) {
-    if (!Array.isArray(raw.targets) || !raw.targets.every((t): t is string => typeof t === 'string')) {
+    if (!Array.isArray(raw.targets) || !raw.targets.every((target): target is string => typeof target === 'string')) {
       throw new PnpmError('PACK_APP_INVALID_CONFIG', '"pnpm.app.targets" must be an array of strings.')
     }
     config.targets = raw.targets

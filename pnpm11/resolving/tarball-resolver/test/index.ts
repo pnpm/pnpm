@@ -33,7 +33,7 @@ test('tarball from npm.jsr.io registry (immutable)', async () => {
 })
 
 test('tarball from URL that contain port number', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stub implements only the part of fetch the resolver calls
   const fetch: any = async (url: string) => ({ url })
   const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz' })
 
@@ -61,7 +61,7 @@ test('tarball from URL with redundant port', async () => {
 })
 
 test('tarball from URL that redirects to a different URL (immutable)', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stub implements only the part of fetch the resolver calls
   const fetch: any = async (url: string) => {
     if (url === 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz') {
       return {

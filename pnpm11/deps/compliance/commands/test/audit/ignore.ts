@@ -9,7 +9,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -44,7 +44,7 @@ const UNFIXABLE_RESPONSE = {
 }
 
 test('ignores are added for vulnerable dependencies with no resolutions', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -69,7 +69,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
 })
 
 test('the specified vulnerabilities are ignored', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -94,7 +94,7 @@ test('the specified vulnerabilities are ignored', async () => {
 })
 
 test('no ignores are added if no vulnerabilities are found', async () => {
-  const tmp = f.prepare('fixture')
+  const tmp = testFixtures.prepare('fixture')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -114,7 +114,7 @@ test('no ignores are added if no vulnerabilities are found', async () => {
 })
 
 test('ignored GHSAs are not duplicated', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
   const existingGhsas = [
     'GHSA-unfixable-test-0001',
     'GHSA-unfixable-test-0002',

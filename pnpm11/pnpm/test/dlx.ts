@@ -340,7 +340,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '--allow-build=shx@git+https://github.com/shelljs/shx.git#61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
   ]
 
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- the commands share one dlx cache, so they run one at a time */
   for (const [cmd, args] of Object.entries(commands)) {
     await execPnpm([...settings, ...allowBuilds, 'dlx', cmd, ...args])
   }

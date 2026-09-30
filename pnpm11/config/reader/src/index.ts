@@ -95,9 +95,9 @@ export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
  */
 const SCHEMA_DIRECTIVE_KEY = '$schema'
 
-type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
-  ? `${T extends Lowercase<T> ? '' : '-'}${Lowercase<T>}${CamelToKebabCase<U>}`
-  : S
+type CamelToKebabCase<Name extends string> = Name extends `${infer Head}${infer Rest}`
+  ? `${Head extends Lowercase<Head> ? '' : '-'}${Lowercase<Head>}${CamelToKebabCase<Rest>}`
+  : Name
 
 type KebabCaseConfig = {
   [K in keyof ConfigWithDeprecatedSettings as CamelToKebabCase<K>]: ConfigWithDeprecatedSettings[K];
@@ -735,7 +735,7 @@ export async function getConfig (opts: {
       continue
     }
 
-    // @ts-expect-error
+    // @ts-expect-error -- the value's type depends on which key this is
     pnpmConfig[key] = value
     explicitlySetKeys.add(key)
 
@@ -770,7 +770,7 @@ export async function getConfig (opts: {
   // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
   const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
   pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
-  // @ts-expect-error
+  // @ts-expect-error -- maxsockets (lowercase) comes from npmConfigTypes and is not a Config field
   delete pnpmConfig['maxsockets']
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
@@ -924,7 +924,7 @@ export async function getConfig (opts: {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
   }
   if (!pnpmConfig.noProxy) {
-    // @ts-expect-error
+    // @ts-expect-error -- noproxy (lowercase) is a config-file key, not a Config field
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   switch (pnpmConfig.nodeLinker) {
@@ -935,6 +935,9 @@ export async function getConfig (opts: {
       if (pnpmConfig.preferSymlinkedExecutables == null) {
         pnpmConfig.preferSymlinkedExecutables = true
       }
+      break
+    case 'isolated':
+    case undefined:
       break
   }
   if (!pnpmConfig.userConfig) {
@@ -1218,7 +1221,7 @@ export function parsePackageManager (packageManager: string): ParsedPackageManag
  * Splits a package manager version reference into its semver part and the
  * integrity hash carried as semver build metadata, e.g.
  * "9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903"
- * becomes `{ version: "9.5.0", hash: "sha512.14003…" }`. A reference without a
+ * becomes `{ version: "9.5.0", hash: "sha512.14003..." }`. A reference without a
  * hash yields an undefined hash; an undefined reference yields both undefined.
  */
 function splitPackageManagerVersion (reference: string | undefined): { version: string | undefined, hash: string | undefined } {
@@ -1274,7 +1277,7 @@ function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngi
  * forge or rewrite terminal/CI log output.
  */
 function sanitizeManifestValue (value: string): string {
-  // eslint-disable-next-line no-control-regex
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point
   return stripVTControlCharacters(value).replace(/[\u0000-\u001f\u007f]/g, ' ')
 }
 
@@ -1332,7 +1335,7 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
     const enginesRuntime = manifest[enginesFieldName]?.runtime
     if (enginesRuntime == null) continue
     const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
-    const nodeRuntime = runtimes.find((r) => r.name === 'node')
+    const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
     if (typeof nodeRuntime?.version !== 'string') continue
     const version = nodeRuntime.version.trim()
     if (!semver.validRange(version)) continue
@@ -1654,7 +1657,7 @@ const CONFIG_CONTEXT_KEYS = [
 type ProofConfigContextKeysIsExhaustive =
   (_: Record<typeof CONFIG_CONTEXT_KEYS[number], unknown>) => Record<keyof ConfigContext, unknown>
 
-const _proofConfigContextKeysIsExhaustive: ProofConfigContextKeysIsExhaustive = (x) => x
+const _proofConfigContextKeysIsExhaustive: ProofConfigContextKeysIsExhaustive = (record) => record
 
 const CONFIG_CONTEXT_KEY_SET: ReadonlySet<string> = new Set(CONFIG_CONTEXT_KEYS)
 
@@ -1764,7 +1767,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
       pnpmConfig.explicitlySetKeys.add(key)
       continue
     }
-    // @ts-expect-error
+    // @ts-expect-error -- the value's type depends on which key this is
     pnpmConfig[key] = value
     pnpmConfig.explicitlySetKeys.add(key)
   }

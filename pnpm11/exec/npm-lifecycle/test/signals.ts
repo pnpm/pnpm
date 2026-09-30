@@ -166,7 +166,7 @@ function writeProcessTable (entries: Array<{ pid: number, state: string, group: 
   return table
 }
 
-async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T | 'timed out'> {
+async function withDeadline<Value> (promise: Promise<Value>, timeout: number): Promise<Value | 'timed out'> {
   let timer: NodeJS.Timeout | undefined
   const deadline = new Promise<'timed out'>((resolve) => {
     timer = setTimeout(() => resolve('timed out'), timeout)

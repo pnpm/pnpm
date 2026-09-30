@@ -284,7 +284,7 @@ function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string
   return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(source[field] ?? {})))
 }
 
-function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
+function omitKeys<Value> (record: Record<string, Value> | undefined, keys: Set<string>): Record<string, Value> | undefined {
   if (record == null) return undefined
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
 }

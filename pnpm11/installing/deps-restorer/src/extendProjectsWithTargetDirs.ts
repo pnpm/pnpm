@@ -9,18 +9,18 @@ interface ProjectLike {
   manifest?: { publishConfig?: { directory?: string, linkDirectory?: boolean } }
 }
 
-export function extendProjectsWithTargetDirs<T extends ProjectLike> (
-  projects: Array<T & { id: ProjectId }>,
+export function extendProjectsWithTargetDirs<Project extends ProjectLike> (
+  projects: Array<Project & { id: ProjectId }>,
   injectionTargetsByDepPath: Map<string, string[]>,
   lockfileDir: string
-): Array<T & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }> {
-  const projectsById: Record<ProjectId, T & { id: ProjectId, stages?: string[], targetDirs: string[], publishTargetDirs: string[] }> =
+): Array<Project & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }> {
+  const projectsById: Record<ProjectId, Project & { id: ProjectId, stages?: string[], targetDirs: string[], publishTargetDirs: string[] }> =
     Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[], publishTargetDirs: [] as string[] }]))
 
   // A project whose `publishConfig.directory` is injected resolves as its own
   // `file:` dependency path (`a@file:packages/a/dist`), so a dep path may name
   // a project's publish directory rather than any project root.
-  const projectsBySourceDir = new Map<string, T & { id: ProjectId }>()
+  const projectsBySourceDir = new Map<string, Project & { id: ProjectId }>()
   for (const project of projects) {
     const publishDir = project.manifest?.publishConfig?.directory
     if (publishDir == null || project.manifest?.publishConfig?.linkDirectory === false) continue
@@ -52,7 +52,7 @@ export function extendProjectsWithTargetDirs<T extends ProjectLike> (
     projectWithTargets.stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
   }
 
-  return Object.values(projectsById) as Array<T & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }>
+  return Object.values(projectsById) as Array<Project & { id: ProjectId, stages: string[], targetDirs: string[], publishTargetDirs: string[] }>
 }
 
 /**

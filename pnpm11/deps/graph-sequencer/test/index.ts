@@ -382,11 +382,11 @@ test('dependents of a cycle sort in linear time', () => {
   const dependents = Array.from({ length: dependentCount }, (_, i) => `dep-${i.toString().padStart(5, '0')}`)
   const ring = Array.from({ length: ringLen }, (_, i) => `ring-${i.toString().padStart(4, '0')}`)
   const graph = new Map<string, string[]>()
-  for (const [i, name] of dependents.entries()) {
-    graph.set(name, [ring[i % ringLen]])
+  for (const [dependentIndex, name] of dependents.entries()) {
+    graph.set(name, [ring[dependentIndex % ringLen]])
   }
-  for (const [i, name] of ring.entries()) {
-    graph.set(name, [ring[(i + 1) % ringLen]])
+  for (const [ringIndex, name] of ring.entries()) {
+    graph.set(name, [ring[(ringIndex + 1) % ringLen]])
   }
   const included = [...dependents, ...ring]
   const startedAt = performance.now()
@@ -407,15 +407,15 @@ test('chained components sort in linear time', () => {
   const ringCount = 5_000
   const names: Array<[string, string]> = Array.from({ length: ringCount }, (_, i) => [`a-${i.toString().padStart(4, '0')}`, `b-${i.toString().padStart(4, '0')}`])
   const graph = new Map<string, string[]>()
-  for (const [i, [a, b]] of names.entries()) {
-    const aEdges = [b]
-    if (i + 1 < ringCount) {
-      aEdges.push(names[i + 1][0])
+  for (const [ringIndex, [nodeA, nodeB]] of names.entries()) {
+    const nodeAEdges = [nodeB]
+    if (ringIndex + 1 < ringCount) {
+      nodeAEdges.push(names[ringIndex + 1][0])
     }
-    graph.set(a, aEdges)
-    graph.set(b, [a])
+    graph.set(nodeA, nodeAEdges)
+    graph.set(nodeB, [nodeA])
   }
-  const included = names.flatMap(([a, b]) => [a, b])
+  const included = names.flatMap(([nodeA, nodeB]) => [nodeA, nodeB])
   const startedAt = performance.now()
   const result = graphSequencer(graph, included)
   const elapsedMs = performance.now() - startedAt

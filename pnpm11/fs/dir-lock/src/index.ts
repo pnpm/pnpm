@@ -38,18 +38,18 @@ export class DirLock {
   static async acquire (lockPath: string, opts: DirLockOptions): Promise<DirLock | undefined> {
     const deadline = Date.now() + opts.waitMs
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the lock is polled one attempt at a time
       const lock = await DirLock.tryCreate(lockPath)
       if (lock != null) return lock
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- inspects the lock this attempt failed to create
       const state = await inspectLock(lockPath, opts.abandonedMs)
       if (state.kind === 'unusable') return undefined
       // Released since the `mkdir` attempt: retry at once.
       if (state.kind === 'vanished') continue
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the next attempt must see whether the stale lock was removed
       if (state.kind === 'stale' && await removeIfStillStale(lockPath, state.owner, opts.abandonedMs)) continue
       if (Date.now() >= deadline) return undefined
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- waits between polls
       await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
     }
   }

@@ -1,5 +1,6 @@
 import assert from 'node:assert'
 import { chmodSync, constants, existsSync, type Stats } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
@@ -240,8 +241,7 @@ function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
-    // eslint-disable-next-line
-    const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
+    const { reflinkFileSync } = createRequire(import.meta.url)('@reflink/reflink') as typeof import('@reflink/reflink')
     _cloneFunction = (fr, to) => {
       try {
         reflinkFileSync(fr, to)
@@ -343,8 +343,8 @@ function isCafsFile (src: string): boolean {
 }
 
 function isLowerHex (value: string, from: number, to: number): boolean {
-  for (let i = from; i < to; i++) {
-    const code = value.charCodeAt(i)
+  for (let index = from; index < to; index++) {
+    const code = value.charCodeAt(index)
     if (!((code >= 0x30 && code <= 0x39) || (code >= 0x61 && code <= 0x66))) return false
   }
   return true
@@ -453,7 +453,7 @@ function atomicCopyFileSync (src: string, dest: string): void {
   } catch (err) {
     try {
       fs.unlinkSync(tmp)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     throw err
   }
   renameOverwriteSync(tmp, dest)

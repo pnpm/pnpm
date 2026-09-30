@@ -8,14 +8,14 @@ import type { ProjectManifest } from '@pnpm/types'
 import { readExactProjectManifest, readExactProjectManifestSync, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test.each([
   'package-json/package.json',
   'package-json5/package.json5',
   'package-yaml/package.yaml',
 ])('readExactProjectManifestSync() reads %s', (manifestPath) => {
-  expect(readExactProjectManifestSync(f.find(manifestPath)).manifest).toStrictEqual({
+  expect(readExactProjectManifestSync(testFixtures.find(manifestPath)).manifest).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
   })
@@ -23,19 +23,19 @@ test.each([
 
 test('readProjectManifest()', async () => {
   expect(
-    (await tryReadProjectManifest(f.find('package-json'))).manifest
+    (await tryReadProjectManifest(testFixtures.find('package-json'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(f.find('package-json5'))).manifest
+    (await tryReadProjectManifest(testFixtures.find('package-json5'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(f.find('package-yaml'))).manifest
+    (await tryReadProjectManifest(testFixtures.find('package-yaml'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
@@ -46,7 +46,7 @@ test('readProjectManifest()', async () => {
 })
 
 test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {
-  const dir = f.prepare('package-json-with-dev-engines')
+  const dir = testFixtures.prepare('package-json-with-dev-engines')
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
   expect(manifest).toStrictEqual(
     {
@@ -77,7 +77,7 @@ test('readProjectManifest() converts devEngines runtime to devDependencies', asy
 })
 
 test('readProjectManifest() converts engines runtime to dependencies', async () => {
-  const dir = f.prepare('package-json-with-engines')
+  const dir = testFixtures.prepare('package-json-with-engines')
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
   expect(manifest).toStrictEqual(
     {
@@ -108,7 +108,7 @@ test('readProjectManifest() converts engines runtime to dependencies', async () 
 })
 
 test('writeProjectManifest() removes a single devEngines runtime when its dependency was removed', async () => {
-  const dir = f.prepare('package-json-with-dev-engines')
+  const dir = testFixtures.prepare('package-json-with-dev-engines')
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
 
   delete manifest!.devDependencies!.node
@@ -121,7 +121,7 @@ test('writeProjectManifest() removes a single devEngines runtime when its depend
 })
 
 test('writeProjectManifest() removes an empty-version devEngines runtime when its dependency was removed', async () => {
-  const dir = f.prepare('package-json')
+  const dir = testFixtures.prepare('package-json')
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
     devDependencies: {
       node: 'runtime:',
@@ -146,7 +146,7 @@ test('writeProjectManifest() removes an empty-version devEngines runtime when it
 })
 
 test('writeProjectManifest() rejects malformed dependency fields without pruning runtime entries', async () => {
-  const dir = f.prepare('package-json-with-dev-engines')
+  const dir = testFixtures.prepare('package-json-with-dev-engines')
   const manifestPath = path.join(dir, 'package.json')
   const raw = fs.readFileSync(manifestPath, 'utf8')
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
@@ -160,7 +160,7 @@ test('writeProjectManifest() rejects malformed dependency fields without pruning
 })
 
 test('writeProjectManifest() removes only the removed runtime from a devEngines runtime array', async () => {
-  const dir = f.prepare('package-json')
+  const dir = testFixtures.prepare('package-json')
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
     devEngines: {
       runtime: [
@@ -311,7 +311,7 @@ test.each([
     },
   },
 ])('readProjectManifest() converts devDependencies to devEngines: $name', async ({ manifest, expected }) => {
-  const dir = f.prepare('package-json')
+  const dir = testFixtures.prepare('package-json')
 
   const { writeProjectManifest } = await tryReadProjectManifest(dir)
   await writeProjectManifest(manifest as ProjectManifest)
@@ -376,9 +376,9 @@ test('preserve space indentation in json5 file', async () => {
 
 test('preserve comments in json5 file', async () => {
   const originalManifest = fs.readFileSync(
-    f.find('commented-package-json5/package.json5'), 'utf8')
+    testFixtures.find('commented-package-json5/package.json5'), 'utf8')
   const modifiedManifest = fs.readFileSync(
-    f.find('commented-package-json5/modified.json5'), 'utf8')
+    testFixtures.find('commented-package-json5/modified.json5'), 'utf8')
 
   process.chdir(temporaryDirectory())
   fs.writeFileSync('package.json5', originalManifest, 'utf8')
@@ -483,7 +483,7 @@ test('writeProjectManifest() keeps a dependency field that was already empty on 
 test('fail on invalid JSON', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(f.find('invalid-package-json'))
+    await readProjectManifest(testFixtures.find('invalid-package-json'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -496,7 +496,7 @@ test('fail on invalid JSON', async () => {
 test('fail on invalid JSON5', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(f.find('invalid-package-json5'))
+    await readProjectManifest(testFixtures.find('invalid-package-json5'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -509,7 +509,7 @@ test('fail on invalid JSON5', async () => {
 test('fail on invalid YAML', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(f.find('invalid-package-yaml'))
+    await readProjectManifest(testFixtures.find('invalid-package-yaml'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -627,10 +627,10 @@ test('readProjectManifest() succeeds with malformed dependency fields and allows
   }, null, 2) + '\n')
 
   const { manifest, writeProjectManifest } = await readProjectManifest(dir)
-  const m = manifest as Record<string, unknown>
-  delete m.dependencies
+  const manifestWithoutDependencies = manifest as Record<string, unknown>
+  delete manifestWithoutDependencies.dependencies
 
-  await writeProjectManifest(m as ProjectManifest)
+  await writeProjectManifest(manifestWithoutDependencies as ProjectManifest)
   expect(JSON.parse(await fs.promises.readFile(jsonPath, 'utf8'))).toStrictEqual({
     name: 'test-package',
   })

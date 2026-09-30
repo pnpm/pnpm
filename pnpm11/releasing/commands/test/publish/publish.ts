@@ -849,14 +849,12 @@ test('publish: runs all the lifecycle scripts', async () => {
     version: '0.0.0',
 
     scripts: {
-      // eslint-disable:object-literal-sort-keys
       prepublish: server.sendLineScript('prepublish'),
       prepare: server.sendLineScript('prepare'),
       prepublishOnly: server.sendLineScript('prepublishOnly'),
       prepack: server.sendLineScript('prepack'),
       publish: server.sendLineScript('publish'),
       postpublish: server.sendLineScript('postpublish'),
-      // eslint-enable:object-literal-sort-keys
     },
   })
 
@@ -887,14 +885,12 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     version: '0.0.0',
 
     scripts: {
-      // eslint-disable:object-literal-sort-keys
       prepublish: server.sendLineScript('prepublish'),
       prepare: server.sendLineScript('prepare'),
       prepublishOnly: server.sendLineScript('prepublishOnly'),
       prepack: server.sendLineScript('prepack'),
       publish: server.sendLineScript('publish'),
       postpublish: server.sendLineScript('postpublish'),
-      // eslint-enable:object-literal-sort-keys
     },
   })
 

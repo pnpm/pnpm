@@ -280,10 +280,10 @@ async function mkdirWithoutFollowingSymlinks (root: string, relativeDir: string,
     dir = path.join(dir, segment)
     if (createdDirs.has(dir)) continue
     try {
-      await fsPromises.mkdir(dir) // eslint-disable-line no-await-in-loop
+      await fsPromises.mkdir(dir) // eslint-disable-line no-await-in-loop -- each segment is created inside the previous one
     } catch (err: unknown) {
       if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-      if (!(await fsPromises.lstat(dir)).isDirectory()) { // eslint-disable-line no-await-in-loop
+      if (!(await fsPromises.lstat(dir)).isDirectory()) { // eslint-disable-line no-await-in-loop -- the next segment must not be created until this one is known to be a real directory
         throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract into "${dir}" because it is not a directory`)
       }
     }

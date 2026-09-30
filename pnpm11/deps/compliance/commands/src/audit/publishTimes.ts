@@ -133,11 +133,11 @@ export function lowestNonDeprecatedVersion (
   return lowest && { key: lowest.key, version: lowest.parsed.version }
 }
 
-function compareFixCandidates (a: semver.SemVer, b: semver.SemVer): number {
-  const aIsPrerelease = a.prerelease.length > 0
-  const bIsPrerelease = b.prerelease.length > 0
-  if (aIsPrerelease !== bIsPrerelease) return aIsPrerelease ? 1 : -1
-  return semver.compare(a, b)
+function compareFixCandidates (left: semver.SemVer, right: semver.SemVer): number {
+  const leftIsPrerelease = left.prerelease.length > 0
+  const rightIsPrerelease = right.prerelease.length > 0
+  if (leftIsPrerelease !== rightIsPrerelease) return leftIsPrerelease ? 1 : -1
+  return semver.compare(left, right)
 }
 
 /**

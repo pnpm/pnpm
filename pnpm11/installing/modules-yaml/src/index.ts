@@ -102,6 +102,9 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
         }
       }
       break
+    case undefined:
+      // Only manifests written by old pnpm versions have settings to migrate.
+      break
   }
   if (!modules.prunedAt) {
     modules.prunedAt = new Date().toUTCString()

@@ -227,14 +227,14 @@ function mergeCatalogs (
   return Object.keys(merged).length > 0 ? merged : undefined
 }
 
-type ValueMerger<T> = (ourValue: T, theirValue: T) => T
+type ValueMerger<Value> = (ourValue: Value, theirValue: Value) => Value
 
-function mergeDict<T> (
-  ourDict: Record<string, T>,
-  theirDict: Record<string, T>,
-  valueMerger: ValueMerger<T>
-): Record<string, T> {
-  const newDict: Record<string, T> = {}
+function mergeDict<Value> (
+  ourDict: Record<string, Value>,
+  theirDict: Record<string, Value>,
+  valueMerger: ValueMerger<Value>
+): Record<string, Value> {
+  const newDict: Record<string, Value> = {}
   for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
     const changedValue = valueMerger(
       ourDict[key],
@@ -247,7 +247,7 @@ function mergeDict<T> (
   return newDict
 }
 
-function takeChangedValue<T> (ourValue: T, theirValue: T): T {
+function takeChangedValue<Value> (ourValue: Value, theirValue: Value): Value {
   if (ourValue === theirValue || theirValue == null) return ourValue
   return theirValue
 }

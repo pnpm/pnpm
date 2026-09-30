@@ -65,7 +65,7 @@ export async function handleGlobalAdd (
   }
 
   for (const group of groups) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- groups share the global bin directory, so they are installed one at a time
     await installGroup({ opts, globalDir, globalBinDir, allowBuilds, params: group }, commands)
   }
 

@@ -657,14 +657,14 @@ async function resolveNpm (
   // prereleases for tags, `pickMatchingLocalVersionOrNull` does not), and the peek must keep
   // winning there. `update` is deliberately absent from the guard: that same helper forces it
   // on for exactly these deps, so excluding it would make this block unreachable.
+  const isInjected = opts.injectWorkspacePackages === true || Boolean(wantedDependency.injected)
   if (
     opts.preferWorkspacePackages === true &&
     workspacePackages != null &&
     opts.projectDir &&
     opts.trustPolicy !== 'no-downgrade' &&
     !opts.updateChecksums &&
-    opts.injectWorkspacePackages !== true &&
-    !wantedDependency.injected
+    !isInjected
   ) {
     const workspacePkgsMatchingName = spec.revision == null ? workspacePackages.get(spec.name) : undefined
     if (workspacePkgsMatchingName?.size === 1) {
@@ -1197,12 +1197,12 @@ export function pickMatchingLocalVersionOrNull (
   }
 }
 
-function rcompareVersions (a: string, b: string): number {
-  const aIsSemver = semver.valid(a) != null
-  const bIsSemver = semver.valid(b) != null
-  if (aIsSemver !== bIsSemver) return aIsSemver ? -1 : 1
-  const bySemver = aIsSemver ? semver.rcompare(a, b) : 0
-  return bySemver || (b < a ? -1 : b > a ? 1 : 0)
+function rcompareVersions (leftVersion: string, rightVersion: string): number {
+  const leftIsSemver = semver.valid(leftVersion) != null
+  const rightIsSemver = semver.valid(rightVersion) != null
+  if (leftIsSemver !== rightIsSemver) return leftIsSemver ? -1 : 1
+  const bySemver = leftIsSemver ? semver.rcompare(leftVersion, rightVersion) : 0
+  return bySemver || (rightVersion < leftVersion ? -1 : rightVersion > leftVersion ? 1 : 0)
 }
 
 function resolveFromLocalPackage (
@@ -1289,6 +1289,7 @@ function calcSpecifierForWorkspaceDep ({
         case 'minor': return `${prefix}~`
         case 'patch':
         case 'none': return `${prefix}*`
+        case undefined: break
       }
     }
     return `${prefix}^`

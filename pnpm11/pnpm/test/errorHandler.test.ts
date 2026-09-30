@@ -12,9 +12,9 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpmSync, spawnPnpm, waitForPnpmExit } from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
 
-const f = fixtures(import.meta.dirname)
-const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
-const execErrorExit = f.find('exec-error-exit')
+const testFixtures = fixtures(import.meta.dirname)
+const multipleScriptsErrorExit = testFixtures.find('multiple-scripts-error-exit')
+const execErrorExit = testFixtures.find('exec-error-exit')
 const testOnPosix = isWindows() ? test.skip : test
 
 test('should print json format error when publish --json failed', async () => {

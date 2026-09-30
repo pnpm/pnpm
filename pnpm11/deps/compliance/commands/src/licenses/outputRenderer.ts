@@ -119,8 +119,8 @@ function renderLicensesTable (
   }
 
   // Avoid the overhead of allocating a new array caused by calling `array.map()`
-  for (let i = 0; i < columnNames.length; i++)
-    columnNames[i] = chalk.blueBright(columnNames[i])
+  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex++)
+    columnNames[columnIndex] = chalk.blueBright(columnNames[columnIndex])
 
   const data = [
     columnNames,
@@ -133,8 +133,8 @@ function renderLicensesTable (
   if (opts.long) {
     // Use the package link to determine the width of the details column
     detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i]
+    for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
+      const row = data[rowIndex]
       const detailsLineCount = row[2].split('\n').length
       const linesNumber = Math.max(0, detailsLineCount - 1)
       row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
@@ -173,9 +173,9 @@ function renderLicensesTable (
 
 function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
   const result: LicensePackage[] = []
-  const rowEqual = (a: LicensePackage, b: LicensePackage) =>
-    a.name === b.name && a.license === b.license && a.registryName === b.registryName
-  const hasRow = (row: LicensePackage) => result.some((x) => rowEqual(row, x))
+  const rowEqual = (left: LicensePackage, right: LicensePackage) =>
+    left.name === right.name && left.license === right.license && left.registryName === right.registryName
+  const hasRow = (row: LicensePackage) => result.some((existingRow) => rowEqual(row, existingRow))
   for (const row of licensePackages.reverse()) { // reverse + unshift to prioritize latest package description
     if (!hasRow(row)) result.unshift(row)
   }

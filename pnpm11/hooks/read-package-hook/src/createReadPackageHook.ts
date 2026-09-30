@@ -98,7 +98,7 @@ export function createReadPackageHook (
     const hooksForManifest = dir == null ? dependencyHooks : hooks
     if (hooksForManifest.length === 0) return pkg
     if (hooksForManifest.length === 1) return hooksForManifest[0](pkg, dir)
-    return pipeWith(async (f, res) => f(await res, dir), hooksForManifest as any)(pkg, dir) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return pipeWith(async (f, res) => f(await res, dir), hooksForManifest as any)(pkg, dir) // eslint-disable-line @typescript-eslint/no-explicit-any -- ramda's pipeWith typings cannot express a list of same-typed async hooks
   }) as ReadPackageHook
   return readPackageAndExtend
 }

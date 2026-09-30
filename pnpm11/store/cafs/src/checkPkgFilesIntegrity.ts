@@ -122,9 +122,9 @@ export function buildFileMapsFromIndex (
 ): VerifyResult {
   const filesMap: FilesMap = new Map()
 
-  for (const [f, fstat] of pkgIndex.files) {
+  for (const [relativePath, fstat] of pkgIndex.files) {
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-    filesMap.set(f, filename)
+    filesMap.set(relativePath, filename)
   }
 
   const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
@@ -132,8 +132,8 @@ export function buildFileMapsFromIndex (
     for (const [sideEffectName, diff] of pkgIndex.sideEffects) {
       if (diff.added) {
         const builder = createSideEffectsFilesMapBuilder()
-        for (const [f, fstat] of diff.added) {
-          builder.add(f, fstat.mode, getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode))
+        for (const [relativePath, fstat] of diff.added) {
+          builder.add(relativePath, fstat.mode, getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode))
         }
         const sideEffectsMap = builder.finish(diff.deleted, pkgIndex.files.keys())
         if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
@@ -175,12 +175,12 @@ function checkFilesIntegrity (
 ): boolean {
   let allVerified = true
 
-  for (const [f, fstat] of files) {
+  for (const [relativePath, fstat] of files) {
     if (!fstat.digest) {
-      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${f}`)
+      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${relativePath}`)
     }
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-    record(f, fstat, filename)
+    record(relativePath, fstat, filename)
 
     if (verifiedFilesCache.has(filename)) continue
     const passed = verifyFile(filename, fstat, algo)

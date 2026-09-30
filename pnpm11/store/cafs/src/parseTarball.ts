@@ -261,27 +261,27 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
    */
   function parsePaxHeader (buffer: Buffer, global: boolean): void {
     const end: number = buffer.length
-    let i: number = 0
-    while (i < end) {
-      const lineStart: number = i
-      while (i < end && buffer[i] !== SPACE) {
-        i++
+    let cursor: number = 0
+    while (cursor < end) {
+      const lineStart: number = cursor
+      while (cursor < end && buffer[cursor] !== SPACE) {
+        cursor++
       }
 
       // The format of a PAX header line is "%d %s=%s\n"
-      const strLen: string = buffer.toString('utf-8', lineStart, i)
+      const strLen: string = buffer.toString('utf-8', lineStart, cursor)
       const len: number = parseInt(strLen, 10)
       if (!len) {
         throw new Error(`Invalid length in PAX record: ${strLen}`)
       }
 
       // Skip the space.
-      i++
+      cursor++
 
       const lineEnd: number = lineStart + len
 
-      const record: string = buffer.toString('utf-8', i, lineEnd - 1)
-      i = lineEnd
+      const record: string = buffer.toString('utf-8', cursor, lineEnd - 1)
+      cursor = lineEnd
 
       const equalSign: number = record.indexOf('=')
       const keyword: string = record.slice(0, equalSign)
@@ -361,14 +361,14 @@ function parseString (buffer: Buffer, offset: number, length: number, trimState:
  */
 function checkSum (header: Buffer): number {
   let sum: number = 256
-  let i: number = 0
+  let offset: number = 0
 
-  for (; i < CHECKSUM_OFFSET; i++) {
-    sum += header[i]
+  for (; offset < CHECKSUM_OFFSET; offset++) {
+    sum += header[offset]
   }
 
-  for (i = FILE_TYPE_OFFSET; i < BLOCK_SIZE; i++) {
-    sum += header[i]
+  for (offset = FILE_TYPE_OFFSET; offset < BLOCK_SIZE; offset++) {
+    sum += header[offset]
   }
 
   return sum

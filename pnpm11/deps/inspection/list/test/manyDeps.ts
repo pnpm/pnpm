@@ -2,8 +2,8 @@ import { expect, test } from '@jest/globals'
 import { list } from '@pnpm/deps.inspection.list'
 import { fixtures } from '@pnpm/test-fixtures'
 
-const f = fixtures(import.meta.dirname)
-const fixtureWithManyDeps = f.find('many-deps')
+const testFixtures = fixtures(import.meta.dirname)
+const fixtureWithManyDeps = testFixtures.find('many-deps')
 
 test('list all deps in a project with many dependencies without failing with an OOM error', async () => {
   const output = await list([fixtureWithManyDeps], {
@@ -21,8 +21,7 @@ test('list all deps in a project with many dependencies without failing with an 
   // catch regressions where dedupe metadata disappears.
   let totalNodes = 0
   let dedupedNodes = 0
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function walk (deps: Record<string, any> | undefined): void {
+  function walk (deps: Record<string, JsonTreeNode> | undefined): void {
     if (!deps) return
     for (const key of Object.keys(deps)) {
       totalNodes++
@@ -45,3 +44,8 @@ test('list all deps in a project with many dependencies without failing with an 
   // of nodes.  With dedupe the count stays in the low tens of thousands.
   expect(totalNodes).toBeLessThan(100_000)
 })
+
+interface JsonTreeNode {
+  deduped?: boolean
+  dependencies?: Record<string, JsonTreeNode>
+}

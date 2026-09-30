@@ -156,7 +156,7 @@ function toLockfileDependency (
   if (pkg.additionalInfo.engines != null && !Array.isArray(pkg.additionalInfo.engines)) {
     for (const [engine, version] of Object.entries(pkg.additionalInfo.engines)) {
       if (version === '*') continue
-      result.engines = result.engines ?? {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      result.engines = result.engines ?? {} as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the engines type requires a node field that a package may not declare
       result.engines![engine] = version
     }
   }

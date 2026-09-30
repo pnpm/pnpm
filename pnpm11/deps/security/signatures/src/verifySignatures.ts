@@ -384,8 +384,8 @@ function isPackageSignature (signature: unknown): signature is PackageSignature 
     typeof (signature as PackageSignature).sig === 'string'
 }
 
-function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
-  return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
+function sortIssue (left: SignatureIssue, right: SignatureIssue): number {
+  return `${left.name}@${left.version}`.localeCompare(`${right.name}@${right.version}`)
 }
 
 export type { RegistryKey }
@@ -618,8 +618,8 @@ async function attemptSignatureVerification (
  * material, not identity, so they are stripped before comparing for the same
  * reason.
  */
-export function equalRegistries (a: string, b: string): boolean {
-  return normalizeRegistryUrl(a) === normalizeRegistryUrl(b)
+export function equalRegistries (left: string, right: string): boolean {
+  return normalizeRegistryUrl(left) === normalizeRegistryUrl(right)
 }
 
 function normalizeRegistryUrl (registry: string): string {

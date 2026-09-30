@@ -54,9 +54,9 @@ export async function checkGlobalBinConflicts (opts: {
     const modulesDir = path.join(existingPkg.installDir, 'node_modules')
     for (const alias of Object.keys(existingPkg.dependencies)) {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await safeReadPackageJsonFromDir(depDir) // eslint-disable-line no-await-in-loop
+      const manifest = await safeReadPackageJsonFromDir(depDir) // eslint-disable-line no-await-in-loop -- the scan stops at the first conflict, so later packages are not read
       if (!manifest) continue
-      const bins = await getBinsFromPackageManifest(manifest as DependencyManifest, depDir) // eslint-disable-line no-await-in-loop
+      const bins = await getBinsFromPackageManifest(manifest as DependencyManifest, depDir) // eslint-disable-line no-await-in-loop -- the scan stops at the first conflict, so later packages are not read
       for (const bin of bins) {
         if (!conflicting.has(bin.name)) continue
         const newOwns = newBinOwners.get(bin.name)!.some((owner) => pkgOwnsBin(bin.name, owner))

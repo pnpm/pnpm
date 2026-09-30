@@ -1,14 +1,14 @@
-export type Graph<T> = Map<T, T[]>
-export type Groups<T> = T[][]
+export type Graph<Vertex> = Map<Vertex, Vertex[]>
+export type Groups<Vertex> = Vertex[][]
 
-export interface Options<T> {
-  graph: Graph<T>
-  groups: Groups<T>
+export interface Options<Vertex> {
+  graph: Graph<Vertex>
+  groups: Groups<Vertex>
 }
 
-export interface Result<T> {
-  order: T[]
-  cycles: Groups<T>
+export interface Result<Vertex> {
+  order: Vertex[]
+  cycles: Groups<Vertex>
 }
 
 /**
@@ -22,15 +22,15 @@ export interface Result<T> {
  * pays that component's size per reported cycle (the price of the
  * established cycle-reporting semantics).
  *
- * @param {Graph<T>}  graph - The graph represented as a Map where keys are nodes and values are their outgoing edges.
- * @param {T[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
- * @returns {Result<T>} An object containing one deterministic order and the cycles encountered.
+ * @param {Graph<Vertex>}  graph - The graph represented as a Map where keys are nodes and values are their outgoing edges.
+ * @param {Vertex[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
+ * @returns {Result<Vertex>} An object containing one deterministic order and the cycles encountered.
  */
-export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...graph.keys()]): Result<T> {
+export function graphSequencer<Vertex> (graph: Graph<Vertex>, includedNodes: Vertex[] = [...graph.keys()]): Result<Vertex> {
   // Included nodes are interned first, so an id below includedCount is an
   // included node and id order follows includedNodes.
-  const indexOf = new Map<T, number>()
-  const nodes: T[] = []
+  const indexOf = new Map<Vertex, number>()
+  const nodes: Vertex[] = []
   for (const node of includedNodes) {
     intern(node)
   }
@@ -138,7 +138,7 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     cycles: cycles.map((cycle) => cycle.map((id) => nodes[id])),
   }
 
-  function intern (node: T): number {
+  function intern (node: Vertex): number {
     let id = indexOf.get(node)
     if (id === undefined) {
       id = nodes.length

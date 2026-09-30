@@ -598,7 +598,7 @@ function isErrorCommandNotFound (command: string, error: CommandError, prefix: s
   // Fall back to checking if the command exists in PATH, resolving relative paths
   // against the exec prefix to correctly handle --filter contexts.
   if (process.platform === 'win32') {
-    const absolutePrependPaths = prependPaths.map(p => path.resolve(prefix, p))
+    const absolutePrependPaths = prependPaths.map(prependPath => path.resolve(prefix, prependPath))
     const { value: searchPath } = prependDirsToPath(absolutePrependPaths)
     return !which.sync(command, { nothrow: true, path: searchPath })
   }

@@ -39,9 +39,8 @@ export async function listGlobalPackages (
   const allDetails = await Promise.all(packages.map((pkg) => getGlobalPackageDetails(pkg)))
   const matches = params.length > 0 ? createMatcher(params) : () => true
   const dependencies: DependencyNode[] = []
-  for (let i = 0; i < packages.length; i++) {
-    const installDir = packages[i].installDir
-    for (const installed of allDetails[i]) {
+  for (const [packageIndex, { installDir }] of packages.entries()) {
+    for (const installed of allDetails[packageIndex]) {
       if (!matches(installed.alias)) continue
       dependencies.push({
         alias: installed.alias,

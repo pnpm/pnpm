@@ -68,8 +68,8 @@ function checkList (value: string | string[], list: string | string[]): boolean 
   }
   const values = Array.isArray(value) ? value : [value]
   for (const value of values) {
-    for (let i = 0; i < list.length; ++i) {
-      tmp = list[i]
+    for (const entry of list) {
+      tmp = entry
       if (tmp[0] === '!') {
         tmp = tmp.slice(1)
         if (tmp === value) {

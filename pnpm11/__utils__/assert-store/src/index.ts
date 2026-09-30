@@ -18,10 +18,8 @@ export function assertStore (
   storePath: string,
   encodedRegistryName?: string
 ): StoreAssertions {
-  // eslint-disable-next-line
-  const ok = (value: any) => expect(value).toBeTruthy()
-  // eslint-disable-next-line
-  const notOk = (value: any) => expect(value).toBeFalsy()
+  const ok = (value: unknown): void => expect(value).toBeTruthy()
+  const notOk = (value: unknown): void => expect(value).toBeFalsy()
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
     getPkgIndexFilePath (pkgName: string, version: string): string {

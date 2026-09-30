@@ -15,10 +15,10 @@ import { temporaryDirectory } from 'tempy'
 import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const jsrRusGreetMeta = loadJsonFileSync<any>(f.find('jsr-rus-greet.json'))
-const jsrLucaCasesMeta = loadJsonFileSync<any>(f.find('jsr-luca-cases.json'))
+const testFixtures = fixtures(import.meta.dirname)
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
+const jsrRusGreetMeta = loadJsonFileSync<any>(testFixtures.find('jsr-rus-greet.json'))
+const jsrLucaCasesMeta = loadJsonFileSync<any>(testFixtures.find('jsr-luca-cases.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registriesByScope = {
@@ -72,7 +72,7 @@ test('resolveFromJsr() on jsr', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.jsr.io/@jsr/rus__greet.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.jsr.io/@jsr/rus__greet.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta).toMatchObject({
     name: expect.any(String),
     versions: expect.any(Object),
@@ -114,7 +114,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.jsr.io/@jsr/rus__greet.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.jsr.io/@jsr/rus__greet.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta).toMatchObject({
     name: expect.any(String),
     versions: expect.any(Object),

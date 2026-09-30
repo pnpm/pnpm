@@ -433,7 +433,7 @@ test('satisfiesPackageManifest()', () => {
   })
 
   // Equivalent Git specifiers (the lockfile records the canonical
-  // `git+https://….git#<sha>` form pnpm writes, the manifest keeps `git://…`)
+  // `git+https://...git#<sha>` form pnpm writes, the manifest keeps `git://...`)
   // must satisfy. https://github.com/pnpm/pnpm/issues/13039
   expect(satisfiesPackageManifest(
     {},

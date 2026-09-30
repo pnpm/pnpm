@@ -296,7 +296,7 @@ async function backupBinSlots (opts: {
   }
   const savedBinSlots: SavedBinSlot[] = []
   for (const [index, original] of originals.entries()) {
-    const savedBinSlot = await backupBinSlot({ // eslint-disable-line no-await-in-loop
+    const savedBinSlot = await backupBinSlot({ // eslint-disable-line no-await-in-loop -- stops at the first failed backup instead of racing the rest against the backup directory's removal
       original,
       backup: path.join(opts.backupDir, String(index)),
     })

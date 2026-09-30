@@ -147,10 +147,11 @@ export function getHoistableOptionalPeers (
     let maxSatisfyingVersion: string | undefined
     for (const [version, selector] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
       const specType = typeof selector === 'string' ? selector : selector.selectorType
+      if (specType !== 'version') continue
+      const satisfiesAllRanges = (rootRange == null || semver.satisfies(version, rootRange)) &&
+        ranges.every(range => semver.satisfies(version, range))
       if (
-        specType === 'version' &&
-        (rootRange == null || semver.satisfies(version, rootRange)) &&
-        ranges.every(range => semver.satisfies(version, range)) &&
+        satisfiesAllRanges &&
         (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion)) &&
         acceptsCandidate(missingOptionalPeerName, version)
       ) {

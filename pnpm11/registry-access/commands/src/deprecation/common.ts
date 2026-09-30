@@ -113,5 +113,5 @@ function getVersionsMatchingRange (
   versions: Record<string, PackageInRegistry>,
   range: string
 ): string[] {
-  return Object.keys(versions).filter((v) => semver.satisfies(v, range))
+  return Object.keys(versions).filter((version) => semver.satisfies(version, range))
 }

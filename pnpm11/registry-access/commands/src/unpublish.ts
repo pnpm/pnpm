@@ -238,7 +238,7 @@ async function unpublishVersions (
 
   // Delete each tarball
   const registryOrigin = new URL(ctx.registryUrl).origin
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- each DELETE needs the revision produced by the previous one */
   for (const tarball of tarballs) {
     const updated = await fetchPackument(ctx.packageUrl, ctx.fetchFromRegistry, ctx.authHeader)
     const tarballPathname = getTarballPathname(tarball, ctx.registryUrl)
@@ -338,5 +338,5 @@ function getVersionsMatchingRange (
   versions: Record<string, VersionData>,
   range: string
 ): string[] {
-  return Object.keys(versions).filter((v) => semver.satisfies(v, range))
+  return Object.keys(versions).filter((version) => semver.satisfies(version, range))
 }

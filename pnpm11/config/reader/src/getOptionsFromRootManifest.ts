@@ -716,8 +716,7 @@ function replaceEnvInSettings (
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
       if (REQUEST_SCALAR_KEYS.has(newKey) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)) continue
-      // @ts-expect-error
-      newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
+      newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env) as never
     } else if (newKey === 'namedRegistries' || (newKey === 'registries' && isScopeRouteMap(value))) {
       newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
         ? replaceEnvInStringValues(value)
@@ -753,8 +752,8 @@ function isScopeRouteMap (value: unknown): boolean {
 function replaceEnvInStringValues (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out[k] = typeof v === 'string' ? envReplace(v, process.env) : v
+  for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
+    out[entryKey] = typeof entryValue === 'string' ? envReplace(entryValue, process.env) : entryValue
   }
   return out
 }
@@ -762,9 +761,9 @@ function replaceEnvInStringValues (value: unknown): unknown {
 function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof v === 'string' && hasEnvPlaceholder(v)) continue
-    out[k] = v
+  for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entryValue === 'string' && hasEnvPlaceholder(entryValue)) continue
+    out[entryKey] = entryValue
   }
   return out
 }
@@ -772,8 +771,8 @@ function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
 function replaceEnvInKeys (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out[envReplace(k, process.env)] = v
+  for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
+    out[envReplace(entryKey, process.env)] = entryValue
   }
   return out
 }
@@ -781,9 +780,9 @@ function replaceEnvInKeys (value: unknown): unknown {
 function copyEntriesWithoutEnvPlaceholderKeys (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (hasEnvPlaceholder(k)) continue
-    out[k] = v
+  for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
+    if (hasEnvPlaceholder(entryKey)) continue
+    out[entryKey] = entryValue
   }
   return out
 }

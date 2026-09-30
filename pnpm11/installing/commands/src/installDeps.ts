@@ -26,8 +26,7 @@ import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
-import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
-import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, filterDependenciesByType, getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PreferredVersions, ResolutionPolicyViolation, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
@@ -240,7 +239,7 @@ export async function installDeps (
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
       opts.saveWorkspaceProtocol = true
     }
-    // @ts-expect-error
+    // @ts-expect-error -- preserveWorkspaceProtocol is an install option that InstallDepsOptions does not declare
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   const store = await createStoreController(opts)
@@ -672,10 +671,10 @@ function shouldSaveWorkspaceState (opts: Pick<InstallDepsOptions, 'lockfileOnly'
  * this, the cache would keep the stale pre-install catalogs and report
  * "Already up to date" even though the manifest changed.
  */
-function withUpdatedCatalogs<T extends { catalogs?: Catalogs }> (
-  settings: T,
+function withUpdatedCatalogs<Settings extends { catalogs?: Catalogs }> (
+  settings: Settings,
   ...updatedCatalogs: Array<Catalogs | undefined>
-): T {
+): Settings {
   if (updatedCatalogs.every((catalogs) => catalogs == null)) return settings
   return { ...settings, catalogs: mergeCatalogs(settings.catalogs, ...updatedCatalogs) }
 }

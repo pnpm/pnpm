@@ -572,10 +572,10 @@ async function throwRegistryError (response: Response, action: string): Promise<
 
 function sanitize (text: string): string {
   let result = ''
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i)
+  for (let charIndex = 0; charIndex < text.length; charIndex++) {
+    const code = text.charCodeAt(charIndex)
     if ((code > 31 && code !== 127) || code === 9 || code === 10) {
-      result += text[i]
+      result += text[charIndex]
     }
   }
   return result

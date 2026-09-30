@@ -209,14 +209,14 @@ export async function buildDependentsTree (
     trees.push(tree)
   }
 
-  trees.sort((a, b) => {
-    const nameCmp = lexCompare(a.name, b.name)
+  trees.sort((left, right) => {
+    const nameCmp = lexCompare(left.name, right.name)
     if (nameCmp !== 0) return nameCmp
-    const versionCmp = semver.valid(a.version) && semver.valid(b.version)
-      ? semver.compare(a.version, b.version)
-      : lexCompare(a.version, b.version)
+    const versionCmp = semver.valid(left.version) && semver.valid(right.version)
+      ? semver.compare(left.version, right.version)
+      : lexCompare(left.version, right.version)
     if (versionCmp !== 0) return versionCmp
-    return lexCompare(a.peersSuffixHash ?? '', b.peersSuffixHash ?? '')
+    return lexCompare(left.peersSuffixHash ?? '', right.peersSuffixHash ?? '')
   })
   storeIndex?.close()
   return trees
@@ -308,10 +308,10 @@ function walkReverse (
 
   // Sort edges by parent name (with serialized ID as tiebreaker) so that
   // deduplication is deterministic: the first parent always gets fully expanded.
-  const sortedEdges = [...reverseEdges].sort((a, b) => {
-    const cmp = lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
+  const sortedEdges = [...reverseEdges].sort((left, right) => {
+    const cmp = lexCompare(resolveParentName(left, ctx), resolveParentName(right, ctx))
     if (cmp !== 0) return cmp
-    return lexCompare(a.parentSerialized, b.parentSerialized)
+    return lexCompare(left.parentSerialized, right.parentSerialized)
   })
 
   const dependents: DependentNode[] = []
