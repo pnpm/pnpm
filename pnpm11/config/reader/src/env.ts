@@ -110,34 +110,38 @@ function parseNullLiteral (envVar: string): null | undefined {
 }
 
 function parseValueByConstructor (schema: ValueConstructor, envVar: string): unknown {
-  if (schema === Array) {
-    const value = tryParseObjectOrArray(envVar)
-    return Array.isArray(value) ? value : undefined
-  }
+  return VALUE_PARSERS_BY_CONSTRUCTOR.get(schema)?.(envVar)
+}
 
-  if (schema === Boolean) {
-    switch (envVar) {
-      case 'true': return true
-      case 'false': return false
-      default: return undefined
-    }
-  }
+const VALUE_PARSERS_BY_CONSTRUCTOR = new Map<ValueConstructor, (envVar: string) => unknown>([
+  [Array, parseArray],
+  [Boolean, parseBoolean],
+  [Number, parseNumber],
+  [Object, parseObject],
+  [String, (envVar) => envVar],
+])
 
-  if (schema === Number) {
-    const value = Number(envVar)
-    return isNaN(value) ? undefined : value
-  }
+function parseArray (envVar: string): unknown[] | undefined {
+  const value = tryParseObjectOrArray(envVar)
+  return Array.isArray(value) ? value : undefined
+}
 
-  if (schema === Object) {
-    const value = tryParseObjectOrArray(envVar)
-    return isStringRecord(value) ? value : undefined
+function parseBoolean (envVar: string): boolean | undefined {
+  switch (envVar) {
+    case 'true': return true
+    case 'false': return false
+    default: return undefined
   }
+}
 
-  if (schema === String) {
-    return envVar
-  }
+function parseNumber (envVar: string): number | undefined {
+  const value = Number(envVar)
+  return isNaN(value) ? undefined : value
+}
 
-  return undefined
+function parseObject (envVar: string): Record<string, string> | undefined {
+  const value = tryParseObjectOrArray(envVar)
+  return isStringRecord(value) ? value : undefined
 }
 
 function parseValueByModule (schema: ModuleSchema, envVar: string, env: { HOME?: string }): unknown {

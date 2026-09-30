@@ -70,7 +70,7 @@ export function reserveSignalRelay (): SignalRelayReservation {
     release,
     settle: async () => {
       release()
-      if (group.interrupted || group.raised != null) {
+      if (awaitsInterruption(group)) {
         await group.settled
         await group.raised
       }
@@ -88,109 +88,176 @@ export function reserveSignalRelay (): SignalRelayReservation {
  */
 export function relaySignals (child: SignalTarget, opts: RelaySignalsOptions): SignalRelay {
   const group = joinRelayGroup()
-  const watchdog = opts.ownProcessGroup && child.pid != null ? watchProcessGroup(child.pid) : undefined
-  const installedAfterInterrupt = group.interrupted
-  let interruptedBy: NodeJS.Signals | null = null
-  let relayed = false
-  let settled = false
-  let terminated = false
-  const prepareRaise = (signal: NodeJS.Signals): void => {
-    group.interrupted = true
-    group.interruptedBy ??= signal
-    if (group.signalToRaise == null || signal === 'SIGTERM') {
-      group.signalToRaise = signal
-    }
-    if (group.raised == null) {
-      group.raised = group.settled.then(() => {
-        process.kill(process.pid, group.signalToRaise!)
-        // Signal delivery is asynchronous. Leave it a turn to end pnpm before
-        // a caller reports the child as an ordinary command failure.
-        return new Promise<void>((resolve) => setTimeout(resolve, 1000))
-      }).finally(() => {
-        if (currentRelayGroup === group) currentRelayGroup = undefined
-      })
-    }
+  const relay: ChildRelay = {
+    child,
+    opts,
+    group,
+    watchdog: opts.ownProcessGroup && child.pid != null ? watchProcessGroup(child.pid) : undefined,
+    interruptedBy: null,
+    relayed: false,
+    settled: false,
+    terminated: false,
   }
-  const relay = (signal: NodeJS.Signals): void => {
-    relayed = true
-    if (opts.ownProcessGroup && child.pid != null) {
-      try {
-        process.kill(-child.pid, signal)
-      } catch {
-        // the group is gone already
-      }
-      return
-    }
-    child.kill(signal)
-  }
-  const terminate = (): void => {
-    if (terminated) return
-    terminated = true
-    relay('SIGTERM')
-  }
-  const onTerm = (): void => {
-    interruptedBy ??= 'SIGTERM'
-    group.interrupted = true
-    group.interruptedBy ??= 'SIGTERM'
-    if (opts.raiseOnInterrupt) prepareRaise('SIGTERM')
-    terminate()
-  }
-  const onEscalate = (): void => {
-    if (opts.raiseOnInterrupt) prepareRaise('SIGTERM')
-    terminate()
-  }
-  const onInterrupt = (): void => {
-    interruptedBy ??= 'SIGINT'
-    group.interrupted = true
-    group.interruptedBy ??= 'SIGINT'
-    if (opts.raiseOnInterrupt) prepareRaise('SIGINT')
-    if (!hasControllingTerminal()) {
-      relay('SIGINT')
-    }
-    process.once('SIGINT', onEscalate)
-  }
-  if (installedAfterInterrupt) {
-    interruptedBy = group.interruptedBy ?? null
-    terminate()
-  } else {
-    process.once('SIGTERM', onTerm)
-    process.once('SIGINT', onInterrupt)
-    if (opts.terminateOnExit) {
-      process.on('exit', terminate)
-    }
-  }
+  const listeners = createRelayListeners(relay)
+  installRelayListeners(relay, listeners)
   return {
-    interruptedBy: () => interruptedBy,
-    relayed: () => relayed,
+    interruptedBy: () => relay.interruptedBy,
+    relayed: () => relay.relayed,
     raise: async (signal) => {
-      prepareRaise(signal)
+      prepareRaise(group, signal)
       await group.raised
     },
+    terminate: listeners.terminate,
+    settle: async () => settleChildRelay(relay, listeners),
+  }
+}
+
+/** The state of one `relaySignals` call. */
+interface ChildRelay {
+  child: SignalTarget
+  opts: RelaySignalsOptions
+  group: RelayGroup
+  watchdog?: ProcessGroupWatchdog
+  interruptedBy: NodeJS.Signals | null
+  relayed: boolean
+  settled: boolean
+  terminated: boolean
+}
+
+interface RelayListeners {
+  terminate: () => void
+  onTerm: () => void
+  onEscalate: () => void
+  onInterrupt: () => void
+}
+
+function createRelayListeners (relay: ChildRelay): RelayListeners {
+  const terminate = (): void => {
+    terminateChild(relay)
+  }
+  const onEscalate = (): void => {
+    if (relay.opts.raiseOnInterrupt) prepareRaise(relay.group, 'SIGTERM')
+    terminate()
+  }
+  return {
     terminate,
-    settle: async () => {
-      try {
-        if (relayed && opts.ownProcessGroup && child.pid != null) {
-          await waitForProcessGroup(child.pid)
-        }
-      } catch {
-        // The group cannot be observed, so there is nothing to wait on.
-      } finally {
-        watchdog?.release()
-        process.removeListener('SIGTERM', onTerm)
-        process.removeListener('SIGINT', onEscalate)
-        process.removeListener('SIGINT', onInterrupt)
-        process.removeListener('exit', terminate)
-        if (!settled) {
-          settled = true
-          settleRelayGroup(group)
-        }
+    onEscalate,
+    onTerm: () => {
+      markInterrupted(relay, 'SIGTERM')
+      terminate()
+    },
+    onInterrupt: () => {
+      markInterrupted(relay, 'SIGINT')
+      if (!hasControllingTerminal()) {
+        relayToChild(relay, 'SIGINT')
       }
-      if (group.interrupted || group.raised != null) {
-        await group.settled
-        await group.raised
-      }
+      process.once('SIGINT', onEscalate)
     },
   }
+}
+
+function installRelayListeners (relay: ChildRelay, listeners: RelayListeners): void {
+  if (relay.group.interrupted) {
+    relay.interruptedBy = relay.group.interruptedBy ?? null
+    listeners.terminate()
+    return
+  }
+  process.once('SIGTERM', listeners.onTerm)
+  process.once('SIGINT', listeners.onInterrupt)
+  if (relay.opts.terminateOnExit) {
+    process.on('exit', listeners.terminate)
+  }
+}
+
+function removeRelayListeners (listeners: RelayListeners): void {
+  process.removeListener('SIGTERM', listeners.onTerm)
+  process.removeListener('SIGINT', listeners.onEscalate)
+  process.removeListener('SIGINT', listeners.onInterrupt)
+  process.removeListener('exit', listeners.terminate)
+}
+
+function markInterrupted (relay: ChildRelay, signal: NodeJS.Signals): void {
+  relay.interruptedBy ??= signal
+  relay.group.interrupted = true
+  relay.group.interruptedBy ??= signal
+  if (relay.opts.raiseOnInterrupt) prepareRaise(relay.group, signal)
+}
+
+function terminateChild (relay: ChildRelay): void {
+  if (relay.terminated) return
+  relay.terminated = true
+  relayToChild(relay, 'SIGTERM')
+}
+
+function relayToChild (relay: ChildRelay, signal: NodeJS.Signals): void {
+  relay.relayed = true
+  const { child } = relay
+  if (relay.opts.ownProcessGroup && child.pid != null) {
+    try {
+      process.kill(-child.pid, signal)
+    } catch {
+      // the group is gone already
+    }
+    return
+  }
+  child.kill(signal)
+}
+
+async function settleChildRelay (relay: ChildRelay, listeners: RelayListeners): Promise<void> {
+  const { group } = relay
+  try {
+    const signalledGroup = findSignalledProcessGroup(relay)
+    if (signalledGroup != null) {
+      await waitForProcessGroup(signalledGroup)
+    }
+  } catch {
+    // The group cannot be observed, so there is nothing to wait on.
+  } finally {
+    stopRelaying(relay, listeners)
+  }
+  if (awaitsInterruption(group)) {
+    await group.settled
+    await group.raised
+  }
+}
+
+/** The process group a relayed signal went to, if the child leads one. */
+function findSignalledProcessGroup (relay: ChildRelay): number | undefined {
+  const { child } = relay
+  return relay.relayed && relay.opts.ownProcessGroup && child.pid != null ? child.pid : undefined
+}
+
+function stopRelaying (relay: ChildRelay, listeners: RelayListeners): void {
+  relay.watchdog?.release()
+  removeRelayListeners(listeners)
+  if (!relay.settled) {
+    relay.settled = true
+    settleRelayGroup(relay.group)
+  }
+}
+
+function awaitsInterruption (group: RelayGroup): boolean {
+  return group.interrupted || group.raised != null
+}
+
+function prepareRaise (group: RelayGroup, signal: NodeJS.Signals): void {
+  group.interrupted = true
+  group.interruptedBy ??= signal
+  if (group.signalToRaise == null || signal === 'SIGTERM') {
+    group.signalToRaise = signal
+  }
+  group.raised ??= raiseAfterGroupSettles(group)
+}
+
+function raiseAfterGroupSettles (group: RelayGroup): Promise<void> {
+  return group.settled.then(() => {
+    process.kill(process.pid, group.signalToRaise!)
+    // Signal delivery is asynchronous. Leave it a turn to end pnpm before
+    // a caller reports the child as an ordinary command failure.
+    return new Promise<void>((resolve) => setTimeout(resolve, 1000))
+  }).finally(() => {
+    if (currentRelayGroup === group) currentRelayGroup = undefined
+  })
 }
 
 interface RelayGroup {

@@ -164,45 +164,41 @@ function substituteOnce (
   let next = ''
   let changed = false
   let rest = value
-  while (rest.includes('%')) {
-    const start = rest.indexOf('%')
-    next += rest.slice(0, start)
-    const end = rest.indexOf('%', start + 1)
-    if (end === -1) {
-      next += rest.slice(start)
-      rest = ''
-      break
-    }
-    const name = rest.slice(start + 1, end)
-    if (!isWindowsEnvName(name)) {
-      next += '%'
-      rest = rest.slice(start + 1)
-      continue
-    }
-    const replacement = lookup(name)
+  for (let reference = findPercentVar(rest); reference != null; reference = findPercentVar(rest)) {
+    next += reference.textBefore
+    rest = reference.textAfter
+    const replacement = lookup(reference.name)
     if (replacement == null) {
-      next += `%${name}%`
-      rest = rest.slice(end + 1)
+      next += `%${reference.name}%`
       continue
     }
     if (next.length + replacement.length > MAX_EXPANDED_LENGTH) return undefined
     next += replacement
     changed = true
-    rest = rest.slice(end + 1)
   }
   next += rest
   return changed && next.length <= MAX_EXPANDED_LENGTH ? next : undefined
 }
 
 function firstPercentVar (value: string): string | undefined {
-  let rest = value
-  while (rest.includes('%')) {
-    const start = rest.indexOf('%')
-    const end = rest.indexOf('%', start + 1)
+  const reference = findPercentVar(value)
+  return reference == null ? undefined : `%${reference.name}%`
+}
+
+interface PercentVarReference {
+  name: string
+  textBefore: string
+  textAfter: string
+}
+
+function findPercentVar (value: string): PercentVarReference | undefined {
+  for (let start = value.indexOf('%'); start !== -1; start = value.indexOf('%', start + 1)) {
+    const end = value.indexOf('%', start + 1)
     if (end === -1) return undefined
-    const name = rest.slice(start + 1, end)
-    if (isWindowsEnvName(name)) return `%${name}%`
-    rest = rest.slice(start + 1)
+    const name = value.slice(start + 1, end)
+    if (isWindowsEnvName(name)) {
+      return { name, textBefore: value.slice(0, start), textAfter: value.slice(end + 1) }
+    }
   }
   return undefined
 }

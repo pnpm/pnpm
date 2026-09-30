@@ -48,6 +48,18 @@ onlyOnWindows('keeps a /c inside the script when scriptShell is cmd.exe', async 
   expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~install:', 'stdout', expect.stringContaining('can-compile-ran'))
 })
 
+test('rejects when the temporary directory of the script cannot be created', async () => {
+  const wd = temporaryDirectory()
+  fs.writeFileSync(path.join(wd, 'node_modules'), '')
+
+  await expect(lifecycle({ name: 'foo', version: '1.0.0', scripts: { install: 'exit 0' } }, 'install', wd, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: path.join(wd, 'node_modules'),
+    unsafePerm: false,
+  })).rejects.toMatchObject({ code: 'ENOTDIR' })
+})
+
 test("reports child's output", async () => {
   const log = makeLog()
 
