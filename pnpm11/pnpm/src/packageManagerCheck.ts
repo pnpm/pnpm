@@ -2,12 +2,13 @@ import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
-import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import semver from 'semver'
 
 import { skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { describeFailure } from './describeFailure.js'
 import { fetchLockedPackageManager, switchCliVersion } from './switchCliVersion.js'
 import { syncEnvLockfile } from './syncEnvLockfile.js'
 
@@ -108,17 +109,6 @@ async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () =
     // so this warning goes straight to stderr.
     console.error(formatWarn(`Cannot use the pnpm version this project pins: ${describeFailure(err)}`))
   }
-}
-
-/**
- * The code and message of `err`, made safe to print. A Node.js filesystem
- * error opens its message with the code, so naming it again would repeat it.
- */
-function describeFailure (err: unknown): string {
-  if (!isError(err)) return redactAndSanitize(String(err))
-  const code = 'code' in err ? String(err.code) : ''
-  const described = code === '' || err.message.startsWith(code) ? err.message : `${code}: ${err.message}`
-  return redactAndSanitize(described)
 }
 
 function isRunningPnpmPinned (pm: EngineDependency): boolean {

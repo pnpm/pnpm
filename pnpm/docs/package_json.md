@@ -122,7 +122,7 @@ Added in: v11.0.0
 
 Allows specifying the pnpm version via `devEngines.packageManager` in `package.json`. Unlike the `packageManager` field, this supports version ranges. The resolved version is stored in `pnpm-lock.yaml` under `packageManagerDependencies` and reused if it still satisfies the range.
 
-When the lockfile records no version yet, pnpm records the pnpm that is running if it satisfies the range and is older than [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage). Otherwise pnpm records the newest version in the range that is old enough.
+When the lockfile records no version yet, pnpm records the running pnpm if it satisfies the range and was published at least [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) ago. Otherwise pnpm records the newest version in the range that is old enough. If no version in the range is old enough, pnpm records the running pnpm.
 
 ```json
 {

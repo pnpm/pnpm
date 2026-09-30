@@ -1,8 +1,8 @@
 use super::{
-    Config, Context, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION, PackageManager,
-    PackageManagerCheck, Path, PreCommandPlan, SilentReporter, SwitchPlan, SwitchSource,
-    SwitchTarget, assert_release_is_installable, config_deps, install_engine_from_env,
-    install_engine_to_store, slice, spawn_pnpm,
+    Config, Context, DefaultReporter, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION,
+    PackageManager, PackageManagerCheck, Path, PreCommandPlan, Reporter, SilentReporter,
+    SwitchPlan, SwitchSource, SwitchTarget, assert_release_is_installable, config_deps,
+    error_causes, global_warn, install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
 };
 use crate::cli_args::dlx::exit_unless_success;
 
@@ -31,12 +31,8 @@ async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
         frozen_lockfile,
     } = sync;
     let version = if package_manager.running_pnpm_for_range && !frozen_lockfile {
-        config_deps::mature_pnpm_version_for_range(
-            &config,
-            &package_manager.specifier,
-            &package_manager.version,
-        )
-        .await?
+        mature_version_or_running(&config, &package_manager.specifier, package_manager.version)
+            .await
     } else {
         package_manager.version
     };
@@ -71,6 +67,25 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
     // signal when a signal killed it.
     exit_unless_success(status);
     Ok(true)
+}
+
+/// A failed lookup records the running pnpm, as pnpm did before the lookup
+/// existed. Every other contributor's switch still applies the cutoff, so the
+/// lookup is not what keeps an immature pnpm off their machines.
+async fn mature_version_or_running(config: &Config, range: &str, running: String) -> String {
+    match config_deps::mature_pnpm_version_for_range(config, range, &running).await {
+        Ok(version) => version,
+        Err(error) => {
+            global_warn(
+                DefaultReporter::emit,
+                &format!(
+                    "Recording pnpm v{running} without checking it against minimumReleaseAge: {}",
+                    error_causes(&error),
+                ),
+            );
+            running
+        }
+    }
 }
 
 /// Install the pinned pnpm and return it. `None` when the running pnpm
@@ -175,3 +190,6 @@ async fn install_resolved_switch_target(
     .await?;
     Ok(Some((version, engine)))
 }
+
+#[cfg(test)]
+mod tests;

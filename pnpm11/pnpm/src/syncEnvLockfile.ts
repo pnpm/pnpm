@@ -3,8 +3,11 @@ import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shou
 import { maturePnpmVersionForRange } from '@pnpm/engine.pm.commands'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
+
+import { describeFailure } from './describeFailure.js'
 
 /**
  * Records the currently running pnpm version (see {@link pnpmVersionToRecord})
@@ -66,5 +69,12 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
  */
 export async function pnpmVersionToRecord (config: Config, wantedVersion: string): Promise<string> {
   if (config.frozenLockfile || semver.valid(wantedVersion) != null) return packageManager.version
-  return maturePnpmVersionForRange(config, wantedVersion)
+  try {
+    return await maturePnpmVersionForRange(config, wantedVersion)
+  } catch (err: unknown) {
+    // A failed lookup records the running pnpm, as pnpm did before the lookup
+    // existed. Every other contributor's switch still applies the cutoff.
+    globalWarn(`Recording pnpm v${packageManager.version} without checking it against minimumReleaseAge: ${describeFailure(err)}`)
+    return packageManager.version
+  }
 }
