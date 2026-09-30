@@ -1,6 +1,6 @@
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { LockfileObject, ProjectSnapshot, ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
 export function tryFastUpdateCatalogs (
@@ -15,34 +15,60 @@ export function tryFastUpdateCatalogs (
   }
   if (!catalogReferencesHaveSnapshots(lockfile, opts.catalogs)) return false
 
-  let changed = false
-  const catalogs = Object.fromEntries(
-    Object.entries(lockfile.catalogs ?? {}).flatMap(([catalogName, catalog]) => {
-      const entries = Object.entries(catalog).flatMap(([alias, entry]) => {
-        const specifier = opts.catalogs[catalogName]?.[alias]
-        if (specifier == null) {
-          if (catalogEntryIsReferenced(lockfile.importers, catalogName, alias)) return [[alias, entry]]
-          changed = true
-          return []
-        }
-        if (specifier === entry.specifier) return [[alias, entry]]
-        if (
-          semver.valid(entry.version) == null ||
-          semver.validRange(specifier) == null ||
-          !semver.satisfies(entry.version, specifier)
-        ) {
-          return [[alias, entry]]
-        }
-        changed = true
-        return [[alias, { specifier, version: entry.version }]]
-      })
-      return entries.length === 0 ? [] : [[catalogName, Object.fromEntries(entries)]]
-    })
-  )
-
+  const { changed, updatedCatalogs } = rewriteCatalogRanges(lockfile, opts.catalogs)
   if (!changed) return false
-  lockfile.catalogs = Object.keys(catalogs).length === 0 ? undefined : catalogs
+  lockfile.catalogs = updatedCatalogs.length === 0 ? undefined : Object.fromEntries(updatedCatalogs)
   return true
+}
+
+function rewriteCatalogRanges (
+  lockfile: LockfileObject,
+  configuredCatalogs: Catalogs
+): { changed: boolean, updatedCatalogs: Array<[string, Record<string, ResolvedCatalogEntry>]> } {
+  let changed = false
+  const updatedCatalogs: Array<[string, Record<string, ResolvedCatalogEntry>]> = []
+  for (const [catalogName, catalog] of Object.entries(lockfile.catalogs ?? {})) {
+    const entries = Object.entries(catalog).flatMap(([alias, entry]) => {
+      const nextEntry = nextCatalogEntry(lockfile.importers, {
+        alias,
+        catalogName,
+        entry,
+        specifier: configuredCatalogs[catalogName]?.[alias],
+      })
+      if (nextEntry !== entry) changed = true
+      return nextEntry == null ? [] : [[alias, nextEntry] as const]
+    })
+    if (entries.length > 0) updatedCatalogs.push([catalogName, Object.fromEntries(entries)])
+  }
+  return { changed, updatedCatalogs }
+}
+
+/**
+ * The snapshot a catalog entry gets under the configured `specifier`, the
+ * same entry when the range-only rewrite leaves it alone, or `undefined` when
+ * it is dropped.
+ */
+function nextCatalogEntry (
+  importers: LockfileObject['importers'],
+  { alias, catalogName, entry, specifier }: {
+    alias: string
+    catalogName: string
+    entry: ResolvedCatalogEntry
+    specifier: string | undefined
+  }
+): ResolvedCatalogEntry | undefined {
+  if (specifier == null) {
+    return catalogEntryIsReferenced(importers, catalogName, alias) ? entry : undefined
+  }
+  if (specifier === entry.specifier) return entry
+  if (!lockedVersionSatisfies(entry.version, specifier)) return entry
+  return { specifier, version: entry.version }
+}
+
+function lockedVersionSatisfies (version: string, specifier: string): boolean {
+  return semver.valid(version) != null &&
+    semver.validRange(specifier) != null &&
+    semver.satisfies(version, specifier)
 }
 
 function catalogEntryIsReferenced (
@@ -53,8 +79,17 @@ function catalogEntryIsReferenced (
   // Parsed rather than compared to a rebuilt protocol string, so the
   // `catalog:default` spelling of the default catalog counts too.
   return Object.values(importers).some(
-    (importer) => parseCatalogProtocol(importer.specifiers[alias] ?? '') === catalogName
+    (importer) => parseCatalogProtocol(ownSpecifier(importer, alias)) === catalogName
   )
+}
+
+/**
+ * The specifier `importer` records for `alias`, or `''`. Never an inherited
+ * `Object.prototype` member, so a dependency named `constructor` is looked up
+ * like any other.
+ */
+export function ownSpecifier (importer: ProjectSnapshot, alias: string): string {
+  return Object.hasOwn(importer.specifiers, alias) ? importer.specifiers[alias] ?? '' : ''
 }
 
 /**
