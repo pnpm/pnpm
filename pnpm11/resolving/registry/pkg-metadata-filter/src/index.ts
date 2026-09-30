@@ -74,78 +74,8 @@ export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
   pkgDoc: PkgDoc,
   keep: (version: string) => boolean
 ): PkgDoc {
-  // Null-prototype so a registry-controlled version like `__proto__` becomes
-  // an own key instead of reassigning the map's prototype
-  // (js/prototype-polluting-assignment), and so a lookup of an inherited
-  // member name can't be mistaken for a version that was kept.
-  const keptVersions: PackageMeta['versions'] = Object.create(null)
-  for (const version in pkgDoc.versions) {
-    if (!Object.hasOwn(pkgDoc.versions, version)) continue
-    if (keep(version)) {
-      keptVersions[version] = pkgDoc.versions[version]
-    }
-  }
-
-  const keptDistTags: PackageMeta['dist-tags'] = Object.create(null)
-  const allDistTags = pkgDoc['dist-tags'] ?? {}
-  const parsedSemverCache = new Map<string, semver.SemVer>()
-  function tryParseSemver (semverStr: string): semver.SemVer | null {
-    let parsedSemver = parsedSemverCache.get(semverStr)
-    if (!parsedSemver) {
-      try {
-        parsedSemver = new semver.SemVer(semverStr, true)
-      } catch {
-        return null
-      }
-      parsedSemverCache.set(semverStr, parsedSemver)
-    }
-    return parsedSemver
-  }
-  for (const tag in allDistTags) {
-    if (!Object.hasOwn(allDistTags, tag)) continue
-    const distTagVersion = allDistTags[tag]
-    if (keptVersions[distTagVersion]) {
-      keptDistTags[tag] = distTagVersion
-      continue
-    }
-    // Repopulate the tag to the best version still kept
-    const originalSemVer = tryParseSemver(distTagVersion)
-    if (!originalSemVer) continue
-    let bestVersion: string | undefined
-    let bestParsed: semver.SemVer | undefined
-    let bestTier: TagCandidateTier | undefined
-    for (const candidate in keptVersions) {
-      if (!Object.hasOwn(keptVersions, candidate)) continue
-      const candidateParsed = tryParseSemver(candidate)
-      if (!candidateParsed || candidateParsed.compare(originalSemVer) > 0) continue
-      const tier = getTagCandidateTier(tag, originalSemVer, candidateParsed)
-      if (tier == null) continue
-      if (bestVersion == null || bestParsed == null || bestTier == null) {
-        bestVersion = candidate
-        bestParsed = candidateParsed
-        bestTier = tier
-        continue
-      }
-      try {
-        const candidateIsDeprecated = pkgDoc.versions[candidate].deprecated != null
-        const bestVersionIsDeprecated = pkgDoc.versions[bestVersion].deprecated != null
-        const candidateRanksHigher = tier !== bestTier ? tier > bestTier : candidateParsed.compare(bestParsed) > 0
-        if (
-          (candidateRanksHigher && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
-          (bestVersionIsDeprecated && !candidateIsDeprecated)
-        ) {
-          bestVersion = candidate
-          bestParsed = candidateParsed
-          bestTier = tier
-        }
-      } catch (_err) {
-        globalWarn(`Failed to compare semver versions ${candidate} and ${bestVersion} from packument of ${pkgDoc.name}, skipping candidate version.`)
-      }
-    }
-    if (bestVersion) {
-      keptDistTags[tag] = bestVersion
-    }
-  }
+  const keptVersions = filterKeptVersions(pkgDoc.versions, keep)
+  const keptDistTags = resolveKeptDistTags(pkgDoc, keptVersions)
 
   return {
     ...pkgDoc,
@@ -153,6 +83,121 @@ export function filterPkgMetadataVersions<PkgDoc extends PackageMeta> (
     'dist-tags': keptDistTags,
   }
 }
+
+function filterKeptVersions (
+  versions: PackageMeta['versions'],
+  keep: (version: string) => boolean
+): PackageMeta['versions'] {
+  const keptVersions: PackageMeta['versions'] = Object.create(null)
+  for (const version in versions) {
+    if (!Object.hasOwn(versions, version)) continue
+    if (keep(version)) {
+      keptVersions[version] = versions[version]
+    }
+  }
+  return keptVersions
+}
+
+interface BestCandidate {
+  version: string
+  parsed: semver.SemVer
+  tier: TagCandidateTier
+}
+
+function resolveKeptDistTags (
+  pkgDoc: PackageMeta,
+  keptVersions: PackageMeta['versions']
+): PackageMeta['dist-tags'] {
+  const keptDistTags: PackageMeta['dist-tags'] = Object.create(null)
+  const allDistTags = pkgDoc['dist-tags'] ?? {}
+  const semverCache = new Map<string, semver.SemVer>()
+  const parse = (str: string) => tryParseSemver(str, semverCache)
+
+  for (const tag in allDistTags) {
+    if (!Object.hasOwn(allDistTags, tag)) continue
+    const distTagVersion = allDistTags[tag]
+    if (keptVersions[distTagVersion]) {
+      keptDistTags[tag] = distTagVersion
+      continue
+    }
+    const best = findBestTagCandidate(tag, distTagVersion, keptVersions, pkgDoc, parse)
+    if (best) {
+      keptDistTags[tag] = best.version
+    }
+  }
+  return keptDistTags
+}
+
+function tryParseSemver (semverStr: string, cache: Map<string, semver.SemVer>): semver.SemVer | null {
+  let parsed = cache.get(semverStr)
+  if (!parsed) {
+    try {
+      parsed = new semver.SemVer(semverStr, true)
+    } catch {
+      return null
+    }
+    cache.set(semverStr, parsed)
+  }
+  return parsed
+}
+
+function findBestTagCandidate (
+  tag: string,
+  distTagVersion: string,
+  keptVersions: PackageMeta['versions'],
+  pkgDoc: PackageMeta,
+  parse: (str: string) => semver.SemVer | null
+): BestCandidate | undefined {
+  const originalSemVer = parse(distTagVersion)
+  if (!originalSemVer) return undefined
+  let best: BestCandidate | undefined
+
+  for (const candidate in keptVersions) {
+    if (!Object.hasOwn(keptVersions, candidate)) continue
+    const candidateInfo = evaluateTagCandidate(tag, originalSemVer, candidate, parse)
+    if (candidateInfo == null) continue
+    if (best == null || candidateIsBetter(candidateInfo, best, pkgDoc)) {
+      best = candidateInfo
+    }
+  }
+  return best
+}
+
+function evaluateTagCandidate (
+  tag: string,
+  originalSemVer: semver.SemVer,
+  candidate: string,
+  parse: (str: string) => semver.SemVer | null
+): BestCandidate | undefined {
+  const candidateParsed = parse(candidate)
+  if (!candidateParsed || candidateParsed.compare(originalSemVer) > 0) return undefined
+  const tier = getTagCandidateTier(tag, originalSemVer, candidateParsed)
+  if (tier == null) return undefined
+  return { version: candidate, parsed: candidateParsed, tier }
+}
+
+
+function candidateIsBetter (
+  candidate: BestCandidate,
+  best: BestCandidate,
+  pkgDoc: PackageMeta
+): boolean {
+  try {
+    const candidateIsDeprecated = pkgDoc.versions[candidate.version].deprecated != null
+    const bestVersionIsDeprecated = pkgDoc.versions[best.version].deprecated != null
+    const ranksHigher = candidate.tier !== best.tier
+      ? candidate.tier > best.tier
+      : candidate.parsed.compare(best.parsed) > 0
+    return (
+      (ranksHigher && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
+      (bestVersionIsDeprecated && !candidateIsDeprecated)
+    )
+  } catch (_err) {
+    globalWarn(`Failed to compare semver versions ${candidate.version} and ${best.version} from packument of ${pkgDoc.name}, skipping candidate version.`)
+    return false
+  }
+}
+
 
 /**
  * How well a kept version stands in for a dropped dist-tag target, worst
