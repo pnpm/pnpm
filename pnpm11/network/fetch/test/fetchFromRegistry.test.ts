@@ -4,6 +4,7 @@ import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry, DEFAULT_FETCH_TIMEOUT } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
@@ -368,69 +369,21 @@ test('createDispatchedFetch returns a fetch bound to the given dispatcher option
 })
 
 test('abbreviated metadata Accept header is not sent on write requests', async () => {
-  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      resolve(req.headers)
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end('{"ok":true}')
-    })
-    server.listen(0, () => {
-      const { port } = server.address() as { port: number }
-      const fetchFromRegistry = createFetchFromRegistry({})
-      fetchFromRegistry(`http://127.0.0.1:${port}/-/package/pnpm/dist-tags/latest-10`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify('10.34.0'),
-      }).then(
-        (res) => res.text().then(() => server.close()),
-        (err) => {
-          server.close(); reject(err)
-        }
-      )
-    })
-  })
+  const receivedHeaders = await captureRequestHeaders((fetchFromRegistry, origin) => fetchFromRegistry(`${origin}/-/package/pnpm/dist-tags/latest-10`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify('10.34.0'),
+  }))
   expect(receivedHeaders.accept).not.toContain('application/vnd.npm.install-v1+json')
 })
 
 test('abbreviated metadata Accept header is sent on GET requests', async () => {
-  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      resolve(req.headers)
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end('{"ok":true}')
-    })
-    server.listen(0, () => {
-      const { port } = server.address() as { port: number }
-      const fetchFromRegistry = createFetchFromRegistry({})
-      fetchFromRegistry(`http://127.0.0.1:${port}/test`).then(
-        (res) => res.text().then(() => server.close()),
-        (err) => {
-          server.close(); reject(err)
-        }
-      )
-    })
-  })
+  const receivedHeaders = await captureRequestHeaders((fetchFromRegistry, origin) => fetchFromRegistry(`${origin}/test`))
   expect(receivedHeaders.accept).toBe('application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*')
 })
 
 test('sec-fetch-* headers are stripped from requests', async () => {
-  const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      resolve(req.headers)
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end('{"ok":true}')
-    })
-    server.listen(0, () => {
-      const { port } = server.address() as { port: number }
-      const fetchFromRegistry = createFetchFromRegistry({})
-      fetchFromRegistry(`http://127.0.0.1:${port}/test`).then(
-        (res) => res.text().then(() => server.close()),
-        (err) => {
-          server.close(); reject(err)
-        }
-      )
-    })
-  })
+  const receivedHeaders = await captureRequestHeaders((fetchFromRegistry, origin) => fetchFromRegistry(`${origin}/test`))
   const secFetchHeaders = Object.keys(receivedHeaders).filter(h => h.startsWith('sec-fetch-'))
   expect(secFetchHeaders).toEqual([])
 })
@@ -456,3 +409,28 @@ test('the timeout a registry fetcher is created with reaches the response body',
     clearDispatcherCache()
   }
 })
+
+async function captureRequestHeaders (
+  sendRequest: (fetchFromRegistry: FetchFromRegistry, origin: string) => Promise<Response>
+): Promise<http.IncomingHttpHeaders> {
+  return new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      resolve(req.headers)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"ok":true}')
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      closeServerAfterResponse(server, sendRequest(createFetchFromRegistry({}), `http://127.0.0.1:${port}`), reject)
+    })
+  })
+}
+
+function closeServerAfterResponse (server: http.Server, request: Promise<Response>, reject: (err: unknown) => void): void {
+  request.then(
+    (res) => res.text().then(() => server.close()),
+    (err) => {
+      server.close(); reject(err)
+    }
+  )
+}

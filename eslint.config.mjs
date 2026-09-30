@@ -6,7 +6,6 @@ import * as regexpPlugin from "eslint-plugin-regexp";
 const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     ".meta-updater/**",
     "pnpm11/__utils__/assert-store/**",
-    "pnpm11/__utils__/get-release-text/**",
     "pnpm11/__utils__/scripts/**",
     "pnpm11/__utils__/test-fixtures/**",
     "pnpm11/auth/commands/**",
@@ -36,7 +35,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/deps/inspection/list/**",
     "pnpm11/deps/inspection/outdated/**",
     "pnpm11/deps/inspection/peers-checker/**",
-    "pnpm11/deps/inspection/tree-builder/**",
     "pnpm11/deps/path/**",
     "pnpm11/deps/peer-range/**",
     "pnpm11/deps/security/signatures/**",
@@ -88,7 +86,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/modules-mounter/daemon/**",
     "pnpm11/network/agent/**",
     "pnpm11/network/auth-header/**",
-    "pnpm11/network/fetch/**",
     "pnpm11/network/web-auth/**",
     "pnpm11/object/property-path/**",
     "pnpm11/os/env/path-extender-posix/**",

@@ -488,6 +488,32 @@ test('unsaved dependencies are listed', async () => {
     })
 })
 
+test('an unsaved dependency named like an Object.prototype property is listed', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    fs.writeFileSync(path.join(projectDir, WANTED_LOCKFILE), 'lockfileVersion: \'9.0\'\n\nimporters:\n\n  .: {}\n')
+    const pkgDir = path.join(projectDir, 'node_modules/constructor')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'constructor', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([projectDir], { depth: 0, lockfileDir: projectDir, virtualStoreDirMaxLength })
+
+    expect(tree[projectDir].unsavedDependencies).toStrictEqual([
+      {
+        alias: 'constructor',
+        isMissing: false,
+        isPeer: false,
+        isSkipped: false,
+        name: 'constructor',
+        path: pkgDir,
+        version: '1.0.0',
+      },
+    ])
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true })
+  }
+})
+
 test('unsaved dependencies are omitted when only projects are listed', async () => {
   const tree = await buildDependenciesTree([withUnsavedDepsFixture], {
     depth: 0,
