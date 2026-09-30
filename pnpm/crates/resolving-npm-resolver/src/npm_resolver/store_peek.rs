@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     OfflineStoreView,
-    pick_package::PackageMetaCache,
+    pick_package::{PackageMetaCache, PickPackageError},
     pick_package_from_meta::{
         RegistryPackageSpec, RegistryPackageSpecType, semver_range::semver_satisfies_loose,
     },
@@ -30,7 +30,7 @@ pub(crate) async fn fast_path_pick(
     spec: &RegistryPackageSpec,
     workspace_packages_active: Option<&Arc<WorkspacePackages>>,
 ) -> Result<Option<ResolveResult>, ResolveError> {
-    if !opts.refresh.repick_current_version
+    if !repicks_another_version(opts, spec)
         && let Some(result) =
             peek_manifest_from_store(store_index, wanted_dependency, opts, spec).await?
     {
@@ -39,9 +39,25 @@ pub(crate) async fn fast_path_pick(
     Ok(prefer_workspace_pick(workspace_packages_active, spec, wanted_dependency, opts))
 }
 
+/// Whether a reopened locked version must go through the picker. An exact
+/// version spec has only one answer, so the store can still supply it.
+fn repicks_another_version(opts: &ResolveOptions, spec: &RegistryPackageSpec) -> bool {
+    opts.refresh.repick_current_version
+        && !matches!(spec.spec_type, RegistryPackageSpecType::Version)
+}
+
+/// Offline, the picker had no metadata to choose from.
+fn lacks_offline_metadata(outcome: &Result<RegistryPick, ResolveError>) -> bool {
+    outcome
+        .as_ref()
+        .is_err_and(|error| {
+            matches!(error.downcast_ref(), Some(PickPackageError::NoOfflineMeta { .. }))
+        })
+}
+
 impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
-    /// What a registry lookup that picked nothing resolves to. An offline
-    /// repick without usable metadata keeps the locked version when the store
+    /// What a registry lookup that picked nothing resolves to. A repick that
+    /// found no offline metadata keeps the locked version when the store
     /// holds its manifest, since there is nothing to deduplicate against.
     /// Otherwise a workspace package may stand in, or the outcome's error
     /// surfaces.
@@ -54,8 +70,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        if self.cache_policy.offline
-            && opts.refresh.repick_current_version
+        if opts.refresh.repick_current_version
+            && lacks_offline_metadata(&outcome)
             && let Some(result) =
                 peek_manifest_from_store(self.store_index(), wanted_dependency, opts, spec).await?
         {
