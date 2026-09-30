@@ -226,7 +226,7 @@ impl<'tree> Walker<'tree> {
     /// The children-graph SCC table behind the canonical cycle gate; see
     /// [`CanonicalCycleGate::table`](super::discovery::CanonicalCycleGate::table).
     pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
-        self.caches.canonical_cycles.table(self.tree)
+        self.caches.canonical_cycles.table(self.tree, self.caches.view_generation())
     }
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:

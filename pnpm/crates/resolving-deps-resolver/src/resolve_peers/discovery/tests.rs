@@ -15,13 +15,32 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[test]
-fn cycle_gate_shares_its_table_until_invalidated() {
+fn cycle_gate_rebuilds_its_table_for_a_newer_view_generation() {
     let tree = ResolvedTree::default();
-    let mut gate = CanonicalCycleGate::default();
-    let first = gate.table(&tree);
-    assert!(Arc::ptr_eq(&first, &gate.table(&tree)), "reads share one table");
-    gate.invalidate();
-    assert!(!Arc::ptr_eq(&first, &gate.table(&tree)), "invalidate drops the table");
+    let gate = CanonicalCycleGate::default();
+    let first = gate.table(&tree, 1);
+    assert!(Arc::ptr_eq(&first, &gate.table(&tree, 1)), "reads under one generation share it");
+    assert!(!Arc::ptr_eq(&first, &gate.table(&tree, 2)), "a newer generation rebuilds it");
+}
+
+#[test]
+fn discovery_engine_advances_the_view_generation_when_it_refreshes() {
+    let workspace = WorkspaceTreeCtx::default();
+    let mut engine = PeerHoistDiscovery::new();
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
+    let synced = engine.caches.view_generation();
+
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
+    assert_eq!(engine.caches.view_generation(), synced, "an unchanged tree keeps its generation");
+
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
+    assert_eq!(engine.caches.view_generation(), synced + 1, "a refreshed view is a new generation");
+
+    workspace.tree.record_children_rewrite();
+    workspace.tree.bump_revision();
+    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
+    assert_eq!(engine.caches.view_generation(), synced + 2, "a rebuilt view is a new generation");
 }
 
 /// See [`PeersCacheItem`] for why a cache hit reports no providers.

@@ -16,7 +16,7 @@ use crate::{
 };
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{cell::OnceCell, collections::BTreeMap, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
 
 /// Peer-hoist discovery engine: one persistent tree view + walker
 /// caches shared by every hoist round of a workspace resolve. Replaces
@@ -73,12 +73,16 @@ impl PeerHoistDiscovery {
                 self.synced_children_rewrites.is_some_and(|synced| synced != children_rewrites);
             if stale || !workspace.sync_discovery_tree(&mut self.tree, &mut self.cursor) {
                 self.tree = ResolvedTree::default();
-                self.caches = PeerDiscoveryCaches::default();
+                self.caches = PeerDiscoveryCaches {
+                    view_generation: self.caches.view_generation,
+                    ..PeerDiscoveryCaches::default()
+                };
                 workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
-            // The refreshed view may carry new child edges, which the SCC
-            // table is a function of.
-            self.caches.canonical_cycles.invalidate();
+            // The refreshed view is a new generation: a cache derived from
+            // the previous view, the SCC table among them, rebuilds on its
+            // next read.
+            self.caches.view_generation += 1;
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
@@ -115,6 +119,17 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) peer_provider_children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
     pub(super) peer_provider_index_peer_names: HashSet<String>,
     pub(super) canonical_cycles: CanonicalCycleGate,
+    /// How many times the engine has refreshed or rebuilt the view these
+    /// caches belong to. A cache derived from the view records the
+    /// generation it was built under and rebuilds when read under a
+    /// newer one; see [`CanonicalCycleGate::table`].
+    view_generation: u64,
+}
+
+impl PeerDiscoveryCaches {
+    pub(super) fn view_generation(&self) -> u64 {
+        self.view_generation
+    }
 }
 
 /// The persistent state of the canonical cycle gate
@@ -126,11 +141,10 @@ pub(super) struct CanonicalCycleGate {
     /// canonically later (package-id order) is cut, the same cut at
     /// every occurrence, so realized subtrees are entry-independent and
     /// no walk path can revisit a package. A function of the tree view's
-    /// `children_by_id`: [`Self::table`] builds it on first use and
-    /// shares it with every walker over that view, and
-    /// [`PeerHoistDiscovery`] calls [`Self::invalidate`] whenever it
-    /// refreshes the view.
-    sccs: OnceCell<Arc<HashMap<Arc<str>, usize>>>,
+    /// `children_by_id`: [`Self::table`] builds it on first use, shares
+    /// it with every walker over that view, and rebuilds it when read
+    /// under a newer view generation.
+    sccs: RefCell<Option<SccTable>>,
     /// The shared record-only occurrence per canonical back-edge
     /// target; persisted so later rounds reuse instead of re-creating
     /// (and re-walking) them. Entries are validated against the current
@@ -139,16 +153,31 @@ pub(super) struct CanonicalCycleGate {
     pub(super) backedge_nodes: HashMap<Arc<str>, NodeId>,
 }
 
-impl CanonicalCycleGate {
-    /// The SCC table of `tree`'s children graph, built on first use and
-    /// shared until [`Self::invalidate`].
-    pub(super) fn table(&self, tree: &ResolvedTree) -> Arc<HashMap<Arc<str>, usize>> {
-        Arc::clone(self.sccs.get_or_init(|| Arc::new(children_scc_ids(tree))))
-    }
+/// The SCC table of one view generation.
+#[derive(Debug)]
+struct SccTable {
+    view_generation: u64,
+    ids: Arc<HashMap<Arc<str>, usize>>,
+}
 
-    /// Drop the table: the tree view's `children_by_id` changed.
-    pub(super) fn invalidate(&mut self) {
-        self.sccs.take();
+impl CanonicalCycleGate {
+    /// The SCC table of `tree`'s children graph, `tree` being the view at
+    /// `view_generation`: built on first use and shared until a read
+    /// under a newer generation.
+    pub(super) fn table(
+        &self,
+        tree: &ResolvedTree,
+        view_generation: u64,
+    ) -> Arc<HashMap<Arc<str>, usize>> {
+        let mut sccs = self.sccs.borrow_mut();
+        if let Some(table) = sccs.as_ref()
+            && table.view_generation == view_generation
+        {
+            return Arc::clone(&table.ids);
+        }
+        let ids = Arc::new(children_scc_ids(tree));
+        *sccs = Some(SccTable { view_generation, ids: Arc::clone(&ids) });
+        ids
     }
 }
 
