@@ -1,7 +1,7 @@
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, config_for, foo_packument,
-    json, mock_packument_for_tarball, public_cache_pkg, router, sha1_hex_of, sha512_integrity,
-    tarball_cache_entries, to_bytes,
+    Body, Duration, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, config_for,
+    foo_packument, json, mock_packument_for_tarball, public_cache_pkg, router, sha1_hex_of,
+    sha512_integrity, tarball_cache_entries, to_bytes,
 };
 
 #[tokio::test]
@@ -432,6 +432,51 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
         "an unfetchable tarball has no bytes to hash, so no integrity may be invented",
     );
     withdrawn.assert_async().await;
+}
+
+/// The downloads can outlast a short `maxage`. A cached packument that went
+/// stale meanwhile still receives the pins, so they are not lost.
+#[tokio::test]
+async fn pins_land_even_when_the_cached_packument_went_stale_meanwhile() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"stale-while-pinning";
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+    packument["versions"]["1.0.0"]["dist"]["shasum"] = json!(sha1_hex_of(bytes));
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
+        Some(Duration::ZERO);
+    let response = router(config)
+        .oneshot(
+            Request::get("/foo")
+                .header("accept", "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let resolved: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
 }
 
 /// Pinning runs when pnpr fetches a packument, not on every read of the cached

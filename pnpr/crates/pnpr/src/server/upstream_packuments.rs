@@ -73,7 +73,7 @@ pub(super) async fn load_upstream_packument(
         return Ok(None);
     };
     super::upstream_integrity::complete_missing_tarball_integrities(
-        state, namespace, upstream, name, ttl, bytes,
+        state, namespace, upstream, name, bytes,
     )
     .await
     .map(Some)

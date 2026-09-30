@@ -1,8 +1,8 @@
 use super::{
-    AppState, CanonicalPackageName, Duration, FetchOutcome, Integrity, MAX_TARBALL_BYTES,
-    RegistryError, Upstream, is_osv_vulnerable_packument_version, streaming,
-    tarball_integrity_error, tarball_stream_error_for_package, timed,
-    upstream_packuments::lock_upstream_package, upstream_tarballs::tarball_cache_name,
+    AppState, CanonicalPackageName, FetchOutcome, Integrity, MAX_TARBALL_BYTES, RegistryError,
+    Upstream, is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
+    tarball_stream_error_for_package, timed, upstream_packuments::lock_upstream_package,
+    upstream_tarballs::tarball_cache_name,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -33,7 +33,6 @@ struct PackumentIntegrityResolver<'a> {
     namespace: &'a str,
     upstream: &'a Upstream,
     name: &'a CanonicalPackageName,
-    ttl: Duration,
 }
 
 /// Pins a computed `dist.integrity` into every version of a freshly fetched
@@ -52,11 +51,9 @@ pub(super) async fn complete_missing_tarball_integrities(
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
-    ttl: Duration,
     bytes: Vec<u8>,
 ) -> Result<Vec<u8>, RegistryError> {
-    PackumentIntegrityResolver { state, namespace, upstream, name, ttl }.complete_missing(bytes)
-        .await
+    PackumentIntegrityResolver { state, namespace, upstream, name }.complete_missing(bytes).await
 }
 
 impl PackumentIntegrityResolver<'_> {
@@ -150,8 +147,10 @@ impl PackumentIntegrityResolver<'_> {
         self.state.inner.osv_index.as_ref()
     }
 
+    /// Any cached copy, however old: the downloads may outlast a short
+    /// `maxage`, and only a purge means there is nothing to pin into.
     async fn read_cached_packument(&self) -> Result<Option<Vec<u8>>, RegistryError> {
-        self.state.inner.storage.read_upstream_document(self.namespace, self.name, self.ttl).await
+        self.state.inner.storage.read_upstream_document_any(self.namespace, self.name).await
     }
 
     async fn compute_integrities(
