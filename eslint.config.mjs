@@ -27,14 +27,9 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/resolving/local-resolver/**",
     "pnpm11/resolving/registry/pkg-metadata-filter/**",
     "pnpm11/store/commands/**",
-    "pnpm11/text/comments-parser/**",
-    "pnpm11/text/tree-renderer/**",
-    "pnpm11/workspace/injected-deps-syncer/**",
     "pnpm11/workspace/project-manifest-reader/**",
     "pnpm11/workspace/projects-graph/**",
-    "pnpm11/workspace/task-scheduler/**",
-    "pnpm11/workspace/workspace-manifest-reader/**",
-    "pnpm11/yaml/document-sync/**"
+    "pnpm11/workspace/task-scheduler/**"
 ]
 
 export default [
