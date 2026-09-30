@@ -545,3 +545,53 @@ fn deduplication_converges_transitive_dependencies_on_the_direct_dependency_vers
         drop((root, npmrc_info));
     }
 }
+
+#[test]
+fn downgrading_a_dependency_moves_other_projects_to_the_named_version() {
+    for (group, filtered) in [
+        ("peerDependencies", true),
+        ("peerDependencies", false),
+        ("dependencies", true),
+        ("dependencies", false),
+    ] {
+        eprintln!("{group}, filtered: {filtered}");
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+        for (project, manifest) in [
+            ("low", serde_json::json!({"name": "low", "dependencies": {DEP: "100.1.0"}})),
+            ("high", serde_json::json!({"name": "high", group: {DEP: "^100.0.0"}})),
+        ] {
+            fs::create_dir_all(workspace.join(project)).unwrap();
+            fs::write(workspace.join(project).join("package.json"), manifest.to_string()).unwrap();
+        }
+        pnpm_at(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        assert_eq!(
+            importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "high", DEP),
+            "100.1.0",
+        );
+        let add = [&format!("{DEP}@100.0.0"), "--lockfile-only"];
+        if filtered {
+            pnpm_at(&workspace)
+                .with_args(["--filter=low", "add"])
+                .with_args(add)
+        } else {
+            pnpm_at(&workspace.join("low")).with_arg("add").with_args(add)
+        }
+        .assert()
+        .success();
+        let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+        assert_eq!(importer_version(&lockfile, "low", DEP), "100.0.0");
+        assert_eq!(importer_version(&lockfile, "high", DEP), "100.0.0");
+        assert!(
+            !lockfile.packages
+                .as_ref()
+                .unwrap()
+                .contains_key(&format!("{DEP}@100.1.0").parse().unwrap()),
+        );
+        drop((root, npmrc_info));
+    }
+}

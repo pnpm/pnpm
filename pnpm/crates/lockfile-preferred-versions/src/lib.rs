@@ -193,7 +193,8 @@ fn weighted_lockfile_version(
 /// Bump a selector's weight by `weight`, lifting a `Plain` selector
 /// to `Weighted(weight + 1)` (the `weight + 1` for the bare-string
 /// case) and adding `weight` to an existing weighted entry.
-fn add_weight_to_version_selector(
+#[must_use]
+pub fn add_weight_to_version_selector(
     selector: &VersionSelectorEntry,
     weight: u32,
 ) -> VersionSelectorWithWeight {
