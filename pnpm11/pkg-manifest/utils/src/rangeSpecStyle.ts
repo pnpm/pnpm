@@ -42,13 +42,9 @@ export function calcVersionRange (
     isUpdate?: boolean
   }
 ): string {
+  const preservedPrevRange = checkPreservedPrevRange(version, opts)
+  if (preservedPrevRange != null) return preservedPrevRange
   const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
-  if (prevRangeSpecStyle == null && opts.prevSpecifier && (opts.bareSpecifier == null || opts.bareSpecifier === opts.prevSpecifier)) {
-    const prevRange = getRangeOfSpecifier(opts.prevSpecifier)
-    if (prevRange != null && semver.validRange(prevRange) != null && semver.satisfies(version, prevRange)) {
-      return prevRange
-    }
-  }
   const requestedRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
   if (!opts.isUpdate && (requestedRangeSpecStyle === 'patch' || requestedRangeSpecStyle === 'exact')) {
     return versionWithRangeSpecStyle(version, requestedRangeSpecStyle)
@@ -61,6 +57,20 @@ export function calcVersionRange (
     : requestedRangeSpecStyle ?? prevRangeSpecStyle ?? opts.defaultRangeSpecStyle
   return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
+
+function checkPreservedPrevRange (
+  version: string,
+  opts: { prevSpecifier?: string, bareSpecifier?: string }
+): string | undefined {
+  if (!opts.prevSpecifier || inferRangeSpecStyle(opts.prevSpecifier) != null) return undefined
+  if (opts.bareSpecifier != null && opts.bareSpecifier !== opts.prevSpecifier) return undefined
+  const prevRange = getRangeOfSpecifier(opts.prevSpecifier)
+  if (prevRange != null && semver.validRange(prevRange) != null && semver.satisfies(version, prevRange)) {
+    return prevRange
+  }
+  return undefined
+}
+
 
 export function versionWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
   switch (rangeSpecStyle) {

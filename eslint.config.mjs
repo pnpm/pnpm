@@ -15,21 +15,16 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/installing/context/**",
     "pnpm11/installing/linking/modules-cleaner/**",
     "pnpm11/installing/linking/real-hoist/**",
-    "pnpm11/lockfile/peer-edges/**",
     "pnpm11/lockfile/pruner/**",
     "pnpm11/lockfile/utils/**",
     "pnpm11/modules-mounter/daemon/**",
     "pnpm11/network/agent/**",
-    "pnpm11/pkg-manifest/utils/**",
     "pnpm11/releasing/exportable-manifest/**",
     "pnpm11/resolving/default-resolver/**",
     "pnpm11/resolving/git-resolver/**",
     "pnpm11/resolving/local-resolver/**",
     "pnpm11/resolving/registry/pkg-metadata-filter/**",
-    "pnpm11/store/commands/**",
-    "pnpm11/workspace/project-manifest-reader/**",
-    "pnpm11/workspace/projects-graph/**",
-    "pnpm11/workspace/task-scheduler/**"
+    "pnpm11/store/commands/**"
 ]
 
 export default [

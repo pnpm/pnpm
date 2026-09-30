@@ -62,62 +62,78 @@ export interface BuildTaskGraphOptions {
  * `dependsOn: ['^<its own name>']`: plain topological order over the
  * project graph.
  */
+interface QueueItem {
+  project: ProjectRootDir
+  taskName: string
+  requested: boolean
+}
+
 export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
   const graph: TaskGraph = new Map()
-  const queue: Array<{ project: ProjectRootDir, taskName: string, requested: boolean }> = []
+  const queue: QueueItem[] = seedTaskQueue(opts)
+  let head = 0
+  while (head < queue.length) {
+    const item = queue[head++]
+    const key = taskKey(item.project, item.taskName)
+    const existing = graph.get(key)
+    if (existing != null) {
+      existing.requested ||= item.requested
+      continue
+    }
+    const scripts = opts.selectScripts(opts.scriptsByProject(item.project), item.taskName)
+    const dependencies = resolveTaskDependencies(opts, item, scripts, queue)
+    graph.set(key, {
+      project: item.project,
+      taskName: item.taskName,
+      concurrency: taskConcurrency(opts.tasks, item.taskName),
+      scripts,
+      requested: item.requested,
+      dependencies,
+    })
+  }
+  return graph
+}
+
+function seedTaskQueue (opts: BuildTaskGraphOptions): QueueItem[] {
+  const queue: QueueItem[] = []
   const expandsSelector = expandsSelectorTask(opts)
   for (const project of opts.projectDependencies.keys()) {
     const matchedScripts = expandsSelector
       ? opts.selectScripts(opts.scriptsByProject(project), opts.taskName)
       : []
-    // A project with no matching script keeps a pass-through task under the
-    // selector name.
     const seedTaskNames = matchedScripts.length > 0 ? matchedScripts : [opts.taskName]
     for (const taskName of seedTaskNames) {
       queue.push({ project, taskName, requested: true })
     }
   }
-  // Drained by index: shift() moves every remaining element, which is
-  // quadratic over a workspace-sized queue.
-  let head = 0
-  while (head < queue.length) {
-    const { project, taskName, requested } = queue[head++]
-    const key = taskKey(project, taskName)
-    const existing = graph.get(key)
-    if (existing != null) {
-      existing.requested ||= requested
-      continue
-    }
-    const scripts = opts.selectScripts(opts.scriptsByProject(project), taskName)
-    // The pass-through task of a project an expanded selector matched
-    // nothing in: nothing names it, so it orders nothing.
-    const dependsOn = expandsSelector && taskName === opts.taskName && scripts.length === 0
-      ? []
-      : taskDependsOn(opts.tasks, taskName)
-    const dependencies = new Set<TaskKey>()
-    for (const entry of dependsOn) {
-      if (entry.startsWith('^')) {
-        const dependencyTaskName = entry.slice(1)
-        for (const dependencyProject of opts.projectDependencies.get(project) ?? []) {
-          dependencies.add(taskKey(dependencyProject, dependencyTaskName))
-          queue.push({ project: dependencyProject, taskName: dependencyTaskName, requested: false })
-        }
-      } else {
-        dependencies.add(taskKey(project, entry))
-        queue.push({ project, taskName: entry, requested: false })
-      }
-    }
-    graph.set(key, {
-      project,
-      taskName,
-      concurrency: taskConcurrency(opts.tasks, taskName),
-      scripts,
-      requested,
-      dependencies: [...dependencies],
-    })
-  }
-  return graph
+  return queue
 }
+
+function resolveTaskDependencies (
+  opts: BuildTaskGraphOptions,
+  item: QueueItem,
+  scripts: string[],
+  queue: QueueItem[]
+): TaskKey[] {
+  const expandsSelector = expandsSelectorTask(opts)
+  const isSkippedPassThrough = expandsSelector && item.taskName === opts.taskName && scripts.length === 0
+  const dependsOn = isSkippedPassThrough ? [] : taskDependsOn(opts.tasks, item.taskName)
+  const dependencies = new Set<TaskKey>()
+  for (const entry of dependsOn) {
+    if (entry.startsWith('^')) {
+      const depName = entry.slice(1)
+      for (const depProject of opts.projectDependencies.get(item.project) ?? []) {
+        dependencies.add(taskKey(depProject, depName))
+        queue.push({ project: depProject, taskName: depName, requested: false })
+      }
+    } else {
+      dependencies.add(taskKey(item.project, entry))
+      queue.push({ project: item.project, taskName: entry, requested: false })
+    }
+  }
+  return [...dependencies]
+}
+
 
 function taskConcurrency (tasks: WorkspaceTasks | undefined, taskName: string): number | undefined {
   return tasks != null && Object.hasOwn(tasks, taskName)

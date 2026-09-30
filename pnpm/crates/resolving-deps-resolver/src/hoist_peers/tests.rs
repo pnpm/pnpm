@@ -11,7 +11,7 @@ use pretty_assertions::assert_eq;
 
 use super::{
     HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep, get_hoistable_optional_peers,
-    get_hoistable_optional_peers_with_locked_versions, hoist_peers,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, optional_peer_version_tiers,
 };
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
@@ -281,10 +281,10 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
         ]),
     )]);
     let locked =
-        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]);
+        HashMap::from_iter([("peer".to_string(), vec![HashSet::from_iter(["1.0.0".to_string()])])]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(
+        get_hoistable_optional_peers_with_preferred_versions(
             &missing,
             &preferred,
             &[],
@@ -307,10 +307,10 @@ fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph(
         )]),
     )]);
     let locked =
-        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]);
+        HashMap::from_iter([("peer".to_string(), vec![HashSet::from_iter(["2.0.0".to_string()])])]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(
+        get_hoistable_optional_peers_with_preferred_versions(
             &missing,
             &preferred,
             &[],
@@ -319,6 +319,74 @@ fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph(
         ),
         BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
     );
+}
+
+fn versions(list: &[&str]) -> HashSet<String> {
+    list.iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn pick_optional_peer(
+    candidates: &[&str],
+    range: &str,
+    locked: &[&str],
+    resolved: &[&str],
+) -> Option<String> {
+    let missing = BTreeMap::from([("peer".to_string(), vec![range.to_string()])]);
+    let preferred = PreferredVersions::from([(
+        "peer".to_string(),
+        candidates
+            .iter()
+            .map(|version| (version.to_string(), plain(VersionSelectorType::Version)))
+            .collect(),
+    )]);
+    let locked = versions(locked);
+    let tiers = HashMap::from_iter([(
+        "peer".to_string(),
+        optional_peer_version_tiers(Some(&locked), versions(resolved)),
+    )]);
+    get_hoistable_optional_peers_with_preferred_versions(
+        &missing,
+        &preferred,
+        &[],
+        &tiers,
+        &|_, _| true,
+    )
+    .remove("peer")
+}
+
+/// pnpm/pnpm#16443: a provider that moved its exact dependency down
+/// leaves the old, higher version behind only as a lockfile candidate.
+#[test]
+fn optional_peer_prefers_a_run_resolved_version_over_a_stale_locked_one() {
+    let picked = pick_optional_peer(&["1.0.0", "1.0.1"], "*", &["1.0.1"], &["1.0.0"]);
+    assert_eq!(picked.as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn optional_peer_prefers_a_locked_version_the_run_still_resolves() {
+    let picked = pick_optional_peer(&["1.0.0", "2.0.0"], "*", &["1.0.0"], &["1.0.0", "2.0.0"]);
+    assert_eq!(picked.as_deref(), Some("1.0.0"));
+}
+
+/// Only another run-resolved version satisfies the range, so it must beat
+/// a higher locked version the run no longer resolves.
+#[test]
+fn optional_peer_falls_back_to_run_resolved_versions_before_stale_locked_ones() {
+    let picked = pick_optional_peer(
+        &["1.0.0", "2.0.0", "3.0.0"],
+        ">=2",
+        &["1.0.0", "3.0.0"],
+        &["1.0.0", "2.0.0"],
+    );
+    assert_eq!(picked.as_deref(), Some("2.0.0"));
+}
+
+#[test]
+fn optional_peer_keeps_its_locked_version_when_the_run_resolved_none() {
+    let picked = pick_optional_peer(&["1.0.0", "2.0.0"], "*", &["1.0.0"], &[]);
+    assert_eq!(picked.as_deref(), Some("1.0.0"));
 }
 
 #[test]

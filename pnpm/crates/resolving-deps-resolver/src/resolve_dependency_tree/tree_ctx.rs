@@ -10,6 +10,7 @@ use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
     LinkWorkspacePackages, ResolveOptions, VersionSelectorType, WantedDependency,
 };
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -521,6 +522,30 @@ impl TreeCtx {
             }
             if !bucket.is_empty() {
                 out.insert(name.to_string(), bucket);
+            }
+        }
+        out
+    }
+
+    /// [`crate::hoist_peers::optional_peer_version_tiers`] for each of
+    /// `names`, from the `locked` versions and the versions this run has
+    /// resolved into the settled reachable tree.
+    pub(crate) fn optional_peer_version_tiers<'name>(
+        &self,
+        locked: &HashMap<String, HashSet<String>>,
+        names: impl Iterator<Item = &'name str>,
+    ) -> HashMap<String, Vec<HashSet<String>>> {
+        let run = self.workspace.run_preferred_versions();
+        let mut out = HashMap::default();
+        for name in names {
+            let resolved: HashSet<String> = run.versions
+                .get(name)
+                .into_iter()
+                .flat_map(|bucket| bucket.keys().cloned())
+                .collect();
+            let tiers = crate::hoist_peers::optional_peer_version_tiers(locked.get(name), resolved);
+            if !tiers.is_empty() {
+                out.insert(name.to_string(), tiers);
             }
         }
         out

@@ -152,17 +152,19 @@ pub(super) fn edge_opts<'c>(
         pin_patched_revision(wanted, current_pkg.as_ref(), prior_key);
     }
     match current_pkg {
-        Some(current_pkg) => Cow::Owned(ResolveOptions {
-            refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
-                prefer_current_version: edge.depth == 0
-                    && prior_key.is_some_and(|key| {
-                        keeps_locked_version(ctx, wanted, key, edge.depth)
-                    }),
-                current_pkg: Some(current_pkg),
-                ..opts.refresh.clone()
-            },
-            ..opts.clone()
-        }),
+        Some(current_pkg) => {
+            let keeps_locked =
+                prior_key.is_some_and(|key| keeps_locked_version(ctx, wanted, key, edge.depth));
+            Cow::Owned(ResolveOptions {
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    prefer_current_version: edge.depth == 0 && keeps_locked,
+                    repick_current_version: !keeps_locked,
+                    current_pkg: Some(current_pkg),
+                    ..opts.refresh.clone()
+                },
+                ..opts.clone()
+            })
+        }
         None => Cow::Borrowed(opts),
     }
 }

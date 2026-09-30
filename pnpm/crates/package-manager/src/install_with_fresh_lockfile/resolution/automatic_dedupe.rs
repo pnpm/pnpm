@@ -1,6 +1,7 @@
 use super::resolve;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
+use pnpm_lockfile_preferred_versions::add_weight_to_version_selector;
 use pnpm_resolving_deps_resolver::{ResolveWorkspaceResult, UpdateTargets};
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions, VersionSelectorEntry, VersionSelectorType,
@@ -79,24 +80,30 @@ fn prefer_versions(
     changed
 }
 
+/// Weight `version` as if the lockfile pinned it. A manifest's exact spec keeps
+/// its weight on top, so a version a project names outranks one only reused.
 fn prefer_candidate(preferred: &mut Arc<PreferredVersions>, name: &str, version: &str) -> bool {
-    let existing = preferred
+    let weighted = match preferred
         .get(name)
-        .and_then(|selectors| selectors.get(version));
-    if matches!(existing, Some(VersionSelectorEntry::Weighted(entry)) if entry.weight >= EXISTING_VERSION_SELECTOR_WEIGHT)
+        .and_then(|selectors| selectors.get(version))
     {
-        return false;
-    }
+        Some(VersionSelectorEntry::Weighted(entry))
+            if entry.weight >= EXISTING_VERSION_SELECTOR_WEIGHT =>
+        {
+            return false;
+        }
+        Some(existing) => {
+            add_weight_to_version_selector(existing, EXISTING_VERSION_SELECTOR_WEIGHT)
+        }
+        None => VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        },
+    };
     Arc::make_mut(preferred)
         .entry(name.to_string())
         .or_default()
-        .insert(
-            version.to_string(),
-            VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                selector_type: VersionSelectorType::Version,
-                weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-            }),
-        );
+        .insert(version.to_string(), VersionSelectorEntry::Weighted(weighted));
     true
 }
 

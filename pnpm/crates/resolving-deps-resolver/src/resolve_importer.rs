@@ -50,7 +50,7 @@ use crate::{
     dependencies_graph::MissingPeer,
     hoist_peers::{
         DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-        get_hoistable_optional_peers_with_locked_versions, hoist_peers,
+        get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
     },
     parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{

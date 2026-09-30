@@ -42,8 +42,7 @@ mod guarded_pick;
 
 mod workspace_pick;
 use workspace_pick::{
-    resolve_workspace_protocol, wanted_spec, workspace_fallback_for, workspace_packages_active,
-    workspace_shadow_pick,
+    resolve_workspace_protocol, wanted_spec, workspace_packages_active, workspace_shadow_pick,
 };
 
 mod store_peek;
@@ -236,14 +235,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let optional = wanted_dependency.optional.unwrap_or(false);
         let workspace_packages_active = workspace_packages_active(opts, &spec);
 
-        if let Some(result) = fast_path_pick(
-            self.store_view.as_ref().map(OfflineStoreView::index),
-            wanted_dependency,
-            opts,
-            &spec,
-            workspace_packages_active,
-        )
-        .await?
+        let store_index = self.store_index();
+        if let Some(result) =
+            fast_path_pick(store_index, wanted_dependency, opts, &spec, workspace_packages_active)
+                .await?
         {
             return Ok(Some(result));
         }
@@ -253,14 +248,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             match self.pick_from_registry(&registry, &spec, opts, optional, trust_check).await {
                 Ok(RegistryPick::Picked(picked)) => picked,
                 outcome => {
-                    return workspace_fallback_for(
+                    return self.unpicked_fallback(
                         outcome,
                         wanted_dependency,
                         &registry,
                         workspace_packages_active,
                         &spec,
                         opts,
-                    );
+                    )
+                    .await;
                 }
             };
 

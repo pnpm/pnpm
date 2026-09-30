@@ -105,6 +105,7 @@ mod not_implemented;
 mod offline_store_pick;
 mod optional_dependencies;
 mod optional_peer_edges;
+mod optional_peer_pins;
 mod outdated;
 mod override_version_references;
 mod pack;
