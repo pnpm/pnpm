@@ -743,3 +743,45 @@ snapshots:
     fs.rmSync(lockfileDir, { recursive: true, force: true })
   }
 })
+
+test('resolvePackagePath with nodeLinker hoisted uses hoistedLocations and projectDir', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-hoisted-'))
+  try {
+    fs.writeFileSync(path.join(tmpDir, 'pnpm-lock.yaml'), `\
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+packages:
+  foo@1.0.0:
+    resolution: {integrity: sha512-foo}
+snapshots:
+  foo@1.0.0: {}
+`)
+    const modulesDir = path.join(tmpDir, 'node_modules')
+    fs.mkdirSync(modulesDir, { recursive: true })
+    fs.writeFileSync(path.join(modulesDir, '.modules.yaml'), `\
+packageManager: pnpm@11.0.0
+nodeLinker: hoisted
+hoistedLocations:
+  foo@1.0.0:
+    - node_modules/foo
+`)
+    const fooDir = path.join(modulesDir, 'foo')
+    fs.mkdirSync(fooDir, { recursive: true })
+    fs.writeFileSync(path.join(fooDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([tmpDir], {
+      checkWantedLockfileOnly: true,
+      depth: 0,
+      lockfileDir: tmpDir,
+      virtualStoreDirMaxLength,
+    })
+    expect(tree[tmpDir].dependencies![0].path).toBe(fooDir)
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})

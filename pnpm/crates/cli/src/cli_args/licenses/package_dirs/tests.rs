@@ -1,5 +1,6 @@
-use super::hoisted_dir;
 use std::path::Path;
+
+use pnpm_modules_yaml::hoisted_dir;
 
 #[test]
 fn hoisted_dir_resolves_a_location_inside_the_lockfile_dir() {

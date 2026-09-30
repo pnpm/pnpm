@@ -7,7 +7,7 @@ use pnpm_package_manifest::safe_read_package_json_from_dir;
 use std::{
     borrow::Cow,
     collections::BTreeMap,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 /// Where each listed package is installed: its virtual store slot, or
@@ -36,9 +36,9 @@ impl PackageDirs {
         let is_hoisted = config.node_linker == NodeLinker::Hoisted;
         let hoisted_dirs = if is_hoisted {
             let modules = load_modules(&modules_dir_name, lockfile_dir, project_dir)?;
-            collect_hoisted_dirs(
+            pnpm_deps_inspection::pkg_info::collect_hoisted_dirs(
                 lockfile_dir,
-                modules.and_then(|manifest| manifest.hoisted_locations),
+                modules.as_ref().and_then(|manifest| manifest.hoisted_locations.as_ref()),
             )
         } else {
             BTreeMap::new()
@@ -137,35 +137,6 @@ fn hoists_everything_publicly(config: &Config) -> bool {
             })
 }
 
-fn collect_hoisted_dirs(
-    lockfile_dir: &Path,
-    hoisted_locations: Option<BTreeMap<String, Vec<String>>>,
-) -> BTreeMap<String, Vec<PathBuf>> {
-    let mut hoisted_dirs = BTreeMap::new();
-    let Some(locations_by_dep) = hoisted_locations else {
-        return hoisted_dirs;
-    };
-    for (dep_path, locations) in locations_by_dep {
-        let dirs: Vec<_> = locations
-            .iter()
-            .filter_map(|location| hoisted_dir(lockfile_dir, location))
-            .collect();
-        if dirs.is_empty() {
-            continue;
-        }
-        // The hoisted linker collapses the peer variants of one
-        // package version onto the first dependency path it meets,
-        // so only that one is recorded.
-        if let Ok(key) = dep_path.parse::<PackageKey>() {
-            hoisted_dirs
-                .entry(key.without_peer().to_string())
-                .or_insert_with(|| dirs.clone());
-        }
-        hoisted_dirs.insert(dep_path, dirs);
-    }
-    hoisted_dirs
-}
-
 fn matches_virtual_store(candidate: &Path, expected_virtual_store: &Path) -> bool {
     let Ok(candidate_canonical) = dunce::canonicalize(candidate) else {
         return false;
@@ -189,32 +160,6 @@ fn matches_candidate(
             == Some(expected_version);
     }
     false
-}
-
-fn is_safe_part(part: &str) -> bool {
-    matches!(Path::new(part).components().next(), Some(Component::Normal(_))) && !part.contains(':')
-}
-
-/// A lockfile-relative location resolved against `lockfile_dir`, rebuilt
-/// component by component so a location recorded with `/` or `\` gets the
-/// platform's separator. `None` for a location that could leave
-/// `lockfile_dir`.
-fn hoisted_dir(lockfile_dir: &Path, location: &str) -> Option<PathBuf> {
-    if location.starts_with('/') || location.starts_with('\\') || Path::new(location).is_absolute()
-    {
-        return None;
-    }
-    let mut dir = lockfile_dir.to_path_buf();
-    for part in location.split(['/', '\\']) {
-        if part.is_empty() || part == "." {
-            continue;
-        }
-        if !is_safe_part(part) {
-            return None;
-        }
-        dir.push(part);
-    }
-    Some(dir)
 }
 
 #[cfg(test)]

@@ -65,12 +65,13 @@ impl LoadedState {
         lockfile_dir: &Path,
         config: &pnpm_config::Config,
     ) -> Option<PkgInfoEnv<'a>> {
-        self.env(
+        self.env_with_node_linker(
             lockfile_dir,
             config.virtual_store_dir_max_length as usize,
             &config.resolved_registries(),
             config.registry_options_by_url.clone(),
             config.peer_edge_options(),
+            config.node_linker,
         )
     }
 
@@ -82,6 +83,26 @@ impl LoadedState {
         registries_by_scope: &BTreeMap<String, String>,
         registry_options_by_url: BTreeMap<String, RegistryOptions>,
         peer_edges: pnpm_lockfile::PeerEdgeOptions,
+    ) -> Option<PkgInfoEnv<'a>> {
+        self.env_with_node_linker(
+            lockfile_dir,
+            virtual_store_dir_max_length,
+            registries_by_scope,
+            registry_options_by_url,
+            peer_edges,
+            pnpm_config::NodeLinker::Isolated,
+        )
+    }
+
+    #[must_use]
+    pub fn env_with_node_linker<'a>(
+        &'a self,
+        lockfile_dir: &Path,
+        virtual_store_dir_max_length: usize,
+        registries_by_scope: &BTreeMap<String, String>,
+        registry_options_by_url: BTreeMap<String, RegistryOptions>,
+        peer_edges: pnpm_lockfile::PeerEdgeOptions,
+        node_linker: pnpm_config::NodeLinker,
     ) -> Option<PkgInfoEnv<'a>> {
         let lockfile = self.lockfile_to_use()?;
         let registries: HashMap<String, String> = registries_by_scope
@@ -106,25 +127,31 @@ impl LoadedState {
                 lockfile,
                 &pnpm_lockfile::PeerSatisfactionEdges::of_lockfile(lockfile, peer_edges),
             ),
-            layout: self.layout(lockfile_dir, virtual_store_dir_max_length),
+            layout: self.layout(lockfile_dir, virtual_store_dir_max_length, node_linker),
         })
     }
+
     fn layout(
         &self,
         lockfile_dir: &Path,
         virtual_store_dir_max_length: usize,
+        node_linker: pnpm_config::NodeLinker,
     ) -> crate::pkg_info::InspectionLayout {
-        let virtual_store_dir = match &self.modules {
-            Some(modules) if !modules.virtual_store_dir.is_empty() => {
-                let dir = PathBuf::from(&modules.virtual_store_dir);
-                if dir.is_absolute() { dir } else { self.modules_dir.join(dir) }
-            }
-            _ => self.modules_dir.join(".pnpm"),
-        };
+        let is_hoisted = self.modules
+            .as_ref()
+            .and_then(|modules| modules.node_linker)
+            .map_or_else(
+                || node_linker == pnpm_config::NodeLinker::Hoisted,
+                |linker| linker == pnpm_modules_yaml::NodeLinker::Hoisted,
+            );
+        let modules_dir_name = self.modules_dir
+            .file_name()
+            .map_or_else(|| PathBuf::from("node_modules"), PathBuf::from);
         crate::pkg_info::InspectionLayout {
             lockfile_dir: lockfile_dir.to_path_buf(),
             modules_dir: self.modules_dir.clone(),
-            virtual_store_dir,
+            modules_dir_name,
+            virtual_store_dir: resolve_virtual_store_dir(self.modules.as_ref(), &self.modules_dir),
             virtual_store_dir_max_length: self.modules
                 .as_ref()
                 .map_or(virtual_store_dir_max_length, |modules| {
@@ -135,6 +162,33 @@ impl LoadedState {
                 .as_ref()
                 .map(|modules| PathBuf::from(&modules.store_dir))
                 .filter(|dir| !dir.as_os_str().is_empty()),
+            is_hoisted,
+            hoisted_dirs: resolve_hoisted_dirs(lockfile_dir, self.modules.as_ref(), is_hoisted),
         }
     }
+}
+
+fn resolve_virtual_store_dir(
+    modules: Option<&pnpm_modules_yaml::Modules>,
+    modules_dir: &Path,
+) -> PathBuf {
+    match modules {
+        Some(mod_yaml) if !mod_yaml.virtual_store_dir.is_empty() => {
+            let dir = PathBuf::from(&mod_yaml.virtual_store_dir);
+            if dir.is_absolute() { dir } else { modules_dir.join(dir) }
+        }
+        _ => modules_dir.join(".pnpm"),
+    }
+}
+
+fn resolve_hoisted_dirs(
+    lockfile_dir: &Path,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+    is_hoisted: bool,
+) -> BTreeMap<String, Vec<PathBuf>> {
+    if !is_hoisted {
+        return BTreeMap::new();
+    }
+    let locations = modules.and_then(|mod_yaml| mod_yaml.hoisted_locations.as_ref());
+    crate::pkg_info::collect_hoisted_dirs(lockfile_dir, locations)
 }

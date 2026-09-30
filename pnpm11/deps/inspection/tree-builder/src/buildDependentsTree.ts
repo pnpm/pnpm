@@ -87,6 +87,7 @@ export async function buildDependentsTree (
     lockfile: LockfileObject
     nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
     resolvePeersFromWorkspaceRoot?: boolean
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
@@ -139,6 +140,9 @@ export async function buildDependentsTree (
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
+    nodeLinker: modules?.nodeLinker ?? opts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations,
+    lockfileDir: opts.lockfileDir,
   })
 
   // Scan all package nodes for matches.
@@ -261,6 +265,9 @@ function resolvePackageNodes (
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+    hoistedLocations?: Record<string, string[]>
+    lockfileDir?: string
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()
