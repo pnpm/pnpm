@@ -1,4 +1,5 @@
 use command_extra::CommandExtra;
+use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
@@ -332,6 +333,32 @@ fn clean_removes_the_global_virtual_store_dir_that_takes_precedence() {
     assert!(stdout.contains("Removing .shared-links"), "expected shared store removal: {stdout}");
     assert!(!shared_store.exists(), "the shared store should be removed");
     assert!(unused_store.exists(), "a directory pnpm did not populate should be kept");
+
+    drop(root);
+}
+
+/// The default global virtual store lives under the store directory, which
+/// `clean` leaves alone even when the store sits inside the project.
+#[test]
+fn clean_keeps_the_default_global_virtual_store_inside_the_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "enableGlobalVirtualStore: true\nstoreDir: .pnpm-store\npackages:\n  - .\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+    let links = StoreDir::from(workspace.join(".pnpm-store")).links();
+    fs::create_dir_all(&links).expect("create the global virtual store");
+
+    let output = pacquet
+        .with_args(["clean"])
+        .output()
+        .expect("run pacquet clean");
+    assert!(output.status.success(), "pacquet clean should succeed");
+
+    assert!(links.exists(), "the default global virtual store must be kept");
 
     drop(root);
 }
