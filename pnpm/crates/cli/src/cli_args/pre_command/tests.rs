@@ -502,6 +502,7 @@ fn pre_command_plan_records_a_pin_the_running_pnpm_already_satisfies() {
         PackageManagerToSync {
             specifier: PNPM_VERSION.to_string(),
             version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: false,
         },
     );
 }
@@ -635,6 +636,86 @@ fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
     assert_eq!(version, "99.0.0");
 }
 
+/// A range pin the lockfile already resolved keeps that version, even while
+/// the running pnpm is another one the range allows. Recording the running
+/// pnpm instead would pin everyone to a release nobody checked against the
+/// project's `minimumReleaseAge` (pnpm/pnpm#16431).
+#[test]
+fn pre_command_plan_keeps_the_locked_version_of_a_range_pin() {
+    let (range, locked) = range_around_the_running_pnpm();
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), &range);
+    write_lockfile(root.path(), &locked_package_manager(&range, &locked));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_rerecords_the_locked_version_under_a_changed_range() {
+    let (range, locked) = range_around_the_running_pnpm();
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), &range);
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", &locked));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync { specifier: range, version: locked, running_pnpm_for_range: false },
+    );
+}
+
+#[test]
+fn pre_command_plan_flags_the_running_pnpm_recorded_for_a_range_pin() {
+    let (range, _) = range_around_the_running_pnpm();
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), &range);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: range,
+            version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: true,
+        },
+    );
+}
+
+/// A caret range over the running pnpm's major, which the source checkout's
+/// pnpm (a different major) cannot satisfy, and another version inside it.
+fn range_around_the_running_pnpm() -> (String, String) {
+    let running = node_semver::Version::parse(PNPM_VERSION).expect("parse the running version");
+    let range = format!("^{}.0.0", running.major);
+    let other = format!("{}.999.0", running.major);
+    assert_ne!(other, PNPM_VERSION);
+    (range, other)
+}
+
 /// The install family records the pin from its own pipeline whether or not
 /// version switching is on, so every other command has to record it there
 /// too — otherwise the two rewrite each other forever (pnpm/pnpm#14575).
@@ -658,6 +739,7 @@ fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
         PackageManagerToSync {
             specifier: PNPM_VERSION.to_string(),
             version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: false,
         },
     );
 }

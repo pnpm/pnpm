@@ -1,19 +1,20 @@
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
+import { maturePnpmVersionForRange } from '@pnpm/engine.pm.commands'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
 
 /**
- * Records the currently running pnpm version in the env lockfile's
- * `packageManagerDependencies` entry when the project opts in to
- * lockfile-pinned versioning (via `devEngines.packageManager`, or a v12+
- * `packageManager` pin) and the lockfile doesn't already record a version
+ * Records the currently running pnpm version (see {@link pnpmVersionToRecord})
+ * in the env lockfile's `packageManagerDependencies` entry when the project
+ * opts in to lockfile-pinned versioning (via `devEngines.packageManager`, or a
+ * v12+ `packageManager` pin) and the lockfile doesn't already record a version
  * that satisfies the wanted range.
  *
  * The currently running pnpm version has already been verified by
- * checkPackageManager to satisfy the wanted range, so recording it is safe.
+ * checkPackageManager to satisfy the wanted range.
  *
  * No-op when the project does not pin a pnpm version, when lockfile writing
  * is turned off, or when the recorded entry both satisfies the wanted range
@@ -39,10 +40,11 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
     isPackageManagerResolved(envLockfile, lockedVersion)
   ) return
 
+  const version = await pnpmVersionToRecord(config, pm.version)
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
   const store = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
   try {
-    await resolvePackageManagerIntegrities(packageManager.version, {
+    await resolvePackageManagerIntegrities(version, {
       envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
@@ -54,4 +56,15 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   } finally {
     await store.ctrl.close()
   }
+}
+
+/**
+ * The version to record for a pin the running pnpm satisfies. A range pin
+ * records the running pnpm only when it meets the project's
+ * `minimumReleaseAge`. A frozen lockfile records nothing new, so the lookup
+ * is skipped there.
+ */
+export async function pnpmVersionToRecord (config: Config, wantedVersion: string): Promise<string> {
+  if (config.frozenLockfile || semver.valid(wantedVersion) != null) return packageManager.version
+  return maturePnpmVersionForRange(config, wantedVersion)
 }

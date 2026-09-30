@@ -15,24 +15,41 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            let EnvLockfileSync {
-                config,
-                env_root,
-                package_manager,
-                frozen_lockfile,
-            } = sync;
-            config_deps::sync_package_manager_dependencies(
-                &config,
-                &env_root,
-                &package_manager.specifier,
-                &package_manager.version,
-                frozen_lockfile,
-                false,
-            )
-            .await?;
+            sync_env_lockfile(sync).await?;
             Ok(false)
         }
     }
+}
+
+/// A frozen lockfile records nothing new, so the maturity lookup is skipped
+/// there: the sync only checks the entry it already has.
+async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
+    let EnvLockfileSync {
+        config,
+        env_root,
+        package_manager,
+        frozen_lockfile,
+    } = sync;
+    let version = if package_manager.running_pnpm_for_range && !frozen_lockfile {
+        config_deps::mature_pnpm_version_for_range(
+            &config,
+            &package_manager.specifier,
+            &package_manager.version,
+        )
+        .await?
+    } else {
+        package_manager.version
+    };
+    config_deps::sync_package_manager_dependencies(
+        &config,
+        &env_root,
+        &package_manager.specifier,
+        &version,
+        frozen_lockfile,
+        false,
+    )
+    .await?;
+    Ok(())
 }
 
 async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {

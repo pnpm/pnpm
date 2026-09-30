@@ -40,9 +40,16 @@ jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
   createStoreController,
 }))
 
+const maturePnpmVersionForRange = jest.fn<(config: Config, range: string) => Promise<string>>(async () => packageManager.version)
+jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
+  maturePnpmVersionForRange,
+}))
+
 const { syncEnvLockfile } = await import('./syncEnvLockfile.js')
 
 beforeEach(() => {
+  maturePnpmVersionForRange.mockClear()
+  maturePnpmVersionForRange.mockResolvedValue(packageManager.version)
   resolvePackageManagerIntegrities.mockClear()
   createStoreController.mockClear()
 })
@@ -155,6 +162,37 @@ test('forwards frozen-lockfile to the resolver, which refuses to update the lock
   await syncEnvLockfile({ ...baseConfig, frozenLockfile: true }, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    frozenLockfile: true,
+  }))
+})
+
+test('records the version minimumReleaseAge allows for a range pin (#16431)', async () => {
+  const dir = tempDir()
+  maturePnpmVersionForRange.mockResolvedValue('1.2.3')
+  await syncEnvLockfile(baseConfig, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: '>=0.0.0', fromDevEngines: true },
+  }))
+  expect(maturePnpmVersionForRange).toHaveBeenCalledWith(baseConfig, '>=0.0.0')
+  const updated = await readEnvLockfile(dir)
+  expect(updated!.importers['.'].packageManagerDependencies?.['pnpm']?.version).toBe('1.2.3')
+})
+
+test('an exact pin records the running pnpm without a release-age lookup', async () => {
+  const dir = tempDir()
+  await syncEnvLockfile(baseConfig, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
+  }))
+  expect(maturePnpmVersionForRange).not.toHaveBeenCalled()
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.anything())
+})
+
+test('a frozen lockfile skips the release-age lookup for a range pin', async () => {
+  const dir = tempDir()
+  await syncEnvLockfile({ ...baseConfig, frozenLockfile: true }, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: '>=0.0.0', fromDevEngines: true },
+  }))
+  expect(maturePnpmVersionForRange).not.toHaveBeenCalled()
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
     frozenLockfile: true,
   }))

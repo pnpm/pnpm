@@ -7,11 +7,13 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
+pub use engine_policy::mature_pnpm_version_for_range;
 pub use hooks::{
     load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
 };
 
 use crate::config_overrides::apply_store_dir_override;
+use engine_policy::engine_resolve_options;
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
@@ -192,15 +194,23 @@ async fn resolve_engine(
     ignore_maturity: bool,
 ) -> Result<Option<ResolvedEngine>> {
     let context = EnvInstallerContext::for_package_manager(config)?;
+    let opts = engine_resolve_options(config, ignore_maturity)?;
+    resolve_engine_with(&context, package, bare_specifier, &opts).await
+}
 
+async fn resolve_engine_with(
+    context: &EnvInstallerContext,
+    package: &str,
+    bare_specifier: &str,
+    opts: &ResolveOptions,
+) -> Result<Option<ResolvedEngine>> {
     let wanted = WantedDependency {
         alias: Some(package.to_string()),
         bare_specifier: Some(bare_specifier.to_string()),
         ..WantedDependency::default()
     };
-    let opts = engine_resolve_options(config, ignore_maturity)?;
     let result = context.resolver
-        .resolve(&wanted, &opts)
+        .resolve(&wanted, opts)
         .await
         .map_err(|error| miette::miette!("{error}"))
         .wrap_err_with(|| format!("resolve {package}@{bare_specifier}"))?;
@@ -225,57 +235,6 @@ async fn resolve_engine(
             reason: violation.reason,
         }),
     }))
-}
-
-fn published_by_exclude_for_engine(
-    config: &Config,
-) -> Result<Option<pnpm_config::version_policy::PackageVersionPolicy>> {
-    let mut exclude_patterns = config.minimum_release_age_exclude.clone().unwrap_or_default();
-    exclude_patterns.push(format!("pnpm@{PNPM_VERSION}"));
-    pnpm_config::version_policy::create_package_version_policy(&exclude_patterns)
-        .into_diagnostic()
-        .wrap_err("compile the minimum-release-age-exclude policy")
-        .map(Some)
-}
-
-/// The resolve options carrying the maturity and trust policies of the
-/// install path. `ignore_maturity` drops `publishedBy` so the lookup
-/// returns the registry's real `latest` tag.
-fn engine_resolve_options(config: &Config, ignore_maturity: bool) -> Result<ResolveOptions> {
-    let published_by = if ignore_maturity { None } else { engine_release_cutoff(config)? };
-    // The running version is already on this machine, so hiding it behind the
-    // maturity cutoff protects nothing — it only makes a dist-tag that points
-    // at it fall back to an older release, downgrading the user
-    // (pnpm/pnpm#13883).
-    let published_by_exclude =
-        if ignore_maturity { None } else { published_by_exclude_for_engine(config)? };
-    let trust_policy = match config.trust_policy {
-        pnpm_config::TrustPolicy::Off => None,
-        pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),
-    };
-    let trust_policy_exclude = config.trust_policy_exclude
-        .as_deref()
-        .filter(|patterns| !patterns.is_empty())
-        .map(pnpm_config::version_policy::create_package_version_policy)
-        .transpose()
-        .into_diagnostic()
-        .wrap_err("compile the trust-policy-exclude policy")?;
-
-    Ok(ResolveOptions {
-        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
-            default_tag: Some("latest".to_string()),
-            ..Default::default()
-        },
-        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            published_by,
-            published_by_exclude,
-            trust_policy,
-            trust_policy_exclude,
-            trust_policy_ignore_after: config.trust_policy_ignore_after,
-            ..Default::default()
-        },
-        ..ResolveOptions::default()
-    })
 }
 
 /// Add config dependencies: resolve + install them (merged with any
@@ -458,26 +417,9 @@ impl EnvInstallerContext {
 #[cfg(test)]
 mod tests;
 
-/// Fail closed when the configured maturity cutoff cannot be represented.
-fn engine_release_cutoff(config: &Config) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
-    Ok(match config.resolved_minimum_release_age() {
-        Some(minutes) => {
-            let minutes = i64::try_from(minutes)
-                .into_diagnostic()
-                .wrap_err("convert minimumReleaseAge to minutes")?;
-            let duration = chrono::Duration::try_minutes(minutes)
-                .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
-            Some(
-                chrono::Utc::now()
-                    .checked_sub_signed(duration)
-                    .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,
-            )
-        }
-        None => None,
-    })
-}
-
 mod hooks;
+
+mod engine_policy;
 
 impl EnvironmentNetwork {
     fn resolver(&self, config: &Config) -> NpmResolver<InMemoryPackageMetaCache> {

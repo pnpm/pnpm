@@ -69,9 +69,11 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => ({
 // the list of broken releases stays in a single place and these tests exercise
 // it rather than a copy.
 const actualEnginePmCommands = await import('@pnpm/engine.pm.commands')
+const maturePnpmVersionForRange = jest.fn<(config: Config, range: string) => Promise<string>>(async () => mockPackageManager.version)
 jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
   ...actualEnginePmCommands,
   installPnpmToStore,
+  maturePnpmVersionForRange,
   spawnPnpm,
 }))
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
@@ -92,6 +94,8 @@ beforeEach(() => {
   closeStore.mockClear()
   createStoreController.mockClear()
   installPnpmToStore.mockClear()
+  maturePnpmVersionForRange.mockClear()
+  maturePnpmVersionForRange.mockImplementation(async () => mockPackageManager.version)
   isPackageManagerResolved.mockClear()
   isPackageManagerResolved.mockReturnValue(true)
   readEnvLockfile.mockClear()
@@ -152,6 +156,34 @@ test('switchCliVersion resolves nothing when the running pnpm satisfies a pin th
   expect(readEnvLockfile).not.toHaveBeenCalled()
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(createStoreController).not.toHaveBeenCalled()
+  expect(spawnPnpm).not.toHaveBeenCalled()
+})
+
+test('switchCliVersion records the version minimumReleaseAge allows for a range pin and keeps running (#16431)', async () => {
+  mockPackageManager.version = '11.1.0'
+  readEnvLockfile.mockResolvedValue(null)
+  isPackageManagerResolved.mockReturnValue(false)
+  maturePnpmVersionForRange.mockResolvedValue('11.0.0')
+  const config = {
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDirMaxLength: 120,
+  } as unknown as Config
+
+  await switchCliVersion(config, {
+    rootProjectManifestDir: '/repo',
+    wantedPackageManager: {
+      fromDevEngines: true,
+      name: 'pnpm',
+      onFail: 'download',
+      version: '^11.0.0',
+    },
+  } as unknown as ConfigContext)
+
+  expect(maturePnpmVersionForRange).toHaveBeenCalledWith(config, '^11.0.0')
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('11.0.0', expect.objectContaining({
+    save: true,
+    specifier: '^11.0.0',
+  }))
   expect(spawnPnpm).not.toHaveBeenCalled()
 })
 
