@@ -149,7 +149,8 @@ where
     let sh_body = spec.sh_body(runtime.as_ref())?;
     let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
-    let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
+    let current = !spec.options.force
+        && shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
         && windows_shims_match::<Sys>(windows_shims.as_ref());
     if !current {
         replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;

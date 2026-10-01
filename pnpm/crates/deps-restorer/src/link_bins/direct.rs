@@ -43,6 +43,7 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
         Vec::new()
     };
     LinkBinsOptions {
+        force: false,
         extra_node_paths,
         prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
         relocatable_root: config.modules_dir_anchor().map(Path::to_path_buf),

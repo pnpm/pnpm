@@ -301,6 +301,8 @@ impl ShimTargetCache {
 /// `LinkBinOptions`.
 #[derive(Debug, Default, Clone)]
 pub struct LinkBinsOptions {
+    /// Rewrite shims after replacing a target's interpreter or native binary.
+    pub force: bool,
     /// pnpm's `extraNodePaths` — see [`link_bins_of_packages`].
     pub extra_node_paths: Vec<String>,
     /// pnpm's `preferSymlinkedExecutables`: on Unix, materialize each

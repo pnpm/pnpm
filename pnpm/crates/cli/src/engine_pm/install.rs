@@ -476,7 +476,8 @@ fn link_bins(pkg_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
         .into_diagnostic()
         .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
     let source = PackageBinSource::new(pkg_dir.to_path_buf(), Arc::new(manifest));
-    link_bins_of_packages::<CmdShimHost>(&[source], bin_dir, &LinkBinsOptions::default())
+    let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
+    link_bins_of_packages::<CmdShimHost>(&[source], bin_dir, &options)
         .map_err(miette::Report::new)
         .wrap_err("link the package manager bins")
 }
