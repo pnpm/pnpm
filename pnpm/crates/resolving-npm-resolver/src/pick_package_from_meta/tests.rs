@@ -17,6 +17,8 @@ use super::{
     pick_stable_cached_range_version, pick_version_by_version_range,
 };
 
+mod stable_cached_range;
+
 fn parse_iso(input: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
 }

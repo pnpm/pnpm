@@ -1,6 +1,6 @@
 use super::{
     DateTime, HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path,
-    TrustPolicy, Utc, VersionSelectors,
+    PolicyMatch, TrustPolicy, Utc, VersionSelectors,
 };
 
 /// Process-shared context every [`super::pick_package`] call reads from.
@@ -103,6 +103,19 @@ pub struct PackagePickPolicy<'a> {
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Trust-policy validation requires current registry metadata.
     pub trust_policy: Option<TrustPolicy>,
+}
+
+impl PackagePickPolicy<'_> {
+    /// Whether the `minimumReleaseAge` cutoff narrows the versions of
+    /// `name`. A package `minimumReleaseAgeExclude` lists without naming
+    /// versions is picked as if the cutoff were off.
+    pub(crate) fn release_age_applies_to(&self, name: &str) -> bool {
+        self.published_by.is_some()
+            && !matches!(
+                self.published_by_exclude.map(|policy| policy.matches(name)),
+                Some(PolicyMatch::AnyVersion),
+            )
+    }
 }
 
 #[derive(Clone, Copy)]
