@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 
 import { stageLogger } from '@pnpm/core-loggers'
+import * as dp from '@pnpm/deps.path'
 import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { logger } from '@pnpm/logger'
 import type { DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -118,7 +119,7 @@ async function hoistIntoModulesDirs (
   return await hoist({
     extraNodePath: opts.extraNodePaths,
     graph: depGraph.graph,
-    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(ctx, depGraph) : undefined,
+    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(ctx) : undefined,
     directDepsByImporterId: Object.fromEntries(Object.entries(depGraph.directDependenciesByImporterId).map(([projectId, deps]) => [
       projectId,
       new Map(Object.entries(deps)),
@@ -143,15 +144,23 @@ async function hoistIntoModulesDirs (
   }) ?? {}
 }
 
-function getDirectDependencyAliases ({ opts }: HeadlessContext, depGraph: HeadlessDepGraph): string[] {
-  return Object.entries(depGraph.directDependenciesByImporterId).flatMap(([projectId, dependencies]) => {
-    const importer = depGraph.filteredLockfile.importers[projectId as ProjectId]
+/**
+ * The aliases of every importer in the wanted lockfile, not only the selected
+ * ones, so that a filtered install hoists the same packages as a full one.
+ */
+function getDirectDependencyAliases ({ opts, skipped, wantedLockfile }: HeadlessContext): string[] {
+  return Object.values(wantedLockfile.importers).flatMap((importer) => {
     const refs = {
       ...(opts.include.devDependencies ? importer.devDependencies : {}),
       ...(opts.include.dependencies ? importer.dependencies : {}),
       ...(opts.include.dependencies && opts.include.optionalDependencies ? importer.optionalDependencies : {}),
     }
-    return Object.keys(dependencies).filter(alias => !refs[alias].startsWith('link:'))
+    return Object.entries(refs)
+      .filter(([alias, ref]) => {
+        const depPath = dp.refToRelative(ref, alias)
+        return depPath != null && !skipped.has(depPath)
+      })
+      .map(([alias]) => alias)
   })
 }
 

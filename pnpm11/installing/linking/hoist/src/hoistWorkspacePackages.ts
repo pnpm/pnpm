@@ -17,7 +17,7 @@ type WorkspaceRollback = (() => Promise<void>) | void
 export interface HoistWorkspacePackagesOpts<NodeId extends string> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<WorkspaceRollback>
   directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
-  /** Non-link direct dependency aliases, including packages omitted from an incremental graph. */
+  /** Non-link direct dependency aliases of every project, including packages omitted from an incremental or filtered graph. */
   directDependencyAliases?: Iterable<string>
   graph: DependenciesGraph<NodeId>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
@@ -41,7 +41,7 @@ type WorkspacePlacement = readonly [ProjectId, HoistedWorkspaceProject, HoistTyp
  * no dependency can run it on its own, without walking the graph again.
  *
  * A project loses its alias to a non-link direct dependency of any project,
- * including unchanged packages omitted from an incremental graph.
+ * including packages omitted from an incremental or filtered graph.
  */
 export async function hoistWorkspacePackages<NodeId extends string> (opts: HoistWorkspacePackagesOpts<NodeId>): Promise<HoistedDependencies> {
   if (opts.hoistedWorkspacePackages == null) {

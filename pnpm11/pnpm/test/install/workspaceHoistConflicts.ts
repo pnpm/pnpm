@@ -8,7 +8,12 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
-test.each([false, true])('frozen install and dedupe preserve a dependency sharing a workspace name (public hoist: %s)', async (publicHoist) => {
+test.each([
+  { publicHoist: false, filter: [] },
+  { publicHoist: true, filter: [] },
+  { publicHoist: false, filter: ['--filter', 'consumer'] },
+  { publicHoist: true, filter: ['--filter', 'consumer'] },
+])('frozen install and dedupe preserve a dependency sharing a workspace name (public hoist: $publicHoist, filter: $filter)', async ({ publicHoist, filter }) => {
   preparePackages([
     { location: '.', package: { name: 'root', private: true } },
     { location: 'packages/shared', package: { name: 'shared', version: '1.0.0' } },
@@ -25,14 +30,15 @@ test.each([false, true])('frozen install and dedupe preserve a dependency sharin
     publicHoistPattern: publicHoist ? ['*'] : [],
   })
   const requireFromVirtualStore = createRequire(path.resolve('node_modules/.pnpm/tool/node_modules/tool/index.js'))
+  const hoistedSharedIndex = path.join(publicHoist ? 'node_modules' : 'node_modules/.pnpm/node_modules', 'shared/index.js')
 
   await execPnpm(['install', '--offline'])
   expect(requireFromVirtualStore('shared')).toBe('external')
   const hoistedPackage = requireFromVirtualStore.resolve('shared')
 
-  await execPnpm(['install', '--frozen-lockfile', '--offline'])
-  expect(fs.realpathSync(path.join(publicHoist ? 'node_modules' : 'node_modules/.pnpm/node_modules', 'shared/index.js'))).toBe(hoistedPackage)
+  await execPnpm(['install', '--frozen-lockfile', '--offline', ...filter])
+  expect(fs.realpathSync(hoistedSharedIndex)).toBe(hoistedPackage)
 
   await execPnpm(['dedupe', '--offline'])
-  expect(fs.realpathSync(path.join(publicHoist ? 'node_modules' : 'node_modules/.pnpm/node_modules', 'shared/index.js'))).toBe(hoistedPackage)
+  expect(fs.realpathSync(hoistedSharedIndex)).toBe(hoistedPackage)
 })
