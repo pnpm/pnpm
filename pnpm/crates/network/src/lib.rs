@@ -474,6 +474,14 @@ impl ThrottledClient {
         downscaled
     }
 
+    /// [`Self::downscale_while_peers_active`] when `error` is a timeout.
+    /// Call it while the failed request's guard is still held.
+    pub fn downscale_on_timeout(&self, error: &reqwest::Error) {
+        if error.is_timeout() {
+            self.downscale_while_peers_active();
+        }
+    }
+
     /// Current in-flight cap. Test hook for [`Self::downscale_while_peers_active`].
     #[cfg(test)]
     pub(crate) fn concurrency_limit(&self) -> usize {

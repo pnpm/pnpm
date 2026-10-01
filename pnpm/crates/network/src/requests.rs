@@ -79,7 +79,8 @@ impl ThrottledClient {
         .await?;
         let status = response.status();
         let url = response.url().to_string();
-        let body = read_limited_body(response, body_limit).await?;
+        let body = read_limited_body(response, body_limit).await
+            .inspect_err(|error| self.downscale_on_timeout(error))?;
         Ok(SecureAuthResponse { status, body: body.bytes, body_truncated: body.truncated, url })
     }
 

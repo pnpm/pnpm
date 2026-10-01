@@ -285,9 +285,7 @@ where
     }
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| {
-            if error.is_timeout() {
-                inputs.http_client.downscale_while_peers_active();
-            }
+            inputs.http_client.downscale_on_timeout(&error);
             fetch_error(inputs.package_url, error)
         })?;
         buf.extend_from_slice(&chunk);
@@ -301,7 +299,7 @@ where
             continue;
         }
         if !inputs.is_gzip {
-            return Err(drain_non_gzip_body::<Reporter, _>(
+            let error = drain_non_gzip_body::<Reporter, _>(
                 stream,
                 progress,
                 buf,
@@ -309,7 +307,11 @@ where
                 inputs.package_url,
                 inputs.prefix.len,
             )
-            .await);
+            .await;
+            if error.is_fetch_timeout() {
+                inputs.http_client.downscale_while_peers_active();
+            }
+            return Err(error);
         }
         // The buffer's capacity has doubled past what arrived; hand the
         // extractor the bytes, not the headroom.

@@ -94,6 +94,8 @@ Controls the maximum number of HTTP(S) requests to process simultaneously.
 
 As of v10.24.0, pnpm automatically selects a value between 16 and 64 based on the number of workers (networkConcurrency = clamp(workers × 3, 16, 64)). Set this value explicitly to override the automatic scaling.
 
+If a request times out while other requests are still in flight, pnpm lowers the limit to one request for the rest of the command. Requests that are already running finish first.
+
 ### fetchRetries
 
 * Default: **2**

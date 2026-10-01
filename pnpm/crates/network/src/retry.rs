@@ -132,6 +132,30 @@ pub async fn send_with_retry<'client>(
 }
 
 /// [`send_with_retry`] queueing at an explicit `priority` — the way a
+/// caller opts its requests into the [`crate::BACKGROUND`] class.
+pub async fn send_with_retry_at_priority<'client>(
+    http_client: &'client ThrottledClient,
+    url: &str,
+    priority: u64,
+    retry_opts: RetryOpts,
+    mut build_request: impl FnMut(&Client) -> RequestBuilder,
+) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
+    let mut attempt = 0;
+    loop {
+        let client = http_client.acquire_for_url_with_priority(url, priority).await;
+        let response = build_request(&client).send().await;
+        match classify_response(http_client, url, attempt, retry_opts, response) {
+            AttemptOutcome::Success(response) => return Ok((client, response)),
+            AttemptOutcome::Fatal(error) => return Err(error),
+            AttemptOutcome::Retry(delay) => {
+                drop(client);
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            }
+        }
+    }
+}
+
 enum AttemptOutcome {
     Success(Response),
     Fatal(reqwest::Error),
@@ -153,39 +177,13 @@ fn classify_response(
         }
         Ok(res) => AttemptOutcome::Success(res),
         Err(err) => {
-            if err.is_timeout() {
-                http_client.downscale_while_peers_active();
-            }
+            http_client.downscale_on_timeout(&err);
             if attempt >= retry_opts.retries || is_permanent_error(&err) {
                 AttemptOutcome::Fatal(err)
             } else {
                 let delay = retry_opts.delay_for(attempt);
                 warn_retry_error(url, err, attempt, retry_opts, delay);
                 AttemptOutcome::Retry(delay)
-            }
-        }
-    }
-}
-
-/// caller opts its requests into the [`crate::BACKGROUND`] class.
-pub async fn send_with_retry_at_priority<'client>(
-    http_client: &'client ThrottledClient,
-    url: &str,
-    priority: u64,
-    retry_opts: RetryOpts,
-    mut build_request: impl FnMut(&Client) -> RequestBuilder,
-) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
-    let mut attempt = 0;
-    loop {
-        let client = http_client.acquire_for_url_with_priority(url, priority).await;
-        let response = build_request(&client).send().await;
-        match classify_response(http_client, url, attempt, retry_opts, response) {
-            AttemptOutcome::Success(response) => return Ok((client, response)),
-            AttemptOutcome::Fatal(error) => return Err(error),
-            AttemptOutcome::Retry(delay) => {
-                drop(client);
-                tokio::time::sleep(delay).await;
-                attempt += 1;
             }
         }
     }
