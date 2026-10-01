@@ -57,8 +57,8 @@ pub(super) fn link_into_legacy_home_dir(
     pnpm_home_dir: &Path,
     installed: &install_pnpm::InstallPnpmResult,
 ) -> miette::Result<bool> {
-    // The lock would create a missing PNPM_HOME, so look before taking it.
-    if !pnpm_home_dir.join(STANDALONE_EXECUTABLE).is_file() {
+    // The lock would create a missing PNPM_HOME.
+    if !pnpm_home_dir.is_dir() {
         return Ok(false);
     }
     let _lock = crate::cli_args::global_bin_lock::acquire_global_bin_lock(pnpm_home_dir)?;

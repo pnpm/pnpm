@@ -247,6 +247,28 @@ fn self_update_replaces_a_standalone_executable_in_the_pnpm_home_dir() {
 }
 
 #[test]
+fn self_update_removes_an_executable_retired_from_the_pnpm_home_dir_by_an_earlier_update() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join(".pnpm.exe.1.retired"), b"retired by an earlier update").unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(!pnpm_home_dir.join(".pnpm.exe.1.retired").exists());
+}
+
+#[test]
+fn self_update_does_not_create_a_missing_pnpm_home_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(!pnpm_home_dir.exists());
+}
+
+#[test]
 fn self_update_keeps_a_native_shim_named_pnpm() {
     let root = tempfile::tempdir().unwrap();
     let pnpm_home_dir = root.path().join("pnpm-home");
