@@ -325,7 +325,7 @@ test('hoistPeers keeps demoting a lockfile-only version that another importer re
 test('hoistPeers hoists a peer named constructor when no lockfile pins it', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
-    allPreferredVersions: { constructor: { '1.0.0': 'version' } },
+    allPreferredVersions: { constructor: { '1.0.0': 'version' as const } },
     lockfileOnlyVersions: getLockfileOnlyVersions({}),
     workspaceRootDeps: [],
   }, [['constructor', { range: '1' }]])).toStrictEqual({
