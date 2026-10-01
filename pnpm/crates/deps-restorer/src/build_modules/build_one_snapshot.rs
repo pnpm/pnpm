@@ -1,6 +1,7 @@
 //! Running one package's build scripts.
 
-mod dangling_links;
+mod linked_copies;
+use linked_copies::{LinkTargets, UnlinkError, unlink_project_links};
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
@@ -368,12 +369,16 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !context.directories.layout.enable_global_virtual_store()
                 || (context.rebuild.is_none() && slot_lock.is_some())
             {
+                let targets = LinkTargets::resolve(&context.pkg_roots().all(snapshot_key));
+                unlink_project_links(context, &targets)
+                    .map_err(|UnlinkError { path, source }| {
+                        BuildModulesError::RemoveSkippedOptionalDependency { path, source }
+                    })?;
                 discard_skipped_optional_dependency(
                     context.pkg_roots(),
                     context.directories.lockfile_dir,
                     snapshot_key,
                 )?;
-                dangling_links::remove_dangling_links(context, snapshot_key, name)?;
             }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
