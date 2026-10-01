@@ -440,14 +440,17 @@ pub fn to_resolved_declarations(
     lookups: &RegistryLookups,
 ) -> IndexMap<String, RegistryDeclaration> {
     let mut declarations = to_declarations(lookups);
+    // A prefix route keeps the URL as written, so the entry it made may be
+    // keyed without the trailing slash the cap's key carries.
+    let declared_keys: BTreeMap<String, String> = declarations
+        .keys()
+        .map(|declared| (normalize_registry_url(declared), declared.clone()))
+        .collect();
     for (registry, limit) in &lookups.network_concurrency_by_registry {
-        // A prefix route keeps the URL as written, so the entry it made may be
-        // keyed without the trailing slash the cap's key carries.
-        let key = declarations
-            .keys()
-            .find(|declared| normalize_registry_url(declared) == *registry)
-            .cloned()
-            .unwrap_or_else(|| registry.clone());
+        let key = declared_keys
+            .get(registry)
+            .unwrap_or(registry)
+            .clone();
         declarations.entry(key).or_default().network_concurrency = Some(*limit);
     }
     if let Some(default_registry) = &lookups.default_registry {

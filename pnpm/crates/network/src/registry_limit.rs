@@ -55,6 +55,11 @@ impl RegistryLimits {
         let slots = self.by_origin.get(&origin_of(url)?)?;
         Some(slots.acquire(priority).await)
     }
+
+    #[cfg(test)]
+    pub(crate) fn slots_for(&self, url: &str) -> Option<&PrioritySemaphore> {
+        self.by_origin.get(&origin_of(url)?)
+    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+use super::RegistryLimits;
 use crate::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
 use std::{collections::BTreeMap, num::NonZeroUsize, time::Duration};
 
@@ -59,7 +60,7 @@ async fn a_capped_registry_serves_queued_metadata_before_queued_downloads() {
             order.lock().unwrap().push("download");
         }
     });
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    wait_for_waiters(&client, "https://slow.example/", 1).await;
     let metadata = tokio::spawn({
         let (client, order) = (std::sync::Arc::clone(&client), std::sync::Arc::clone(&order));
         async move {
@@ -67,15 +68,31 @@ async fn a_capped_registry_serves_queued_metadata_before_queued_downloads() {
             order.lock().unwrap().push("metadata");
         }
     });
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    wait_for_waiters(&client, "https://slow.example/", 2).await;
     drop(held);
     metadata.await.unwrap();
     download.await.unwrap();
     assert_eq!(*order.lock().unwrap(), vec!["metadata", "download"]);
 }
 
-#[tokio::test]
-async fn a_registry_limit_above_the_global_limit_is_held_to_it() {
-    let client = client_with_registry_limits(&[("https://huge.example/", usize::MAX)]);
-    assert!(is_granted_soon(&client, "https://huge.example/pkg").await);
+async fn wait_for_waiters(client: &ThrottledClient, url: &str, count: usize) {
+    let slots = client.origin_limits
+        .registries()
+        .slots_for(url)
+        .expect("the registry is capped");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while slots.queued_waiters() < count {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the requests queue at the registry cap");
+}
+
+#[test]
+fn a_registry_limit_above_the_global_limit_is_held_to_it() {
+    let limits = BTreeMap::from([("https://huge.example/".to_owned(), NonZeroUsize::MAX)]);
+    let registries = RegistryLimits::new(&limits, 16);
+    let slots = registries.slots_for("https://huge.example/pkg").expect("the registry is capped");
+    assert_eq!(slots.available_permits(), 16);
 }
