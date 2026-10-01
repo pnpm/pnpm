@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Commands in a project that pins pnpm and sets `nodeVersion` to a different Node.js major than the one on `PATH` now reuse the pinned pnpm once it is installed. Previously, every command reinstalled it from the registry and failed offline [#16497](https://github.com/pnpm/pnpm/issues/16497).
+pnpm no longer downloads the project's pinned pnpm version again on every command when `nodeVersion` in `pnpm-workspace.yaml` names a different Node.js major than the `node` on `PATH`. Before, each of those commands took about a second longer and failed without network access [#16497](https://github.com/pnpm/pnpm/issues/16497).
