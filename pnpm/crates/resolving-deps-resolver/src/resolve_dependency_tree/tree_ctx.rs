@@ -527,10 +527,10 @@ impl TreeCtx {
         out
     }
 
-    /// [`crate::hoist_peers::optional_peer_version_tiers`] for each of
+    /// [`crate::hoist_peers::peer_version_tiers`] for each of
     /// `names`, from the `locked` versions and the versions this run has
     /// resolved into the settled reachable tree.
-    pub(crate) fn optional_peer_version_tiers<'name>(
+    pub(crate) fn peer_version_tiers<'name>(
         &self,
         locked: &HashMap<String, HashSet<String>>,
         names: impl Iterator<Item = &'name str>,
@@ -543,7 +543,7 @@ impl TreeCtx {
                 .into_iter()
                 .flat_map(|bucket| bucket.keys().cloned())
                 .collect();
-            let tiers = crate::hoist_peers::optional_peer_version_tiers(locked.get(name), resolved);
+            let tiers = crate::hoist_peers::peer_version_tiers(locked.get(name), resolved);
             if !tiers.is_empty() {
                 out.insert(name.to_string(), tiers);
             }
