@@ -83,8 +83,8 @@ impl GlobalCli {
                 "name": "project",
                 "version": "1.0.0",
                 "scripts": {
-                    "exit-3": "node -e \"process.exit(3)\"",
-                    "exit-0": "node -e \"\"",
+                    "exit-3": r#"node -e "process.exit(3)""#,
+                    "exit-0": r#"node -e """#,
                     "print-args": "node print-args.js",
                 },
             })
@@ -128,7 +128,7 @@ impl GlobalCli {
     /// cmd.exe as written.
     fn via_cmd(&self, command_line: &str) -> Command {
         let mut command = self.isolated(Command::new("cmd.exe"));
-        command.raw_arg(format!("/d /c \"\"{}\" {command_line}\"", self.shim().display()));
+        command.raw_arg(format!(r#"/d /c ""{}" {command_line}""#, self.shim().display()));
         command
     }
 
@@ -169,7 +169,7 @@ fn printed_args(output: &Output) -> Vec<Vec<String>> {
 
 /// `cmd.exe` quoting for `arg`, as a user types it.
 fn cmd_quoted(arg: &str) -> String {
-    format!("\"{arg}\"")
+    format!(r#""{arg}""#)
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn the_exit_code_of_a_script_leaves_the_shim_unchanged() {
         fs::write(&driver, format!("@call pnpm run {script}\r\n@echo errorlevel=%ERRORLEVEL%\r\n"))
             .expect("write the errorlevel driver");
         let mut command = cli.isolated(Command::new("cmd.exe"));
-        command.raw_arg(format!("/d /c \"{}\"", driver.display()));
+        command.raw_arg(format!(r#"/d /c "{}""#, driver.display()));
         let from_batch = run(command);
         assert!(
             String::from_utf8_lossy(&from_batch.stdout).contains(&format!("errorlevel={code}")),
@@ -252,7 +252,7 @@ fn arguments_from_powershell_reach_pnpm() {
 #[test]
 fn stdin_reaches_the_command_pnpm_runs() {
     let cli = GlobalCli::install();
-    let pipe_through = "exec node -e \"process.stdin.pipe(process.stdout)\"";
+    let pipe_through = r#"exec node -e "process.stdin.pipe(process.stdout)""#;
 
     let mut child = cli
         .via_cmd(pipe_through)
@@ -300,7 +300,7 @@ fn ctrl_break_ends_the_shim_without_asking_to_terminate_a_batch_job() {
             "name": "project",
             "version": "1.0.0",
             "scripts": {
-                "dev": "node -e \"require('fs').writeFileSync('started.txt', ''); setInterval(() => {}, 1000)\"",
+                "dev": r#"node -e "require('fs').writeFileSync('started.txt', ''); setInterval(() => {}, 1000)""#,
             },
         })
         .to_string(),
@@ -326,7 +326,7 @@ fn ctrl_break_ends_the_shim_without_asking_to_terminate_a_batch_job() {
                 .try_wait()
                 .expect("poll cmd")
                 .is_none(),
-            "cmd exited before the script ran"
+            "cmd exited before the script ran",
         );
         sleep(Duration::from_millis(50));
     }
