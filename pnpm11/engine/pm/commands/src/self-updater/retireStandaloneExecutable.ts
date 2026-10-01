@@ -63,8 +63,26 @@ async function removeRetiredExecutables (dir: string): Promise<void> {
     throw err
   }
   await Promise.all(fileNames
-    .filter((fileName) => fileName.startsWith(`.${STANDALONE_EXECUTABLE}.`) && fileName.endsWith(RETIRED_EXECUTABLE_SUFFIX))
+    .filter(isRetiredByEndedProcess)
     .map((fileName) => removeRetiredExecutable(path.join(dir, fileName))))
+}
+
+// A retired executable is named after the process that retired it. While
+// that process runs, it may still need the file to restore pnpm.exe.
+function isRetiredByEndedProcess (fileName: string): boolean {
+  const prefix = `.${STANDALONE_EXECUTABLE}.`
+  if (!fileName.startsWith(prefix) || !fileName.endsWith(RETIRED_EXECUTABLE_SUFFIX)) return false
+  const pid = Number(fileName.slice(prefix.length, -RETIRED_EXECUTABLE_SUFFIX.length))
+  return !Number.isInteger(pid) || !isProcessRunning(pid)
+}
+
+function isProcessRunning (pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err: unknown) {
+    return isError(err) && 'code' in err && err.code === 'EPERM'
+  }
 }
 
 async function removeRetiredExecutable (retired: string): Promise<void> {

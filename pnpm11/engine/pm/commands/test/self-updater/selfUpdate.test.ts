@@ -236,7 +236,7 @@ test('self-update replaces a standalone pnpm.exe that pnpm v10 installed at pnpm
   // pnpm/pnpm#9094
   const opts = prepare()
   fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.exe'), 'old standalone pnpm')
-  fs.writeFileSync(path.join(opts.pnpmHomeDir, '.pnpm.exe.1.retired'), 'retired by an earlier update')
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, `.pnpm.exe.${pidOfEndedProcess()}.retired`), 'retired by an earlier update')
   mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
 
   await runOnWindows(() => selfUpdate.handler(opts, []))
@@ -264,6 +264,24 @@ test('self-update replaces a standalone pnpm.exe in the global bin directory', a
   expect(fs.readdirSync(opts.bin).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
   expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm'))).toBe(false)
 })
+
+test('self-update keeps a pnpm.exe retired by a process that is still running', async () => {
+  const opts = prepare()
+  fs.mkdirSync(opts.bin, { recursive: true })
+  const retiredByRunningProcess = path.join(opts.bin, `.pnpm.exe.${process.pid}.retired`)
+  fs.writeFileSync(retiredByRunningProcess, 'retired by an update in progress')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.existsSync(retiredByRunningProcess)).toBe(true)
+})
+
+function pidOfEndedProcess (): number {
+  const { pid } = spawn.sync(process.execPath, ['-e', ''])
+  if (pid == null) throw new Error('Expected the spawned process to have a pid')
+  return pid
+}
 
 async function runOnWindows<Result> (fn: () => Promise<Result>): Promise<Result> {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')
