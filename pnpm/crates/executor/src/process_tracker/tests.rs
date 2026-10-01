@@ -108,7 +108,7 @@ fn a_replaced_watchdog_takes_over_the_groups_of_the_one_that_died() {
         watch
             .watch(leaders[0].id())
             .expect("watch the group"),
-        "`sh` is available"
+        "`sh` is available",
     );
     let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
     // SAFETY: `dead` is this process's own child, the watchdog started
@@ -122,7 +122,7 @@ fn a_replaced_watchdog_takes_over_the_groups_of_the_one_that_died() {
         watch
             .watch(leaders[1].id())
             .expect("watch the group"),
-        "`sh` is available"
+        "`sh` is available",
     );
     drop(watch);
 
