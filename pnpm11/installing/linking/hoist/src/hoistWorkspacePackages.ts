@@ -17,6 +17,8 @@ type WorkspaceRollback = (() => Promise<void>) | void
 export interface HoistWorkspacePackagesOpts<NodeId extends string> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<WorkspaceRollback>
   directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
+  /** Non-link direct dependency aliases of every project, including packages omitted from an incremental or filtered graph. */
+  directDependencyAliases?: Iterable<string>
   graph: DependenciesGraph<NodeId>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
   occupiedAliases?: OccupiedAliases
@@ -38,9 +40,8 @@ type WorkspacePlacement = readonly [ProjectId, HoistedWorkspaceProject, HoistTyp
  * for a workspace that installs nothing from a registry, and an install that changes
  * no dependency can run it on its own, without walking the graph again.
  *
- * A project loses its alias to a direct dependency of any project, which is hoisted
- * from the graph instead. A dependency with no node in the graph, a `workspace:`
- * link among them, claims nothing: the graph walk skips it too.
+ * A project loses its alias to a non-link direct dependency of any project,
+ * including packages omitted from an incremental or filtered graph.
  */
 export async function hoistWorkspacePackages<NodeId extends string> (opts: HoistWorkspacePackagesOpts<NodeId>): Promise<HoistedDependencies> {
   if (opts.hoistedWorkspacePackages == null) {
@@ -64,6 +65,7 @@ function selectWorkspacePlacementCandidates<NodeId extends string> (
 ): WorkspacePlacementCandidate[] {
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
   const aliasesTakenByDependencies = collectAliasesTakenByDependencies(opts.graph, opts.directDepsByImporterId)
+  for (const alias of opts.directDependencyAliases ?? []) aliasesTakenByDependencies.add(alias.toLowerCase())
   const placementCandidates: WorkspacePlacementCandidate[] = []
   for (const [projectId, project] of Object.entries(hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
     const { name } = project
