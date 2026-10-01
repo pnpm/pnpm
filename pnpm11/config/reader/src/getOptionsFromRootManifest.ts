@@ -85,6 +85,7 @@ export function getOptionsFromPnpmSettings (
   if (settings.allowBuilds != null) {
     assertValidAllowBuilds(settings.allowBuilds)
   }
+  assertOptionalBoolean(settings.allowUnusedPatches, 'allowUnusedPatches')
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)

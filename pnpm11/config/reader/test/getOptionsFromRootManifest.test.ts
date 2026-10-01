@@ -925,3 +925,14 @@ test('getOptionsFromPnpmSettings() treats a null allowBuilds as unset', () => {
   })
   expect(options.allowBuilds).toBeNull()
 })
+
+test.each(['false', 'true', 1, 0, [], {}])('getOptionsFromPnpmSettings() rejects non-boolean allowUnusedPatches %p', (allowUnusedPatches) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowUnusedPatches: allowUnusedPatches as unknown as boolean,
+  })).toThrow(/The "allowUnusedPatches" setting should be a boolean/)
+})
+
+test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnusedPatches %p', (allowUnusedPatches) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), { allowUnusedPatches })
+  expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
+})
