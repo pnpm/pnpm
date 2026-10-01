@@ -979,3 +979,39 @@ test('a repeat hoisted install relinks a workspace project dependency whose root
 
   expect((await readPackageJsonFromDir(rootEntry)).version).toBe('1.0.0')
 })
+
+test('a failed optional build leaves no link, and a repeat install does not rerun it', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { '@pnpm.e2e/failing-postinstall': true } })
+
+  expect(execPnpmSync(['install']).stdout.toString()).toContain('postinstall')
+  expect(fs.lstatSync(path.resolve('node_modules/@pnpm.e2e/failing-postinstall'), { throwIfNoEntry: false })).toBeUndefined()
+
+  const { status, stdout } = execPnpmSync(['install'])
+
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Already up to date')
+  expect(stdout.toString()).not.toContain('postinstall')
+})
+
+test('a repeat install relinks an optional dependency whose link points to a missing target', async () => {
+  prepare({
+    optionalDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const optionalLink = path.resolve('node_modules/is-positive')
+  fs.rmSync(optionalLink)
+  fs.symlinkSync(path.resolve('node_modules/.pnpm/is-positive@0.0.0'), optionalLink, 'junction')
+
+  await execPnpm(['install'])
+
+  expect((await readPackageJsonFromDir(optionalLink)).version).toBe('1.0.0')
+})
