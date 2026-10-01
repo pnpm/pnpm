@@ -29,7 +29,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmExeRunsOn, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -1802,6 +1802,39 @@ describe('pnpmPackageNameToInstall', () => {
     // asserts v11 and earlier are not forced onto a different package.
     expect(pnpmPackageNameToInstall('11.9.0')).toBe('pnpm')
     expect(pnpmPackageNameToInstall('9.1.0')).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on x64 musl installs the JavaScript pnpm where @pnpm/exe has no musl binary', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('11.0.0-rc.3', running)).toBe('@pnpm/exe')
+    expect(pnpmPackageNameToInstall('12.0.0', running)).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on glibc Linux keeps @pnpm/exe', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'glibc' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('@pnpm/exe')
+  })
+})
+
+describe('pnpmExeRunsOn', () => {
+  const alpineX64 = { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' }
+
+  test.each(['11.0.0-rc.2', '10.34.4', '6.17.1'])('@pnpm/exe@%s ships no x64 musl binary', (version) => {
+    expect(pnpmExeRunsOn(version, alpineX64)).toBe(false)
+  })
+
+  test.each(['11.0.0-rc.3', '11.0.0-rc.4', '11.0.0', '11.26.0'])('@pnpm/exe@%s ships an x64 musl binary', (version) => {
+    expect(pnpmExeRunsOn(version, alpineX64)).toBe(true)
+  })
+
+  test('no pre-v12 @pnpm/exe runs on arm64 musl', () => {
+    expect(pnpmExeRunsOn('11.26.0', { platform: 'linux', arch: 'arm64', libcFamily: 'musl' })).toBe(false)
+  })
+
+  test('glibc Linux and other platforms are unaffected', () => {
+    expect(pnpmExeRunsOn('10.34.4', { platform: 'linux', arch: 'x64', libcFamily: 'glibc' })).toBe(true)
+    expect(pnpmExeRunsOn('10.34.4', { platform: 'darwin', arch: 'arm64', libcFamily: null })).toBe(true)
   })
 })
 

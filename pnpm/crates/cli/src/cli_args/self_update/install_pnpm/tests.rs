@@ -1,10 +1,10 @@
 #[cfg(unix)]
 use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
-    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
-    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
-    package_dir, pnpm_package_to_install, pnpm_package_to_install_on, reuse_cached_engine,
-    run_install,
+    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, PnpmPackageToInstall, assert_release_is_installable,
+    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, finalize_engine_install,
+    link_exe_platform_binary, package_dir, pnpm_package_to_install, pnpm_package_to_install_on,
+    reuse_cached_engine, run_install,
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
@@ -159,26 +159,35 @@ fn next_platform_dir_names() {
     assert_eq!(exe_platform_pkg_dir_name_next("linux", "arm64", "musl"), "exe.linux-arm64-musl");
 }
 
+/// Resolve on a host every pre-v12 `@pnpm/exe` has a binary for, so the
+/// layout tests don't depend on the machine running them.
+fn pnpm_package_to_install_on_glibc_x64(version: &str) -> PnpmPackageToInstall {
+    pnpm_package_to_install_on(version, "linux", "x64", "glibc")
+}
+
 #[test]
 fn target_package_name_matches_pnpm_engine_layout() {
-    assert_eq!(pnpm_package_to_install("12.0.0-alpha.1").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("12.0.0").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("11.10.0").name, PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("10.34.4").name, PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("6.17.1").name, PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("6.16.0").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("5.18.10").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("not-semver").name, PNPM_EXE_PACKAGE_NAME);
+    let package_name = |version| pnpm_package_to_install_on_glibc_x64(version).name;
+    assert_eq!(package_name("12.0.0-alpha.1"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("12.0.0"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("11.10.0"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(package_name("10.34.4"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(package_name("6.17.1"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(package_name("6.16.0"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("5.18.10"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("not-semver"), PNPM_EXE_PACKAGE_NAME);
 }
 
 #[test]
 fn native_binary_linking_matches_pnpm_engine_layout() {
-    assert!(pnpm_package_to_install("12.0.0-alpha.1").links_native_binary);
-    assert!(pnpm_package_to_install("11.10.0").links_native_binary);
-    assert!(pnpm_package_to_install("6.17.1").links_native_binary);
-    assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
-    assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
-    assert!(pnpm_package_to_install("not-semver").links_native_binary);
+    let links_native_binary =
+        |version| pnpm_package_to_install_on_glibc_x64(version).links_native_binary;
+    assert!(links_native_binary("12.0.0-alpha.1"));
+    assert!(links_native_binary("11.10.0"));
+    assert!(links_native_binary("6.17.1"));
+    assert!(!links_native_binary("6.16.0"));
+    assert!(!links_native_binary("5.18.10"));
+    assert!(links_native_binary("not-semver"));
 }
 
 #[test]
@@ -198,6 +207,36 @@ fn arm64_musl_runs_the_javascript_pnpm_below_v12() {
         assert_eq!(package.name, PNPM_EXE_PACKAGE_NAME, "{arch} {libc}");
         assert!(package.links_native_binary, "{arch} {libc}");
     }
+}
+
+#[test]
+fn x64_musl_runs_the_javascript_pnpm_before_pnpm_exe_shipped_a_musl_binary() {
+    let on_alpine_x64 = |version| pnpm_package_to_install_on(version, "linux", "x64", "musl");
+    for version in ["11.0.0-rc.2", "10.34.4", "6.17.1"] {
+        let package = on_alpine_x64(version);
+        assert_eq!(package.name, PNPM_PACKAGE_NAME, "{version}");
+        assert!(!package.links_native_binary, "{version}");
+    }
+    for version in ["11.0.0-rc.3", "11.0.0-rc.4", "11.0.0", "11.26.0"] {
+        let package = on_alpine_x64(version);
+        assert_eq!(package.name, PNPM_EXE_PACKAGE_NAME, "{version}");
+        assert!(package.links_native_binary, "{version}");
+    }
+
+    let on_glibc_x64 = pnpm_package_to_install_on("10.34.4", "linux", "x64", "glibc");
+    assert_eq!(on_glibc_x64.name, PNPM_EXE_PACKAGE_NAME);
+    assert!(on_glibc_x64.links_native_binary);
+}
+
+#[test]
+fn a_javascript_engine_that_cannot_start_is_not_finalized() {
+    let install_dir = tempfile::tempdir().expect("create install dir");
+    write_javascript_engine_bin(install_dir.path(), "10.34.4", "process.exit(1)\n");
+    let package = PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false };
+
+    let err = finalize_engine_install(install_dir.path(), package, "10.34.4").unwrap_err();
+
+    assert!(err.to_string().contains("exited with code 1"), "{err}");
 }
 
 /// Lay out a fake engine install: the `pnpm` wrapper and, under
@@ -530,11 +569,36 @@ fn reuse_global_engine_skips_pnpm_exe_where_the_javascript_pnpm_is_wanted() {
     assert!(reused.is_none(), "the native engine is not reused");
 
     let install_dir = seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "11.26.0", false);
+    write_javascript_engine_bin(&install_dir, "11.26.0", "process.exit(0)\n");
     let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "11.26.0")
         .expect("scan the global packages dir")
         .expect("the JavaScript pnpm is reused");
     assert_eq!(reused.package_name, PNPM_PACKAGE_NAME);
     assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_skips_a_javascript_pnpm_that_cannot_start() {
+    let javascript_pnpm = pnpm_package_to_install_on("10.34.4", "linux", "x64", "musl");
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    let install_dir = seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "10.34.4", false);
+    write_javascript_engine_bin(&install_dir, "10.34.4", "process.exit(1)\n");
+
+    let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "10.34.4")
+        .expect("scan the global packages dir");
+
+    assert!(reused.is_none(), "a JavaScript pnpm that cannot start is not reused");
+}
+
+/// Give a seeded JavaScript engine a `pnpm` bin running `script`.
+fn write_javascript_engine_bin(install_dir: &std::path::Path, version: &str, script: &str) {
+    let package_dir = package_dir(install_dir, PNPM_PACKAGE_NAME);
+    fs::create_dir_all(package_dir.join("bin")).expect("create bin dir");
+    fs::write(package_dir.join("bin/pnpm.cjs"), script).expect("write bin");
+    let manifest =
+        format!(r#"{{"name":"pnpm","version":"{version}","bin":{{"pnpm":"bin/pnpm.cjs"}}}}"#);
+    fs::write(package_dir.join("package.json"), manifest).expect("write manifest");
 }
 
 #[cfg(unix)]

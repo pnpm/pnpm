@@ -15,6 +15,7 @@ use super::SelfUpdateError;
 use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
 
+use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
 use pnpm_global::{
     GlobalPackageInfo, clean_orphaned_install_dirs, create_install_dir, scan_global_packages,
@@ -94,40 +95,86 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
 /// Fail unless the engine installed at `install_dir` can execute — a release can
 /// install cleanly and still not run, when its wrapper kept the placeholder bin
 /// of a platform package that shipped without a native.
-///
-/// Only that it runs is asserted; reading `--version` output would tie the check
-/// to whatever startup decides to print.
 pub(super) fn assert_pnpm_runs(
     install_dir: &Path,
     package_name: &str,
     version: &str,
 ) -> miette::Result<()> {
     let executable = pnpm_executable_path(install_dir, package_name);
+    let reason = engine_failure(Command::new(&executable), ToString::to_string)?;
+    reject_broken_install(reason, &executable, version)
+}
+
+/// [`assert_pnpm_runs`] for the JavaScript `pnpm`, which the global command
+/// starts through Node.js, so a host without Node.js cannot run it.
+pub(super) fn assert_javascript_pnpm_runs(
+    install_dir: &Path,
+    package_name: &str,
+    version: &str,
+) -> miette::Result<()> {
+    let package_dir = package_dir(install_dir, package_name);
+    let Some(bin) = javascript_pnpm_bin(&package_dir) else {
+        let reason = Some("its package declares no pnpm bin".to_string());
+        return reject_broken_install(reason, &package_dir, version);
+    };
+    let mut command = Command::new("node");
+    command.arg(&bin);
+    let reason = engine_failure(command, |err| format!("Node.js could not be started: {err}"))?;
+    reject_broken_install(reason, &bin, version)
+}
+
+fn javascript_pnpm_bin(package_dir: &Path) -> Option<PathBuf> {
+    let text = fs::read_to_string(package_dir.join("package.json")).ok()?;
+    let manifest: Value = parse_manifest(&text).ok()?;
+    get_bins_from_package_manifest::<CmdShimHost>(&manifest, package_dir)
+        .into_iter()
+        .find(|bin| bin.name == "pnpm")
+        .map(|bin| bin.path)
+}
+
+/// Run `command --version` and report why it failed, if it did, describing a
+/// failure to start with `describe_spawn_error`.
+///
+/// Only that it runs is asserted; reading `--version` output would tie the check
+/// to whatever startup decides to print.
+fn engine_failure(
+    mut command: Command,
+    describe_spawn_error: impl FnOnce(&std::io::Error) -> String,
+) -> miette::Result<Option<String>> {
     // pnpm prints its version only after loading config and switching versions,
     // so probing from the caller's directory answers with their pin rather than
     // the release under test.
     let probe_dir = tempfile::tempdir()
         .into_diagnostic()
         .wrap_err("create a directory to check the installed pnpm from")?;
-    let reason = match Command::new(&executable)
+    let output = match command
         .arg("--version")
         .current_dir(probe_dir.path())
         .output()
     {
-        Err(err) => err.to_string(),
-        Ok(output) if !output.status.success() => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stderr = stderr.trim();
-            let code = output.status
-                .code()
-                .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
-            if stderr.is_empty() {
-                format!("it exited with {code}")
-            } else {
-                format!("it exited with {code}: {stderr}")
-            }
-        }
-        Ok(_) => return Ok(()),
+        Err(err) => return Ok(Some(describe_spawn_error(&err))),
+        Ok(output) if output.status.success() => return Ok(None),
+        Ok(output) => output,
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = stderr.trim();
+    let code = output.status
+        .code()
+        .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+    Ok(Some(if stderr.is_empty() {
+        format!("it exited with {code}")
+    } else {
+        format!("it exited with {code}: {stderr}")
+    }))
+}
+
+fn reject_broken_install(
+    reason: Option<String>,
+    executable: &Path,
+    version: &str,
+) -> miette::Result<()> {
+    let Some(reason) = reason else {
+        return Ok(());
     };
     Err(SelfUpdateError::BrokenPnpmInstall {
         version: version.to_string(),
@@ -213,7 +260,10 @@ fn reuse_global_engine(
 
 /// Whether an existing global slot at `install_dir` can be reused for
 /// `version` instead of reinstalling: it records the target version and,
-/// for native engines, its wrapper's platform binary relinks cleanly.
+/// for native engines, its wrapper's platform binary relinks cleanly. A
+/// JavaScript engine must pass [`assert_javascript_pnpm_runs`], as a fresh
+/// install does, since Node.js may be gone or the slot damaged since it was
+/// installed.
 ///
 /// The relink is best-effort *on the reuse decision only* — it does not
 /// weaken any check. [`link_exe_platform_binary`]'s wrapper-containment
@@ -222,7 +272,7 @@ fn reuse_global_engine(
 /// reports that refusal as "not reusable" (returning `false`) instead of
 /// propagating it as a hard error, so the caller falls through to a fresh
 /// install rather than aborting the whole self-update. Nothing from the
-/// rejected slot is linked or executed: the fresh install downloads and
+/// rejected slot is linked: the fresh install downloads and
 /// signature-verifies the engine into a new self-contained slot (see
 /// `verify_pnpm_engine_identity` in the `self-update` handler), and the
 /// rejected slot is never returned.
@@ -235,7 +285,11 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
     if installed_version(install_dir, package.name).as_deref() != Some(version) {
         return false;
     }
-    !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
+    if package.links_native_binary {
+        link_exe_platform_binary(install_dir, package.name).is_ok()
+    } else {
+        assert_javascript_pnpm_runs(install_dir, package.name, version).is_ok()
+    }
 }
 
 /// Whether `version` can be installed at all. False for versions whose
@@ -276,19 +330,35 @@ fn pnpm_package_to_install_on(
     if version.major >= 12 {
         return PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: true };
     }
-    if version_gte(&version, PNPM_EXE_INTRODUCED) && pnpm_exe_runs_on(platform, arch, libc) {
+    if version_gte(&version, PNPM_EXE_INTRODUCED)
+        && pnpm_exe_runs_on(&version, platform, arch, libc)
+    {
         PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true }
     } else {
         PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false }
     }
 }
 
-/// Whether `@pnpm/exe` below v12 has a working binary for the host. On
-/// arm64 musl Linux it ships either none or one that segfaults at startup
-/// (<https://github.com/pnpm/pnpm/issues/10443>), so the JavaScript `pnpm`
-/// runs there instead.
-fn pnpm_exe_runs_on(platform: &str, arch: &str, libc: &str) -> bool {
-    !(platform == "linux" && arch == "arm64" && libc == "musl")
+/// Whether `@pnpm/exe` of the given pre-v12 `version` has a working binary
+/// for the host. On musl Linux the JavaScript `pnpm` runs instead unless the
+/// release ships a musl binary that works: on arm64 none does, as it is
+/// either missing or segfaults at startup
+/// (<https://github.com/pnpm/pnpm/issues/10443>), and on x64 the first is
+/// `11.0.0-rc.3` (<https://github.com/pnpm/pnpm/issues/16467>).
+fn pnpm_exe_runs_on(
+    version: &node_semver::Version,
+    platform: &str,
+    arch: &str,
+    libc: &str,
+) -> bool {
+    if platform != "linux" || libc != "musl" {
+        return true;
+    }
+    arch == "x64" && *version >= first_pnpm_exe_with_x64_musl_binary()
+}
+
+fn first_pnpm_exe_with_x64_musl_binary() -> node_semver::Version {
+    node_semver::Version::parse("11.0.0-rc.3").expect("valid semver literal")
 }
 
 fn version_gte(version: &node_semver::Version, minimum: (u64, u64, u64)) -> bool {
@@ -395,7 +465,8 @@ pub(crate) fn package_dir(install_dir: &Path, package_name: &str) -> PathBuf {
     package_dir
 }
 
-/// Link and execute native engines before making them the global command.
+/// Link native engines, and execute every engine before making it the global
+/// command.
 fn finalize_engine_install(
     install_dir: &Path,
     package: PnpmPackageToInstall,
@@ -407,8 +478,7 @@ fn finalize_engine_install(
         // release is discarded rather than swapped in.
         assert_pnpm_runs(install_dir, package.name, version)
     } else {
-        // The legacy JS engine has no binary of its own to be missing.
-        Ok(())
+        assert_javascript_pnpm_runs(install_dir, package.name, version)
     }
 }
 
