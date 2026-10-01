@@ -134,10 +134,9 @@ async fn check_archive_status(
         if response
             .content_length()
             .is_some_and(|len| len <= DRAIN_CAP)
+            && let Err(error) = response.bytes().await
         {
-            if let Err(error) = response.bytes().await {
-                http_client.downscale_on_timeout(&error);
-            }
+            http_client.downscale_on_timeout(&error);
         }
         return Err(TarballError::HttpStatus(HttpStatusError {
             url: package_url.to_string(),
