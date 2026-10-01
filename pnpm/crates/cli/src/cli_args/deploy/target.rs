@@ -1,9 +1,10 @@
 use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
-    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter,
+    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
     WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
     lexical_normalize, remove_dirent, warn,
 };
+use pnpm_local_spec::LocalSpec;
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
 
@@ -250,11 +251,33 @@ pub(super) fn copy_project(
     .wrap_err("copy project files")
 }
 
-pub(super) fn apply_deploy_hook(manifest_path: &Path) -> miette::Result<()> {
-    let mut manifest =
-        PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("read deployed manifest")?;
+/// Prepare the copied manifest for the legacy deploy install, which
+/// resolves it from `deploy_dir`. Its local-path specifiers are written
+/// relative to `project_dir`, so they are re-anchored to keep naming the
+/// same files.
+pub(super) fn apply_deploy_hook(deploy_dir: &Path, project_dir: &Path) -> miette::Result<()> {
+    let mut manifest = PackageManifest::from_path(deploy_dir.join("package.json"))
+        .wrap_err("read deployed manifest")?;
+    rebase_local_specifiers(manifest.value_mut(), project_dir, deploy_dir);
     apply_deploy_manifest_hook(manifest.value_mut());
     manifest.save().wrap_err("write deployed manifest")
+}
+
+fn rebase_local_specifiers(manifest: &mut Value, project_dir: &Path, deploy_dir: &Path) {
+    for field in ["optionalDependencies", "dependencies", "devDependencies"] {
+        let Some(dependencies) = manifest.get_mut(field).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        for specifier in dependencies.values_mut() {
+            let Some(local) = specifier
+                .as_str()
+                .and_then(|specifier| LocalSpec::parse_filesystem(specifier, project_dir))
+            else {
+                continue;
+            };
+            *specifier = Value::String(local.render(Some(deploy_dir)));
+        }
+    }
 }
 
 pub(super) fn same_path(left: &Path, right: &Path) -> bool {

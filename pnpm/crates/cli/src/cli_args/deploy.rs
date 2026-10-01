@@ -216,7 +216,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        apply_deploy_hook(&deploy_dir.join("package.json"))?;
+        apply_deploy_hook(deploy_dir, &selected.project.root_dir)?;
         let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
             config,
             config.lockfile_dir_for(&selected.project.root_dir),

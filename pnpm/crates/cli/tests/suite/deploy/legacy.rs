@@ -61,6 +61,59 @@ fn legacy_deploy_includes_nested_linked_dependencies() {
 }
 
 #[test]
+fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": {
+                "file-dep": "file:../../local/file-dep",
+                "link-dep": "link:../../local/link-dep",
+                "path-dep": "../../local/path-dep",
+            },
+        }),
+    );
+    for name in ["file-dep", "link-dep", "path-dep"] {
+        let dir = workspace.join("local").join(name);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
+        )
+        .unwrap();
+        fs::write(dir.join("index.js"), format!("module.exports = '{name}'")).unwrap();
+    }
+    fs::write(
+        workspace.join("packages/app/index.js"),
+        "console.log(['file-dep', 'link-dep', 'path-dep'].map(require).join(','))",
+    )
+    .unwrap();
+
+    pacquet_cmd(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "deployed"])
+        .assert()
+        .success();
+
+    Command::new("node")
+        .current_dir(workspace.join("deployed"))
+        .arg("index.js")
+        .assert()
+        .success()
+        .stdout("file-dep,link-dep,path-dep\n");
+    drop((root, mock_instance));
+}
+
+#[test]
 fn legacy_deploy_installs_selected_project() {
     let CommandTempCwd {
         pacquet,

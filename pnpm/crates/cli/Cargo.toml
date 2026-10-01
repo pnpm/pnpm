@@ -33,6 +33,7 @@ pnpm-pnpr-client = { workspace = true }
 pnpm-env-installer = { workspace = true }
 pnpm-executor = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-local-spec = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
 pnpm-github-actions = { workspace = true }
 pnpm-global = { workspace = true }
