@@ -35,7 +35,7 @@ async function stagePackage (directory) {
     repository: cli.repository,
     engines: { node: '>=22.13' },
     bin: { pnpm: 'pnpm.mjs', pn: 'pnpm.mjs', pnpx: 'pnpx.mjs', pnx: 'pnpx.mjs' },
-    dependencies: runtimeManifest.dependencies,
+    dependencies: await installedDependencies(runtimeManifest.dependencies),
   }
   await writeFile(path.join(directory, 'package.json'), JSON.stringify(manifest, null, 2) + '\n')
   await Promise.all(['run.mjs', 'worker.mjs', 'pnpm.mjs'].map(file => copyFile(path.join(runtime, file), path.join(directory, file))))
@@ -46,4 +46,12 @@ async function stagePackage (directory) {
   await copyFile(path.join(root, 'LICENSE'), path.join(directory, 'LICENSE'))
   await copyFile(path.join(root, 'pnpm/npm/pnpm/THIRD-PARTY-NOTICES.md'), path.join(directory, 'THIRD-PARTY-NOTICES.md'))
   await copyFile(path.join(runtime, 'README.md'), path.join(directory, 'README.md'))
+}
+
+async function installedDependencies (dependencies) {
+  const entries = await Promise.all(Object.keys(dependencies).map(async name => {
+    const manifest = JSON.parse(await readFile(path.join(runtime, 'node_modules', name, 'package.json'), 'utf8'))
+    return [name, manifest.version]
+  }))
+  return Object.fromEntries(entries)
 }
