@@ -156,12 +156,19 @@ function getDirectDependencyAliases ({ opts, skipped, wantedLockfile }: Headless
       ...(opts.include.dependencies && opts.include.optionalDependencies ? importer.optionalDependencies : {}),
     }
     return Object.entries(refs)
-      .filter(([alias, ref]) => {
-        const depPath = dp.refToRelative(ref, alias)
-        return depPath != null && !skipped.has(depPath)
-      })
+      .filter(entry => isHoistableDirectDependencyAlias(entry, opts, skipped))
       .map(([alias]) => alias)
   })
+}
+
+function isHoistableDirectDependencyAlias (
+  [alias, ref]: [string, string],
+  opts: HeadlessContext['opts'],
+  skipped: Set<DepPath>
+): boolean {
+  if (opts.skipRuntimes && ref.startsWith('runtime:')) return false
+  const depPath = dp.refToRelative(ref, alias)
+  return depPath != null && !skipped.has(depPath)
 }
 
 async function findPriorWorkspaceProjectIds (

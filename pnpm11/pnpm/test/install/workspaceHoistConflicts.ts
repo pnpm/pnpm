@@ -42,3 +42,25 @@ test.each([
   await execPnpm(['dedupe', '--offline'])
   expect(fs.realpathSync(hoistedSharedIndex)).toBe(hoistedPackage)
 })
+
+test('--no-runtime does not reserve an unselected runtime alias from workspace hoisting', async () => {
+  const projects = preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { location: 'packages/node', package: { name: 'node', version: '1.0.0' } },
+    { location: 'packages/consumer', package: { name: 'consumer', dependencies: { node: 'workspace:*' } } },
+    {
+      location: 'packages/runtime-user',
+      package: {
+        name: 'runtime-user',
+        devEngines: { runtime: { name: 'node', version: '24.0.0', onFail: 'download' } },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--no-runtime', '--filter', 'consumer'])
+
+  expect(fs.realpathSync('node_modules/.pnpm/node_modules/node')).toBe(path.resolve('packages/node'))
+  projects.consumer.has('node')
+})
