@@ -393,8 +393,6 @@ impl Walker<'_> {
 }
 
 /// Combines preview and final-materialization undo logs for the same node.
-/// Both logs put the node back to lazy, so they only differ in the nodes
-/// they inserted.
 pub(super) fn merge_realize_undo(
     first: Option<UndoRealize>,
     second: Option<UndoRealize>,
