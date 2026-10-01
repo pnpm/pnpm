@@ -56,7 +56,7 @@ use context::{
     ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
 };
 use discovery::PeerDiscoveryCaches;
-use finalize::FinalDepPaths;
+use finalize::{FinalDepPaths, PeerIdRecording};
 use pnpm_deps_path::{DepPath, PeerId};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -351,8 +351,12 @@ pub fn resolve_peers_workspace(
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let mut finished =
-        finish_workspace_graph(&walker, &importers, lockfile_dir, dedupe_peer_dependents_enabled);
+    let peer_id_recording = if dedupe_peer_dependents_enabled {
+        PeerIdRecording::Record
+    } else {
+        PeerIdRecording::Skip
+    };
+    let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir, peer_id_recording);
     if dedupe_peer_dependents_enabled {
         finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
     }
@@ -444,13 +448,13 @@ fn finish_workspace_graph(
     walker: &Walker<'_>,
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
-    record_peer_ids: bool,
+    recording: PeerIdRecording,
 ) -> FinishedWorkspaceGraph {
     let FinalDepPaths {
         by_node_id: final_dep_paths,
         peer_ids,
         ..
-    } = walker.build_final_dep_paths(record_peer_ids);
+    } = walker.build_final_dep_paths(recording);
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {

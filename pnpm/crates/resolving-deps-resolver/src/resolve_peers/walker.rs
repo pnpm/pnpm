@@ -46,7 +46,7 @@ use crate::{
             link_node_id_as_dep_path, peer_id_pair, remap_link_node_id, satisfies_with_prereleases,
         },
         discovery::PeerDiscoveryCaches,
-        finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
+        finalize::{NodeRecord, PeerIdRecording, PendingPeerEdge, WalkedNode},
     },
     resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
@@ -329,7 +329,7 @@ impl Walker<'_> {
         // suffix (the cycle fallback during the walk collapses peers
         // that are walk-ancestors), then rebuild the graph from the
         // per-node records keyed by the corrected depPaths.
-        let final_dep_paths = self.build_final_dep_paths(false).by_node_id;
+        let final_dep_paths = self.build_final_dep_paths(PeerIdRecording::Skip).by_node_id;
         let direct_by_alias = self.importer_direct_dep_paths(&direct, &final_dep_paths);
         let graph = self.build_final_graph(&final_dep_paths);
         let paths_by_node_id = self.final_paths_by_node_id(&final_dep_paths);
