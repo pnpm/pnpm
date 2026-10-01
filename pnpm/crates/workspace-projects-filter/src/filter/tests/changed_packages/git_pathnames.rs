@@ -16,6 +16,13 @@ fn unicode_and_space_directories_keep_their_owners() {
 }
 
 #[test]
+fn nested_git_paths_match_native_project_paths() {
+    // On Windows, exercise Git's '/' paths against native PathBuf keys.
+    let directory = Path::new("packages").join("\u{4e2d}\u{6587}").join("leaf with spaces");
+    assert_directory_owners(&[directory.to_str().expect("UTF-8 directory")]);
+}
+
+#[test]
 #[cfg_attr(not(unix), ignore = "requires POSIX quote, tab, newline, and trailing-space paths")]
 fn posix_pathname_boundaries_keep_their_owners() {
     assert_directory_owners(&[
