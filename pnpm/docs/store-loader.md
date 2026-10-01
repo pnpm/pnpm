@@ -113,3 +113,17 @@ The resolver patch has a separate regression test that runs from CAS without a n
 ```sh
 node --test pnpm/esm-loader/scripts/test-unrs-resolver.mjs
 ```
+
+### Selective materialization experiment
+
+To try materializing only packages that the parser suite reads directly, pass the retained fixture directory to:
+
+```sh
+node pnpm/esm-loader/scripts/test-selective-repository.mjs /path/to/retained-fixture
+```
+
+This diagnostic retries the parser suite after each missing store-backed filesystem read. It verifies and copies that package's files into `materialized/<package-instance-hash>`, then maps the package to a physical root in a separate manifest. It preserves the original CAS manifest and records each attempt and the selected packages in `selective-results.json`. It stops on success or on a failure that materialization cannot address. This is an experiment, not an automatic installer policy.
+
+The parser suite passed all 51 tests after materializing 71 of the 1,585 stored package instances: 656 files, 3.4 MiB. The other 1,514 package instances remained in CAS, and the fixture contained no `node_modules` directory or external symlink. The 208 workspace projects already had physical sources and compiled outputs.
+
+The selected packages include Jest internals and dependencies of the code under test, such as `@pnpm/nopt` and `didyoumean2`. Jest's VM reads those sources too. This demonstrates that selective materialization works for this suite, but does not establish that materializing Jest alone is sufficient or that all remaining CAS packages were exercised.
