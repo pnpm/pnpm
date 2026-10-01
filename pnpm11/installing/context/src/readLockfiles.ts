@@ -26,6 +26,20 @@ export interface PnpmContext {
   wantedLockfile: LockfileObject
 }
 
+interface LockfileFsOptions {
+  ignoreIncompatible: boolean
+  wantedVersions: string[]
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
+}
+
+interface CreateLockfileOpts {
+  autoInstallPeers: boolean
+  excludeLinksFromLockfile: boolean
+  lockfileVersion: string
+  peersSuffixMaxLength: number
+}
+
 export async function readLockfiles (
   opts: {
     autoInstallPeers: boolean
@@ -57,144 +71,80 @@ export async function readLockfiles (
   lockfileHadConflicts: boolean
   patchedDepPathsStatus: PatchedDepPathsStatus
 }> {
-  const wantedLockfileVersion = LOCKFILE_VERSION
-  // On CI, avoid breaking builds due to incompatible lockfiles by default.
-  // Ignore incompatible lockfiles only for non-frozen CI installs or when `force` is set;
-  // in frozen-lockfile mode, incompatible lockfiles should still fail.
-  const lockfileOpts = {
+  const lockfileOpts: LockfileFsOptions = {
     ignoreIncompatible: opts.force || (opts.ci === true && !opts.frozenLockfile),
     wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
-  const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>
-  let lockfileHadConflicts: boolean = false
-  let patchedDepPathsStatus: PatchedDepPathsStatus = 'up-to-date'
-  let shouldCheckPatchedDepPaths = false
-  let preMergeImporters: LockfileObject['importers'] | undefined
-  let wantedLockfileFileExists = false
-  if (opts.useLockfile) {
-    wantedLockfileFileExists = await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)
-    if (!opts.frozenLockfile) {
-      fileReads.push(
-        (async () => {
-          try {
-            const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, { ...lockfileOpts, autofixMergeConflicts: true })
-            lockfileHadConflicts = read.hadConflicts
-            preMergeImporters = read.preMergeImporters
-            // A conflicted lockfile already forces a resolution, and autofixing the conflict can
-            // itself leave a partially rewritten set of suffixes, so checking would only risk
-            // reporting a patch-hash cause for a merge the user already knows about. A lockfile
-            // that is absent carries no suffixes at all, and its absence is `NO_LOCKFILE`'s to
-            // report.
-            if (lockfileHadConflicts) {
-              patchedDepPathsStatus = 'indeterminate'
-            } else {
-              shouldCheckPatchedDepPaths = read.lockfile != null
-            }
-            return read.lockfile
-          } catch (err: any) { // eslint-disable-line
-            logger.warn({
-              message: `Ignoring broken lockfile at ${opts.lockfileDir}: ${err.message as string}`,
-              prefix: opts.lockfileDir,
-            })
-            return undefined
-          }
-        })()
-      )
-    } else {
-      fileReads.push(
-        (async () => {
-          const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, lockfileOpts)
-          preMergeImporters = read.preMergeImporters
-          // A frozen install installs an autofixed lockfile as it is, so its suffixes are checked too.
-          shouldCheckPatchedDepPaths = read.lockfile != null
-          return read.lockfile
-        })()
-      )
-    }
-  } else {
-    if (await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)) {
-      logger.warn({
-        message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
-        prefix: opts.lockfileDir,
-      })
-    }
-    fileReads.push(Promise.resolve(undefined))
-  }
-  fileReads.push(
-    (async () => {
-      try {
-        return await readCurrentLockfile(opts.internalPnpmDir, lockfileOpts)
-      } catch (err: any) { // eslint-disable-line
-        logger.warn({
-          message: `Ignoring broken lockfile at ${opts.internalPnpmDir}: ${err.message as string}`,
-          prefix: opts.lockfileDir,
-        })
-        return undefined
-      }
-    })()
-  )
-  const files = await Promise.all<LockfileObject | null | undefined>(fileReads)
-  if (opts.frozenLockfile && wantedLockfileFileExists && files[0] == null) {
-    throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${path.join(opts.lockfileDir, WANTED_LOCKFILE)}" is broken: it is empty`)
-  }
-  const sopts = {
+
+  const wantedResult = await loadWantedLockfile(opts, lockfileOpts)
+  const currentLockfileRaw = await loadCurrentLockfile(opts.internalPnpmDir, opts.lockfileDir, lockfileOpts)
+  const importerIds = opts.projects.map((importer) => importer.id)
+  const sopts: CreateLockfileOpts = {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-    lockfileVersion: wantedLockfileVersion,
+    lockfileVersion: LOCKFILE_VERSION,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
   }
-  const importerIds = opts.projects.map((importer) => importer.id)
-  const currentLockfile = files[1] ?? createLockfileObject(importerIds, sopts)
-  for (const importerId of importerIds) {
-    if (!currentLockfile.importers[importerId]) {
-      currentLockfile.importers[importerId] = {
-        specifiers: {},
-      }
-    }
-  }
-  const existsWantedLockfile = files[0] != null
-  const existsCurrentLockfile = files[1] != null
-  let wantedLockfile = files[0] ??
-    (currentLockfile && clone(currentLockfile)) ??
-    createLockfileObject(importerIds, sopts)
-  // Cloning the current lockfile means the disk copy of the wanted lockfile is
-  // stale, so flag it for rewriting after the install completes.
-  let wantedLockfileIsModified = !existsWantedLockfile && existsCurrentLockfile
-  for (const importerId of importerIds) {
-    if (!wantedLockfile.importers[importerId]) {
-      wantedLockfileIsModified = true
-      wantedLockfile.importers[importerId] = {
-        specifiers: {},
-      }
-    }
-  }
-  // The merge takes the union of the two lockfiles' keys, so a dependency the
-  // manifests no longer declare comes back with it, and the manifests are the
-  // only record that it is gone. Entries the read file already carried are
-  // left alone: that drift is the frozen check's to report, not the merge's
-  // to repair.
-  if (preMergeImporters != null) {
-    let prunedAnyImporter = false
-    for (const project of opts.projects) {
-      prunedAnyImporter = pruneMergedDependencies({
-        importer: wantedLockfile.importers[project.id],
-        preMergeImporter: preMergeImporters[project.id],
-        manifest: project.manifest,
-        autoInstallPeers: opts.autoInstallPeers,
-      }) || prunedAnyImporter
-    }
-    if (prunedAnyImporter) {
-      wantedLockfile = pruneSharedLockfile(wantedLockfile)
-    }
-  }
-  // After the merge and its pruning, not on the file as read: a git branch lockfile can
-  // contribute a patched dependency the manifests no longer declare, and judging the suffix of an
-  // entry that is about to be pruned away would report a lockfile the install never installs.
-  if (shouldCheckPatchedDepPaths || (!opts.frozenLockfile && !existsWantedLockfile && existsCurrentLockfile && !lockfileHadConflicts)) {
-    patchedDepPathsStatus = checkPatchedDepPaths(wantedLockfile)
-  }
+
+  const currentLockfile = initLockfileImporters(currentLockfileRaw ?? createLockfileObject(importerIds, sopts), importerIds)
+  const existsCurrentLockfile = currentLockfileRaw != null
+  const existsWantedLockfile = wantedResult.lockfile != null
+
+  const { wantedLockfile, wantedLockfileIsModified } = initWantedLockfile({
+    importerIds,
+    sopts,
+    rawWantedLockfile: wantedResult.lockfile,
+    currentLockfile,
+    existsWantedLockfile,
+    existsCurrentLockfile,
+    preMergeImporters: wantedResult.preMergeImporters,
+    projects: opts.projects,
+    autoInstallPeers: opts.autoInstallPeers,
+  })
+
+  return assembleLockfilesResult({
+    currentLockfile,
+    wantedLockfile,
+    existsCurrentLockfile,
+    existsWantedLockfile,
+    wantedLockfileIsModified,
+    wantedResult,
+    frozenLockfile: opts.frozenLockfile,
+  })
+}
+
+function assembleLockfilesResult (params: {
+  currentLockfile: LockfileObject
+  wantedLockfile: LockfileObject
+  existsCurrentLockfile: boolean
+  existsWantedLockfile: boolean
+  wantedLockfileIsModified: boolean
+  wantedResult: LoadedWantedResult
+  frozenLockfile: boolean
+}): {
+  currentLockfile: LockfileObject
+  currentLockfileIsUpToDate: boolean
+  existsCurrentLockfile: boolean
+  existsWantedLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
+  wantedLockfile: LockfileObject
+  wantedLockfileIsModified: boolean
+  lockfileHadConflicts: boolean
+  patchedDepPathsStatus: PatchedDepPathsStatus
+} {
+  const { currentLockfile, wantedLockfile, existsCurrentLockfile, existsWantedLockfile, wantedLockfileIsModified, wantedResult, frozenLockfile } = params
+  const patchedDepPathsStatus = resolvePatchedDepPathsStatus({
+    frozenLockfile,
+    existsWantedLockfile,
+    existsCurrentLockfile,
+    lockfileHadConflicts: wantedResult.hadConflicts,
+    shouldCheckPatchedDepPaths: wantedResult.shouldCheckPatchedDepPaths,
+    wantedLockfile,
+    initialStatus: wantedResult.initialPatchedStatus,
+  })
+
   return {
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
@@ -203,9 +153,162 @@ export async function readLockfiles (
     existsNonEmptyWantedLockfile: existsWantedLockfile && !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
     wantedLockfileIsModified,
-    lockfileHadConflicts,
+    lockfileHadConflicts: wantedResult.hadConflicts,
     patchedDepPathsStatus,
   }
+}
+
+interface LoadedWantedResult {
+  lockfile: LockfileObject | undefined
+  hadConflicts: boolean
+  preMergeImporters?: LockfileObject['importers']
+  shouldCheckPatchedDepPaths: boolean
+  initialPatchedStatus: PatchedDepPathsStatus
+}
+
+async function loadWantedLockfile (
+  opts: {
+    useLockfile: boolean
+    frozenLockfile: boolean
+    lockfileDir: string
+  },
+  lockfileOpts: LockfileFsOptions
+): Promise<LoadedWantedResult> {
+  if (!opts.useLockfile) {
+    if (await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)) {
+      logger.warn({
+        message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
+        prefix: opts.lockfileDir,
+      })
+    }
+    return { lockfile: undefined, hadConflicts: false, shouldCheckPatchedDepPaths: false, initialPatchedStatus: 'up-to-date' }
+  }
+
+  const wantedFileExists = await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)
+  const result = opts.frozenLockfile
+    ? await readWantedFrozen(opts.lockfileDir, lockfileOpts)
+    : await readWantedNonFrozen(opts.lockfileDir, lockfileOpts)
+
+  if (opts.frozenLockfile && wantedFileExists && result.lockfile == null) {
+    throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${path.join(opts.lockfileDir, WANTED_LOCKFILE)}" is broken: it is empty`)
+  }
+  return result
+}
+
+async function readWantedFrozen (lockfileDir: string, lockfileOpts: LockfileFsOptions): Promise<LoadedWantedResult> {
+  const read = await readWantedLockfileWithMergeInfo(lockfileDir, lockfileOpts)
+  return {
+    lockfile: read.lockfile ?? undefined,
+    hadConflicts: false,
+    preMergeImporters: read.preMergeImporters,
+    shouldCheckPatchedDepPaths: read.lockfile != null,
+    initialPatchedStatus: 'up-to-date',
+  }
+}
+
+async function readWantedNonFrozen (lockfileDir: string, lockfileOpts: LockfileFsOptions): Promise<LoadedWantedResult> {
+  try {
+    const read = await readWantedLockfileWithMergeInfo(lockfileDir, { ...lockfileOpts, autofixMergeConflicts: true })
+    const hadConflicts = read.hadConflicts
+    return {
+      lockfile: read.lockfile ?? undefined,
+      hadConflicts,
+      preMergeImporters: read.preMergeImporters,
+      shouldCheckPatchedDepPaths: !hadConflicts && read.lockfile != null,
+      initialPatchedStatus: hadConflicts ? 'indeterminate' : 'up-to-date',
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.warn({
+      message: `Ignoring broken lockfile at ${lockfileDir}: ${message}`,
+      prefix: lockfileDir,
+    })
+    return { lockfile: undefined, hadConflicts: false, shouldCheckPatchedDepPaths: false, initialPatchedStatus: 'up-to-date' }
+  }
+}
+
+async function loadCurrentLockfile (internalPnpmDir: string, lockfileDir: string, lockfileOpts: LockfileFsOptions): Promise<LockfileObject | undefined> {
+  try {
+    const lockfile = await readCurrentLockfile(internalPnpmDir, lockfileOpts)
+    return lockfile ?? undefined
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.warn({
+      message: `Ignoring broken lockfile at ${internalPnpmDir}: ${message}`,
+      prefix: lockfileDir,
+    })
+    return undefined
+  }
+}
+
+function initLockfileImporters (lockfile: LockfileObject, importerIds: ProjectId[]): LockfileObject {
+  for (const importerId of importerIds) {
+    lockfile.importers[importerId] = lockfile.importers[importerId] ?? { specifiers: {} }
+  }
+  return lockfile
+}
+
+function initWantedLockfile (opts: {
+  importerIds: ProjectId[]
+  sopts: CreateLockfileOpts
+  rawWantedLockfile: LockfileObject | undefined
+  currentLockfile: LockfileObject
+  existsWantedLockfile: boolean
+  existsCurrentLockfile: boolean
+  preMergeImporters?: LockfileObject['importers']
+  projects: Array<{ id: ProjectId, manifest: ProjectManifest }>
+  autoInstallPeers: boolean
+}): { wantedLockfile: LockfileObject, wantedLockfileIsModified: boolean } {
+  const wantedLockfile = opts.rawWantedLockfile ??
+    (opts.currentLockfile && clone(opts.currentLockfile)) ??
+    createLockfileObject(opts.importerIds, opts.sopts)
+
+  let wantedLockfileIsModified = !opts.existsWantedLockfile && opts.existsCurrentLockfile
+  for (const importerId of opts.importerIds) {
+    if (!wantedLockfile.importers[importerId]) {
+      wantedLockfileIsModified = true
+      wantedLockfile.importers[importerId] = { specifiers: {} }
+    }
+  }
+
+  const prunedLockfile = maybePruneMergedImporters(wantedLockfile, opts.preMergeImporters, opts.projects, opts.autoInstallPeers)
+  return { wantedLockfile: prunedLockfile, wantedLockfileIsModified }
+}
+
+function maybePruneMergedImporters (
+  wantedLockfile: LockfileObject,
+  preMergeImporters: LockfileObject['importers'] | undefined,
+  projects: Array<{ id: ProjectId, manifest: ProjectManifest }>,
+  autoInstallPeers: boolean
+): LockfileObject {
+  if (preMergeImporters == null) return wantedLockfile
+  let prunedAnyImporter = false
+  for (const project of projects) {
+    prunedAnyImporter = pruneMergedDependencies({
+      importer: wantedLockfile.importers[project.id],
+      preMergeImporter: preMergeImporters[project.id],
+      manifest: project.manifest,
+      autoInstallPeers,
+    }) || prunedAnyImporter
+  }
+  return prunedAnyImporter ? pruneSharedLockfile(wantedLockfile) : wantedLockfile
+}
+
+function resolvePatchedDepPathsStatus (opts: {
+  frozenLockfile: boolean
+  existsWantedLockfile: boolean
+  existsCurrentLockfile: boolean
+  lockfileHadConflicts: boolean
+  shouldCheckPatchedDepPaths: boolean
+  wantedLockfile: LockfileObject
+  initialStatus: PatchedDepPathsStatus
+}): PatchedDepPathsStatus {
+  const needsCheck = opts.shouldCheckPatchedDepPaths ||
+    (!opts.frozenLockfile && !opts.existsWantedLockfile && opts.existsCurrentLockfile && !opts.lockfileHadConflicts)
+  if (needsCheck) {
+    return checkPatchedDepPaths(opts.wantedLockfile)
+  }
+  return opts.initialStatus
 }
 
 function pruneMergedDependencies (
@@ -218,29 +321,57 @@ function pruneMergedDependencies (
 ): boolean {
   const { importer, preMergeImporter } = opts
   const declaredDepNames = declaredDepNamesByField(opts.manifest, opts.autoInstallPeers)
+  const depsPruned = pruneDependencyFields(importer, preMergeImporter, declaredDepNames)
+  pruneSpecifiers(importer, preMergeImporter, declaredDepNames)
+  return depsPruned
+}
+
+function pruneDependencyFields (
+  importer: ProjectSnapshot,
+  preMergeImporter: ProjectSnapshot | undefined,
+  declaredDepNames: Record<DependenciesField, Set<string>>
+): boolean {
   let pruned = false
   for (const depField of DEPENDENCIES_FIELDS) {
-    const deps = importer[depField]
-    if (deps == null) continue
-    for (const depName of Object.keys(deps)) {
-      if (!declaredDepNames[depField].has(depName) && preMergeImporter?.[depField]?.[depName] == null) {
-        delete deps[depName]
-        pruned = true
-      }
-    }
-    if (Object.keys(deps).length === 0) {
-      delete importer[depField]
-    }
-  }
-  for (const depName of Object.keys(importer.specifiers)) {
-    if (
-      DEPENDENCIES_FIELDS.every((depField) => !declaredDepNames[depField].has(depName)) &&
-      preMergeImporter?.specifiers?.[depName] == null
-    ) {
-      delete importer.specifiers[depName]
+    if (pruneSingleDependencyField(importer, depField, preMergeImporter?.[depField], declaredDepNames[depField])) {
+      pruned = true
     }
   }
   return pruned
+}
+
+function pruneSingleDependencyField (
+  importer: ProjectSnapshot,
+  depField: DependenciesField,
+  preMergeDeps: Record<string, string> | undefined,
+  declaredNames: Set<string>
+): boolean {
+  const deps = importer[depField]
+  if (deps == null) return false
+  let pruned = false
+  for (const depName of Object.keys(deps)) {
+    if (!declaredNames.has(depName) && preMergeDeps?.[depName] == null) {
+      delete deps[depName]
+      pruned = true
+    }
+  }
+  if (Object.keys(deps).length === 0) {
+    delete importer[depField]
+  }
+  return pruned
+}
+
+function pruneSpecifiers (
+  importer: ProjectSnapshot,
+  preMergeImporter: ProjectSnapshot | undefined,
+  declaredDepNames: Record<DependenciesField, Set<string>>
+): void {
+  for (const depName of Object.keys(importer.specifiers)) {
+    const isDeclared = DEPENDENCIES_FIELDS.some((depField) => declaredDepNames[depField].has(depName))
+    if (!isDeclared && preMergeImporter?.specifiers?.[depName] == null) {
+      delete importer.specifiers[depName]
+    }
+  }
 }
 
 // Mirrors how satisfiesPackageManifest assigns a manifest entry to a lockfile

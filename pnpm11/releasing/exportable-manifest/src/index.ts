@@ -1,55 +1,40 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { isError, PnpmError } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
-import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { clone, omit } from 'ramda'
 
+import { replaceJsrProtocol } from './jsrProtocol.js'
 import { overridePublishConfig } from './overridePublishConfig.js'
+import {
+  getReadmeRank,
+  isPreferredReadme,
+  type ReadmeCandidate,
+  type ReadmeRank,
+  readReadmeFile,
+} from './readme.js'
 import { type ExportedManifest, transform } from './transform/index.js'
+import {
+  buildWorkspaceManifestGetter,
+  type WorkspacePackageContainer,
+  type WorkspacePackageLookup,
+} from './workspaceLookup.js'
 
 export { type ExportedManifest }
 
-const README_RANK = {
-  bare: 1,
-  markdown: 2,
-  readmeMd: 3,
-} as const
-
-export interface ReadmeCandidate {
-  fileName: string
-  rank: ReadmeRank
-}
-
-/** How npm ranks a package-root file as the package's README. A higher rank wins. */
-export type ReadmeRank = typeof README_RANK[keyof typeof README_RANK]
-
-/**
- * Rank a filename as a README candidate, or return `undefined` if npm would not use it as the
- * package's README. npm matches the bare `README` case-sensitively and accepts `README.*` whose
- * extension matches `/.m?a?r?k?d?o?w?n?$/i`.
- */
-export function getReadmeRank (fileName: string): ReadmeRank | undefined {
-  if (/^readme\.md$/i.test(fileName)) return README_RANK.readmeMd
-  if (fileName === 'README') return README_RANK.bare
-  if (/^readme\./i.test(fileName) && /\.m?a?r?k?d?o?w?n?$/i.test(fileName)) return README_RANK.markdown
-  return undefined
-}
-
-/**
- * Whether README `candidate` should replace the `current` selection. A higher rank wins. Equal
- * ranks keep the lower filename, so the choice does not depend on directory or archive order, and
- * an equal filename replaces, so the last duplicate archive entry wins as it would on extraction.
- */
-export function isPreferredReadme (candidate: ReadmeCandidate, current: ReadmeCandidate | undefined): boolean {
-  if (current == null || candidate.rank > current.rank) return true
-  return candidate.rank === current.rank && candidate.fileName <= current.fileName
+export {
+  getReadmeRank,
+  isPreferredReadme,
+  type ReadmeCandidate,
+  type ReadmeRank,
+  readReadmeFile,
+  type WorkspacePackageContainer,
+  type WorkspacePackageLookup,
 }
 
 const PREPUBLISH_SCRIPTS = [
@@ -60,12 +45,6 @@ const PREPUBLISH_SCRIPTS = [
   'publish',
   'postpublish',
 ]
-
-export type WorkspacePackageLookup =
-  | Array<{ manifest: ProjectManifest, rootDir?: string }>
-  | Map<string, unknown>
-  | Record<string, unknown>
-  | ((depName: string) => ProjectManifest | undefined)
 
 export interface MakePublishManifestOptions {
   catalogs: Catalogs
@@ -81,25 +60,61 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts: MakePublishManifestOptions
 ): Promise<ExportedManifest> {
-  let publishManifest: ProjectManifest
-  if (opts.skipManifestObfuscation) {
-    publishManifest = omit(['pnpm' as keyof ProjectManifest], clone(originalManifest))
-  } else {
-    publishManifest = omit(['scripts', 'packageManager', 'pnpm' as keyof ProjectManifest], originalManifest)
-    if (originalManifest.scripts != null) {
-      publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
+  const publishManifest = initPublishManifest(originalManifest, opts.skipManifestObfuscation)
+  const getWorkspaceManifest = buildWorkspaceManifestGetter(opts.workspacePackages)
+  await convertManifestDependencies({
+    catalogs: opts.catalogs,
+    dir,
+    getWorkspaceManifest,
+    modulesDir: opts.modulesDir,
+    originalManifest,
+    publishManifest,
+  })
+
+  overridePublishConfig(publishManifest)
+  if (publishManifest.readme == null && opts.embedReadme) {
+    const readme = await readReadmeFile(dir)
+    if (readme != null) {
+      publishManifest.readme = readme
     }
   }
 
-  const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
-  const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
+  const finalManifest = await applyPublishHooks(publishManifest, dir, opts.hooks?.beforePacking)
+  return transform(finalManifest)
+}
 
-  const getWorkspaceManifest = buildWorkspaceManifestGetter(opts.workspacePackages)
+function initPublishManifest (
+  originalManifest: ProjectManifest,
+  skipObfuscation?: boolean
+): ProjectManifest {
+  if (skipObfuscation) {
+    return omit(['pnpm' as keyof ProjectManifest], clone(originalManifest))
+  }
+  const publishManifest: ProjectManifest = omit(['scripts', 'packageManager', 'pnpm' as keyof ProjectManifest], originalManifest) as ProjectManifest
+  if (originalManifest.scripts != null) {
+    publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
+  }
+  return publishManifest
+}
+
+interface ConvertManifestDepsParams {
+  catalogs: Catalogs
+  dir: string
+  getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined
+  modulesDir?: string
+  originalManifest: ProjectManifest
+  publishManifest: ProjectManifest
+}
+
+async function convertManifestDependencies (params: ConvertManifestDepsParams): Promise<void> {
+  const { catalogs, dir, getWorkspaceManifest, modulesDir, originalManifest, publishManifest } = params
+  const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, resolveFromCatalog.bind(null, catalogs))
   const convertDependencyForPublish = combineConverters(replaceCatalogProtocol, replaceWorkspaceProtocol, replaceJsrProtocol)
+
   await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], {
-      modulesDir: opts?.modulesDir,
       convertDependencyForPublish,
+      modulesDir,
       workspacePackages: getWorkspaceManifest,
     })
     if (deps != null) {
@@ -111,57 +126,24 @@ export async function createExportableManifest (
   if (peerDependencies) {
     const convertPeersForPublish = combineConverters(replaceCatalogProtocol, replaceWorkspaceProtocolPeerDependency, replaceJsrProtocol)
     publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
-      modulesDir: opts?.modulesDir,
       convertDependencyForPublish: convertPeersForPublish,
+      modulesDir,
       workspacePackages: getWorkspaceManifest,
     })
   }
-
-  overridePublishConfig(publishManifest)
-
-  if (publishManifest.readme == null && opts?.embedReadme) {
-    const readme = await readReadmeFile(dir)
-    if (readme != null) {
-      publishManifest.readme = readme
-    }
-  }
-
-  for (const hook of opts?.hooks?.beforePacking ?? []) {
-    // eslint-disable-next-line no-await-in-loop -- each hook receives the manifest returned by the previous one
-    publishManifest = await hook(publishManifest, dir) ?? publishManifest
-  }
-
-  return transform(publishManifest)
 }
 
-// `O_NOFOLLOW` makes the open itself refuse a symlink at the final path component, closing the
-// TOCTOU window between the `readdir` type check and the read: a symlink swapped in for the
-// selected README after the check can't redirect the read outside the project and leak its target
-// into the published manifest. Windows lacks the flag (and requires privileges to create symlinks),
-// so it falls back to a plain read.
-const README_READ_FLAGS = fs.constants.O_RDONLY | (process.platform === 'win32' ? 0 : fs.constants.O_NOFOLLOW)
-
-export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
-  const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
-  let readme: ReadmeCandidate | undefined
-  for (const entry of entries) {
-    const rank = getReadmeRank(entry.name)
-    if (rank == null || !entry.isFile()) continue
-    const candidate = { fileName: entry.name, rank }
-    if (isPreferredReadme(candidate, readme)) readme = candidate
+async function applyPublishHooks (
+  manifest: ProjectManifest,
+  dir: string,
+  hooks?: NonNullable<Hooks['beforePacking']>
+): Promise<ProjectManifest> {
+  let result = manifest
+  for (const hook of hooks ?? []) {
+    // eslint-disable-next-line no-await-in-loop -- each hook receives the manifest returned by the previous one
+    result = await hook(result, dir) ?? result
   }
-  if (readme == null) return undefined
-  let handle: fs.promises.FileHandle | undefined
-  try {
-    handle = await fs.promises.open(path.join(projectDir, readme.fileName), README_READ_FLAGS)
-    return await handle.readFile('utf8')
-  } catch (err: unknown) {
-    // ELOOP: the entry is a symlink after all (a concurrent swap) — skip it, as the isFile() check intended.
-    if (isError(err) && 'code' in err && err.code === 'ELOOP') return undefined
-    throw err
-  } finally {
-    await handle?.close()
-  }
+  return result
 }
 
 export type PublishDependencyConverter = (
@@ -207,59 +189,6 @@ async function makePublishDependencies (
   return Object.fromEntries(publishDependencies)
 }
 
-function extractManifest (val: unknown): ProjectManifest | undefined {
-  if (!val || typeof val !== 'object') return undefined
-  if ('manifest' in val && val.manifest && typeof val.manifest === 'object') {
-    return val.manifest as ProjectManifest
-  }
-  if ('package' in val && val.package && typeof val.package === 'object' && 'manifest' in val.package && val.package.manifest && typeof val.package.manifest === 'object') {
-    return val.package.manifest as ProjectManifest
-  }
-  if ('name' in val && typeof (val as Record<string, unknown>).name === 'string') {
-    return val as ProjectManifest
-  }
-  return undefined
-}
-
-function buildWorkspaceManifestGetter (
-  workspacePackages?: WorkspacePackageLookup
-): ((depName: string) => ProjectManifest | undefined) | undefined {
-  if (!workspacePackages) return undefined
-  if (typeof workspacePackages === 'function') {
-    return workspacePackages
-  }
-  const byName = new Map<string, ProjectManifest>()
-  const addManifest = (val: unknown) => {
-    const manifest = extractManifest(val)
-    if (!manifest?.name) return
-    const existing = byName.get(manifest.name)
-    if (!existing || (!existing.version && manifest.version)) {
-      byName.set(manifest.name, manifest)
-    }
-  }
-
-  if (Array.isArray(workspacePackages)) {
-    for (const pkg of workspacePackages) {
-      addManifest(pkg)
-    }
-  } else if (workspacePackages instanceof Map) {
-    for (const val of workspacePackages.values()) {
-      if (val instanceof Map) {
-        for (const subVal of val.values()) {
-          addManifest(subVal)
-        }
-      } else {
-        addManifest(val)
-      }
-    }
-  } else if (typeof workspacePackages === 'object') {
-    for (const val of Object.values(workspacePackages)) {
-      addManifest(val)
-    }
-  }
-  return (depName: string) => byName.get(depName)
-}
-
 async function readAndCheckManifest (
   depName: string,
   dependencyDir: string,
@@ -275,6 +204,14 @@ async function readAndCheckManifest (
   if (workspaceManifest?.name && workspaceManifest?.version) {
     return workspaceManifest
   }
+  return handleMissingOrInvalidManifest(depName, dirManifest ?? undefined, workspaceManifest)
+}
+
+function handleMissingOrInvalidManifest (
+  depName: string,
+  dirManifest?: ProjectManifest,
+  workspaceManifest?: ProjectManifest
+): never {
   const found = dirManifest?.name || dirManifest?.version
     ? dirManifest
     : workspaceManifest?.name || workspaceManifest?.version
@@ -315,7 +252,7 @@ function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string
 async function replaceWorkspaceProtocol (
   depName: string,
   depSpec: string,
-  { dir, modulesDir, workspacePackages }: PublishDependencyConverterContext
+  context: PublishDependencyConverterContext
 ): Promise<string> {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
@@ -324,35 +261,47 @@ async function replaceWorkspaceProtocol (
   // Dependencies with bare "*", "^", "~" versions, or no version (workspace:)
   const versionAliasSpecParts = /^workspace:(?:(.+)@)?([\^~*])?$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
-    modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const targetPkgName = versionAliasSpecParts[1]
-    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), workspacePackages, targetPkgName)
-
-    const specifierSuffix: string | undefined = versionAliasSpecParts[2]
-    const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
-    if (depName !== manifest.name) {
-      return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
-    }
-    return `${semverRangeToken}${manifest.version}`
+    return resolveVersionAliasWorkspaceSpec(depName, versionAliasSpecParts, context)
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
-    const manifest = await readAndCheckManifest(depName, path.join(dir, depSpec.slice(10)), workspacePackages)
+    return resolveRelativeWorkspaceSpec(depName, depSpec.slice(10), context)
+  }
+  const spec = depSpec.slice(10)
+  return spec.includes('@') ? `npm:${spec}` : spec
+}
 
-    if (manifest.name === depName) return `${manifest.version}`
-    return `npm:${manifest.name}@${manifest.version}`
+async function resolveVersionAliasWorkspaceSpec (
+  depName: string,
+  parts: RegExpExecArray,
+  context: PublishDependencyConverterContext
+): Promise<string> {
+  const modulesDir = context.modulesDir ?? path.join(context.dir, 'node_modules')
+  const targetPkgName = parts[1]
+  const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), context.workspacePackages, targetPkgName)
+
+  const specifierSuffix: string | undefined = parts[2]
+  const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
+  if (depName !== manifest.name) {
+    return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
   }
-  depSpec = depSpec.slice(10)
-  if (depSpec.includes('@')) {
-    return `npm:${depSpec}`
-  }
-  return depSpec
+  return `${semverRangeToken}${manifest.version}`
+}
+
+async function resolveRelativeWorkspaceSpec (
+  depName: string,
+  relPath: string,
+  context: PublishDependencyConverterContext
+): Promise<string> {
+  const manifest = await readAndCheckManifest(depName, path.join(context.dir, relPath), context.workspacePackages)
+  if (manifest.name === depName) return `${manifest.version}`
+  return `npm:${manifest.name}@${manifest.version}`
 }
 
 async function replaceWorkspaceProtocolPeerDependency (
   depName: string,
   depSpec: string,
-  { dir, modulesDir, workspacePackages }: PublishDependencyConverterContext
-) {
+  context: PublishDependencyConverterContext
+): Promise<string> {
   if (!depSpec.includes('workspace:')) {
     return depSpec
   }
@@ -365,42 +314,32 @@ async function replaceWorkspaceProtocolPeerDependency (
     return `npm:${workspaceSpec.alias}@${version}`
   }
   if (workspaceSpec?.version.startsWith('./') || workspaceSpec?.version.startsWith('../')) {
-    return replaceWorkspaceProtocol(depName, depSpec, { dir, modulesDir, workspacePackages })
+    return replaceWorkspaceProtocol(depName, depSpec, context)
   }
 
-  // Dependencies with bare "*", "^", "~",">=",">","<=", "<", version
-  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX*])(\.(\d+|[xX*])){0,2})?/
-  const versionAliasSpecParts = workspaceSemverRegex.exec(depSpec)
-
-  if (versionAliasSpecParts != null) {
-    const [, semverRangGroup = '', version] = versionAliasSpecParts
-
-    if (version) {
-      return depSpec.replace('workspace:', '')
-    }
-
-    modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), workspacePackages)
-    const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
-
-    return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
-  }
-
-  return depSpec.replace('workspace:', '')
+  return resolvePeerWorkspaceSemver(depName, depSpec, context)
 }
 
-async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {
-  const spec = parseJsrSpecifier(depSpec, depName)
-  if (spec == null) {
-    return depSpec
-  }
-  return createNpmAliasedSpecifier(spec.npmPkgName, spec.versionSelector)
-}
+const WORKSPACE_SEMVER_REGEX = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX*])(\.(\d+|[xX*])){0,2})?/
 
-function createNpmAliasedSpecifier (npmPkgName: string, versionSelector?: string): string {
-  const npmPkgSpecifier = `npm:${npmPkgName}`
-  if (!versionSelector) {
-    return npmPkgSpecifier
+async function resolvePeerWorkspaceSemver (
+  depName: string,
+  depSpec: string,
+  context: PublishDependencyConverterContext
+): Promise<string> {
+  const versionAliasSpecParts = WORKSPACE_SEMVER_REGEX.exec(depSpec)
+  if (versionAliasSpecParts == null) {
+    return depSpec.replace('workspace:', '')
   }
-  return `${npmPkgSpecifier}@${versionSelector}`
+
+  const [, semverRangeGroup = '', version] = versionAliasSpecParts
+  if (version) {
+    return depSpec.replace('workspace:', '')
+  }
+
+  const modulesDir = context.modulesDir ?? path.join(context.dir, 'node_modules')
+  const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), context.workspacePackages)
+  const semverRangeToken = semverRangeGroup !== '*' ? semverRangeGroup : ''
+
+  return depSpec.replace(WORKSPACE_SEMVER_REGEX, `${semverRangeToken}${manifest.version}`)
 }

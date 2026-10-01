@@ -10,6 +10,7 @@ import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
 import {
   cmdShim,
   cmdShimIfExists,
+  isShimBasedirAnchorCurrent,
   isShimForMissingTarget,
   isShimNodePath,
   isShimPointingAt,
@@ -330,6 +331,8 @@ describeOnWindows('explicit shebang with args, linking to another drive on Windo
     await testFile(t, to)
     await testFile(t, `${to}${cmdExtension}`, '\r\n')
     await testFile(t, `${to}.ps1`)
+    const shContent = await fs.promises.readFile(to, 'utf8')
+    assert.equal(isShimBasedirAnchorCurrent(shContent, path.relative(path.dirname(to), src)), true)
   })
 })
 
@@ -407,4 +410,34 @@ exec "$basedir/node" "/abs/path/cli.js" "$@"
     assert.equal(readShRelativeTarget(shim), undefined)
   })
 })
+
+describe('isShimBasedirAnchorCurrent', () => {
+  const absTarget = path.resolve('/store/cli.js')
+
+  test('returns true for relative target with basedir_abs prelude', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+exec "$basedir/node" "$basedir_abs/../foo/bin/cli.js" "$@"
+`
+    assert.equal(isShimBasedirAnchorCurrent(shim, '../foo/bin/cli.js'), true)
+  })
+
+  test('returns true for absolute target without basedir_abs prelude', () => {
+    const shim = `
+exec "$basedir/node" "${absTarget}" "$@"
+`
+    assert.equal(isShimBasedirAnchorCurrent(shim, absTarget), true)
+  })
+
+  test('returns false when absolute target unexpectedly has basedir_abs prelude', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+exec "$basedir/node" "${absTarget}" "$@"
+`
+    assert.equal(isShimBasedirAnchorCurrent(shim, absTarget), false)
+  })
+})
+
 

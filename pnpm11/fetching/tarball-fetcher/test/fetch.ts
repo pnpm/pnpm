@@ -908,7 +908,7 @@ test('fail when preparing a git-hosted package', async () => {
       lockfileDir: process.cwd(),
       pkg,
     })
-  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+  ).rejects.toThrow(/Failed to prepare git-hosted package fetched from "https:\/\/codeload\.github\.com\/pnpm-e2e\/prepare-script-fails\/tar\.gz\/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm\.e2e\/prepare-script-fails@1\.0\.0 (npm|pnpm)-install: `(npm|pnpm) install`/)
 })
 
 test('take only the files included in the package, when fetching a git-hosted package', async () => {

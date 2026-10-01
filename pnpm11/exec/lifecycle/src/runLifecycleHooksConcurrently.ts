@@ -51,108 +51,26 @@ export async function runLifecycleHooksConcurrently (
     opts: RunLifecycleHooksConcurrentlyOptions
     projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
     stages: string[]
-    /**
-     * Whether to skip linking bins into node_modules/.bin ahead of running scripts.
-     * Used by pre-uninstall hooks so node_modules is not modified before unlinking.
-     */
     skipBinLinking?: boolean
-    /**
-     * The project whose `preinstall` already ran before the install began,
-     * so its run here starts at the stage after it.
-     */
     projectWithPreinstallRan?: string
   }
 ): Promise<void> {
-  const { childConcurrency, importers, opts, projectDependencies, projectWithPreinstallRan, skipBinLinking, stages } = params
-  const importersByRootDir = new Map(importers.map((importer) => [importer.rootDir, importer]))
-  const dependencies = projectDependencies == null
-    ? dependenciesFromBuildIndexes(importers)
-    : new Map(importers.map(({ rootDir }) => [
-      rootDir,
-      (projectDependencies.get(rootDir) ?? []).filter((dependency) => importersByRootDir.has(dependency)),
-    ]))
+  const importersByRootDir = new Map(params.importers.map((importer) => [importer.rootDir, importer]))
+  const dependencies = buildDependenciesMap(params.importers, importersByRootDir, params.projectDependencies)
   let firstError: unknown
   await scheduleGraph(dependencies, {
     bail: true,
-    concurrency: childConcurrency,
+    concurrency: params.childConcurrency,
     runNode: async (rootDir): Promise<TaskCompletion> => {
-      const { manifest, modulesDir, stages: importerStages, targetDirs, publishTargetDirs } = importersByRootDir.get(rootDir)!
-
-      // A project that publishes from `publishConfig.directory` injects the
-      // built content of that directory, not of the project root.
-      const publishDir = manifest.publishConfig?.directory != null && manifest.publishConfig?.linkDirectory !== false
-        ? path.resolve(rootDir, manifest.publishConfig.directory)
-        : undefined
       try {
-        const binsDir = path.join(modulesDir, '.bin')
-        if (!skipBinLinking) {
-          // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
-          await linkBins(modulesDir, binsDir, {
-            extraNodePaths: opts.extraNodePaths,
-            projectModulesDir: await getProjectNodePath({ modulesDir, rootDir }, opts),
-            allowExoticManifests: true,
-            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-            projectManifest: manifest,
-            warn: (message: string) => {
-              logger.warn({ message, prefix: rootDir })
-            },
-          })
-        }
-        const runLifecycleHookOpts: RunLifecycleHookOptions = {
-          ...opts,
-          depPath: rootDir,
-          extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir, rootDir }, opts) },
-          pkgRoot: rootDir,
-          rootModulesDir: modulesDir,
-          wdBinDir: binsDir,
-        }
-        let isBuilt = false
-        for (const stage of (importerStages ?? stages)) {
-          if (stage === 'preinstall' && rootDir === projectWithPreinstallRan) {
-            if (manifest.scripts?.preinstall != null) isBuilt = true
-            continue
-          }
-          if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop -- lifecycle stages of one project run in order
-            isBuilt = true
-          }
-        }
-        // A `file:` dependency on this project bypasses the `workspace:`
-        // protocol's publish-directory redirect, so its injected copy is
-        // built from the project root even when other copies are built
-        // from the publish directory. Each group is refreshed from its own
-        // source rather than one response applied to every copy.
-        const targetGroups = [
-          { sourceDir: rootDir, targetDirs: targetDirs ?? [] },
-          { sourceDir: publishDir, targetDirs: publishTargetDirs ?? [] },
-        ].filter((group): group is { sourceDir: string, targetDirs: string[] } => group.sourceDir != null && group.targetDirs.length > 0)
-        if (targetGroups.length === 0 || !isBuilt) return 'passed'
-        // Re-import only the freshly-built source — fetchFromDir already
-        // excludes the source's node_modules/. `keepModulesDir: true` makes
-        // importIndexedDir skip the destructive makeEmptyDir fast path
-        // (pnpm/pnpm#11088) and preserve the target's existing node_modules (bin
-        // symlinks + transitive deps from the initial install) via its
-        // staging/move path. Replaces the old scanDir-into-filesMap
-        // workaround (pnpm/pnpm#4299) that the fast path then wiped, causing ENOENT
-        // on .bin/<tool>. Stays on storeController.importPackage so source
-        // files keep their hardlinks (no copy-loop).
-        await Promise.all(
-          targetGroups.map(async ({ sourceDir, targetDirs: groupTargetDirs }) => {
-            const filesResponse = await fetchFromDir(sourceDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
-            await Promise.all(
-              groupTargetDirs.map(async (targetDir) =>
-                opts.storeController.importPackage(targetDir, {
-                  filesResponse: {
-                    resolvedFrom: 'local-dir',
-                    ...filesResponse,
-                  },
-                  force: false,
-                  keepModulesDir: true,
-                })
-              )
-            )
-          })
-        )
-        return 'passed'
+        return await runImporterNode({
+          importer: importersByRootDir.get(rootDir)!,
+          opts: params.opts,
+          projectWithPreinstallRan: params.projectWithPreinstallRan,
+          rootDir,
+          skipBinLinking: params.skipBinLinking,
+          stages: params.stages,
+        })
       } catch (error: unknown) {
         firstError ??= error
         return 'aborted'
@@ -161,6 +79,143 @@ export async function runLifecycleHooksConcurrently (
     onNodeSkipped: () => {},
   })
   if (firstError != null) throw firstError
+}
+
+function buildDependenciesMap (
+  importers: Importer[],
+  importersByRootDir: Map<ProjectRootDir, Importer>,
+  projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+): Map<ProjectRootDir, ProjectRootDir[]> {
+  if (projectDependencies == null) {
+    return dependenciesFromBuildIndexes(importers)
+  }
+  return new Map(importers.map(({ rootDir }) => [
+    rootDir,
+    (projectDependencies.get(rootDir) ?? []).filter((dep) => importersByRootDir.has(dep)),
+  ]))
+}
+
+interface RunImporterNodeParams {
+  importer: Importer
+  opts: RunLifecycleHooksConcurrentlyOptions
+  projectWithPreinstallRan?: string
+  rootDir: ProjectRootDir
+  skipBinLinking?: boolean
+  stages: string[]
+}
+
+async function runImporterNode (params: RunImporterNodeParams): Promise<TaskCompletion> {
+  const { importer, opts, rootDir } = params
+  const binsDir = await prepareImporterBins(rootDir, importer, opts, params.skipBinLinking)
+  const runOpts = await buildRunLifecycleHookOpts(rootDir, importer, binsDir, opts)
+
+  const isBuilt = await executeImporterStages({
+    importerStages: importer.stages ?? params.stages,
+    manifest: importer.manifest,
+    projectWithPreinstallRan: params.projectWithPreinstallRan,
+    rootDir,
+    runOpts,
+  })
+
+  const publishDir = importer.manifest.publishConfig?.directory != null && importer.manifest.publishConfig?.linkDirectory !== false
+    ? path.resolve(rootDir, importer.manifest.publishConfig.directory)
+    : undefined
+
+  const targetGroups = [
+    { sourceDir: rootDir, targetDirs: importer.targetDirs ?? [] },
+    { sourceDir: publishDir, targetDirs: importer.publishTargetDirs ?? [] },
+  ].filter((group): group is { sourceDir: string, targetDirs: string[] } => group.sourceDir != null && group.targetDirs.length > 0)
+
+  if (targetGroups.length === 0 || !isBuilt) return 'passed'
+  await reimportTargetGroups(targetGroups, opts)
+  return 'passed'
+}
+
+async function prepareImporterBins (
+  rootDir: ProjectRootDir,
+  importer: Importer,
+  opts: RunLifecycleHooksConcurrentlyOptions,
+  skipBinLinking?: boolean
+): Promise<string> {
+  const binsDir = path.join(importer.modulesDir, '.bin')
+  if (!skipBinLinking) {
+    await linkBins(importer.modulesDir, binsDir, {
+      extraNodePaths: opts.extraNodePaths,
+      projectModulesDir: await getProjectNodePath({ modulesDir: importer.modulesDir, rootDir }, opts),
+      allowExoticManifests: true,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      projectManifest: importer.manifest,
+      warn: (message: string) => {
+        logger.warn({ message, prefix: rootDir })
+      },
+    })
+  }
+  return binsDir
+}
+
+async function buildRunLifecycleHookOpts (
+  rootDir: ProjectRootDir,
+  importer: Importer,
+  binsDir: string,
+  opts: RunLifecycleHooksConcurrentlyOptions
+): Promise<RunLifecycleHookOptions> {
+  return {
+    ...opts,
+    depPath: rootDir,
+    extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: importer.modulesDir, rootDir }, opts) },
+    pkgRoot: rootDir,
+    rootModulesDir: importer.modulesDir,
+    wdBinDir: binsDir,
+  }
+}
+
+interface ExecuteImporterStagesParams {
+  importerStages: string[]
+  manifest: ProjectManifest
+  projectWithPreinstallRan?: string
+  rootDir: ProjectRootDir
+  runOpts: RunLifecycleHookOptions
+}
+
+async function executeImporterStages (params: ExecuteImporterStagesParams): Promise<boolean> {
+  const { importerStages, manifest, projectWithPreinstallRan, rootDir, runOpts } = params
+  let isBuilt = false
+  for (const stage of importerStages) {
+    if (stage === 'preinstall' && rootDir === projectWithPreinstallRan) {
+      if (manifest.scripts?.preinstall != null) isBuilt = true
+      continue
+    }
+    // eslint-disable-next-line no-await-in-loop -- lifecycle stages of one project run in order
+    if (await runLifecycleHook(stage, manifest, runOpts)) {
+      isBuilt = true
+    }
+  }
+  return isBuilt
+}
+
+interface TargetGroup {
+  sourceDir: string
+  targetDirs: string[]
+}
+
+async function reimportTargetGroups (targetGroups: TargetGroup[], opts: RunLifecycleHooksConcurrentlyOptions): Promise<void> {
+  await Promise.all(
+    targetGroups.map(async ({ sourceDir, targetDirs }) => {
+      const filesResponse = await fetchFromDir(sourceDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
+      await Promise.all(
+        targetDirs.map(async (targetDir) =>
+          opts.storeController.importPackage(targetDir, {
+            filesResponse: {
+              resolvedFrom: 'local-dir',
+              ...filesResponse,
+            },
+            force: false,
+            keepModulesDir: true,
+          })
+        )
+      )
+    })
+  )
 }
 
 function dependenciesFromBuildIndexes (importers: Importer[]): Map<ProjectRootDir, ProjectRootDir[]> {

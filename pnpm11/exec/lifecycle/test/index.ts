@@ -239,7 +239,7 @@ test('runLifecycleHook() passes newline correctly', async () => {
 })
 
 test('runLifecycleHook() does not set npm_config env vars but preserves user-defined ones', async () => {
-  const pkgRoot = testFixtures.find('inspect-npm-config-env')
+  const pkgRoot = testFixtures.prepare('inspect-npm-config-env')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   const prevPlatformArch = process.env.npm_config_platform_arch
@@ -263,7 +263,7 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
 })
 
 test('runPostinstallHooks()', async () => {
-  const pkgRoot = testFixtures.find('with-many-scripts')
+  const pkgRoot = testFixtures.prepare('with-many-scripts')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
