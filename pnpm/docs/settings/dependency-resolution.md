@@ -613,3 +613,5 @@ autoDedupe: true
 ```
 
 Frozen installs (`--frozen-lockfile`) leave the lockfile unchanged — deduplication only runs when the lockfile is being written.
+
+`pnpm install --lockfile-only` skips resolution when nothing changed since a deduplicating `pnpm install --lockfile-only` wrote the lockfile. Such an install keeps the lockfile even if versions were published since then, or if only a setting such as `resolutionMode` changed. Run [`pnpm dedupe`](../cli/dedupe.md) to apply such a change.

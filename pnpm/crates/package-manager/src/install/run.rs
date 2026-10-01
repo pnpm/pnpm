@@ -16,6 +16,8 @@ use lockfile_load::{Loaded, load_lockfiles};
 mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
+mod auto_dedupe;
+mod custom_fetcher_reuse;
 mod execution;
 mod mode;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
@@ -28,8 +30,8 @@ use std::fs;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
-    Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy, build_resolution_verifiers,
-    configured_or_discovered_workspace_dir, lockfile_root_dir,
+    Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
+    build_resolution_verifiers, configured_or_discovered_workspace_dir, lockfile_root_dir,
 };
 use pnpm_config::Config;
 
@@ -401,13 +403,20 @@ pub(super) struct Verification {
     pub(super) planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
     pub(super) resolution_verifiers: Vec<Arc<dyn super::ResolutionVerifier>>,
     pub(super) derived_lockfile_path: Option<PathBuf>,
+    /// The record an `autoDedupe` `--lockfile-only` install that resolves the
+    /// whole workspace writes once it saves the lockfile, and that a later one
+    /// checks. `None` for every other install.
+    pub(super) auto_dedupe_baseline: Option<super::auto_dedupe_baseline::AutoDedupeBaseline>,
 }
 
 impl Verification {
-    fn set_up(execution: &RunExecution<'_>, has_lockfile: bool) -> Result<Self, InstallError> {
+    fn set_up(
+        execution: &RunExecution<'_>,
+        lockfiles: &Lockfiles<'_>,
+        (scope, project_manifests): (&InstallScope<'_>, &[(PathBuf, &PackageManifest)]),
+    ) -> Result<Self, InstallError> {
         let install = execution.install;
         let owned = &execution.owned;
-        let workspace_root = &execution.workspace.dirs.workspace_root;
         let shared_caches = owned.shared_caches();
         let meta_cache: Arc<InMemoryPackageMetaCache> =
             shared_caches.map_or_else(Default::default, |caches| Arc::clone(&caches.packuments));
@@ -423,12 +432,11 @@ impl Verification {
             meta_cache,
             planned_canonical_fetches,
             resolution_verifiers,
-            derived_lockfile_path: has_lockfile.then(|| {
-                install.context.lockfile_path.map_or_else(
-                    || workspace_root.join(install.context.config.wanted_lockfile_name()),
-                    Path::to_path_buf,
-                )
-            }),
+            derived_lockfile_path: lockfiles.wanted
+                .get()
+                .is_some()
+                .then(|| execution.wanted_lockfile_path()),
+            auto_dedupe_baseline: execution.auto_dedupe_baseline(scope, project_manifests),
         })
     }
 }

@@ -64,6 +64,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'nodeLinker'
 | 'pnprServer'
 | 'remoteSideEffectsCache'
 | 'production'
@@ -207,6 +208,7 @@ export async function installDeps (
  */
 async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): Promise<boolean> {
   if (opts.update || opts.dedupe || opts.force || params.length !== 0 || !opts.optimisticRepeatInstall) return false
+  if (opts.nodeLinker === 'hoisted' && (opts.hooks?.customFetchers?.length ?? 0) > 0) return false
   const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
     ...opts,
     ignoreFilteredInstallCache: true,

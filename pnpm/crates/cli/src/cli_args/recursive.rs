@@ -7,22 +7,28 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
+pub use dependencies::{
+    filtered_projects_dependencies, projects_with_workspace_dependencies, sequence_graph,
+};
 pub use execution_args::RecursiveExecutionArgs;
 pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
 pub use unmatched::UnmatchedFilters;
 
+mod dependencies;
 mod execution_args;
 mod importer_selection;
 mod unmatched;
 
-use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
+use crate::cli_args::{
+    catalogs::{configured_catalogs, workspace_catalogs},
+    verify_deps::with_dependencies,
+};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
     importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
@@ -34,10 +40,9 @@ use pnpm_workspace_projects_filter::{
 use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
 };
-use rayon::prelude::*;
 use serde::Serialize;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::{Path, PathBuf},
 };
 use unmatched::unmatched_filters;
@@ -68,118 +73,6 @@ pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
 pub struct NoMatchingProjects {
     #[error(not(source))]
     pub message: String,
-}
-
-/// The dependency edges among the `--filter`-selected projects, resolved
-/// through the full workspace graph so a relationship between two selected
-/// projects via an unselected one becomes a direct edge. Keys keep the
-/// selection order.
-pub fn filtered_projects_dependencies<Pkg: Sync>(
-    selected: &ProjectGraph<Pkg>,
-    all: &ProjectGraph<Pkg>,
-    prod_all: Option<&ProjectGraph<Pkg>>,
-    prod_only_selected: &HashSet<PathBuf>,
-) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    let sorted: HashSet<&Path> = selected
-        .keys()
-        .map(PathBuf::as_path)
-        .collect();
-    // Each project's tunneling walk reads only shared references, so
-    // the projects fan out across the rayon pool; collecting the
-    // parallel iterator into a `Vec` keeps the selection order.
-    selected
-        .keys()
-        .collect::<Vec<_>>()
-        .par_iter()
-        .map(|&project_dir| {
-            let full_graph = match prod_all {
-                Some(prod_all) if prod_only_selected.contains(project_dir) => prod_all,
-                _ => all,
-            };
-            (project_dir.clone(), sorted_dependencies(selected, full_graph, project_dir, &sorted))
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect()
-}
-
-/// Sequence `projects_graph` into one deterministic topological order,
-/// resolving transitive edges through `full_projects_graph`.
-pub fn sequence_graph<Pkg>(
-    projects_graph: &ProjectGraph<Pkg>,
-    full_projects_graph: &ProjectGraph<Pkg>,
-) -> GraphSequencerResult<PathBuf> {
-    sequence_graph_by_project(projects_graph, |_| full_projects_graph)
-}
-
-/// Sequence `projects_graph`, resolving each project's transitive edges
-/// through the full graph that `full_graph_for` returns for it. A
-/// `--filter-prod` selection routes its projects to the prod-pruned graph so
-/// pruned dev edges stay pruned, while regular projects route to the full
-/// graph.
-fn sequence_graph_by_project<'g, Pkg: 'g>(
-    projects_graph: &ProjectGraph<Pkg>,
-    full_graph_for: impl Fn(&Path) -> &'g ProjectGraph<Pkg>,
-) -> GraphSequencerResult<PathBuf> {
-    let sorted_dirs: Vec<PathBuf> = projects_graph.keys().cloned().collect();
-    let sorted: HashSet<&Path> = sorted_dirs
-        .iter()
-        .map(PathBuf::as_path)
-        .collect();
-    let dependency_graph: HashMap<PathBuf, Vec<PathBuf>> = projects_graph
-        .keys()
-        .map(|project_dir| {
-            let dependencies = sorted_dependencies(
-                projects_graph,
-                full_graph_for(project_dir),
-                project_dir,
-                &sorted,
-            );
-            (project_dir.clone(), dependencies)
-        })
-        .collect();
-    graph_sequencer(&dependency_graph, &sorted_dirs)
-}
-
-/// The dependencies of `project_dir` that are themselves in `sorted`, reached
-/// by tunneling past any project outside `sorted`. A transitive dependency
-/// between two sorted projects thus becomes a direct edge.
-///
-/// `project_dir`'s own edges are read from `projects_graph`, so a selection
-/// that deliberately narrows them (e.g. a prod-only filter that drops dev
-/// edges) is respected; `full_projects_graph` is consulted only to walk
-/// through the projects outside `sorted`.
-fn sorted_dependencies<Pkg>(
-    projects_graph: &ProjectGraph<Pkg>,
-    full_projects_graph: &ProjectGraph<Pkg>,
-    project_dir: &Path,
-    sorted: &HashSet<&Path>,
-) -> Vec<PathBuf> {
-    let mut dependencies: Vec<PathBuf> = Vec::new();
-    // Borrowed paths and an FxHash set: this walk runs once per
-    // selected project, and cloning every visited `PathBuf` into a
-    // SipHash set dominated it on a workspace-scale graph.
-    let mut visited: rustc_hash::FxHashSet<&Path> = rustc_hash::FxHashSet::default();
-    let mut stack: Vec<&Path> = projects_graph
-        .get(project_dir)
-        .map(|node| {
-            node.dependencies
-                .iter()
-                .map(PathBuf::as_path)
-                .collect()
-        })
-        .unwrap_or_default();
-    while let Some(dependency_dir) = stack.pop() {
-        if dependency_dir == project_dir || !visited.insert(dependency_dir) {
-            continue;
-        }
-        if sorted.contains(dependency_dir) {
-            dependencies.push(dependency_dir.to_path_buf());
-        } else if let Some(node) = full_projects_graph.get(dependency_dir) {
-            stack.extend(node.dependencies.iter().map(PathBuf::as_path));
-        }
-    }
-    dependencies
 }
 
 /// The project directory `--resume-from` names, located by manifest name;
@@ -255,6 +148,83 @@ impl<'a> RecursiveSelection<'a> {
     pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
         self.all.as_ref().unwrap_or(&self.selected)
     }
+}
+
+/// The projects a gated recursive command holds to the modules-directory
+/// requirement: `project_dirs` themselves, plus, while the workspace shares
+/// one lockfile, every workspace dependency they reach that the install the
+/// gate spawns selects.
+///
+/// That install selects the dependencies of the selected projects, so a
+/// workspace dependency without a modules directory leaves the selection out
+/// of date too. A negated selector reaches the install unchanged, so a
+/// dependency it excludes is not required; `project_dirs` themselves always
+/// are. With a lockfile per project the spawned
+/// install selects nothing beyond the project it installs, so the selection
+/// alone is what the check inspects. `prefix` is where the command's path
+/// selectors resolve.
+pub fn projects_to_verify<'dirs>(
+    project_dirs: impl IntoIterator<Item = &'dirs Path>,
+    selection: &RecursiveSelection<'_>,
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<Vec<PathBuf>> {
+    if !config.verify_deps_before_run.is_enabled() {
+        return Ok(Vec::new());
+    }
+    if !config.shares_one_lockfile() {
+        return Ok(project_dirs
+            .into_iter()
+            .map(Path::to_path_buf)
+            .collect());
+    }
+    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
+    let mut projects = projects_with_workspace_dependencies(
+        project_dirs.iter().copied(),
+        selection.full_graph(),
+        selection.prod_all.as_ref(),
+        &selection.prod_only_selected,
+    );
+    if has_negated_selector(config) {
+        let mut kept = install_selected_projects(selection, config, prefix)?;
+        kept.extend(project_dirs.iter().map(|dir| dir.to_path_buf()));
+        projects.retain(|project_dir| kept.contains(project_dir));
+    }
+    Ok(projects)
+}
+
+fn has_negated_selector(config: &Config) -> bool {
+    config.filter
+        .iter()
+        .chain(&config.filter_prod)
+        .any(|selector| selector.starts_with('!'))
+}
+
+/// The projects the install the gate spawns selects, evaluated against the
+/// graphs the command's own selection was drawn from.
+fn install_selected_projects(
+    selection: &RecursiveSelection<'_>,
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<HashSet<PathBuf>> {
+    let walk_opts = recursive_filter_options(config, prefix);
+    let filter = with_dependencies_selectors(&config.filter);
+    let mut installed: HashSet<PathBuf> =
+        filter_against(selection.full_graph(), &filter, None, false, prefix, &walk_opts)?
+            .into_iter()
+            .collect();
+    if let Some(prod_all) = &selection.prod_all {
+        let filter_prod = with_dependencies_selectors(&config.filter_prod);
+        installed.extend(filter_against(prod_all, &filter_prod, None, true, prefix, &walk_opts)?);
+    }
+    Ok(installed)
+}
+
+fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
+    selectors
+        .iter()
+        .map(|selector| with_dependencies(selector))
+        .collect()
 }
 
 /// Build the `--filter`-selected workspace projects the recursive command

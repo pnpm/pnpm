@@ -42,6 +42,7 @@ pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<
         snapshot_key,
         cas_paths: paths,
         source_is_mutable,
+        source_exists,
         ..
     } in cold_cas_paths
     {
@@ -49,6 +50,7 @@ pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<
             .or_insert_with(|| crate::HoistedPackageFiles {
                 cas_paths: Arc::new(paths),
                 source_is_mutable,
+                source_exists,
             });
     }
 }

@@ -28,6 +28,7 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
+        self.check_custom_fetcher_reuse().await?;
         if scope.is_already_up_to_date::<Reporter>(
             self.install,
             &self.owned,
@@ -78,7 +79,7 @@ impl<'a> RunExecution<'a> {
         project_manifests: &[(PathBuf, &PackageManifest)],
         lockfiles: &Lockfiles<'_>,
     ) -> Result<InstallRunOutcome, InstallError> {
-        let verification = Verification::set_up(self, lockfiles.wanted.get().is_some())?;
+        let verification = Verification::set_up(self, lockfiles, (scope, project_manifests))?;
         if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
             pnpm_reporter::emit_global_warning::<Reporter>(&message);
         }

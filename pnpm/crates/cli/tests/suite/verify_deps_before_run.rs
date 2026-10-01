@@ -1353,6 +1353,125 @@ fn filtered_exec_with_workspace_root_installs_the_root() {
     drop((root, mock_instance));
 }
 
+/// A filtered install leaves the workspace dependencies of the projects it
+/// selected without a modules directory too, but the install the gate spawns
+/// for a filtered command selects them, so the status check has to hold them
+/// to the modules-directory requirement as well
+/// ([pnpm/tasks#45](https://github.com/pnpm/tasks/issues/45)).
+#[test]
+fn filtered_exec_installs_a_workspace_dependency_a_filtered_install_left_alone() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    // the filtered install selects `foo` alone, so its workspace dependency
+    // `bar` has no modules directory
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "install"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("packages/foo/node_modules").exists(),
+        "the filtered install must install the project it selected",
+    );
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the filtered install must not install the project it did not select",
+    );
+
+    // the next filtered exec must install the workspace dependency of the
+    // project it selected instead of treating the recorded state as up to date
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", r#"process.stdout.write("foo-ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert_eq!(stdout, "foo-ok");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the workspace dependency of the project it selected:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A negated selector reaches the install the gate spawns unchanged, so that
+/// install never materializes the project it excludes. The status check must
+/// not hold that project to the modules-directory requirement through the
+/// workspace dependency edge of a selected project.
+#[test]
+fn filtered_exec_does_not_require_a_workspace_dependency_a_negated_selector_excludes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "!bar", "install"])
+        .assert()
+        .success();
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the filtered install must not install the project it excluded",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "!bar", "exec", "node", "-e", r#"process.stdout.write("ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must pass the check:\n{stderr}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn ndjson_exec_keeps_verifier_output_machine_readable() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
