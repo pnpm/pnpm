@@ -136,7 +136,7 @@ impl<'install> DirCloneCache<'install> {
         // not be written a probe directory either.
         let destination = match node_linker {
             NodeLinker::Hoisted => &config.modules_dir,
-            _ => &config.virtual_store_dir,
+            _ => config.virtual_store_dir(),
         };
         if !config.frozen_store
             && !dir_clone_supported(&config.global_virtual_store_dir, destination)

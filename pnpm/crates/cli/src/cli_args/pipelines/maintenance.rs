@@ -113,7 +113,7 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
 /// post-hook config, and finally dispatches to the install pipeline.
 /// The overrides must come after hooks because `updateConfig` can
 /// mutate `Config` fields (including `modules_dir` /
-/// `virtual_store_dir`), and the CLI `--ignore-scripts` flag must win
+/// `install_state_dir`), and the CLI `--ignore-scripts` flag must win
 /// over any hook-set value.
 pub(crate) struct PrunePipeline {
     pub(crate) args: PruneArgs,
@@ -134,7 +134,7 @@ impl PrunePipeline {
         let root_config = (&*manifest_path, &mut *cfg, &*config_root);
         prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Always)).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
-        // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
+        // modules_dir / install_state_dir via WorkspaceSettings::apply_to,
         // so the check must use the final (post-hook) config values.
         // The install pipeline's prune_target_within_modules also validates
         // VSD containment, but only at sweep time; this earlier check

@@ -72,7 +72,7 @@ pub(super) fn first_selected_project_missing_from_current_lockfile(
         })
         .peekable();
     needing_install.peek()?;
-    let current = Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+    let current = Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
         .ok()
         .flatten();
     needing_install

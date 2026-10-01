@@ -255,7 +255,7 @@ pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> 
         manifest_path.to_path_buf(),
         config.lockfile_dir_for(project_dir).join(config.wanted_lockfile_name()),
         // The current lockfile remains project-local even with a global virtual store.
-        config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+        config.install_state_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
         config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
     ];
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {

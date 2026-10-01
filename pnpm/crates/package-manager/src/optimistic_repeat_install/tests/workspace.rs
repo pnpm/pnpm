@@ -99,7 +99,7 @@ fn returns_up_to_date_when_a_project_has_an_unchanged_file_tarball_dependency() 
     fs::write(dir.path().join("vendor/tar.tgz"), tarball).expect("write tarball");
     let lockfile = write_local_tarball_lockfile(
         dir.path(),
-        &config.virtual_store_dir,
+        &config.install_state_dir,
         "devDependencies",
         tarball,
     );
@@ -128,7 +128,7 @@ fn returns_skipped_when_a_project_file_tarball_changed_after_validation() {
     fs::write(&tarball, b"original").expect("write tarball");
     let lockfile = write_local_tarball_lockfile(
         dir.path(),
-        &config.virtual_store_dir,
+        &config.install_state_dir,
         "dependencies",
         b"original",
     );
@@ -164,7 +164,7 @@ fn returns_skipped_when_a_project_file_tarball_changes_without_an_mtime_change()
         .expect("tarball mtime");
     let lockfile = write_local_tarball_lockfile(
         dir.path(),
-        &config.virtual_store_dir,
+        &config.install_state_dir,
         "dependencies",
         b"original",
     );
@@ -398,7 +398,7 @@ fn write_relocatable_layout(config: &Config) {
         "hoistPattern": config.hoist_pattern,
         "publicHoistPattern": config.public_hoist_pattern,
         "storeDir": config.store_dir.display().to_string(),
-        "virtualStoreDir": config.effective_virtual_store_dir().to_string_lossy(),
+        "virtualStoreDir": config.virtual_store_dir().to_string_lossy(),
         "virtualStoreDirMaxLength": config.virtual_store_dir_max_length,
     });
     fs::write(config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME), layout.to_string())
@@ -407,7 +407,7 @@ fn write_relocatable_layout(config: &Config) {
 
 #[cfg(unix)]
 fn install_foo_slot(config: &Config) {
-    let slot = config.virtual_store_dir.join("foo@1.0.0/node_modules/foo");
+    let slot = config.install_state_dir.join("foo@1.0.0/node_modules/foo");
     fs::create_dir_all(&slot).unwrap();
     std::os::unix::fs::symlink(".pnpm/foo@1.0.0/node_modules/foo", config.modules_dir.join("foo"))
         .unwrap();
@@ -422,7 +422,7 @@ fn a_moved_tree_with_a_missing_dependency_is_not_up_to_date() {
         install_foo_slot(config);
         match missing {
             "link" => fs::remove_file(config.modules_dir.join("foo")).unwrap(),
-            _ => fs::remove_dir_all(config.virtual_store_dir.join("foo@1.0.0")).unwrap(),
+            _ => fs::remove_dir_all(config.install_state_dir.join("foo@1.0.0")).unwrap(),
         }
         record_projects_elsewhere(dir.path());
         let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
@@ -441,7 +441,7 @@ fn a_moved_tree_with_a_missing_current_lockfile_is_not_up_to_date() {
     write_relocatable_layout(config);
     install_foo_slot(config);
     let elsewhere = record_projects_elsewhere(dir.path());
-    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    fs::remove_file(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
     let projects = [(dir.path().to_path_buf(), &manifest)];
 
@@ -521,7 +521,7 @@ fn a_moved_production_install_passes_the_run_gate() {
         &crate::SkippedSnapshots::new(),
     );
     current
-        .save_to_path(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
+        .save_to_path(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME))
         .unwrap();
     record_projects_elsewhere(dir.path());
     let mut state = load_workspace_state(dir.path()).unwrap().unwrap();

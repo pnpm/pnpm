@@ -362,12 +362,12 @@ fn write_current_round_trips_through_read_current() {
         .join("node_modules")
         .join(".pacquet");
 
-    original.save_current_to_virtual_store_dir(&virtual_store_dir).expect("write current lockfile");
+    original.save_current_to_install_state_dir(&virtual_store_dir).expect("write current lockfile");
 
     let lock_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
     assert!(lock_path.exists(), "lock.yaml should be created");
 
-    let loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let loaded = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("read current lockfile")
         .expect("current lockfile should be present");
 
@@ -382,7 +382,7 @@ fn read_current_returns_none_when_file_missing() {
         .join("node_modules")
         .join(".pacquet");
 
-    let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let result = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("missing file should not error");
     assert!(result.is_none(), "expected None for missing lock.yaml, got: {result:?}");
 }
@@ -406,7 +406,7 @@ fn write_current_deletes_file_when_lockfile_is_empty() {
     assert!(empty.is_empty(), "fixture should be considered empty");
 
     empty
-        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .save_current_to_install_state_dir(&virtual_store_dir)
         .expect("write should succeed for empty lockfile");
 
     assert!(!lock_path.exists(), "lock.yaml should be removed for empty lockfile");
@@ -423,7 +423,7 @@ fn write_current_is_a_noop_for_empty_lockfile_with_no_existing_file() {
     let empty: Lockfile =
         serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
     empty
-        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .save_current_to_install_state_dir(&virtual_store_dir)
         .expect("write should succeed when target is missing");
     assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists());
 }
@@ -441,7 +441,7 @@ fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
     let virtual_store_dir = blocker.join(".pacquet");
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     let err = lockfile
-        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .save_current_to_install_state_dir(&virtual_store_dir)
         .expect_err("create_dir_all should fail on a regular-file ancestor");
     assert!(
         matches!(err, SaveLockfileError::CreateDir { .. }),
@@ -466,7 +466,7 @@ fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
     let empty: Lockfile =
         serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
     let err = empty
-        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .save_current_to_install_state_dir(&virtual_store_dir)
         .expect_err("remove_file on a directory should error");
     assert!(
         matches!(err, SaveLockfileError::RemoveFile { .. }),
@@ -493,7 +493,7 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
 
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     let err = lockfile
-        .save_current_to_virtual_store_dir(&virtual_store_dir)
+        .save_current_to_install_state_dir(&virtual_store_dir)
         .expect_err("rename over a non-empty directory should fail");
     assert!(
         matches!(err, SaveLockfileError::RenameFile { .. }),

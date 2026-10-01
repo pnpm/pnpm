@@ -33,7 +33,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -134,7 +134,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.install_state_dir = virtual_store_dir.clone();
     config.global_virtual_store_dir = store_dir.join("links");
     let config = config.leak();
 
@@ -256,7 +256,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Pre-write `.modules.yaml` with a non-empty `skipped` list —
@@ -422,7 +422,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     // Keep retries minimal: 0.0.0.0:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
@@ -554,7 +554,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.fetch_retries = 0;
     let config = config.leak();
 
@@ -684,7 +684,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(OPTIONAL_NO_METADATA_LOCKFILE)
@@ -803,7 +803,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(OPTIONAL_NO_METADATA_LOCKFILE)
@@ -918,7 +918,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(SHARED_NON_OPTIONAL_LOCKFILE)

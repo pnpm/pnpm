@@ -28,7 +28,7 @@ impl Config {
             // Re-anchor the path-valued defaults to the workspace root
             // before applying settings. Without this, a `pacquet install`
             // run from a workspace subdirectory leaves
-            // `modules_dir` / `virtual_store_dir` anchored at the CLI
+            // `modules_dir` / `install_state_dir` anchored at the CLI
             // `--dir` (the subdir), while the per-importer
             // [`SymlinkDirectDependencies`] writes are anchored at the
             // workspace root — producing two `node_modules` layouts
@@ -41,7 +41,7 @@ impl Config {
             // still wins.
             //
             // `virtual_store_dir_explicit` guards the re-anchor for
-            // `virtual_store_dir` — without it, a `virtualStoreDir`
+            // `install_state_dir` — without it, a `virtualStoreDir`
             // already set in the global `config.yaml` would be
             // clobbered by the workspace-root default whenever the
             // workspace yaml itself leaves the field unset. `modules_dir`
@@ -52,7 +52,7 @@ impl Config {
             // been applied yet at this point in the cascade.
             self.modules_dir = base_dir.join("node_modules");
             if !explicit.virtual_store_dir {
-                self.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
+                self.install_state_dir = base_dir.join("node_modules").join(".pnpm");
             }
             // The workspace root is structural context (env-lockfile reads/
             // writes, pin persistence), not a "setting" — set it whenever a

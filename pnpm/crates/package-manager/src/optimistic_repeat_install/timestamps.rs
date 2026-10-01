@@ -75,7 +75,7 @@ pub(crate) fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> boo
 
 /// The freshness baseline recorded in the workspace state: the latest
 /// mtime among the lockfile this install wrote (the wanted
-/// `pnpm-lock.yaml`, or the current `<virtual_store_dir>/lock.yaml` when
+/// `pnpm-lock.yaml`, or the current `<install_state_dir>/lock.yaml` when
 /// the wanted one is absent) and the project manifests it validated.
 ///
 /// A filesystem mtime, not the wall clock, so the baseline shares a clock
@@ -94,7 +94,7 @@ pub(crate) fn validation_baseline_ms(
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Option<i64> {
     let lockfile = mtime_ms(&workspace_root.join(config.wanted_lockfile_name()))
-        .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)));
+        .or_else(|| mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME)));
     project_manifests
         .iter()
         .filter_map(|(_, manifest)| mtime_ms(manifest.path()))
@@ -176,7 +176,7 @@ pub(crate) fn wanted_lockfile_mtime(workspace_root: &Path, config: &Config) -> O
 /// whether the manifest may have changed since the last install: the
 /// recorded `lastValidatedTimestamp` for a workspace install, the
 /// effective wanted lockfile's mtime — `pnpm-lock.yaml`, or the current
-/// `<virtual_store_dir>/lock.yaml` standing in for it — for a
+/// `<install_state_dir>/lock.yaml` standing in for it — for a
 /// single-project one. Both match what pnpm's `checkDepsStatus` compares
 /// against on the corresponding path.
 ///
@@ -200,7 +200,7 @@ pub(crate) fn manifest_drift_reference_ms(
     }
     wanted_lockfile_mtime
         .map(|mtime| mtime.ms)
-        .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)))
+        .or_else(|| mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME)))
         .unwrap_or(last_validated_timestamp)
 }
 

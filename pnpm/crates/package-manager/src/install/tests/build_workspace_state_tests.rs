@@ -31,7 +31,7 @@ fn write_manifest(dir: &std::path::Path, name: &str, version: &str) -> PackageMa
 
 fn config_for(workspace_root: &std::path::Path) -> Config {
     let mut config = Config::new();
-    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
     config
 }
 

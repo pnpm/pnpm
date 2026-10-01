@@ -9,10 +9,10 @@ use super::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
     default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
     default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_git_shallow_hosts, default_hoist_pattern, default_modules_cache_max_age,
-    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
-    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
-    default_unsafe_perm, default_user_agent, default_virtual_store_dir,
+    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
+    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
+    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
+    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
     default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
     side_effects_cache_remote_env, workspace_yaml,
 };
@@ -303,14 +303,17 @@ pub struct Config {
     #[default = true]
     pub symlink: bool,
 
-    /// The project-local virtual store, or the internal directory holding
-    /// the current lockfile and hidden hoisted modules when
-    /// [`Self::enable_global_virtual_store`] is on.
-    #[default(_code = "default_virtual_store_dir()")]
-    pub virtual_store_dir: PathBuf,
+    /// The `.pnpm` directory of the install root's modules directory. It
+    /// holds the current lockfile and the hidden hoisted modules of that
+    /// install, pnpm's `internalPnpmDir`. Without a global virtual store it
+    /// is also the virtual store, see [`Self::virtual_store_dir`]. Not to be
+    /// confused with the machine-wide [`Self::state_dir`].
+    #[default(_code = "default_install_state_dir()")]
+    pub install_state_dir: PathBuf,
 
     /// The resolved explicit `virtualStoreDir` setting, retained separately
-    /// when [`Self::virtual_store_dir`] is the project-local internal directory.
+    /// because [`Self::install_state_dir`] stays in the modules directory
+    /// under a global virtual store.
     pub configured_virtual_store_dir: Option<PathBuf>,
 
     /// When `true`, the virtual store is shared across every project on
@@ -1856,7 +1859,7 @@ impl Config {
             self.cache_dir.clone(),
             self.state_dir.clone(),
             self.modules_dir.clone(),
-            self.virtual_store_dir.clone(),
+            self.install_state_dir.clone(),
             self.global_virtual_store_dir.clone(),
         ]
     }

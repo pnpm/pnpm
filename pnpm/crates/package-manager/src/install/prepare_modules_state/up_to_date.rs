@@ -172,7 +172,7 @@ pub(super) fn modules_cache_prune_due(
     modules_manifest.is_some_and(|modules| {
         crate::prune_virtual_store::should_prune_virtual_store(
             crate::prune_virtual_store::same_dir(
-                config.effective_virtual_store_dir(),
+                config.virtual_store_dir(),
                 &config.global_virtual_store_dir,
             ),
             Some(modules.pruned_at.as_str()),

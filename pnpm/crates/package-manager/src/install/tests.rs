@@ -235,7 +235,7 @@ async fn run_purge_regression_install_with_lockfile(
     config.lockfile = lockfile;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = registry.to_string();
     config.virtual_store_dir_max_length = virtual_store_dir_max_length;
     let config = config.leak();
@@ -332,7 +332,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
     config.cache_dir = cache_dir.clone();
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.install_state_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -399,7 +399,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
     offline_config.cache_dir = cache_dir;
     offline_config.store_dir = store_dir.into();
     offline_config.modules_dir = modules_dir;
-    offline_config.virtual_store_dir = virtual_store_dir;
+    offline_config.install_state_dir = virtual_store_dir;
     offline_config.registry = "http://127.0.0.1:9/".to_string();
     let offline_config = offline_config.leak();
 
@@ -442,7 +442,7 @@ async fn fresh_lockfile_only_with_overrides(
     let mut config = Config::new();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = mock_instance.url().to_string();
     if !overrides.is_empty() {
         let mut map = indexmap::IndexMap::new();
@@ -550,7 +550,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
     let mut config = Config::new();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = mock_instance.url().to_string();
     config.ignore_compatibility_db = ignore_compatibility_db;
     let config = config.leak();
@@ -651,7 +651,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
     let mut config = Config::new();
     config.store_dir = root.join("pacquet-store").into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = registry_url.to_string();
     let config = config.leak();
 
@@ -753,7 +753,7 @@ async fn install_workspace_member_with_pnpmfile(
     let mut config = Config::new();
     config.workspace_dir = Some(root.to_path_buf());
     config.store_dir = root.join("pacquet-store").into();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     config.modules_dir = modules_dir;
     config.registry = registry_url.to_string();
     let config = config.leak();

@@ -182,7 +182,7 @@ async fn update_config_null_clears_virtual_store_dir() {
     run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
     assert!(!config.explicit_settings.contains_key("virtualStoreDir"));
 }
 

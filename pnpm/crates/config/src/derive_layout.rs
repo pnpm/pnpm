@@ -42,7 +42,7 @@ impl Config {
         // symlinks with no shim to carry a `NODE_PATH` block, so the
         // resolution help moves to the environment: expose the virtual
         // store's hidden `node_modules` to every spawned child process.
-        // `virtual_store_dir` is already anchored at the workspace root
+        // `install_state_dir` is already anchored at the workspace root
         // by the re-anchor above — pnpm builds this from
         // `lockfileDir ?? dir` to the same effect
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
@@ -50,7 +50,7 @@ impl Config {
         // this block, mirroring pnpm's config-reader ordering.
         if cfg!(unix) && self.prefer_symlinked_executables == Some(true) {
             let hidden_modules_dir =
-                pnpm_fs::lexical_normalize(&self.virtual_store_dir.join("node_modules"));
+                pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
             self.extra_env.insert(
                 "NODE_PATH".to_string(),
                 hidden_modules_dir.display().to_string(),
@@ -88,8 +88,8 @@ impl Config {
                     .collect()
             })
             .unwrap_or_default();
-        for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
-            // `virtual_store_dir` is built by joining a multi-segment
+        for dir in [self.install_state_dir.join("node_modules"), self.modules_dir.clone()] {
+            // `install_state_dir` is built by joining a multi-segment
             // literal, which keeps `/` separators on Windows; normalize
             // so NODE_PATH carries native separators like the shims do.
             let dir = pnpm_fs::lexical_normalize(&dir).display().to_string();
@@ -132,7 +132,7 @@ impl Config {
         if let Some(lockfile_dir) = self.lockfile_dir.clone() {
             self.anchor_lockfile_paths(&lockfile_dir);
         } else if self.explicit_settings.contains_key("modulesDir") {
-            self.follow_modules_dir_with_virtual_store();
+            self.follow_modules_dir_with_install_state_dir();
         }
 
         // Build the per-URI auth-header lookup. Credentials were already
@@ -160,7 +160,7 @@ impl Config {
         }
 
         // Derive `global_virtual_store_dir` last so it sees the final
-        // `store_dir` / `virtual_store_dir` after yaml has been
+        // `store_dir` / `virtualStoreDir` after yaml has been
         // applied. An explicit `globalVirtualStoreDir` in yaml wins
         // over the derivation; otherwise the field falls back to the
         // user's pinned `virtualStoreDir` (under GVS-on) or to

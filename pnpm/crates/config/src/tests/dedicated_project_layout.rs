@@ -21,7 +21,7 @@ fn a_dedicated_project_gets_its_own_internal_dir_under_a_global_virtual_store() 
 
     config.anchor_dedicated_project(&project_dir, None);
 
-    assert_eq!(config.virtual_store_dir, project_dir.join("node_modules").join(".pnpm"));
+    assert_eq!(config.install_state_dir, project_dir.join("node_modules").join(".pnpm"));
     assert_eq!(config.global_virtual_store_dir, global_virtual_store_dir);
 }
 
@@ -38,6 +38,6 @@ fn an_explicit_global_virtual_store_keeps_dedicated_project_state_local() {
 
     config.anchor_dedicated_project(&project_dir, None);
 
-    assert_eq!(config.virtual_store_dir, project_dir.join("vendor/.pnpm"));
+    assert_eq!(config.install_state_dir, project_dir.join("vendor/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, root.path().join("links"));
 }

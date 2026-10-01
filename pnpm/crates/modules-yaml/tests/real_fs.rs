@@ -39,7 +39,7 @@ fn read_preserves_absolute_virtual_store_dir() {
 ///
 /// This is what [`crate::Install`]'s no-op short-circuit relies on:
 /// the recovered absolute path is compared byte-for-byte against
-/// `Config::effective_virtual_store_dir`, and an unnormalized join
+/// `Config::virtual_store_dir()`, and an unnormalized join
 /// (`<modules_dir>/../../...`) never matches the normalized config
 /// side — so the short-circuit silently misses every install whose
 /// store lives outside the project.

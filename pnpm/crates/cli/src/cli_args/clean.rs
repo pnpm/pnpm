@@ -99,9 +99,9 @@ fn remove_external_virtual_store(
         .iter()
         .any(|setting| config.explicit_settings.contains_key(*setting))
     {
-        config.effective_virtual_store_dir()
+        config.virtual_store_dir()
     } else {
-        &config.virtual_store_dir
+        &config.install_state_dir
     };
     let resolved_virtual_store_dir: PathBuf = if virtual_store_dir.is_absolute() {
         virtual_store_dir.to_path_buf()

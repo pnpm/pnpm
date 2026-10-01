@@ -142,7 +142,7 @@ fn find_modified(
 /// record there is the best answer — relative to the lockfile directory,
 /// which is where the setting is anchored when it is not spelled out.
 fn resolve_virtual_store_dir(config: &Config, lockfile_dir: &Path) -> PathBuf {
-    let virtual_store_dir = config.effective_virtual_store_dir();
+    let virtual_store_dir = config.virtual_store_dir();
     if virtual_store_dir.is_absolute() {
         virtual_store_dir.to_path_buf()
     } else {

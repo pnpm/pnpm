@@ -123,7 +123,7 @@ fn exact_override_update_reuses_the_locked_children() {
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(
+    let current = pnpm_lockfile::Lockfile::load_current_from_install_state_dir(
         &fixture.workspace.join("node_modules/.pnpm"),
     )
     .expect("load current lockfile")
@@ -196,7 +196,7 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(&workspace.join(
+    let current = pnpm_lockfile::Lockfile::load_current_from_install_state_dir(&workspace.join(
         "node_modules/.pnpm",
     ))
     .expect("load current lockfile")

@@ -48,7 +48,7 @@ pub struct PruneStaleModules<'a> {
     /// selected importers on a filtered install).
     pub wanted_lockfile: &'a Lockfile,
     /// What the previous install materialized
-    /// (`<virtual_store_dir>/lock.yaml`).
+    /// (`<install_state_dir>/lock.yaml`).
     pub current_lockfile: &'a Lockfile,
     /// `hoistedDependencies` from the previous `.modules.yaml`; the
     /// only record of where hoist links were written, so orphan hoist
@@ -127,7 +127,7 @@ impl<'a> PruneStaleModules<'a> {
         prune_workspace_hoists(
             &WorkspaceHoistDirs {
                 workspace_root: self.workspace_root,
-                private: &self.config.virtual_store_dir.join("node_modules"),
+                private: &self.config.install_state_dir.join("node_modules"),
                 public: &self.config.modules_dir,
             },
             self.current_lockfile,
@@ -294,7 +294,7 @@ fn prune_orphan_snapshots(
         return Ok(removed);
     };
     // Hoist links live in exactly two dirs; resolve + confine each once.
-    let private_dir = config.virtual_store_dir.join("node_modules");
+    let private_dir = config.install_state_dir.join("node_modules");
     let private_dir = confined_modules_dir(&private_dir, workspace_root);
     let public_dir = confined_modules_dir(&config.modules_dir, workspace_root);
     for key in orphan_keys {

@@ -76,7 +76,7 @@ pub(crate) fn hoisted_workspace_packages_present(
     }
     let claimed_by_dependencies =
         aliases_claimed_by_dependencies(current, config, included, skipped);
-    let private_root = config.virtual_store_dir.join("node_modules");
+    let private_root = config.install_state_dir.join("node_modules");
     candidates
         .iter()
         .all(|(name, (_, project_dir))| {
@@ -269,7 +269,7 @@ fn all_virtual_store_slots_present(
     skipped: &crate::SkippedSnapshots,
 ) -> bool {
     let layout = crate::VirtualStoreLayout::legacy(
-        config.virtual_store_dir.clone(),
+        config.virtual_store_dir().to_path_buf(),
         config.virtual_store_dir_max_length as usize,
     );
     snapshots

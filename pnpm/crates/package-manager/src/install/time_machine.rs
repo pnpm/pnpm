@@ -223,7 +223,7 @@ fn new_directories_to_exclude(
                 );
             }
         }
-        let virtual_store_dir = pnpm_fs::lexical_normalize(config.effective_virtual_store_dir());
+        let virtual_store_dir = pnpm_fs::lexical_normalize(config.virtual_store_dir());
         let covered_by_new_modules_dir = paths
             .iter()
             .any(|modules_dir| {

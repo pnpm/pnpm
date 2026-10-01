@@ -151,7 +151,7 @@ impl PatchArgs {
         let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
         validate_custom_edit_dir(dir, edit_dir.as_deref())?;
         let current_lockfile =
-            Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
+            Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
                 .map_err(PatchError::LoadLockfile)?
                 .ok_or(PatchError::PatchNoLockfile)?;
 

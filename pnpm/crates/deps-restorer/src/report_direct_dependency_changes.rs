@@ -9,7 +9,7 @@
 //! them (pnpm/pnpm#15161).
 //!
 //! The symlink outcome answers "did this install put it there". Here the
-//! previous install's `<virtual_store_dir>/lock.yaml` answers it.
+//! previous install's `<install_state_dir>/lock.yaml` answers it.
 
 use crate::{HoistedLinkerInputs, SkippedSnapshots, symlink_direct_dependencies::fallback_version};
 use pnpm_lockfile::{

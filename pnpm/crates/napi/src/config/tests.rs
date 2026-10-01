@@ -24,8 +24,8 @@ fn a_global_store_overlay_keeps_project_state_local() {
 
     let config = build_config(root.path(), &overlay).unwrap();
 
-    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
-    assert_eq!(config.effective_virtual_store_dir(), shared_store);
+    assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
+    assert_eq!(config.virtual_store_dir(), shared_store);
 }
 
 #[test]

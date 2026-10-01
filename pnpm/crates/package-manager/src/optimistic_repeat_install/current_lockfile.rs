@@ -55,7 +55,7 @@ pub(crate) fn assert_current_lockfile_records(
     config: &Config,
     records: impl FnOnce(&Lockfile) -> bool,
 ) -> Result<(), &'static str> {
-    let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+    let current = Lockfile::load_current_from_install_state_dir(&config.install_state_dir)
         .map_err(|_| "the current lockfile cannot be loaded")?;
     assert_loaded_current_lockfile_records(wanted, current.as_ref(), records)
 }

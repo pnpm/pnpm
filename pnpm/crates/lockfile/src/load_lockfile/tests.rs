@@ -157,7 +157,7 @@ fn current_loader_does_not_merge_git_conflicts() {
         .join("node_modules")
         .join(".pacquet");
 
-    let error = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let error = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect_err("current lockfile conflict must remain invalid");
 
     assert!(matches!(error, LoadLockfileError::ParseYaml { .. }));
@@ -188,7 +188,7 @@ fn parses_main_document_from_combined_yaml() {
         .join("node_modules")
         .join(".pacquet");
 
-    let combined_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let combined_loaded = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load combined lockfile")
         .expect("combined lockfile should be present");
 
@@ -197,7 +197,7 @@ fn parses_main_document_from_combined_yaml() {
         .path()
         .join("node_modules")
         .join(".pacquet");
-    let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
+    let main_only_loaded = Lockfile::load_current_from_install_state_dir(&main_only_dir)
         .expect("load main-only lockfile")
         .expect("main-only lockfile should be present");
 
@@ -274,7 +274,7 @@ fn parses_main_document_from_crlf_combined_yaml() {
         .join("node_modules")
         .join(".pacquet");
 
-    let crlf_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let crlf_loaded = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load CRLF combined lockfile")
         .expect("CRLF combined lockfile should be present");
 
@@ -283,7 +283,7 @@ fn parses_main_document_from_crlf_combined_yaml() {
         .path()
         .join("node_modules")
         .join(".pacquet");
-    let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
+    let main_only_loaded = Lockfile::load_current_from_install_state_dir(&main_only_dir)
         .expect("load main-only lockfile")
         .expect("main-only lockfile should be present");
 
@@ -299,7 +299,7 @@ fn env_only_lockfile_loads_as_none() {
         .join("node_modules")
         .join(".pacquet");
 
-    let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let result = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
 }
@@ -432,7 +432,7 @@ fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
         .path()
         .join("node_modules")
         .join(".pacquet");
-    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let lockfile = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load pruned lockfile")
         .expect("pruned lockfile should be present");
 
@@ -498,7 +498,7 @@ snapshots:
         .path()
         .join("node_modules")
         .join(".pacquet");
-    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let lockfile = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load codeload-url lockfile")
         .expect("codeload-url lockfile should be present");
 
@@ -542,7 +542,7 @@ fn parses_pnpm_10_patched_dependencies_entries() {
         .join("node_modules")
         .join(".pacquet");
 
-    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let lockfile = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load lockfile with pnpm 10 patchedDependencies")
         .expect("lockfile should be present");
 
@@ -614,7 +614,7 @@ fn parses_link_dep_in_injected_snapshot() {
         .join("node_modules")
         .join(".pacquet");
 
-    let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let lockfile = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load lockfile with link: snapshot dep")
         .expect("lockfile should be present");
 

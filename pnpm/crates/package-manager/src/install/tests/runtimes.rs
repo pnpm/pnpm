@@ -51,7 +51,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
     let mut config = Config::new();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.install_state_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -140,7 +140,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -234,7 +234,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     Install {
@@ -326,7 +326,7 @@ async fn fresh_install_honors_skip_runtimes() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -398,7 +398,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     let seed = Modules {
@@ -408,7 +408,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -563,13 +563,13 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     config_isolated.lockfile = false;
     config_isolated.store_dir = store_dir.clone().into();
     config_isolated.modules_dir = modules_dir.clone();
-    config_isolated.virtual_store_dir = virtual_store_dir.clone();
+    config_isolated.install_state_dir = virtual_store_dir.clone();
 
     let mut config_hoisted = Config::new();
     config_hoisted.lockfile = false;
     config_hoisted.store_dir = store_dir.clone().into();
     config_hoisted.modules_dir = modules_dir.clone();
-    config_hoisted.virtual_store_dir = virtual_store_dir.clone();
+    config_hoisted.install_state_dir = virtual_store_dir.clone();
     config_hoisted.hoist_pattern = Some(vec![]);
 
     let config_isolated = config_isolated.leak();

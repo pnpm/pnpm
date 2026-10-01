@@ -156,7 +156,7 @@ fn write_local_tarball_lockfile(
         .expect("load local tarball lockfile")
         .expect("local tarball lockfile on disk");
     lockfile
-        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .save_current_to_install_state_dir(virtual_store_dir)
         .expect("write current local tarball lockfile");
     lockfile
 }
@@ -181,7 +181,7 @@ fn write_bare_tarball_lockfile(
         .expect("load bare tarball lockfile")
         .expect("bare tarball lockfile on disk");
     lockfile
-        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .save_current_to_install_state_dir(virtual_store_dir)
         .expect("write current bare tarball lockfile");
     lockfile
 }
@@ -206,7 +206,7 @@ fn write_registry_lockfile(
         .expect("load registry lockfile")
         .expect("registry lockfile on disk");
     lockfile
-        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .save_current_to_install_state_dir(virtual_store_dir)
         .expect("write current registry lockfile");
     lockfile
 }
@@ -310,7 +310,7 @@ fn setup_fresh_install_with_config(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard
@@ -379,9 +379,9 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
-    fs::create_dir_all(&config.virtual_store_dir).unwrap();
-    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
     let settings =
@@ -464,7 +464,7 @@ fn collide_mtimes_with_recorded_state(
     for path in [
         workspace_root.join("package.json"),
         workspace_root.join(Lockfile::FILE_NAME),
-        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
     ] {
         set_mtime(&path, modified);
     }
@@ -588,9 +588,9 @@ fn setup_filtered_install_workspace()
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
-    fs::create_dir_all(&config.virtual_store_dir).unwrap();
-    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile).unwrap();
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile).unwrap();
     let config = config.leak();
 
     let settings =
@@ -679,7 +679,7 @@ fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
     let selected = [project_dir.as_path()];
     fs::create_dir_all(project_dir.join("node_modules")).unwrap();
     fs::write(
-        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
         "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
     )
     .unwrap();
@@ -785,10 +785,10 @@ fn a_filtered_state_accepts_a_newer_lockfile_that_did_not_change_the_selected_pr
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
-    fs::create_dir_all(&config.virtual_store_dir).unwrap();
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
     fs::write(
-        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
         FILTERED_CURRENT_LOCKFILE,
     )
     .unwrap();
@@ -921,7 +921,7 @@ fn linked_sibling_decision_for_spec(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
     config.link_workspace_packages = link_workspace_packages;
     config.exclude_links_from_lockfile = exclude_links_from_lockfile;
     fs::create_dir_all(&config.modules_dir).unwrap();

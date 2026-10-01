@@ -132,13 +132,13 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
 // Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor
 // while the wanted one parses, since neither depends on the other.
 pub(super) fn spawn_current_lockfile_load(config: &Config) -> CurrentLockfileLoad {
-    let virtual_store_dir = config.virtual_store_dir.clone();
+    let install_state_dir = config.install_state_dir.clone();
     tokio::task::spawn_blocking(move || {
-        Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        Lockfile::load_current_from_install_state_dir(&install_state_dir)
     })
 }
 // Load the *current* lockfile that records what the previous
-// install actually materialized in `<virtual_store_dir>/lock.yaml`.
+// install actually materialized in `<install_state_dir>/lock.yaml`.
 // The frozen-lockfile path diffs each wanted snapshot against
 // this on a per-`PackageKey` basis to decide whether the
 // already-installed slot is still usable. `Ok(None)` on a
@@ -295,7 +295,7 @@ pub(super) fn load_current_lockfile<Reporter: self::Reporter>(
                 level: LogLevel::Warn,
                 message: format!(
                     "Ignoring broken lockfile at {}: {error}",
-                    config.virtual_store_dir.display(),
+                    config.install_state_dir.display(),
                 ),
                 prefix: prefix.to_string(),
             }));

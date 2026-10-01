@@ -105,7 +105,7 @@ pub(crate) fn has_local_file_dep_requiring_install(
         lockfile
     } else {
         current_lockfile =
-            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+            Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
                 .map_err(|_| "the current lockfile cannot be loaded to verify local tarballs")?;
         let Some(lockfile) = current_lockfile.as_ref() else { return Ok(true) };
         lockfile

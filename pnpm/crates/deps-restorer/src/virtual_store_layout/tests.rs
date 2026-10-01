@@ -19,12 +19,12 @@ use std::{collections::HashMap, path::PathBuf};
 
 /// Build a `Config` test-double with the GVS-relevant fields
 /// wired explicitly. `gvs_dir` populates `global_virtual_store_dir`
-/// for the GVS-on path; `virtual_store_dir` stays at the
-/// project-local default for the GVS-off path.
+/// for the GVS-on path; `install_state_dir` holds the project-local
+/// virtual store for the GVS-off path.
 fn make_config(gvs: bool, virtual_store_dir: PathBuf, gvs_dir: PathBuf) -> Config {
     let mut config = Config::new();
     config.enable_global_virtual_store = gvs;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.global_virtual_store_dir = gvs_dir;
     config
 }

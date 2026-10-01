@@ -1,7 +1,7 @@
 use super::{
     PNPM_VERSION, default_cache_dir, default_child_concurrency, default_config_dir,
-    default_fetch_timeout, default_pnpm_home_dir, default_store_dir, default_unsafe_perm,
-    default_user_agent, default_virtual_store_dir, default_workspace_concurrency,
+    default_fetch_timeout, default_install_state_dir, default_pnpm_home_dir, default_store_dir,
+    default_unsafe_perm, default_user_agent, default_workspace_concurrency,
     default_workspace_concurrency_with_parallelism, install_command_for, is_unsafe_perm_posix,
     resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
     resolve_configured_state_dir, store_dir_for_os,
@@ -464,7 +464,7 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
     assert_eq!(store_dir.to_str().unwrap(), r"C:\Users\user\AppData\Local\pnpm\store");
 }
 
-/// `default_virtual_store_dir` joins onto the current directory, so the
+/// `default_install_state_dir` joins onto the current directory, so the
 /// separator it appends is what lands in the `virtualStoreDir` recorded
 /// in `.modules.yaml`. Compares the rendered string for the reason given
 /// in the Windows store-directory test above, through
@@ -472,12 +472,12 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
 /// lossily instead of panicking before the assertion.
 #[test]
 #[cfg_attr(not(windows), ignore = "only one path separator style is tested")]
-fn test_default_virtual_store_dir_uses_native_separators() {
-    let virtual_store_dir = default_virtual_store_dir();
-    let rendered = virtual_store_dir.display().to_string();
+fn test_default_install_state_dir_uses_native_separators() {
+    let install_state_dir = default_install_state_dir();
+    let rendered = install_state_dir.display().to_string();
     assert!(
         rendered.ends_with(r"\node_modules\.pnpm"),
-        "virtual store dir {rendered:?} must end with a backslash-separated suffix",
+        "install state dir {rendered:?} must end with a backslash-separated suffix",
     );
 }
 
