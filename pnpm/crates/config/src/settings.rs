@@ -243,6 +243,12 @@ pub struct Config {
     /// an explicit `false` prevents.
     pub prefer_symlinked_executables: Option<bool>,
 
+    /// `preserveBinName`: on Unix, keep the shell shim in `node_modules/.bin`
+    /// and execute a sibling alias symlink so Node sees the invoked command
+    /// name in `process.argv[1]`.
+    #[default = false]
+    pub preserve_bin_name: bool,
+
     /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
     /// undeclared dependencies but modules outside of `node_modules` do not. With this layout,
     /// most of the packages in the ecosystem work with no issues. However, if some tooling only

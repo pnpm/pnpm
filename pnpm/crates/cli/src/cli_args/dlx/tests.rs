@@ -91,21 +91,32 @@ fn regs(default: &str) -> BTreeMap<String, String> {
 fn create_cache_key_is_order_independent_and_deterministic() {
     let registry = "https://registry.npmjs.org/";
     let key_forward =
-        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None, None);
+        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None, None, "");
     let key_reversed =
-        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None, None);
+        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None, None, "");
     assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
-    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[], None, None);
+    let key_versioned =
+        create_cache_key(&["a@1".to_string()], &regs(registry), &[], None, None, "");
     assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
+}
+
+#[test]
+fn create_cache_key_changes_with_bin_layout() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let key_without = create_cache_key(&pkgs, &registries, &[], None, None, "");
+    let key_with = create_cache_key(&pkgs, &registries, &[], None, None, "preserve");
+
+    assert_ne!(key_without, key_with, "the bin layout must be part of the cache identity");
 }
 
 #[test]
 fn create_cache_key_depends_on_registry() {
     let pkgs = ["cowsay".to_string()];
     let key_default =
-        create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None, None);
-    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None, None);
+        create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None, None, "");
+    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None, None, "");
     assert_ne!(key_default, key_custom, "a different registry must produce a different key");
 }
 
@@ -113,9 +124,9 @@ fn create_cache_key_depends_on_registry() {
 fn create_cache_key_changes_with_allow_build() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None, None);
+    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None, None, "");
     let key_with_allow =
-        create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None, None);
+        create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None, None, "");
     assert_ne!(key_no_allow, key_with_allow, "allow_build must change the key");
 }
 
@@ -123,10 +134,22 @@ fn create_cache_key_changes_with_allow_build() {
 fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_forward =
-        create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()], None, None);
-    let key_reversed =
-        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()], None, None);
+    let key_forward = create_cache_key(
+        &pkgs,
+        &regs(registry),
+        &["a".to_string(), "b".to_string()],
+        None,
+        None,
+        "",
+    );
+    let key_reversed = create_cache_key(
+        &pkgs,
+        &regs(registry),
+        &["b".to_string(), "a".to_string()],
+        None,
+        None,
+        "",
+    );
     assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
 }
 
@@ -134,7 +157,7 @@ fn create_cache_key_allow_build_is_order_independent() {
 fn create_cache_key_changes_with_supported_architectures() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None);
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None, "");
 
     let arm = SupportedArchitectures::Axes(ArchitectureAxes {
         cpu: Some(vec!["arm64".to_string()]),
@@ -144,8 +167,8 @@ fn create_cache_key_changes_with_supported_architectures() {
         cpu: Some(vec!["x64".to_string()]),
         ..Default::default()
     });
-    let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm), None);
-    let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64), None);
+    let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm), None, "");
+    let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64), None, "");
 
     assert_ne!(base, key_arm, "an architecture override must change the key");
     assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
@@ -156,7 +179,7 @@ fn create_cache_key_changes_with_supported_architectures() {
     });
     assert_eq!(
         key_arm,
-        create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup), None),
+        create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup), None, ""),
         "duplicate cpu values must not change the key",
     );
 }
@@ -165,7 +188,7 @@ fn create_cache_key_changes_with_supported_architectures() {
 fn create_cache_key_changes_with_the_platforms_it_names() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None);
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None, "");
     let listed = |platforms: &[&str]| {
         SupportedArchitectures::Platforms(
             platforms
@@ -174,7 +197,7 @@ fn create_cache_key_changes_with_the_platforms_it_names() {
                 .collect(),
         )
     };
-    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported), None);
+    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported), None, "");
 
     let linux = listed(&["linux-x64"]);
     let darwin = listed(&["darwin-arm64"]);

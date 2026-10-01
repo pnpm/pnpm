@@ -178,6 +178,9 @@ impl SettingsComparison<'_> {
             "linkWorkspacePackages",
             recorded.link_workspace_packages != live.link_workspace_packages,
         );
+        let preserve_bin_name_drift = recorded.preserve_bin_name.unwrap_or(false)
+            != live.preserve_bin_name.unwrap_or(false);
+        return_drift_if!(self, "preserveBinName", preserve_bin_name_drift);
         None
     }
     fn resolution_drift(&self) -> Option<&'static str> {
@@ -353,6 +356,7 @@ pub(crate) fn current_settings(
             u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),
         ),
         prefer_workspace_packages: Some(config.prefer_workspace_packages),
+        preserve_bin_name: Some(cfg!(unix) && config.preserve_bin_name),
         production: Some(included.dependencies),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         // The CLI-merged effective value (yaml plus `--cpu` / `--os` /

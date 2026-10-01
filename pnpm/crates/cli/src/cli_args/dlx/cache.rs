@@ -6,6 +6,8 @@ use super::{
     parse_catalog_protocol, parse_manifest, parse_overrides_iter, parse_wanted_dependency,
     resolve_from_catalog,
 };
+use pnpm_cmd_shim::bin_layout_fingerprint;
+use pnpm_deps_restorer::shim_link_options;
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 
 /// Install the packages into a fresh prepare directory and point the
@@ -161,16 +163,18 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
 /// Build the dlx cache key from the sorted package specs, sorted
 /// registries, the optional `allow_build` list, each non-empty
 /// `supportedArchitectures` axis (deduped + sorted, in `cpu` / `libc` /
-/// `os` order), and the Node.js engine name, all hashed together. pacquet keys on the raw specs (not
-/// resolved ids) and uses [`create_short_hash`] rather than a full-length
-/// hex digest; the dlx caches are not shared between the two
-/// implementations, so the key format is not a cross-tool contract.
+/// `os` order), the Node.js engine name, and the effective bin layout, all
+/// hashed together. pacquet keys on the raw specs (not resolved ids) and
+/// uses [`create_short_hash`] rather than a full-length hex digest; the dlx
+/// caches are not shared between the two implementations, so the key format
+/// is not a cross-tool contract.
 pub(super) fn create_cache_key(
     pkgs: &[String],
     registries: &BTreeMap<String, String>,
     allow_build: &[String],
     supported_architectures: Option<&SupportedArchitectures>,
     engine: Option<&str>,
+    bin_layout: &str,
 ) -> String {
     let mut sorted: Vec<&str> = pkgs
         .iter()
@@ -194,6 +198,7 @@ pub(super) fn create_cache_key(
     // `null` when no `node` is found, which still differs from a key that
     // records no engine at all.
     args.push(json!({ "engine": engine }));
+    args.push(json!({ "binLayout": bin_layout }));
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 
@@ -336,6 +341,7 @@ pub(super) fn command_cache_dir(
     allow_build: &[String],
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<PathBuf> {
+    let bin_layout = bin_layout_fingerprint(&shim_link_options(config, config.node_linker));
     dlx_command_cache_dir(
         config,
         &create_cache_key(
@@ -344,6 +350,7 @@ pub(super) fn command_cache_dir(
             allow_build,
             supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
             detect_node_major().map(|major| engine_name(major, None, None)).as_deref(),
+            &bin_layout,
         ),
     )
 }

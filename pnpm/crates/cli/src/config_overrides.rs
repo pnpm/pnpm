@@ -98,6 +98,7 @@ pub struct ConfigOverrides {
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
     prefer_offline: Option<bool>,
+    preserve_bin_name: Option<bool>,
     /// The raw `modulesDir` / `virtualStoreDir` spellings, kept unresolved
     /// so [`Config::anchor_lockfile_paths`] can re-resolve them against
     /// whichever directory ends up anchoring the install.

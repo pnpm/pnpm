@@ -4,7 +4,7 @@ use super::{
 };
 use serde_json::{Map, Number, Value};
 
-fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
+pub(super) fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
     let mut manifest = Map::from_iter([
         ("autoInstallPeers".to_string(), Value::Bool(config.auto_install_peers)),
         ("dedupeInjectedDeps".to_string(), Value::Bool(false)),
@@ -30,6 +30,9 @@ fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
         ),
         ("virtualStoreType".to_string(), Value::String("project".to_string())),
     ]);
+    if cfg!(unix) && config.preserve_bin_name {
+        manifest.insert("preserveBinName".to_string(), Value::Bool(true));
+    }
     if let Some(virtual_store_dir) = configured_virtual_store_dir(config) {
         manifest.insert(
             "virtualStoreDir".to_string(),

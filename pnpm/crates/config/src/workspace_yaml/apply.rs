@@ -115,6 +115,9 @@ impl WorkspaceSettings {
             &mut config.prefer_symlinked_executables,
             self.prefer_symlinked_executables.take(),
         );
+        if let Some(value) = self.preserve_bin_name.take() {
+            config.preserve_bin_name = value;
+        }
         overlay_some(&mut config.save_catalog_name, self.save_catalog_name.take());
         overlay_some(&mut config.init_author_name, self.init_author_name.take());
         overlay_some(&mut config.init_author_email, self.init_author_email.take());

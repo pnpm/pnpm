@@ -336,6 +336,8 @@ pub struct WorkspaceSettings {
     /// `preferSymlinkedExecutables` from `pnpm-workspace.yaml`. Unset by
     /// default: see [`Config::prefer_symlinked_executables`](crate::settings::Config::prefer_symlinked_executables).
     pub prefer_symlinked_executables: Option<bool>,
+    /// `preserveBinName` from `pnpm-workspace.yaml`.
+    pub preserve_bin_name: Option<bool>,
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,

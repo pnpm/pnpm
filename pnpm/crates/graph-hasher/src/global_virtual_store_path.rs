@@ -59,6 +59,29 @@ pub fn calc_graph_node_hash<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
+    calc_graph_node_hash_with_layout(
+        graph,
+        cache,
+        dep_path,
+        engine,
+        build_required_dep_paths,
+        project,
+        None,
+    )
+}
+
+pub fn calc_graph_node_hash_with_layout<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    dep_path: &Key,
+    engine: Option<&str>,
+    build_required_dep_paths: Option<&HashSet<Key>>,
+    project: Option<&str>,
+    layout: Option<&str>,
+) -> String
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
     let include_engine = build_required_dep_paths.is_none_or(|set| set.contains(dep_path));
     let engine_value = if include_engine {
         match engine {
@@ -70,13 +93,14 @@ where
     };
     let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
     // The object-hash serialization of
-    // `{ engine, deps }`, plus `project` when the caller has one, with
-    // `sort = false`: keys stay in the order written here, which is the
-    // order `hash_object_without_sorting` reads them out of a
-    // `preserve_order` `serde_json` map.
+    // `{ engine, deps }`, plus `project` and `layout` when the caller
+    // has them, with `sort = false`: keys stay in the order written here,
+    // which is the order `hash_object_without_sorting` reads them out of
+    // a `preserve_order` `serde_json` map.
     let mut buf = Vec::with_capacity(256);
     buf.extend_from_slice(b"object:");
-    buf.extend_from_slice(if project.is_some() { b"3" } else { b"2" });
+    let field_count = 2 + usize::from(project.is_some()) + usize::from(layout.is_some());
+    buf.push(b'0' + field_count as u8);
     buf.push(b':');
     serialize_str(&mut buf, "engine");
     buf.push(b':');
@@ -93,6 +117,12 @@ where
         serialize_str(&mut buf, "project");
         buf.push(b':');
         serialize_str(&mut buf, project);
+        buf.push(b',');
+    }
+    if let Some(layout) = layout {
+        serialize_str(&mut buf, "layout");
+        buf.push(b':');
+        serialize_str(&mut buf, layout);
         buf.push(b',');
     }
     digest_hex(&buf)

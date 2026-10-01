@@ -103,6 +103,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("prefer-symlinked-executables", false),
     ("prefer-workspace-packages", false),
     ("preserve-absolute-paths", false),
+    ("preserve-bin-name", false),
     ("production", false),
     ("progress", false),
     ("public-hoist-pattern", false),

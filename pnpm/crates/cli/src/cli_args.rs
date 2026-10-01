@@ -35,6 +35,7 @@ pub(crate) mod global_bin_lock;
 pub mod ignored_builds;
 pub mod import;
 pub mod init;
+pub(crate) mod injected_deps;
 pub mod install;
 pub mod install_options;
 pub mod install_test;
