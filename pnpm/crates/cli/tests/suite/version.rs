@@ -260,6 +260,54 @@ fn version_flag_switches_to_the_pinned_version_under_the_hoisted_node_linker() {
     drop((root, mock_instance));
 }
 
+/// The project's `nodeVersion` describes the Node.js its dependencies run on,
+/// not the one running the pinned pnpm. The engine must land in the slot the
+/// next command looks up, so a second command reuses it without the registry.
+#[test]
+fn version_flag_reuses_the_pinned_engine_when_node_version_names_another_major() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"9.3.0","onFail":"download"}}}"#,
+    )
+    .expect("write package.json");
+    let other_node_version = match pnpm_graph_hasher::detect_node_major() {
+        Some(20) => "22.0.0",
+        _ => "20.0.0",
+    };
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("nodeVersion: {other_node_version}\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = test_command(pacquet_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+    dbg!(&output);
+    assert!(output.status.success(), "the first pacquet --version should install the engine");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    let output = test_command(pacquet_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
+        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version against an unreachable registry");
+    dbg!(&output);
+    assert!(
+        output.status.success(),
+        "the second pacquet --version should reuse the installed engine",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn child_pnpm_selects_the_version_for_its_own_directory() {
     let CommandTempCwd { pacquet, root, npmrc_info, .. } =
