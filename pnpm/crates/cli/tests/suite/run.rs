@@ -335,7 +335,8 @@ fn shorthand_runs_a_matching_bin_despite_a_trailing_filter() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-    write_fake_bin(&workspace.join("node_modules/.bin"), "categories", "ran-the-bin");
+    let echo_args = if cfg!(windows) { "bin-args %*" } else { r#"bin-args "$@""# };
+    write_fake_bin(&workspace.join("node_modules/.bin"), "categories", echo_args);
 
     let output = pacquet
         .with_args(["categories", "--filter", "sitemaps"])
@@ -343,7 +344,10 @@ fn shorthand_runs_a_matching_bin_despite_a_trailing_filter() {
         .expect("spawn pacquet categories");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "the bin must run:\n{output:?}");
-    assert!(stdout.contains("ran-the-bin"), "the bin must run:\n{stdout}");
+    assert!(
+        stdout.contains("bin-args --filter sitemaps"),
+        "the bin must receive the filter option:\n{stdout}",
+    );
 
     drop(root);
 }
