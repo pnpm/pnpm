@@ -1,6 +1,6 @@
 //! Removing the links that point at a skipped optional dependency.
 
-use super::BuildOneSnapshot;
+use super::{BuildModulesError, BuildOneSnapshot, PackageKey};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -55,6 +55,25 @@ pub(super) fn unlink_project_links(
         .try_for_each(|modules_dir| unlink_children(&modules_dir, targets))
 }
 
+/// Remove an optional dependency whose build failed together with the links
+/// to it. The links are matched by their resolved targets, so they go first,
+/// while the package directory still exists.
+pub(super) fn discard_failed_optional(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    let targets = LinkTargets::resolve(&context.pkg_roots().all(snapshot_key));
+    unlink_project_links(context, &targets)
+        .map_err(|UnlinkError { path, source }| {
+            BuildModulesError::RemoveSkippedOptionalDependency { path, source }
+        })?;
+    super::discard_skipped_optional_dependency(
+        context.pkg_roots(),
+        context.directories.lockfile_dir,
+        snapshot_key,
+    )
+}
+
 /// The `node_modules` directory of every project in the lockfile. An importer
 /// key that would escape the lockfile directory is left out.
 fn project_modules_dirs(context: &BuildOneSnapshot<'_>) -> Vec<PathBuf> {
@@ -75,22 +94,36 @@ fn project_modules_dirs(context: &BuildOneSnapshot<'_>) -> Vec<PathBuf> {
 /// Remove the entries of `dir`, and of its scope directories, that link to
 /// `targets`.
 pub(super) fn unlink_children(dir: &Path, targets: &LinkTargets) -> Result<(), UnlinkError> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Ok(()) };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if targets.is_linked_from(&path) {
-            remove_link(path)?;
-        } else if is_scope_dir(&path) {
-            let Ok(scoped) = std::fs::read_dir(&path) else { continue };
-            for scoped_entry in scoped.flatten() {
-                let scoped_path = scoped_entry.path();
-                if targets.is_linked_from(&scoped_path) {
-                    remove_link(scoped_path)?;
-                }
-            }
-        }
-    }
-    Ok(())
+    modules_dir_entries(dir)
+        .into_iter()
+        .filter(|entry| targets.is_linked_from(entry))
+        .try_for_each(remove_link)
+}
+
+/// The entries of `dir` and of its real scope directories, the places a
+/// package can be linked from.
+fn modules_dir_entries(dir: &Path) -> Vec<PathBuf> {
+    let mut entries = list_dir(dir);
+    let scoped: Vec<PathBuf> = entries
+        .iter()
+        .filter(|entry| is_scope_dir(entry))
+        .flat_map(|scope| list_dir(scope))
+        .collect();
+    entries.extend(scoped);
+    entries
+}
+
+fn list_dir(dir: &Path) -> Vec<PathBuf> {
+    std::fs::read_dir(dir)
+        .map_or_else(
+            |_| Vec::new(),
+            |entries| {
+                entries
+                    .flatten()
+                    .map(|entry| entry.path())
+                    .collect()
+            },
+        )
 }
 
 /// A real `@scope` directory. A scope directory that is itself a link is
