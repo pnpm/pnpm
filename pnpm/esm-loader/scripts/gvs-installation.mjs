@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
-import { refToRelative } from '../../../pnpm11/deps/path/lib/index.js'
+import { parse as parseDependencyPath, refToRelative } from '../../../pnpm11/deps/path/lib/index.js'
 import { readModulesManifest } from '../../../pnpm11/installing/modules-yaml/lib/index.js'
 import { readCurrentLockfile, writeWantedLockfile } from '../../../pnpm11/lockfile/fs/lib/index.js'
 import { lockfileYamlDump } from '../../../pnpm11/lockfile/fs/lib/write.js'
@@ -32,7 +32,8 @@ export async function installOptOuts (source, manifest, names) {
   delete selectedLockfile.untrackedPnpmfileReadPackageHook
   rejectWorkspaceLinks(selectedLockfile)
   fs.writeFileSync(path.join(installation, 'package.json'), JSON.stringify({ private: true, dependencies: importer.specifiers }))
-  fs.writeFileSync(path.join(installation, 'pnpm-workspace.yaml'), lockfileYamlDump(installationConfig(config, source.repo)))
+  const selectedConfig = pruneUnusedPatches(selectedLockfile, config)
+  fs.writeFileSync(path.join(installation, 'pnpm-workspace.yaml'), lockfileYamlDump(installationConfig(selectedConfig, source.repo)))
   await writeWantedLockfile(installation, selectedLockfile)
   const output = execFileSync('pnpm', ['install', '--frozen-lockfile', '--ignore-scripts'], {
     cwd: installation, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -43,6 +44,13 @@ export async function installOptOuts (source, manifest, names) {
   const closure = mapInstalledClosure(manifest, roots, { source, locations })
   const globalVirtualStoreDir = await verifyGlobalStore({ installation, config, repo: source.repo }, closure.materialized)
   return { installation, globalVirtualStoreDir, selected, ...closure }
+}
+
+function pruneUnusedPatches (lockfile, config) {
+  const hashes = new Set(Object.keys(lockfile.packages ?? {}).map(id => parseDependencyPath(id).patchHash))
+  lockfile.patchedDependencies = Object.fromEntries(Object.entries(lockfile.patchedDependencies ?? {}).filter(([, hash]) => hashes.has(`(patch_hash=${hash})`)))
+  const patchedDependencies = Object.fromEntries(Object.entries(config.patchedDependencies ?? {}).filter(([name]) => Object.hasOwn(lockfile.patchedDependencies, name)))
+  return { ...config, patchedDependencies }
 }
 
 function createSelectedImporter (selected, { source, locations }) {

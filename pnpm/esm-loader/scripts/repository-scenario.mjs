@@ -20,8 +20,9 @@ export function runSuite (root, manifestPath, scenario) {
 export function readScenario (root) {
   const report = path.join(root, 'ecosystem-results.json')
   if (fs.existsSync(report)) {
-    const { runner, args } = JSON.parse(fs.readFileSync(report, 'utf8'))
-    return runner === 'node' ? { cwd: 'repo', nodeArgs: args } : { entry: 'repo/run-vitest.mjs', cwd: 'repo', args }
+    const { runner, cwd = '.', args } = JSON.parse(fs.readFileSync(report, 'utf8'))
+    const scenario = { cwd: path.join('repo', cwd) }
+    return runner === 'node' ? { ...scenario, nodeArgs: args } : { ...scenario, entry: 'repo/run-vitest.mjs', args }
   }
   return {
     entry: 'repo/run-jest.cjs', cwd: 'repo/pnpm11/cli/parse-cli-args',
