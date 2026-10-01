@@ -196,7 +196,7 @@ describe('paths containing %', () => {
     const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
     assert.ok(content.includes('@SET "NODE_PATH=\\50%% off\\node_modules;%NODE_PATH%"'), content)
     assert.ok(content.includes('"%~dp0\\50%% off\\src.env"'), content)
-    assert.ok(content.includes('@SET "PATH=\\50%% off\\bin:%PATH%"'), content)
+    assert.ok(content.includes('@SET "PATH=\\50%% off\\bin;%PATH%"'), content)
     assert.ok(content.includes('"/50%% off/node"'), content)
   })
 

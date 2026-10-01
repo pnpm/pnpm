@@ -526,7 +526,7 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
 
   let cmd = '@SETLOCAL\r\n'
   if (prependToPath) {
-    cmd += `@SET "PATH=${prependToPath}:%PATH%"\r\n`
+    cmd += `@SET "PATH=${prependToPath};%PATH%"\r\n`
   }
   if (nodePath) {
     cmd += `\
