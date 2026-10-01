@@ -64,7 +64,7 @@ pub(super) fn link_into_legacy_home_dir(
     }
     let _lock = crate::cli_args::global_bin_lock::acquire_global_bin_lock(pnpm_home_dir)?;
     let retired = retire_standalone_executable(pnpm_home_dir)?;
-    if retired.is_none() && !has_legacy_home_dir_shim(pnpm_home_dir)? {
+    if retired.is_none() && !has_legacy_home_dir_shim(pnpm_home_dir) {
         return Ok(false);
     }
     finish_retirement(retired, link_pnpm_bins(installed, pnpm_home_dir))?;
@@ -75,21 +75,20 @@ pub(super) fn link_into_legacy_home_dir(
 /// still uses (pnpm/pnpm#12496). Only the POSIX shim names its target, so
 /// `pnpm.cmd` counts when that one is absent. A native shim named `pnpm` is
 /// left to [`refresh_global_shims`].
-fn has_legacy_home_dir_shim(pnpm_home_dir: &Path) -> miette::Result<bool> {
-    if crate::shim_dispatch::native_shim_target(pnpm_home_dir, "pnpm").into_diagnostic()?.is_some()
-    {
-        return Ok(false);
+fn has_legacy_home_dir_shim(pnpm_home_dir: &Path) -> bool {
+    if crate::shim_dispatch::native_shim_is_installed(pnpm_home_dir, "pnpm") {
+        return false;
     }
     match fs::read_to_string(pnpm_home_dir.join("pnpm")) {
-        Ok(content) => Ok(content
+        Ok(content) => content
             .lines()
             .rev()
             .find_map(|line| line.strip_prefix("# cmd-shim-target="))
-            .is_none_or(|target| pnpm_home_dir.join(target).exists())),
+            .is_none_or(|target| pnpm_home_dir.join(target).exists()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            Ok(pnpm_home_dir.join("pnpm.cmd").is_file())
+            pnpm_home_dir.join("pnpm.cmd").is_file()
         }
-        Err(_) => Ok(true),
+        Err(_) => true,
     }
 }
 

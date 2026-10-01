@@ -265,6 +265,19 @@ fn self_update_refreshes_the_shims_an_earlier_update_left_in_the_pnpm_home_dir()
 }
 
 #[test]
+fn self_update_refreshes_a_pnpm_home_dir_shim_beside_an_unreadable_native_shim_sidecar() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join("pnpm.cmd"), b"@echo off").unwrap();
+    fs::write(pnpm_home_dir.join(".pnpm-shim-v1-pnpm-target"), b"not a shim target").unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(pnpm_home_dir.join("pnpm").is_file());
+}
+
+#[test]
 fn self_update_ignores_a_pnpm_home_dir_shim_whose_target_is_gone() {
     let root = tempfile::tempdir().unwrap();
     let pnpm_home_dir = root.path().join("pnpm-home");
