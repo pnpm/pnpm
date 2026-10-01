@@ -273,10 +273,13 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
 /// An exact-version or tag pick names its target outright — only a range has
 /// older alternatives worth falling back to.
 ///
+/// The narrowing only probes the versions the re-pick could return: those
+/// the range admits, or every version when the `latest` tag also competes.
+///
 /// `unfiltered_meta` is the packument before `blocked_versions` filtering:
-/// the memo is keyed by route alone, so it must be derived from metadata no
-/// caller has pre-narrowed, and each caller's block set applies only to its
-/// own final re-pick.
+/// the memo is keyed by route and range alone, so it must be derived from
+/// metadata no caller has pre-narrowed, and each caller's block set applies
+/// only to its own final re-pick.
 #[expect(
     clippy::too_many_arguments,
     reason = "the inputs are independent pick-time values; bundling them moves the fields into a wrapper without removing work"
@@ -313,7 +316,8 @@ pub(super) async fn pick_from_meta_offline(
     if picked_is_held {
         return Ok((meta, picked));
     }
-    let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {
+    let scan_range = if picker_opts.include_latest_tag { "*" } else { spec.fetch_spec.as_str() };
+    let Some(narrowed) = store_view.narrowed(route_key, scan_range, unfiltered_meta).await else {
         return Ok((meta, picked));
     };
     let (_narrowed_meta, narrowed_pick) =
