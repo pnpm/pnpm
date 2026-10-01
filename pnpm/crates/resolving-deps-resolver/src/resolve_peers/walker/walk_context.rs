@@ -1,7 +1,7 @@
 use super::{
     Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId, ParentPkgInfo,
-    ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain, UndoRealize,
-    Walker,
+    ParentRefs, PeerProviderChildren, PeerWalkMode, ResolvedPackage, ResolvedTree, SharedChain,
+    UndoRealize, Walker,
 };
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -77,7 +77,7 @@ impl ChildOutputs {
         alias: &str,
         output: NodeOutput,
         child_aliases: &ChildAliases<'_>,
-        collect_dep_paths: bool,
+        mode: PeerWalkMode,
     ) {
         let NodeOutput {
             dep_path,
@@ -91,7 +91,7 @@ impl ChildOutputs {
         {
             self.missing_summaries.push(summary);
         }
-        if collect_dep_paths {
+        if mode == PeerWalkMode::Final {
             self.dep_paths.insert(alias.to_string(), dep_path);
         }
         self.auto_install_resolved_peers.extend(auto_install_resolved_peers);
