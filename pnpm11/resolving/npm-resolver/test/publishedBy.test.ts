@@ -961,14 +961,13 @@ test('a repeated 304 to the release-age upgrade is handled without reporting an 
 
 // An ETag identifies one representation, so the full document's validator
 // cannot describe the abbreviated slot the upgrade writes it into. A registry
-// that keys ETags per representation, such as npmjs.org, can never match it,
-// so the next abbreviated request is answered with a body that has no `time`
-// and the upgrade runs all over again.
+// that keys ETags per representation, such as npmjs.org, can never match it
+// on an abbreviated request, so it is recorded as `fullEtag` instead.
 //
 // The upgrade reaches the mirror from two directions, and both are covered
 // here: a 304 on the cached mirror, and a fresh abbreviated 200 with no
 // mirror to validate against.
-test('the release-age upgrade of a validated mirror writes no etag', async () => {
+test('the release-age upgrade of a validated mirror records the full etag', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
@@ -1005,12 +1004,13 @@ test('the release-age upgrade of a validated mirror writes no etag', async () =>
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.fullEtag).toBe('"full-etag"')
   // `modified` is the packument's own `time.modified`, identical in both
   // representations, so it stays and keeps the next request conditional.
   expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
 })
 
-test('the release-age upgrade of a freshly fetched packument writes no etag', async () => {
+test('the release-age upgrade of a freshly fetched packument records the full etag', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
@@ -1047,7 +1047,44 @@ test('the release-age upgrade of a freshly fetched packument writes no etag', as
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.fullEtag).toBe('"full-etag"')
   expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
+})
+
+// npmjs.org ignores If-Modified-Since, so only the full document's own ETag
+// lets it answer 304 for an abbreviated mirror the upgrade filled.
+test('an abbreviated mirror holding an upgraded full document revalidates with the full etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const cacheHeaders = JSON.stringify({ fullEtag: '"full-etag"', modified: isPositiveMeta.time.modified })
+  const mirror = `${cacheHeaders}\n${JSON.stringify(isPositiveMeta)}`
+  fs.writeFileSync(cachePath, mirror, 'utf8')
+  // Date the mirror before the cutoff so it is revalidated instead of being
+  // trusted as freshly written.
+  fs.utimesSync(cachePath, new Date(0), new Date(0))
+
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { accept: /^application\/json/, 'if-none-match': '"full-etag"' },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(0)
+  expect(fs.readFileSync(cachePath, 'utf8')).toBe(mirror)
 })
 
 /**

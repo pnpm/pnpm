@@ -138,7 +138,7 @@ fn persist_upgrade_to_mirror<Cache: PackageMetaCache>(
     meta: &mut Arc<Package>,
 ) {
     if let Some(reloaded) = pkg_mirror.and_then(|path| {
-        persist_upgraded_to_mirror(path, meta, use_filtered_full_metadata, upgrade.uncacheable)
+        persist_upgraded_to_mirror(path, upgrade, use_filtered_full_metadata)
     }) {
         *meta = Arc::new(reloaded);
     }

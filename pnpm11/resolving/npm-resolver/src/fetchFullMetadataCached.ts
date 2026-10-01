@@ -7,6 +7,7 @@ import {
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
+import { fullEtagOfAbbreviatedMirror, mirrorEtags } from './metaMirror.js'
 import {
   discardMirrorAfterFailedUncacheableWrite,
   getPkgMirrorPath,
@@ -83,15 +84,16 @@ async function fetchMetadataCached (
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
   const uncacheable = cacheHeaders?.uncacheable === true
+  const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, opts.fullMetadata)
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
     cacheBypass: uncacheable,
-    fullMetadata: opts.fullMetadata,
-    etag: uncacheable ? undefined : cacheHeaders?.etag,
+    fullMetadata: opts.fullMetadata || fullEtag != null,
+    etag: uncacheable ? undefined : (fullEtag ?? cacheHeaders?.etag),
     modified: uncacheable ? undefined : cacheHeaders?.modified,
   })
-  if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional)
+  if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional, opts.fullMetadata)
 
   // A 304 only resolves as `notModified` when a validator was sent, which
   // requires cache headers loaded from a mirror — so a null mirror here is an
@@ -104,7 +106,7 @@ async function fetchMetadataCached (
   // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask again
   // as a cold cache would, which the registry can only answer with a body or an
   // error — never another 304.
-  return persistFetchedMeta(pkgMirror, await refetchBypassingCache(fetchOpts, pkgName, opts))
+  return persistFetchedMeta(pkgMirror, await refetchBypassingCache(fetchOpts, pkgName, opts), opts.fullMetadata)
 }
 
 async function loadOfflineMeta (
@@ -142,9 +144,10 @@ async function refetchBypassingCache (
 // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
 // failure isn't a reason to fail the caller; the next install just won't get
 // the speedup.
-function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult): PackageMeta {
+function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {
   if (pkgMirror != null) {
-    saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched)).catch(() => {
+    const { etag, fullEtag } = mirrorEtags(fetched, mirrorFullMetadata)
+    saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, etag, { ...fetched, fullEtag })).catch(() => {
       return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
     })
   }

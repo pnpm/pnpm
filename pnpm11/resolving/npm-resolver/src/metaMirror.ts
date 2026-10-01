@@ -172,18 +172,18 @@ function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: st
 
 /**
  * Formats metadata for disk storage as two-line NDJSON:
- *   Line 1: cache headers (etag, modified) — small, fast to read
+ *   Line 1: cache headers (etag, fullEtag, modified) — small, fast to read
  *   Line 2: the registry metadata JSON
  *
- * The etag lives only in the headers line (`loadMeta` re-attaches it from
+ * The ETags live only in the headers line (`loadMeta` re-attaches them from
  * there), so a `meta` that carries one is serialized without it.
  *
- * An ETag identifies one representation, so a caller writing a document into
- * a slot that ETag does not describe passes `undefined` — that is what the
- * release-age upgrade does when it stores a full document in the abbreviated
- * slot. `modified` is always written: it comes from the packument's own
- * `time.modified`, which both representations report identically, so the next
- * request is still conditional through `If-Modified-Since`.
+ * An ETag identifies one representation. `etag` tags the representation the
+ * mirror's directory holds. `body.fullEtag` tags a full document that the
+ * release-age upgrade stored in the abbreviated mirror (see
+ * {@link mirrorEtags}). `modified` is always written: it comes from the
+ * packument's own `time.modified`, which both representations report
+ * identically.
  *
  * `body.jsonText` is the raw registry body, written as is when given.
  * `body.uncacheable` records that the response forbade caching, so the next
@@ -192,14 +192,44 @@ function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: st
 export function prepareJsonForDisk (
   meta: PackageMeta,
   etag: string | undefined,
-  body: { jsonText?: string, uncacheable?: boolean } = {}
+  body: { jsonText?: string, uncacheable?: boolean, fullEtag?: string } = {}
 ): string {
   const modified = meta.modified ?? meta.time?.modified
-  const headers = JSON.stringify({ etag, modified, uncacheable: body.uncacheable === true ? true : undefined })
-  const bodyMeta = meta.etag == null && meta.uncacheable == null
+  const headers = JSON.stringify({
+    etag,
+    fullEtag: body.fullEtag,
+    modified,
+    uncacheable: body.uncacheable === true ? true : undefined,
+  })
+  const bodyMeta = meta.etag == null && meta.fullEtag == null && meta.uncacheable == null
     ? meta
-    : { ...meta, etag: undefined, uncacheable: undefined }
+    : { ...meta, etag: undefined, fullEtag: undefined, uncacheable: undefined }
   return `${headers}\n${body.jsonText ?? JSON.stringify(bodyMeta)}`
+}
+
+/**
+ * Where a response's ETag goes in a mirror's headers. A full document stored
+ * in the abbreviated mirror keeps its ETag as `fullEtag`, because that tag
+ * validates only the full representation.
+ */
+export function mirrorEtags (
+  response: { etag?: string, fullMetadata?: boolean },
+  mirrorFullMetadata: boolean
+): Pick<MetaHeaders, 'etag' | 'fullEtag'> {
+  return response.fullMetadata === true && !mirrorFullMetadata
+    ? { fullEtag: response.etag }
+    : { etag: response.etag }
+}
+
+/**
+ * The full document's ETag when the abbreviated mirror holds a document the
+ * release-age upgrade stored there. That mirror is revalidated as the full
+ * document with this tag, so a registry with per-representation ETags, such
+ * as npmjs.org, can answer 304.
+ */
+export function fullEtagOfAbbreviatedMirror (headers: MetaHeaders | null, fullMetadata: boolean): string | undefined {
+  if (fullMetadata || headers?.fullEtag == null || headers.fullEtag === '') return undefined
+  return headers.fullEtag
 }
 
 export async function getFileMtime (filePath: string): Promise<Date | null> {
@@ -213,6 +243,7 @@ export async function getFileMtime (filePath: string): Promise<Date | null> {
 
 export interface MetaHeaders {
   etag?: string
+  fullEtag?: string
   modified?: string
   uncacheable?: boolean
 }
@@ -220,6 +251,7 @@ export interface MetaHeaders {
 export function metaHeadersOf (meta: PackageMeta): MetaHeaders {
   return {
     etag: meta.etag,
+    fullEtag: meta.fullEtag,
     modified: meta.modified ?? meta.time?.modified,
     uncacheable: meta.uncacheable,
   }
@@ -264,6 +296,7 @@ export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> 
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
     dropIncompletePublishTimes(meta)
     meta.etag = headers.etag
+    meta.fullEtag = headers.fullEtag
     meta.uncacheable = headers.uncacheable === true ? true : undefined
     return meta
   } catch {

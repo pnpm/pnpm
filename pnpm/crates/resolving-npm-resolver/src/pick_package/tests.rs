@@ -2,6 +2,8 @@ mod behavior;
 
 mod release_age;
 
+mod upgraded_mirror_revalidation;
+
 mod mature_fallback;
 
 mod trust_policy;
