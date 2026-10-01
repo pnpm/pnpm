@@ -23,7 +23,7 @@ describe('Node fallback bin', () => {
     const fixture = createFixture()
     const result = await run(process.execPath, [fixture.placeholder, '--version'])
     assert.equal(result.status, 0, result.stderr)
-    assert.equal(result.stdout, IS_UNIX ? 'installed: --version\n' : `${process.version}\n`)
+    assert.equal(result.stdout, IS_UNIX ? 'installed: --version\n' : `${process.version}${os.EOL}`)
   })
 
   it('runs directly through its shebang on Unix', { skip: !IS_UNIX }, async () => {
