@@ -5,11 +5,12 @@ import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 import { openStore } from '../store.mjs'
-import { assertIsolated } from './repository-fixture.mjs'
+import { assertIsolated, bundleLoader } from './repository-fixture.mjs'
 import { readScenario, runSuite } from './repository-scenario.mjs'
 
 if (!process.argv[2]) throw new Error('Pass the retained fixture path from test-repository.mjs')
 const root = path.resolve(process.argv[2])
+await bundleLoader(root)
 const manifestURL = pathToFileURL(path.join(root, '.pnpm-store.json'))
 const manifest = JSON.parse(fs.readFileSync(manifestURL, 'utf8'))
 const store = openStore(manifestURL)

@@ -7,6 +7,7 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL, URL } from 'node:url'
 
 import { assertIsolated } from './repository-fixture.mjs'
+import { readAudit } from './repository-scenario.mjs'
 
 if (!process.argv[2]) throw new Error('Pass the retained Svelte fixture path from test-ecosystem.mjs')
 const root = path.resolve(process.argv[2])
@@ -14,15 +15,16 @@ const { repo, revision } = JSON.parse(fs.readFileSync(path.join(root, 'ecosystem
 const entry = fileURLToPath(new URL('./compile-svelte-corpus.mjs', import.meta.url))
 const env = { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' }
 const baseline = run([entry, repo], env)
+const auditPath = path.join(root, 'compiler-cas-loads.jsonl')
+fs.writeFileSync(auditPath, '')
 const cas = run(['--import', pathToFileURL(path.join(root, 'loader.mjs')).href, entry, path.join(root, 'repo')], {
-  ...env, PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json'), PNPM_LOADER_AUDIT: path.join(root, 'compiler-cas-loads.json'),
+  ...env, PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json'), PNPM_LOADER_AUDIT: auditPath,
 })
 assert.deepEqual(cas, baseline)
 assertIsolated(root)
-const loaded = JSON.parse(fs.readFileSync(path.join(root, 'compiler-cas-loads.json'), 'utf8'))
 const report = {
   revision, node: process.version, compiled: cas.length, outputsMatch: true, materializedPackages: 0,
-  casModules: loaded.length, casPackages: new Set(loaded.map(url => url.split('/.pnpm-loader/')[1].split('/')[0])).size,
+  ...readAudit(auditPath),
 }
 assert.ok(report.casPackages > 0)
 fs.writeFileSync(path.join(root, 'compiler-results.json'), JSON.stringify(report, null, 2))
