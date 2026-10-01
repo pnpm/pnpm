@@ -118,6 +118,7 @@ async function hoistIntoModulesDirs (
   return await hoist({
     extraNodePath: opts.extraNodePaths,
     graph: depGraph.graph,
+    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(ctx, depGraph) : undefined,
     directDepsByImporterId: Object.fromEntries(Object.entries(depGraph.directDependenciesByImporterId).map(([projectId, deps]) => [
       projectId,
       new Map(Object.entries(deps)),
@@ -140,6 +141,18 @@ async function hoistIntoModulesDirs (
     ),
     skipped: opts.skipped,
   }) ?? {}
+}
+
+function getDirectDependencyAliases ({ opts }: HeadlessContext, depGraph: HeadlessDepGraph): string[] {
+  return Object.entries(depGraph.directDependenciesByImporterId).flatMap(([projectId, dependencies]) => {
+    const importer = depGraph.filteredLockfile.importers[projectId as ProjectId]
+    const refs = {
+      ...(opts.include.devDependencies ? importer.devDependencies : {}),
+      ...(opts.include.dependencies ? importer.dependencies : {}),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? importer.optionalDependencies : {}),
+    }
+    return Object.keys(dependencies).filter(alias => !refs[alias].startsWith('link:'))
+  })
 }
 
 async function findPriorWorkspaceProjectIds (

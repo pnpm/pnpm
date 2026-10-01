@@ -340,7 +340,7 @@ Details worth knowing:
 * A project is matched by the `name` in its `package.json`, not by its directory name.
 * Every project of the workspace is a candidate, including a project that nothing else depends on. The workspace root project is never hoisted.
 * The symlink points at the project's own directory in the workspace, so there is nothing to keep in sync.
-* A direct dependency wins a name conflict. If a package with the same name is a direct dependency of any workspace project, that package is hoisted and the workspace project is not.
+* A direct dependency wins a name conflict. If a package with the same name is a direct dependency of any workspace project, that package is hoisted and the workspace project is not. Frozen installs preserve this choice even when the dependency is unchanged.
 * The setting only adds candidates. When `hoistPattern` and `publicHoistPattern` are both empty, nothing is hoisted at all, workspace projects included. Setting [`hoist`](#hoist) to `false` empties `hoistPattern`.
 
 ### shamefullyHoist

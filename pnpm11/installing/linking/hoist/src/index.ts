@@ -30,6 +30,7 @@ export type { DependenciesGraph, DependenciesGraphNode, DirectDependenciesByImpo
 
 export interface HoistOpts<NodeId extends string> extends GetHoistedDependenciesOpts<NodeId> {
   beforeWorkspaceLinks?: HoistWorkspacePackagesOpts<NodeId>['beforeWorkspaceLinks']
+  directDependencyAliases?: HoistWorkspacePackagesOpts<NodeId>['directDependencyAliases']
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
