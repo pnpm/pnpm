@@ -305,17 +305,17 @@ mod windows_alias_scripts {
 
         let args = ["--", "--flag", "a b", "", "50%", "x^y", "p&q", "r|s", "!bang!", "héllo"];
         let quoted = args
-            .map(|arg| format!("\"{arg}\""))
+            .map(|arg| format!(r#""{arg}""#))
             .join(" ");
         for (name, subcommand) in [("pn", None), ("pnpx", Some("dlx")), ("pnx", Some("dlx"))] {
             let mut command = Command::new("cmd.exe");
             std::os::windows::process::CommandExt::raw_arg(
                 &mut command,
                 format!(
-                    "/d /c \"\"{}\" {quoted}\"",
+                    r#"/d /c ""{}" {quoted}""#,
                     bin_dir
                         .join(format!("{name}.cmd"))
-                        .display()
+                        .display(),
                 ),
             );
             let output = command.output().expect("run the alias wrapper");
