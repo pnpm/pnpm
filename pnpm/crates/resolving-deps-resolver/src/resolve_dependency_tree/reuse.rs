@@ -44,6 +44,7 @@ use super::{
     workspace_ctx::{
         ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
         insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        register_peer_dep_names,
     },
 };
 
@@ -563,7 +564,7 @@ fn register_reused_package(
         existing.optional = existing.optional && current_is_optional;
         return (Arc::clone(&existing.id), false);
     }
-    record_peer_dep_names(ctx, &peer_dependencies);
+    register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(&id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -577,15 +578,6 @@ fn register_reused_package(
         }),
     );
     (shared_id, true)
-}
-
-fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {
-    let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
-    for name in peer_dependencies.keys() {
-        if all_peers.insert(name.clone()) {
-            ctx.workspace.tree.record_peer_dep_name(name);
-        }
-    }
 }
 
 #[cfg(test)]
