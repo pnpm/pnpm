@@ -554,7 +554,7 @@ diff --git a/package.json b/package.json
     let patched_manifest =
         fs::read_to_string(deploy_dir.join("node_modules/@pnpm.e2e/for-legacy-node/package.json"))
             .unwrap();
-    assert!(patched_manifest.contains("\"patched\""), "patch not applied:\n{patched_manifest}");
+    assert!(patched_manifest.contains(r#""patched""#), "patch not applied:\n{patched_manifest}");
     assert!(deploy_dir.join("node_modules/lib/index.js").exists());
 
     drop((root, mock_instance));
