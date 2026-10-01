@@ -115,7 +115,7 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
 }
 
 /// The pnpm CLI's own package opts out of the PowerShell shim
-/// ([`super::super::wants_powershell_shim`]), and a `.ps1` an earlier install
+/// ([`super::super::windows_shim_policy::wants_powershell_shim`]), and a `.ps1` an earlier install
 /// wrote has to be deleted, not merely left unwritten: PowerShell would keep
 /// preferring it over the `.cmd` shim and run the version it points at.
 #[test]
@@ -182,7 +182,7 @@ fn assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim(pkg_name: &str) {
 }
 
 /// The pnpm CLI's `.cmd` shims end their batch context before the CLI starts
-/// ([`super::super::cmd_shim_batch`]). Every other package keeps the ordinary
+/// ([`super::super::windows_shim_policy::cmd_shim_batch`]). Every other package keeps the ordinary
 /// shim.
 #[test]
 #[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
@@ -209,7 +209,7 @@ fn only_the_pnpm_cli_cmd_shims_end_their_batch_context() {
         assert_eq!(
             cmd.contains("@GOTO #_undefined_# 2>NUL || "),
             ends_batch,
-            "{bin_name}.cmd:\n{cmd}"
+            "{bin_name}.cmd:\n{cmd}",
         );
     }
 }

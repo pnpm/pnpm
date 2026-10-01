@@ -136,7 +136,7 @@ fn batchless_cmd_shim_runs_unicode_target_and_preserves_codepage_and_exit_status
     )
     .unwrap();
     let shim = root.path().join("shim.cmd");
-    let runtime = ScriptRuntime { prog: None, args: format!(" \"{}\"", script.display()) };
+    let runtime = ScriptRuntime { prog: None, args: format!(r#" "{}""#, script.display()) };
     let body =
         generate_cmd_shim(&target, &shim, Some(&runtime), &[], CmdShimBatch::EndedBeforeTarget);
     eprintln!("shim:\n{body}");

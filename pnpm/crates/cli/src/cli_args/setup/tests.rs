@@ -296,7 +296,7 @@ mod windows_alias_scripts {
         )
         .expect("write the CLI script");
         let shim = bin_dir.join("pnpm.cmd");
-        let runtime = ScriptRuntime { prog: None, args: format!(" \"{}\"", script.display()) };
+        let runtime = ScriptRuntime { prog: None, args: format!(r#" "{}""#, script.display()) };
         fs::write(
             &shim,
             generate_cmd_shim(&cli, &shim, Some(&runtime), &[], CmdShimBatch::EndedBeforeTarget),

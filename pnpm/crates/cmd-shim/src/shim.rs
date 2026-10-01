@@ -303,7 +303,7 @@ fn generate_batchless_cmd_shim(quoted_target: &str, args: &str) -> String {
     let restore_codepage = if target_command.is_ascii() {
         ""
     } else {
-        "(IF NOT \"%_PNPM_CODEPAGE%\"==\"\" \"%SystemRoot%\\System32\\chcp.com\" %_PNPM_CODEPAGE% >NUL) & "
+        r#"(IF NOT "%_PNPM_CODEPAGE%"=="" "%SystemRoot%\System32\chcp.com" %_PNPM_CODEPAGE% >NUL) & "#
     };
     let mut cmd = format!(
         "@SETLOCAL\r\n\
