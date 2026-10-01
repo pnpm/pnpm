@@ -470,7 +470,8 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     // which `hideLinkedPkgsDiff` relies on to tell a linked entry apart.
     assert_eq!(added.version, None);
     let expected_from = workspace_root
-        .join("packages/shared")
+        .join("packages")
+        .join("shared")
         .display()
         .to_string();
     assert_eq!(added.linked_from.as_deref(), Some(expected_from.as_str()));
