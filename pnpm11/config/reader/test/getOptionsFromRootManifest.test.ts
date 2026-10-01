@@ -937,28 +937,18 @@ test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnus
   expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
 })
 
-test('getOptionsFromPnpmSettings() rejects non-array ignoredOptionalDependencies', () => {
+test.each([
+  ['ignoredOptionalDependencies', 'foo', 'string'],
+  ['ignoredOptionalDependencies', ['foo', 123], 'array'],
+  ['requiredScripts', 'test', 'string'],
+  ['requiredScripts', ['build', null], 'array'],
+])('getOptionsFromPnpmSettings() rejects %s set to %p', (settingName, value, receivedType) => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    ignoredOptionalDependencies: 'foo' as unknown as string[],
-  })).toThrow(/The "ignoredOptionalDependencies" setting should be an array of strings, but got string/)
-})
-
-test('getOptionsFromPnpmSettings() rejects non-string items in ignoredOptionalDependencies', () => {
-  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    ignoredOptionalDependencies: ['foo', 123 as unknown as string],
-  })).toThrow(/The "ignoredOptionalDependencies" setting should be an array of strings, but got array/)
-})
-
-test('getOptionsFromPnpmSettings() rejects non-array requiredScripts', () => {
-  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    requiredScripts: 'test' as unknown as string[],
-  })).toThrow(/The "requiredScripts" setting should be an array of strings, but got string/)
-})
-
-test('getOptionsFromPnpmSettings() rejects non-string items in requiredScripts', () => {
-  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
-    requiredScripts: ['build', null as unknown as string],
-  })).toThrow(/The "requiredScripts" setting should be an array of strings, but got array/)
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: `The "${settingName}" setting should be an array of strings, but got ${receivedType}`,
+  }))
 })
 
 test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and requiredScripts', () => {
