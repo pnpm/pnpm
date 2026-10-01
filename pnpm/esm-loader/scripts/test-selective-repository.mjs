@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import console from 'node:console'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -7,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 import { openStore } from '../store.mjs'
 import { assertIsolated } from './repository-fixture.mjs'
+import { readScenario, runSuite } from './repository-scenario.mjs'
 
 if (!process.argv[2]) throw new Error('Pass the retained fixture path from test-repository.mjs')
 const root = path.resolve(process.argv[2])
@@ -46,18 +46,6 @@ fs.writeFileSync(path.join(root, 'selective-results.json'), JSON.stringify(repor
 console.log(`${materialized.length} packages, ${materializedFiles} files, ${(materializedBytes / 1024 / 1024).toFixed(1)} MiB materialized; exit ${status}`)
 process.exitCode = status
 
-function runSuite (root, manifestPath, scenario) {
-  const result = spawnSync(process.execPath, [
-    '--import', pathToFileURL(path.join(root, 'loader.mjs')).href, '--experimental-vm-modules',
-    path.join(root, scenario.entry), ...scenario.args,
-  ], {
-    cwd: path.join(root, scenario.cwd), encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '--import=' + pathToFileURL(path.join(root, 'loader.mjs')).href, PNPM_LOADER_MANIFEST: manifestPath, UNRS_RESOLVER_NODE_RESOLUTION: '1' },
-  })
-  if (result.error) throw result.error
-  return result
-}
-
 function findMissingPackage (stderr, store) {
   const line = stderr.split('\n').find(line => (line.includes('ENOENT') || line.includes('Cannot load .node')) && line.includes(store.virtualRoot + path.sep))
   if (!line) return undefined
@@ -76,17 +64,6 @@ function materialize (root, store, pkg) {
     bytes += source.length
   }
   return { directory, files: Object.keys(pkg.files).length, bytes }
-}
-
-function readScenario (root) {
-  const report = path.join(root, 'ecosystem-results.json')
-  if (fs.existsSync(report)) {
-    return { entry: 'repo/run-vitest.mjs', cwd: 'repo', args: JSON.parse(fs.readFileSync(report, 'utf8')).args }
-  }
-  return {
-    entry: 'repo/run-jest.cjs', cwd: 'repo/pnpm11/cli/parse-cli-args',
-    args: ['--runInBand', '--no-cache', '--coverage=false', '--runTestsByPath', 'test/index.ts'],
-  }
 }
 
 function materializeAndRecord (pkg) {

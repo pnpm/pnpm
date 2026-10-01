@@ -49,7 +49,7 @@ function readPackages (entries, base, virtualRoot) {
     throw loaderError('ERR_PNPM_LOADER_MANIFEST', 'The store manifest needs a packages object')
   }
   const packages = new Map()
-  const roots = new Set()
+  const roots = new Map()
   for (const [id, entry] of Object.entries(entries)) {
     validatePackage(id, entry)
     const stored = Object.hasOwn(entry, 'files')
@@ -59,10 +59,11 @@ function readPackages (entries, base, virtualRoot) {
     const root = stored
       ? path.join(virtualRoot, createHash('sha256').update(id).digest('hex'))
       : path.resolve(base, entry.root)
-    if ((!stored && within(virtualRoot, root)) || roots.has(root)) {
+    const previous = roots.get(root)
+    if ((!stored && within(virtualRoot, root)) || (previous && (previous.resolution !== 'node' || entry.resolution !== 'node'))) {
       throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Conflicting package root: ${root}`)
     }
-    roots.add(root)
+    roots.set(root, entry)
     packages.set(id, { ...entry, id, root, stored, dependencies: new Map(Object.entries(entry.dependencies ?? {})) })
   }
   for (const pkg of packages.values()) {
@@ -78,7 +79,8 @@ function readPackages (entries, base, virtualRoot) {
 function validatePackage (id, entry) {
   if (!isRecord(entry) || !isRecord(entry.dependencies ?? {}) ||
     (Object.hasOwn(entry, 'files') && !isRecord(entry.files)) ||
-    (Object.hasOwn(entry, 'root') && typeof entry.root !== 'string')) {
+    (Object.hasOwn(entry, 'root') && typeof entry.root !== 'string') ||
+    (entry.resolution !== undefined && (entry.resolution !== 'node' || typeof entry.root !== 'string'))) {
     throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid package entry: ${id}`)
   }
 }

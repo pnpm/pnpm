@@ -4,7 +4,7 @@ title: Experimental store loader
 
 The standalone `@pnpm/esm-loader` package lets Node.js load JavaScript and JSON directly from pnpm's content-addressable store. It reads a dependency manifest and store blobs without writing package directories or a `node_modules` directory for the application.
 
-This is an experimental runtime API. `pnpm install` does not yet generate its manifest or select this loader. Integration with an opt-in install mode, bin shims, and selective materialization is planned separately.
+This is an experimental runtime API. `pnpm install` does not yet generate its manifest or select this loader. Integration with an opt-in install mode and bin shims is planned separately. A standalone diagnostic can install explicitly opted-out packages and their dependency trees into the global virtual store.
 
 ## Running an application
 
@@ -69,6 +69,25 @@ A file with digest `abcdef...` is read from `<storeDir>/files/ab/cdef...`. No pa
 Use separate package IDs for separate dependency contexts, even when every file digest is identical. For example, `plugin@1.0.0(peer@1.0.0)` and `plugin@1.0.0(peer@2.0.0)` can share their `files` map while having different dependency targets. Their runtime module instances remain separate.
 
 The manifest describes the effective files to load. A producer can represent cached build outputs by applying a side-effects cache diff to the base index, including deletions and replacements, before generating this file map. Selecting a valid cache entry and authorizing builds remain the installer's responsibility.
+
+## Opting out packages into the global virtual store
+
+A package that needs physical files can use a normal global virtual store (GVS) installation, including its full locked dependency tree and dependency links. The application does not need a `node_modules` directory. GVS itself retains its conventional `node_modules` layout.
+
+Point the package's manifest entry at its real GVS directory and set `resolution` to `node`:
+
+```json
+{
+  "root": "/path/to/store/links/@/tool/1.0.0/<graph-hash>/node_modules/tool",
+  "resolution": "node"
+}
+```
+
+The application's dependency map still points to this package's instance ID. Imports originating inside the opted-out package use Node's normal resolution and its physical dependency links. The entry does not need a loader dependency map. Explicit paths to CAS modules remain loadable through the hooks. Map materialized transitive package instances to their GVS roots too, so application imports of those instances use the same modules. Multiple opted-out IDs can share a GVS root when pnpm deduplicates them.
+
+Use pnpm's normal installer to populate GVS; copying just the selected package's files does not create a complete opt-out. The installer owns graph hashes, package import, linking, build policy, and store registration. Retain the installation that references those entries so store pruning can track their usage. The loader itself does not install packages or register its manifest with store pruning.
+
+This is an explicit compatibility fallback, not an install-time static analyzer. It can materialize a large dependency tree, but ordinary GVS entries can be reused across projects. Packages outside that tree stay in CAS. A tool that directly reads application dependencies outside its own tree may still need additional opt-outs or resolver integration.
 
 ## Supported behavior
 
@@ -163,3 +182,27 @@ node pnpm/esm-loader/scripts/test-svelte-compiler.mjs /svelte-snapshot
 ```
 
 The selective experiment accepts explicit package names and can additionally materialize packages identified by missing-file or unsupported-native-addon errors. It does not infer dependencies through static analysis. Its loader preload is inherited through `NODE_OPTIONS` so worker processes can resolve CAS packages too. Reports preserve package counts, exit statuses, and individual attempt logs. The compiler check uses the original all-CAS manifest and compares hashes of generated JavaScript, CSS, source maps, and warnings.
+
+### GVS opt-out experiment
+
+Create a fresh fixture with `test-repository.mjs` or `test-ecosystem.mjs`, then select packages explicitly:
+
+```sh
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /vue-snapshot vitest
+```
+
+The diagnostic reads the original installation's current lockfile and maps the selected package instances to their locked contexts. It reuses pnpm's lockfile pruning and serialization utilities to prepare a separate installation, then runs `pnpm install --frozen-lockfile --ignore-scripts` with the global virtual store enabled. It does not re-resolve versions or run project hooks; the snapshots already include hook results. The installed graph includes required dependencies and the optional dependencies applicable to the target platform.
+
+The generated `.pnpm-gvs.json` points the installed closure at normal GVS entries with native resolution. `gvs-results.json` records the selection, physical roots, skipped optional dependencies, dependencies exposed by the source installation but absent from its locked graph, and the suite's exit status. The copied application tree is checked for `node_modules` before and after execution. GVS and the retained staging installation are outside that tree and do contain `node_modules`.
+
+This repository-only diagnostic requires compiled pnpm workspace utilities and an installed pnpm v12 CLI. It currently rejects opt-out trees containing local file or workspace links. In particular, Vite's Vitest depends on the local Vite workspace, so that probe cannot use this diagnostic yet. Lifecycle scripts are disabled in the experiment; packages requiring uncached build outputs need a separately authorized normal build.
+
+On the pinned repositories above, opting out `vitest` installed 136 package instances for Vue; all 445 reactivity tests passed with 4 existing skips. Svelte's opt-out installed 128 package instances, but its suite still stopped at the application dependency `esm-env`, outside Vitest's tree.
+
+The pnpm parser suite passed all 51 tests with these explicit selections:
+
+```sh
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /pnpm-snapshot jest @rushstack/worker-pool ts-jest-resolver @pnpm/nopt didyoumean2 is-windows p-limit bole split2 tempy empathic read-yaml-file
+```
+
+Those names select 18 installed instances and map their closures to 360 distinct GVS directories for 362 manifest instances. Jest alone still failed on direct filesystem reads of test setup dependencies. These are scoped compatibility checks, not full repository-suite passes.

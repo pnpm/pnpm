@@ -189,7 +189,7 @@ test('preserves literal CommonJS filenames and require.resolve results', context
 
 test('rejects malformed manifests before executing application code', context => {
   const setup = fixture(context)
-  for (const invalid of [null, [], 'invalid', { root: 1 }, { files: null }, { root: '.', files: {} }, { root: '.', dependencies: [] }]) {
+  for (const invalid of [null, [], 'invalid', { root: 1 }, { files: null }, { root: '.', files: {} }, { root: '.', dependencies: [] }, { root: '.', resolution: 'node' }]) {
     setup.manifest.packages.invalid = invalid
     assert.match(setup.run("throw new Error('application ran')", { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
   }
@@ -225,4 +225,61 @@ test('reads package types from manifests with a UTF-8 BOM', context => {
   setup.add('example@1', { 'package.json': '\uFEFF' + esm, 'index.js': 'export default 42' })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.equal(setup.run("import value from 'example'; console.log(value)").stdout.trim(), '42')
+})
+
+test('runs opted-out packages and their linked dependencies with native resolution', context => {
+  const setup = fixture(context)
+  setup.manifest.packages['.'].root = './project'
+  setup.manifest.packages['.'].dependencies = { tool: 'tool@1', stored: 'stored@1' }
+  setup.add('stored@1', { 'index.js': 'module.exports = "CAS"' })
+  for (const version of [1, 2]) {
+    const tool = `gvs/tool-${version}/node_modules/tool`
+    const dependency = `gvs/value-${version}/node_modules/value`
+    setup.write(`${tool}/package.json`, '{"name":"tool","main":"index.cjs"}')
+    setup.write(`${tool}/index.cjs`, `
+      const fs = require('node:fs')
+      const path = require('node:path')
+      const { execFileSync } = require('node:child_process')
+      exports.value = require('value')
+      exports.asset = fs.readFileSync(path.join(path.dirname(require.resolve('value')), 'asset.txt'), 'utf8')
+      exports.child = execFileSync(process.execPath, ['-e', 'console.log(require("value"))'], {
+        cwd: __dirname, env: { ...process.env, NODE_OPTIONS: '' }, encoding: 'utf8',
+      }).trim()
+    `)
+    setup.write(`${dependency}/package.json`, '{"name":"value","main":"index.cjs"}')
+    setup.write(`${dependency}/index.cjs`, `module.exports = ${version}`)
+    setup.write(`${dependency}/asset.txt`, `asset ${version}`)
+    fs.symlinkSync(path.join(setup.root, dependency), path.join(setup.root, `gvs/tool-${version}/node_modules/value`), 'junction')
+    setup.manifest.packages[`tool@${version}`] = { root: tool, resolution: 'node' }
+    setup.manifest.packages[`value@${version}`] = { root: dependency, resolution: 'node' }
+  }
+  setup.manifest.packages['.'].dependencies.other = 'tool@2'
+  setup.manifest.packages.alias = { ...setup.manifest.packages['tool@1'] }
+  setup.manifest.packages['.'].dependencies.alias = 'alias'
+  setup.write('project/main.mjs', `
+    import assert from 'node:assert/strict'
+    import { createRequire } from 'node:module'
+    import { fileURLToPath } from 'node:url'
+    import first from 'tool'
+    import second from 'other'
+    import alias from 'alias'
+    import stored from 'stored'
+    assert.equal(first, alias)
+    assert.deepEqual(first, { value: 1, asset: 'asset 1', child: '1' })
+    assert.deepEqual(second, { value: 2, asset: 'asset 2', child: '2' })
+    assert.equal(stored, 'CAS')
+    assert.equal(createRequire(import.meta.resolve('tool'))(fileURLToPath(import.meta.resolve('stored'))), 'CAS')
+    assert.equal(await import.meta.resolve('tool'), new URL('../gvs/tool-1/node_modules/tool/index.cjs', import.meta.url).href)
+  `)
+  setup.run("await import('./project/main.mjs')")
+  assert.equal(fs.existsSync(path.join(setup.root, 'project/node_modules')), false)
+})
+
+test('rejects native resolution for stored packages and unknown resolution modes', context => {
+  const setup = fixture(context)
+  setup.add('example@1', { 'index.js': 'module.exports = 1' })
+  setup.manifest.packages['example@1'].resolution = 'node'
+  assert.match(setup.run('', { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
+  setup.manifest.packages['example@1'] = { root: './physical', resolution: 'unknown' }
+  assert.match(setup.run('', { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
 })
