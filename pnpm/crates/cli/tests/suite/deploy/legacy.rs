@@ -77,13 +77,18 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
                 "link-dep": "link:../../local/link-dep",
                 "path-dep": "../../local/path-dep",
                 "backslash-dep": r"file:..\..\local\backslash-dep",
+                "copied-dep": "./copied-dep",
             },
             "peerDependencies": { "peer-dep": "link:../../local/peer-dep" },
         }),
     );
-    let names = ["file-dep", "link-dep", "path-dep", "backslash-dep", "peer-dep"];
+    let names = ["file-dep", "link-dep", "path-dep", "backslash-dep", "peer-dep", "copied-dep"];
     for name in names {
-        let dir = workspace.join("local").join(name);
+        let dir = if name == "copied-dep" {
+            workspace.join("packages/app").join(name)
+        } else {
+            workspace.join("local").join(name)
+        };
         fs::create_dir_all(&dir).unwrap();
         fs::write(
             dir.join("package.json"),
@@ -107,6 +112,7 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
         .assert()
         .success();
 
+    fs::rename(workspace.join("packages/app"), workspace.join("source-app")).unwrap();
     Command::new("node")
         .current_dir(workspace.join("deployed"))
         .arg("index.js")

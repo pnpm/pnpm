@@ -254,7 +254,9 @@ pub(super) fn copy_project(
 /// Prepare the copied manifest for the legacy deploy install, which
 /// resolves it from `deploy_dir`. Its local-path specifiers are written
 /// relative to `project_dir`, so they are re-anchored to keep naming the
-/// same files.
+/// same files, except for a path that the deploy copied along with the
+/// project: that one keeps naming the copy, so the deploy does not
+/// depend on the source checkout.
 pub(super) fn apply_deploy_hook(deploy_dir: &Path, project_dir: &Path) -> miette::Result<()> {
     let mut manifest = PackageManifest::from_path(deploy_dir.join("package.json"))
         .wrap_err("read deployed manifest")?;
@@ -275,9 +277,17 @@ fn rebase_local_specifiers(manifest: &mut Value, project_dir: &Path, deploy_dir:
             else {
                 continue;
             };
-            *specifier = Value::String(local.render(Some(deploy_dir)));
+            if !was_copied_into_deploy(local.absolute_path(), project_dir, deploy_dir) {
+                *specifier = Value::String(local.render(Some(deploy_dir)));
+            }
         }
     }
+}
+
+fn was_copied_into_deploy(path: &Path, project_dir: &Path, deploy_dir: &Path) -> bool {
+    lexical_normalize(path)
+        .strip_prefix(lexical_normalize(project_dir))
+        .is_ok_and(|inside_project| deploy_dir.join(inside_project).exists())
 }
 
 pub(super) fn same_path(left: &Path, right: &Path) -> bool {
