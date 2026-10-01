@@ -30,6 +30,7 @@ An entry may carry:
 | [`prefix`](#prefix)                       | `string`   | The bare-specifier prefix this registry answers to.                  |
 | [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm` or `artifactory`.        |
 | [`supportsTimeField`](#supportstimefield) | `boolean`  | Whether the server's abbreviated metadata carries the `time` field.  |
+| [`networkConcurrency`](#networkconcurrency) | `number` | The most requests pnpm keeps in flight to this registry's host.      |
 
 Any other field is rejected. In particular, credentials (`_authToken`, `_auth`, `_password`, `username`, `tokenHelper`) and TLS material (`ca`, `cafile`, `cert`, `certfile`, `key`, `keyfile`) are refused rather than silently ignored — `pnpm-workspace.yaml` is committed to the repository, so they belong in [`.npmrc`](./npmrc.md) (e.g. `//npm.corp.example.com/:_authToken=...`). A URL key that embeds `user:pass@` credentials is refused for the same reason.
 
@@ -120,6 +121,23 @@ registries:
 
 This is the per-registry form of the [`registrySupportsTimeField`](./settings/other.md#registrysupportstimefield) setting. The fallback is decided per registry: one registry that needs full metadata no longer costs it at the others, and `registrySupportsTimeField` remains the answer for every registry the project does not describe.
 
+### networkConcurrency
+
+Added in: v12.9.0
+
+The most requests pnpm keeps in flight to this registry's host at once. Use it for a server that rate-limits or slows down under load, without lowering concurrency for every other registry:
+
+```yaml title="pnpm-workspace.yaml"
+registries:
+  https://npm.corp.example.com/:
+    scopes: ["@acme"]
+    networkConcurrency: 4
+```
+
+The limit applies to every request whose URL is on the entry's host, including tarballs the registry serves from the same host. Requests to that host still count against the overall [`networkConcurrency`](./settings/network.md#networkconcurrency), so a value above it has no effect. Entries whose URLs share a host share the smallest of their limits. An entry may set only `networkConcurrency`, for example to limit the default registry or a host that serves tarballs.
+
+If a request to the host times out while other requests to it are still running, pnpm lowers that host's limit to one request for the rest of the command, as it does for hosts without an entry. The value must be a positive integer. Unlike the npm-specific fields, it is accepted for Cargo and PyPI entries too.
+
 ### ecosystem
 
 Added in: v12.5.0
@@ -162,7 +180,7 @@ See [Python indexes](./python.md#python-indexes) for an example with private pac
 
 The server descriptions (`serverType` and `supportsTimeField`) belong in `pnpm-workspace.yaml` because the lockfile depends on them: one developer omitting tarball URLs that another reconstructs differently would break a frozen install.
 
-The [global configuration file](./cli/config.md) (`config.yaml`) may declare ecosystem indexes and the *routes* — `scopes` and `prefix` — so that a scope or an alias like `work:` applies to every project on the machine. The server descriptions (`serverType` and `supportsTimeField`) are read only from `pnpm-workspace.yaml`, for the reason above.
+The [global configuration file](./cli/config.md) (`config.yaml`) may declare ecosystem indexes, the *routes* — `scopes` and `prefix` — so that a scope or an alias like `work:` applies to every project on the machine, and `networkConcurrency`, which does not affect the lockfile. The server descriptions (`serverType` and `supportsTimeField`) are read only from `pnpm-workspace.yaml`, for the reason above.
 
 Since v12.1.0, [`pnpm login --scope <scope>`](./cli/login.md#--scope-scope)
 adds that machine-wide scope route to the global `registries` setting while it

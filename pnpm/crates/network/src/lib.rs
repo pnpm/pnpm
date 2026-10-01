@@ -23,6 +23,7 @@ mod limited_body;
 mod origin_gate;
 mod priority_semaphore;
 mod proxy;
+mod registry_limit;
 mod retry;
 #[cfg(test)]
 mod tests;
@@ -34,13 +35,14 @@ mod url_encoding;
 use origin_gate::{OriginLimits, OriginPermit};
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
+use registry_limit::RegistryLimits;
 use reqwest::{
     Certificate, Client, Identity, Proxy,
     dns::{Addrs, Name, Resolve, Resolving},
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     num::NonZeroUsize,
     ops::Deref,
     sync::{Arc, LazyLock, Mutex},
@@ -137,6 +139,11 @@ pub struct NetworkSettings {
     /// Value of the `User-Agent` header sent on every request.
     /// Default: [`DEFAULT_USER_AGENT`].
     pub user_agent: String,
+
+    /// The `networkConcurrency` of each `registries` entry that sets one,
+    /// keyed by registry URL. Caps the requests in flight to that registry's
+    /// origin, within [`Self::network_concurrency`]. Default: empty.
+    pub network_concurrency_by_registry: BTreeMap<String, NonZeroUsize>,
 }
 
 impl Default for NetworkSettings {
@@ -147,6 +154,7 @@ impl Default for NetworkSettings {
             fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
             fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,
             user_agent: DEFAULT_USER_AGENT.to_string(),
+            network_concurrency_by_registry: BTreeMap::new(),
         }
     }
 }

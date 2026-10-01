@@ -152,7 +152,7 @@ impl ThrottledClient {
         {
             Some((origin, is_proxied)) => {
                 let (origin_permit, host_permit) =
-                    self.origin_limits.acquire(&origin, is_proxied).await;
+                    self.origin_limits.acquire(url, &origin, is_proxied).await;
                 (Some(origin_permit), host_permit)
             }
             None => (None, None),

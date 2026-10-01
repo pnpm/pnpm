@@ -949,6 +949,21 @@ fn get_scoped_registry_from_auth_and_merged() {
     );
 }
 
+/// A registry's `networkConcurrency` is part of the resolved `registries` view.
+#[test]
+fn list_shows_a_registry_network_concurrency() {
+    let mut config = config_for_get(&[], &[]);
+    config.network_concurrency_by_registry.insert(
+        "https://npm.corp.example/".to_string(),
+        std::num::NonZeroUsize::new(4).unwrap(),
+    );
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(
+        listed["registries"]["https://npm.corp.example/"],
+        json!({ "networkConcurrency": 4 }),
+    );
+}
+
 /// `registry` and `@jsr:registry` answer the merged routes — the built-in
 /// defaults when nothing routes them elsewhere — rather than `undefined`.
 #[test]
