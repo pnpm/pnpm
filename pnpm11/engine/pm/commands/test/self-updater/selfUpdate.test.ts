@@ -29,7 +29,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmExeRunsOn, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -231,6 +231,68 @@ test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () 
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.1.0')
 })
+
+test('self-update replaces a standalone pnpm.exe that pnpm v10 installed at pnpmHomeDir', async () => {
+  // pnpm/pnpm#9094
+  const opts = prepare()
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.exe'), 'old standalone pnpm')
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, `.pnpm.exe.${pidOfEndedProcess()}.retired`), 'retired by an earlier update')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.readdirSync(opts.pnpmHomeDir).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
+  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update replaces a standalone pnpm.exe in the global bin directory', async () => {
+  const opts = prepare()
+  fs.mkdirSync(opts.bin, { recursive: true })
+  fs.writeFileSync(path.join(opts.bin, 'pnpm.exe'), 'old standalone pnpm')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.readdirSync(opts.bin).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
+  expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm'))).toBe(false)
+})
+
+test('self-update keeps a pnpm.exe retired by a process that is still running', async () => {
+  const opts = prepare()
+  fs.mkdirSync(opts.bin, { recursive: true })
+  const retiredByRunningProcess = path.join(opts.bin, `.pnpm.exe.${process.pid}.retired`)
+  fs.writeFileSync(retiredByRunningProcess, 'retired by an update in progress')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.existsSync(retiredByRunningProcess)).toBe(true)
+})
+
+function pidOfEndedProcess (): number {
+  const { pid } = spawn.sync(process.execPath, ['-e', ''])
+  if (pid == null) throw new Error('Expected the spawned process to have a pid')
+  return pid
+}
+
+async function runOnWindows<Result> (fn: () => Promise<Result>): Promise<Result> {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+  if (platform == null) throw new Error('Expected process.platform to be an own property')
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+  try {
+    return await fn()
+  } finally {
+    Object.defineProperty(process, 'platform', platform)
+  }
+}
 
 test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', async () => {
   // Mirror image of the previous test: when there is no v10-style shim at
@@ -1740,6 +1802,39 @@ describe('pnpmPackageNameToInstall', () => {
     // asserts v11 and earlier are not forced onto a different package.
     expect(pnpmPackageNameToInstall('11.9.0')).toBe('pnpm')
     expect(pnpmPackageNameToInstall('9.1.0')).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on x64 musl installs the JavaScript pnpm where @pnpm/exe has no musl binary', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('11.0.0-rc.3', running)).toBe('@pnpm/exe')
+    expect(pnpmPackageNameToInstall('12.0.0', running)).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on glibc Linux keeps @pnpm/exe', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'glibc' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('@pnpm/exe')
+  })
+})
+
+describe('pnpmExeRunsOn', () => {
+  const alpineX64 = { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' }
+
+  test.each(['11.0.0-rc.2', '10.34.4', '6.17.1'])('@pnpm/exe@%s ships no x64 musl binary', (version) => {
+    expect(pnpmExeRunsOn(version, alpineX64)).toBe(false)
+  })
+
+  test.each(['11.0.0-rc.3', '11.0.0-rc.4', '11.0.0', '11.26.0'])('@pnpm/exe@%s ships an x64 musl binary', (version) => {
+    expect(pnpmExeRunsOn(version, alpineX64)).toBe(true)
+  })
+
+  test('no pre-v12 @pnpm/exe runs on arm64 musl', () => {
+    expect(pnpmExeRunsOn('11.26.0', { platform: 'linux', arch: 'arm64', libcFamily: 'musl' })).toBe(false)
+  })
+
+  test('glibc Linux and other platforms are unaffected', () => {
+    expect(pnpmExeRunsOn('10.34.4', { platform: 'linux', arch: 'x64', libcFamily: 'glibc' })).toBe(true)
+    expect(pnpmExeRunsOn('10.34.4', { platform: 'darwin', arch: 'arm64', libcFamily: null })).toBe(true)
   })
 })
 

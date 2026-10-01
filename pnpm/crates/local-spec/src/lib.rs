@@ -109,6 +109,12 @@ impl LocalSpec {
         LocalSpec { protocol, absolute_path, specified_via_relative_path }
     }
 
+    /// The location the specifier names, lexically normalized.
+    #[must_use]
+    pub fn absolute_path(&self) -> &Path {
+        &self.absolute_path
+    }
+
     /// Render the specifier for the directory that consumes it.
     /// Relative-form specifiers are re-anchored against `consumer_dir` so
     /// they read sensibly from the consumer's perspective; absolute-form

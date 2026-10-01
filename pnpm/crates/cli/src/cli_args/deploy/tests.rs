@@ -15,9 +15,9 @@ use pnpm_workspace::Project;
 use serde_json::json;
 
 use super::{
-    ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, convert_package_key,
-    convert_package_metadata, create_deploy_files, create_file_url_key, index_projects,
-    validate_lockfile_local_path,
+    ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, apply_deploy_hook,
+    convert_package_key, convert_package_metadata, create_deploy_files, create_file_url_key,
+    index_projects, validate_lockfile_local_path,
 };
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
@@ -330,4 +330,42 @@ fn deploy_normalizes_registry_specifiers_and_preserves_snapshot_references() {
         }
         assert_eq!(result.lockfile.snapshots, lockfile.snapshots);
     }
+}
+
+fn deploy_copied_dependency(
+    dependencies: &serde_json::Value,
+) -> (tempfile::TempDir, serde_json::Value) {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let deploy_dir = tmp.path().join("deployed");
+    std::fs::create_dir_all(deploy_dir.join("copied")).expect("create deployed copy");
+    std::fs::write(
+        deploy_dir.join("package.json"),
+        json!({ "name": "app", "dependencies": dependencies }).to_string(),
+    )
+    .expect("write deployed manifest");
+
+    apply_deploy_hook(&deploy_dir, &tmp.path().join("packages/app")).expect("apply deploy hook");
+
+    let manifest = std::fs::read_to_string(deploy_dir.join("package.json")).expect("read manifest");
+    (tmp, serde_json::from_str::<serde_json::Value>(&manifest).expect("parse manifest")["dependencies"].clone())
+}
+
+#[test]
+fn legacy_deploy_hook_keeps_a_specifier_that_already_names_the_copy() {
+    let (_tmp, dependencies) = deploy_copied_dependency(&json!({
+        "kept": "file:./copied",
+        "detour": "file:../app/copied",
+        "outside": "file:../../local/dep",
+    }));
+    assert_eq!(
+        dependencies,
+        json!({ "kept": "file:./copied", "detour": "file:copied", "outside": "file:../local/dep" }),
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn legacy_deploy_hook_keeps_naming_the_copy_through_a_case_variant_project_dir() {
+    let (_tmp, dependencies) = deploy_copied_dependency(&json!({ "detour": "file:../APP/copied" }));
+    assert_eq!(dependencies, json!({ "detour": "file:copied" }));
 }

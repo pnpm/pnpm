@@ -232,7 +232,11 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 /// The spawned install never re-enters this gate: only `run` / `exec` consult
 /// it. Its up-to-date shortcuts are bypassed because the pre-run check has
 /// already decided that an install is required.
-#[expect(clippy::exit, reason = "a failed spawned install must preserve the child exit code")]
+///
+/// An install that exits with an error only warns, so a sandbox with a
+/// read-only store or no network can still run its scripts. An interrupted
+/// install aborts the command.
+#[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
     install_args: &[String],
@@ -260,13 +264,33 @@ fn spawn_install(
         command.arg(loglevel);
     }
     let status = command.status().into_diagnostic()?;
-    if !status.success() {
-        // The child already reported its own failure; propagate its exit
-        // code without a second error dump (`exitCode ?? 1`, like the
-        // exec path).
-        exit(status.code().unwrap_or(1));
+    if status.success() {
+        return Ok(());
     }
+    // The child already reported its own failure.
+    if is_interrupted(status) {
+        exit(1);
+    }
+    warn(matches!(reporter, ReporterType::Silent), FAILED_INSTALL_WARNING);
     Ok(())
+}
+
+const FAILED_INSTALL_WARNING: &str = r#"The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install."#;
+
+/// The exit code Windows reports for a process ended by `Ctrl+C`.
+#[cfg(windows)]
+const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
+
+/// Whether the install ended by a signal, or by `Ctrl+C` on Windows,
+/// rather than by exiting with an error of its own.
+fn is_interrupted(status: std::process::ExitStatus) -> bool {
+    match status.code() {
+        None => true,
+        #[cfg(windows)]
+        Some(code) => code.cast_unsigned() == STATUS_CONTROL_C_EXIT,
+        #[cfg(not(windows))]
+        Some(_) => false,
+    }
 }
 
 /// Print a `globalWarn`-shaped line to stderr. The gate runs before any

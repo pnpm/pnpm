@@ -51,8 +51,8 @@ use std::{
 };
 use target::{
     ProjectPathKey, apply_deploy_hook, copy_project, is_ancestor_path, is_child_path,
-    prepare_deploy_dir, relative_path, resolve_target_dir, same_path, validate_deploy_target,
-    write_deploy_files,
+    prepare_deploy_dir, real_deploy_dir, relative_path, resolve_target_dir, same_path,
+    validate_deploy_target, write_deploy_files,
 };
 use workspace_manifest::deploy_workspace_settings;
 
@@ -216,7 +216,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        apply_deploy_hook(&deploy_dir.join("package.json"))?;
+        apply_deploy_hook(deploy_dir, &selected.project.root_dir)?;
         let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
             config,
             config.lockfile_dir_for(&selected.project.root_dir),
@@ -267,6 +267,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<SharedDeployOutcome> {
+        let deploy_dir = &real_deploy_dir(deploy_dir)?;
         // The shared lockfile, and the importer ids naming the projects in
         // it, belong to the lockfile dir — which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.
