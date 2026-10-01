@@ -15,6 +15,7 @@ const WORKSPACE_WIDE = [
   '.cargo/',
   '.config/nextest.toml',
   'pnpm/scripts/run-rust-tests.mjs',
+  'pnpm/scripts/cargo-jobs.mjs',
   // A dev-dependency of most crates: a change here can alter how any test in
   // the workspace behaves, not just this crate's own.
   'pnpm/crates/testing-utils/',

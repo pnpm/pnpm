@@ -189,7 +189,7 @@ one-off that no script covers.
   `just test-pnpr`) — one product's crates.
 - `pnpm lint:rust` (`just lint`) — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
 - `pnpm check:rust` (`just check`) — `cargo check --locked --workspace --all-targets`.
-- `pnpm build:pnpm` — `cargo build --release --bin pnpm`.
+- `pnpm build:pnpm` (`just build-pnpm`) — `cargo build --release --bin pnpm`.
 - `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.
 - `just registry-mock <args>` — manage the mock registry used by tests.

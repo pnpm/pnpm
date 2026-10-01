@@ -22,6 +22,7 @@ function stubbedCheckout (context) {
   stub('typos', '')
   stub('taplo', '')
   fs.mkdirSync(path.join(dir, 'pnpm/scripts'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'pnpm/scripts/cargo-jobs.mjs'), 'process.stdout.write("1\\n")')
   fs.writeFileSync(path.join(dir, 'pnpm/scripts/rustfmt.mjs'), '')
   return { dir, bin, record }
 }
