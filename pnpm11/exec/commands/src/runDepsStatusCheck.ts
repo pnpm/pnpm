@@ -17,6 +17,8 @@ import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-re
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { realpathMissing } from 'realpath-missing'
 
+import { type ProjectsToVerifyOptions, selectProjectsToVerify, withDependencies } from './selectProjectsToVerify.js'
+
 const INSTALL_LOCK_NAMESPACE = 'pnpm-verify-deps-install-locks'
 // How long a gate waits for another gate's install in the same workspace
 // before installing without the lock.
@@ -24,7 +26,7 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd' | 'ignoreScripts' | 'workspacePackagePatterns'>> {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, ProjectsToVerifyOptions, Partial<Pick<Config, 'ignoreScripts' | 'workspacePackagePatterns'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
@@ -37,7 +39,10 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const ignoredWorkspaceStateSettings = ['dev', 'optional', 'production'] satisfies Array<keyof WorkspaceStateSettings>
   opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
 
-  const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
+  const { upToDate, issue, workspaceState } = await checkDepsStatus({
+    ...opts,
+    selectedProjectsGraph: await selectProjectsToVerify(opts),
+  })
   if (await installNotRequired(opts, upToDate, workspaceState)) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
@@ -276,17 +281,11 @@ export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'o
 /**
  * The install that the gate spawns has to select the same projects the command
  * being gated was filtered to, otherwise a filtered `run` or `exec` would
- * install every project of the workspace. Each selector also selects its
- * dependencies, because a selected project needs the workspace projects it
- * depends on installed too.
+ * install every project of the workspace.
  */
 export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter' | 'filterProd'>): string[] {
   return [
     ...(opts.filter ?? []).map((selector) => `--filter=${withDependencies(selector)}`),
     ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
   ]
-}
-
-function withDependencies (selector: string): string {
-  return selector.startsWith('!') || selector.endsWith('...') ? selector : `${selector}...`
 }

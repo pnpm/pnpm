@@ -1418,6 +1418,60 @@ fn filtered_exec_installs_a_workspace_dependency_a_filtered_install_left_alone()
     drop((root, mock_instance));
 }
 
+/// A negated selector reaches the install the gate spawns unchanged, so that
+/// install never materializes the project it excludes. The status check must
+/// not hold that project to the modules-directory requirement through the
+/// workspace dependency edge of a selected project.
+#[test]
+fn filtered_exec_does_not_require_a_workspace_dependency_a_negated_selector_excludes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "!bar", "install"])
+        .assert()
+        .success();
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the filtered install must not install the project it excluded",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "!bar", "exec", "node", "-e", r#"process.stdout.write("ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must pass the check:\n{stderr}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "ok");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn ndjson_exec_keeps_verifier_output_machine_readable() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

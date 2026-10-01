@@ -237,10 +237,6 @@ impl RecursiveRun<'_, '_> {
             Prepared::DryRun => return Ok(RecursiveRunOutcome::Done),
             Prepared::NoMatchingScript => return Ok(RecursiveRunOutcome::NoMatchingScript),
         };
-        // The install the gate spawns selects the workspace dependencies of
-        // the projects it installs, so the status check holds them to the
-        // modules-directory requirement too while the workspace shares one
-        // lockfile; see `projects_to_verify`.
         let verify_dirs = projects_to_verify(
             prepared.task_graph
                 .values()
@@ -248,7 +244,8 @@ impl RecursiveRun<'_, '_> {
                 .map(|node| node.project.as_path()),
             self.selection,
             self.config,
-        );
+            self.dir,
+        )?;
         verify_deps_before_recursive_run(
             self.workspace_root,
             verify_dirs,

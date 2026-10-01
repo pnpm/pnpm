@@ -297,15 +297,12 @@ fn execute_selection(
     let (task_graph, sequenced_tasks, task_run_state) =
         prepare_exec_tasks(args, config, workspace_root, selection, emit)?;
 
-    // The install the gate spawns selects the workspace dependencies of the
-    // projects it installs, so the status check holds them to the
-    // modules-directory requirement too while the workspace shares one
-    // lockfile; see `projects_to_verify`.
     let verify_dirs = projects_to_verify(
         task_graph.values().map(|node| node.project.as_path()),
         selection,
         config,
-    );
+        dir,
+    )?;
     verify_deps_before_recursive_run(workspace_root, verify_dirs, config, reporter)?;
 
     let run = ExecRun {

@@ -132,65 +132,74 @@ fn sorted_dependencies<Pkg>(
 /// a project named by `prod_only_selected` reads `prod_all` instead, as
 /// [`filtered_projects_dependencies`] does, so a dev-only workspace dependency
 /// of a `--filter-prod` selection is not required.
-pub fn projects_with_workspace_dependencies<'dirs, Pkg>(
+///
+/// Each graph keeps one visited set across all roots, so a dependency shared
+/// by several selected projects is walked once.
+pub fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
     project_dirs: impl IntoIterator<Item = &'dirs Path>,
-    all: &ProjectGraph<Pkg>,
-    prod_all: Option<&ProjectGraph<Pkg>>,
-    prod_only_selected: &HashSet<PathBuf>,
-) -> Vec<PathBuf> {
-    let mut projects: Vec<PathBuf> = Vec::new();
-    let mut collected: rustc_hash::FxHashSet<PathBuf> = rustc_hash::FxHashSet::default();
-    for project_dir in project_dirs {
-        let graph = graph_for_project(project_dir, all, prod_all, prod_only_selected);
-        push_dependency_closure(graph, project_dir, &mut projects, &mut collected);
-    }
-    projects
-}
-
-/// The graph `project_dir` reads its dependency edges from: `prod_all` for a
-/// project a `--filter-prod` selector selected on its own, `all` otherwise.
-fn graph_for_project<'graph, Pkg>(
-    project_dir: &Path,
     all: &'graph ProjectGraph<Pkg>,
     prod_all: Option<&'graph ProjectGraph<Pkg>>,
     prod_only_selected: &HashSet<PathBuf>,
-) -> &'graph ProjectGraph<Pkg> {
-    match prod_all {
-        Some(prod_all) if prod_only_selected.contains(project_dir) => prod_all,
-        _ => all,
+) -> Vec<PathBuf> {
+    let mut all_walk = DependencyWalk::new(all);
+    let mut prod_walk = prod_all.map(DependencyWalk::new);
+    let mut outside_graph: Vec<&Path> = Vec::new();
+    for project_dir in project_dirs {
+        let walk = match &mut prod_walk {
+            Some(prod_walk) if prod_only_selected.contains(project_dir) => prod_walk,
+            _ => &mut all_walk,
+        };
+        if !walk.visit_from(project_dir) {
+            outside_graph.push(project_dir);
+        }
     }
+    let mut collected: rustc_hash::FxHashSet<&Path> = rustc_hash::FxHashSet::default();
+    all_walk.visited
+        .into_iter()
+        .chain(prod_walk.into_iter().flat_map(|walk| walk.visited))
+        .chain(outside_graph)
+        .filter(|project_dir| collected.insert(project_dir))
+        .map(Path::to_path_buf)
+        .collect()
 }
 
-/// Push `project_dir` and every project reachable from it through the
-/// dependency edges of `graph` onto `projects`, skipping the ones `collected`
-/// already holds.
-fn push_dependency_closure<Pkg>(
-    graph: &ProjectGraph<Pkg>,
-    project_dir: &Path,
-    projects: &mut Vec<PathBuf>,
-    collected: &mut rustc_hash::FxHashSet<PathBuf>,
-) {
-    for dependency_dir in dependency_closure(graph, project_dir) {
-        if collected.insert(dependency_dir.clone()) {
-            projects.push(dependency_dir);
-        }
-    }
+/// A walk along the dependency edges of one graph, from any number of roots.
+struct DependencyWalk<'graph, Pkg> {
+    graph: &'graph ProjectGraph<Pkg>,
+    seen: rustc_hash::FxHashSet<&'graph Path>,
+    /// The projects reached, in the order they were first reached.
+    visited: Vec<&'graph Path>,
 }
 
-/// `project_dir` and every project reachable from it by following the
-/// dependency edges of `graph`.
-fn dependency_closure<Pkg>(graph: &ProjectGraph<Pkg>, project_dir: &Path) -> Vec<PathBuf> {
-    let mut closure: Vec<PathBuf> = Vec::new();
-    let mut visited: rustc_hash::FxHashSet<&Path> = rustc_hash::FxHashSet::default();
-    let mut stack: Vec<&Path> = vec![project_dir];
-    while let Some(project_dir) = stack.pop() {
-        if !visited.insert(project_dir) {
-            continue;
-        }
-        if let Some(node) = graph.get(project_dir) {
-            stack.extend(node.dependencies.iter().map(PathBuf::as_path));
-        }
-        closure.push(project_dir.to_path_buf());
+impl<'graph, Pkg> DependencyWalk<'graph, Pkg> {
+    fn new(graph: &'graph ProjectGraph<Pkg>) -> Self {
+        DependencyWalk { graph, seen: rustc_hash::FxHashSet::default(), visited: Vec::new() }
     }
-    closure
+
+    /// Visit `root` and every project reachable from it that no earlier root
+    /// reached. Returns `false`, visiting nothing, when `root` is not in the
+    /// graph.
+    fn visit_from(&mut self, root: &Path) -> bool {
+        let Some((root, node)) = self.graph.get_key_value(root) else {
+            return false;
+        };
+        if !self.seen.insert(root.as_path()) {
+            return true;
+        }
+        self.visited.push(root.as_path());
+        let mut stack: Vec<&'graph Path> = node.dependencies
+            .iter()
+            .map(PathBuf::as_path)
+            .collect();
+        while let Some(project_dir) = stack.pop() {
+            if !self.seen.insert(project_dir) {
+                continue;
+            }
+            self.visited.push(project_dir);
+            if let Some(node) = self.graph.get(project_dir) {
+                stack.extend(node.dependencies.iter().map(PathBuf::as_path));
+            }
+        }
+        true
+    }
 }
