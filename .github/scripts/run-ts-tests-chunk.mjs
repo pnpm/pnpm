@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process'
+import console from 'node:console'
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
+import process from 'node:process'
 
 import { readTestDurations, selectChunk, taskWeight } from './ts-test-chunks.mjs'
 
