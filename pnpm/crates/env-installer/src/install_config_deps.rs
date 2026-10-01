@@ -239,8 +239,8 @@ async fn materialize<Reporter: self::Reporter>(
         },
         store: pnpm_tarball::ArchiveStoreContext {
             dir: opts.store.dir,
-            index: None,
-            index_writer: None,
+            index: opts.store_index.clone(),
+            index_writer: opts.store_index_writer.clone(),
             verify_integrity: opts.store.verify_integrity,
             strict_pkg_content_check: opts.store.strict_pkg_content_check,
             verified_files_cache: SharedVerifiedFilesCache::default(),

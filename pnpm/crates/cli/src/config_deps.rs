@@ -12,6 +12,9 @@ pub use hooks::{
     load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
 };
 
+mod network;
+mod store_index;
+
 use crate::config_overrides::apply_store_dir_override;
 use engine_policy::engine_resolve_options;
 
@@ -28,12 +31,9 @@ use pnpm_env_installer::{
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
-    shared_picked_manifest_cache,
-};
+use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
@@ -292,12 +292,24 @@ async fn resolve_and_install<Reporter: self::Reporter>(
 
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-    let options = context.options(root_dir, frozen_lockfile);
-
-    resolve_and_install_config_deps::<Reporter>(config_dependencies, &context.resolver, &options)
-        .await
-        .map_err(miette::Report::new)
-        .wrap_err("install configurational dependencies")
+    let mut options = context.options(root_dir, frozen_lockfile);
+    let store_index = store_index::StoreIndexSession::attach(
+        &mut options,
+        context.store.dir,
+        config.frozen_store,
+    )
+    .await;
+    let result = resolve_and_install_config_deps::<Reporter>(
+        config_dependencies,
+        &context.resolver,
+        &options,
+    )
+    .await
+    .map_err(miette::Report::new)
+    .wrap_err("install configurational dependencies");
+    drop(options);
+    store_index.drain().await;
+    result
 }
 
 struct EnvInstallerContext {
@@ -307,13 +319,7 @@ struct EnvInstallerContext {
     store: pnpm_env_installer::ConfigDependencyStore,
 }
 
-pub(crate) struct EnvironmentNetwork {
-    http_client: Arc<ThrottledClient>,
-    auth_headers: Arc<pnpm_network::AuthHeaders>,
-    registries: HashMap<String, String>,
-    retry_opts: RetryOpts,
-    offline: bool,
-}
+use network::EnvironmentNetwork;
 
 impl EnvInstallerContext {
     /// Context for resolving the project's `configDependencies`, using the
@@ -405,6 +411,8 @@ impl EnvInstallerContext {
                 ..Default::default()
             },
             store: self.store,
+            store_index: None,
+            store_index_writer: None,
             root_dir,
 
             registries: &self.network.registries,
@@ -420,42 +428,3 @@ mod tests;
 mod hooks;
 
 mod engine_policy;
-
-impl EnvironmentNetwork {
-    fn resolver(&self, config: &Config) -> NpmResolver<InMemoryPackageMetaCache> {
-        NpmResolver {
-            registries: self.registries.clone(),
-            registries_by_prefix: HashMap::new(),
-            metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
-                http_client: Arc::clone(&self.http_client),
-                auth_headers: Arc::clone(&self.auth_headers),
-                meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-                fetch_locker: shared_packument_fetch_locker(),
-                picked_manifest_cache: shared_picked_manifest_cache(),
-                cache_dir: Some(config.cache_dir.clone()),
-                retry_opts: self.retry_opts,
-            },
-            format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
-                // Derive the metadata mode from config exactly as the install
-                // resolver does (via `PickPolicy`), so resolving the pnpm engine
-                // (or a config dependency) under `resolutionMode=time-based` /
-                // `trustPolicy=no-downgrade` fetches the full packument the
-                // `minimumReleaseAge` and trust checks need — instead of failing
-                // closed on abbreviated metadata that omits `time`.
-                full_metadata: config.requires_full_metadata_for_resolution(),
-                needs_full_metadata_for: None,
-                filter_metadata: config.requires_full_metadata_for_resolution(),
-            },
-            cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-                offline: self.offline,
-                prefer_offline: config.prefer_offline,
-                ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-            },
-            store_view: pnpm_resolving_npm_resolver::OfflineStoreView::open_for_offline(
-                self.offline,
-                &config.store_dir,
-                config.frozen_store,
-            ),
-        }
-    }
-}

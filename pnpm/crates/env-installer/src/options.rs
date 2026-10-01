@@ -1,6 +1,6 @@
 use pnpm_config::PackageImportMethod;
-use pnpm_store_dir::StoreDir;
-use std::{collections::HashMap, path::Path};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreDir, StoreIndexWriter};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// Default npm registry used when neither the config nor a scope entry
 /// names one.
@@ -11,12 +11,14 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 /// the resolved [`pnpm_config::Config`] plus a network client, then
 /// passed by reference into [`crate::resolve_and_install_config_deps()`].
 ///
-/// Every field borrows so the caller keeps ownership of the long-lived
-/// install handles (HTTP client, auth headers, registries map).
+/// Long-lived network/config handles remain borrowed from the caller. Store-index
+/// handles are shared so tarball materialization can read and persist cache rows.
 pub struct ConfigDepsInstallOptions<'a> {
     pub fetching: pnpm_tarball::ArchiveFetchOptions<'a>,
     pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
     pub store: crate::ConfigDependencyStore,
+    pub store_index: Option<SharedReadonlyStoreIndex>,
+    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     /// `lockfileDir` — where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
