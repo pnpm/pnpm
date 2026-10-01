@@ -91,7 +91,7 @@ function pickPreferredPeerSpec (
   const rangeForMatch = getPeerVersionRange(range)
   const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
   const satisfyingVersion = isSemverRange
-    ? semver.maxSatisfying(versions, rangeForMatch, { includePrerelease: true })
+    ? maxSatisfyingPreferringResolved(preferredSelectors, versions, rangeForMatch)
     : null
   if (satisfyingVersion) {
     return [satisfyingVersion, ...nonVersions].join(' || ')
@@ -106,6 +106,19 @@ function pickPreferredPeerSpec (
   return [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]
     .filter(spec => spec != null)
     .join(' || ')
+}
+
+/**
+ * The highest of `versions` satisfying `range`, taken from the versions this
+ * install resolved when one of them satisfies it. Resolving a version records
+ * it as a plain selector, so a version that only the wanted lockfile pins is
+ * still weighted. Its provider has moved on, so it must not outrank a version
+ * this install resolved.
+ */
+function maxSatisfyingPreferringResolved (selectors: VersionSelectors, versions: string[], range: string): string | null {
+  const resolved = versions.filter((version) => typeof selectors[version] === 'string')
+  return semver.maxSatisfying(resolved, range, { includePrerelease: true }) ??
+    semver.maxSatisfying(versions, range, { includePrerelease: true })
 }
 
 function splitVersionSelectors (selectors: VersionSelectors): { versions: string[], nonVersions: string[] } {

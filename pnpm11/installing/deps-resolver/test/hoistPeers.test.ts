@@ -289,6 +289,53 @@ test('hoistPeers handles version selector with weight', () => {
   })
 })
 
+// https://github.com/pnpm/tasks/issues/61
+test('hoistPeers prefers a version this install resolved over a higher one that only the lockfile pins', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '1.0.1': { selectorType: 'version', weight: 1000000 },
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers takes the highest version this install resolved', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '1.0.1': 'version',
+        '1.0.2': { selectorType: 'version', weight: 1000000 },
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.1',
+  })
+})
+
+test('hoistPeers falls back to a version that only the lockfile pins when no version this install resolved satisfies the range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '2.0.0': { selectorType: 'version', weight: 1000000 },
+      },
+    },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '2' }]])).toStrictEqual({
+    foo: '2.0.0',
+  })
+})
+
 test('getHoistableOptionalPeers only picks a version that satisfies all optional ranges', () => {
   expect(getHoistableOptionalPeers({
     foo: ['2', '2.1'],
