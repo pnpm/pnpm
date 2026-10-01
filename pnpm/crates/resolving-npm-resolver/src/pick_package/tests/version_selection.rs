@@ -626,7 +626,7 @@ async fn refresh_pick_does_not_reuse_a_mirror_an_earlier_pick_promoted() {
     mock.assert_async().await;
 }
 
-fn public_ctx<'a>(
+pub(super) fn public_ctx<'a>(
     cache_dir: &'a TempDir,
     http_client: &'a ThrottledClient,
     auth_headers: &'a AuthHeaders,
@@ -661,7 +661,11 @@ fn age_mirror(cache_dir: &std::path::Path, registry: &str) {
     set_mirror_mtime(cache_dir, registry, expired);
 }
 
-fn set_mirror_mtime(cache_dir: &std::path::Path, registry: &str, mtime: std::time::SystemTime) {
+pub(super) fn set_mirror_mtime(
+    cache_dir: &std::path::Path,
+    registry: &str,
+    mtime: std::time::SystemTime,
+) {
     let mirror = get_pkg_mirror_path(cache_dir, ABBREVIATED_META_DIR, registry, "acme")
         .expect("mirror path");
     std::fs::OpenOptions::new()

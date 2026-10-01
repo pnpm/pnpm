@@ -10,6 +10,7 @@ mod cache_partitions;
 
 mod cache_read_modes;
 
+mod stable_range_mirror;
 mod version_selection;
 
 mod offline_store_pick;

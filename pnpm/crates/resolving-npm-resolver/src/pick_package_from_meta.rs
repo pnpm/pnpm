@@ -53,8 +53,7 @@ use node_semver::{Range, Version};
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pnpm_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
-    parse_packument_timestamp,
+    VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
 
 /// Discriminator for [`RegistryPackageSpec::spec_type`]: the
