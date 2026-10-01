@@ -10,7 +10,7 @@ affects them. It is not a log of the pull requests that landed. Every entry has 
 earn its line.
 
 The wording rules for a single entry live in the "Changeset style" section of
-`CLAUDE.md`. This skill is about the set: which entries exist at all, how they are
+`AGENTS.md`. This skill is about the set: which entries exist at all, how they are
 grouped, what order they appear in, and how the page reads end to end.
 
 ## Edit the composed section, not the intents
