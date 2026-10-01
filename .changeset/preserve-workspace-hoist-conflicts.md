@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Fixed frozen installs replacing a hoisted dependency with a workspace package of the same name. A subsequent `pnpm dedupe` could remove the hoisted link [#16485](https://github.com/pnpm/pnpm/issues/16485).
+Fixed frozen installs replacing a hoisted dependency with a workspace package of the same name. A later `pnpm dedupe` then removed the hoisted link [#16485](https://github.com/pnpm/pnpm/issues/16485).
