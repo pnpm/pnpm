@@ -13,16 +13,16 @@ export function runSuite (root, manifestPath, scenario) {
     cwd: path.join(root, scenario.cwd), encoding: 'utf8', timeout: 120000,
     env: { ...process.env, NODE_PATH: '', ...auditEnvironment(root, auditPath), PNPM_LOADER_MANIFEST: manifestPath, UNRS_RESOLVER_NODE_RESOLUTION: '1' },
   })
-  if (result.error) throw result.error
+  if (result.error && result.error.code !== 'ETIMEDOUT') throw result.error
   return { ...result, ...readAudit(auditPath) }
 }
 
 export function readScenario (root) {
   const report = path.join(root, 'ecosystem-results.json')
   if (fs.existsSync(report)) {
-    const { runner, cwd = '.', args } = JSON.parse(fs.readFileSync(report, 'utf8'))
+    const { runner = 'vitest', cwd = '.', args } = JSON.parse(fs.readFileSync(report, 'utf8'))
     const scenario = { cwd: path.join('repo', cwd) }
-    return runner === 'node' ? { ...scenario, nodeArgs: args } : { ...scenario, entry: 'repo/run-vitest.mjs', args }
+    return runner === 'node' ? { ...scenario, nodeArgs: args } : { ...scenario, entry: `repo/run-${runner}.mjs`, args }
   }
   return {
     entry: 'repo/run-jest.cjs', cwd: 'repo/pnpm11/cli/parse-cli-args',

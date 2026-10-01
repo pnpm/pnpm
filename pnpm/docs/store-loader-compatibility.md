@@ -2,7 +2,7 @@
 title: Store loader compatibility results
 ---
 
-These are scoped experiments with the [experimental store loader](./store-loader.md), not full repository test passes. The external projects come from [Workspaces in the wild](https://pnpm.io/workspaces#workspaces-in-the-wild). Results were collected on Linux x64 with Node.js 26.10.0. The latest batch, recorded on October 1, 2026, adds SvelteKit, Slidev, NextAuth.js, and Rollup plugins.
+These are scoped experiments with the [experimental store loader](./store-loader.md), not full repository test passes. The external projects come from [Workspaces in the wild](https://pnpm.io/workspaces#workspaces-in-the-wild). Results were collected on Linux x64 with Node.js 26.10.0. The latest batch, recorded on October 1, 2026, adds Kysely, Milkdown, Element Plus, and Quasar.
 
 ## Method
 
@@ -29,12 +29,23 @@ A snapshot's package count describes available dependencies, not test coverage. 
 | Slidev parser | 114 passed in 4 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 52 instances; 3 tests pass, 2 suites cannot resolve `@antfu/utils` |
 | NextAuth.js JWT, URL parsing, merge, and environment utilities | 57 passed in 4 files | Native Rollup binding required; 0 tests | `vitest`, `vite`, and `unplugin-swc` trees: 108 instances; 51 tests pass, JWT suite cannot resolve `@panva/hkdf` |
 | Rollup plugin-utils | 90 passed in 8 files | Vite reads its virtual `package.json` through `fs`; 0 tests | `vitest` and its tree: 57 instances; 8 suites fail on `estree-walker` or `acorn`, 0 tests |
+| Kysely database-free Mocha units | 25 passed in 8 files | 25 passed; 656 CAS modules from 87 packages | Not needed |
+| Kysely file migrations | 10 passed | 5 pass before the `.cts` case stalls; terminated after three minutes | `esbuild` trees: 4 instances; all 10 pass, 666 CAS modules from 87 packages |
+| Milkdown context | 15 passed in 5 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 89 instances; 3 tests pass, 4 suites cannot resolve the exception workspace |
+| Milkdown transformer | 21 passed in 5 files | Native Rolldown binding required; 0 tests | Same 89-instance Vitest tree; 5 suites cannot resolve the exception workspace, 0 tests |
+| Element Plus utilities | 107 passed in 20 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 195 instances; all 20 suites fail to resolve test setup dependencies, 0 tests |
+| Quasar CLI units | 57 passed in 7 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 128 instances; 25 tests pass, 4 fail, 3 other suites fail during import |
+| Quasar SSR error utilities | 3 passed in 2 files | Native Rolldown binding required; 0 tests | Same 128-instance Vitest tree; 1 test passes, 1 suite cannot resolve `stack-trace` |
 
 ### What the passing runs establish
 
 Astro's selected tests exercise compiled workspace code with Node's test runner and no materialized registry packages. Only four registry modules were observed through the CAS hooks. The snapshot contains 1,951 registry package instances and 565 workspace roots, so this is deliberately narrow coverage of that graph.
 
 The Svelte comparison compiles 100 real repository components for both client and server. Hashes of generated JavaScript, CSS, source maps, and warnings match the baseline. This bypasses Vitest and does not establish that Svelte's test runner works with all-CAS dependencies.
+
+Kysely's Mocha run exercises query IDs, logging, object utilities, JSON-result parsing, immediate values, plugin composition, and async disposal. The tests use dummy drivers, not live databases. Its 656 observed CAS modules include Mocha, assertion and mocking libraries, and database-client imports from shared test setup. No registry packages are materialized. The snapshot contains 1,592 registry instances and four workspace roots; this is not coverage of every dependency or of database integration.
+
+Kysely's separate file-migration suite passes all ten tests with only the two esbuild versions and their platform binaries in GVS (four instances). Mocha and the remaining dependencies stay in CAS. The all-CAS run stalls while loading a `.cts` migration through the TypeScript tooling after five passing cases. Selecting esbuild resolves that stall; the passing run observes 666 CAS modules from 87 packages.
 
 Vue's reactivity suite and pnpm's parser suite pass with GVS fallback. Vue's audited GVS rerun observed no CAS module loads: its passing workload uses physical workspaces and materialized tooling. The pnpm parser needs test setup and application dependencies in addition to Jest's own tree. These passes do not establish that opting out only the test runner suffices in other projects.
 
@@ -48,6 +59,9 @@ Vue's reactivity suite and pnpm's parser suite pass with GVS fallback. Vue's aud
 - **Slidev:** the parser fixture suite and parser utility suite cannot resolve `@antfu/utils`. Two time-parser suites pass three tests. Node resolution with the loader finds the missing dependency. No CAS module loads are observed in the GVS attempt.
 - **NextAuth.js:** opting out only Vitest installs 91 instances but leaves a second Vite context in CAS; configuration reads that context's virtual `package.json`. Selecting `vitest`, `vite`, and `unplugin-swc` gets through configuration and passes three suites. The JWT suite still fails in Vite's resolver on `@panva/hkdf`. Node with the loader imports that package from CAS and successfully derives a key. The partial test run loads 406 CAS modules from 38 packages. A separate attempt including `@preact/preset-vite` was rejected by the diagnostic because one original Babel package instance mapped to conflicting GVS roots; that attempt executed no tests.
 - **Rollup plugins:** the compiled plugin-utils package imports `estree-walker`, and its scope tests import `acorn`. Vite cannot resolve either, though Node with the loader finds both and `acorn` is already in GVS. No CAS modules are observed in the GVS attempt.
+- **Milkdown:** both probes fail in Vite's resolver on `@milkdown/exception`, a physical workspace package. ESM resolution with the loader finds its TypeScript entry, but importing that entry directly through Node then fails on its extensionless relative imports; it still needs the project's TypeScript tooling. The three passing context tests do not load CAS modules. No CAS module loads are observed in either GVS probe.
+- **Element Plus:** all utility suites fail in setup because Vite cannot resolve `@vue/test-utils`. Node resolution with the loader finds it in CAS. Configuration startup loads 310 CAS modules from 44 packages before the suites fail.
+- **Quasar:** Vite cannot resolve `ci-info`, `cross-spawn`, or `stack-trace` in the selected suites, though Node with the loader resolves them. The CLI also has four assertion failures: a resolved path no longer contains the package name `kolorist`, reading that package's virtual `package.json` through `fs` returns no data, and two subprocess tests cannot discover newly created local CLI packages through `require.resolve(..., { paths })`. Those temporary installations are outside the manifest. The CLI probe observes 28 CAS modules from 16 packages; the SSR utility probe observes none.
 
 The GVS fallback addresses physical-file requirements within an installed dependency tree. It does not make a separate resolver understand application dependencies in the loader manifest. These workloads need resolver integration or additional physical application links, not just more copies of package files.
 
@@ -68,6 +82,10 @@ The pnpm CLI compatibility probe also reached registry setup, which requires the
 | Slidev | [30a0a54c8739b4b395d9b336a6304cc8ebcc3947](https://github.com/slidevjs/slidev/tree/30a0a54c8739b4b395d9b336a6304cc8ebcc3947) | 12.4.2 | Vitest 5.0.1 |
 | NextAuth.js | [a1a16a5a7780488c7449feece410033f445d0b31](https://github.com/nextauthjs/next-auth/tree/a1a16a5a7780488c7449feece410033f445d0b31) | 9.2.0 | Vitest 3.2.6 |
 | Rollup plugins | [639f45638234c1c3fabfb13615c78bebaef89ef2](https://github.com/rollup/plugins/tree/639f45638234c1c3fabfb13615c78bebaef89ef2) | 9.5.0 | Vitest 4.0.2 |
+| Kysely | [996eae17fe325968da56e5aa4d9d3a216adb120d](https://github.com/kysely-org/kysely/tree/996eae17fe325968da56e5aa4d9d3a216adb120d) | 11.21.0 | Mocha 12.0.1 |
+| Milkdown | [bbb8bcbbb8ce0aa16f92567c23f6236747be9b3b](https://github.com/Milkdown/milkdown/tree/bbb8bcbbb8ce0aa16f92567c23f6236747be9b3b) | 12.5.1 | Vitest 5.0.1 |
+| Element Plus | [53936e70ef37cd03c2925e812b342c6adcb3f118](https://github.com/element-plus/element-plus/tree/53936e70ef37cd03c2925e812b342c6adcb3f118) | 12.8.1 | Vitest 5.0.2 |
+| Quasar | [0fd7ce30e7dd04c6be23e7bd47547800697ee128](https://github.com/quasarframework/quasar/tree/0fd7ce30e7dd04c6be23e7bd47547800697ee128) | 12.3.4 | Vitest 5.0.1 |
 
 The pnpm GVS run used this feature branch at `5d922b13566dbbc4142af415149ff73714ec8619`. The external probes use installed dependency graphs, including existing build outputs. They do not test a fresh install directly into CAS.
 
@@ -91,7 +109,13 @@ pnpm --filter @auth/core build
 
 # Rollup plugins
 pnpm --filter @rollup/pluginutils build
+
+# Kysely
+pnpm build
+pnpm test:node:build
 ```
+
+Kysely and Element Plus needed `--config.@pnpm:registry=https://registry.npmjs.org/` on their install command to override the test machine's scoped registry mirror. The mirror omitted timestamps required by Kysely's trust policy and served an Element Plus dependency tarball whose integrity did not match the lockfile. The official registry passed the original frozen-lockfile, integrity, and policy checks. No package versions or trust policies were changed.
 
 For Mermaid, add a diagnostic-only `compatibility.workspace.json` containing `["./vite.config.ts"]`. This selects the existing root configuration without loading the unrelated documentation configuration. The latter uses `__dirname`, which fails under the config runner. Mermaid needs `--configLoader runner` because its configuration imports TypeScript sources through `.js` specifiers. No upstream test sources were changed.
 
@@ -118,6 +142,13 @@ node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/kit /path/to/svel
 node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/slidev run packages/parser test/parser.test.ts --maxWorkers=2 --configLoader native --no-cache
 node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/core /path/to/nextauth run --config ../utils/vitest.config.ts test/jwt.test.ts test/url-parsing.test.ts test/merge.test.ts test/env.test.ts --coverage.enabled=false --maxWorkers=2 --configLoader native --no-cache
 node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/pluginutils /path/to/rollup-plugins run --config ../../.config/vitest.config.mts --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --mocha /path/to/kysely --timeout 15000 test/node/dist/query-id.test.js test/node/dist/log-once.test.js test/node/dist/object-util.test.js test/node/dist/parse-json-results-plugin.test.js test/node/dist/immediate-value-plugin.test.js test/node/dist/plugin-composition.test.js test/node/dist/async-dispose.test.js test/node/dist/logging.test.js
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --mocha /path/to/kysely --timeout 15000 test/node/dist/file-migration-provider.test.js
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/ctx /path/to/milkdown run --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/transformer /path/to/milkdown run --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/element-plus run packages/utils/__tests__ --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd cli /path/to/quasar run --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd utils/render-ssr-error /path/to/quasar run --maxWorkers=2 --configLoader native --no-cache
 ```
 
 Each command retains a fixture and exits unsuccessfully if the loader run fails. Use its printed directory for the GVS attempt or the Svelte compiler comparison:
@@ -125,8 +156,11 @@ Each command retains a fixture and exits unsuccessfully if the loader run fails.
 ```sh
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /retained-fixture vitest
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /nextauth-fixture vitest vite unplugin-swc
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /kysely-migration-fixture esbuild
 node pnpm/esm-loader/scripts/test-svelte-compiler.mjs /svelte-fixture
 ```
+
+Before the Kysely migration GVS retry, remove the test-created `repo/test/node/dist/cts-migrations` directory inside that retained fixture. The timeout prevents its cleanup hook from running; leaving it in place makes the next setup fail with `EEXIST`.
 
 For pnpm, create the fixture with `test-repository.mjs`, then use these explicit opt-outs:
 
@@ -140,6 +174,8 @@ The GVS diagnostic needs an installed pnpm v12 CLI. It preserves both workspace 
 ## Retained evidence
 
 Every fixture retains `ecosystem-results.json` with the revision, command arguments, runtime, snapshot counts, and exit statuses, plus `baseline.stdout`, `baseline.stderr`, `cas.stdout`, and `cas.stderr`. GVS attempts write `gvs-results.json`, `gvs.stdout`, and `gvs.stderr`; the result includes every mapped package root and the retained staging installation path. The pnpm-specific fixture uses its own scenario report.
+
+The diagnostic also retains partial output on timeout, with a null exit status, the termination signal, and the spawn error in the result. The all-CAS run has a three-minute limit; the GVS run has a two-minute limit. A terminated process may not flush its exit-time module audit, so timeout audit counts can be incomplete.
 
 New runs also write CAS load audits as JSON lines, one URL array per exiting process or worker: `cas-loads.jsonl` for the all-CAS attempt and `suite-cas-loads.jsonl` for the latest GVS/selective attempt. Compiler comparisons write `compiler-results.json` and `compiler-cas-loads.jsonl`. The diagnostics retain failures as well as passes.
 
