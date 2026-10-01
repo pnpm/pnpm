@@ -149,8 +149,7 @@ where
     let sh_body = spec.sh_body(runtime.as_ref())?;
     let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
-    let current = !spec.options.force
-        && shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
+    let current = existing_shim_is_current(existing_shim.as_deref(), &sh_body, &spec)
         && windows_shims_match::<Sys>(windows_shims.as_ref());
     if !current {
         replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
@@ -273,7 +272,10 @@ fn windows_shim_bodies(
 /// at the right target, and without that check an upgrade would leave a stale
 /// header in place. [`is_sh_shim_basedir_anchor_current`] does the same for
 /// the physical directory anchor.
-fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
+fn existing_shim_is_current(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
+    if spec.options.force {
+        return false;
+    }
     let Some(existing) = existing else {
         return false;
     };
