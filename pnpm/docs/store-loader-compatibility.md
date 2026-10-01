@@ -2,7 +2,7 @@
 title: Store loader compatibility results
 ---
 
-These are scoped experiments with the [experimental store loader](./store-loader.md), not full repository test passes. The external projects come from [Workspaces in the wild](https://pnpm.io/workspaces#workspaces-in-the-wild). Results were collected on Linux x64 with Node.js 26.10.0. The latest batch, recorded on October 1, 2026, adds Qwik, Turborepo, Cycle.js, and ByteMD.
+These are scoped experiments with the [experimental store loader](./store-loader.md), not full repository test passes. The external projects come from [Workspaces in the wild](https://pnpm.io/workspaces#workspaces-in-the-wild). Results were collected on Linux x64 with Node.js 26.10.0. The latest batch, recorded on October 1, 2026, adds Prisma, Verdaccio, Logto, and Stimulus Components.
 
 ## Method
 
@@ -40,6 +40,11 @@ A snapshot's package count describes available dependencies, not test coverage. 
 | Turborepo utilities | 33 passed and 5 snapshots in 6 files | Jest cannot locate the local test-utils preset; 0 tests | Diagnostic rejects conflicting Babel GVS contexts before running tests |
 | Cycle.js run | 32 passed | Extensionless Mocha executable is unsupported; 0 tests | Diagnostic rejects lockfile format 5.3 before installation |
 | ByteMD editor and viewer | 7 passed in 2 files with browser resolution | Vite reads its virtual `package.json` through `fs`; 0 tests | Diagnostic rejects lockfile format 6.0 before installation |
+| Prisma foundation utilities | 169 runtime tests passed in 14 files | Native Rolldown binding required; 0 tests | Vitest trees: 119 instances; all 14 suites fail to locate a workspace tsconfig |
+| Prisma Node-based coverage tools | 89 passed in 10 suites | 89 passed; 160 CAS modules from 12 packages | Not needed |
+| Verdaccio core and URL helpers | 166 passed, 1 skipped in 17 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 157 instances; all 17 suites fail to resolve `nock` in setup |
+| Logto shared utilities | 71 passed in 9 files | Native Rollup binding required; 0 tests | `vitest` and shared tsconfig trees: 149 instances; 7 tests pass, 7 suites fail on dependency resolution |
+| Stimulus Components DOM tests | 154 passed in 22 files | Vite reads its virtual `package.json` through `fs`; 0 tests | `vitest` and its tree: 96 instances; all 22 suites fail to resolve `@hotwired/stimulus` |
 
 ### What the passing runs establish
 
@@ -50,6 +55,8 @@ The Svelte comparison compiles 100 real repository components for both client an
 Kysely's Mocha run exercises query IDs, logging, object utilities, JSON-result parsing, immediate values, plugin composition, and async disposal. The tests use dummy drivers, not live databases. Its 656 observed CAS modules include Mocha, assertion and mocking libraries, and database-client imports from shared test setup. No registry packages are materialized. The snapshot contains 1,592 registry instances and four workspace roots; this is not coverage of every dependency or of database integration.
 
 Kysely's separate file-migration suite passes all ten tests with only the two esbuild versions and their platform binaries in GVS (four instances). Mocha and the remaining dependencies stay in CAS. The all-CAS run stalls while loading a `.cts` migration through the TypeScript tooling after five passing cases. Selecting esbuild resolves that stall; the passing run observes 666 CAS modules from 87 packages.
+
+Prisma's separate Node-runner workload exercises its coverage report, upgrade-coverage gate, and workflow checks. All 89 tests pass with no registry materialization, loading 160 CAS modules from 12 package instances, including schema validation and Markdown frontmatter dependencies. Tests that create temporary Git repositories and launch child processes also pass. This does not cover Prisma database access or its Vitest suites.
 
 Qwik's eight selected files pass all 167 tests after opting out Vitest and both installed versions of `oxc-parser` and `oxc-transform`. Vitest alone materializes 76 instances but fails on the parser's native binding; adding the parser reaches the transformer's native binding. The final 93-instance selection loads 19 modules from eight CAS package instances. This exercises built workspace code and source tests, not the full framework or browser suite.
 
@@ -71,6 +78,10 @@ Vue's reactivity suite and pnpm's parser suite pass with GVS fallback. Vue's aud
 - **Turborepo:** Jest's preset lookup cannot locate the physical `@turbo/test-utils` workspace; the all-CAS attempt loads 61 modules from 47 packages before configuration fails. The first attempt also exposed a loader defect: CommonJS `require('..')` was rejected even when the target stayed inside the stored package. The loader now accepts `require('.')` and `require('..')` within that boundary, with regression coverage that still rejects escape from the package root. The preset failure is the result after that fix. Opting out Jest is rejected because one original `@babel/core` instance maps to conflicting GVS roots; no tests run in that attempt.
 - **Cycle.js:** the normal Mocha 6 suite passes after installing the existing lockfile with pnpm 6.35.1 under Node.js 18.20.8. Baseline tests and loader probes both use Node.js 26.10.0. The loader rejects Mocha's extensionless `bin/mocha` before any CAS modules load. Opting out Mocha and ts-node cannot be tested with the GVS helper because the installed lockfile uses format 5.3.
 - **ByteMD:** seven tests pass after a diagnostic config selects Svelte's browser condition. Without it, three tests fail because mount hooks resolve to server-side behavior. The all-CAS run loads 91 modules from 40 packages before Vite's direct `package.json` read fails. The GVS helper rejects the installed format-6.0 lockfile. This is a diagnostic limitation, not evidence that a correctly materialized Vitest tree would fail.
+- **Prisma:** the selected foundation package extends `@repo/tsconfig/base`. Vite's Oxc transform cannot locate that tsconfig without dependency links, so all 14 suites fail before running tests. Node resolution with the loader finds the existing physical `packages/0-config/tsconfig/base.json` workspace file. The Vitest selection includes both installed runner versions (5.0.0-rc.2 and 4.1.10), totaling 119 instances; no CAS modules are observed in this GVS attempt. This checkout is the Prisma 8 development branch, not a released Prisma 7 workload. Type-only tests are excluded from this runtime probe.
+- **Verdaccio:** every selected suite fails while importing `nock` from the root test setup. Node resolution with the loader finds its CAS entry. The setup disables external network connections, so it is kept intact. No CAS module loads are observed in the GVS attempt.
+- **Logto:** Vitest's 145-instance tree initially reaches an `fs` read of the shared tsconfig's virtual JSON file. Selecting `@silverhand/ts-config` as well materializes four more instances and gets past that read. Seven tests in two suites then pass; seven other suites cannot resolve `nanoid`, `libphonenumber-js`, `ua-parser-js`, or `@silverhand/essentials`. Node resolution with the loader finds all four, and the tsconfig resolves to a physical GVS JSON file. No CAS modules are observed in either GVS attempt. The selected baseline also passes on Node.js 26.10.0 despite the package declaring Node.js 22.
+- **Stimulus Components:** all 22 suites fail in Vite's import analysis on `@hotwired/stimulus`. Node resolution with the loader finds its CAS entry. No tests or CAS module loads are observed in the GVS attempt.
 
 The GVS fallback addresses physical-file requirements within an installed dependency tree. It does not make a separate resolver understand application dependencies in the loader manifest. The custom-resolver failures need resolver integration or additional physical application links, not just more copies of package files.
 
@@ -99,6 +110,10 @@ The pnpm CLI compatibility probe also reached registry setup, which requires the
 | Turborepo | [8cc3cce30705a88ac9020d1adc2bf06f391fdf2d](https://github.com/vercel/turborepo/tree/8cc3cce30705a88ac9020d1adc2bf06f391fdf2d) | 12.0.0 | Jest 30.3.0 |
 | Cycle.js | [5ece2a48c3659538208da3dc8d43a142bc0d91a7](https://github.com/cyclejs/cyclejs/tree/5ece2a48c3659538208da3dc8d43a142bc0d91a7) | 6.35.1 (diagnostic selection) | Mocha 6.2.0 |
 | ByteMD | [2a3046a510ba6e5b9d8cce63a38e8258ce6e5430](https://github.com/bytedance/bytemd/tree/2a3046a510ba6e5b9d8cce63a38e8258ce6e5430) | 8.15.9 | Vitest 0.29.8 |
+| Prisma | [84b3bb693c395ec21ccf2de97d5db4787c805d03](https://github.com/prisma/prisma/tree/84b3bb693c395ec21ccf2de97d5db4787c805d03) | 10.27.0 | Vitest 5.0.0-rc.2 and Node test runner |
+| Verdaccio | [83eb46cd8104bec30f8fd379f5138f0da10df5c4](https://github.com/verdaccio/verdaccio/tree/83eb46cd8104bec30f8fd379f5138f0da10df5c4) | 12.3.4 | Vitest 4.1.11 |
+| Logto | [c814034401b0e13a6f461e0b0835ad3bbb84c9c2](https://github.com/logto-io/logto/tree/c814034401b0e13a6f461e0b0835ad3bbb84c9c2) | 10.30.3 (diagnostic selection) | Vitest 4.1.11 |
+| Stimulus Components | [0ec0b24e911438fee4d036ac2443f934a62d05c7](https://github.com/stimulus-components/stimulus-components/tree/0ec0b24e911438fee4d036ac2443f934a62d05c7) | 10.30.3 | Vitest 4.1.11 |
 
 The pnpm GVS run used this feature branch at `5d922b13566dbbc4142af415149ff73714ec8619`. The external probes use installed dependency graphs, including existing build outputs. They do not test a fresh install directly into CAS.
 
@@ -129,6 +144,9 @@ pnpm test:node:build
 
 # Qwik
 pnpm build.core.dev
+
+# Verdaccio
+pnpm --filter @verdaccio/core... --filter @verdaccio/url... build
 ```
 
 Kysely and Element Plus needed `--config.@pnpm:registry=https://registry.npmjs.org/` on their install command to override the test machine's scoped registry mirror. The mirror omitted timestamps required by Kysely's trust policy and served an Element Plus dependency tarball whose integrity did not match the lockfile. The official registry passed the original frozen-lockfile, integrity, and policy checks. No package versions or trust policies were changed.
@@ -152,6 +170,10 @@ export default { ...config, resolve: { ...config.resolve, conditions: ['browser'
 ```
 
 This changes browser/server resolution for both baseline and loader runs without modifying test assertions. Cycle.js has no package-manager pin; use pnpm 6.35.1 with Node.js 18.20.8 for its frozen installation, then add `"packageManager": "pnpm@6.35.1"` to the diagnostic checkout's root manifest so workspace discovery uses the matching CLI. Its lockfile and dependency versions remain unchanged. Running pnpm 6's installer on the test machine's newer Node version fails its HTTP requests with `ERR_INVALID_THIS`.
+
+Prisma's Node-runner probe sets `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tag.gpgSign GIT_CONFIG_VALUE_0=false` for the test process. The tests create temporary Git tags; inheriting the machine's signed-tag setting otherwise opens an editor. This does not change global Git configuration. The test sources and assertions are unchanged.
+
+Logto does not pin pnpm in its manifest; its CI selects pnpm 10. The diagnostic uses `pnpm with 10.30.3 install --frozen-lockfile --ignore-scripts`. Prisma's foundation probe disables Vitest's type-only tests explicitly; the reported 169 tests check runtime behavior.
 
 Run the following from the pnpm repository, with its workspace utilities installed and compiled:
 
@@ -178,6 +200,11 @@ node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/qwik run packages/qwik/
 node pnpm/esm-loader/scripts/test-ecosystem.mjs --jest --cwd packages/turbo-utils /path/to/turborepo --runInBand --no-cache --runTestsByPath __tests__/convert-case.test.ts __tests__/search-up.test.ts __tests__/is-folder-empty.test.ts __tests__/validate-directory.test.ts __tests__/get-turbo-root.test.ts __tests__/get-turbo-configs.test.ts
 node pnpm/esm-loader/scripts/test-ecosystem.mjs --mocha --cwd run /path/to/cyclejs 'test/*.ts' --require ts-node/register --exit
 TMPDIR=/tmp node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/outside-cache/bytemd run --threads=false --config compatibility.config.mjs
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/1-framework/0-foundation/utils /path/to/prisma run --typecheck.enabled=false --maxWorkers=2 --configLoader native --no-cache
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=tag.gpgSign GIT_CONFIG_VALUE_0=false node pnpm/esm-loader/scripts/test-ecosystem.mjs --node /path/to/prisma --test --test-concurrency=2 scripts/check-upgrade-coverage.test.mjs scripts/upgrade-coverage-workflows.test.mjs scripts/coverage-report.test.mjs
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/verdaccio run packages/core/core/test packages/core/url/test --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/shared /path/to/logto run src --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/stimulus-components run components --maxWorkers=2 --configLoader native --no-cache
 ```
 
 Each command retains a fixture and exits unsuccessfully if the loader run fails. Use its printed directory for the GVS attempt or the Svelte compiler comparison:
@@ -189,6 +216,7 @@ node pnpm/esm-loader/scripts/test-gvs-repository.mjs /kysely-migration-fixture e
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /qwik-fixture vitest oxc-parser oxc-transform
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /turborepo-fixture jest
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /cyclejs-fixture mocha ts-node
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /logto-fixture vitest @silverhand/ts-config
 node pnpm/esm-loader/scripts/test-svelte-compiler.mjs /svelte-fixture
 ```
 
