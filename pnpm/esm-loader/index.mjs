@@ -57,7 +57,8 @@ export function createStoreHooks (manifestURL) {
 }
 
 function fileRequest (specifier, context) {
-  const relative = specifier.startsWith('./') || specifier.startsWith('../')
+  const dotDirectory = context.conditions.includes('require') && (specifier === '.' || specifier === '..')
+  const relative = dotDirectory || specifier.startsWith('./') || specifier.startsWith('../')
   const nativeAbsolute = path.isAbsolute(specifier) && !specifier.startsWith('/')
   if (nativeAbsolute || (context.conditions.includes('require') && (relative || path.isAbsolute(specifier)))) {
     const filename = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier)

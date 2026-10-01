@@ -2,7 +2,7 @@
 title: Store loader compatibility results
 ---
 
-These are scoped experiments with the [experimental store loader](./store-loader.md), not full repository test passes. The external projects come from [Workspaces in the wild](https://pnpm.io/workspaces#workspaces-in-the-wild). Results were collected on Linux x64 with Node.js 26.10.0. The latest batch, recorded on October 1, 2026, adds Kysely, Milkdown, Element Plus, and Quasar.
+These are scoped experiments with the [experimental store loader](./store-loader.md), not full repository test passes. The external projects come from [Workspaces in the wild](https://pnpm.io/workspaces#workspaces-in-the-wild). Results were collected on Linux x64 with Node.js 26.10.0. The latest batch, recorded on October 1, 2026, adds Qwik, Turborepo, Cycle.js, and ByteMD.
 
 ## Method
 
@@ -36,6 +36,10 @@ A snapshot's package count describes available dependencies, not test coverage. 
 | Element Plus utilities | 107 passed in 20 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 195 instances; all 20 suites fail to resolve test setup dependencies, 0 tests |
 | Quasar CLI units | 57 passed in 7 files | Native Rolldown binding required; 0 tests | `vitest` and its tree: 128 instances; 25 tests pass, 4 fail, 3 other suites fail during import |
 | Quasar SSR error utilities | 3 passed in 2 files | Native Rolldown binding required; 0 tests | Same 128-instance Vitest tree; 1 test passes, 1 suite cannot resolve `stack-trace` |
+| Qwik shared utilities, tag nesting, and preload utilities | 167 passed in 8 files | Native Rolldown binding required; 0 tests | `vitest`, `oxc-parser`, and `oxc-transform` trees: 93 instances; all 167 pass, 19 CAS modules from 8 packages |
+| Turborepo utilities | 33 passed and 5 snapshots in 6 files | Jest cannot locate the local test-utils preset; 0 tests | Diagnostic rejects conflicting Babel GVS contexts before running tests |
+| Cycle.js run | 32 passed | Extensionless Mocha executable is unsupported; 0 tests | Diagnostic rejects lockfile format 5.3 before installation |
+| ByteMD editor and viewer | 7 passed in 2 files with browser resolution | Vite reads its virtual `package.json` through `fs`; 0 tests | Diagnostic rejects lockfile format 6.0 before installation |
 
 ### What the passing runs establish
 
@@ -46,6 +50,8 @@ The Svelte comparison compiles 100 real repository components for both client an
 Kysely's Mocha run exercises query IDs, logging, object utilities, JSON-result parsing, immediate values, plugin composition, and async disposal. The tests use dummy drivers, not live databases. Its 656 observed CAS modules include Mocha, assertion and mocking libraries, and database-client imports from shared test setup. No registry packages are materialized. The snapshot contains 1,592 registry instances and four workspace roots; this is not coverage of every dependency or of database integration.
 
 Kysely's separate file-migration suite passes all ten tests with only the two esbuild versions and their platform binaries in GVS (four instances). Mocha and the remaining dependencies stay in CAS. The all-CAS run stalls while loading a `.cts` migration through the TypeScript tooling after five passing cases. Selecting esbuild resolves that stall; the passing run observes 666 CAS modules from 87 packages.
+
+Qwik's eight selected files pass all 167 tests after opting out Vitest and both installed versions of `oxc-parser` and `oxc-transform`. Vitest alone materializes 76 instances but fails on the parser's native binding; adding the parser reaches the transformer's native binding. The final 93-instance selection loads 19 modules from eight CAS package instances. This exercises built workspace code and source tests, not the full framework or browser suite.
 
 Vue's reactivity suite and pnpm's parser suite pass with GVS fallback. Vue's audited GVS rerun observed no CAS module loads: its passing workload uses physical workspaces and materialized tooling. The pnpm parser needs test setup and application dependencies in addition to Jest's own tree. These passes do not establish that opting out only the test runner suffices in other projects.
 
@@ -62,8 +68,11 @@ Vue's reactivity suite and pnpm's parser suite pass with GVS fallback. Vue's aud
 - **Milkdown:** both probes fail in Vite's resolver on `@milkdown/exception`, a physical workspace package. ESM resolution with the loader finds its TypeScript entry, but importing that entry directly through Node then fails on its extensionless relative imports; it still needs the project's TypeScript tooling. The three passing context tests do not load CAS modules. No CAS module loads are observed in either GVS probe.
 - **Element Plus:** all utility suites fail in setup because Vite cannot resolve `@vue/test-utils`. Node resolution with the loader finds it in CAS. Configuration startup loads 310 CAS modules from 44 packages before the suites fail.
 - **Quasar:** Vite cannot resolve `ci-info`, `cross-spawn`, or `stack-trace` in the selected suites, though Node with the loader resolves them. The CLI also has four assertion failures: a resolved path no longer contains the package name `kolorist`, reading that package's virtual `package.json` through `fs` returns no data, and two subprocess tests cannot discover newly created local CLI packages through `require.resolve(..., { paths })`. Those temporary installations are outside the manifest. The CLI probe observes 28 CAS modules from 16 packages; the SSR utility probe observes none.
+- **Turborepo:** Jest's preset lookup cannot locate the physical `@turbo/test-utils` workspace; the all-CAS attempt loads 61 modules from 47 packages before configuration fails. The first attempt also exposed a loader defect: CommonJS `require('..')` was rejected even when the target stayed inside the stored package. The loader now accepts `require('.')` and `require('..')` within that boundary, with regression coverage that still rejects escape from the package root. The preset failure is the result after that fix. Opting out Jest is rejected because one original `@babel/core` instance maps to conflicting GVS roots; no tests run in that attempt.
+- **Cycle.js:** the normal Mocha 6 suite passes after installing the existing lockfile with pnpm 6.35.1 under Node.js 18.20.8. Baseline tests and loader probes both use Node.js 26.10.0. The loader rejects Mocha's extensionless `bin/mocha` before any CAS modules load. Opting out Mocha and ts-node cannot be tested with the GVS helper because the installed lockfile uses format 5.3.
+- **ByteMD:** seven tests pass after a diagnostic config selects Svelte's browser condition. Without it, three tests fail because mount hooks resolve to server-side behavior. The all-CAS run loads 91 modules from 40 packages before Vite's direct `package.json` read fails. The GVS helper rejects the installed format-6.0 lockfile. This is a diagnostic limitation, not evidence that a correctly materialized Vitest tree would fail.
 
-The GVS fallback addresses physical-file requirements within an installed dependency tree. It does not make a separate resolver understand application dependencies in the loader manifest. These workloads need resolver integration or additional physical application links, not just more copies of package files.
+The GVS fallback addresses physical-file requirements within an installed dependency tree. It does not make a separate resolver understand application dependencies in the loader manifest. The custom-resolver failures need resolver integration or additional physical application links, not just more copies of package files.
 
 The pnpm CLI compatibility probe also reached registry setup, which requires the external `pnpr-prepare` binary. Its full CLI suite has not passed in this setup. Unbundled CLI startup with `with current --version` and `with current help` succeeded.
 
@@ -86,6 +95,10 @@ The pnpm CLI compatibility probe also reached registry setup, which requires the
 | Milkdown | [bbb8bcbbb8ce0aa16f92567c23f6236747be9b3b](https://github.com/Milkdown/milkdown/tree/bbb8bcbbb8ce0aa16f92567c23f6236747be9b3b) | 12.5.1 | Vitest 5.0.1 |
 | Element Plus | [53936e70ef37cd03c2925e812b342c6adcb3f118](https://github.com/element-plus/element-plus/tree/53936e70ef37cd03c2925e812b342c6adcb3f118) | 12.8.1 | Vitest 5.0.2 |
 | Quasar | [0fd7ce30e7dd04c6be23e7bd47547800697ee128](https://github.com/quasarframework/quasar/tree/0fd7ce30e7dd04c6be23e7bd47547800697ee128) | 12.3.4 | Vitest 5.0.1 |
+| Qwik | [83a98c261d9d0977fe3a862e828d16c965b72b1e](https://github.com/QwikDev/qwik/tree/83a98c261d9d0977fe3a862e828d16c965b72b1e) | 11.22.0 | Vitest 5.0.0 |
+| Turborepo | [8cc3cce30705a88ac9020d1adc2bf06f391fdf2d](https://github.com/vercel/turborepo/tree/8cc3cce30705a88ac9020d1adc2bf06f391fdf2d) | 12.0.0 | Jest 30.3.0 |
+| Cycle.js | [5ece2a48c3659538208da3dc8d43a142bc0d91a7](https://github.com/cyclejs/cyclejs/tree/5ece2a48c3659538208da3dc8d43a142bc0d91a7) | 6.35.1 (diagnostic selection) | Mocha 6.2.0 |
+| ByteMD | [2a3046a510ba6e5b9d8cce63a38e8258ce6e5430](https://github.com/bytedance/bytemd/tree/2a3046a510ba6e5b9d8cce63a38e8258ce6e5430) | 8.15.9 | Vitest 0.29.8 |
 
 The pnpm GVS run used this feature branch at `5d922b13566dbbc4142af415149ff73714ec8619`. The external probes use installed dependency graphs, including existing build outputs. They do not test a fresh install directly into CAS.
 
@@ -113,6 +126,9 @@ pnpm --filter @rollup/pluginutils build
 # Kysely
 pnpm build
 pnpm test:node:build
+
+# Qwik
+pnpm build.core.dev
 ```
 
 Kysely and Element Plus needed `--config.@pnpm:registry=https://registry.npmjs.org/` on their install command to override the test machine's scoped registry mirror. The mirror omitted timestamps required by Kysely's trust policy and served an Element Plus dependency tarball whose integrity did not match the lockfile. The official registry passed the original frozen-lockfile, integrity, and policy checks. No package versions or trust policies were changed.
@@ -126,7 +142,16 @@ import config from './vitest.kit.config.js';
 export default { ...config, cacheDir: '.cache/loader-compatibility' };
 ```
 
-The snapshot excludes `.cache`, so the loader run does not reuse the baseline's generated dependency cache. The NextAuth.js probe disables coverage for both baseline and loader runs. Its core build supplies the generated `jwt.js` imported by the existing JWT tests. The Rollup plugin-utils tests likewise require built outputs. The diagnostic's `--cwd` option runs package-specific configurations from the same relative directory in the baseline and copied checkout; it still snapshots the whole workspace.
+The snapshot excludes `.cache`, so the loader run does not reuse the baseline's generated dependency cache. The NextAuth.js probe disables coverage for both baseline and loader runs. Its core build supplies the generated `jwt.js` imported by the existing JWT tests. The Rollup plugin-utils tests likewise require built outputs. The diagnostic supports Vitest, Mocha, Jest, and Node's test runner. Package runners are located from the selected working directory using their declared binary entry, including older Mocha releases. The diagnostic's `--cwd` option runs package-specific configurations from the same relative directory in the baseline and copied checkout; it still snapshots the whole workspace.
+
+For ByteMD, keep both the checkout and retained fixture outside any `.cache` directory. Vitest 0.29.8's default exclusion otherwise matches their absolute paths and reports no tests. Set `TMPDIR=/tmp` for its diagnostic and add `compatibility.config.mjs`:
+
+```js
+import config from './vitest.config.mjs'
+export default { ...config, resolve: { ...config.resolve, conditions: ['browser'] } }
+```
+
+This changes browser/server resolution for both baseline and loader runs without modifying test assertions. Cycle.js has no package-manager pin; use pnpm 6.35.1 with Node.js 18.20.8 for its frozen installation, then add `"packageManager": "pnpm@6.35.1"` to the diagnostic checkout's root manifest so workspace discovery uses the matching CLI. Its lockfile and dependency versions remain unchanged. Running pnpm 6's installer on the test machine's newer Node version fails its HTTP requests with `ERR_INVALID_THIS`.
 
 Run the following from the pnpm repository, with its workspace utilities installed and compiled:
 
@@ -149,6 +174,10 @@ node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd packages/transformer /path
 node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/element-plus run packages/utils/__tests__ --maxWorkers=2 --configLoader native --no-cache
 node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd cli /path/to/quasar run --maxWorkers=2 --configLoader native --no-cache
 node pnpm/esm-loader/scripts/test-ecosystem.mjs --cwd utils/render-ssr-error /path/to/quasar run --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/qwik run packages/qwik/src/core/shared/utils packages/qwik/src/server/tag-nesting.unit.ts packages/qwik/src/server/preload-utils.unit.ts --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --jest --cwd packages/turbo-utils /path/to/turborepo --runInBand --no-cache --runTestsByPath __tests__/convert-case.test.ts __tests__/search-up.test.ts __tests__/is-folder-empty.test.ts __tests__/validate-directory.test.ts __tests__/get-turbo-root.test.ts __tests__/get-turbo-configs.test.ts
+node pnpm/esm-loader/scripts/test-ecosystem.mjs --mocha --cwd run /path/to/cyclejs 'test/*.ts' --require ts-node/register --exit
+TMPDIR=/tmp node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/outside-cache/bytemd run --threads=false --config compatibility.config.mjs
 ```
 
 Each command retains a fixture and exits unsuccessfully if the loader run fails. Use its printed directory for the GVS attempt or the Svelte compiler comparison:
@@ -157,6 +186,9 @@ Each command retains a fixture and exits unsuccessfully if the loader run fails.
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /retained-fixture vitest
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /nextauth-fixture vitest vite unplugin-swc
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /kysely-migration-fixture esbuild
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /qwik-fixture vitest oxc-parser oxc-transform
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /turborepo-fixture jest
+node pnpm/esm-loader/scripts/test-gvs-repository.mjs /cyclejs-fixture mocha ts-node
 node pnpm/esm-loader/scripts/test-svelte-compiler.mjs /svelte-fixture
 ```
 
@@ -169,11 +201,11 @@ node pnpm/esm-loader/scripts/test-repository.mjs
 node pnpm/esm-loader/scripts/test-gvs-repository.mjs /pnpm-fixture jest @rushstack/worker-pool ts-jest-resolver @pnpm/nopt didyoumean2 is-windows p-limit bole split2 tempy empathic read-yaml-file
 ```
 
-The GVS diagnostic needs an installed pnpm v12 CLI. It preserves both workspace configuration and legacy `package.json` pnpm settings when installing the frozen selected graph. Patch entries absent from that graph are omitted from both staging configuration and lockfile. NextAuth.js's unrelated release-tool patch otherwise fails the frozen install because its pnpm 9 hash differs from the current patch hash format. Patches used by the selected graph remain intact; the pnpm parser regression still passes with its patched dependencies.
+The GVS diagnostic needs an installed pnpm v12 CLI and a format-9 installed lockfile. It explicitly checks the supported format before mapping package contexts; it does not upgrade older lockfiles or re-resolve their dependency graphs. It preserves both workspace configuration and legacy `package.json` pnpm settings when installing the frozen selected graph. Patch entries absent from that graph are omitted from both staging configuration and lockfile. NextAuth.js's unrelated release-tool patch otherwise fails the frozen install because its pnpm 9 hash differs from the current patch hash format. Patches used by the selected graph remain intact; the pnpm parser regression still passes with its patched dependencies.
 
 ## Retained evidence
 
-Every fixture retains `ecosystem-results.json` with the revision, command arguments, runtime, snapshot counts, and exit statuses, plus `baseline.stdout`, `baseline.stderr`, `cas.stdout`, and `cas.stderr`. GVS attempts write `gvs-results.json`, `gvs.stdout`, and `gvs.stderr`; the result includes every mapped package root and the retained staging installation path. The pnpm-specific fixture uses its own scenario report.
+Every fixture retains `ecosystem-results.json` with the revision, command arguments, runtime, snapshot counts, and exit statuses, plus `baseline.stdout`, `baseline.stderr`, `cas.stdout`, and `cas.stderr`. GVS attempts that reach test execution write `gvs-results.json`, `gvs.stdout`, and `gvs.stderr`; the result includes every mapped package root and the retained staging installation path. The pnpm-specific fixture uses its own scenario report.
 
 The diagnostic also retains partial output on timeout, with a null exit status, the termination signal, and the spawn error in the result. The all-CAS run has a three-minute limit; the GVS run has a two-minute limit. A terminated process may not flush its exit-time module audit, so timeout audit counts can be incomplete.
 

@@ -25,6 +25,20 @@ test('runs ESM and CommonJS from store blobs without materializing packages', co
   assert.equal(setup.run("import value from 'example'; console.log(value)").stdout.trim(), 'hello world')
 })
 
+test('resolves CommonJS dot directories within the package and rejects parent escapes', context => {
+  const setup = fixture(context)
+  setup.add('example@1', {
+    'package.json': '{"main":"index.cjs"}',
+    'index.cjs': 'module.exports = 42',
+    'bin/entry.cjs': "module.exports = [require('..'), require('.')];",
+    'bin/index.js': 'module.exports = 7',
+    'escape.cjs': "require('..')",
+  })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.equal(setup.run("import value from 'example/bin/entry.cjs'; console.log(value.join(','))").stdout.trim(), '42,7')
+  assert.match(setup.run("import 'example/escape.cjs'", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+})
+
 test('keeps distinct peer contexts even when every source blob is identical', context => {
   const setup = fixture(context)
   const sources = { 'package.json': esm, 'index.js': "export { default } from 'peer'" }
