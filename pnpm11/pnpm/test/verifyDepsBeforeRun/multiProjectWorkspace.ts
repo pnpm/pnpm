@@ -866,26 +866,6 @@ test('exec installs the selected project after a filtered install', async () => 
   expect(fs.existsSync(path.resolve('bar/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
 })
 
-function prepareProjectWithWorkspaceDependency (): void {
-  preparePackages([
-    {
-      location: '.',
-      package: { name: 'root', private: true },
-    },
-    {
-      name: 'foo',
-      private: true,
-      dependencies: { bar: 'workspace:*' },
-    },
-    {
-      name: 'bar',
-      private: true,
-      dependencies: { '@pnpm.e2e/foo': '=100.0.0' },
-    },
-  ])
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-}
-
 // The install the gate spawns selects the workspace dependencies of the
 // selected project, so a dependency the filtered install left without a
 // modules directory is installed too (https://github.com/pnpm/tasks/issues/45).
@@ -921,6 +901,26 @@ test('exec does not require a workspace dependency that a negated selector exclu
 
   expect(result.stdout.toString()).toContain('ok')
 })
+
+function prepareProjectWithWorkspaceDependency (): void {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: { bar: 'workspace:*' },
+    },
+    {
+      name: 'bar',
+      private: true,
+      dependencies: { '@pnpm.e2e/foo': '=100.0.0' },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+}
 
 test('no dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {

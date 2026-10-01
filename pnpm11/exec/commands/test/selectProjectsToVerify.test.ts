@@ -7,29 +7,6 @@ import { selectProjectsToVerify } from '../src/selectProjectsToVerify.js'
 
 const workspaceDir = path.resolve('/workspace')
 
-function dirOf (name: string): ProjectRootDir {
-  return path.join(workspaceDir, name) as ProjectRootDir
-}
-
-function createGraph (adjacency: Record<string, string[]>): ProjectsGraph {
-  return Object.fromEntries(Object.entries(adjacency).map(([name, dependencies]) => [
-    dirOf(name),
-    {
-      dependencies: dependencies.map(dirOf),
-      package: { rootDir: dirOf(name), manifest: { name } } as unknown as Project,
-    },
-  ]))
-}
-
-function pickGraph (graph: ProjectsGraph, names: string[]): ProjectsGraph {
-  return Object.fromEntries(names.map((name) => [dirOf(name), graph[dirOf(name)]]))
-}
-
-async function selectNames (opts: Parameters<typeof selectProjectsToVerify>[0]): Promise<string[]> {
-  const selected = await selectProjectsToVerify({ workspaceDir, ...opts })
-  return Object.keys(selected ?? {}).map((dir) => path.basename(dir)).sort()
-}
-
 describe('selectProjectsToVerify', () => {
   test('adds the workspace dependencies of the selected projects transitively', async () => {
     const allProjectsGraph = createGraph({ a: ['b'], b: ['c'], c: [], d: [] })
@@ -78,3 +55,26 @@ describe('selectProjectsToVerify', () => {
     expect(await selectProjectsToVerify({})).toBeUndefined()
   })
 })
+
+function dirOf (name: string): ProjectRootDir {
+  return path.join(workspaceDir, name) as ProjectRootDir
+}
+
+function createGraph (adjacency: Record<string, string[]>): ProjectsGraph {
+  return Object.fromEntries(Object.entries(adjacency).map(([name, dependencies]) => [
+    dirOf(name),
+    {
+      dependencies: dependencies.map(dirOf),
+      package: { rootDir: dirOf(name), manifest: { name } } as unknown as Project,
+    },
+  ]))
+}
+
+function pickGraph (graph: ProjectsGraph, names: string[]): ProjectsGraph {
+  return Object.fromEntries(names.map((name) => [dirOf(name), graph[dirOf(name)]]))
+}
+
+async function selectNames (opts: Parameters<typeof selectProjectsToVerify>[0]): Promise<string[]> {
+  const selected = await selectProjectsToVerify({ workspaceDir, ...opts })
+  return Object.keys(selected ?? {}).map((dir) => path.basename(dir)).sort()
+}
