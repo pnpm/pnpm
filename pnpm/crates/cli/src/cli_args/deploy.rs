@@ -6,6 +6,7 @@ use crate::{
     },
 };
 use clap::Args;
+use deployed_manifest::apply_deploy_hook;
 use derive_more::{Display, Error};
 use install::{legacy_deploy_preferred_versions, source_pnpmfile_hooks};
 use lockfile::{
@@ -50,9 +51,9 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
 };
 use target::{
-    ProjectPathKey, apply_deploy_hook, copy_project, is_ancestor_path, is_child_path,
-    prepare_deploy_dir, real_deploy_dir, relative_path, resolve_target_dir, same_path,
-    validate_deploy_target, write_deploy_files,
+    ProjectPathKey, copy_project, is_ancestor_path, is_child_path, prepare_deploy_dir,
+    real_deploy_dir, relative_path, resolve_target_dir, same_path, validate_deploy_target,
+    write_deploy_files,
 };
 use workspace_manifest::deploy_workspace_settings;
 
@@ -399,3 +400,5 @@ mod lockfile;
 mod install;
 
 mod workspace_manifest;
+
+mod deployed_manifest;
