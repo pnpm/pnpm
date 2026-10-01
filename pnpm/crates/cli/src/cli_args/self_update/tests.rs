@@ -343,6 +343,47 @@ fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
     assert!(err.to_string().contains("exited with code 1"), "{err}");
 }
 
+fn seed_javascript_engine(install_dir: &Path, manifest: &str, script: &str) {
+    let package_dir = install_pnpm::package_dir(install_dir, "pnpm");
+    fs::create_dir_all(package_dir.join("bin")).unwrap();
+    fs::write(package_dir.join("package.json"), manifest).unwrap();
+    fs::write(package_dir.join("bin/pnpm.cjs"), script).unwrap();
+}
+
+const JAVASCRIPT_ENGINE_MANIFEST: &str =
+    r#"{"name":"pnpm","version":"1.2.3","bin":{"pnpm":"bin/pnpm.cjs"}}"#;
+
+#[test]
+fn assert_javascript_pnpm_runs_accepts_an_engine_that_executes() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_javascript_engine(&install_dir, JAVASCRIPT_ENGINE_MANIFEST, "process.exit(0)\n");
+
+    install_pnpm::assert_javascript_pnpm_runs(&install_dir, "pnpm", "1.2.3").unwrap();
+}
+
+#[test]
+fn assert_javascript_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_javascript_engine(&install_dir, JAVASCRIPT_ENGINE_MANIFEST, "process.exit(3)\n");
+
+    let err = install_pnpm::assert_javascript_pnpm_runs(&install_dir, "pnpm", "1.2.3").unwrap_err();
+
+    assert!(err.to_string().contains("exited with code 3"), "{err}");
+}
+
+#[test]
+fn assert_javascript_pnpm_runs_rejects_an_engine_without_a_pnpm_bin() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_javascript_engine(&install_dir, r#"{"name":"pnpm","version":"1.2.3"}"#, "");
+
+    let err = install_pnpm::assert_javascript_pnpm_runs(&install_dir, "pnpm", "1.2.3").unwrap_err();
+
+    assert!(err.to_string().contains("declares no pnpm bin"), "{err}");
+}
+
 #[test]
 fn implicit_latest_message_mentions_minimum_release_age_when_registry_latest_is_not_older() {
     let message =

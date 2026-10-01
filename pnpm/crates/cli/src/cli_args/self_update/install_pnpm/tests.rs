@@ -2,9 +2,9 @@
 use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, PnpmPackageToInstall, assert_release_is_installable,
-    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
-    package_dir, pnpm_package_to_install, pnpm_package_to_install_on, reuse_cached_engine,
-    run_install,
+    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, finalize_engine_install,
+    link_exe_platform_binary, package_dir, pnpm_package_to_install, pnpm_package_to_install_on,
+    reuse_cached_engine, run_install,
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
@@ -226,6 +226,24 @@ fn x64_musl_runs_the_javascript_pnpm_before_pnpm_exe_shipped_a_musl_binary() {
     let on_glibc_x64 = pnpm_package_to_install_on("10.34.4", "linux", "x64", "glibc");
     assert_eq!(on_glibc_x64.name, PNPM_EXE_PACKAGE_NAME);
     assert!(on_glibc_x64.links_native_binary);
+}
+
+#[test]
+fn a_javascript_engine_that_cannot_start_is_not_finalized() {
+    let install_dir = tempfile::tempdir().expect("create install dir");
+    let package_dir = package_dir(install_dir.path(), PNPM_PACKAGE_NAME);
+    fs::create_dir_all(package_dir.join("bin")).expect("create package dir");
+    fs::write(
+        package_dir.join("package.json"),
+        r#"{"name":"pnpm","version":"10.34.4","bin":{"pnpm":"bin/pnpm.cjs"}}"#,
+    )
+    .expect("write manifest");
+    fs::write(package_dir.join("bin/pnpm.cjs"), "process.exit(1)\n").expect("write bin");
+    let package = PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false };
+
+    let err = finalize_engine_install(install_dir.path(), package, "10.34.4").unwrap_err();
+
+    assert!(err.to_string().contains("exited with code 1"), "{err}");
 }
 
 /// Lay out a fake engine install: the `pnpm` wrapper and, under
