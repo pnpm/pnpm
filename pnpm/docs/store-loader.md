@@ -111,7 +111,7 @@ The manifest is trusted configuration, as a lockfile and preload script are. Dep
 
 ## Repository compatibility check
 
-See [repository compatibility results](./store-loader-compatibility.md) for the tested revisions, workloads, passing results, and remaining failures across pnpm, Vue, Vite, Svelte, Astro, Nuxt, VueUse, and Mermaid.
+See [repository compatibility results](./store-loader-compatibility.md) for the tested revisions, workloads, passing results, and remaining failures across pnpm and eleven external projects.
 
 From a checkout with dependencies installed and compiled, run:
 
