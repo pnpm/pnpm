@@ -2,10 +2,10 @@ use super::{
     Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, DirectDep, FrontierNode, HashMap, HashSet,
     NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
     RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
-    SkippedOptionalDependencyParent, TreeCtx, catalogs_for_children, claim_children_owner,
-    extract_peer_dependencies, insert_tree_node, is_current_children_owner, lazy_children,
+    SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
+    claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
     lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names, remember_node_parent_ids,
+    register_peer_dep_names,
 };
 
 /// Settle children ownership across every occurrence one level seeded.
@@ -97,8 +97,7 @@ pub(super) fn install_owner_peer_dependencies(
 ///
 /// An occurrence walks only when it owns its package's children and
 /// nothing has recorded them under its context; every other one reads
-/// them from the owner's recording, under its own `parent_ids` cycle
-/// break.
+/// them from the owner's recording.
 pub(super) fn settle_seeds(
     ctx: &TreeCtx,
     seeds: Vec<NodeSeed>,
@@ -114,16 +113,11 @@ pub(super) fn settle_seeds(
         // an empty `Realized` map: a linked node has no children of its
         // own here.
         if pending.is_link {
-            insert_walked_node(
-                ctx,
-                &pending,
-                crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(BTreeMap::new())),
-            );
+            insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
             continue;
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
             continue;
         };
         if !pending.resolves_children_through_catalogs
@@ -133,8 +127,7 @@ pub(super) fn settle_seeds(
                 &children_context(ctx, &pending, &claim),
             )
         {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
             continue;
         }
         frontier.push(FrontierNode {
@@ -195,9 +188,9 @@ pub(super) fn record_walked_children(
     claim: &ChildrenOwnerClaim,
     child_specs: &[ChildSpec],
     seeds: &[NodeSeed],
-) -> (crate::resolved_tree::TreeChildren, bool) {
+) -> (TreeChildren, bool) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
-        return (lazy_children(&pending.ancestry.parent_ancestors), false);
+        return (TreeChildren::Lazy, false);
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
@@ -224,7 +217,7 @@ pub(super) fn record_walked_children(
         by_id,
         children_context(ctx, pending, claim),
     )
-    .into_children(realized, &pending.ancestry.parent_ancestors)
+    .into_children(realized)
 }
 
 /// The edge one seed contributes to its parent's children. `None` for
@@ -265,17 +258,8 @@ pub(super) fn children_context(
 /// are unique by construction, so that only ever fires for leaves.
 /// Linked nodes carry `depth = -1` so the peer-resolution pass
 /// short-circuits them.
-pub(super) fn insert_walked_node(
-    ctx: &TreeCtx,
-    pending: &PendingNode,
-    children: crate::resolved_tree::TreeChildren,
-) {
+pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children: TreeChildren) {
     let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
-    remember_node_parent_ids(
-        ctx,
-        &pending.identity.node_id,
-        Arc::clone(&pending.ancestry.parent_ancestors),
-    );
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 

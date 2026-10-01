@@ -1,7 +1,7 @@
 use super::{
     Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, ResolvePeersOptions, ResolvedTree,
-    assert_cyclic_alias_peer_graph_is_closed, cyclic_alias_peer_tree, named_registry_peer_tree,
-    package, package_with_peer_dependencies, resolve_peers, tree_node,
+    TreeChildren, assert_cyclic_alias_peer_graph_is_closed, cyclic_alias_peer_tree,
+    named_registry_peer_tree, package, package_with_peer_dependencies, resolve_peers, tree_node,
 };
 
 #[test]
@@ -878,9 +878,7 @@ fn assert_descendant_walk_skips_cut_cycle_edge(realized_zed: bool) {
     } else {
         crate::resolved_tree::DependenciesTreeNode::new(
             Arc::from("zed@1.0.0"),
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: Arc::new(vec!["app@1.0.0".into(), "shadow@1.0.0".into()]).into(),
-            },
+            TreeChildren::Lazy,
             2,
             true,
         )

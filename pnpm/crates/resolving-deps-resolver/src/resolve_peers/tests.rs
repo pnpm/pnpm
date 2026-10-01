@@ -17,13 +17,13 @@ use super::{
     context::peer_id_pair,
     resolve_peers, resolve_peers_workspace,
     test_support::{
-        linked_package, package, package_with_peer_dependencies, resolve_result, tree_node,
-        walker_for_tests,
+        add_lazy_direct_dep, child_edge, linked_package, package, package_with_peer_dependencies,
+        resolve_result, tree_node, walker_for_tests,
     },
 };
 use crate::{
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{DirectDep, ResolvedTree, TreeChildren},
 };
 use pnpm_deps_path::{DepPath, PeerId};
 use pnpm_resolving_resolver_base::PkgResolutionId;
@@ -420,32 +420,14 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
 
     let mut dependencies_tree = HashMap::default();
     let mut direct = Vec::new();
-    let add_direct = |id: &str,
-                      alias: &str,
-                      dependencies_tree: &mut HashMap<NodeId, _>,
-                      direct: &mut Vec<DirectDep>| {
-        let node_id = NodeId::next();
-        dependencies_tree.insert(
-            node_id.clone(),
-            crate::resolved_tree::DependenciesTreeNode::new(
-                Arc::from(id),
-                crate::resolved_tree::TreeChildren::Lazy {
-                    parent_ids: Arc::new(Vec::new()).into(),
-                },
-                0,
-                true,
-            ),
-        );
-        direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.into() });
-    };
-    add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
+    add_lazy_direct_dep(&mut dependencies_tree, &mut direct, "p", "p@1.0.0");
     if let Some(w_version) = shape.importer_w_version {
         let w_pkg = format!("w@{w_version}");
         packages
             .entry(Arc::from(&*w_pkg))
             .or_insert_with(|| package("w", w_version, &[], true));
         children_by_id.insert(Arc::from(&*w_pkg), Arc::new(Vec::new()));
-        add_direct(&w_pkg, "w", &mut dependencies_tree, &mut direct);
+        add_lazy_direct_dep(&mut dependencies_tree, &mut direct, "w", &w_pkg);
     }
     for (alias, ring_index, w_version) in entries {
         let entry_pkg = format!("{alias}@1.0.0");
@@ -456,9 +438,9 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
         packages.insert(Arc::from(&*entry_pkg), package(alias, "1.0.0", &[], false));
         children_by_id.insert(
             Arc::from(&*entry_pkg),
-            Arc::new(vec![ring_edge("ring", &ring_id(*ring_index)), ring_edge("w", &w_pkg)]),
+            Arc::new(vec![child_edge("ring", &ring_id(*ring_index)), child_edge("w", &w_pkg)]),
         );
-        add_direct(&entry_pkg, alias, &mut dependencies_tree, &mut direct);
+        add_lazy_direct_dep(&mut dependencies_tree, &mut direct, alias, &entry_pkg);
     }
 
     ResolvedTree {
@@ -476,14 +458,6 @@ fn ring_pkg_id(index: usize, ring_len: usize) -> String {
     format!("ring{:02}@1.0.0", index % ring_len)
 }
 
-fn ring_edge(alias: &str, pkg_id: &str) -> crate::resolved_tree::ChildEdge {
-    crate::resolved_tree::ChildEdge {
-        alias: alias.to_string(),
-        pkg_id: Arc::from(pkg_id),
-        optional: false,
-    }
-}
-
 /// The child edges of one ring member, registering the fan-out packages the
 /// even members carry.
 fn ring_member_edges(
@@ -493,15 +467,15 @@ fn ring_member_edges(
     children_by_id: &mut HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>>,
 ) -> Vec<crate::resolved_tree::ChildEdge> {
     let ring_id = |index: usize| ring_pkg_id(index, shape.ring_len);
-    let mut edges = vec![ring_edge("next", &ring_id(index + 1))];
+    let mut edges = vec![child_edge("next", &ring_id(index + 1))];
     if shape.with_skips {
-        edges.push(ring_edge("skip", &ring_id(index + 2)));
+        edges.push(child_edge("skip", &ring_id(index + 2)));
         if index.is_multiple_of(2) {
             if index != 0 {
                 // Every even member also re-enters the ring's entry, so one
                 // lap re-enters the cycle many times — each re-entry a
                 // truncated verdict whose subtree the cache can skip.
-                edges.push(ring_edge("home", &ring_id(0)));
+                edges.push(child_edge("home", &ring_id(0)));
             }
             push_ring_fanout_edges(index, packages, children_by_id, &mut edges);
         }
@@ -510,7 +484,7 @@ fn ring_member_edges(
         // A `wc` member consumes `w`, so its untruncated verdicts —
         // and every keyless cached item covering it — carry the
         // entry's own `w` and never transfer across entries.
-        edges.push(ring_edge("wc", "wc@1.0.0"));
+        edges.push(child_edge("wc", "wc@1.0.0"));
     }
     edges
 }
@@ -531,7 +505,7 @@ fn push_ring_fanout_edges(
             package(&format!("fan{index:02}x{fan:02}"), "1.0.0", &[("p", "*")], false),
         );
         children_by_id.insert(Arc::from(&*fan_pkg), Arc::new(Vec::new()));
-        edges.push(ring_edge(&format!("fan{fan:02}"), &fan_pkg));
+        edges.push(child_edge(&format!("fan{fan:02}"), &fan_pkg));
     }
 }
 

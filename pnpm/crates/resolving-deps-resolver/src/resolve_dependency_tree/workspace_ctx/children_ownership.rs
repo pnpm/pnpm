@@ -1,6 +1,6 @@
 use super::{
-    AncestorIds, AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId,
-    PeerDep, PkgNameVerPeer, TreeCtx, UpdateReuseScope, lock_recoverable,
+    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
+    PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope, lock_recoverable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,27 +220,14 @@ impl ChildrenRecording {
     pub(in super::super) fn into_children(
         self,
         realized: BTreeMap<String, NodeId>,
-        parent_ids: &AncestorPkgIds,
-    ) -> (crate::resolved_tree::TreeChildren, bool) {
+    ) -> (TreeChildren, bool) {
         match self {
-            ChildrenRecording::Declined => (lazy_children(parent_ids), false),
-            ChildrenRecording::Published => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), false)
-            }
+            ChildrenRecording::Declined => (TreeChildren::Lazy, false),
+            ChildrenRecording::Published => (TreeChildren::Realized(Arc::new(realized)), false),
             ChildrenRecording::PublishedOverStale => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), true)
+                (TreeChildren::Realized(Arc::new(realized)), true)
             }
         }
-    }
-}
-
-/// Children a node expands from the standing owner's recording, under
-/// its own `parent_ids` cycle break.
-pub(in super::super) fn lazy_children(
-    parent_ids: &AncestorPkgIds,
-) -> crate::resolved_tree::TreeChildren {
-    crate::resolved_tree::TreeChildren::Lazy {
-        parent_ids: AncestorIds::from(Arc::clone(parent_ids)),
     }
 }
 
@@ -364,14 +351,6 @@ pub(in super::super) fn is_current_children_owner(
         .is_some_and(|current| current.owner == *owner)
 }
 
-pub(in super::super) fn remember_node_parent_ids(
-    ctx: &TreeCtx,
-    node_id: &NodeId,
-    parent_ids: AncestorPkgIds,
-) {
-    lock_recoverable(&ctx.workspace.tree.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
-}
-
 /// Record an occurrence node in the shared tree (lowering the depth of
 /// a revisited leaf) and, on first insertion, in the per-package
 /// reverse index [`fn@make_non_owner_nodes_lazy`] flips through.
@@ -379,7 +358,7 @@ pub(in super::super) fn insert_tree_node(
     ctx: &TreeCtx,
     node_id: NodeId,
     pkg_id: &Arc<str>,
-    children: crate::resolved_tree::TreeChildren,
+    children: TreeChildren,
     depth: i32,
 ) {
     let mut written = true;
@@ -417,32 +396,20 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
         Some(nodes) => nodes.clone(),
         None => return,
     };
-    // Collect the parent chains first so the two locks are never held
-    // together.
-    let parent_ids_by_node: Vec<(NodeId, AncestorPkgIds)> = {
-        let parent_ids = lock_recoverable(&ctx.workspace.tree.node_parent_ids_by_id);
-        pkg_nodes
-            .into_iter()
-            .filter(|node_id| node_id != owner_node_id)
-            .filter_map(|node_id| {
-                let ids = Arc::clone(parent_ids.get(&node_id)?);
-                Some((node_id, ids))
-            })
-            .collect()
-    };
     let mut tree = lock_recoverable(&ctx.workspace.tree.dependencies_tree);
     let mut rewritten = Vec::new();
-    for (node_id, parent_ids) in parent_ids_by_node {
+    for node_id in pkg_nodes {
+        if &node_id == owner_node_id {
+            continue;
+        }
         // An occurrence already reading the owner's children needs no
         // rewrite — and must not report one, since the signal makes the
         // discovery engine rebuild from scratch. In a peer-heavy graph
         // most occurrences of a package are already lazy.
         if let Some(node) = tree.get_mut(&node_id)
-            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy { .. })
+            && !matches!(node.children, TreeChildren::Lazy)
         {
-            node.children = crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: AncestorIds::from(parent_ids),
-            };
+            node.children = TreeChildren::Lazy;
             rewritten.push(node_id);
         }
     }

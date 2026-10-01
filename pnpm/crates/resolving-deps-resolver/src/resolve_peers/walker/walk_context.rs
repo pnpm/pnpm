@@ -1,7 +1,7 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId,
-    ParentPkgInfo, ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain,
-    UndoRealize, Walker,
+    Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId, ParentPkgInfo,
+    ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain, UndoRealize,
+    Walker,
 };
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -111,7 +111,7 @@ impl ChildOutputs {
 /// Index, for every package id in the tree, which of its child edges can
 /// stand in as a peer-dependency provider. Entries carried over from an
 /// earlier walk are left alone.
-pub(super) fn index_peer_provider_children(
+pub(in super::super) fn index_peer_provider_children(
     tree: &ResolvedTree,
     index: &mut HashMap<Arc<str>, PeerProviderChildren>,
 ) {
@@ -251,7 +251,7 @@ impl ChildChains {
 pub(super) struct ChildrenWalk {
     pub(super) outputs: ChildOutputs,
     pub(super) children_map: Arc<BTreeMap<String, NodeId>>,
-    pub(super) discovery_children: Option<(Arc<Vec<ChildEdge>>, AncestorIds)>,
+    pub(super) discovery_children: Option<Arc<Vec<ChildEdge>>>,
     pub(super) realize_undo: Option<UndoRealize>,
     pub(super) chains: ChildChains,
 }
@@ -272,7 +272,6 @@ pub(super) struct SettledPeers {
 pub(super) struct DeferredChildren<'a> {
     pub(super) pkg_id: &'a Arc<str>,
     pub(super) children: &'a [ChildEdge],
-    pub(super) parent_ids: &'a AncestorIds,
     pub(super) provider_children: &'a BTreeMap<String, NodeId>,
     /// The parent's own depth; the children sit one below it.
     pub(super) depth: i32,

@@ -1,7 +1,7 @@
 use super::{
     Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, graph_node, order_test_shape, package, peer_cycle_fixture,
-    peer_cycle_graph_keys, resolve_peers, tree_node, walker_for_tests,
+    ResolvePeersOptions, ResolvedTree, TreeChildren, graph_node, order_test_shape, package,
+    peer_cycle_fixture, peer_cycle_graph_keys, resolve_peers, tree_node, walker_for_tests,
 };
 
 #[test]
@@ -199,7 +199,7 @@ fn realizing_children_shares_the_edge_package_id() {
         parent.clone(),
         crate::resolved_tree::DependenciesTreeNode::new(
             "parent@1.0.0".into(),
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
+            TreeChildren::Lazy,
             0,
             true,
         ),

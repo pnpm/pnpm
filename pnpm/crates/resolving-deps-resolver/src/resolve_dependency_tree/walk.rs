@@ -66,7 +66,9 @@ use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
-    resolved_tree::{AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput},
+    resolved_tree::{
+        AncestorPkgIds, DirectDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
+    },
 };
 
 use super::{
@@ -90,9 +92,8 @@ use super::{
     workspace_ctx::{
         ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, SharedWorkspaceWantedKey,
         WantedKey, WorkspaceFinalWantedKey, claim_children_owner, claim_children_warmup,
-        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
-        record_children, recorded_children_match, register_peer_dep_names,
-        remember_node_parent_ids,
+        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        recorded_children_match, register_peer_dep_names,
     },
 };
 

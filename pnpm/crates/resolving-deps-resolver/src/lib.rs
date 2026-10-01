@@ -99,8 +99,8 @@ pub use resolve_workspace::{
     resolve_workspace_dependencies,
 };
 pub use resolved_tree::{
-    AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
-    ResolvedPackage, ResolvedPackageInput, ResolvedTree, TreeChildren,
+    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
+    ResolvedPackageInput, ResolvedTree, TreeChildren,
 };
 
 mod dedupe_injected_deps;

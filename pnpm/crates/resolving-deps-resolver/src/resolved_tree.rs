@@ -72,42 +72,6 @@ pub struct ChildEdge {
 /// down to a node's parent, root first.
 pub type AncestorPkgIds = Arc<Vec<Arc<str>>>;
 
-/// Ancestor package ids for a lazy occurrence. The dependency walk keeps its
-/// already-built contiguous vector as the base, while peer discovery appends
-/// shallow vectors of shared string storage instead of copying every package
-/// id for each context-sensitive revisit.
-#[derive(Debug, Default, Clone)]
-pub struct AncestorIds {
-    base: AncestorPkgIds,
-    appended: Arc<Vec<Arc<str>>>,
-}
-
-impl AncestorIds {
-    /// The dependency walk's contiguous base ids, in order.
-    pub fn base_ids(&self) -> impl Iterator<Item = &str> {
-        self.base.iter().map(|id| &**id)
-    }
-
-    /// The ids peer discovery appended after the base, in order.
-    pub fn appended_ids(&self) -> impl Iterator<Item = &str> {
-        self.appended.iter().map(|id| &**id)
-    }
-
-    #[must_use]
-    pub fn pushed(&self, id: Arc<str>) -> Self {
-        let mut appended = Vec::with_capacity(self.appended.len() + 1);
-        appended.extend(self.appended.iter().cloned());
-        appended.push(id);
-        Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
-    }
-}
-
-impl From<AncestorPkgIds> for AncestorIds {
-    fn from(base: AncestorPkgIds) -> Self {
-        Self { base, appended: Arc::new(Vec::new()) }
-    }
-}
-
 /// One edge in the resolved tree: the local install name (`alias`) and
 /// the resolved node's [`NodeId`], plus the resolved `pkgId`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -305,17 +269,10 @@ pub enum TreeChildren {
     /// Shared: a node's realized children are immutable once built, and
     /// the peer walk hands the same map to every revisit of the node.
     Realized(Arc<BTreeMap<String, NodeId>>),
-    /// Children are known by spec only. `parent_ids` is the chain of
-    /// `pkgIdWithPatchHash` ancestors this occurrence reached the
-    /// node through, excluding the node itself. The reader appends the
-    /// node from `resolved_package_id`, which lets all siblings share one
-    /// chain allocation. The chain is threaded so the peer resolver can
-    /// apply the parent-ids-contain-sequence cycle-break
-    /// per-occurrence. Without it, a revisit's subtree would
-    /// silently include cycle edges that the first walk correctly
-    /// rejected, or omit valid edges the first walk's ancestor
-    /// chain happened to exclude.
-    Lazy { parent_ids: AncestorIds },
+    /// Children are known by spec only: the reader expands them from
+    /// [`ResolvedTree::children_by_id`] under the peer walk's canonical
+    /// cycle gate.
+    Lazy,
 }
 
 impl TreeChildren {
@@ -337,7 +294,7 @@ impl TreeChildren {
     pub fn realized(&self) -> &BTreeMap<String, NodeId> {
         match self {
             TreeChildren::Realized(map) => map,
-            TreeChildren::Lazy { .. } => panic!(
+            TreeChildren::Lazy => panic!(
                 "TreeChildren::realized() called on a Lazy node; realize via the peer-resolver first",
             ),
         }

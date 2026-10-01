@@ -81,7 +81,7 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
             root.clone(),
             DependenciesTreeNode::new(
                 Arc::from("root@1.0.0".to_string()),
-                TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
+                TreeChildren::Lazy,
                 0,
                 true,
             ),
@@ -131,8 +131,6 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
     let other = NodeId::next();
     insert_tree_node(&ctx, owner.clone(), &Arc::from("pkg@1.0.0"), TreeChildren::empty(), 0);
     insert_tree_node(&ctx, other.clone(), &Arc::from("pkg@1.0.0"), TreeChildren::empty(), 1);
-    lock_recoverable(&workspace.tree.node_parent_ids_by_id)
-        .insert(other.clone(), Arc::new(vec!["parent@1.0.0".into()]));
 
     make_non_owner_nodes_lazy(&ctx, "absent@1.0.0", &owner);
     assert_eq!(
@@ -146,7 +144,7 @@ fn ownership_rewrite_of_existing_nodes_bumps_children_rewrites() {
     assert!(
         matches!(
             lock_recoverable(&workspace.tree.dependencies_tree).get(&other).unwrap().children,
-            TreeChildren::Lazy { .. },
+            TreeChildren::Lazy,
         ),
         "the non-owner occurrence flips to lazy",
     );

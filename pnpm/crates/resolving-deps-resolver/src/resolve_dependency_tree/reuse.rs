@@ -29,7 +29,9 @@ use crate::{
     lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput},
+    resolved_tree::{
+        AncestorPkgIds, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput, TreeChildren,
+    },
 };
 
 use super::{
@@ -41,8 +43,7 @@ use super::{
     walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
         ChildrenOwnerClaim, DirectDepVersions, RecordedChildrenContext, claim_children_owner,
-        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
-        record_children, remember_node_parent_ids,
+        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
     },
 };
 
@@ -536,7 +537,6 @@ where
     let children_owner =
         claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
     let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
-    remember_node_parent_ids(ctx, node_id, Arc::clone(edge.ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children
         && (others_stale || !children_owner.children_context_unchanged)

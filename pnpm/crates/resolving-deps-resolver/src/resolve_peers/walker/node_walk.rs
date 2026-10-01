@@ -1,8 +1,8 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, CacheHitContext, ChildChains, ChildEdge, ChildOutputs,
-    ChildParentRefs, ChildrenWalk, DeferredChildren, DepPath, HashMap, MissingSummary, NodeEntry,
-    NodeId, NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs,
-    PeersCacheItem, SettledPeers, SharedChain, WalkResult, WalkedNode, Walker, chain_with_pkg_id,
+    Arc, BTreeMap, CacheHitContext, ChildChains, ChildEdge, ChildOutputs, ChildParentRefs,
+    ChildrenWalk, DeferredChildren, DepPath, HashMap, MissingSummary, NodeEntry, NodeId,
+    NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs, PeersCacheItem,
+    SettledPeers, SharedChain, WalkResult, WalkedNode, Walker, chain_with_pkg_id,
     merge_realize_undo,
 };
 
@@ -127,16 +127,15 @@ impl Walker<'_> {
     pub(super) fn resolve_children_of(
         &mut self,
         entry: &NodeEntry,
-        discovery_children: Option<&(Arc<Vec<ChildEdge>>, AncestorIds)>,
+        discovery_children: Option<&Arc<Vec<ChildEdge>>>,
         children_map: &BTreeMap<String, NodeId>,
         child_walk: &NodeWalkContext<'_>,
     ) -> ChildOutputs {
         match discovery_children {
-            Some((children, parent_ids)) => self.resolve_deferred_children(
+            Some(children) => self.resolve_deferred_children(
                 DeferredChildren {
                     pkg_id: &entry.pkg.id,
                     children,
-                    parent_ids,
                     provider_children: &entry.provider_children,
                     depth: entry.depth,
                 },
