@@ -610,6 +610,46 @@ fn approve_builds_works_after_removing_an_unrelated_dependency() {
     drop(harness);
 }
 
+#[test]
+fn approve_builds_works_after_removing_dependency_without_scripts() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+
+    let package_json = serde_json::json!({
+        "dependencies": { PREPOST: "1.0.0", "is-positive": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    disable_strict_dep_builds(&workspace);
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet(&workspace)
+        .with_args(["remove", "is-positive"])
+        .assert()
+        .success();
+
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
+
+    pacquet(&workspace)
+        .with_args(["approve-builds", "--all"])
+        .assert()
+        .success();
+
+    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
+    assert_eq!(
+        allow_builds(&workspace).get(PREPOST),
+        Some(&true),
+        "remaining package approval persisted",
+    );
+
+    drop(harness);
+}
+
 /// The `allowBuilds` map recorded in the workspace manifest.
 /// The *decided* `allowBuilds` entries. An install scaffolds an
 /// undecided placeholder for every build it blocked, which is a prompt to
