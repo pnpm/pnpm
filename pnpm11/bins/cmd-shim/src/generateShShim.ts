@@ -13,6 +13,7 @@ basedir="$basedir_abs"
 interface ShProgConfig {
   args: string
   isCmdRuntime: boolean
+  isTargetAbsolute: boolean
   progArgs: string
   shLongProg?: string
   shLongProgExe: string
@@ -34,9 +35,8 @@ interface ShProgConfig {
  */
 export function generateShShim (src: string, to: string, opts: InternalOptions): string {
   const config = resolveShProgConfig(src, to, opts)
-  const isTargetAbsolute = path.isAbsolute(config.shTarget)
 
-  let sh = buildShHeader(isTargetAbsolute)
+  let sh = buildShHeader(config.isTargetAbsolute)
   sh += buildShPathAndNodePath(opts)
   sh += buildShExecBlock(config)
 
@@ -58,6 +58,7 @@ function resolveShProgConfig (src: string, to: string, opts: InternalOptions): S
     return {
       args: '',
       isCmdRuntime,
+      isTargetAbsolute,
       progArgs,
       shLongProgExe: '',
       shProg: quotedTarget,
@@ -70,6 +71,7 @@ function resolveShProgConfig (src: string, to: string, opts: InternalOptions): S
 
   return resolveShProgramTarget({
     isCmdRuntime,
+    isTargetAbsolute,
     nodeExecPath: opts.nodeExecPath,
     prog: opts.prog,
     progArgs,
@@ -81,6 +83,7 @@ function resolveShProgConfig (src: string, to: string, opts: InternalOptions): S
 
 function resolveShProgramTarget (opts: {
   isCmdRuntime: boolean
+  isTargetAbsolute: boolean
   nodeExecPath?: string
   prog: string
   progArgs: string
@@ -88,12 +91,13 @@ function resolveShProgramTarget (opts: {
   quotedTargetWin: string
   rawArgs: string
 }): ShProgConfig {
-  const { isCmdRuntime, nodeExecPath, prog, progArgs, quotedTarget, quotedTargetWin, rawArgs } = opts
+  const { isCmdRuntime, isTargetAbsolute, nodeExecPath, prog, progArgs, quotedTarget, quotedTargetWin, rawArgs } = opts
   const shProg = prog.split('\\').join('/')
   if (prog === 'node' && nodeExecPath) {
     return {
       args: rawArgs,
       isCmdRuntime,
+      isTargetAbsolute,
       progArgs,
       shLongProgExe: '',
       shProg: `"${nodeExecPath}"`,
@@ -108,6 +112,7 @@ function resolveShProgramTarget (opts: {
   return {
     args: rawArgs,
     isCmdRuntime,
+    isTargetAbsolute,
     progArgs,
     shLongProg: `"$basedir/${shProg}"`,
     shLongProgExe: `"$basedir/${shProgExe}"`,

@@ -23,10 +23,19 @@ export function copyInternalSymlink (src: string, dest: string, links: SymlinkDi
     fs.symlinkSync(target, dest)
     return true
   }
-  return copyInternalSymlinkWindows(src, dest, target, resolved, links)
+  return copyInternalSymlinkWindows({ dest, links, resolved, src, target })
 }
 
-function copyInternalSymlinkWindows (src: string, dest: string, target: string, resolved: string, links: SymlinkDirs): boolean {
+interface CopySymlinkWindowsOptions {
+  dest: string
+  links: SymlinkDirs
+  resolved: string
+  src: string
+  target: string
+}
+
+function copyInternalSymlinkWindows (opts: CopySymlinkWindowsOptions): boolean {
+  const { dest, links, resolved, src, target } = opts
   const isDir = isDirectory(src)
   try {
     fs.symlinkSync(target, dest, isDir ? 'dir' : 'file')

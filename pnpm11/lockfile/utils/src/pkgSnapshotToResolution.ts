@@ -53,6 +53,7 @@ export function pkgSnapshotToResolution (
 
 function validateTarballResolution (depPath: string, resolution: TarballResolution): void {
   if (resolution.tarball != null && typeof resolution.tarball !== 'string') {
+    // Avoid URL string-coercion from malformed YAML lockfile values.
     throw new PnpmError('INVALID_TARBALL_RESOLUTION',
       `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
   }

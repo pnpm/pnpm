@@ -54,6 +54,10 @@ function serializeNonTarballResolution (resolution: Resolution, revision?: numbe
     throw new PnpmError('INVALID_TARBALL_REVISION',
       'Cannot serialize a tarball revision for a non-registry resolution.')
   }
+  // Nothing checks a git checkout against a hash — the commit pins the
+  // content — so an `integrity` some other tool recorded on a git
+  // resolution is dropped rather than written back, instead of standing
+  // in the lockfile as a check that never runs.
   if (resolution.type === 'git' && 'integrity' in resolution) {
     const { integrity: _integrity, ...rest } = resolution as GitResolution & { integrity?: string }
     return rest
