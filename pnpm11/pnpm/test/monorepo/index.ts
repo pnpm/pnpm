@@ -2539,6 +2539,41 @@ test('pnpm install --frozen-lockfile fails when an injected workspace package ve
   ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
 })
 
+test('pnpm install --frozen-lockfile accepts dependenciesMeta on a project whose dependencies are all workspace links', async () => {
+  preparePackages([
+    {
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        'pkg-b': 'workspace:*',
+      },
+      dependenciesMeta: {
+        'pkg-b': {
+          injected: true,
+        },
+      },
+    },
+    {
+      name: 'pkg-b',
+      version: '1.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  await execPnpm(['install'])
+
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  const pkgAManifest = JSON.parse(fs.readFileSync('pkg-a/package.json', 'utf8'))
+  delete pkgAManifest.dependenciesMeta
+  fs.writeFileSync('pkg-a/package.json', JSON.stringify(pkgAManifest, null, 2))
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
 test('issue 4407: refreshes an injected copy on a repeat install after the source project is rebuilt', async () => {
   preparePackages([
     {

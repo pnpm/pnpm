@@ -86,11 +86,14 @@ function writeDirectDependencyRefs (
     previousDirectRefs: Record<string, string>
   }
 ): void {
+  // Every project records its manifest's `dependenciesMeta`, including one
+  // whose dependencies all resolved to workspace links and so has no entry
+  // in `dependenciesByProjectId`.
+  const projectSnapshot = opts.wantedLockfile.importers[project.id]
+  if (project.manifest.dependenciesMeta != null) {
+    projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
+  }
   for (const [alias, depPath] of opts.dependenciesByProjectId[project.id].entries()) {
-    const projectSnapshot = opts.wantedLockfile.importers[project.id]
-    if (project.manifest.dependenciesMeta != null) {
-      projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
-    }
     const depName = opts.dependenciesGraph[depPath].name
     const ref = getDirectDependencyRef({
       alias,
