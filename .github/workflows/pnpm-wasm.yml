@@ -46,6 +46,7 @@ jobs:
           install: false
 
       - name: Install pinned WebAssembly toolchain
+        id: wasm-toolchain
         uses: $/.github/actions/wasm-toolchain
 
       - name: Cache WASM compilation
@@ -57,6 +58,9 @@ jobs:
         run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer
 
       - name: Build pnpm and the shared-library probe
+        env:
+          WASI_SDK_PATH: ${{ steps.wasm-toolchain.outputs.wasi-sdk-path }}
+          WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
         run: |
           pnpm build:pnpm:wasm
           pnpm build:wasm-runtime-probe

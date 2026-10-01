@@ -1,10 +1,19 @@
 name: WebAssembly toolchain
 description: Install the pinned Rust, WASI SDK and WABT tools for WebContainers
 
+outputs:
+  wasi-sdk-path:
+    description: Directory containing the WASI SDK
+    value: ${{ steps.toolchain.outputs.wasi-sdk-path }}
+  wabt-path:
+    description: Directory containing WABT
+    value: ${{ steps.toolchain.outputs.wabt-path }}
+
 runs:
   using: composite
   steps:
     - name: Install pinned WebAssembly toolchain
+      id: toolchain
       shell: bash
       run: |
         rustup toolchain install nightly-2026-08-27 --profile minimal --target wasm32-wasip1-threads
@@ -16,5 +25,5 @@ runs:
         printf '%s\n' '84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  wabt.tar.gz' | sha256sum --check --strict
         tar -xzf wasi-sdk.tar.gz
         tar -xzf wabt.tar.gz
-        printf 'WASI_SDK_PATH=%s\n' "$RUNNER_TEMP/wasm-tools/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
-        printf 'WABT_PATH=%s\n' "$RUNNER_TEMP/wasm-tools/wabt-1.0.42" >> "$GITHUB_ENV"
+        printf 'wasi-sdk-path=%s\n' "$RUNNER_TEMP/wasm-tools/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_OUTPUT"
+        printf 'wabt-path=%s\n' "$RUNNER_TEMP/wasm-tools/wabt-1.0.42" >> "$GITHUB_OUTPUT"

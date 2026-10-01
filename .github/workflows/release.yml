@@ -542,12 +542,16 @@ jobs:
           install: false
 
       - name: Install pinned WebAssembly toolchain
+        id: wasm-toolchain
         uses: $/.github/actions/wasm-toolchain
 
       - name: Install runtime dependencies
         run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime
 
       - name: Build and stage WebContainer runtime
+        env:
+          WASI_SDK_PATH: ${{ steps.wasm-toolchain.outputs.wasi-sdk-path }}
+          WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
         run: |
           pnpm build:pnpm:wasm
           node pnpm/wasm/stage.mjs
