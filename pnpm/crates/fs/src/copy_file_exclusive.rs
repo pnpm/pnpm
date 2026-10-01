@@ -7,7 +7,6 @@ pub type CopyPermissions = fs::Permissions;
 #[cfg(target_os = "wasi")]
 pub type CopyPermissions = u32;
 
-/// Read permissions through an opened source file.
 pub fn copy_permissions(source: &Path) -> io::Result<CopyPermissions> {
     read_file_permissions(&fs::File::open(source)?)
 }

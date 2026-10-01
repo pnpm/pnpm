@@ -18,6 +18,8 @@ try {
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`Could not pack the pnpm wrapper: ${result.stderr}`)
   const { filename } = JSON.parse(result.stdout)
+  const size = (await stat(path.join(directory, filename))).size
+  if (size > 20 * 1024 * 1024) throw new Error(`The pnpm WebContainer wrapper is ${size} bytes, exceeding its 20 MiB compressed size budget`)
   const destination = path.join(target, 'pnpm-webcontainer-wrapper.tgz')
   await rename(path.join(directory, filename), destination)
   console.log(destination)

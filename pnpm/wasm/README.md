@@ -32,6 +32,11 @@ Native executable archives do not include the WASM payload. Normal native npm
 installations keep the direct native executable, without a runtime-selection
 check on each invocation.
 
+CI packs the regular wrapper with `pack-wrapper.mjs` and enforces a 20 MiB
+compressed size budget. The bundled runtime also increases native npm download
+size; it must be available before install scripts run for automatic WebContainer
+selection to work when those scripts are disabled.
+
 The full build uses the pinned nightly because `cap-primitives` requires unstable
 WASI filesystem APIs. Native builds retain the repository's stable toolchain.
 Download and extract [WASI SDK 34](https://github.com/WebAssembly/wasi-sdk/releases/tag/wasi-sdk-34)
