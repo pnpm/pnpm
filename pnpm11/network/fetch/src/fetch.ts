@@ -112,11 +112,11 @@ function attemptWithRetries (url: RequestInfo, opts: RequestInit, { maxRetries, 
 }
 
 async function fetchOnce (urlString: string, { concurrencyGate, ...opts }: RequestInit): Promise<Response> {
-  if (concurrencyGate == null) return fetchUngated(urlString, opts)
+  if (concurrencyGate == null) return fetchDirect(urlString, opts)
   await concurrencyGate.acquire()
   let res: Response
   try {
-    res = await fetchUngated(urlString, opts)
+    res = await fetchDirect(urlString, opts)
   } catch (error: unknown) {
     if (isFetchTimeoutError(error)) concurrencyGate.downscaleIfPeersActive()
     concurrencyGate.release()
@@ -125,7 +125,7 @@ async function fetchOnce (urlString: string, { concurrencyGate, ...opts }: Reque
   return holdPermitUntilBodySettles(res, concurrencyGate)
 }
 
-async function fetchUngated (urlString: string, opts: RequestInit): Promise<Response> {
+async function fetchDirect (urlString: string, opts: RequestInit): Promise<Response> {
   const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
   // undici's Response type differs slightly from globalThis.Response (iterator types),
   // requiring the double cast. This is a known TypeScript/undici compatibility issue.

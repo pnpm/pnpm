@@ -91,7 +91,7 @@ export function holdPermitUntilBodySettles (res: Response, gate: NetworkConcurre
 interface HeldPermit {
   /** Cancel the next-turn release because a reader took the body. */
   keep: () => void
-  /** Release once. A fetch timeout first downscales the gate. */
+  /** Release once. A fetch timeout first lowers the cap to one. */
   release: (error?: unknown) => void
 }
 
