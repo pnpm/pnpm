@@ -135,6 +135,7 @@ function inheritWorkspaceDependencies (manifest) {
 }
 
 export async function bundleLoader (root) {
+  fs.copyFileSync(new URL('./audit-cas.mjs', import.meta.url), path.join(root, 'audit-cas.mjs'))
   const require = createRequire(new URL('../../../pnpm11/pnpm/package.json', import.meta.url))
   await require('esbuild').build({
     entryPoints: [fileURLToPath(new URL('../register.mjs', import.meta.url))],

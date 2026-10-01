@@ -24,7 +24,7 @@ const result = runSuite(root, manifestPath, readScenario(root))
 fs.writeFileSync(path.join(root, 'gvs.stdout'), result.stdout)
 fs.writeFileSync(path.join(root, 'gvs.stderr'), result.stderr)
 assertIsolated(root)
-const report = { ...installed, status: result.status, noProjectNodeModules: true }
+const report = { ...installed, status: result.status, casModules: result.casModules, casPackages: result.casPackages, noProjectNodeModules: true }
 fs.writeFileSync(path.join(root, 'gvs-results.json'), JSON.stringify(report, null, 2))
-console.log(JSON.stringify({ installation: installed.installation, globalVirtualStoreDir: installed.globalVirtualStoreDir, selected: installed.selected, materializedPackages: Object.keys(installed.materialized).length, status: result.status, noProjectNodeModules: true }, null, 2), result.stdout, result.stderr)
+console.log(JSON.stringify({ installation: installed.installation, globalVirtualStoreDir: installed.globalVirtualStoreDir, selected: installed.selected, materializedPackages: Object.keys(installed.materialized).length, status: result.status, casModules: result.casModules, casPackages: result.casPackages, noProjectNodeModules: true }, null, 2), result.stdout, result.stderr)
 process.exitCode = result.status ?? 1

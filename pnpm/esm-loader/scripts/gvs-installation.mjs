@@ -21,7 +21,8 @@ export async function installOptOuts (source, manifest, names) {
   const lockfile = await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false }) ??
     await readCurrentLockfile(path.join(source.repo, 'node_modules/.pnpm'), { ignoreIncompatible: false })
   if (!lockfile) throw new Error(`No installed lockfile in ${modules.virtualStoreDir}`)
-  const config = await readWorkspaceManifest(source.repo) ?? {}
+  const packageManifest = JSON.parse(fs.readFileSync(path.join(source.repo, 'package.json'), 'utf8'))
+  const config = { ...packageManifest.pnpm, ...await readWorkspaceManifest(source.repo) }
   const locations = snapshotLocations(lockfile, source.repo)
   const installation = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-loader-gvs-'))
   const { importer, aliases } = createSelectedImporter(selected, { source, locations })
