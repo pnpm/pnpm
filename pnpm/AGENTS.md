@@ -325,6 +325,11 @@ step before every handoff. See
   scalar `assert_eq!`.
 - Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/naming.html)
   for naming.
+- A `bool` parameter, field, or return value stays a `bool` only while every
+  use site reads as a predicate. A behavior switch, a flag passed as a bare
+  literal, a `bool` in a tuple, or two flags that imply each other become an
+  enum or a struct with named fields. See "Boolean parameters and fields" in
+  `CODE_STYLE_GUIDE.md`.
 - **No star imports inside module bodies.** Write `use super::{Foo, bar}`
   instead of `use super::*;`, and the same for any other glob whose
   target is a module you control. Two forms stay allowed: external-crate

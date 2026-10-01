@@ -78,6 +78,24 @@ Group fields by a shared responsibility and reuse existing types. Pass a group d
 
 A struct that must match a fixed external configuration, serialized document, or binding interface may use a scoped `#[expect(perfectionist::too_many_struct_fields, reason = "...")]`, gated with `cfg_attr(dylint_lib = "perfectionist", ...)`. Name the format or interface in the reason. Internal runtime state and options should be refactored.
 
+### Boolean parameters and fields
+
+A `bool` is the right type for a fact about the data that reads as a predicate wherever it is used: `optional`, `installable`, `is_leaf`. Keep a parameter, field, or return value a `bool` only while all of these hold:
+
+- Every read and write sits next to a name that says what the value means. A call that passes a bare `true` or `false` fails this test. A call that passes a named variable or field passes it.
+- The value describes the data rather than selecting which of two behaviors the callee performs. A behavior switch becomes an enum whose variants name the behaviors, or two functions.
+- Both values occur. A parameter that every caller passes the same value for is a default. Remove it.
+- No neighboring `bool` in the same signature, struct, or tuple implies or excludes it. Correlated flags become one enum of the valid states.
+- It does not travel in a tuple position, where it has no name. A tuple that crosses a function boundary with a `bool` in it becomes a struct with named fields, or an enum of the outcomes.
+- The producer had no richer information that a consumer needs again later. If it did, pass the richer type.
+- It answers a predicate rather than reporting an outcome with named cases. A function that reports which of two things happened returns an enum, such as `Created` or `Existing`.
+
+When one of these fails, name the cases: a two-variant enum, a struct with named fields, or an existing type that already carries the information, such as a `DependencyGroup` in place of a manifest key paired with an `optional` flag. Do not convert mechanically. `Installable::Yes` reads no better than `true` when every caller passes it.
+
+Name a surviving `bool` as a predicate, with `is_`, `has_`, `should_`, or a past participle such as `optional`, so that a read forms a sentence.
+
+Exempt by construction: setter and builder methods, struct literals with named fields, fields that mirror an external format, and locals destructured on the line that produces them. Clippy's `fn_params_excessive_bools` and `struct_excessive_bools` only count three or more `bool`s in one signature or struct. This rule applies to each one.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.
