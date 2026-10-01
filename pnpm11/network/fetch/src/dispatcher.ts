@@ -169,6 +169,18 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
   return getNonProxyDispatcher(parsedUri, opts)
 }
 
+/**
+ * The origin a request to `uri` opens its connection to: the proxy's when
+ * one applies, so requests sharing a proxy share its origin.
+ */
+export function getConnectionOrigin (uri: URL, opts: DispatcherOptions): string {
+  const proxy = uri.protocol === 'https:' ? opts.httpsProxy : opts.httpProxy
+  if (!proxy || checkNoProxy(uri, opts)) return uri.origin
+  const proxyUrl = parseProxyUrl(proxy, uri.protocol)
+  // `URL.origin` is "null" for non-special schemes such as socks5:.
+  return `${proxyUrl.protocol}//${proxyUrl.host}`
+}
+
 function inactivityTimeout (opts: DispatcherOptions): number {
   return opts.timeout ?? DEFAULT_FETCH_TIMEOUT
 }

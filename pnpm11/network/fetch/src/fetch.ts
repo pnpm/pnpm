@@ -1,8 +1,10 @@
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { isError, redactUrlForDisplay } from '@pnpm/error'
+import { isError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import { type Dispatcher, fetch as undiciFetch, getGlobalDispatcher } from 'undici'
+
+import { holdPermitUntilBodySettles, type NetworkConcurrencyGate } from './networkConcurrencyGate.js'
 
 export { type RetryTimeoutOptions }
 
@@ -62,6 +64,11 @@ export interface RequestInit extends globalThis.RequestInit {
    */
   timeout?: number
   dispatcher?: Dispatcher
+  /**
+   * Shared with every request from one `createFetchFromRegistry` client.
+   * Absent for callers that build a request directly.
+   */
+  concurrencyGate?: NetworkConcurrencyGate
 }
 
 export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
@@ -104,7 +111,21 @@ function attemptWithRetries (url: RequestInfo, opts: RequestInit, { maxRetries, 
   })
 }
 
-async function fetchOnce (urlString: string, opts: RequestInit): Promise<Response> {
+async function fetchOnce (urlString: string, { concurrencyGate, ...opts }: RequestInit): Promise<Response> {
+  if (concurrencyGate == null) return fetchDirect(urlString, opts)
+  await concurrencyGate.acquire()
+  let res: Response
+  try {
+    res = await fetchDirect(urlString, opts)
+  } catch (error: unknown) {
+    if (isFetchTimeoutError(error)) concurrencyGate.downscaleIfPeersActive()
+    concurrencyGate.release()
+    throw error
+  }
+  return holdPermitUntilBodySettles(res, concurrencyGate)
+}
+
+async function fetchDirect (urlString: string, opts: RequestInit): Promise<Response> {
   const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
   // undici's Response type differs slightly from globalThis.Response (iterator types),
   // requiring the double cast. This is a known TypeScript/undici compatibility issue.

@@ -11,7 +11,10 @@ use reqwest::{
     StatusCode,
     dns::{Addrs, Name, Resolve, Resolving},
 };
-use tokio::{io::AsyncReadExt, net::TcpStream};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 use super::{RetryOpts, SecureAttemptError, get_secure_bytes, retry_async, should_retry_status};
 use crate::{
@@ -509,4 +512,118 @@ async fn assert_bounded_metadata(status: usize, chunked: bool) {
     assert!(response.body_truncated, "oversized response was accepted");
     assert_eq!(response.status.as_u16(), status as u16);
     request.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_timeout_while_another_request_is_in_flight_downscales_concurrency() {
+    let addr = spawn_stalling_server(b"").await;
+    let client = client_with_short_fetch_timeout();
+    let url = format!("http://{addr}/pkg.tgz");
+    let retry = instant_retry_opts(0);
+    let first = crate::send_with_retry(&client, &url, retry, |http| http.get(&url));
+    let second = crate::send_with_retry(&client, &url, retry, |http| http.get(&url));
+    let (left, right) = tokio::join!(first, second);
+    let Err(left_error) = left else {
+        panic!("stalled request times out");
+    };
+    let Err(right_error) = right else {
+        panic!("stalled request times out");
+    };
+    assert!(left_error.is_timeout(), "{left_error:?}");
+    assert!(right_error.is_timeout(), "{right_error:?}");
+    assert!(client.is_origin_downscaled(&url));
+}
+
+#[tokio::test]
+async fn a_metadata_body_timeout_while_another_request_is_in_flight_downscales_concurrency() {
+    let addr = spawn_stalling_server(b"HTTP/1.1 200 OK\r\ncontent-length: 100\r\n\r\n{").await;
+    let client = client_with_short_fetch_timeout();
+    let url = format!("http://{addr}/pkg");
+    let auth = AuthHeaders::default();
+    let retry = instant_retry_opts(0);
+    let first = get_secure_bytes(&client, &url, &auth, None, retry, usize::MAX);
+    let second = get_secure_bytes(&client, &url, &auth, None, retry, usize::MAX);
+    let (left, right) = tokio::join!(first, second);
+    let Err(left_error) = left else {
+        panic!("stalled body times out");
+    };
+    let Err(right_error) = right else {
+        panic!("stalled body times out");
+    };
+    assert!(left_error.is_timeout(), "{left_error:?}");
+    assert!(right_error.is_timeout(), "{right_error:?}");
+    assert!(client.is_origin_downscaled(&url));
+}
+
+#[tokio::test]
+async fn a_metadata_header_timeout_while_another_request_is_in_flight_downscales_concurrency() {
+    let addr = spawn_stalling_server(b"").await;
+    let client = client_with_short_fetch_timeout();
+    let url = format!("http://{addr}/pkg");
+    let auth = AuthHeaders::default();
+    let retry = instant_retry_opts(0);
+    let first = get_secure_bytes(&client, &url, &auth, None, retry, usize::MAX);
+    let second = get_secure_bytes(&client, &url, &auth, None, retry, usize::MAX);
+    let (left, right) = tokio::join!(first, second);
+    let Err(left_error) = left else {
+        panic!("stalled headers time out");
+    };
+    let Err(right_error) = right else {
+        panic!("stalled headers time out");
+    };
+    assert!(left_error.is_timeout(), "{left_error:?}");
+    assert!(right_error.is_timeout(), "{right_error:?}");
+    assert!(client.is_origin_downscaled(&url));
+}
+
+#[tokio::test]
+async fn a_timeout_with_peers_only_on_other_origins_keeps_concurrency() {
+    let first_addr = spawn_stalling_server(b"").await;
+    let second_addr = spawn_stalling_server(b"").await;
+    let client = client_with_short_fetch_timeout();
+    let first_url = format!("http://{first_addr}/pkg.tgz");
+    let second_url = format!("http://{second_addr}/pkg.tgz");
+    let retry = instant_retry_opts(0);
+    let first = crate::send_with_retry(&client, &first_url, retry, |http| http.get(&first_url));
+    let second = crate::send_with_retry(&client, &second_url, retry, |http| http.get(&second_url));
+    let (left, right) = tokio::join!(first, second);
+    assert!(left.is_err_and(|error| error.is_timeout()));
+    assert!(right.is_err_and(|error| error.is_timeout()));
+    assert!(!client.is_origin_downscaled(&first_url));
+    assert!(!client.is_origin_downscaled(&second_url));
+}
+
+/// Accept connections, write `head` to each, then hold the socket open
+/// without sending anything more.
+async fn spawn_stalling_server(head: &'static [u8]) -> SocketAddr {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                break;
+            };
+            tokio::spawn(async move {
+                let mut buf = [0u8; 2048];
+                let _ = socket.read(&mut buf).await;
+                let _ = socket.write_all(head).await;
+                let _ = socket.read(&mut buf).await;
+            });
+        }
+    });
+    addr
+}
+
+fn client_with_short_fetch_timeout() -> ThrottledClient {
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &crate::NetworkSettings {
+            network_concurrency: 4,
+            fetch_timeout: Duration::from_millis(200),
+            ..crate::NetworkSettings::default()
+        },
+    )
+    .expect("client builds")
 }

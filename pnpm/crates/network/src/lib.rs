@@ -20,6 +20,7 @@ mod address_guard;
 mod auth;
 mod error_chain;
 mod limited_body;
+mod origin_gate;
 mod priority_semaphore;
 mod proxy;
 mod retry;
@@ -30,6 +31,7 @@ mod token_helper;
 
 mod url_encoding;
 
+use origin_gate::{OriginLimits, OriginPermit};
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
 use reqwest::{
@@ -181,9 +183,9 @@ pub struct ThrottledClient {
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
     per_registry: tls::PerRegistryMap<ClientPair>,
-    /// Per-origin socket cap (the `maxSockets` setting) and proxy socket
-    /// cap.
-    host_socket_limit: HostSocketLimit,
+    /// Per-origin socket cap (the `maxSockets` setting), proxy socket cap,
+    /// and the cap a fetch timeout lowers to one request.
+    origin_limits: OriginLimits,
     /// Effective proxy routing configuration used to determine socket origin.
     proxy_routing: ProxyRouting,
     fetch_warn_timeout: Duration,
@@ -329,6 +331,9 @@ pub struct ThrottledClientGuard<'a> {
     /// as `permit`. `None` when no `maxSockets` cap is configured or the URL
     /// had no parseable origin.
     host_permit: Option<OwnedSemaphorePermit>,
+    /// Counts the request against its origin's timeout cap. `None` when the
+    /// URL had no parseable origin.
+    origin_permit: Option<OriginPermit>,
     client: &'a Client,
 }
 
@@ -337,6 +342,7 @@ pub struct ThrottledResponse {
     response: reqwest::Response,
     _permit: Permit,
     _host_permit: Option<OwnedSemaphorePermit>,
+    _origin_permit: Option<OriginPermit>,
     body_timeout: Duration,
     received_at: Instant,
 }
@@ -353,6 +359,7 @@ impl ThrottledClientGuard<'_> {
             response,
             _permit: self.permit,
             _host_permit: self.host_permit,
+            _origin_permit: self.origin_permit,
             body_timeout,
             received_at: Instant::now(),
         }
@@ -361,7 +368,13 @@ impl ThrottledClientGuard<'_> {
 
 impl ThrottledResponse {
     pub async fn bytes(self) -> Result<bytes::Bytes, reqwest::Error> {
-        let Self { response, _permit, _host_permit, .. } = self;
+        let Self {
+            response,
+            _permit,
+            _host_permit,
+            _origin_permit,
+            ..
+        } = self;
         response.bytes().await
     }
 
@@ -463,6 +476,7 @@ impl ThrottledClient {
         ThrottledClientGuard {
             permit,
             host_permit: None,
+            origin_permit: None,
             client: &self.default_clients.follow_redirects,
         }
     }
@@ -476,7 +490,7 @@ impl ThrottledClient {
     /// uncapped.
     #[must_use]
     pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
-        self.host_socket_limit = HostSocketLimit::new(max_sockets);
+        self.origin_limits.sockets = HostSocketLimit::new(max_sockets);
         self
     }
 

@@ -4,8 +4,9 @@ import { redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
-import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getDispatcher } from './dispatcher.js'
+import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getConnectionOrigin, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
+import { createOriginConcurrencyGates, type GetOriginConcurrencyGate } from './networkConcurrencyGate.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -66,12 +67,14 @@ type FetchFromRegistryRequestOptions = Parameters<FetchFromRegistry>[1]
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   const clientCertificates = extractTlsConfigs(defaultOpts.configByUri)
+  const concurrencyGateFor = createOriginConcurrencyGates()
   return async (url, opts): Promise<Response> => fetchFollowingRedirects({
     url,
     opts,
     headers: createRequestHeaders(defaultOpts.userAgent, opts),
     defaultOpts,
     clientCertificates,
+    concurrencyGateFor,
   })
 }
 
@@ -110,9 +113,10 @@ interface RedirectFollowingRequest {
   headers: Record<string, string>
   defaultOpts: CreateFetchFromRegistryOptions
   clientCertificates: ClientCertificates | undefined
+  concurrencyGateFor: GetOriginConcurrencyGate
 }
 
-async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clientCertificates }: RedirectFollowingRequest): Promise<Response> {
+async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clientCertificates, concurrencyGateFor }: RedirectFollowingRequest): Promise<Response> {
   let redirects = 0
   let urlObject = new URL(url)
   const originalOrigin = urlObject.origin
@@ -134,6 +138,7 @@ async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clien
       redirect: 'manual',
       retry: opts?.retry,
       timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
+      concurrencyGate: concurrencyGateFor(getConnectionOrigin(urlObject, dispatcherOptions)),
     })
     if (
       opts?.redirect === 'manual' ||
@@ -147,6 +152,9 @@ async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clien
     // This is a workaround to remove authorization headers on redirect.
     // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
     urlObject = resolveRedirectUrl(response, urlObject)
+    // The permit stays with the body. Drop it before the next hop so a
+    // redirect chain cannot pin a connection slot.
+    await response.body?.cancel()
     if (originalOrigin !== urlObject.origin) {
       removeCredentialHeaders(headers)
     }

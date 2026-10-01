@@ -106,6 +106,11 @@ where
     }
     let body_error =
         pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url).await;
+    if let Some(error) = &body_error
+        && error.is_fetch_timeout()
+    {
+        http_client.downscale_while_peers_active(package_url);
+    }
     if body_error.is_none() {
         progress.warn_if_slow(http_client, package_url);
     }
@@ -279,7 +284,10 @@ where
         progress.on_chunk::<Reporter>(chunk.len());
     }
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| fetch_error(inputs.package_url, error))?;
+        let chunk = chunk.map_err(|error| {
+            inputs.http_client.downscale_on_timeout(inputs.package_url, &error);
+            fetch_error(inputs.package_url, error)
+        })?;
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
         // Nothing above bounds how much body a server may send: a
@@ -291,7 +299,7 @@ where
             continue;
         }
         if !inputs.is_gzip {
-            return Err(drain_non_gzip_body::<Reporter, _>(
+            let error = drain_non_gzip_body::<Reporter, _>(
                 stream,
                 progress,
                 buf,
@@ -299,7 +307,11 @@ where
                 inputs.package_url,
                 inputs.prefix.len,
             )
-            .await);
+            .await;
+            if error.is_fetch_timeout() {
+                inputs.http_client.downscale_while_peers_active(inputs.package_url);
+            }
+            return Err(error);
         }
         // The buffer's capacity has doubled past what arrived; hand the
         // extractor the bytes, not the headroom.
