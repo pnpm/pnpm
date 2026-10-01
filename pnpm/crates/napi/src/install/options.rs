@@ -139,6 +139,11 @@ pub struct InstallOptions {
     /// prints nothing and the embedder renders the `onLog` event stream
     /// itself (or not at all).
     pub reporter: Option<ReporterOptions>,
+    /// Recorded as `pnpmfileChecksum` for the `readPackageHook` passed to
+    /// the same call. The host changes it whenever the hook's behavior
+    /// changes. Without it the engine cannot tell whether the hook
+    /// changed, so every install resolves again.
+    pub read_package_hook_checksum: Option<String>,
 }
 
 /// Options for [`get_peer_dependency_issues`](crate::get_peer_dependency_issues). Mirrors the TypeScript

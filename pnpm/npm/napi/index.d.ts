@@ -250,6 +250,14 @@ export interface InstallOptions extends SharedEngineOptions {
    * at all).
    */
   reporter?: ReporterOptions
+  /**
+   * Recorded as the lockfile's `pnpmfileChecksum` for the `readPackageHook`
+   * passed to the same call. Change it whenever the hook's behavior changes.
+   * The lockfile is reused while it stays the same. Without it the engine
+   * cannot tell whether the hook changed, so every install with a hook
+   * resolves again.
+   */
+  readPackageHookChecksum?: string
 }
 
 /** pnpm's `peerDependencyRules`. */
@@ -361,6 +369,7 @@ export interface InstallResult {
  * @param readPackageHook a **synchronous** `(manifest, resolvedDir?) => manifest`
  *   transform applied to every resolved dependency manifest during resolution
  *   (the `readPackage` hook). Must return the manifest object, not a promise.
+ *   Pass `options.readPackageHookChecksum` to let installs reuse the lockfile.
  * @param onOutput receives the rendered output of `options.reporter`
  *   instead of the engine writing it to stdout/stderr.
  */

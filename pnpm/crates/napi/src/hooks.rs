@@ -22,14 +22,19 @@
 //! Only `read_package` is bridged; `after_all_resolved` returns
 //! [`serde_json::Value::Null`] (pacquet's "no hook, keep the lockfile
 //! unchanged" signal) and the remaining hooks are inert.
+//!
+//! The engine cannot fingerprint a JS callback, so both adapters report
+//! themselves as an untracked `readPackage` hook, which makes every install
+//! resolve again. [`ChecksummedHooks`] lets the host vouch for its hook with
+//! a checksum instead.
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
 use pnpm_hooks::{
-    HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
-    ReadPackageResult,
+    CustomFetcher, CustomResolver, HookContext, HookError, PnpmfileHooks, PreResolutionHookContext,
+    PreResolutionHookLogger, ReadPackageResult,
 };
 use serde_json::Value;
 
@@ -277,5 +282,111 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
 
     async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
         Ok(Some(true))
+    }
+}
+
+/// Records a host-supplied checksum as the `pnpmfileChecksum` of the hooks
+/// it wraps, the way a `.pnpmfile.cjs` is recorded by the hash of its
+/// content. The wrapped `readPackage` hook is therefore tracked: the
+/// lockfile is reused while the checksum stays the same and resolved again
+/// when it changes.
+pub struct ChecksummedHooks {
+    hooks: Arc<dyn PnpmfileHooks>,
+    checksum: String,
+}
+
+impl ChecksummedHooks {
+    /// Wraps `hooks` when the host gave a checksum. Without one, `hooks` stay
+    /// untracked.
+    pub fn wrap(
+        hooks: Option<Arc<dyn PnpmfileHooks>>,
+        checksum: Option<&str>,
+    ) -> Option<Arc<dyn PnpmfileHooks>> {
+        match (hooks, checksum) {
+            (Some(hooks), Some(checksum)) => {
+                Some(Arc::new(ChecksummedHooks { hooks, checksum: checksum.to_string() }))
+            }
+            (hooks, _) => hooks,
+        }
+    }
+}
+
+#[async_trait]
+impl PnpmfileHooks for ChecksummedHooks {
+    async fn read_package(
+        &self,
+        pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        self.hooks.read_package(pkg, ctx).await
+    }
+
+    async fn after_all_resolved(
+        &self,
+        lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.hooks.after_all_resolved(lockfile, ctx).await
+    }
+
+    async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        self.hooks.update_config(config, ctx).await
+    }
+
+    async fn before_packing(
+        &self,
+        manifest: Value,
+        dir: &Path,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.hooks.before_packing(manifest, dir, ctx).await
+    }
+
+    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
+        self.hooks.pre_resolution(ctx, logger).await;
+    }
+
+    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
+        self.hooks.filter_log(log, ctx).await
+    }
+
+    async fn has_filter_log(&self) -> bool {
+        self.hooks.has_filter_log().await
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.hooks.has_read_package().await
+    }
+
+    async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        self.hooks.has_after_all_resolved().await
+    }
+
+    async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.hooks.has_pre_resolution().await
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(None)
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        Some(self.checksum.clone())
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        self.hooks.get_custom_resolvers().await
+    }
+
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        self.hooks.get_custom_fetchers().await
+    }
+
+    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        self.hooks.get_finder_names().await
+    }
+
+    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
+        self.hooks.run_finder(finder_name, ctx).await
     }
 }

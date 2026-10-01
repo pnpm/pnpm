@@ -46,7 +46,9 @@ use tokio::sync::Mutex;
 use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
-    hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
+    hooks::{
+        BatchHookSink, ChecksummedHooks, HookSink, JsBatchedReadPackageHook, JsReadPackageHook,
+    },
     native_reporter::{NativeRenderer, OutputSink, ReporterOptions},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
@@ -303,7 +305,10 @@ impl InstallShape {
             },
             projects: pnpm_package_manager::InstallProjects {
                 supported_architectures: None,
-                pnpmfile_hook_override: pnpmfile_hook,
+                pnpmfile_hook_override: ChecksummedHooks::wrap(
+                    pnpmfile_hook,
+                    options.read_package_hook_checksum.as_deref(),
+                ),
                 workspace_projects_override: build_workspace_projects_override(&options.projects),
                 ..install.projects
             },
