@@ -73,8 +73,8 @@ export async function createHeadlessContext (opts: HeadlessOptions): Promise<Hea
   // doubled prefix when the second argument is also absolute.
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(pathAbsolute(modulesDir, lockfileDir))
-  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
-  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
+  const installStateDir = path.join(rootModulesDir, '.pnpm')
+  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), lockfileDir)
   const projects = selectProjects(opts)
   assertVirtualStoreOnlyIsSupported(opts)
@@ -89,7 +89,7 @@ export async function createHeadlessContext (opts: HeadlessOptions): Promise<Hea
     depsStateCache: {},
     rootModulesDir,
     virtualStoreDir,
-    hoistedModulesDir: path.join(opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir, 'node_modules'),
+    hoistedModulesDir: path.join(opts.enableGlobalVirtualStore ? installStateDir : virtualStoreDir, 'node_modules'),
     publicHoistedModulesDir: rootModulesDir,
     ...projects,
     skipped,

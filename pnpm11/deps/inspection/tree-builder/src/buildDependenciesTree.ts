@@ -144,8 +144,8 @@ async function readLockfiles (
   modulesDir: string,
   lockfileDir: string
 ): Promise<{ currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject | null }> {
-  const internalPnpmDir = path.join(modulesDir, '.pnpm')
-  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
+  const installStateDir = path.join(modulesDir, '.pnpm')
+  const currentLockfile = await readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   return { currentLockfile, wantedLockfile }
 }

@@ -905,9 +905,9 @@ fn update_stale_hoist_symlink_replaces_virtual_store_resident_symlink() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join("store/links");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
-    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
-    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    let install_state_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&install_state_dir).unwrap();
+    let private_hoisted = install_state_dir.join("node_modules");
     std::fs::create_dir_all(&private_hoisted).unwrap();
 
     let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
@@ -923,7 +923,7 @@ fn update_stale_hoist_symlink_replaces_virtual_store_resident_symlink() {
         &dep_dir,
         &dest,
         &virtual_store_dir,
-        &internal_pnpm_dir,
+        &install_state_dir,
     )
     .expect("should replace virtual-store-resident symlink");
 
@@ -946,16 +946,16 @@ fn update_stale_hoist_symlink_replaces_internal_pnpm_symlink() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join("store/links");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
-    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
-    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    let install_state_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&install_state_dir).unwrap();
+    let private_hoisted = install_state_dir.join("node_modules");
     std::fs::create_dir_all(&private_hoisted).unwrap();
 
     let dep_dir = virtual_store_dir.join("@scope/new-pkg/2.0.0/hash/node_modules/@scope/new-pkg");
     std::fs::create_dir_all(&dep_dir).unwrap();
     let dest = private_hoisted.join("stale-internal-dep");
 
-    let stale_target = internal_pnpm_dir.join("old-pkg/node_modules/old-pkg");
+    let stale_target = install_state_dir.join("old-pkg/node_modules/old-pkg");
     std::fs::create_dir_all(stale_target.parent().unwrap()).unwrap();
     std::fs::create_dir_all(&stale_target).unwrap();
     pnpm_fs::symlink_dir(&stale_target, &dest).unwrap();
@@ -964,7 +964,7 @@ fn update_stale_hoist_symlink_replaces_internal_pnpm_symlink() {
         &dep_dir,
         &dest,
         &virtual_store_dir,
-        &internal_pnpm_dir,
+        &install_state_dir,
     )
     .expect("should replace internal-pnpm-resident symlink");
 
@@ -987,9 +987,9 @@ fn update_stale_hoist_symlink_preserves_external_symlink() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join("store/links");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
-    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
-    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    let install_state_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&install_state_dir).unwrap();
+    let private_hoisted = install_state_dir.join("node_modules");
     std::fs::create_dir_all(&private_hoisted).unwrap();
 
     let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
@@ -1005,7 +1005,7 @@ fn update_stale_hoist_symlink_preserves_external_symlink() {
         &dep_dir,
         &dest,
         &virtual_store_dir,
-        &internal_pnpm_dir,
+        &install_state_dir,
     )
     .expect("should preserve external symlink");
 
@@ -1022,9 +1022,9 @@ fn update_stale_hoist_symlink_preserves_regular_directory() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join("store/links");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
-    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
-    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    let install_state_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&install_state_dir).unwrap();
+    let private_hoisted = install_state_dir.join("node_modules");
     std::fs::create_dir_all(&private_hoisted).unwrap();
 
     let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
@@ -1037,7 +1037,7 @@ fn update_stale_hoist_symlink_preserves_regular_directory() {
         &dep_dir,
         &dest,
         &virtual_store_dir,
-        &internal_pnpm_dir,
+        &install_state_dir,
     )
     .expect("should preserve directory");
 
@@ -1052,9 +1052,9 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join("store/links");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
-    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
-    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
-    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    let install_state_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&install_state_dir).unwrap();
+    let private_hoisted = install_state_dir.join("node_modules");
     std::fs::create_dir_all(&private_hoisted).unwrap();
 
     let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
@@ -1068,7 +1068,7 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
         &dep_dir,
         &dest,
         &virtual_store_dir,
-        &internal_pnpm_dir,
+        &install_state_dir,
     )
     .expect("should leave an already-correct symlink untouched");
 

@@ -130,10 +130,10 @@ export async function getContext (
   logManifests(opts.allProjects)
   await applyReadPackageHook(importersContext.projects, opts.readPackageHook)
 
-  const internalPnpmDir = path.join(importersContext.rootModulesDir, '.pnpm')
+  const installStateDir = path.join(importersContext.rootModulesDir, '.pnpm')
   const hoistedDirs = resolveHoistedDirs({
     enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
-    internalPnpmDir,
+    installStateDir,
     virtualStoreDir,
     hoistPattern: opts.hoistPattern,
     extraBinPaths: opts.extraBinPaths,
@@ -152,7 +152,7 @@ export async function getContext (
     useLockfile: opts.useLockfile,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    internalPnpmDir,
+    installStateDir,
   })
 
   const ctx = buildPnpmContext({ opts, importersContext, hoistedDirs, virtualStoreDir, lockfiles })
@@ -277,10 +277,10 @@ export async function getContextForSingleImporter (
   const virtualStoreDir = await resolveVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir, importerContext.rootModulesDir)
   await prepareStoreDir(opts.storeDir, opts.lockfileDir, opts.frozenStore)
 
-  const internalPnpmDir = path.join(importerContext.rootModulesDir, '.pnpm')
+  const installStateDir = path.join(importerContext.rootModulesDir, '.pnpm')
   const hoistedDirs = resolveHoistedDirs({
     enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
-    internalPnpmDir,
+    installStateDir,
     virtualStoreDir,
     hoistPattern: opts.hoistPattern,
     extraBinPaths: opts.extraBinPaths,
@@ -302,7 +302,7 @@ export async function getContextForSingleImporter (
     useLockfile: opts.useLockfile,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-    internalPnpmDir,
+    installStateDir,
   })
 
   const ctx = buildPnpmSingleContext({ opts, importerContext, hoistedDirs, hookedManifest, importer, virtualStoreDir, lockfiles })
@@ -395,14 +395,14 @@ async function applyReadPackageHook (
 
 function resolveHoistedDirs (opts: {
   enableGlobalVirtualStore?: boolean
-  internalPnpmDir: string
+  installStateDir: string
   virtualStoreDir: string
   hoistPattern?: string[]
   extraBinPaths?: string[]
 }): { extraBinPaths: string[], hoistedModulesDir: string } {
   const extraBinPaths = [...opts.extraBinPaths || []]
   const hoistedModulesDir = path.join(
-    opts.enableGlobalVirtualStore ? opts.internalPnpmDir : opts.virtualStoreDir,
+    opts.enableGlobalVirtualStore ? opts.installStateDir : opts.virtualStoreDir,
     'node_modules'
   )
   if (opts.hoistPattern?.length) {

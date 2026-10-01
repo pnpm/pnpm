@@ -21,7 +21,7 @@ impl Config {
     ///   configured `virtualStoreDir` when one is set.
     ///
     /// pnpm instead rewrites `virtualStoreDir` to the global virtual store
-    /// and keeps the state in `internalPnpmDir`. Pacquet's
+    /// and keeps the state in `installStateDir`. Pacquet's
     /// [`Self::virtual_store_dir`] gives the same answer as pnpm's
     /// `virtualStoreDir`.
     ///

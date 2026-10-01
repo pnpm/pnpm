@@ -305,7 +305,7 @@ pub struct Config {
 
     /// The `.pnpm` directory of the install root's modules directory. It
     /// holds the current lockfile and the hidden hoisted modules of that
-    /// install, pnpm's `internalPnpmDir`. Without a global virtual store it
+    /// install, as pnpm's `installStateDir` does. Without a global virtual store it
     /// is also the virtual store, see [`Self::virtual_store_dir`]. Not to be
     /// confused with the machine-wide [`Self::state_dir`].
     #[default(_code = "default_install_state_dir()")]

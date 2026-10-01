@@ -115,7 +115,7 @@ async function linkWorkspacePlacements (
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, {
     virtualStoreDir: opts.virtualStoreDir,
-    internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
+    installStateDir: path.dirname(opts.privateHoistedModulesDir),
   })
   const results = await Promise.allSettled(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
   const failure = findRejection(results)

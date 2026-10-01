@@ -13,7 +13,7 @@ import { hasErrorCode, hoistLogger } from './hoistedModulesDirs.js'
 
 export interface HoistLinkOwnerDirs {
   virtualStoreDir: string
-  internalPnpmDir: string
+  installStateDir: string
 }
 
 const MAX_LINK_READ_RETRIES = 100
@@ -38,7 +38,7 @@ async function symlinkHoistedDependencyOnce (
   } catch (err: unknown) {
     return handleUnreadableExistingLink(err, depLocation, dest)
   }
-  if (!isSubdir(opts.virtualStoreDir, existingSymlink) && !isSubdir(opts.internalPnpmDir, existingSymlink)) {
+  if (!isSubdir(opts.virtualStoreDir, existingSymlink) && !isSubdir(opts.installStateDir, existingSymlink)) {
     hoistLogger.debug({
       skipped: dest,
       existingSymlink,
