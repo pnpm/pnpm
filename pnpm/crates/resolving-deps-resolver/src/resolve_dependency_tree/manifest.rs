@@ -3,7 +3,7 @@
 //! leaf classification, and whether it is deprecated.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{engines_runtime_dependencies, is_truthy};
+use pnpm_package_manifest::{DependencyGroup, engines_runtime_dependencies, is_truthy};
 use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
@@ -154,9 +154,9 @@ pub(super) fn extract_children(
     let parent = render_parent(result);
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
+    collect_deps(manifest, DependencyGroup::Prod, &parent, &bundled, &mut out)?;
     let mut optional = Vec::new();
-    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
+    collect_deps(manifest, DependencyGroup::Optional, &parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
         let dependency_positions: HashMap<String, usize> = out
             .iter()
@@ -212,13 +212,15 @@ fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
 /// package bundles that alias.
 fn collect_deps(
     manifest: &Value,
-    key: &str,
-    optional: bool,
+    group: DependencyGroup,
     parent: &str,
     bundled: &HashSet<&str>,
     out: &mut Vec<DependencySpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
-    let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
+    let Some(map) = manifest.get::<&str>(group.into()).and_then(Value::as_object) else {
+        return Ok(());
+    };
+    let optional = group == DependencyGroup::Optional;
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
             if !crate::is_valid_dependency_alias(name) {
