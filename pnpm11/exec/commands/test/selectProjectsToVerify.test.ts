@@ -49,6 +49,17 @@ describe('selectProjectsToVerify', () => {
     })).toStrictEqual(['a', 'root'])
   })
 
+  test('resolves a path selector where the install the gate spawns runs', async () => {
+    // The install runs in `dir`, where `!../b` names b.
+    const allProjectsGraph = createGraph({ a: ['b'], b: [] })
+    expect(await selectNames({
+      dir: dirOf('a'),
+      filter: ['!../b'],
+      allProjectsGraph,
+      selectedProjectsGraph: pickGraph(allProjectsGraph, ['a']),
+    })).toStrictEqual(['a'])
+  })
+
   test('returns the selection as it is without a workspace graph', async () => {
     const selectedProjectsGraph = createGraph({ a: ['b'] })
     expect(await selectProjectsToVerify({ selectedProjectsGraph })).toBe(selectedProjectsGraph)

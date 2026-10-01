@@ -4,6 +4,7 @@ import { filterWorkspaceProjects, parseProjectSelector } from '@pnpm/workspace.p
 
 export type ProjectsToVerifyOptions = Partial<Pick<Config,
 | 'changedFilesIgnorePattern'
+| 'dir'
 | 'filter'
 | 'filterProd'
 | 'legacyDirFiltering'
@@ -68,13 +69,16 @@ function hasNegatedSelector (opts: ProjectsToVerifyOptions): boolean {
 
 /**
  * The projects the install the gate spawns selects, evaluated against the
- * graphs the command's own selection was drawn from.
+ * graphs the command's own selection was drawn from. That install runs in
+ * `dir`, so its path selectors resolve there.
  */
 async function selectInstalledProjectDirs (
   opts: ProjectsToVerifyOptions & Required<Pick<ProjectsToVerifyOptions, 'allProjectsGraph'>>
 ): Promise<Set<string>> {
+  const prefix = opts.dir ?? process.cwd()
   const walkOpts = {
-    workspaceDir: opts.workspaceDir ?? process.cwd(),
+    prefix,
+    workspaceDir: opts.workspaceDir ?? prefix,
     testPattern: opts.testPattern,
     changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
     useGlobDirFiltering: !opts.legacyDirFiltering,
@@ -89,12 +93,11 @@ async function selectInstalledProjectDirs (
 async function filterWithDependencies (
   projectsGraph: ProjectsGraph | undefined,
   filter: string[] | undefined,
-  opts: Parameters<typeof filterWorkspaceProjects>[2] & { followProdDepsOnly: boolean }
+  opts: Parameters<typeof filterWorkspaceProjects>[2] & { followProdDepsOnly: boolean, prefix: string }
 ): Promise<string[]> {
   if (projectsGraph == null || filter == null || filter.length === 0) return []
-  const prefix = process.cwd()
   const selectors = filter.map((selector) => ({
-    ...parseProjectSelector(withDependencies(selector), prefix),
+    ...parseProjectSelector(withDependencies(selector), opts.prefix),
     followProdDepsOnly: opts.followProdDepsOnly,
   }))
   const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, selectors, opts)
