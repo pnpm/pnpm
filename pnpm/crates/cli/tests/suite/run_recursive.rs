@@ -8,10 +8,10 @@ use crate::_utils::{append_line_script, write_marker_script};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cmd_shim::ScriptRuntime;
-#[cfg(windows)]
-use pnpm_cmd_shim::generate_cmd_shim;
 #[cfg(unix)]
 use pnpm_cmd_shim::generate_sh_shim;
+#[cfg(windows)]
+use pnpm_cmd_shim::{CmdShimBatch, generate_cmd_shim};
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{collections::HashMap, fs, path::Path, process::Command, time::Duration};
@@ -49,7 +49,7 @@ fn write_node_bin(bin_dir: &Path, name: &str, body: &str) {
     #[cfg(windows)]
     {
         let shim = bin_dir.join(format!("{name}.cmd"));
-        let contents = generate_cmd_shim(&target, &shim, Some(&node), &[]);
+        let contents = generate_cmd_shim(&target, &shim, Some(&node), &[], CmdShimBatch::Kept);
         fs::write(&shim, contents).expect("write the cmd shim");
     }
 

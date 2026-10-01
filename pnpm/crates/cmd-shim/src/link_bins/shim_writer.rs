@@ -1,6 +1,6 @@
 use super::{
-    DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
-    LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
+    CmdShimBatch, DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
+    FsWrite, LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
     chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
     is_node_bin_name, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
     link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
@@ -37,6 +37,7 @@ pub(super) struct ShimSpec<'a> {
     pub(super) node_path: &'a [String],
     pub(super) options: &'a LinkBinsOptions,
     pub(super) make_powershell_shim: bool,
+    pub(super) cmd_shim_batch: CmdShimBatch,
     pub(super) paths: &'a LinkingPaths<'a>,
     /// Whether this run created the bin directory. Read by
     /// [`read_or_create_shim`], which documents what it is worth.
@@ -235,7 +236,13 @@ fn windows_shim_bodies(
 ) -> Option<WindowsShims> {
     cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(spec.shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(spec.target_path, &cmd_path, runtime, spec.node_path);
+        let cmd_body = generate_cmd_shim(
+            spec.target_path,
+            &cmd_path,
+            runtime,
+            spec.node_path,
+            spec.cmd_shim_batch,
+        );
         let powershell = spec.make_powershell_shim.then(|| {
             let ps1_path = with_extension_appended(spec.shim_path, "ps1");
             let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
@@ -339,6 +346,7 @@ where
         shim_path,
         node_path,
         make_powershell_shim,
+        cmd_shim_batch,
         ..
     } = spec;
     let runtime = cache
@@ -359,7 +367,8 @@ where
         // The Windows siblings keep the replace shape: a missing
         // canonical shim proves nothing about `.cmd`/`.ps1` leftovers.
         let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
+        let cmd_body =
+            generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, cmd_shim_batch);
         replace_shim::<Sys>(&cmd_path, cmd_body.as_bytes())?;
         if make_powershell_shim {
             let ps1_path = with_extension_appended(shim_path, "ps1");

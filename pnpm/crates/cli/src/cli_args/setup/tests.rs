@@ -263,6 +263,78 @@ mod windows_alias_scripts {
             );
         }
     }
+
+    /// The aliases in front of the `pnpm.cmd` the bin linker writes for the pnpm
+    /// CLI, which ends its batch context before the CLI starts. The CLI here is a
+    /// copy of `node.exe` running a script that prints its arguments.
+    #[test]
+    fn cmd_wrappers_pass_arguments_and_exit_code_through_a_batchless_shim() {
+        use pnpm_cmd_shim::{CmdShimBatch, ScriptRuntime, generate_cmd_shim};
+        use std::{fs, process::Command};
+
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let bin_dir = dir.path().join("bin");
+        create_alias_scripts(&bin_dir).expect("write alias scripts");
+        let cli_dir = dir.path().join("global").join("pnpm");
+        fs::create_dir_all(&cli_dir).expect("create the CLI dir");
+        // The interpreter itself: a launcher found on `PATH` may dispatch on its
+        // own file name, which the copy below changes.
+        let exec_path = Command::new("node")
+            .args(["-p", "process.execPath"])
+            .output()
+            .expect("run node");
+        let node = String::from_utf8(exec_path.stdout).expect("node output is UTF-8");
+        let node = node.trim();
+        let cli = cli_dir.join("pnpm.exe");
+        fs::copy(node, &cli).expect("copy node.exe");
+        let script = cli_dir.join("cli.js");
+        fs::write(
+            &script,
+            format!(
+                "console.log(JSON.stringify(process.argv.slice(2)))\nprocess.exit({SHIM_EXIT_CODE})\n",
+            ),
+        )
+        .expect("write the CLI script");
+        let shim = bin_dir.join("pnpm.cmd");
+        let runtime = ScriptRuntime { prog: None, args: format!(" \"{}\"", script.display()) };
+        fs::write(
+            &shim,
+            generate_cmd_shim(&cli, &shim, Some(&runtime), &[], CmdShimBatch::EndedBeforeTarget),
+        )
+        .expect("write pnpm.cmd");
+
+        let args = ["--", "--flag", "a b", "", "50%", "x^y", "p&q", "r|s", "!bang!", "héllo"];
+        let quoted = args
+            .map(|arg| format!("\"{arg}\""))
+            .join(" ");
+        for (name, subcommand) in [("pn", None), ("pnpx", Some("dlx")), ("pnx", Some("dlx"))] {
+            let mut command = Command::new("cmd.exe");
+            std::os::windows::process::CommandExt::raw_arg(
+                &mut command,
+                format!(
+                    "/d /c \"\"{}\" {quoted}\"",
+                    bin_dir
+                        .join(format!("{name}.cmd"))
+                        .display()
+                ),
+            );
+            let output = command.output().expect("run the alias wrapper");
+            eprintln!("{name}: {output:?}");
+            let expected: Vec<&str> = subcommand
+                .into_iter()
+                .chain(args)
+                .collect();
+            let stdout = String::from_utf8(output.stdout).expect("wrapper stdout is UTF-8");
+            let printed: Vec<String> =
+                serde_json::from_str(stdout.trim_end()).expect("parse printed arguments");
+            assert_eq!(printed, expected, "{name}.cmd changed the arguments");
+            assert_eq!(
+                output.status.code(),
+                Some(SHIM_EXIT_CODE),
+                "{name}.cmd dropped the CLI's exit status",
+            );
+        }
+    }
 }
 
 /// PowerShell prefers `pn.ps1` over `pn.cmd`, so an unsigned leftover from an

@@ -181,6 +181,39 @@ fn assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim(pkg_name: &str) {
     assert!(!bins_dir.join("pnpm.ps1").exists());
 }
 
+/// The pnpm CLI's `.cmd` shims end their batch context before the CLI starts
+/// ([`super::super::cmd_shim_batch`]). Every other package keeps the ordinary
+/// shim.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn only_the_pnpm_cli_cmd_shims_end_their_batch_context() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let mut packages = Vec::new();
+    for (pkg_name, bin_name) in [("pnpm", "pnpm"), ("@pnpm/exe", "pnpm-exe"), ("other", "other")] {
+        let pkg_dir = tmp
+            .path()
+            .join("node_modules")
+            .join(pkg_name);
+        create_dir_all(&pkg_dir).unwrap();
+        let manifest =
+            json!({"name": pkg_name, "version": "1.0.0", "bin": {bin_name: "native-binary"}});
+        write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+        write_file(pkg_dir.join("native-binary"), "MZ").unwrap();
+        packages.push(PackageBinSource::new(pkg_dir, Arc::new(manifest)));
+    }
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+
+    for (bin_name, ends_batch) in [("pnpm", true), ("pnpm-exe", true), ("other", false)] {
+        let cmd = read_to_string(bins_dir.join(format!("{bin_name}.cmd"))).unwrap();
+        assert_eq!(
+            cmd.contains("@GOTO #_undefined_# 2>NUL || "),
+            ends_batch,
+            "{bin_name}.cmd:\n{cmd}"
+        );
+    }
+}
+
 /// A bin directory this run created holds nothing, so the shim goes
 /// straight out. One that was already there is read first, because
 /// that is where an ordinary reinstall finds its shims.

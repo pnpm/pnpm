@@ -9,7 +9,7 @@ use crate::{
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
+        CmdShimBatch, ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
         is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
         search_script_runtime,
     },
@@ -476,6 +476,7 @@ where
                     node_path: &node_path,
                     options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
+                    cmd_shim_batch: cmd_shim_batch(pkg_name),
                     paths: &paths,
                     bin_dir,
                 },
@@ -510,14 +511,28 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
     chosen.into_values().collect()
 }
 
+/// Whether `pkg_name` is the pnpm CLI itself. `@pnpm/exe` is that same CLI
+/// under the name earlier installs used.
+fn is_pnpm_cli(pkg_name: &str) -> bool {
+    matches!(pkg_name, "pnpm" | "@pnpm/exe")
+}
+
 /// Whether the bins of `pkg_name` get a PowerShell shim next to the `.cmd`
 /// one. The pnpm CLI opts out, because PowerShell resolves `pnpm.ps1` ahead of
 /// `pnpm.cmd`: a shim written for one installation of the CLI would keep
 /// shadowing every later one, including an upgrade that ships a different
-/// executable. `@pnpm/exe` is that same CLI under the name earlier
-/// installs used, so it opts out too.
+/// executable.
 fn wants_powershell_shim(pkg_name: &str) -> bool {
-    !matches!(pkg_name, "pnpm" | "@pnpm/exe")
+    !is_pnpm_cli(pkg_name)
+}
+
+/// Whether the `.cmd` shims of `pkg_name` keep their batch context while the
+/// target runs. The pnpm CLI's end it: without a `.ps1` (see
+/// [`wants_powershell_shim`]), PowerShell and cmd.exe both run the CLI through
+/// its `.cmd` shim, so every Ctrl+C that stops a script `pnpm` runs would
+/// otherwise end in `Terminate batch job (Y/N)?`.
+fn cmd_shim_batch(pkg_name: &str) -> CmdShimBatch {
+    if is_pnpm_cli(pkg_name) { CmdShimBatch::EndedBeforeTarget } else { CmdShimBatch::Kept }
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
