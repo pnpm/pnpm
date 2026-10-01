@@ -13,11 +13,6 @@ const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     "pnpm11/fs/indexed-pkg-importer/**",
     "pnpm11/hooks/pnpmfile/**",
     "pnpm11/installing/context/**",
-    "pnpm11/installing/linking/modules-cleaner/**",
-    "pnpm11/installing/linking/real-hoist/**",
-    "pnpm11/lockfile/utils/**",
-    "pnpm11/modules-mounter/daemon/**",
-    "pnpm11/releasing/exportable-manifest/**",
     "pnpm11/resolving/git-resolver/**",
     "pnpm11/store/commands/**"
 ]
