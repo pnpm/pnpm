@@ -492,11 +492,8 @@ fn deploy_preserves_symlinks_in_nested_node_modules_listed_in_files() {
     drop((root, mock_instance));
 }
 
-#[cfg(unix)]
 #[test]
 fn deploy_through_symlinked_ancestor_finds_patches_and_workspace_dependencies() {
-    use std::os::unix::fs::symlink;
-
     const LEGACY_NODE_ENGINES_PATCH: &str = "\
 diff --git a/package.json b/package.json
 --- a/package.json
@@ -538,12 +535,13 @@ diff --git a/package.json b/package.json
         .assert()
         .success();
 
-    // The link is shallower than its target, so `..` steps counted from the
-    // link's path stop short of the workspace once the kernel follows it.
+    // The link is shallower than its target, so on Unix `..` steps counted
+    // from the link's path stop short of the workspace once the kernel
+    // follows it. Windows links with a junction and collapses `..` lexically.
     let deep_dir = root.path().join("deep/nested/dir");
     fs::create_dir_all(&deep_dir).unwrap();
     let link = root.path().join("link");
-    symlink(&deep_dir, &link).unwrap();
+    pnpm_fs::symlink_dir(&deep_dir, &link).unwrap();
     let deploy_dir = link.join("deploy");
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--prod"])
