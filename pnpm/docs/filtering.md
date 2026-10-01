@@ -153,6 +153,9 @@ pulled in the whole workspace instead of the root alone
 Selects all the packages changed since the specified commit/branch. May be
 suffixed or prefixed with `...` to include dependencies/dependents.
 
+Non-ASCII filenames are supported regardless of Git's `core.quotePath` setting.
+Changed-file ignore and test patterns match the original filenames.
+
 For example, the next command will run tests in all changed packages since
 `master` and on any dependent packages:
 
