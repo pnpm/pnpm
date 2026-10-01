@@ -151,6 +151,14 @@ impl FrozenScope<'_> {
 }
 
 impl<'a> MaterializationInputs<'a, '_> {
+    /// The current lockfile when the layout is hoisted. See
+    /// [`crate::selected_materialization_ids`].
+    fn hoisted_prior(&self) -> Option<&'a Lockfile> {
+        self.lockfiles.current.filter(|_| {
+            self.install.execution.node_linker == super::NodeLinker::Hoisted
+        })
+    }
+
     fn fresh_prior<'b>(
         &self,
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
@@ -362,7 +370,7 @@ impl<'a> MaterializationWorkspace<'a> {
     fn frozen_scope(
         &self,
         lockfile: &Lockfile,
-        node_linker: super::NodeLinker,
+        hoisted_prior: Option<&Lockfile>,
         groups: crate::GroupSelection,
         ignore_manifest_check: bool,
     ) -> FrozenScope<'a> {
@@ -373,14 +381,13 @@ impl<'a> MaterializationWorkspace<'a> {
         let closure = crate::materialization_closure(
             lockfile,
             self.workspace_root,
-            &initial_materialization_ids(lockfile, importer_ids, node_linker),
+            &initial_materialization_ids(lockfile, importer_ids, hoisted_prior),
             &groups,
             &empty_skipped,
         );
         let project_anchor_ids = frozen_project_anchor_ids(
             self.requested_importer_ids,
             self.real_importer_ids,
-            node_linker,
             &closure,
         );
         FrozenScope {

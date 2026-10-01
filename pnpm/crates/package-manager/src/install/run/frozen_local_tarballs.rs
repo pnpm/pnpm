@@ -206,11 +206,10 @@ fn installed_importer_ids(
                 &settled.projects.scope.importers.real_importer_ids,
             )
         });
-    crate::install::materialize::initial_materialization_ids(
-        lockfile,
-        requested,
-        settled.install.execution.node_linker,
-    )
+    let hoisted_prior = settled.loaded.current
+        .as_ref()
+        .filter(|_| settled.install.execution.node_linker == pnpm_config::NodeLinker::Hoisted);
+    crate::install::materialize::initial_materialization_ids(lockfile, requested, hoisted_prior)
 }
 
 /// Whether any package resolves to a tarball on the local filesystem, the

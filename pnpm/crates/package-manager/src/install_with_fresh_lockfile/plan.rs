@@ -296,7 +296,8 @@ fn closure_importer_ids(
     is_hoisted: bool,
     built: &Lockfile,
 ) -> Option<HashSet<String>> {
-    materialization_importer_ids(install.projects.selected_ids, is_hoisted, built)
+    let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
+    materialization_importer_ids(install.projects.selected_ids, hoisted_prior, built)
         .or_else(|| {
             install
                 .resolve_widened_groups()
@@ -308,14 +309,15 @@ fn closure_importer_ids(
                 })
         })
 }
-/// The importers a selected install materializes.
+/// The importers a selected install materializes. See
+/// [`crate::selected_materialization_ids`] for `hoisted_prior`.
 pub(super) fn materialization_importer_ids(
     selected_importer_ids: Option<&HashSet<String>>,
-    _is_hoisted: bool,
-    _built_lockfile: &Lockfile,
+    hoisted_prior: Option<&Lockfile>,
+    built_lockfile: &Lockfile,
 ) -> Option<HashSet<String>> {
     let selected_importer_ids = selected_importer_ids?;
-    Some(selected_importer_ids.clone())
+    Some(crate::selected_materialization_ids(built_lockfile, selected_importer_ids, hoisted_prior))
 }
 /// The host the installability checks run against, resolved from the
 /// overlapped probe when one was started.

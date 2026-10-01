@@ -192,3 +192,49 @@ test('a repeat hoisted install restores a removed workspace project modules dire
     }
   }
 })
+
+test('a filtered install with node-linker=hoisted keeps the packages of installed projects', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { 'is-negative': '1.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'], nodeLinker: 'hoisted' })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'], nodeLinker: 'hoisted', dedupePeerDependents: false })
+  execPnpmSync(['install', '--filter', 'project-1'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+})
+
+test('filtered installs of different projects with node-linker=hoisted add up', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { 'is-negative': '1.0.0' } },
+    },
+    {
+      location: 'project-3',
+      package: { name: 'project-3', version: '1.0.0', dependencies: { '@pnpm.e2e/foo': '100.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2', 'project-3'], nodeLinker: 'hoisted' })
+
+  execPnpmSync(['install', '--filter', 'project-1'], { expectSuccess: true })
+  execPnpmSync(['install', '--filter', 'project-2'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/foo')).toBe(false)
+})

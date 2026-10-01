@@ -22,14 +22,13 @@ import { equals } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
+import { pickMaterializedImporterIds } from './currentLockfileImporters.js'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import type { Project } from './types.js'
 
 export async function createHeadlessDepGraph (ctx: HeadlessContext): Promise<HeadlessDepGraph> {
   const { opts } = ctx
-  const initialImporterIds = opts.ignorePackageManifest === true
-    ? Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
-    : ctx.selectedProjects.map(({ id }) => id)
+  const initialImporterIds = pickInitialImporterIds(ctx)
   const { lockfile: filteredLockfile, selectedImporterIds: importerIds, requiredDepPaths } = filterLockfileByImportersAndEngine(ctx.wantedLockfile, initialImporterIds, ctx.filterOpts)
   if (opts.excludeLinksFromLockfile) {
     addLinkedDependenciesToLockfile(filteredLockfile, ctx.selectedProjects)
@@ -67,6 +66,20 @@ export async function createHeadlessDepGraph (ctx: HeadlessContext): Promise<Hea
     importerIds,
     includeUnchangedDeps: lockfileToDepGraphOpts.includeUnchangedDeps === true,
   }
+}
+
+/**
+ * Under `nodeLinker: hoisted` all projects share one node_modules, and the
+ * install removes whatever the new hoisted tree leaves out. A selected install
+ * therefore also keeps each project the previous install materialized a
+ * package for. A project no install materialized stays out.
+ */
+function pickInitialImporterIds (ctx: HeadlessContext): ProjectId[] {
+  const wantedImporterIds = Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
+  if (ctx.opts.ignorePackageManifest === true) return wantedImporterIds
+  const selectedIds = ctx.selectedProjects.map(({ id }) => id)
+  if (ctx.opts.nodeLinker !== 'hoisted' || ctx.currentLockfile == null) return selectedIds
+  return Array.from(new Set([...selectedIds, ...pickMaterializedImporterIds(ctx.currentLockfile, wantedImporterIds)]))
 }
 
 function addLinkedDependenciesToLockfile (lockfile: LockfileObject, projects: Project[]): void {
