@@ -1,15 +1,16 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { killProcessGroup } from '@pnpm/prepare'
+import { endsWithin, killProcessGroup } from '@pnpm/prepare'
 import { temporaryDirectory } from 'tempy'
 
 import { relaySignals, reserveSignalRelay, waitForProcessGroup, watchProcessGroup } from '../src/signals.js'
 
 const testOnLinux = process.platform === 'linux' ? test : test.skip
 const testOnPosix = process.platform === 'win32' ? test.skip : test
+const watchScript = path.join(import.meta.dirname, 'fixtures', 'watchdog', 'watch.mjs')
 
 test('a signal is raised once after concurrent relays settle', async () => {
   const child = { kill: () => true }
@@ -151,6 +152,65 @@ testOnPosix('a released watchdog leaves the group alone', async () => {
     killProcessGroup(child.pid!)
   }
 })
+
+// A sh per watched group doubled the processes a recursive run starts.
+testOnPosix('one watchdog watches every process group', () => {
+  const before = listWatchdogs()
+  const leaders = [spawnGroupLeader(), spawnGroupLeader(), spawnGroupLeader()]
+  try {
+    const watches = leaders.map((leader) => watchProcessGroup(leader.pid!))
+    const started = listWatchdogs().filter((watchdog) => !before.includes(watchdog))
+    for (const watch of watches) watch.release()
+    expect(started.length).toBeLessThanOrEqual(1)
+  } finally {
+    for (const leader of leaders) killProcessGroup(leader.pid!)
+  }
+})
+
+// The watchdog outlives the runner that started it. Once the runner dies, it
+// kills every group still watched, past one that has exited already, and
+// leaves a released group alone.
+testOnPosix('the watchdog kills every group still watched when the runner dies', async () => {
+  const exited = spawnGroupLeader()
+  await new Promise((resolve) => exited.on('exit', resolve).kill('SIGKILL'))
+  const released = spawnGroupLeader()
+  const leaders = [spawnGroupLeader(), spawnGroupLeader()]
+  const runner = spawn(process.execPath, [watchScript, ...[released, exited, ...leaders].map(({ pid }) => String(pid))], { stdio: ['ignore', 'pipe', 'inherit'] })
+  try {
+    await new Promise((resolve) => runner.stdout.once('data', resolve))
+    runner.kill('SIGKILL')
+    expect(await Promise.all(leaders.map(async (leader) => endsWithin(leader.pid!, 10_000)))).toStrictEqual([true, true])
+    expect(await endsWithin(released.pid!, 500)).toBe(false)
+  } finally {
+    for (const leader of [released, ...leaders]) killProcessGroup(leader.pid!)
+  }
+})
+
+// The watchdog and its pipe do not keep the runner alive.
+testOnPosix('a runner with a watchdog exits on its own', async () => {
+  const leader = spawnGroupLeader()
+  try {
+    const runner = spawn(process.execPath, [watchScript, '--exit', String(leader.pid)], { stdio: 'ignore' })
+    const exited = new Promise((resolve) => runner.on('exit', resolve))
+    expect(await withDeadline(exited, 5_000)).not.toBe('timed out')
+  } finally {
+    killProcessGroup(leader.pid!)
+  }
+})
+
+/** A `sleep` leading a process group of its own, as a script pnpm runs without a terminal does. */
+function spawnGroupLeader (): ChildProcess {
+  return spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
+}
+
+/** The pids of the running watchdogs this process started. */
+function listWatchdogs (): number[] {
+  const { stdout } = spawnSync('ps', ['-A', '-o', 'pid=', '-o', 'ppid=', '-o', 'args='], { encoding: 'utf8' })
+  return stdout.split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter(([, parent, ...command]) => Number(parent) === process.pid && command.join(' ').includes("trap '' INT TERM HUP"))
+    .map(([pid]) => Number(pid))
+}
 
 /** A `stat` line is the kernel's: pid, command in parentheses, state, parent, process group. `tasks` are thread ids under `task`. */
 function writeProcessTable (entries: Array<{ pid: number, state: string, group: number, readable?: boolean, tasks?: number[] }>): string {

@@ -1,5 +1,5 @@
 use super::{
-    ProcessTracker, RunningExecution, group_is_running, group_watchdog::GroupWatchdog,
+    ProcessTracker, RunningExecution, group_is_running, group_watchdog::GroupWatch,
     process_table::is_unsettled, spawn_child,
 };
 use std::{
@@ -7,6 +7,7 @@ use std::{
     io::{BufRead, BufReader, Read},
     os::unix::{fs::symlink, process::CommandExt},
     process::{self, Child, Command, Stdio},
+    ptr,
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},
@@ -43,36 +44,94 @@ fn foreground_children_share_the_terminal_process_group_only_at_a_terminal() {
     );
 }
 
-/// Dropping the watchdog unreleased closes its pipe the way pnpm's death
-/// does.
+/// Every child in a group of its own is watched, by the same watchdog: a
+/// `sh` per child doubled the processes a recursive run starts.
 #[test]
-fn a_watchdog_dropped_unreleased_kills_the_group() {
-    let mut leader = spawn_group_leader();
-    let watchdog =
-        GroupWatchdog::spawn(leader.id()).expect("spawn the watchdog").expect("`sh` is available");
+fn one_watchdog_watches_every_process_group() {
+    let tracker = ProcessTracker::default();
+    let mut children: Vec<_> = (0..3)
+        .map(|_| {
+            let mut command = Command::new("sleep");
+            command.arg("30");
+            spawn_child(&mut command, Some(&tracker)).expect("spawn child")
+        })
+        .collect();
 
-    drop(watchdog);
+    let watchdogs = watchdogs();
 
-    assert!(
-        exits_within(&mut leader, Duration::from_secs(10)),
-        "the group should have been killed once its watchdog lost pnpm",
-    );
+    tracker.cancel();
+    for child in &mut children {
+        let _ = child.wait();
+    }
+    assert_eq!(watchdogs.len(), 1, "one watchdog should watch all three groups");
 }
 
+/// Dropping the watch closes the watchdog's pipe the way pnpm's death does.
+/// Every group still watched is killed, past one that has exited already,
+/// and a released group is left alone.
 #[test]
-fn a_released_watchdog_leaves_the_group_alone() {
-    let mut leader = spawn_group_leader();
-    let watchdog =
-        GroupWatchdog::spawn(leader.id()).expect("spawn the watchdog").expect("`sh` is available");
+fn a_watch_dropped_kills_every_group_still_watched() {
+    let mut watch = GroupWatch::new();
+    let mut exited = spawn_group_leader();
+    let mut released = spawn_group_leader();
+    let mut leaders = [spawn_group_leader(), spawn_group_leader()];
+    for leader in [&exited, &released, &leaders[0], &leaders[1]] {
+        assert!(watch.watch(leader.id()).expect("watch the group"), "`sh` is available");
+    }
+    let _ = exited.kill();
+    let _ = exited.wait();
+    watch.release(released.id());
 
-    watchdog.release();
+    drop(watch);
+
+    for leader in &mut leaders {
+        assert!(
+            exits_within(leader, Duration::from_secs(10)),
+            "the group should have been killed once its watchdog lost pnpm",
+        );
+    }
+    assert!(
+        !exits_within(&mut released, Duration::from_millis(500)),
+        "the released group should still be running",
+    );
+    let _ = released.kill();
+    let _ = released.wait();
+}
+
+/// A watchdog that died is replaced on the next watch, and its
+/// replacement takes over the groups it was watching.
+#[test]
+fn a_replaced_watchdog_takes_over_the_groups_of_the_one_that_died() {
+    let mut watch = GroupWatch::new();
+    let mut leaders = [spawn_group_leader(), spawn_group_leader()];
+    assert!(
+        watch
+            .watch(leaders[0].id())
+            .expect("watch the group"),
+        "`sh` is available"
+    );
+    let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
+    // SAFETY: `dead` is this process's own child, the watchdog started
+    // above; it is killed and reaped here before its pipe is written again.
+    unsafe {
+        libc::kill(dead, libc::SIGKILL);
+        libc::waitpid(dead, ptr::null_mut(), 0);
+    }
 
     assert!(
-        !exits_within(&mut leader, Duration::from_millis(500)),
-        "the group should still be running after its watchdog was released",
+        watch
+            .watch(leaders[1].id())
+            .expect("watch the group"),
+        "`sh` is available"
     );
-    let _ = leader.kill();
-    let _ = leader.wait();
+    drop(watch);
+
+    for leader in &mut leaders {
+        assert!(
+            exits_within(leader, Duration::from_secs(10)),
+            "the replacement watchdog should have killed the group",
+        );
+    }
 }
 
 #[test]
@@ -332,6 +391,24 @@ fn spawn_group_leader() -> Child {
         .stderr(Stdio::null())
         .process_group(0);
     command.spawn().expect("spawn the group leader")
+}
+
+/// The pids of the watchdogs this process started and has not reaped.
+fn watchdogs() -> Vec<i32> {
+    let output = Command::new("/bin/ps")
+        .args(["-A", "-o", "pid=", "-o", "ppid=", "-o", "args="])
+        .output()
+        .expect("run ps");
+    let own = process::id().to_string();
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let (pid, parent) = (fields.next()?, fields.next()?);
+            let is_watchdog = parent == own && line.contains("trap '' INT TERM HUP");
+            is_watchdog.then(|| pid.parse().expect("ps lists numeric pids"))
+        })
+        .collect()
 }
 
 fn exits_within(child: &mut Child, deadline: Duration) -> bool {

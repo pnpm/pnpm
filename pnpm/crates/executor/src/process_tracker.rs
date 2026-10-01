@@ -7,8 +7,6 @@ use std::{
 use tokio::sync::watch;
 
 #[cfg(unix)]
-use group_watchdog::GroupWatchdog;
-#[cfg(unix)]
 use std::{
     io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
 };
@@ -153,7 +151,7 @@ pub fn spawn_child<'tracker>(
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
     #[cfg(unix)]
-    let (child, watchdog) = watch_process_group(child, own_process_group)?;
+    let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
@@ -167,25 +165,23 @@ pub fn spawn_child<'tracker>(
         _registration: registration,
         relay,
         #[cfg(unix)]
-        watchdog,
+        watched,
     })
 }
 
-/// Start a watchdog for `child` when it leads a process group of its own.
+/// Have the watchdog watch `child`'s group when the child leads one.
+/// Returns whether the group is watched.
 ///
-/// A child left without its watchdog would be the very orphan the watchdog
-/// exists to prevent, so if one cannot be started the child's group is
-/// killed before the failure is returned.
+/// A child left unwatched would be the very orphan the watchdog exists to
+/// prevent, so if the watch cannot be set up the child's group is killed
+/// before the failure is returned.
 #[cfg(unix)]
-fn watch_process_group(
-    mut child: Child,
-    own_process_group: bool,
-) -> io::Result<(Child, Option<GroupWatchdog>)> {
+fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<(Child, bool)> {
     if !own_process_group {
-        return Ok((child, None));
+        return Ok((child, false));
     }
-    match GroupWatchdog::spawn(child.id()) {
-        Ok(watchdog) => Ok((child, watchdog)),
+    match group_watchdog::watch(child.id()) {
+        Ok(watched) => Ok((child, watched)),
         Err(error) => {
             terminate_process(child.id(), true);
             let _ = child.wait();
@@ -210,7 +206,7 @@ pub struct SpawnedChild<'tracker> {
     _registration: Option<Registration<'tracker>>,
     relay: crate::interrupt::SignalRelay,
     #[cfg(unix)]
-    watchdog: Option<GroupWatchdog>,
+    watched: bool,
 }
 
 impl SpawnedChild<'_> {
@@ -220,17 +216,17 @@ impl SpawnedChild<'_> {
 
     /// Wait for the child, and after a relayed signal for its whole process
     /// group: a shell that died from the signal may have left the script it
-    /// started still shutting down. The group's watchdog is released once
-    /// pnpm is done with the group, so whatever the child left running in
-    /// it is not ended by pnpm's own exit.
+    /// started still shutting down. pnpm then stops watching the group, so
+    /// whatever the child left running in it is not ended by pnpm's own
+    /// exit.
     pub fn wait(&mut self) -> io::Result<std::process::ExitStatus> {
         let status = self.child.wait()?;
         if self.own_process_group && self.relay.relayed() {
             wait_for_process_group(self.child.id());
         }
         #[cfg(unix)]
-        if let Some(watchdog) = self.watchdog.take() {
-            watchdog.release();
+        if std::mem::take(&mut self.watched) {
+            group_watchdog::release(self.child.id());
         }
         Ok(status)
     }
