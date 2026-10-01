@@ -23,6 +23,7 @@ import semver from 'semver'
 
 import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall, unlinkReplacedPnpmInstalls } from './installPnpm.js'
 import { resolvePnpmVersion } from './resolvePnpmVersion.js'
+import { linkReplacingRetiredExecutable, retireStandaloneExecutable } from './retireStandaloneExecutable.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -219,7 +220,9 @@ async function switchGlobalPnpm (
   })
 
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
-  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
+  const globalBinDir = path.join(opts.pnpmHomeDir, 'bin')
+  const retiredFromGlobalBin = process.platform === 'win32' ? await retireStandaloneExecutable(globalBinDir) : undefined
+  await linkReplacingRetiredExecutable(retiredFromGlobalBin, () => linkBins(path.join(baseDir, 'node_modules'), globalBinDir, { warn: globalWarn }))
   await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
   await refreshLegacyHomeDirShims(opts.pnpmHomeDir, baseDir)
 
@@ -236,8 +239,9 @@ async function refreshLegacyHomeDirShims (pnpmHomeDir: string, baseDir: string):
   // pre-update version. Detect that case and refresh the legacy shims so the
   // upgrade actually takes effect, then warn the user to run `pnpm setup`
   // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
-  if (!hasLegacyHomeDirShim(pnpmHomeDir)) return
-  await linkBins(path.join(baseDir, 'node_modules'), pnpmHomeDir, { warn: globalWarn })
+  const retiredFromHomeDir = process.platform === 'win32' ? await retireStandaloneExecutable(pnpmHomeDir) : undefined
+  if (!hasLegacyHomeDirShim(pnpmHomeDir) && retiredFromHomeDir == null) return
+  await linkReplacingRetiredExecutable(retiredFromHomeDir, () => linkBins(path.join(baseDir, 'node_modules'), pnpmHomeDir, { warn: globalWarn }))
   globalWarn(
     'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
     'at PNPM_HOME have been refreshed so the new version is active, but ' +
