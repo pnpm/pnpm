@@ -397,8 +397,12 @@ async fn offline_pick_finds_a_stored_version_that_only_has_a_shasum() {
 /// version manifest that fails to decode when something hydrates it.
 struct RegistryEventCount(Arc<AtomicUsize>);
 
-impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for RegistryEventCount {
-    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
+impl<Subscriber: tracing::Subscriber> tracing_subscriber::Layer<Subscriber> for RegistryEventCount {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _: tracing_subscriber::layer::Context<'_, Subscriber>,
+    ) {
         if event.metadata().target() == "pnpm_registry" {
             self.0.fetch_add(1, Ordering::Relaxed);
         }
