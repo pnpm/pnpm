@@ -79,7 +79,7 @@ impl<'a> RunExecution<'a> {
         project_manifests: &[(PathBuf, &PackageManifest)],
         lockfiles: &Lockfiles<'_>,
     ) -> Result<InstallRunOutcome, InstallError> {
-        let verification = Verification::set_up(self, lockfiles.wanted.get().is_some())?;
+        let verification = Verification::set_up(self, lockfiles, (scope, project_manifests))?;
         if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
             pnpm_reporter::emit_global_warning::<Reporter>(&message);
         }

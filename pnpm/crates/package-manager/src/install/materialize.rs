@@ -5,8 +5,8 @@ mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
     frozen_project_anchor_ids, importer_manifests_by_id, lockfile_specifier_manifests_by_id,
-    previously_skipped, prior_unbuilt_builds, record_fresh_lockfile_verified,
-    settle_frozen_verification,
+    previously_skipped, prior_unbuilt_builds, record_auto_dedupe_baseline,
+    record_fresh_lockfile_verified, settle_frozen_verification,
 };
 
 use super::{
@@ -308,6 +308,9 @@ impl<'a> MaterializationInputs<'a, '_> {
         let derived_lockfile_path = self.lockfiles.verification
             .derived_lockfile_path
             .take();
+        let auto_dedupe_baseline = self.lockfiles.verification
+            .auto_dedupe_baseline
+            .take();
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
@@ -333,6 +336,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             site,
             &resolution_verifiers,
         );
+        record_auto_dedupe_baseline(&fresh_result, auto_dedupe_baseline.as_ref());
         Ok(fresh_materialization_output(fresh_result))
     }
 }

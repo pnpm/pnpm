@@ -15,6 +15,7 @@ mod approve_builds;
 mod audit;
 mod auth;
 mod auto_dedupe;
+mod auto_dedupe_record;
 mod bin;
 mod bugs;
 mod bundled_dependencies;

@@ -108,6 +108,19 @@ pub(super) fn record_fresh_lockfile_verified(
         resolution_verifiers,
     );
 }
+/// Only a lockfile saved as resolved, which no `afterAllResolved` hook
+/// rewrote, is the output the next deduplicating resolution reproduces.
+pub(super) fn record_auto_dedupe_baseline(
+    result: &crate::InstallWithFreshLockfileResult,
+    baseline: Option<&super::super::auto_dedupe_baseline::AutoDedupeBaseline>,
+) {
+    if result.can_record_lockfile_verification
+        && let Some(baseline) = baseline
+        && let Some(lockfile) = result.wanted_lockfile.as_ref()
+    {
+        baseline.record(lockfile);
+    }
+}
 /// A selected (`--filter`) frozen install verifies the whole lockfile up
 /// front, so nothing is left for the concurrent gate to carry; an unselected
 /// one hands its override straight through.

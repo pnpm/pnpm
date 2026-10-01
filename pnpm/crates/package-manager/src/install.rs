@@ -78,6 +78,7 @@ use std::{
 };
 
 mod apply_materialization;
+mod auto_dedupe_baseline;
 mod lifecycle;
 mod lockfile_freshness;
 mod materialize;
