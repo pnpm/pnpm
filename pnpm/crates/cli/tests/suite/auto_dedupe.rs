@@ -7,17 +7,17 @@ use pnpm_testing_utils::{
 };
 use std::{fs, path::Path, process::Command};
 
-const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+pub(crate) const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
 
-fn pnpm_at(workspace: &Path) -> Command {
+pub(crate) fn pnpm_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(workspace)
         .without_ambient_pnpm_config()
 }
 
-fn write_settings(workspace: &Path, settings: impl AsRef<str>) -> std::io::Result<()> {
+pub(crate) fn write_settings(workspace: &Path, settings: impl AsRef<str>) -> std::io::Result<()> {
     let path = workspace.join("pnpm-workspace.yaml");
     let mut current: serde_json::Map<String, serde_json::Value> =
         serde_saphyr::from_str(&fs::read_to_string(&path)?).unwrap();
@@ -30,7 +30,7 @@ fn write_settings(workspace: &Path, settings: impl AsRef<str>) -> std::io::Resul
     fs::write(path, serde_saphyr::to_string(&current).unwrap())
 }
 
-fn write_project(workspace: &Path, project: &str, version: &str) {
+pub(crate) fn write_project(workspace: &Path, project: &str, version: &str) {
     let dir = workspace.join(project);
     fs::create_dir_all(&dir).unwrap();
     fs::write(

@@ -94,7 +94,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         frozen_lockfile: install.lockfile_policy.frozen,
         lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
         update_checksums: install.lockfile_policy.update_checksums,
-        prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
+        prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
         lockfile: lockfiles.wanted.get(),
         lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
         freshness: settled.freshness_inputs(),

@@ -66,7 +66,12 @@ not add overrides, save convergence pins, or change the lockfile format.
 Compatible transitive versions can change during a partial add or update,
 including in other workspace projects. Incompatible ranges remain separate.
 After the setting has been applied, unchanged installations retain the
-repeat-install fast path.
+repeat-install fast path. A `--lockfile-only` install writes no workspace
+state, so a deduplicating `--lockfile-only` install records the lockfile it
+wrote in the cache directory, and an unchanged `--lockfile-only` install takes
+the up-to-date path. Like the repeat-install fast path, it does not pick up
+versions published since then or settings the workspace state leaves out, such
+as `resolutionMode`; `pnpm dedupe` applies those.
 
 This setting currently requires local dependency resolution. A non-frozen
 install using `pnprServer` reports an error when `autoDedupe` is enabled.
