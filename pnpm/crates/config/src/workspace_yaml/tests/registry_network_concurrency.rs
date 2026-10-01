@@ -96,3 +96,20 @@ fn the_resolved_view_keeps_a_prefixed_registry_in_one_entry() {
     assert_eq!(corp[0].1.prefix.as_deref(), Some("work"));
     assert_eq!(corp[0].1.network_concurrency, limit(4));
 }
+
+#[test]
+fn the_resolved_view_caps_every_spelling_of_one_registry() {
+    let config = load(
+        "registries:\n  https://npm.corp.example/npm:\n    prefix: work\n    scopes: ['@acme']\n    networkConcurrency: 4\n",
+    )
+    .unwrap();
+    let resolved = config.resolved_registry_declarations();
+    let corp: Vec<_> = resolved
+        .iter()
+        .filter(|(registry, _)| registry.contains("npm.corp.example"))
+        .collect();
+    assert!(!corp.is_empty(), "{resolved:?}");
+    for (registry, declaration) in corp {
+        assert_eq!(declaration.network_concurrency, limit(4), "{registry}");
+    }
+}
