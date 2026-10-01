@@ -1146,6 +1146,76 @@ fn filtered_exec_installs_only_the_selected_projects() {
     drop(root);
 }
 
+/// A hoisted layout shares one `node_modules` between all projects, so the
+/// filtered install the gate spawns must keep the packages that only the
+/// unselected projects need
+/// ([pnpm/pnpm#16483](https://github.com/pnpm/pnpm/issues/16483)).
+#[test]
+fn filtered_exec_keeps_the_packages_of_the_other_projects_in_a_hoisted_layout() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: hoisted\npackages:\n  - packages/*\n");
+    fs::write(&workspace_yaml, &yaml).expect("write pnpm-workspace.yaml");
+    for (name, dependency) in [("project", "@pnpm.e2e/foo"), ("other", "@pnpm.e2e/bar")] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({ "dependencies": { dependency: "100.0.0" } }),
+        );
+    }
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/bar").exists());
+
+    yaml.push_str("dedupePeerDependents: false\n");
+    fs::write(&workspace_yaml, &yaml).expect("write pnpm-workspace.yaml");
+    bump_mtime(&workspace_yaml);
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "project",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("filtered")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "filtered");
+    assert!(
+        stderr.contains("Done in"),
+        "the verify-deps gate must have spawned an install:\n{stderr}",
+    );
+    assert!(workspace.join("node_modules/@pnpm.e2e/foo").exists());
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/bar").exists(),
+        "the spawned install must keep the packages of the unselected project:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Under dedicated per-project lockfiles the gate installs inside each selected
 /// project directory, where the command's selectors need not select the
 /// project. A recursive filtered run must not hand them to that install: a

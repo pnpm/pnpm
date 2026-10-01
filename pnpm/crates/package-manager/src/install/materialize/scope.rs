@@ -1,6 +1,6 @@
 use super::super::{
-    Arc, BTreeMap, Config, HashSet, InstallError, Lockfile, LogEvent, LogLevel, NodeLinker,
-    PackageManifest, Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier,
+    Arc, BTreeMap, Config, HashSet, InstallError, Lockfile, LogEvent, LogLevel, PackageManifest,
+    Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier,
     map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
 };
 
@@ -155,7 +155,6 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
 pub(super) fn frozen_project_anchor_ids(
     requested_importer_ids: Option<&HashSet<String>>,
     real_importer_ids: &HashSet<String>,
-    _node_linker: NodeLinker,
     materialization: &crate::MaterializationClosure,
 ) -> HashSet<String> {
     match requested_importer_ids {
@@ -164,14 +163,15 @@ pub(super) fn frozen_project_anchor_ids(
     }
 }
 /// The importers a frozen install materializes first. Manifest-independent
-/// installs use the entire lockfile.
+/// installs use the entire lockfile. See [`crate::selected_materialization_ids`]
+/// for `hoisted_prior`.
 pub(in crate::install) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
-    _node_linker: NodeLinker,
+    hoisted_prior: Option<&Lockfile>,
 ) -> HashSet<String> {
     match requested_importer_ids {
-        Some(selected) => selected.clone(),
+        Some(selected) => crate::selected_materialization_ids(lockfile, selected, hoisted_prior),
         _ => lockfile.importers
             .keys()
             .cloned()

@@ -110,7 +110,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         );
         let scope = self.workspace.frozen_scope(
             lockfile,
-            self.install.execution.node_linker,
+            self.hoisted_prior(),
             self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );
