@@ -297,11 +297,6 @@ fn next_walk_dir(
 
 /// The `<scope>/<name>/<version>/<hash>` slot a `node_modules` symlink
 /// points at, or `None` when it leads somewhere else.
-///
-/// `read_symlink_dir` handles Windows junctions (which `pnpm_fs::symlink_dir`
-/// creates for every `node_modules/<pkg>` entry); plain `fs::read_link` would
-/// EINVAL on them and the mark walk would miss every direct dep on Windows.
-/// See [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528).
 fn linked_store_slot(entry_path: &Path, canonical_links: &Path) -> Option<PathBuf> {
     let target = read_symlink_dir(entry_path).ok()?;
     let absolute_target = if target.is_absolute() {
