@@ -146,13 +146,12 @@ impl ViewGeneration {
 
 /// Which child edges of each package can stand in as peer-dependency
 /// providers (see [`index_peer_provider_children`]), indexed for the
-/// walkers of one tree view.
+/// walkers of one tree view. Which edges count depends on the tree's
+/// peer names, so the index records the names it was built under; see
+/// [`Self::refresh`].
 #[derive(Debug, Default)]
 pub(super) struct PeerProviderIndex {
     pub(super) children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
-    /// The tree's peer names the index was built under. Which edges
-    /// count as providers depends on them, so a tree with other peer
-    /// names gets a fresh index.
     peer_names: HashSet<String>,
 }
 
