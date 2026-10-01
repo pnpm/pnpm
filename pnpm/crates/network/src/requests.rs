@@ -117,7 +117,10 @@ impl ThrottledClient {
                 self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
                     .await;
             let request = configure(client.request(method.clone(), &current_url), &current_url);
-            let response = request.send().await?;
+            let response = request
+                .send()
+                .await
+                .inspect_err(|error| self.downscale_on_timeout(error))?;
             let target = response
                 .headers()
                 .get(reqwest::header::LOCATION)

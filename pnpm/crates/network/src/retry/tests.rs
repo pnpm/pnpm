@@ -555,6 +555,27 @@ async fn a_metadata_body_timeout_while_another_request_is_in_flight_downscales_c
     assert_eq!(client.concurrency_limit(), 1);
 }
 
+#[tokio::test]
+async fn a_metadata_header_timeout_while_another_request_is_in_flight_downscales_concurrency() {
+    let addr = spawn_stalling_server(b"").await;
+    let client = client_with_short_fetch_timeout();
+    let url = format!("http://{addr}/pkg");
+    let auth = AuthHeaders::default();
+    let retry = instant_retry_opts(0);
+    let first = get_secure_bytes(&client, &url, &auth, None, retry, usize::MAX);
+    let second = get_secure_bytes(&client, &url, &auth, None, retry, usize::MAX);
+    let (left, right) = tokio::join!(first, second);
+    let Err(left_error) = left else {
+        panic!("stalled headers time out");
+    };
+    let Err(right_error) = right else {
+        panic!("stalled headers time out");
+    };
+    assert!(left_error.is_timeout(), "{left_error:?}");
+    assert!(right_error.is_timeout(), "{right_error:?}");
+    assert_eq!(client.concurrency_limit(), 1);
+}
+
 /// Accept connections, write `head` to each, then hold the socket open
 /// without sending anything more.
 async fn spawn_stalling_server(head: &'static [u8]) -> SocketAddr {
