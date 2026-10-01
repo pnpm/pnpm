@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// What the `pnpm -r pkg get` report can key one project by.
 pub(super) struct ReportIdentity {
@@ -18,7 +18,7 @@ pub(super) struct ReportIdentity {
 /// keeps its name keys.
 pub(super) fn report_keys(identities: &[ReportIdentity]) -> Vec<String> {
     let mut keyed_by_dir = initially_keyed_by_dir(identities);
-    while key_names_shadowed_by_dirs(identities, &mut keyed_by_dir) {}
+    move_names_shadowed_by_dirs(identities, &mut keyed_by_dir);
     identities
         .iter()
         .zip(keyed_by_dir)
@@ -45,27 +45,27 @@ fn initially_keyed_by_dir(identities: &[ReportIdentity]) -> Vec<bool> {
 }
 
 /// Move every name-keyed project whose name equals a directory key in use
-/// to its own directory key. Returns whether any project moved, since a
-/// moved project's directory key can in turn shadow another name.
-fn key_names_shadowed_by_dirs(identities: &[ReportIdentity], keyed_by_dir: &mut [bool]) -> bool {
-    let dir_keys: HashSet<String> = identities
+/// to its own directory key. A moved project's directory key can in turn
+/// shadow another name, so each move is followed up the same way.
+fn move_names_shadowed_by_dirs(identities: &[ReportIdentity], keyed_by_dir: &mut [bool]) {
+    let name_keyed: HashMap<&str, usize> = identities
         .iter()
         .zip(keyed_by_dir.iter())
-        .filter(|(_, by_dir)| **by_dir)
-        .map(|(identity, _)| identity.dir_key.clone())
+        .enumerate()
+        .filter(|(_, (_, by_dir))| !**by_dir)
+        .filter_map(|(index, (identity, _))| Some((identity.name.as_deref()?, index)))
         .collect();
-    let mut moved = false;
-    for (identity, by_dir) in identities.iter().zip(keyed_by_dir.iter_mut()) {
-        if !*by_dir
-            && identity.name
-                .as_deref()
-                .is_some_and(|name| dir_keys.contains(name))
+    let mut pending: Vec<usize> = (0..identities.len())
+        .filter(|&index| keyed_by_dir[index])
+        .collect();
+    while let Some(index) = pending.pop() {
+        if let Some(&shadowed) = name_keyed.get(identities[index].dir_key.as_str())
+            && !keyed_by_dir[shadowed]
         {
-            *by_dir = true;
-            moved = true;
+            keyed_by_dir[shadowed] = true;
+            pending.push(shadowed);
         }
     }
-    moved
 }
 
 #[cfg(test)]

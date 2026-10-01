@@ -17,10 +17,7 @@ export interface ReportIdentity {
  */
 export function assignReportKeys (identities: ReportIdentity[]): string[] {
   const keyedByDir = initiallyKeyedByDir(identities)
-  let moved: boolean
-  do {
-    moved = keyNamesShadowedByDirs(identities, keyedByDir)
-  } while (moved)
+  moveNamesShadowedByDirs(identities, keyedByDir)
   return identities.map((identity, index) =>
     identity.name == null || keyedByDir[index] ? identity.dirKey : identity.name
   )
@@ -36,17 +33,20 @@ function initiallyKeyedByDir (identities: ReportIdentity[]): boolean[] {
 
 /**
  * Moves every name-keyed project whose name equals a directory key in use
- * to its own directory key. Returns whether any project moved, since a
- * moved project's directory key can in turn shadow another name.
+ * to its own directory key. A moved project's directory key can in turn
+ * shadow another name, so each move is followed up the same way.
  */
-function keyNamesShadowedByDirs (identities: ReportIdentity[], keyedByDir: boolean[]): boolean {
-  const dirKeys = new Set(identities.filter((_, index) => keyedByDir[index]).map(({ dirKey }) => dirKey))
-  let moved = false
+function moveNamesShadowedByDirs (identities: ReportIdentity[], keyedByDir: boolean[]): void {
+  const nameKeyed = new Map<string, number>()
   for (const [index, { name }] of identities.entries()) {
-    if (!keyedByDir[index] && name != null && dirKeys.has(name)) {
-      keyedByDir[index] = true
-      moved = true
+    if (name != null && !keyedByDir[index]) nameKeyed.set(name, index)
+  }
+  const pending = identities.flatMap((_, index) => keyedByDir[index] ? [index] : [])
+  for (let index = pending.pop(); index !== undefined; index = pending.pop()) {
+    const shadowed = nameKeyed.get(identities[index].dirKey)
+    if (shadowed !== undefined && !keyedByDir[shadowed]) {
+      keyedByDir[shadowed] = true
+      pending.push(shadowed)
     }
   }
-  return moved
 }
