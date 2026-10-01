@@ -4,7 +4,7 @@ import { redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
-import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getDispatcher } from './dispatcher.js'
+import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getConnectionOrigin, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
 import { createOriginConcurrencyGates, type GetOriginConcurrencyGate } from './networkConcurrencyGate.js'
 
@@ -138,7 +138,7 @@ async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clien
       redirect: 'manual',
       retry: opts?.retry,
       timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
-      concurrencyGate: concurrencyGateFor(urlObject.origin),
+      concurrencyGate: concurrencyGateFor(getConnectionOrigin(urlObject, dispatcherOptions)),
     })
     if (
       opts?.redirect === 'manual' ||

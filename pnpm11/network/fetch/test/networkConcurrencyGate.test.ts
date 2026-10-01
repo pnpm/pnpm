@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { afterEach, expect, test } from '@jest/globals'
 import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
 
+import { getConnectionOrigin } from '../src/dispatcher.js'
 import { createNetworkConcurrencyGate, createOriginConcurrencyGates } from '../src/networkConcurrencyGate.js'
 
 test('a timeout with peers in flight shrinks the cap and holds new acquires', async () => {
@@ -51,6 +52,14 @@ test('a downscale on one origin leaves other origins unbounded', async () => {
   await other.acquire()
   await other.acquire()
   expect(other.limit).toBe(Number.POSITIVE_INFINITY)
+})
+
+test('requests through one proxy share its origin unless noProxy exempts them', () => {
+  const opts = { httpsProxy: 'http://user:secret@proxy.example:8080', noProxy: 'direct.example' }
+  expect(getConnectionOrigin(new URL('https://registry.example/pkg'), opts)).toBe('http://proxy.example:8080')
+  expect(getConnectionOrigin(new URL('https://cdn.example/pkg.tgz'), opts)).toBe('http://proxy.example:8080')
+  expect(getConnectionOrigin(new URL('https://direct.example/pkg'), opts)).toBe('https://direct.example')
+  expect(getConnectionOrigin(new URL('http://plain.example/pkg'), opts)).toBe('http://plain.example')
 })
 
 afterEach(() => {
