@@ -32,8 +32,6 @@ jobs:
     timeout-minutes: 90
     env:
       RUSTUP_TOOLCHAIN: nightly-2026-08-27
-      WASI_SDK_PATH: ${{ runner.temp }}/wasm-tools/wasi-sdk-34.0-x86_64-linux
-      WABT_PATH: ${{ runner.temp }}/wasm-tools/wabt-1.0.42
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,6 +55,8 @@ jobs:
           printf '%s\n' '84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  wabt.tar.gz' | sha256sum --check --strict
           tar -xzf wasi-sdk.tar.gz
           tar -xzf wabt.tar.gz
+          printf 'WASI_SDK_PATH=%s\n' "$RUNNER_TEMP/wasm-tools/wasi-sdk-34.0-x86_64-linux" >> "$GITHUB_ENV"
+          printf 'WABT_PATH=%s\n' "$RUNNER_TEMP/wasm-tools/wabt-1.0.42" >> "$GITHUB_ENV"
 
       - name: Cache WASM compilation
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
