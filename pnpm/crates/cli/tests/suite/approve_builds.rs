@@ -610,6 +610,46 @@ fn approve_builds_works_after_removing_an_unrelated_dependency() {
     drop(harness);
 }
 
+#[test]
+fn approve_builds_works_after_adding_another_dependency() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    let package_json = serde_json::json!({ "dependencies": { PREPOST: "1.0.0" } });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    disable_strict_dep_builds(&workspace);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(output.contains(PREPOST), "first package stays pending: {output}");
+
+    pacquet(&workspace)
+        .with_args(["add", &format!("{INSTALL}@1.0.0")])
+        .assert()
+        .success();
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(output.contains(PREPOST), "first package stays pending: {output}");
+    assert!(output.contains(INSTALL), "second package is also pending: {output}");
+
+    pacquet(&workspace)
+        .with_args(["approve-builds", "--all"])
+        .assert()
+        .success();
+    assert!(workspace.join(PREPOST_MARKER).exists(), "first package built under --all");
+    assert!(workspace.join(INSTALL_MARKER).exists(), "second package built under --all");
+    let recorded = allow_builds(&workspace);
+    assert_eq!(recorded.get(PREPOST), Some(&true), "first package approval persisted");
+    assert_eq!(recorded.get(INSTALL), Some(&true), "second package approval persisted");
+    drop(harness);
+}
+
 /// The `allowBuilds` map recorded in the workspace manifest.
 /// The *decided* `allowBuilds` entries. An install scaffolds an
 /// undecided placeholder for every build it blocked, which is a prompt to

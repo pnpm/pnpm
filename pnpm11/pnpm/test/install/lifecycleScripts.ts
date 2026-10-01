@@ -670,6 +670,51 @@ test('approve-builds works after removing an unrelated dependency (#13891)', asy
   expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
 })
 
+test('installing additional dependencies preserves ignoredBuilds of existing packages (#9240, #9313)', async () => {
+  const project = prepare({})
+
+  const firstPkg = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const secondPkg = '@pnpm.e2e/install-script-example'
+  const nonScriptPkg = 'is-positive'
+
+  const firstAdd = execPnpmSync(['add', `${firstPkg}@1.0.0`])
+  expect(firstAdd.status).toBe(1)
+  expect(firstAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  let modulesManifest = project.readModulesManifest()
+  let ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
+  expect(ignoredNames).toContain(firstPkg)
+
+  const secondAdd = execPnpmSync(['add', `${nonScriptPkg}@1.0.0`])
+  expect(secondAdd.status).toBe(1)
+  expect(secondAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  modulesManifest = project.readModulesManifest()
+  ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
+  expect(ignoredNames).toContain(firstPkg)
+  expect(ignoredNames).not.toContain(nonScriptPkg)
+
+  const thirdAdd = execPnpmSync(['add', `${secondPkg}@1.0.0`])
+  expect(thirdAdd.status).toBe(1)
+  expect(thirdAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  modulesManifest = project.readModulesManifest()
+  ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
+  expect(ignoredNames).toContain(firstPkg)
+  expect(ignoredNames).toContain(secondPkg)
+
+  const approve = execPnpmSync(['approve-builds', '--all'])
+  expect(approve.status).toBe(0)
+  expect(approve.stdout.toString()).not.toContain('There are no packages awaiting approval')
+  expect(fs.existsSync(`node_modules/${firstPkg}/generated-by-preinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${firstPkg}/generated-by-postinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${secondPkg}/generated-by-install.js`)).toBeTruthy()
+
+  const wsManifest = await readWorkspaceManifest(process.cwd())
+  expect(wsManifest!.allowBuilds?.[firstPkg]).toBe(true)
+  expect(wsManifest!.allowBuilds?.[secondPkg]).toBe(true)
+})
+
 // Which projects run their own lifecycle scripts is decided by the
 // mutated-importer list the command layer builds: the projects the
 // command was pointed at, plus the workspace root, which the recursive
