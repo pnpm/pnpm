@@ -260,7 +260,10 @@ fn reuse_global_engine(
 
 /// Whether an existing global slot at `install_dir` can be reused for
 /// `version` instead of reinstalling: it records the target version and,
-/// for native engines, its wrapper's platform binary relinks cleanly.
+/// for native engines, its wrapper's platform binary relinks cleanly. A
+/// JavaScript engine must pass [`assert_javascript_pnpm_runs`], as a fresh
+/// install does, since Node.js may be gone or the slot damaged since it was
+/// installed.
 ///
 /// The relink is best-effort *on the reuse decision only* — it does not
 /// weaken any check. [`link_exe_platform_binary`]'s wrapper-containment
@@ -269,7 +272,7 @@ fn reuse_global_engine(
 /// reports that refusal as "not reusable" (returning `false`) instead of
 /// propagating it as a hard error, so the caller falls through to a fresh
 /// install rather than aborting the whole self-update. Nothing from the
-/// rejected slot is linked or executed: the fresh install downloads and
+/// rejected slot is linked: the fresh install downloads and
 /// signature-verifies the engine into a new self-contained slot (see
 /// `verify_pnpm_engine_identity` in the `self-update` handler), and the
 /// rejected slot is never returned.
@@ -282,7 +285,11 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
     if installed_version(install_dir, package.name).as_deref() != Some(version) {
         return false;
     }
-    !package.links_native_binary || link_exe_platform_binary(install_dir, package.name).is_ok()
+    if package.links_native_binary {
+        link_exe_platform_binary(install_dir, package.name).is_ok()
+    } else {
+        assert_javascript_pnpm_runs(install_dir, package.name, version).is_ok()
+    }
 }
 
 /// Whether `version` can be installed at all. False for versions whose

@@ -231,14 +231,7 @@ fn x64_musl_runs_the_javascript_pnpm_before_pnpm_exe_shipped_a_musl_binary() {
 #[test]
 fn a_javascript_engine_that_cannot_start_is_not_finalized() {
     let install_dir = tempfile::tempdir().expect("create install dir");
-    let package_dir = package_dir(install_dir.path(), PNPM_PACKAGE_NAME);
-    fs::create_dir_all(package_dir.join("bin")).expect("create package dir");
-    fs::write(
-        package_dir.join("package.json"),
-        r#"{"name":"pnpm","version":"10.34.4","bin":{"pnpm":"bin/pnpm.cjs"}}"#,
-    )
-    .expect("write manifest");
-    fs::write(package_dir.join("bin/pnpm.cjs"), "process.exit(1)\n").expect("write bin");
+    write_javascript_engine_bin(install_dir.path(), "10.34.4", "process.exit(1)\n");
     let package = PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false };
 
     let err = finalize_engine_install(install_dir.path(), package, "10.34.4").unwrap_err();
@@ -576,11 +569,36 @@ fn reuse_global_engine_skips_pnpm_exe_where_the_javascript_pnpm_is_wanted() {
     assert!(reused.is_none(), "the native engine is not reused");
 
     let install_dir = seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "11.26.0", false);
+    write_javascript_engine_bin(&install_dir, "11.26.0", "process.exit(0)\n");
     let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "11.26.0")
         .expect("scan the global packages dir")
         .expect("the JavaScript pnpm is reused");
     assert_eq!(reused.package_name, PNPM_PACKAGE_NAME);
     assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_skips_a_javascript_pnpm_that_cannot_start() {
+    let javascript_pnpm = pnpm_package_to_install_on("10.34.4", "linux", "x64", "musl");
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    let install_dir = seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "10.34.4", false);
+    write_javascript_engine_bin(&install_dir, "10.34.4", "process.exit(1)\n");
+
+    let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "10.34.4")
+        .expect("scan the global packages dir");
+
+    assert!(reused.is_none(), "a JavaScript pnpm that cannot start is not reused");
+}
+
+/// Give a seeded JavaScript engine a `pnpm` bin running `script`.
+fn write_javascript_engine_bin(install_dir: &std::path::Path, version: &str, script: &str) {
+    let package_dir = package_dir(install_dir, PNPM_PACKAGE_NAME);
+    fs::create_dir_all(package_dir.join("bin")).expect("create bin dir");
+    fs::write(package_dir.join("bin/pnpm.cjs"), script).expect("write bin");
+    let manifest =
+        format!(r#"{{"name":"pnpm","version":"{version}","bin":{{"pnpm":"bin/pnpm.cjs"}}}}"#);
+    fs::write(package_dir.join("package.json"), manifest).expect("write manifest");
 }
 
 #[cfg(unix)]
