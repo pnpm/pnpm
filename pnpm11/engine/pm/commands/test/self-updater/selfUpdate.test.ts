@@ -265,7 +265,7 @@ test('self-update replaces a standalone pnpm.exe in the global bin directory', a
   expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm'))).toBe(false)
 })
 
-async function runOnWindows<T> (fn: () => Promise<T>): Promise<T> {
+async function runOnWindows<Result> (fn: () => Promise<Result>): Promise<Result> {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')
   if (platform == null) throw new Error('Expected process.platform to be an own property')
   Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })

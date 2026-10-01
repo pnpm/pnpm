@@ -23,6 +23,7 @@ import semver from 'semver'
 
 import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall, unlinkReplacedPnpmInstalls } from './installPnpm.js'
 import { resolvePnpmVersion } from './resolvePnpmVersion.js'
+import { linkReplacingRetiredExecutable, retireStandaloneExecutable } from './retireStandaloneExecutable.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -420,75 +421,6 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
     return fs.existsSync(path.resolve(path.dirname(shShim), target))
   }
   return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
-}
-
-// A standalone pnpm executable copied into a directory on PATH (pnpm v10
-// installed it into pnpmHomeDir). Windows prefers pnpm.exe over the pnpm.cmd
-// shim that self-update links, so a leftover one keeps running the old version.
-const STANDALONE_EXECUTABLE = 'pnpm.exe'
-const RETIRED_EXECUTABLE_SUFFIX = '.retired'
-
-interface RetiredExecutable {
-  executable: string
-  retired: string
-}
-
-// Windows refuses to delete a running executable but lets it be renamed, so
-// the executable is renamed out of the way of the shims. A native pnpm v12
-// shim named pnpm carries a sidecar and is not a leftover.
-async function retireStandaloneExecutable (dir: string): Promise<RetiredExecutable | undefined> {
-  await removeRetiredExecutables(dir)
-  const executable = path.join(dir, STANDALONE_EXECUTABLE)
-  if (!fs.existsSync(executable) || fs.existsSync(path.join(dir, '.pnpm-shim-v1-pnpm-target'))) {
-    return undefined
-  }
-  const retired = path.join(dir, `.${STANDALONE_EXECUTABLE}.${process.pid}${RETIRED_EXECUTABLE_SUFFIX}`)
-  await fs.promises.rename(executable, retired)
-  return { executable, retired }
-}
-
-// The retired executable is put back when linking fails, so the directory
-// keeps a working pnpm. One that is still running stays until a later
-// self-update removes it.
-async function linkReplacingRetiredExecutable (retired: RetiredExecutable | undefined, link: () => Promise<unknown>): Promise<void> {
-  try {
-    await link()
-  } catch (linkError: unknown) {
-    if (retired != null) {
-      try {
-        await fs.promises.rename(retired.retired, retired.executable)
-      } catch (restoreError: unknown) {
-        const reason = isError(restoreError) ? restoreError.message : String(restoreError)
-        throw new PnpmError('SELF_UPDATE_RESTORE_FAILED', `Linking the updated pnpm failed, and ${retired.executable} could not be restored from ${retired.retired}: ${reason}`, { cause: linkError })
-      }
-    }
-    throw linkError
-  }
-  if (retired != null) {
-    await removeRetiredExecutable(retired.retired)
-  }
-}
-
-async function removeRetiredExecutables (dir: string): Promise<void> {
-  let fileNames: string[]
-  try {
-    fileNames = await fs.promises.readdir(dir)
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
-    throw err
-  }
-  await Promise.all(fileNames
-    .filter((fileName) => fileName.startsWith(`.${STANDALONE_EXECUTABLE}.`) && fileName.endsWith(RETIRED_EXECUTABLE_SUFFIX))
-    .map((fileName) => removeRetiredExecutable(path.join(dir, fileName))))
-}
-
-async function removeRetiredExecutable (retired: string): Promise<void> {
-  try {
-    await fs.promises.rm(retired, { force: true })
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EBUSY')) return
-    throw err
-  }
 }
 
 // The marker is absent when the shim is not from cmd-shim or pre-dates it.
