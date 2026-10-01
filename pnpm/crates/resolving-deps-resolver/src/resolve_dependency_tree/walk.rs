@@ -93,10 +93,11 @@ use super::{
     },
     update_scope::{is_update_target, update_unpins_edge},
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, SharedWorkspaceWantedKey,
-        WantedKey, WorkspaceFinalWantedKey, claim_children_owner, claim_children_warmup,
-        insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
-        recorded_children_match, register_peer_dep_names,
+        ChildSpec, ChildrenOwnerClaim, ChildrenRecording, RecordedChildrenContext,
+        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
+        claim_children_warmup, insert_tree_node, is_current_children_owner,
+        make_non_owner_nodes_lazy, record_children, recorded_children_match,
+        register_peer_dep_names,
     },
 };
 
