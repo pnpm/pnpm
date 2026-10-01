@@ -10,9 +10,9 @@ use std::collections::HashMap;
 /// has been created. pacquet's frozen-lockfile snapshot doesn't
 /// preserve npm-alias keys at this layer, so `realName` mirrors `name`
 /// except for an alias, whose resolved package name it carries. A
-/// `link:` dep carries its resolved target in `linkedFrom`, as pnpm v11
-/// did, so the reporter renders `<- <path>` and an embedder's
-/// `hideLinkedPkgsDiff` can recognize it. The optional `id` / `latest`
+/// `link:` dep carries its resolved target in `linkedFrom`, so the
+/// reporter renders `<- <path>` and an embedder's `hideLinkedPkgsDiff`
+/// can recognize it. The optional `id` / `latest`
 /// fields are out of pacquet's reach today and skip from the wire shape
 /// rather than serializing as JSON `null`.
 pub(super) fn emit_root_added<Reporter: self::Reporter>(

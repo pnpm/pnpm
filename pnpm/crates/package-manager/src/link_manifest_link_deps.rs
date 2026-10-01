@@ -219,9 +219,9 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
                 added: AddedRoot {
                     name: alias.to_string(),
                     real_name: alias.to_string(),
-                    // The target travels in `linked_from`, as in
-                    // pnpm v11, so the summary renders `<- <path>` and
-                    // an embedder's `hideLinkedPkgsDiff` matches it.
+                    // The target travels in `linked_from`, so the
+                    // summary renders `<- <path>` and an embedder's
+                    // `hideLinkedPkgsDiff` matches it.
                     version: None,
                     dependency_type: Some(dependency_type_of(group)),
                     id: None,

@@ -422,9 +422,9 @@ fn bins_of_manifest_linked_deps_are_linked() {
     drop(dir);
 }
 
-/// A manifest-linked dep reports its target in `linkedFrom`, as pnpm v11
-/// did, so the summary renders `<- <path>` and an embedder's
-/// `hideLinkedPkgsDiff` can leave it out.
+/// A manifest-linked dep reports its target in `linkedFrom`, so the
+/// summary renders `<- <path>` and an embedder's `hideLinkedPkgsDiff` can
+/// leave it out.
 #[test]
 fn reports_link_target_as_linked_from() {
     use pnpm_reporter::{AddedRoot, LogEvent, Reporter, RootLog, RootMessage};

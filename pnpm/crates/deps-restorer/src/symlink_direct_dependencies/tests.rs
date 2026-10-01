@@ -466,8 +466,8 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
         .into_owned();
     assert_eq!(prefix, expected_prefix.as_str());
     assert_eq!(added.name, "shared");
-    // The target travels in `linked_from` (as pnpm v11's `linkedFrom`),
-    // which `hideLinkedPkgsDiff` relies on to tell a linked entry apart.
+    // The target travels in `linked_from`, which `hideLinkedPkgsDiff`
+    // relies on to tell a linked entry apart.
     assert_eq!(added.version, None);
     let expected_from = workspace_root
         .join("packages")
