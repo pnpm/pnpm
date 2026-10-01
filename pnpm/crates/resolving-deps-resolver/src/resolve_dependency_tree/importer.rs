@@ -13,8 +13,8 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 
 use super::{
-    ResolveDependencyTreeError, WantedSpec, catalogs::catalog_anchor, dependency_meta_is_injected,
-    resolve_catalog_specifiers,
+    DependencySpec, ResolveDependencyTreeError, catalogs::catalog_anchor,
+    dependency_meta_is_injected, resolve_catalog_specifiers,
 };
 
 /// Collect the names of the importer manifest's `optionalDependencies`
@@ -85,7 +85,7 @@ pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
     auto_install_peers: bool,
     catalogs: &Catalogs,
     workspace_dir: Option<&Path>,
-) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError>
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
@@ -115,15 +115,13 @@ where
             order.push(name);
         }
     }
-    let wanted: Vec<WantedSpec> = order
+    let wanted: Vec<DependencySpec> = order
         .into_iter()
-        .map(|name| {
-            (
-                name.to_string(),
-                ranges[name].to_string(),
-                optional_names.contains(name),
-                injected_names.contains(name),
-            )
+        .map(|name| DependencySpec {
+            alias: name.to_string(),
+            range: ranges[name].to_string(),
+            optional: optional_names.contains(name),
+            injected: injected_names.contains(name),
         })
         .collect();
     let consumer_dir = manifest.path().parent();

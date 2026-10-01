@@ -8,7 +8,7 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 
-use super::{ResolveDependencyTreeError, WantedSpec};
+use super::{DependencySpec, ResolveDependencyTreeError};
 
 /// The anchor for an entry the manifest in `consumer_dir` dereferences.
 /// An install with no `pnpm-workspace.yaml` declares no catalogs, so
@@ -31,15 +31,20 @@ pub(super) fn catalog_anchor<'a>(
 /// entry surfaces immediately rather than masquerading as a
 /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
-    specs: Vec<WantedSpec>,
+    specs: Vec<DependencySpec>,
     catalogs: &Catalogs,
     anchor: CatalogAnchor<'_>,
-) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     specs
         .into_iter()
-        .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name, range, catalogs, anchor)
-                .map(|(name, range)| (name, range, optional, injected))
+        .map(|spec| {
+            resolve_catalog_specifier(spec.alias, spec.range, catalogs, anchor)
+                .map(|(alias, range)| DependencySpec {
+                    alias,
+                    range,
+                    optional: spec.optional,
+                    injected: spec.injected,
+                })
         })
         .collect()
 }

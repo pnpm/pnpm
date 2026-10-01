@@ -1,5 +1,5 @@
 use super::{
-    Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, ChildrenRecording, DirectDep, FrontierNode,
+    Arc, BTreeMap, ChildrenOwnerClaim, ChildrenRecording, DependencySpec, DirectDep, FrontierNode,
     HashMap, HashSet, NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
     RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
     SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
@@ -186,7 +186,7 @@ pub(super) fn record_walked_children(
     ctx: &TreeCtx,
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
-    child_specs: &[ChildSpec],
+    child_specs: &[DependencySpec],
     seeds: &[NodeSeed],
 ) -> (TreeChildren, ChildrenRecording) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
@@ -194,7 +194,7 @@ pub(super) fn record_walked_children(
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
-        .map(|(name, _, optional, _)| (name.as_str(), *optional))
+        .map(|spec| (spec.alias.as_str(), spec.optional))
         .collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();

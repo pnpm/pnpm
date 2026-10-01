@@ -72,7 +72,7 @@ use crate::{
 };
 
 use super::{
-    CatalogAnchor, ResolveDependencyTreeError, SkippedOptionalDependency,
+    CatalogAnchor, DependencySpec, ResolveDependencyTreeError, SkippedOptionalDependency,
     SkippedOptionalDependencyParent,
     catalogs::{catalog_anchor, resolve_catalog_specifier},
     lock_recoverable,
@@ -90,9 +90,9 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, ChildrenRecording, PackageRegistration,
-        RecordedChildrenContext, SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey,
-        claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
+        ChildrenOwnerClaim, ChildrenRecording, PackageRegistration, RecordedChildrenContext,
+        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
+        claim_children_warmup, insert_tree_node, is_current_children_owner,
         make_non_owner_nodes_lazy, record_children, recorded_children_match,
         register_peer_dep_names,
     },
@@ -244,7 +244,7 @@ struct FrontierNode {
 /// their own packages on to the next level.
 struct SeededNode {
     node: FrontierNode,
-    child_specs: Arc<Vec<ChildSpec>>,
+    child_specs: Arc<Vec<DependencySpec>>,
     seeds: Vec<NodeSeed>,
     grandchild_overlay: Option<Arc<PreferredVersionsOverlay>>,
     grandchild_pkg_aliases: Arc<ParentPkgAliases>,

@@ -1,4 +1,4 @@
-use crate::resolve_dependency_tree::{WantedSpec, importer_direct_wanted_specs};
+use crate::resolve_dependency_tree::{DependencySpec, importer_direct_wanted_specs};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use rustc_hash::FxHashSet as HashSet;
 use std::collections::BTreeMap;
@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use super::{ResolveImporterError, ResolveImporterOptions};
 
 pub(crate) struct DirectSeeds {
-    pub(crate) initial_wanted: Vec<WantedSpec>,
+    pub(crate) initial_wanted: Vec<DependencySpec>,
     pub(crate) wanted_specifier_by_alias: BTreeMap<String, String>,
     pub(crate) parent_pkg_aliases: HashSet<String>,
 }
@@ -30,11 +30,11 @@ impl DirectSeeds {
         Ok(Self {
             wanted_specifier_by_alias: initial_wanted
                 .iter()
-                .map(|(alias, range, ..)| (alias.clone(), range.clone()))
+                .map(|spec| (spec.alias.clone(), spec.range.clone()))
                 .collect(),
             parent_pkg_aliases: initial_wanted
                 .iter()
-                .map(|(alias, ..)| alias.clone())
+                .map(|spec| spec.alias.clone())
                 .collect(),
             initial_wanted,
         })

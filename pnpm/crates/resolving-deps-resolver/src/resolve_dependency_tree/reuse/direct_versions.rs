@@ -1,6 +1,7 @@
 use super::{
-    Arc, BTreeMap, DirectDepVersions, HashSet, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx, WantedSpec, lock_recoverable,
+    Arc, BTreeMap, DependencySpec, DirectDepVersions, HashSet, PkgName, PkgNameVerPeer,
+    ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx,
+    lock_recoverable,
 };
 
 /// Record the importer direct deps whose manifest specifier differs from
@@ -17,13 +18,13 @@ use super::{
 pub(crate) fn record_changed_direct_deps(
     ctx: &TreeCtx,
     importer_id: &str,
-    wanted: &[WantedSpec],
+    wanted: &[DependencySpec],
 ) -> HashSet<PkgName> {
     let lockfile = ctx.workspace.reuse.lockfile.as_deref();
     let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
     let bucket = changed.entry(importer_id.to_string()).or_default();
-    for (alias, spec, _optional, _injected) in wanted {
+    for DependencySpec { alias, range: spec, .. } in wanted {
         let unchanged = prior
             .and_then(|importer| importer_dep_specifier(importer, alias))
             .is_some_and(|recorded| {

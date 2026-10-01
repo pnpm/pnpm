@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    CatalogAnchor, Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
-    dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
+    CatalogAnchor, DependencySpec, Deprecation, ResolveDependencyTreeError,
+    catalogs::resolve_catalog_specifier, dependency_is_injected, lock_recoverable,
+    tree_ctx::TreeCtx,
 };
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
@@ -148,7 +149,7 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
 /// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
 pub(super) fn extract_children(
     result: &pnpm_resolving_resolver_base::ResolveResult,
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
     let bundled = bundled_dependency_names(manifest);
@@ -160,17 +161,22 @@ pub(super) fn extract_children(
         let dependency_positions: HashMap<String, usize> = out
             .iter()
             .enumerate()
-            .map(|(index, (name, ..))| (name.clone(), index))
+            .map(|(index, spec)| (spec.alias.clone(), index))
             .collect();
         for spec in optional {
-            match dependency_positions.get(&spec.0) {
-                Some(&index) => out[index].2 = true,
+            match dependency_positions.get(&spec.alias) {
+                Some(&index) => out[index].optional = true,
                 None => out.push(spec),
             }
         }
     }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
-        out.push((name.to_string(), specifier, false, false));
+        out.push(DependencySpec {
+            alias: name.to_string(),
+            range: specifier,
+            optional: false,
+            injected: false,
+        });
     }
     out.sort_unstable();
     Ok(out)
@@ -210,7 +216,7 @@ fn collect_deps(
     optional: bool,
     parent: &str,
     bundled: &HashSet<&str>,
-    out: &mut Vec<ChildSpec>,
+    out: &mut Vec<DependencySpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
     let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
     for (name, range) in map {
@@ -224,12 +230,12 @@ fn collect_deps(
             if bundled.contains(name.as_str()) {
                 continue;
             }
-            out.push((
-                name.clone(),
-                range_str.to_string(),
+            out.push(DependencySpec {
+                alias: name.clone(),
+                range: range_str.to_string(),
                 optional,
-                dependency_is_injected(manifest, name),
-            ));
+                injected: dependency_is_injected(manifest, name),
+            });
         }
     }
     Ok(())

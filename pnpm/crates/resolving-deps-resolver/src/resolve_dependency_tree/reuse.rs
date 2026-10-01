@@ -35,7 +35,7 @@ use crate::{
 };
 
 use super::{
-    ResolveDependencyTreeError, UpdateDepth, UpdateReuseScope, WantedSpec, lock_recoverable,
+    DependencySpec, ResolveDependencyTreeError, UpdateDepth, UpdateReuseScope, lock_recoverable,
     manifest::{
         build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
     },
