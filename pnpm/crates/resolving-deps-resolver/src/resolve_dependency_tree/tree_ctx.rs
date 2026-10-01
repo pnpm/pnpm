@@ -527,28 +527,44 @@ impl TreeCtx {
         out
     }
 
-    /// [`crate::hoist_peers::peer_version_tiers`] for each of
+    /// [`crate::hoist_peers::optional_peer_version_tiers`] for each of
     /// `names`, from the `locked` versions and the versions this run has
     /// resolved into the settled reachable tree.
-    pub(crate) fn peer_version_tiers<'name>(
+    pub(crate) fn optional_peer_version_tiers<'name>(
         &self,
         locked: &HashMap<String, HashSet<String>>,
         names: impl Iterator<Item = &'name str>,
     ) -> HashMap<String, Vec<HashSet<String>>> {
-        let run = self.workspace.run_preferred_versions();
+        let names: Vec<&str> = names.collect();
+        let mut resolved = self.run_resolved_versions(names.iter().copied());
         let mut out = HashMap::default();
         for name in names {
-            let resolved: HashSet<String> = run.versions
-                .get(name)
-                .into_iter()
-                .flat_map(|bucket| bucket.keys().cloned())
-                .collect();
-            let tiers = crate::hoist_peers::peer_version_tiers(locked.get(name), resolved);
+            let resolved = resolved.remove(name).unwrap_or_default();
+            let tiers = crate::hoist_peers::optional_peer_version_tiers(locked.get(name), resolved);
             if !tiers.is_empty() {
                 out.insert(name.to_string(), tiers);
             }
         }
         out
+    }
+
+    /// The versions of each of `names` that this run has resolved into the
+    /// settled reachable tree. A name the run has not resolved is absent.
+    pub(crate) fn run_resolved_versions<'name>(
+        &self,
+        names: impl Iterator<Item = &'name str>,
+    ) -> HashMap<String, HashSet<String>> {
+        let run = self.workspace.run_preferred_versions();
+        names
+            .filter_map(|name| {
+                let versions: HashSet<String> = run.versions
+                    .get(name)
+                    .into_iter()
+                    .flat_map(|bucket| bucket.keys().cloned())
+                    .collect();
+                (!versions.is_empty()).then(|| (name.to_string(), versions))
+            })
+            .collect()
     }
 }
 
