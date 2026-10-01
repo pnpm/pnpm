@@ -61,6 +61,17 @@ describe('selectProjectsToVerify', () => {
     })).toStrictEqual(['a', 'c'])
   })
 
+  test('keeps a selected project the install selection does not reach', async () => {
+    // `root` is selected by --workspace-root, which adds no selector to the
+    // install's filter arguments.
+    const allProjectsGraph = createGraph({ root: [], a: ['b'], b: [] })
+    expect(await selectNames({
+      filter: ['a', '!b'],
+      allProjectsGraph,
+      selectedProjectsGraph: pickGraph(allProjectsGraph, ['a', 'root']),
+    })).toStrictEqual(['a', 'root'])
+  })
+
   test('returns the selection as it is without a workspace graph', async () => {
     const selectedProjectsGraph = createGraph({ a: ['b'] })
     expect(await selectProjectsToVerify({ selectedProjectsGraph })).toBe(selectedProjectsGraph)

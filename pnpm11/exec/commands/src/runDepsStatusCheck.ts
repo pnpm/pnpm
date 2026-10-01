@@ -33,16 +33,18 @@ export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Proje
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
 }
 
-export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Promise<void> {
-  // the following flags are always the default values during `pnpm run` and `pnpm exec`,
-  // so they may not match the workspace state after `pnpm install --prod|--no-optional`
-  const ignoredWorkspaceStateSettings = ['dev', 'optional', 'production'] satisfies Array<keyof WorkspaceStateSettings>
-  opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
+export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions): Promise<void> {
+  // The expanded selection has to reach the recheck `lockedInstall` makes
+  // after waiting for another install as well.
+  const opts: RunDepsStatusCheckOptions = {
+    ...commandOpts,
+    // the following flags are always the default values during `pnpm run` and `pnpm exec`,
+    // so they may not match the workspace state after `pnpm install --prod|--no-optional`
+    ignoredWorkspaceStateSettings: ['dev', 'optional', 'production'] satisfies Array<keyof WorkspaceStateSettings>,
+    selectedProjectsGraph: await selectProjectsToVerify(commandOpts),
+  }
 
-  const { upToDate, issue, workspaceState } = await checkDepsStatus({
-    ...opts,
-    selectedProjectsGraph: await selectProjectsToVerify(opts),
-  })
+  const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (await installNotRequired(opts, upToDate, workspaceState)) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]

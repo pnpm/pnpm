@@ -157,8 +157,9 @@ impl<'a> RecursiveSelection<'a> {
 ///
 /// That install selects the dependencies of the selected projects, so a
 /// workspace dependency without a modules directory leaves the selection out
-/// of date too. A negated selector reaches the install unchanged, so a project
-/// it excludes is not required. With a lockfile per project the spawned
+/// of date too. A negated selector reaches the install unchanged, so a
+/// dependency it excludes is not required; `project_dirs` themselves always
+/// are. With a lockfile per project the spawned
 /// install selects nothing beyond the project it installs, so the selection
 /// alone is what the check inspects. `prefix` is where the command's path
 /// selectors resolve.
@@ -177,15 +178,17 @@ pub fn projects_to_verify<'dirs>(
             .map(Path::to_path_buf)
             .collect());
     }
+    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
     let mut projects = projects_with_workspace_dependencies(
-        project_dirs,
+        project_dirs.iter().copied(),
         selection.full_graph(),
         selection.prod_all.as_ref(),
         &selection.prod_only_selected,
     );
     if has_negated_selector(config) {
-        let installed = install_selected_projects(selection, config, prefix)?;
-        projects.retain(|project_dir| installed.contains(project_dir));
+        let mut kept = install_selected_projects(selection, config, prefix)?;
+        kept.extend(project_dirs.iter().map(|dir| dir.to_path_buf()));
+        projects.retain(|project_dir| kept.contains(project_dir));
     }
     Ok(projects)
 }

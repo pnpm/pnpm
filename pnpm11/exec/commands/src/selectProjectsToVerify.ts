@@ -20,8 +20,9 @@ export type ProjectsToVerifyOptions = Partial<Pick<Config,
  * The projects the dependency status check holds to the modules-directory
  * requirement: the selected projects and the workspace projects they depend
  * on, which the install the gate spawns selects too
- * (https://github.com/pnpm/tasks/issues/45). A project a negated selector
+ * (https://github.com/pnpm/tasks/issues/45). A dependency a negated selector
  * excludes is left out, because that selector reaches the install unchanged.
+ * The selected projects themselves always stay.
  *
  * A project selected only by `--filter-prod` reads its edges from the
  * prod-pruned graph, so its dev-only workspace dependencies are not required.
@@ -41,7 +42,7 @@ export async function selectProjectsToVerify (opts: ProjectsToVerifyOptions): Pr
   }
   if (!hasNegatedSelector(opts)) return projects
   const installedDirs = await selectInstalledProjectDirs({ ...opts, allProjectsGraph })
-  return Object.fromEntries(Object.entries(projects).filter(([dir]) => installedDirs.has(dir)))
+  return Object.fromEntries(Object.entries(projects).filter(([dir]) => installedDirs.has(dir) || selectedProjectsGraph[dir as ProjectRootDir] != null))
 }
 
 /**
