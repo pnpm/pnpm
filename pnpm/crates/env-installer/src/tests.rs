@@ -164,6 +164,8 @@ fn options<'a>(
             strict_pkg_content_check: true,
             package_import_method: pnpm_config::PackageImportMethod::default(),
         },
+        store_index: None,
+        store_index_writer: None,
         root_dir,
 
         registries: &harness.registries,
