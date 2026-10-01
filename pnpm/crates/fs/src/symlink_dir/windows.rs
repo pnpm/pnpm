@@ -215,7 +215,7 @@ fn inspect_failed(
     match fs::remove_dir(staging) {
         Ok(()) => io::Error::new(
             inspect_error.kind(),
-            format!("failed to inspect junction destination {link:?}{context}: {inspect_error}",),
+            format!("failed to inspect junction destination {link:?}{context}: {inspect_error}"),
         ),
         Err(cleanup) => io::Error::other(format!(
             "failed to inspect junction destination {link:?}{context}: {inspect_error}; \

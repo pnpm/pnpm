@@ -49,14 +49,9 @@ impl<'parent> FileCreation<'parent> {
         super::retry_on_fd_pressure(open)
     }
 
+    #[cfg(unix)]
     #[inline]
     pub(super) fn grant(&self, file: &File) -> io::Result<()> {
-        #[cfg(unix)]
-        return self.mode.grant(file);
-        #[cfg(not(unix))]
-        {
-            let _ = file;
-            Ok(())
-        }
+        self.mode.grant(file)
     }
 }

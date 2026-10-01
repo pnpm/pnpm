@@ -228,6 +228,7 @@ fn ensure(
     let creation = FileCreation::new(file_path.parent().unwrap_or_else(|| Path::new(".")), mode);
     match creation.open(file_path) {
         Ok(mut file) => {
+            #[cfg(unix)]
             creation
                 .grant(&file)
                 .map_err(|error| EnsureFileError::WriteFile {
@@ -510,6 +511,7 @@ pub fn create_exclusive_temp_file(
         let tmp_path = temp_path_in(dir, base);
         match creation.open(&tmp_path) {
             Ok(file) => {
+                #[cfg(unix)]
                 if let Err(error) = creation.grant(&file) {
                     drop(file);
                     let _ = fs::remove_file(&tmp_path);

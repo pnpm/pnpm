@@ -28,6 +28,7 @@ fn javascript_launcher_preserves_arguments_and_relocates() {
     .unwrap();
     let moved = temporary.path().join("moved");
     fs::rename(&root, &moved).unwrap();
+    let moved = dunce::canonicalize(moved).unwrap();
     let output = Command::new("node")
         .arg(moved.join(".bin/tool"))
         .args(["a b", "$(false)", "'quoted'"])
