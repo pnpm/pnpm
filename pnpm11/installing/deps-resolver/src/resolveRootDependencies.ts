@@ -33,7 +33,7 @@ interface PeerHoisting {
   importerResults: PkgAddressesByImportersWithoutPeers[]
   importers: ImporterToResolve[]
   /** See `HoistPeersOptions.lockfileOnlyVersions`. */
-  lockfileOnlyVersions?: Record<string, Set<string>>
+  lockfileOnlyVersions?: Map<string, Set<string>>
   publishedBy?: Date
   /** The versions of the workspace root's direct dependencies. */
   rootDepVersions: Map<string, string>

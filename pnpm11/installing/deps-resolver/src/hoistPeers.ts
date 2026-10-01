@@ -23,7 +23,7 @@ export interface HoistPeersOptions {
    * hoisting started. Taken once, before any importer hoists, so that the
    * pick does not depend on the order in which concurrent importers resolve.
    */
-  lockfileOnlyVersions?: Record<string, Set<string>>
+  lockfileOnlyVersions?: Map<string, Set<string>>
   workspaceRootDeps: HoistableRootDep[]
   /**
    * Applies `overrides` to a peer nobody declares as a dependency. Such a
@@ -77,7 +77,7 @@ function pickHoistedPeerSpec (
   }
   return pickPreferredPeerSpec(preferredSelectors, {
     autoInstallPeers: opts.autoInstallPeers,
-    lockfileOnlyVersions: opts.lockfileOnlyVersions?.[peerName],
+    lockfileOnlyVersions: opts.lockfileOnlyVersions?.get(peerName),
     range,
   })
 }
@@ -132,14 +132,15 @@ function maxSatisfyingDemotingLockfileOnly (versions: string[], lockfileOnly: Se
 
 /**
  * The versions of each package that only the wanted lockfile pins. Resolving a
- * version records it as a plain selector, so these are the weighted ones.
+ * version records it as a plain selector, so these are the weighted ones. A
+ * `Map`, because package names such as `constructor` are also prototype keys.
  */
-export function getLockfileOnlyVersions (preferredVersions: PreferredVersions): Record<string, Set<string>> {
-  const lockfileOnlyVersions: Record<string, Set<string>> = {}
+export function getLockfileOnlyVersions (preferredVersions: PreferredVersions): Map<string, Set<string>> {
+  const lockfileOnlyVersions = new Map<string, Set<string>>()
   for (const [name, selectors] of Object.entries(preferredVersions)) {
     const versions = Object.keys(selectors).filter((version) => typeof selectors[version] !== 'string')
     if (versions.length > 0) {
-      lockfileOnlyVersions[name] = new Set(versions)
+      lockfileOnlyVersions.set(name, new Set(versions))
     }
   }
   return lockfileOnlyVersions
