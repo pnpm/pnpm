@@ -1,18 +1,18 @@
 import * as dp from '@pnpm/deps.path'
-import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
+import type { LockfileObject, PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type DepPath, type ProjectId } from '@pnpm/types'
 
 /**
- * The importers a previous install materialized a package for. The current
- * lockfile lists every importer of the wanted lockfile, including those a
- * selected install left out, so the importer entry alone does not say that
- * anything of it is on disk.
+ * The importers a previous install materialized: every package the current
+ * lockfile records for them is in it. The current lockfile lists every
+ * importer of the wanted lockfile, including those a selected install left
+ * out, and a left-out importer can share some packages with a selected one.
  */
 export function pickMaterializedImporterIds<Id extends string> (currentLockfile: LockfileObject, importerIds: Id[]): Id[] {
-  const packages = currentLockfile.packages ?? {}
-  return importerIds.filter((importerId) =>
-    recordedDepPaths(currentLockfile.importers[importerId as string as ProjectId]).some((depPath) => packages[depPath] != null)
-  )
+  return importerIds.filter((importerId) => {
+    const depPaths = recordedDepPaths(currentLockfile, importerId)
+    return depPaths.length > 0 && allInstalled(depPaths, currentLockfile.packages)
+  })
 }
 
 /**
@@ -20,13 +20,17 @@ export function pickMaterializedImporterIds<Id extends string> (currentLockfile:
  * package for, the only ones the previous hoisted layout can be rebuilt from.
  */
 export function pickResolvableImporterIds<Id extends string> (currentLockfile: LockfileObject, importerIds: Id[]): Id[] {
-  const packages = currentLockfile.packages ?? {}
   return importerIds.filter((importerId) =>
-    recordedDepPaths(currentLockfile.importers[importerId as string as ProjectId]).every((depPath) => packages[depPath] != null)
+    allInstalled(recordedDepPaths(currentLockfile, importerId), currentLockfile.packages)
   )
 }
 
-function recordedDepPaths (snapshot: ProjectSnapshot | undefined): DepPath[] {
+function allInstalled (depPaths: DepPath[], packages: PackageSnapshots | undefined): boolean {
+  return depPaths.every((depPath) => packages?.[depPath] != null)
+}
+
+function recordedDepPaths (currentLockfile: LockfileObject, importerId: string): DepPath[] {
+  const snapshot: ProjectSnapshot | undefined = currentLockfile.importers[importerId as ProjectId]
   if (snapshot == null) return []
   return DEPENDENCIES_FIELDS.flatMap((depType) =>
     Object.entries(snapshot[depType] ?? {})

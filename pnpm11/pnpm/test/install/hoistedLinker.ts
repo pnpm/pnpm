@@ -226,7 +226,7 @@ test('filtered installs of different projects with node-linker=hoisted add up', 
     },
     {
       location: 'project-3',
-      package: { name: 'project-3', version: '1.0.0', dependencies: { '@pnpm.e2e/foo': '100.0.0' } },
+      package: { name: 'project-3', version: '1.0.0', dependencies: { 'is-positive': '1.0.0', '@pnpm.e2e/foo': '100.0.0' } },
     },
   ])
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2', 'project-3'], nodeLinker: 'hoisted' })

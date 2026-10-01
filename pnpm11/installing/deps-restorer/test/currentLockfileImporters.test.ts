@@ -13,14 +13,15 @@ const currentLockfile: LockfileObject = {
     ['packages/a' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
     ['packages/b' as ProjectId]: { specifiers: { bar: '1.0.0' }, dependencies: { bar: '1.0.0' } },
     ['packages/c' as ProjectId]: { specifiers: { a: 'link:../a' }, dependencies: { a: 'link:../a' } },
+    ['packages/d' as ProjectId]: { specifiers: { foo: '1.0.0', bar: '1.0.0' }, dependencies: { foo: '1.0.0', bar: '1.0.0' } },
   },
   packages: {
     ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-foo' } },
   },
 }
-const importerIds = ['.', 'packages/a', 'packages/b', 'packages/c']
+const importerIds = ['.', 'packages/a', 'packages/b', 'packages/c', 'packages/d']
 
-test('pickMaterializedImporterIds() picks the importers with an installed package', () => {
+test('pickMaterializedImporterIds() picks the importers whose packages are all installed', () => {
   expect(pickMaterializedImporterIds(currentLockfile, importerIds)).toStrictEqual(['packages/a'])
 })
 

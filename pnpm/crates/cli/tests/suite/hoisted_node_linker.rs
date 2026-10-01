@@ -660,7 +660,8 @@ fn filtered_install_keeps_the_packages_of_installed_projects_with_hoisted_linker
 }
 
 /// A filtered install of one project after a filtered install of another
-/// installs its own dependencies and keeps the other's.
+/// installs its own dependencies and keeps the other's. A project neither
+/// install selected stays out even when it shares a dependency with one.
 #[test]
 fn filtered_installs_of_different_projects_add_up_with_hoisted_linker() {
     let fixture = WorkspaceFixture::new();
@@ -678,7 +679,10 @@ fn filtered_installs_of_different_projects_add_up_with_hoisted_linker() {
     fixture.project(
         "project-3",
         "project-3",
-        ManifestDeps { prod: &[("@foo/no-deps", "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[("is-positive", "1.0.0"), ("@foo/no-deps", "1.0.0")],
+            ..Default::default()
+        },
     );
 
     fixture.run(["--filter", "project-1", "install"]);
