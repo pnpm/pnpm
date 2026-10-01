@@ -219,3 +219,10 @@ test('loads resolved absolute paths from a stored tool', context => {
   setup.write('config.cjs', 'module.exports = 7')
   assert.equal(setup.run("import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const tool = require('tool'); console.log(tool.load(require.resolve('value')), tool.load(require.resolve('./config.cjs')))").stdout.trim(), '42 7')
 })
+
+test('reads package types from manifests with a UTF-8 BOM', context => {
+  const setup = fixture(context)
+  setup.add('example@1', { 'package.json': '\uFEFF' + esm, 'index.js': 'export default 42' })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.equal(setup.run("import value from 'example'; console.log(value)").stdout.trim(), '42')
+})
