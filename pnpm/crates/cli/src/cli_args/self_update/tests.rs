@@ -247,6 +247,36 @@ fn self_update_replaces_a_standalone_executable_in_the_pnpm_home_dir() {
 }
 
 #[test]
+fn self_update_refreshes_the_shims_an_earlier_update_left_in_the_pnpm_home_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+    let first = seed_new_engine_with_bin(&root.path().join("first"));
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &first).unwrap());
+    let second = seed_new_engine_with_bin(&root.path().join("second"));
+
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &second).unwrap());
+
+    let shim = fs::read_to_string(pnpm_home_dir.join("pnpm")).unwrap();
+    eprintln!("SHIM:\n{shim}");
+    assert!(shim.contains("/second/"));
+    assert!(!shim.contains("/first/"));
+}
+
+#[test]
+fn self_update_ignores_a_pnpm_home_dir_shim_whose_target_is_gone() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join("pnpm"), "#!/bin/sh\n# cmd-shim-target=../removed/pnpm\n")
+        .unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+}
+
+#[test]
 fn self_update_removes_an_executable_retired_from_the_pnpm_home_dir_by_an_earlier_update() {
     let root = tempfile::tempdir().unwrap();
     let pnpm_home_dir = root.path().join("pnpm-home");

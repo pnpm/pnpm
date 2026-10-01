@@ -46,13 +46,14 @@ pub(super) fn link_into_global_bin(
 }
 
 pub(super) const LEGACY_HOME_DIR_WARNING: &str = "Detected a pnpm v10 installation layout at \
-    PNPM_HOME. The pnpm executable there was replaced with shims of the new version, but pnpm \
-    expects bins in PNPM_HOME/bin. Run \"pnpm setup\" to add PNPM_HOME/bin to your PATH.";
+    PNPM_HOME. The pnpm shims there now point to the new version, but pnpm expects bins in \
+    PNPM_HOME/bin. Run \"pnpm setup\" to add PNPM_HOME/bin to your PATH.";
 
 /// pnpm v10 put the standalone executable straight into `PNPM_HOME` and that
 /// directory on PATH, while an update links into `PNPM_HOME/bin`. Replace
-/// that executable with shims of the updated pnpm, so PATH reaches the
-/// update. Returns whether `pnpm_home_dir` had that layout.
+/// that executable, or the shims an earlier update replaced it with, with
+/// shims of the updated pnpm, so PATH reaches the update. Returns whether
+/// `pnpm_home_dir` had that layout.
 pub(super) fn link_into_legacy_home_dir(
     pnpm_home_dir: &Path,
     installed: &install_pnpm::InstallPnpmResult,
@@ -62,11 +63,34 @@ pub(super) fn link_into_legacy_home_dir(
         return Ok(false);
     }
     let _lock = crate::cli_args::global_bin_lock::acquire_global_bin_lock(pnpm_home_dir)?;
-    let Some(retired) = retire_standalone_executable(pnpm_home_dir)? else {
+    let retired = retire_standalone_executable(pnpm_home_dir)?;
+    if retired.is_none() && !has_legacy_home_dir_shim(pnpm_home_dir)? {
         return Ok(false);
-    };
-    finish_retirement(Some(retired), link_pnpm_bins(installed, pnpm_home_dir))?;
+    }
+    finish_retirement(retired, link_pnpm_bins(installed, pnpm_home_dir))?;
     Ok(true)
+}
+
+/// A `pnpm` shim whose target is gone is a leftover, not a layout PATH
+/// still uses (pnpm/pnpm#12496). Only the POSIX shim names its target, so
+/// `pnpm.cmd` counts when that one is absent. A native shim named `pnpm` is
+/// left to [`refresh_global_shims`].
+fn has_legacy_home_dir_shim(pnpm_home_dir: &Path) -> miette::Result<bool> {
+    if crate::shim_dispatch::native_shim_target(pnpm_home_dir, "pnpm").into_diagnostic()?.is_some()
+    {
+        return Ok(false);
+    }
+    match fs::read_to_string(pnpm_home_dir.join("pnpm")) {
+        Ok(content) => Ok(content
+            .lines()
+            .rev()
+            .find_map(|line| line.strip_prefix("# cmd-shim-target="))
+            .is_none_or(|target| pnpm_home_dir.join(target).exists())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Ok(pnpm_home_dir.join("pnpm.cmd").is_file())
+        }
+        Err(_) => Ok(true),
+    }
 }
 
 fn link_pnpm_bins(
