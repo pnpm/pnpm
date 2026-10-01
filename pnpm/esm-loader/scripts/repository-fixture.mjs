@@ -20,13 +20,9 @@ export async function prepareRepository (repo, options = {}) {
   inheritWorkspaceDependencies(state.manifest)
   if (options.fullRepository) copyDirectory(repo, path.join(root, 'repo'))
   else copyWorkspaces(state)
-  const require = createRequire(new URL('../../../pnpm11/pnpm/package.json', import.meta.url))
-  await require('esbuild').build({
-    entryPoints: [fileURLToPath(new URL('../register.mjs', import.meta.url))],
-    bundle: true, platform: 'node', format: 'esm', outfile: path.join(root, 'loader.mjs'),
-    banner: { js: "import { createRequire as bootstrapRequire } from 'node:module'; const require = bootstrapRequire(import.meta.url);" },
-  })
+  await bundleLoader(root)
   fs.writeFileSync(path.join(root, '.pnpm-store.json'), JSON.stringify(state.manifest))
+  fs.writeFileSync(path.join(root, 'repository-source.json'), JSON.stringify({ repo, packages: Object.fromEntries([...state.ids].map(([directory, id]) => [id, directory])) }))
   fs.writeFileSync(path.join(root, 'missing-dependencies.json'), JSON.stringify(state.missing, null, 2))
   fs.writeFileSync(path.join(root, 'repo/run-jest.cjs'), "require('jest').run(process.argv.slice(2))\n")
   assertIsolated(root)
@@ -87,7 +83,7 @@ function walkFiles (directory, prefix = '') {
   return files
 }
 
-function findDependency (issuer, name) {
+export function findDependency (issuer, name) {
   for (let directory = issuer; ; directory = path.dirname(directory)) {
     const filename = path.join(directory, 'node_modules', name, 'package.json')
     if (fs.existsSync(filename)) return fs.realpathSync(path.dirname(filename))
@@ -136,4 +132,13 @@ function inheritWorkspaceDependencies (manifest) {
     const parent = workspaces.findLast(candidate => entry.root.startsWith(candidate.root + path.sep))
     if (parent) entry.dependencies = { ...parent.dependencies, ...entry.dependencies }
   }
+}
+
+export async function bundleLoader (root) {
+  const require = createRequire(new URL('../../../pnpm11/pnpm/package.json', import.meta.url))
+  await require('esbuild').build({
+    entryPoints: [fileURLToPath(new URL('../register.mjs', import.meta.url))],
+    bundle: true, platform: 'node', format: 'esm', outfile: path.join(root, 'loader.mjs'),
+    banner: { js: "import { createRequire as bootstrapRequire } from 'node:module'; const require = bootstrapRequire(import.meta.url);" },
+  })
 }

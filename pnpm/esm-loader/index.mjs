@@ -24,6 +24,9 @@ export function createStoreHooks (manifestURL) {
       if (!owner) return nextResolve(specifier, context)
       const request = fileRequest(specifier, context)
       if (request === null) return nextResolve(specifier, context)
+      if (owner.resolution === 'node' && (!request.filename || !within(store.virtualRoot, request.filename))) {
+        return nextResolve(specifier, context)
+      }
       if (request.filename && (!owner.stored || !request.relative) && !within(store.virtualRoot, request.filename)) {
         return nextResolve(specifier, context)
       }
