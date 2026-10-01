@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createEnvLockfile, extractMainDocument, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import type { ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
@@ -177,7 +178,7 @@ test('readEnvLockfile reads an env-only lockfile and writeWantedLockfile keeps i
 
   await expect(readEnvLockfile(dir)).resolves.toStrictEqual(envLockfileWithConfigDep())
 
-  await writeWantedLockfile(dir, { lockfileVersion: '9.0', importers: { '.': { specifiers: {} } } })
+  await writeWantedLockfile(dir, { lockfileVersion: '9.0', importers: { ['.' as ProjectId]: { specifiers: {} } } })
 
   const written = fs.readFileSync(lockfilePath, 'utf8')
   expect(written.startsWith(combined)).toBe(true)
