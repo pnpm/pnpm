@@ -190,12 +190,23 @@ async function loadWantedLockfile (
     ? await readWantedFrozen(opts.lockfileDir, lockfileOpts)
     : await readWantedNonFrozen(opts.lockfileDir, lockfileOpts)
 
-  // A lockfile that records only the env document has no main document yet,
-  // which is what pnpm writes for a project before its first install.
-  if (opts.frozenLockfile && wantedFileExists && result.lockfile == null && await readEnvLockfile(opts.lockfileDir) == null) {
+  if (opts.frozenLockfile && wantedFileExists && result.lockfile == null && !(await hasEnvDocument(opts.lockfileDir))) {
     throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${path.join(opts.lockfileDir, WANTED_LOCKFILE)}" is broken: it is empty`)
   }
   return result
+}
+
+/**
+ * A lockfile that records only the env document has no main document yet,
+ * which is what pnpm writes for a project before its first install. An env
+ * document that does not parse leaves the lockfile broken.
+ */
+async function hasEnvDocument (lockfileDir: string): Promise<boolean> {
+  try {
+    return await readEnvLockfile(lockfileDir) != null
+  } catch {
+    return false
+  }
 }
 
 async function readWantedFrozen (lockfileDir: string, lockfileOpts: LockfileFsOptions): Promise<LoadedWantedResult> {

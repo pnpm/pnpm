@@ -70,7 +70,8 @@ pub fn extract_main_document(content: &str) -> Cow<'_, str> {
 /// - A leading `---\n` with no following separator is an env-only file:
 ///   a lockfile with no dependencies whose empty main document was
 ///   trimmed off together with the separator. Its env document is
-///   everything after the leading marker, less a closing `---` line.
+///   everything after the leading marker, less a closing `---` line, as
+///   long as it has the root importer's `configDependencies` key.
 #[must_use]
 pub fn extract_env_document(content: &str) -> Option<Cow<'_, str>> {
     match normalize_lockfile_content(content) {
@@ -123,9 +124,9 @@ fn read_first_yaml_document_in_chunks(
     }
 }
 
-/// The env document of a file read to its end without finding a separator:
-/// the whole file, when it opens with the start marker. A withheld carriage
-/// return is the file's last byte.
+/// The env document of a file read to its end without finding a separator,
+/// when it opens with the start marker. A withheld carriage return is the
+/// file's last byte.
 fn document_without_separator(
     mut content: Vec<u8>,
     withheld_carriage_return: bool,
@@ -138,7 +139,7 @@ fn document_without_separator(
     }
     let content = String::from_utf8(content)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    Ok(Some(env_only_document(&content[YAML_DOCUMENT_START.len()..]).to_string()))
+    Ok(env_only_document(&content[YAML_DOCUMENT_START.len()..]).map(str::to_string))
 }
 
 /// The document body between the start marker and the separator that closes
@@ -240,22 +241,24 @@ fn main_document_of(content: &str) -> &str {
 
 fn env_document_of(content: &str) -> Option<&str> {
     let rest = content.strip_prefix(YAML_DOCUMENT_START)?;
-    Some(match rest.find(YAML_DOCUMENT_SEPARATOR) {
-        Some(idx) => &rest[..idx],
+    match rest.find(YAML_DOCUMENT_SEPARATOR) {
+        Some(idx) => Some(&rest[..idx]),
         None => env_only_document(rest),
-    })
+    }
 }
 
 /// The env document of a file that has no main document after it: `rest`
 /// up to where the separator would start, so a closing `---` line that has
-/// no newline after it is dropped too.
-fn env_only_document(rest: &str) -> &str {
-    if rest == "---" || rest == "---\n" {
-        return "";
-    }
-    rest.strip_suffix("\n---")
+/// no newline after it is dropped too. Only a body carrying the
+/// `configDependencies` key that every env document's root importer has
+/// qualifies, so a main lockfile that merely opens with `---` is not
+/// mistaken for one.
+fn env_only_document(rest: &str) -> Option<&str> {
+    let document = rest
+        .strip_suffix("\n---")
         .or_else(|| rest.strip_suffix('\n'))
-        .unwrap_or(rest)
+        .unwrap_or(rest);
+    document.contains("configDependencies:").then_some(document)
 }
 
 #[cfg(test)]

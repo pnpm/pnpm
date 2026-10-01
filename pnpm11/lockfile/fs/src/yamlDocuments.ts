@@ -135,15 +135,21 @@ export function extractEnvDocument (content: string): string | null {
 
 /**
  * The env document of a lockfile whose empty main document was trimmed off
- * together with the separator: `rest` up to where the separator would start, so a closing `---` line that
- * has no newline after it is dropped too.
+ * together with the separator: `rest` up to where the separator would start, so
+ * a closing `---` line that has no newline after it is dropped too. Only a body
+ * carrying the `configDependencies` key that every env document's root importer
+ * has qualifies, so a main lockfile that merely opens with `---` is not
+ * mistaken for one.
  */
-function envOnlyDocument (rest: string): string {
-  if (rest === '---' || rest === '---\n') return ''
+function envOnlyDocument (rest: string): string | null {
+  let document = rest
   for (const end of ['\n---', '\n']) {
-    if (rest.endsWith(end)) return rest.slice(0, -end.length)
+    if (rest.endsWith(end)) {
+      document = rest.slice(0, -end.length)
+      break
+    }
   }
-  return rest
+  return document.includes('configDependencies:') ? document : null
 }
 
 /**

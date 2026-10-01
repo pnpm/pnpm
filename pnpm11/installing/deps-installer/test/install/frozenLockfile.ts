@@ -484,3 +484,15 @@ test('frozen-lockfile: installation fails if the value of auto-install-peers cha
     install(manifest, testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
   ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
 })
+
+// Commands that run before the first install record the env document alone.
+// https://github.com/pnpm/pnpm/issues/16477
+test('frozen-lockfile: a project with no dependencies installs from a lockfile with only the env document', async () => {
+  prepareEmpty()
+  const envDocument = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    configDependencies: {}\n\npackages: {}\n\nsnapshots: {}\n"
+  fs.writeFileSync(WANTED_LOCKFILE, `---\n${envDocument}`)
+
+  await install({}, testDefaults({ frozenLockfile: true }))
+
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8').startsWith(`---\n${envDocument}---\n`)).toBe(true)
+})

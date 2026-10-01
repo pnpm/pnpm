@@ -892,3 +892,37 @@ fn a_dev_install_records_every_group_and_materializes_only_development() {
         1,
     );
 }
+
+/// Commands that run before the first install record the env document
+/// alone. A frozen install of a project with no dependencies accepts it,
+/// even with the trailing separator trimmed off, and keeps it in front of
+/// the main document it writes (<https://github.com/pnpm/pnpm/issues/16477>).
+#[test]
+fn frozen_install_accepts_a_lockfile_with_only_the_env_document() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"name":"app","dependencies":{}}"#)
+        .expect("write package.json");
+    let env_document = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    configDependencies: {}\n\npackages: {}\n\nsnapshots: {}\n";
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    fs::write(&lockfile_path, format!("---\n{env_document}")).expect("write pnpm-lock.yaml");
+
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("pnpm-lock.yaml:\n{lockfile}");
+    assert!(
+        lockfile.starts_with(&format!("---\n{env_document}---\n")),
+        "the env document must lead the lockfile",
+    );
+    drop((root, mock_instance));
+}

@@ -165,6 +165,25 @@ ${separator}`)
   expect(context.existsWantedLockfile).toBe(false)
 })
 
+test('readLockfiles() reports a lockfile whose only document does not parse as broken', async () => {
+  const lockfileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
+  await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), '---\nimporters: [\n  configDependencies:\n')
+
+  await expect(readLockfiles({
+    autoInstallPeers: true,
+    excludeLinksFromLockfile: false,
+    peersSuffixMaxLength: 1000,
+    ci: true,
+    force: false,
+    frozenLockfile: true,
+    projects: [{ id: '.' as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir }],
+    lockfileDir,
+    registry: 'https://registry.npmjs.org/',
+    useLockfile: true,
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_BROKEN_LOCKFILE' })
+})
+
 test('readLockfiles() ignores incompatible lockfile in CI when frozenLockfile is false', async () => {
   const lockfileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
   await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), 'lockfileVersion: 1.0\nimporters:\n  .:\n    specifiers: {}\n')

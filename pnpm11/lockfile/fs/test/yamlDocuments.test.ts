@@ -13,6 +13,8 @@ import {
 
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
+const ENV_ONLY = 'importers:\n  .:\n    configDependencies: {}'
+
 describe('streamReadFirstYamlDocument', () => {
   test('returns the first document content from a two-document file', async () => {
     const dir = temporaryDirectory()
@@ -52,9 +54,9 @@ describe('streamReadFirstYamlDocument', () => {
   test('reads a file that starts with --- but has no second separator as env-only', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')
-    fs.writeFileSync(filePath, '---\nfoo: bar\n')
+    fs.writeFileSync(filePath, `---\n${ENV_ONLY}\n`)
     const result = await streamReadFirstYamlDocument(filePath)
-    expect(result).toBe('foo: bar')
+    expect(result).toBe(ENV_ONLY)
   })
 
   test('handles file with BOM prefix', async () => {
@@ -152,18 +154,23 @@ describe('extractEnvDocument', () => {
   })
 
   test('reads a file that starts with --- but has no separator as env-only', () => {
-    expect(extractEnvDocument('---\nfoo: bar\n')).toBe('foo: bar')
-    expect(extractEnvDocument('---\r\nfoo: bar\r\n')).toBe('foo: bar')
-    expect(extractEnvDocument('---\nfoo: bar\n---')).toBe('foo: bar')
-    expect(extractEnvDocument('---\nfoo: bar---')).toBe('foo: bar---')
-    expect(extractEnvDocument('---\n---\n')).toBe('')
+    expect(extractEnvDocument(`---\n${ENV_ONLY}\n`)).toBe(ENV_ONLY)
+    expect(extractEnvDocument(`---\n${ENV_ONLY}\n`.replace(/\n/g, '\r\n'))).toBe(ENV_ONLY)
+    expect(extractEnvDocument(`---\n${ENV_ONLY}\n---`)).toBe(ENV_ONLY)
+    expect(extractEnvDocument(`---\n${ENV_ONLY}`)).toBe(ENV_ONLY)
+  })
+
+  test('returns null for a main lockfile that starts with --- and has no separator', () => {
+    expect(extractEnvDocument("---\nlockfileVersion: '9.0'\nimporters:\n  .: {}\n")).toBeNull()
+    expect(extractEnvDocument('---\nfoo: bar\n')).toBeNull()
+    expect(extractEnvDocument('---\n---\n')).toBeNull()
     expect(extractEnvDocument('---')).toBeNull()
   })
 
   test('agrees with streamReadFirstYamlDocument on an env-only file', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')
-    for (const content of ['---\nfoo: bar\n', '---\nfoo: bar\n---', '---\n---\n', '---']) {
+    for (const content of [`---\n${ENV_ONLY}\n`, `---\n${ENV_ONLY}\n---`, '---\nfoo: bar\n', '---\n---\n', '---']) {
       fs.writeFileSync(filePath, content)
       // eslint-disable-next-line no-await-in-loop -- each case rewrites the same file
       expect(await streamReadFirstYamlDocument(filePath, 2)).toBe(extractEnvDocument(content))
