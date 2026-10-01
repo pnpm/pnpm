@@ -3,7 +3,7 @@ use crate::_utils::write_executable;
 use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use serde_json::json;
 use std::{fs, time::Duration};
 
@@ -272,6 +272,103 @@ fn run_empty_start_script_hits_server_js_guard() {
         stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER")
             || stderr.contains("Missing script start or file server.js"),
         "should surface NO_SCRIPT_OR_SERVER:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/4655>
+#[test]
+fn run_missing_script_hints_at_filter_after_script_name() {
+    assert_filter_hint(&["--filter", "@local/b", "--watch"], "--filter");
+    assert_filter_hint(&["-F", "@local/b"], "--filter");
+    assert_filter_hint(&["-F@local/b"], "--filter");
+    assert_filter_hint(&["--filter-prod=@local/b"], "--filter-prod");
+}
+
+/// A script name that would need quoting is replaced in the suggested
+/// command, so pasting it cannot run shell syntax.
+#[test]
+fn run_missing_script_hint_does_not_echo_an_unsafe_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["run", "$(touch pwned)", "--filter", "@local/b"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "a missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, r#""pnpm --filter <selector> run <script>""#);
+
+    drop(root);
+}
+
+/// The shorthand falls back to `exec` when no script matches, so the hint
+/// belongs on `exec`'s error once no executable matches either.
+#[test]
+fn shorthand_missing_script_and_command_hints_at_filter_after_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["categories", "--filter", "sitemaps"])
+        .output()
+        .expect("spawn pacquet categories");
+    assert!(!output.status.success(), "a missing command must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL"),
+        "should keep the exec error code:\n{stderr}",
+    );
+    assert_diagnostic_contains(&stderr, r#""pnpm --filter <selector> run categories""#);
+
+    drop(root);
+}
+
+/// An executable that matches the name still runs and receives the filter
+/// option as an argument.
+#[test]
+fn shorthand_runs_a_matching_bin_despite_a_trailing_filter() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let echo_args = if cfg!(windows) { "bin-args %*" } else { r#"bin-args "$@""# };
+    write_fake_bin(&workspace.join("node_modules/.bin"), "categories", echo_args);
+
+    let output = pacquet
+        .with_args(["categories", "--filter", "sitemaps"])
+        .output()
+        .expect("spawn pacquet categories");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the bin must run:\n{output:?}");
+    assert!(
+        stdout.contains("bin-args --filter sitemaps"),
+        "the bin must receive the filter option:\n{stdout}",
+    );
+
+    drop(root);
+}
+
+fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["run", "build"])
+        .with_args(script_args)
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "a missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_NO_SCRIPT"), "should surface NO_SCRIPT:\n{stderr}");
+    assert_diagnostic_contains(&stderr, &format!(r#""pnpm {filter_option} <selector> run build""#));
+    assert!(
+        !stderr.contains("@local/b"),
+        "{script_args:?} should not echo the selector:\n{stderr}",
     );
 
     drop(root);
