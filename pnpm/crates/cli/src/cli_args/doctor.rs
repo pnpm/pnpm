@@ -8,6 +8,7 @@
 //! moving its dist-tags, so what gates a release is what ships to users.
 
 use crate::cli_args::ping::PingArgs;
+use crate::process::Command;
 use clap::Args;
 use pnpm_config::{Config, PNPM_VERSION};
 use serde::Serialize;
@@ -15,7 +16,6 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::Command,
     time::Instant,
 };
 
@@ -231,7 +231,7 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
             r#"Run "pnpm setup" to add it to your shell configuration."#,
         );
     };
-    let path_dirs: Vec<PathBuf> = std::env::split_paths(&path_var).collect();
+    let path_dirs: Vec<PathBuf> = pnpm_fs::split_paths(&path_var).collect();
 
     let Some(bin_dir) = candidates.iter().find(|dir| dir_is_in_path(dir, &path_dirs)) else {
         return CheckResult::warn(
@@ -333,6 +333,11 @@ fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(source, link)
 }
 
+#[cfg(target_os = "wasi")]
+fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
+    pnpm_fs::create_symlink(source, link, false)
+}
+
 #[cfg(windows)]
 fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
     std::os::windows::fs::symlink_file(source, link)
@@ -410,7 +415,7 @@ fn last_line(text: &str) -> String {
 }
 
 fn can_write_to_dir(dir: &Path) -> bool {
-    let probe = dir.join(format!(".pnpm-doctor-write-{}", std::process::id()));
+    let probe = dir.join(format!(".pnpm-doctor-write-{}", pnpm_fs::process_id()));
     let written = fs::write(&probe, b"").is_ok();
     let _ = fs::remove_file(&probe);
     written

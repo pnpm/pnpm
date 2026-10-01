@@ -41,6 +41,7 @@ enum InheritMode {
 
 /// Create `path` exclusively, readable only by its owner on Unix: the mode
 /// `NamedTempFile` would have given it.
+#[cfg(not(target_os = "wasi"))]
 fn create_private_file(path: &Path) -> io::Result<fs::File> {
     let mut options = fs::OpenOptions::new();
     options
@@ -50,6 +51,11 @@ fn create_private_file(path: &Path) -> io::Result<fs::File> {
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
     options.open(path)
+}
+
+#[cfg(target_os = "wasi")]
+fn create_private_file(path: &Path) -> io::Result<fs::File> {
+    crate::wasi_fs::create_new(path, 0o600)
 }
 
 fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result<()> {
@@ -88,7 +94,14 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
         tmp.as_file()
             .set_permissions(std::fs::Permissions::from_mode(mode))?;
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "wasi")]
+    if matches!(inherit, InheritMode::Yes)
+        && let Ok(mode) = crate::wasi_fs::path_mode(path)
+        && mode & libc::S_IFMT != libc::S_IFLNK
+    {
+        crate::wasi_fs::set_file_mode(tmp.as_file(), mode & 0o7777)?;
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
     let _ = inherit;
     let mut pending = Some(tmp.into_temp_path());
     crate::retry::retry_transient_file_locks(|| {

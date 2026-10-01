@@ -21,7 +21,6 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tempfile::NamedTempFile;
 
 /// Basename of the workspace-state file, written inside `node_modules/`.
 pub const WORKSPACE_STATE_FILENAME: &str = ".pnpm-workspace-state-v1.json";
@@ -269,7 +268,7 @@ pub fn update_workspace_state(
         serde_json::to_string_pretty(state).map_err(UpdateWorkspaceStateError::SerializeJson)?;
     serialized.push('\n');
     let write = |source| UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source };
-    let mut temp = NamedTempFile::new_in(parent).map_err(write)?;
+    let mut temp = pnpm_fs::private_named_tempfile_in(parent).map_err(write)?;
     temp.write_all(serialized.as_bytes()).map_err(write)?;
     let temp = temp.into_temp_path();
     pnpm_fs::rename_with_retry(&temp, &file_path).map_err(write)

@@ -1,6 +1,9 @@
+#[cfg(target_family = "wasm")]
+mod wasm;
 use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 use clap::Args;
 use derive_more::{Display, Error};
+#[cfg(not(target_family = "wasm"))]
 use dialoguer::{Confirm, MultiSelect};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, WorkspaceSettings, decided_allow_builds};
@@ -8,11 +11,14 @@ use pnpm_modules_yaml::{Host, write_modules_manifest};
 use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
 use pnpm_reporter::{Reporter, emit_global_warning};
 use pnpm_workspace_manifest_writer::set_allow_builds_clearing_legacy;
+#[cfg(not(target_family = "wasm"))]
+use std::io::IsTerminal;
 use std::{
     collections::{BTreeMap, HashSet},
-    io::IsTerminal,
     path::Path,
 };
+#[cfg(target_family = "wasm")]
+use wasm::{confirm_builds, prompt_for_builds};
 
 /// Approve dependencies for running scripts during installation.
 #[derive(Debug, Args)]
@@ -245,6 +251,7 @@ fn partition_params(params: &[String], automatically_ignored_builds: &[String]) 
 
 /// Show the checkbox prompt and return the chosen package names, or `None`
 /// when the prompt is interrupted.
+#[cfg(not(target_family = "wasm"))]
 fn prompt_for_builds(
     automatically_ignored_builds: &[String],
 ) -> miette::Result<Option<Vec<String>>> {
@@ -267,6 +274,7 @@ fn prompt_for_builds(
 
 /// Ask the user to confirm building `build_packages`. Defaults to "no",
 /// matching pnpm's `confirm({ default: false })`.
+#[cfg(not(target_family = "wasm"))]
 fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
     Confirm::new()
         .with_prompt(format!(
@@ -339,6 +347,11 @@ pub(crate) async fn prompt_approve_install_builds<Reporter: self::Reporter + 'st
         return Ok(());
     }
     let auto_approve = std::env::var("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS").as_deref() == Ok("1");
+    #[cfg(target_family = "wasm")]
+    if !auto_approve && !wasm::stdin_is_terminal()? {
+        return Ok(());
+    }
+    #[cfg(not(target_family = "wasm"))]
     if !auto_approve && !std::io::stdin().is_terminal() {
         return Ok(());
     }

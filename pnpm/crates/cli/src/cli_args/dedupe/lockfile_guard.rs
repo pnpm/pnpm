@@ -3,13 +3,12 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tempfile::NamedTempFile;
 
 /// Atomically write `content` to `path` via temp-file + rename, so the write
 /// does not follow symlinks and cannot produce a torn file on crash.
 fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = NamedTempFile::new_in(dir)
+    let mut tmp = pnpm_fs::private_named_tempfile_in(dir)
         .into_diagnostic()
         .wrap_err("creating temp file for atomic write")?;
     tmp.write_all(content)

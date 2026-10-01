@@ -65,7 +65,9 @@ pub(super) fn modules_consistent_with(
 /// and only for an isolated or hoisted tree outside a global virtual store,
 /// whose links point into a store that registers projects by their path.
 pub(crate) fn tree_may_move(config: &Config, node_linker: NodeLinker) -> bool {
-    cfg!(unix) && !config.enable_global_virtual_store && node_linker != NodeLinker::Pnp
+    cfg!(any(unix, target_os = "wasi"))
+        && !config.enable_global_virtual_store
+        && node_linker != NodeLinker::Pnp
 }
 
 /// Whether a tree that moved with its project keeps working where it is now:

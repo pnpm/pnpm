@@ -33,6 +33,10 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
         let rel = relative_target_for(original, link);
         std::os::unix::fs::symlink(&rel, link)
     }
+    #[cfg(target_os = "wasi")]
+    {
+        crate::wasi_fs::symlink(&relative_target_for(original, link), link)
+    }
     #[cfg(windows)]
     {
         let original = to_native_separators(original);
@@ -52,6 +56,11 @@ pub fn symlink_dir_with_contents(original: &Path, contents: &Path, link: &Path) 
     {
         let _ = original;
         std::os::unix::fs::symlink(contents, link)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        let _ = original;
+        crate::wasi_fs::symlink(contents, link)
     }
     #[cfg(windows)]
     {
@@ -137,7 +146,7 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
 ///
 /// The unlink follows the retry policy of [`crate::rename_with_retry`].
 pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     return retry_transient_file_locks(|| std::fs::remove_file(link));
     #[cfg(windows)]
     return retry_transient_file_locks(|| std::fs::remove_dir(link));
@@ -574,7 +583,7 @@ mod windows {
 
     fn junction_staging_path(link: &Path) -> PathBuf {
         let id = JUNCTION_STAGING_ID.fetch_add(1, Ordering::Relaxed);
-        let name = format!(".pnpm-junction-{}-{id}", std::process::id());
+        let name = format!(".pnpm-junction-{}-{id}", crate::process_id());
         link.with_file_name(name)
     }
 }

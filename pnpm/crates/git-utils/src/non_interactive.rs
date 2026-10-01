@@ -10,7 +10,9 @@
 //! `GIT_SSH`, or the `core.sshCommand` git setting in effect in the
 //! directory the invocation runs in.
 
-use std::{env, path::Path, process::Command};
+use crate::process::Command;
+
+use std::{env, path::Path};
 
 use crate::RunCommand;
 

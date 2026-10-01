@@ -55,6 +55,7 @@ packages:
   - pnpm/npm/pnpm
   - pnpm/tasks/registry-mock
   - pnpm/tasks/ecosystem-e2e/webcontainer
+  - pnpm/wasm
   - pnpr/npm/pnpr
   - '!**/example/**'
   - '!**/test/**'
@@ -108,6 +109,10 @@ tasks:
   test-pkgs-branch:
     concurrencyGroup: typescript
   build:pnpm:
+    concurrencyGroup: cargo
+  build:pnpm:wasm:
+    concurrencyGroup: cargo
+  build:wasm-runtime-probe:
     concurrencyGroup: cargo
   check:rust:
     concurrencyGroup: cargo

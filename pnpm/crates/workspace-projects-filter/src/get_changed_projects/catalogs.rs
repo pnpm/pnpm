@@ -1,8 +1,8 @@
+use crate::process::Command;
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use indexmap::IndexMap;

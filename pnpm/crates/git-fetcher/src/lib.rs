@@ -15,6 +15,14 @@
 //! `prepare_package` lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_which as which;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use error::{GitFetcherError, PreparePackageError};
 pub use fetcher::{
     CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, cache_checkout_bundles,

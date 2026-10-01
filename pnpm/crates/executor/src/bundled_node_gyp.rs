@@ -41,7 +41,7 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
     static RESOLVED: OnceLock<Option<PathBuf>> = OnceLock::new();
     RESOLVED
         .get_or_init(|| {
-            let exe = std::env::current_exe().ok()?;
+            let exe = crate::current_executable().ok()?;
             bundled_node_gyp_bin_beside(&exe)
         })
         .as_deref()

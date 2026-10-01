@@ -691,7 +691,7 @@ impl Reporter for NdjsonReporter {
 
 fn write_record(buf: &mut Vec<u8>, event: &LogEvent) -> serde_json::Result<()> {
     let envelope =
-        Envelope { time: now_millis(), hostname: &HOSTNAME, pid: std::process::id(), event };
+        Envelope { time: now_millis(), hostname: &HOSTNAME, pid: crate::process_id(), event };
     serde_json::to_writer(buf, &envelope)
 }
 
@@ -734,13 +734,19 @@ pub trait GetHostName {
 
 /// Production implementation of the capability traits in this crate.
 ///
-/// Each trait method calls into the real underlying system facility (for
-/// [`GetHostName`], the `gethostname` syscall via the [`gethostname`] crate).
+/// Each trait method reads the underlying system facility or WASI host metadata.
 pub struct Host;
 
 impl GetHostName for Host {
     fn get_host_name() -> String {
-        gethostname::gethostname().to_string_lossy().into_owned()
+        #[cfg(not(target_family = "wasm"))]
+        {
+            gethostname::gethostname().to_string_lossy().into_owned()
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            std::env::var("PNPM_WASM_HOSTNAME").expect("WASI host must supply PNPM_WASM_HOSTNAME")
+        }
     }
 }
 
@@ -756,3 +762,8 @@ mod tests;
 mod progress;
 
 mod dependencies;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_wasm_host::process_id;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process::id as process_id;

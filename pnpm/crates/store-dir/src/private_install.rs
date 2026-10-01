@@ -116,7 +116,11 @@ impl StoreDir {
         let marker = dir.join(IN_USE_FILE);
         let in_use = pnpm_fs::open_secure_lock_file(&marker)
             .map_err(|error| PrivateInstallError::Create { path: marker, error })?;
-        let in_use = in_use.lock().is_ok().then_some(in_use);
+        #[cfg(not(target_os = "wasi"))]
+        let locked = in_use.lock();
+        #[cfg(target_os = "wasi")]
+        let locked = pnpm_fs::lock_file(&in_use, true);
+        let in_use = locked.is_ok().then_some(in_use);
         Ok(PrivateInstall { dir, in_use })
     }
 
@@ -201,7 +205,11 @@ fn is_in_use(dir: &Path) -> io::Result<bool> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(error),
     };
-    match in_use.try_lock() {
+    #[cfg(not(target_os = "wasi"))]
+    let locked = in_use.try_lock();
+    #[cfg(target_os = "wasi")]
+    let locked = pnpm_fs::try_lock_file(&in_use, true);
+    match locked {
         Ok(()) => Ok(false),
         Err(TryLockError::WouldBlock) => Ok(true),
         Err(TryLockError::Error(_)) => Ok(!is_older_than(dir, ABANDONED_AFTER)),

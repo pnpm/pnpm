@@ -54,12 +54,12 @@ use selection::{
     workspace_identity,
 };
 
+use crate::process::Command;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
     env,
     path::{Path, PathBuf},
-    process::Command,
     sync::Mutex,
     time::Instant,
 };

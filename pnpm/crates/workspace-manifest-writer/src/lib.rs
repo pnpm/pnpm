@@ -522,7 +522,7 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
     tmp.as_file().sync_all()?;
     tmp.persist(path).map_err(|err| err.error)?;

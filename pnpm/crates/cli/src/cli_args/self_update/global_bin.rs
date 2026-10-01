@@ -133,7 +133,7 @@ pub(super) fn retire_standalone_executable(
     }
     let retired = dir.join(format!(
         ".{STANDALONE_EXECUTABLE}.{}{RETIRED_EXECUTABLE_SUFFIX}",
-        std::process::id(),
+        pnpm_fs::process_id(),
     ));
     fs::rename(&executable, &retired)
         .into_diagnostic()

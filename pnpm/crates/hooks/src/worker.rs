@@ -14,12 +14,13 @@
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
+use crate::async_process::{Child, ChildStdin, ChildStdout, Command};
+use crate::process::Stdio;
 use crate::{FetcherCallback, FetcherCallbackSender, HookError};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     path::Path,
-    process::Stdio,
     sync::{
         Arc, Mutex as StdMutex,
         atomic::{AtomicU64, Ordering},
@@ -27,7 +28,6 @@ use std::{
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, ChildStdout, Command},
     sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };

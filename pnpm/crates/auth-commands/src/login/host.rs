@@ -29,10 +29,14 @@ impl FsWrite for Host {
 
 impl PromptInput for Host {
     fn prompt_input(message: &str) -> Result<String, dialoguer::Error> {
-        dialoguer::Input::<String>::new()
+        #[cfg(not(target_family = "wasm"))]
+        let result = dialoguer::Input::<String>::new()
             .with_prompt(message)
             .allow_empty(true)
-            .interact_text()
+            .interact_text();
+        #[cfg(target_family = "wasm")]
+        let result = pnpm_wasm_host::input(message, true).map_err(dialoguer::Error::IO);
+        result
     }
 }
 
@@ -42,10 +46,14 @@ impl PromptPassword for Host {
         // which returns an empty string on a bare Enter. Without it dialoguer
         // loops until non-empty, so pnpm's empty-password path
         // (`LOGIN_MISSING_CREDENTIALS`) would be unreachable.
-        dialoguer::Password::new()
+        #[cfg(not(target_family = "wasm"))]
+        let result = dialoguer::Password::new()
             .with_prompt(message)
             .allow_empty_password(true)
-            .interact()
+            .interact();
+        #[cfg(target_family = "wasm")]
+        let result = pnpm_wasm_host::password(message, true).map_err(dialoguer::Error::IO);
+        result
     }
 }
 

@@ -91,7 +91,7 @@ pub enum GitFetcherError {
         pnpm_network::redact_and_sanitize_multiline(stderr)
     )]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_EXEC_FAILED))]
-    GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
+    GitExec { operation: &'static str, stderr: String, status: crate::process::ExitStatus },
 
     /// The clone (or shallow fetch) of a git dependency failed. Carries
     /// the package the resolution belongs to, which [`Self::GitExec`]

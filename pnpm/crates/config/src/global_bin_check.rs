@@ -72,7 +72,7 @@ pub fn check_global_bin_dir(
 
 fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
     let real_global_bin_dir = fs::canonicalize(global_bin_dir).ok();
-    std::env::split_paths(path_env)
+    pnpm_fs::split_paths(path_env)
         .any(|dir| {
             dirs_equal(global_bin_dir, &dir)
                 || real_global_bin_dir.as_deref().is_some_and(|real| dirs_equal(real, &dir))
@@ -86,7 +86,7 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
 /// `PATH` change the user has seemingly already made. Elsewhere `%` is not
 /// expansion syntax, so the entry is taken literally.
 fn not_in_path_hint(path_env: &str) -> String {
-    let unexpanded = std::env::split_paths(path_env)
+    let unexpanded = pnpm_fs::split_paths(path_env)
         .map(|dir| dir.to_string_lossy().into_owned())
         .find(|dir| has_unexpanded_env_reference(dir));
     match unexpanded.filter(|_| cfg!(windows)) {
@@ -150,7 +150,7 @@ fn can_write_to_dir_and_exists(dir: &Path) -> bool {
         let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
         let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
         let probe =
-            dir.join(format!(".pacquet-write-probe-{}-{nanos:x}-{seq:x}", std::process::id()));
+            dir.join(format!(".pacquet-write-probe-{}-{nanos:x}-{seq:x}", pnpm_fs::process_id()));
         match fs::OpenOptions::new()
             .write(true)
             .create_new(true)

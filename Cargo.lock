@@ -4541,10 +4541,12 @@ dependencies = [
  "pipe-trait",
  "pnpm-config",
  "pnpm-fs",
+ "pnpm-http",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
  "pnpm-reporter",
+ "pnpm-wasm-host",
  "pnpm-workspace-manifest-writer",
  "pretty_assertions",
  "reqwest",
@@ -4670,6 +4672,7 @@ dependencies = [
  "pnpm-global",
  "pnpm-graph-hasher",
  "pnpm-hooks",
+ "pnpm-http",
  "pnpm-injected-deps-syncer",
  "pnpm-install-coordinator",
  "pnpm-local-spec",
@@ -4689,6 +4692,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-patching",
  "pnpm-pnpr-client",
+ "pnpm-process",
  "pnpm-publish",
  "pnpm-python-installer",
  "pnpm-python-resolver",
@@ -4706,6 +4710,8 @@ dependencies = [
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
  "pnpm-versioning",
+ "pnpm-wasm-host",
+ "pnpm-which",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
  "pnpm-workspace-projects-filter",
@@ -4760,6 +4766,7 @@ dependencies = [
  "rayon",
  "same-file",
  "serde_json",
+ "shell-words",
  "tempfile",
  "tracing",
  "walkdir",
@@ -4843,7 +4850,9 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pgp",
+ "pnpm-http",
  "pnpm-network",
+ "pnpm-wasm-host",
  "pretty_assertions",
  "reqwest",
  "tempfile",
@@ -4965,6 +4974,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-patching",
  "pnpm-pnpr-client",
+ "pnpm-process",
  "pnpm-real-hoist",
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",
@@ -4999,6 +5009,7 @@ dependencies = [
 name = "pnpm-detect-libc"
 version = "0.0.1"
 dependencies = [
+ "pnpm-process",
  "pretty_assertions",
 ]
 
@@ -5047,6 +5058,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pnpm-crypto-shasums-file",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-resolving-resolver-base",
@@ -5065,6 +5077,8 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "pnpm-crypto-shasums-file",
+ "pnpm-detect-libc",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-resolving-npm-resolver",
@@ -5084,6 +5098,8 @@ dependencies = [
  "base64 0.23.1",
  "derive_more",
  "miette 7.6.0",
+ "pnpm-detect-libc",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-resolving-npm-resolver",
@@ -5105,6 +5121,8 @@ dependencies = [
  "mockito",
  "node-semver",
  "pnpm-crypto-shasums-file",
+ "pnpm-detect-libc",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-resolving-resolver-base",
@@ -5168,7 +5186,9 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-process",
  "pnpm-reporter",
+ "pnpm-which",
  "pretty_assertions",
  "serde_json",
  "tempfile",
@@ -5206,6 +5226,7 @@ dependencies = [
  "miette 7.6.0",
  "pathdiff",
  "pnpm-crypto-hash",
+ "pnpm-wasm-host",
  "reflink-copy",
  "same-file",
  "sha2",
@@ -5244,9 +5265,11 @@ dependencies = [
  "pnpm-git-utils",
  "pnpm-network",
  "pnpm-package-manifest",
+ "pnpm-process",
  "pnpm-reporter",
  "pnpm-store-dir",
  "pnpm-testing-utils",
+ "pnpm-which",
  "pretty_assertions",
  "serde_json",
  "tempfile",
@@ -5260,6 +5283,7 @@ name = "pnpm-git-utils"
 version = "0.0.1"
 dependencies = [
  "libc",
+ "pnpm-process",
  "tempfile",
 ]
 
@@ -5276,6 +5300,7 @@ dependencies = [
  "pnpm-git-utils",
  "pnpm-matcher",
  "pnpm-network",
+ "pnpm-process",
  "pnpm-reporter",
  "pnpm-resolving-git-resolver",
  "tempfile",
@@ -5311,6 +5336,7 @@ dependencies = [
  "indexmap 2.14.0",
  "pnpm-detect-libc",
  "pnpm-fs",
+ "pnpm-process",
  "pretty_assertions",
  "serde_json",
  "sha2",
@@ -5324,11 +5350,29 @@ dependencies = [
  "derive_more",
  "pnpm-crypto-hash",
  "pnpm-lockfile",
+ "pnpm-process",
  "pnpm-resolving-resolver-base",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "pnpm-http"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "bytes",
+ "futures-util",
+ "http 1.4.0",
+ "percent-encoding",
+ "pnpm-wasm-host",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -5464,6 +5508,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-reporter",
  "pnpm-resolving-resolver-base",
+ "pnpm-wasm-host",
  "pretty_assertions",
  "serde",
  "serde-saphyr",
@@ -5596,6 +5641,8 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pipe-trait",
+ "pnpm-http",
+ "pnpm-process",
  "pnpm-testing-utils",
  "pretty_assertions",
  "reqwest",
@@ -5618,9 +5665,11 @@ dependencies = [
  "open",
  "pipe-trait",
  "pnpm-diagnostics",
+ "pnpm-http",
  "pnpm-network",
  "pnpm-network-web-auth-testing",
  "pnpm-reporter",
+ "pnpm-wasm-host",
  "pretty_assertions",
  "qrcode",
  "reqwest",
@@ -5758,6 +5807,7 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-text-sanitize",
+ "pnpm-wasm-host",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
  "pnpm-workspace-projects-graph",
@@ -5814,8 +5864,10 @@ dependencies = [
  "indexmap 2.14.0",
  "miette 7.6.0",
  "node-semver",
+ "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-package-manifest",
+ "pnpm-process",
  "pretty_assertions",
  "serde_json",
  "sha2",
@@ -5837,6 +5889,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-graph-hasher",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
  "pnpm-network",
@@ -5851,6 +5904,16 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "pnpm-process"
+version = "0.0.1"
+dependencies = [
+ "pnpm-wasm-host",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5871,6 +5934,7 @@ dependencies = [
  "pnpm-diagnostics",
  "pnpm-executor",
  "pnpm-git-utils",
+ "pnpm-http",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
@@ -5878,6 +5942,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-reporter",
+ "pnpm-wasm-host",
  "pretty_assertions",
  "reqwest",
  "serde",
@@ -5917,10 +5982,12 @@ dependencies = [
  "pnpm-network",
  "pnpm-package-is-installable",
  "pnpm-pnpr-client",
+ "pnpm-process",
  "pnpm-python-resolver",
  "pnpm-reporter",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpm-which",
  "pnpm-workspace-projects-graph",
  "serde",
  "serde_json",
@@ -5971,6 +6038,7 @@ dependencies = [
  "node-semver",
  "pipe-trait",
  "pnpm-diagnostics",
+ "pnpm-http",
  "pnpm-network",
  "pnpm-package-manifest",
  "pretty_assertions",
@@ -6007,6 +6075,7 @@ dependencies = [
  "gethostname",
  "insta",
  "pipe-trait",
+ "pnpm-wasm-host",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -6081,8 +6150,10 @@ dependencies = [
  "node-semver",
  "pnpm-git-fetcher",
  "pnpm-git-utils",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
+ "pnpm-process",
  "pnpm-reporter",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
@@ -6144,6 +6215,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-config",
  "pnpm-deps-path",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-package-name",
@@ -6153,6 +6225,7 @@ dependencies = [
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
+ "pnpm-wasm-host",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pretty_assertions",
@@ -6201,6 +6274,7 @@ dependencies = [
  "mockito",
  "pnpm-crypto-hash",
  "pnpm-fs",
+ "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-reporter",
@@ -6281,6 +6355,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-diagnostics",
  "pnpm-fs",
+ "pnpm-http",
  "pnpm-network",
  "pnpm-package-manifest",
  "pnpm-reporter",
@@ -6351,6 +6426,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-wasm-host"
+version = "0.0.1"
+dependencies = [
+ "futures-util",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "pnpm-which"
+version = "0.0.1"
+dependencies = [
+ "pnpm-fs",
+ "which 8.0.4",
+]
+
+[[package]]
 name = "pnpm-workspace"
 version = "0.0.1"
 dependencies = [
@@ -6385,6 +6477,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-parse-overrides",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-yaml-document-sync",
  "serde",
@@ -6408,6 +6501,7 @@ dependencies = [
  "pnpm-catalogs-protocol-parser",
  "pnpm-catalogs-types",
  "pnpm-matcher",
+ "pnpm-process",
  "pnpm-testing-utils",
  "pnpm-workspace",
  "pnpm-workspace-projects-graph",

@@ -31,5 +31,8 @@ wax = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 tempfile = { workspace = true }
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
+
 [lints]
 workspace = true

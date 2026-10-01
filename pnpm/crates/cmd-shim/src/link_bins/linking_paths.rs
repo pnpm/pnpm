@@ -32,7 +32,9 @@ impl<'a> LinkingPaths<'a> {
     ) -> Result<Self, LinkBinsError> {
         let mut paths = Self {
             bins_dir: Cow::Borrowed(bins_dir),
-            physical_bins_dir: if cfg!(unix) || has_reparse_point_on_path(bins_dir) {
+            physical_bins_dir: if cfg!(any(unix, target_os = "wasi"))
+                || has_reparse_point_on_path(bins_dir)
+            {
                 Cow::Owned(resolve(bins_dir)?)
             } else {
                 Cow::Borrowed(bins_dir)
@@ -44,7 +46,7 @@ impl<'a> LinkingPaths<'a> {
         };
         let Some(root) = options.relocatable_root
             .as_deref()
-            .filter(|_| cfg!(unix))
+            .filter(|_| cfg!(any(unix, target_os = "wasi")))
         else {
             return Ok(paths);
         };

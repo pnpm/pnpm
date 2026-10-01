@@ -7,7 +7,8 @@
 //! so non-ASCII values survive the round-trip.
 
 use super::{AddDirToEnvPathOpts, AddingPosition, PathExtenderError};
-use std::{path::Path, process::Command};
+use crate::process::Command;
+use std::path::Path;
 
 /// The change made to one environment variable, used to render the
 /// before/after report.

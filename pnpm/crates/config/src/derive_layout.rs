@@ -48,7 +48,7 @@ impl Config {
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
         // `true` fires — the hoisted-linker derivation below runs after
         // this block, mirroring pnpm's config-reader ordering.
-        if cfg!(unix) && self.prefer_symlinked_executables == Some(true) {
+        if cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true) {
             let hidden_modules_dir =
                 pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
             self.extra_env.insert(

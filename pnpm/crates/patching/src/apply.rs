@@ -7,10 +7,18 @@ use diffy::{
 };
 use indexmap::IndexSet;
 use miette::Diagnostic;
+#[cfg(target_os = "wasi")]
+use pnpm_fs::CopyPermissions as Permissions;
+#[cfg(not(target_os = "wasi"))]
+use std::fs::Permissions;
 use std::{
-    fs::{self, OpenOptions, Permissions},
+    fs,
     io::{self, Write},
     path::{Component, Path, PathBuf},
+};
+#[cfg(not(target_os = "wasi"))]
+use std::{
+    fs::OpenOptions,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -417,8 +425,12 @@ impl FileApply<'_> {
         // inode whose mode is governed by the process umask, which
         // would otherwise drop the executable bit on patched
         // shebang scripts in `bin/`.
+        #[cfg(not(target_os = "wasi"))]
         let permissions = fs::metadata(target)
             .map(|metadata| metadata.permissions())
+            .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
+        #[cfg(target_os = "wasi")]
+        let permissions = pnpm_fs::copy_permissions(target)
             .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
         // Read as bytes and lossy-decode so non-UTF-8 bytes
         // turn into U+FFFD rather than failing the patch.
@@ -566,6 +578,7 @@ impl FileApply<'_> {
 /// breaking any hardlink the path previously shared with the content-
 /// addressable store; the store inode (and every other hardlink to it)
 /// stays untouched.
+#[cfg(not(target_os = "wasi"))]
 fn write_atomic_with_mode(
     target: &Path,
     content: &[u8],
@@ -579,7 +592,7 @@ fn write_atomic_with_mode(
     const MAX_TEMP_ATTEMPTS: usize = 16;
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let pid = std::process::id();
+    let pid = crate::process::id();
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
@@ -627,6 +640,7 @@ fn write_atomic_with_mode(
     }))
 }
 
+#[cfg(not(target_os = "wasi"))]
 fn replace_with_permissions(
     tmp: &Path,
     target: &Path,
@@ -645,3 +659,19 @@ fn replace_with_permissions(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_os = "wasi")]
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "Shares the native permissions signature")]
+fn write_atomic_with_mode(
+    target: &Path,
+    content: &[u8],
+    permissions: &Permissions,
+) -> io::Result<()> {
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let mut temporary = tempfile::Builder::new()
+        .make_in(parent, |path| pnpm_fs::create_new_with_mode(path, *permissions))?;
+    temporary.write_all(content)?;
+    pnpm_fs::set_file_permissions(temporary.as_file(), permissions)?;
+    temporary.persist(target).map_err(|error| error.error)?;
+    Ok(())
+}

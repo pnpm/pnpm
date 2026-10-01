@@ -23,3 +23,8 @@ pub fn force_absolute_symlink_dir(target: &Path, link: &Path) -> io::Result<Forc
 fn absolute_symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     std::os::unix::fs::symlink(original, link)
 }
+
+#[cfg(target_os = "wasi")]
+fn absolute_symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
+    crate::wasi_fs::symlink(original, link)
+}

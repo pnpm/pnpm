@@ -1,9 +1,6 @@
-use std::{
-    collections::HashMap,
-    io,
-    process::{Child, Command},
-    sync::Mutex,
-};
+use crate::process::{Child, Command};
+use std::{collections::HashMap, io, sync::Mutex};
+#[cfg(not(target_family = "wasm"))]
 use tokio::sync::watch;
 
 #[cfg(unix)]
@@ -33,7 +30,11 @@ struct TrackerState {
 
 #[derive(Clone)]
 enum RunningExecution {
-    Process { pid: u32, separate_process_group: bool },
+    Process {
+        pid: u32,
+        separate_process_group: bool,
+    },
+    #[cfg(not(target_family = "wasm"))]
     Emulated(watch::Sender<bool>),
 }
 
@@ -43,6 +44,7 @@ impl RunningExecution {
             Self::Process { pid, separate_process_group } => {
                 terminate_process(*pid, *separate_process_group);
             }
+            #[cfg(not(target_family = "wasm"))]
             Self::Emulated(sender) => {
                 let _ = sender.send(true);
             }
@@ -104,6 +106,7 @@ impl ProcessTracker {
         self.state.lock().expect("process tracker lock is not poisoned").cancelled
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn track_emulated(&self) -> EmulatedCancellation<'_> {
         let (sender, receiver) = watch::channel(false);
         let registration = self.register(RunningExecution::Emulated(sender));
@@ -219,7 +222,7 @@ impl SpawnedChild<'_> {
     /// started still shutting down. pnpm then stops watching the group, so
     /// whatever the child left running in it is not ended by pnpm's own
     /// exit.
-    pub fn wait(&mut self) -> io::Result<std::process::ExitStatus> {
+    pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
         if self.own_process_group && self.relay.relayed() {
             wait_for_process_group(self.child.id());
@@ -267,11 +270,13 @@ fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
     !empty && table.is_none_or(|table| process_table::has_running_member(table, leader))
 }
 
+#[cfg(not(target_family = "wasm"))]
 pub(crate) struct EmulatedCancellation<'tracker> {
     receiver: watch::Receiver<bool>,
     _registration: Registration<'tracker>,
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl EmulatedCancellation<'_> {
     pub(crate) fn to_receiver(&self) -> watch::Receiver<bool> {
         self.receiver.clone()
@@ -375,7 +380,7 @@ fn process_listing() -> Option<String> {
 
 /// Poll a child for up to half a second, reporting whether it exited.
 #[cfg(unix)]
-fn wait_briefly(child: &mut std::process::Child) -> bool {
+fn wait_briefly(child: &mut crate::process::Child) -> bool {
     for _ in 0..50 {
         match child.try_wait() {
             Ok(Some(_)) => return true,
@@ -408,7 +413,8 @@ fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
 
 #[cfg(windows)]
 fn terminate_process(pid: u32, _separate_process_group: bool) {
-    use std::{os::windows::process::CommandExt, process::Stdio};
+    use crate::process::Stdio;
+    use std::os::windows::process::CommandExt;
 
     let Some(taskkill) = taskkill_path() else { return };
     let _ = Command::new(taskkill)
@@ -418,6 +424,13 @@ fn terminate_process(pid: u32, _separate_process_group: bool) {
         .stderr(Stdio::null())
         .creation_flags(0x0800_0000)
         .spawn();
+}
+
+#[cfg(target_family = "wasm")]
+fn terminate_process(pid: u32, _separate_process_group: bool) {
+    if let Err(error) = pnpm_process::kill(pid) {
+        eprintln!("Failed to terminate child process {pid}: {error}");
+    }
 }
 
 #[cfg(windows)]

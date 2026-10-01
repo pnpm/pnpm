@@ -17,6 +17,9 @@
 //!   downloaded body to extract the integrity of a single file. The
 //!   verifier path uses it when only one variant's hash is needed.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
 pub use errors::{FetchShasumsFileError, FetchVerifiedNodeShasumsError, PickFileChecksumError};
 
@@ -487,3 +490,8 @@ fn decode_hex(hex: &str) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_wasm_host::process_id;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process::id as process_id;

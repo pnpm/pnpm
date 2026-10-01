@@ -29,5 +29,8 @@ serde-saphyr = { workspace = true }
 tokio = { workspace = true }
 which = { workspace = true }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
 [lints]
 workspace = true

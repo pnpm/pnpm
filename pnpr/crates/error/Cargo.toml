@@ -16,21 +16,23 @@ backend-mysql = ["dep:sqlx", "sqlx/mysql"]
 backend-postgres = ["dep:sqlx", "sqlx/postgres"]
 
 [dependencies]
-axum = { workspace = true }
-bcrypt = { workspace = true }
 derive_more = { workspace = true }
 libsql = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+url = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+axum = { workspace = true }
+bcrypt = { workspace = true }
 object_store = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
-sqlx = { workspace = true, optional = true }
-tokio = { workspace = true }
-url = { workspace = true }
-
-[dev-dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
 
 [lints]
 workspace = true

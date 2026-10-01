@@ -1,0 +1,95 @@
+name: pnpm WebAssembly
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'pnpm/**'
+      - 'pnpr/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      - '__patches__/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/pnpm-wasm.yml'
+  schedule:
+    - cron: '30 6 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webcontainer:
+    name: Build and run pnpm in WebContainers
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 90
+    env:
+      RUSTUP_TOOLCHAIN: nightly-2026-08-27
+      WASI_SDK_PATH: ${{ runner.temp }}/wasm-tools/wasi-sdk-34.0-x86_64-linux
+      WABT_PATH: ${{ runner.temp }}/wasm-tools/wabt-1.0.42
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
+      - name: Install pinned WebAssembly toolchain
+        shell: bash
+        run: |
+          rustup toolchain install nightly-2026-08-27 --profile minimal --target wasm32-wasip1-threads
+          mkdir -p "$RUNNER_TEMP/wasm-tools"
+          cd "$RUNNER_TEMP/wasm-tools"
+          curl --fail --location --retry 3 --output wasi-sdk.tar.gz https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+          printf '%s\n' 'b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4  wasi-sdk.tar.gz' | sha256sum --check --strict
+          curl --fail --location --retry 3 --output wabt.tar.gz https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42-linux-x64.tar.gz
+          printf '%s\n' '84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  wabt.tar.gz' | sha256sum --check --strict
+          tar -xzf wasi-sdk.tar.gz
+          tar -xzf wabt.tar.gz
+
+      - name: Cache WASM compilation
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: pnpm-wasm-sdk34-wabt1042
+
+      - name: Install runtime and browser harness
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer
+
+      - name: Build pnpm and the shared-library probe
+        run: |
+          pnpm build:pnpm:wasm
+          pnpm build:wasm-runtime-probe
+
+      - name: Test the Node host and Rust runtime
+        run: pnpm --filter @pnpm-private/wasm-runtime test
+
+      - name: Install Chromium
+        run: pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --with-deps --only-shell chromium
+
+      - name: Test shared libraries in a WebContainer
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
+
+      - name: Package standalone WASM pnpm
+        run: pnpm pack:pnpm:wasm
+
+      - name: Test the packaged pnpm CLI in a WebContainer
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
+
+      - name: Upload WASM build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pnpm-wasm
+          path: target/pnpm-wasm.tgz
+          retention-days: 7
+          if-no-files-found: error

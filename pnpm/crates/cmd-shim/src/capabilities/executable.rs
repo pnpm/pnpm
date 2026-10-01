@@ -2,12 +2,11 @@
 mod tests;
 
 use super::Host;
-use std::{
-    fs::{self, Permissions},
-    io,
-    os::unix::fs::PermissionsExt,
-    path::Path,
-};
+#[cfg(target_os = "wasi")]
+use pnpm_fs::CopyPermissions as Permissions;
+use std::{fs, io, path::Path};
+#[cfg(unix)]
+use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
 pub(super) trait FsSetPermissions {
     fn set_permissions(path: &Path, permissions: Permissions) -> io::Result<()>;
@@ -15,7 +14,10 @@ pub(super) trait FsSetPermissions {
 
 impl FsSetPermissions for Host {
     fn set_permissions(path: &Path, permissions: Permissions) -> io::Result<()> {
-        fs::set_permissions(path, permissions)
+        #[cfg(unix)]
+        return fs::set_permissions(path, permissions);
+        #[cfg(target_os = "wasi")]
+        return pnpm_fs::file_mode::set_path_permissions(path, permissions);
     }
 }
 
@@ -39,9 +41,16 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
     {
         return Ok(());
     }
+    #[cfg(unix)]
     let mode = fs::metadata(&target)?.permissions().mode();
+    #[cfg(target_os = "wasi")]
+    let mode = pnpm_fs::copy_permissions(&target)?;
     if mode & 0o111 == 0o111 {
         return Ok(());
     }
-    Sys::set_permissions(&target, Permissions::from_mode(mode | 0o111))
+    #[cfg(unix)]
+    let permissions = Permissions::from_mode(mode | 0o111);
+    #[cfg(target_os = "wasi")]
+    let permissions = mode | 0o111;
+    Sys::set_permissions(&target, permissions)
 }

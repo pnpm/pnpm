@@ -322,3 +322,9 @@ mod auth_sources;
 mod settings;
 
 use auth_sources::{AuthSources, note_declared_registries};
+
+#[cfg(not(target_family = "wasm"))]
+pub use home::home_dir;
+
+#[cfg(target_family = "wasm")]
+pub use pnpm_fs::home_dir;

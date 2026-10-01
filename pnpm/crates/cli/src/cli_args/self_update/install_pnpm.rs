@@ -15,6 +15,7 @@ use super::SelfUpdateError;
 use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
 
+use crate::process::Command;
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
 use pnpm_global::{
@@ -29,7 +30,6 @@ use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 /// From v12 the unscoped `pnpm` package is itself the native engine
@@ -305,8 +305,15 @@ pub(crate) fn is_release_installable(version: &str) -> bool {
     !matches!(version, "11.12.0" | "11.13.0")
 }
 
-/// Fail for a version [`is_release_installable`] rejects.
+/// Fail when the release cannot be installed in the current runtime.
 pub(crate) fn assert_release_is_installable(version: &str) -> miette::Result<()> {
+    if cfg!(target_family = "wasm") {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_UNSUPPORTED_RUNTIME",
+            help = "Use the installed WebContainer pnpm version. Disable automatic version switching with npm_config_manage_package_manager_versions=false, or set pmOnFail: ignore in pnpm-workspace.yaml.",
+            "This WebContainer runtime cannot install or switch to pnpm v{version}. Install a compatible WebContainer distribution explicitly."
+        ));
+    }
     if is_release_installable(version) {
         return Ok(());
     }

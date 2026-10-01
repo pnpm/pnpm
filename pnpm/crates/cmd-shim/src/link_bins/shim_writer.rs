@@ -127,7 +127,7 @@ where
     // Stays below the node-runtime special case, which links `node`
     // regardless of the setting.
     if spec.options.prefer_symlinked_executables
-        && cfg!(unix)
+        && cfg!(any(unix, target_os = "wasi"))
         && prepare_direct_target::<Sys>(&spec, cache)?
         && link_symlinked_executable::<Sys>(spec.target_path, spec.shim_path)?
     {
@@ -215,7 +215,8 @@ where
 /// runtime is linked rather than shimmed, and
 /// `preferSymlinkedExecutables` links every bin on Unix.
 fn fresh_write_applies(spec: &ShimSpec<'_>) -> bool {
-    !(is_node_bin_name(spec.shim_path) || (spec.options.prefer_symlinked_executables && cfg!(unix)))
+    !(is_node_bin_name(spec.shim_path)
+        || (spec.options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi"))))
 }
 
 /// The Windows sibling shims a write produces.
@@ -270,7 +271,10 @@ fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>)
     let Some(existing) = existing else {
         return false;
     };
-    if !spec.node_path.is_empty() || spec.relocatable_root().is_some() {
+    if cfg!(target_family = "wasm")
+        || !spec.node_path.is_empty()
+        || spec.relocatable_root().is_some()
+    {
         return existing == sh_body;
     }
     is_shim_pointing_at(existing, spec.shim_path, spec.target_path)

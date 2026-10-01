@@ -101,7 +101,7 @@ fn write_running_pnpm_shim(dir: &Path, pnpm_execpath: &Path) -> io::Result<PathB
     Ok(path)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn running_pnpm_shim_file(pnpm_execpath: &Path) -> (String, String) {
     use pnpm_cmd_shim::sh_single_quote;
 
@@ -117,7 +117,7 @@ fn running_pnpm_shim_file(pnpm_execpath: &Path) -> (String, String) {
     ("pnpm.cmd".to_string(), format!("@\"{pnpm}\" %*\r\n"))
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn shim_files(
     name: &str,
     run_as: &[&str],
@@ -184,6 +184,8 @@ fn command_line_safe(version_spec: &str) -> Option<&str> {
 /// something half-written.
 fn write_executable(path: &Path, contents: &str) -> io::Result<()> {
     write_atomic(path, contents.as_bytes())?;
+    #[cfg(target_os = "wasi")]
+    pnpm_fs::file_mode::set_path_permissions(path, 0o755)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

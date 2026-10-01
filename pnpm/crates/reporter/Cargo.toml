@@ -11,14 +11,19 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-gethostname = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+gethostname = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 pipe-trait = { workspace = true }
 pretty_assertions = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]
 workspace = true

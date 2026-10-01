@@ -32,6 +32,14 @@
 //!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use create_git_hosted_pkg_id::create_git_hosted_pkg_id;
 pub use git_resolver::{GitFetchContext, GitProbe, GitResolver, ProbeFuture};
 pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};

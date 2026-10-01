@@ -192,7 +192,7 @@ fn resolve_entry(
     if relative_dir.is_empty() && name == "node_modules" {
         return Ok(None);
     }
-    if cfg!(unix) && record_symlink(ctx, &absolute, relative_subpath)? {
+    if cfg!(any(unix, target_os = "wasi")) && record_symlink(ctx, &absolute, relative_subpath)? {
         return Ok(None);
     }
     ctx.has_unrecorded_symlinks = true;
@@ -285,7 +285,12 @@ fn ingest_file(
             path: read_path.to_path_buf(),
             source,
         })?;
+    #[cfg(not(target_os = "wasi"))]
     let mode = file_mode_from(meta);
+    #[cfg(target_os = "wasi")]
+    let mode = pnpm_fs::copy_permissions(read_path)
+        .map_err(|source| AddFilesFromDirError::Stat { path: read_path.to_path_buf(), source })?
+        & 0o777;
     let (_path, hash) = ctx.store_dir
         .write_cas_file(&buffer, is_executable(mode))
         .map_err(AddFilesFromDirError::WriteCas)?;
@@ -311,7 +316,7 @@ fn file_mode_from(meta: &fs::Metadata) -> u32 {
     meta.permissions().mode() & 0o777
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 fn file_mode_from(_meta: &fs::Metadata) -> u32 {
     0o644
 }

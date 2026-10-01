@@ -22,6 +22,7 @@ mod revision;
 
 use remote::download_commit;
 
+use crate::process::Command;
 use crate::{
     GitSource, GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
@@ -39,7 +40,6 @@ use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
-    process::Command,
     sync::{Arc, LazyLock},
 };
 

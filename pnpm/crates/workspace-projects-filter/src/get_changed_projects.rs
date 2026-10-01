@@ -1,7 +1,7 @@
+use crate::process::Command;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use indexmap::IndexMap;

@@ -138,7 +138,8 @@ pub fn calculate_diff(
                 added.insert(file.to_string(), clone_info(now));
             }
             (Some(before), Some(now))
-                if before.digest != now.digest || (cfg!(unix) && before.mode != now.mode) =>
+                if before.digest != now.digest
+                    || (cfg!(any(unix, target_os = "wasi")) && before.mode != now.mode) =>
             {
                 added.insert(file.to_string(), clone_info(now));
             }

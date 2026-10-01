@@ -2,6 +2,7 @@ mod recursive;
 
 use super::reporter::ReporterType;
 use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
+use crate::process::{Command, ExitStatus, Stdio};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -15,11 +16,7 @@ use pnpm_package_manager::{
     pnp_path_for_execution,
 };
 use pnpm_workspace::read_project_name;
-use std::{
-    collections::HashMap,
-    path::Path,
-    process::{Command, ExitStatus, Stdio},
-};
+use std::{collections::HashMap, path::Path};
 
 /// Run a shell command in the context of a project.
 ///

@@ -455,13 +455,15 @@ fn legacy_path_only_trust_records_are_ignored() {
 #[test]
 fn package_root_is_the_nearest_manifest_ancestor() {
     let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("package.json"), r#"{"name":"workspace"}"#).unwrap();
     let package = root.path().join("workspace-package");
     let nested_target = package.join("dist/bin/cli.js");
     fs::create_dir_all(nested_target.parent().unwrap()).unwrap();
     fs::write(package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
     fs::write(&nested_target, "").unwrap();
     assert_eq!(package_dir_of_target(&nested_target), Some(package));
-    assert_eq!(package_dir_of_target(root.path()), None);
+    assert_eq!(package_dir_of_target(&root.path().join("cli.js")), Some(root.path().to_path_buf()));
+    assert_eq!(package_dir_of_target(Path::new(std::path::MAIN_SEPARATOR_STR)), None);
 }
 
 #[cfg(windows)]

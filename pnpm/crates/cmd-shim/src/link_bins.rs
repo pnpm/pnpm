@@ -2,6 +2,11 @@ pub use discovery::collect_packages_in_modules_dir;
 pub use relocatable::bin_dir_is_relocatable;
 pub use shim_writer::remove_bin;
 
+#[cfg(not(target_family = "wasm"))]
+use crate::shim::generate_sh_shim;
+#[cfg(target_family = "wasm")]
+use crate::shim::generate_wasm_shim as generate_sh_shim;
+
 use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{
@@ -9,9 +14,8 @@ use crate::{
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
-        search_script_runtime,
+        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, is_sh_shim_basedir_anchor_current,
+        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -462,11 +466,12 @@ where
             // On Unix the symlink branch never writes a shim, so no bin
             // needs a NODE_PATH — skip `shim_node_path`'s per-package
             // canonicalize entirely.
-            let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
-                Vec::new()
-            } else {
-                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
-            };
+            let node_path =
+                if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {
+                    Vec::new()
+                } else {
+                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
+                };
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(
                 ShimSpec {

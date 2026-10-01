@@ -102,7 +102,7 @@ fn lstat_if_exists(path: &Path) -> Result<Option<fs::Metadata>, PatchCommitError
 
 pub(super) fn write_patch_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> {
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
+    let mut tmp = pnpm_fs::private_named_tempfile_in(parent)?;
     tmp.write_all(content)?;
     tmp.as_file().sync_all()?;
     tmp.persist(target).map_err(|error| error.error)?;

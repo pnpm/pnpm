@@ -425,7 +425,7 @@ fn create_build_marker_source(
     if config.frozen_store || !layout.enable_global_virtual_store() {
         return Ok(None);
     }
-    tempfile::NamedTempFile::new_in(store_dir.root())
+    pnpm_fs::private_named_tempfile_in(store_dir.root())
         .map(Some)
         .map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
             path: store_dir.root().to_path_buf(),

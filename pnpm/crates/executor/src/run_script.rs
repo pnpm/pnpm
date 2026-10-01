@@ -1,3 +1,4 @@
+use crate::process::{Command, Stdio};
 use crate::{
     extend_path::extend_path,
     lifecycle::{StreamedScript, push_script_arg},
@@ -21,7 +22,6 @@ use std::{
     ffi::OsString,
     io::{self, Write},
     path::Path,
-    process::{Command, Stdio},
 };
 
 /// Error from running a user script through [`run_script`] — the

@@ -30,13 +30,13 @@ use pnpm_store_dir::{
 use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
 use serde::{Deserialize, Serialize};
 
+use crate::process::Command;
 use sparse_registry::{fetch_sparse_index, registry_download_config};
 use ssri::{Algorithm, Integrity};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs, io,
     path::{Path, PathBuf},
-    process::Command,
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
 };

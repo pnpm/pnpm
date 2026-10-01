@@ -27,5 +27,8 @@ windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
 [lints]
 workspace = true

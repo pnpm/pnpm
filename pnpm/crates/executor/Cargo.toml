@@ -15,14 +15,12 @@ pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
 
-deno_task_shell = { workspace = true }
 derive_more = { workspace = true }
 dunce = { workspace = true }
 miette = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["process"] }
+tokio = { workspace = true }
 tracing = { workspace = true }
-which = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
@@ -40,6 +38,15 @@ windows-sys = { workspace = true, features = [
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+which = { workspace = true }
+deno_task_shell = { workspace = true }
+tokio = { workspace = true, features = ["net", "process", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-which = { workspace = true }
+pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

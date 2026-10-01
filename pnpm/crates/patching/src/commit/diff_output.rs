@@ -1,10 +1,14 @@
 use super::PatchCommitError;
+#[cfg(target_family = "wasm")]
+use pnpm_fs::temp_dir;
+#[cfg(not(target_family = "wasm"))]
+use std::env::temp_dir;
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     io::{self, Read},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
 const MAX_DIFF_OUTPUT_BYTES: u64 = 128 * 1024 * 1024;
@@ -16,12 +20,12 @@ pub(super) struct DiffTempFile {
 impl DiffTempFile {
     pub(super) fn new(stream: &'static str) -> Result<Self, PatchCommitError> {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let pid = std::process::id();
-        let temp_dir = std::env::temp_dir();
+        let pid = crate::process::id();
+        let temp_dir = temp_dir();
         for _ in 0..16 {
             let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
             let path = temp_dir.join(format!("pacquet-git-diff-{stream}-{pid}-{counter}.tmp"));
-            match diff_temp_file_options().open(&path) {
+            match create_diff_temp_file(&path) {
                 Ok(writer) => return Ok(Self { path, writer }),
                 Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(source) => return Err(PatchCommitError::DiffSpawn { source }),
@@ -75,12 +79,24 @@ impl DiffTempFile {
     }
 }
 
-fn diff_temp_file_options() -> OpenOptions {
-    let mut options = OpenOptions::new();
+#[cfg(not(target_os = "wasi"))]
+fn diff_temp_file_options() -> std::fs::OpenOptions {
+    let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
     options.mode(0o600);
     options
+}
+
+fn create_diff_temp_file(path: &Path) -> io::Result<File> {
+    #[cfg(not(target_os = "wasi"))]
+    {
+        diff_temp_file_options().open(path)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        pnpm_fs::create_new_with_mode(path, 0o600)
+    }
 }
 
 impl Drop for DiffTempFile {

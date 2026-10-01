@@ -237,7 +237,9 @@ impl VersionsOverrider {
         applicable_parent_scoped: &[&ResolvedOverride],
     ) -> bool {
         let key: &'static str = group.into();
-        let Some(map) = value.get(key).and_then(Value::as_object) else { return false };
+        let Some(map) = value.get(key).and_then(Value::as_object) else {
+            return false;
+        };
 
         map.iter()
             .any(|(name, spec)| {
@@ -266,7 +268,9 @@ impl VersionsOverrider {
             DependencyGroup::Peer,
         ] {
             let key: &'static str = group.into();
-            let Some(map) = value.get(key).and_then(Value::as_object) else { continue };
+            let Some(map) = value.get(key).and_then(Value::as_object) else {
+                continue;
+            };
             for (name, spec) in map {
                 let Some(spec) = spec.as_str() else { continue };
                 if self.choose_override(&applicable_parent_scoped, name, spec).is_none() {
@@ -284,7 +288,9 @@ impl VersionsOverrider {
         manifest_dir: Option<&Path>,
     ) {
         let key: &'static str = group.into();
-        let Some(map) = value.get_mut(key).and_then(Value::as_object_mut) else { return };
+        let Some(map) = value.get_mut(key).and_then(Value::as_object_mut) else {
+            return;
+        };
 
         let entries: Vec<(String, String)> = map
             .iter()

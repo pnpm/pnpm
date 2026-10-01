@@ -36,3 +36,8 @@ pub use pnpm_local_spec::{is_local_filesystem_specifier, is_tarball_filename};
 mod chain;
 mod local_resolver;
 mod parse_bare_specifier;
+
+#[cfg(not(target_family = "wasm"))]
+use home::home_dir;
+#[cfg(target_family = "wasm")]
+use pnpm_fs::home_dir;

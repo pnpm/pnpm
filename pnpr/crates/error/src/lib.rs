@@ -2,6 +2,7 @@ pub use redact_url::redact_url_credentials;
 
 mod redact_url;
 
+#[cfg(not(target_family = "wasm"))]
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -12,6 +13,7 @@ use derive_more::{Display, Error, From};
 #[non_exhaustive]
 pub enum RegistryError {
     #[display("Upstream request to {url} failed: {source}")]
+    #[cfg(not(target_family = "wasm"))]
     Upstream {
         url: String,
         #[error(source)]
@@ -277,10 +279,12 @@ pub enum RegistryError {
 
     /// Bcrypt hash/verify failure. Operational error, not user-facing.
     #[display("Bcrypt failure: {_0}")]
+    #[cfg(not(target_family = "wasm"))]
     Bcrypt(bcrypt::BcryptError),
 
     /// SQLite-backed token store failure.
     #[display("Token database error: {_0}")]
+    #[cfg(not(target_family = "wasm"))]
     Sqlite(rusqlite::Error),
 
     /// Networked-SQLite (libsql / Turso) auth backend failure.
@@ -305,6 +309,7 @@ pub enum RegistryError {
     /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
     #[display("Background task failed: {_0}")]
+    #[cfg(not(target_family = "wasm"))]
     JoinError(tokio::task::JoinError),
 
     #[display("I/O error: {_0}")]
@@ -313,12 +318,15 @@ pub enum RegistryError {
     /// Object-store (S3 / R2 / S3-compatible) backend failure on the
     /// hosted store.
     #[display("Object store error: {_0}")]
+    #[cfg(not(target_family = "wasm"))]
     ObjectStore(object_store::Error),
 
     #[display("JSON error: {_0}")]
+    #[cfg(not(target_family = "wasm"))]
     Json(serde_json::Error),
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl RegistryError {
     /// Whether a failed upstream fetch is a transient *availability* failure —
     /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
@@ -494,6 +502,7 @@ impl RegistryError {
 /// that can embed a request URL — and so a credential — is one. The 401 / 403 /
 /// 404 tier drops to `debug` so a probing or unauthorized client cannot flood
 /// the log with warnings.
+#[cfg(not(target_family = "wasm"))]
 impl IntoResponse for RegistryError {
     fn into_response(self) -> Response {
         let status = self.status_code();
@@ -515,9 +524,10 @@ impl IntoResponse for RegistryError {
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
 
-#[cfg(test)]
+#[cfg(all(test, not(target_family = "wasm")))]
 mod tests;
 
+#[cfg(not(target_family = "wasm"))]
 fn upstream_status_code(source: &reqwest::Error) -> StatusCode {
     if source.is_timeout() {
         StatusCode::GATEWAY_TIMEOUT
@@ -528,6 +538,7 @@ fn upstream_status_code(source: &reqwest::Error) -> StatusCode {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn upstream_body_status_code(source: &std::io::Error) -> StatusCode {
     if source.kind() == std::io::ErrorKind::TimedOut
         || source

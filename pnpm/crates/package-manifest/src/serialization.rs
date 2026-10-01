@@ -1,7 +1,10 @@
 use super::{
-    BlankLines, DEFAULT_INDENT, InitOptions, NamedTempFile, PackageManifest, PackageManifestError,
-    Path, PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    BlankLines, DEFAULT_INDENT, InitOptions, PackageManifest, PackageManifestError, Path, PathBuf,
+    Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
+
+#[cfg(not(target_os = "wasi"))]
+use super::NamedTempFile;
 
 const DEPENDENCY_FIELDS: [&str; 4] =
     ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
@@ -179,11 +182,23 @@ impl PackageManifest {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
+        #[cfg(not(target_os = "wasi"))]
         let permissions = match fs::metadata(path) {
             Ok(metadata) => Some(metadata.permissions()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => None,
             Err(error) => return Err(error),
         };
+        #[cfg(target_os = "wasi")]
+        let permissions = match pnpm_fs::copy_permissions(path) {
+            Ok(mode) => Some(mode),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
+        #[cfg(target_os = "wasi")]
+        let mut tmp = tempfile::Builder::new()
+            .make_in(dir, |temporary| {
+                pnpm_fs::create_new_with_mode(temporary, permissions.unwrap_or(0o666))
+            })?;
         #[cfg(unix)]
         let mut tmp = if permissions.is_none() {
             use std::os::unix::fs::PermissionsExt;
@@ -193,11 +208,11 @@ impl PackageManifest {
         } else {
             NamedTempFile::new_in(dir)?
         };
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, target_os = "wasi")))]
         let mut tmp = NamedTempFile::new_in(dir)?;
         tmp.write_all(contents.as_bytes())?;
         if let Some(permissions) = permissions {
-            tmp.as_file().set_permissions(permissions)?;
+            pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;
         }
         tmp.as_file().sync_all()?;
         tmp.persist(path).map_err(|err| err.error)?;

@@ -280,6 +280,12 @@ pub fn exit_like(exit: ScriptExit) -> ! {
 #[cfg(not(unix))]
 #[expect(clippy::exit, reason = "the command's exit code is the script's")]
 pub fn exit_like(exit: ScriptExit) -> ! {
+    #[cfg(target_family = "wasm")]
+    if let ScriptExit::Process(status) = exit
+        && let Some(signal) = status.signal()
+    {
+        std::process::exit(128 + signal);
+    }
     std::process::exit(exit.code().unwrap_or(1));
 }
 
@@ -444,5 +450,10 @@ mod windows;
 #[cfg(windows)]
 use windows::install_handler;
 
-#[cfg(not(any(unix, windows)))]
+#[cfg(target_family = "wasm")]
+mod wasm;
+#[cfg(target_family = "wasm")]
+use wasm::install_handler;
+
+#[cfg(not(any(unix, windows, target_family = "wasm")))]
 fn install_handler() {}

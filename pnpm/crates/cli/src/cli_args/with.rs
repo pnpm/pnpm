@@ -13,6 +13,7 @@
 //! version / range / dist-tag spec, which it resolves, installs into the
 //! global virtual store, and spawns.
 
+use crate::process::Command;
 use crate::{
     cli_args::{dlx::exit_unless_success, package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS},
     engine_pm::{
@@ -27,7 +28,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
-use std::{path::PathBuf, process::Command};
+use std::path::PathBuf;
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.
@@ -99,7 +100,7 @@ pub(crate) fn spawn_pnpm<Args, Arg>(
     bin_dirs: &[PathBuf],
     args: Args,
     package_manager_check: PackageManagerCheck,
-) -> miette::Result<std::process::ExitStatus>
+) -> miette::Result<crate::process::ExitStatus>
 where
     Args: IntoIterator<Item = Arg>,
     Arg: AsRef<std::ffi::OsStr>,

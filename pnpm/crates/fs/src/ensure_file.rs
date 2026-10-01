@@ -1,8 +1,12 @@
-use crate::{rename_with_retry, retry::retry_transient_file_locks};
+use crate::rename_with_retry;
+#[cfg(not(target_os = "wasi"))]
+use crate::retry::retry_transient_file_locks;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+#[cfg(not(target_os = "wasi"))]
+use std::fs::OpenOptions;
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     hash::{BuildHasher, Hasher},
     io::{self, Seek, Write},
     path::{Path, PathBuf},
@@ -219,7 +223,9 @@ fn ensure(
     let lock = cas_write_lock(file_path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
+    #[cfg(not(target_os = "wasi"))]
     let mut options = OpenOptions::new();
+    #[cfg(not(target_os = "wasi"))]
     options.write(true).create_new(true);
 
     #[cfg(unix)]
@@ -230,7 +236,17 @@ fn ensure(
     #[cfg(unix)]
     creation.apply_to(&mut options);
 
-    match retry_on_fd_pressure(|| options.open(file_path)) {
+    #[cfg(not(target_os = "wasi"))]
+    let open = || options.open(file_path);
+    #[cfg(target_os = "wasi")]
+    let open = || {
+        crate::wasi_fs::create_inheriting_mode(
+            file_path.parent().unwrap_or_else(|| Path::new(".")),
+            file_path,
+            mode,
+        )
+    };
+    match retry_on_fd_pressure(open) {
         Ok(mut file) => {
             #[cfg(unix)]
             creation
@@ -457,18 +473,36 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
     // A write-protected file refuses the write open, and on Windows that
     // refusal would first spend the transient-lock retry budget.
-    #[cfg_attr(windows, expect(unused_variables, reason = "Windows compares handles instead"))]
+    #[cfg_attr(
+        any(windows, target_os = "wasi"),
+        expect(unused_variables, reason = "these targets compare file identities separately")
+    )]
     let meta = match fs::symlink_metadata(file_path) {
-        Ok(meta) if meta.file_type().is_file() && !meta.permissions().readonly() => meta,
+        Ok(meta)
+            if meta.file_type().is_file()
+                && (cfg!(target_os = "wasi") || !meta.permissions().readonly()) =>
+        {
+            meta
+        }
         _ => return false,
     };
+    #[cfg(target_os = "wasi")]
+    if !crate::wasi_fs::path_mode(file_path).is_ok_and(|mode| mode & 0o222 != 0) {
+        return false;
+    }
     #[cfg(unix)]
     let expected = meta;
     #[cfg(windows)]
     let Ok(expected) = same_file::Handle::from_path(file_path) else {
         return false;
     };
+    #[cfg(target_os = "wasi")]
+    let Ok(expected) = crate::wasi_fs::path_identity(file_path) else {
+        return false;
+    };
+    #[cfg(not(target_os = "wasi"))]
     let mut options = OpenOptions::new();
+    #[cfg(not(target_os = "wasi"))]
     options.write(true);
     #[cfg(unix)]
     {
@@ -483,7 +517,10 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
     // Antivirus and indexer scans briefly hold just-written Windows
     // paths open, failing an unlucky open with an access-denied error
     // that clears moments later.
+    #[cfg(not(target_os = "wasi"))]
     let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
+    #[cfg(target_os = "wasi")]
+    let open = || retry_on_fd_pressure(|| crate::wasi_fs::open_for_overwrite(file_path));
     let Ok(mut file) = open() else {
         return false;
     };
@@ -505,6 +542,12 @@ fn same_file(file: &File, expected: &fs::Metadata) -> bool {
                 && handle_meta.dev() == expected.dev()
                 && handle_meta.ino() == expected.ino()
         })
+}
+
+#[cfg(target_os = "wasi")]
+fn same_file(file: &File, expected: &crate::wasi_fs::FileIdentity) -> bool {
+    file.metadata().is_ok_and(|metadata| metadata.is_file())
+        && crate::wasi_fs::file_identity(file).is_ok_and(|identity| &identity == expected)
 }
 
 #[cfg(windows)]
@@ -608,13 +651,19 @@ pub fn create_exclusive_temp_file(
     for _ in 0..MAX_TEMP_ATTEMPTS {
         let tmp_path = temp_path_in(dir, base);
 
+        #[cfg(not(target_os = "wasi"))]
         let mut options = OpenOptions::new();
+        #[cfg(not(target_os = "wasi"))]
         options.write(true).create_new(true);
 
         #[cfg(unix)]
         creation.apply_to(&mut options);
 
-        match retry_on_fd_pressure(|| options.open(&tmp_path)) {
+        #[cfg(not(target_os = "wasi"))]
+        let open = || options.open(&tmp_path);
+        #[cfg(target_os = "wasi")]
+        let open = || crate::wasi_fs::create_inheriting_mode(dir, &tmp_path, mode);
+        match retry_on_fd_pressure(open) {
             Ok(file) => {
                 #[cfg(unix)]
                 if let Err(error) = creation.grant(&file) {
@@ -658,7 +707,7 @@ fn temp_path_in(dir: &Path, base: &str) -> PathBuf {
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
+    let pid = crate::process_id();
 
     dir.join(format!("{base}{pid}{counter}"))
 }

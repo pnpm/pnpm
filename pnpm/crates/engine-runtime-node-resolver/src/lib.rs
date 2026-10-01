@@ -21,6 +21,9 @@
 //!   impl that ties the parser, mirror config, and asset-list fetch
 //!   into the dispatcher chain.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use get_node_artifact_address::{
     GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address,
 };

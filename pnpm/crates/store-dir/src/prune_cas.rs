@@ -231,10 +231,17 @@ fn hard_link_count(path: &Path, _metadata: &fs::Metadata) -> Result<u64, PruneCa
     Ok(u64::from(info.nNumberOfLinks))
 }
 
-#[cfg(not(any(unix, windows)))]
+#[cfg(not(any(unix, windows, target_os = "wasi")))]
 fn hard_link_count(_path: &Path, _metadata: &fs::Metadata) -> Result<u64, PruneCasError> {
     Ok(2)
 }
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_os = "wasi")]
+fn hard_link_count(path: &Path, _metadata: &fs::Metadata) -> Result<u64, PruneCasError> {
+    pnpm_fs::open_file_without_following(path)
+        .and_then(|file| pnpm_fs::file_link_count(&file))
+        .map_err(|error| PruneCasError::InspectFile { path: path.to_path_buf(), error })
+}

@@ -207,7 +207,7 @@ pub(crate) fn publish_link(root: &Path, target: &Path) -> Result<()> {
         }
         Ok(())
     }
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     {
         let temporary = tempfile::Builder::new()
             .prefix(".pnpm-python-link-")
@@ -216,7 +216,10 @@ pub(crate) fn publish_link(root: &Path, target: &Path) -> Result<()> {
         let staged = temporary.path().join(".venv");
         // The link is moved up one level when published, so relative links must
         // be computed from their final location, not from the temporary directory.
+        #[cfg(unix)]
         std::os::unix::fs::symlink(target, &staged).into_diagnostic()?;
+        #[cfg(target_os = "wasi")]
+        pnpm_fs::create_symlink(target, &staged, true).into_diagnostic()?;
         fs::rename(&staged, root.join(".venv")).into_diagnostic()
     }
 }

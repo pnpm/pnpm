@@ -15,6 +15,9 @@
 //! same instance can plug into the default-resolver chain both
 //! directly and as the version-selection dependency of this resolver.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use deno_resolver::{DenoResolver, DenoResolverError};
 pub use read_deno_assets::ReadDenoAssetsError;
 

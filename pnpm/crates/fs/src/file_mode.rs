@@ -61,8 +61,17 @@ fn narrow_mode<Mode: TryFrom<u32>>(mode: u32) -> io::Result<Mode> {
     Mode::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
 
-/// [`current_umask`] on platforms without mode bits: nothing to mask.
-#[cfg(not(unix))]
+/// Cache the host process mask for WASI permission calculations.
+#[cfg(target_os = "wasi")]
+#[must_use]
+pub fn current_umask() -> u32 {
+    static UMASK: std::sync::LazyLock<u32> =
+        std::sync::LazyLock::new(crate::wasi_fs::current_umask);
+    *UMASK
+}
+
+/// Platforms without permission bits have no mode bits to mask.
+#[cfg(not(any(unix, target_os = "wasi")))]
 #[must_use]
 pub fn current_umask() -> u32 {
     0
@@ -171,7 +180,13 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
         let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(target))?;
         make_file_executable(&file)?;
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "wasi")]
+    if cas_path_is_executable(cas_path) {
+        let file =
+            crate::ensure_file::retry_on_fd_pressure(|| crate::wasi_fs::open_nofollow(target))?;
+        make_file_executable(&file)?;
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
     let _ = (cas_path, target);
     Ok(())
 }
@@ -186,7 +201,15 @@ pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
             file.set_permissions(Permissions::from_mode(mode))?;
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "wasi")]
+    {
+        let file =
+            crate::ensure_file::retry_on_fd_pressure(|| crate::wasi_fs::open_nofollow(path))?;
+        if crate::wasi_fs::file_mode(&file)? & 0o7777 != mode {
+            crate::wasi_fs::set_file_mode(&file, mode)?;
+        }
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
     let _ = (path, mode);
     Ok(())
 }
@@ -211,6 +234,14 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
         file.set_permissions(Permissions::from_mode(mode | EXEC_MASK))
     };
 
+    #[cfg(target_os = "wasi")]
+    {
+        let mode = crate::wasi_fs::file_mode(file)?;
+        if mode & EXEC_MASK != EXEC_MASK {
+            crate::wasi_fs::set_file_mode(file, mode | EXEC_MASK)?;
+        }
+        Ok(())
+    }
     #[cfg(windows)]
     return Ok(());
 }
@@ -322,10 +353,10 @@ pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<()> {
 /// group permission and setgid bits of the nearest ancestor that already
 /// existed. Directories that were already present are not modified.
 pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir) };
     std::fs::create_dir_all(dir)?;
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     if let Some(template) = template.as_deref() {
         grant_inherited_dir_mode(dir, template)?;
     }
@@ -363,7 +394,7 @@ pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
 ///
 /// Directories that already existed are not passed in. `EPERM`, `EACCES`,
 /// and `EROFS` are ignored. The root directory is never changed.
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
     let Some(template_mode) = reachable_mode(template)? else {
         return Ok(());
@@ -515,9 +546,42 @@ pub fn inherited_dir_bits(template_mode: u32) -> u32 {
     template_mode & (0o070 | 0o2000)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn is_unchangeable(error: &io::Error) -> bool {
     matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem)
+}
+
+#[cfg(target_os = "wasi")]
+fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
+    match crate::copy_permissions(path) {
+        Ok(mode) => Ok(Some(mode)),
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(target_os = "wasi")]
+fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
+    let file = match crate::wasi_fs::open_nofollow(path) {
+        Ok(file) => file,
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
+    if !file.metadata()?.is_dir() {
+        return Err(io::Error::from(io::ErrorKind::NotADirectory));
+    }
+    let mode = crate::wasi_fs::file_mode(&file)? & 0o7777;
+    if mode | extra == mode {
+        return Ok(());
+    }
+    match crate::wasi_fs::set_file_mode(&file, mode | extra) {
+        Err(error) if is_unchangeable(&error) => Ok(()),
+        result => result,
+    }
 }
 
 #[cfg(test)]

@@ -4,6 +4,10 @@ pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
 pub use sh::{
     generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
 };
+#[cfg(target_family = "wasm")]
+pub(crate) use wasm::generate_wasm_shim;
+#[cfg(any(all(test, unix), target_family = "wasm"))]
+mod wasm;
 
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
 use std::{

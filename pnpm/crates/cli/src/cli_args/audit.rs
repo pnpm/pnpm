@@ -22,6 +22,8 @@ pub(crate) use version_ranges::{
     patched_range_for_style, satisfies_including_prerelease, satisfies_safe,
 };
 
+#[cfg(target_family = "wasm")]
+use crate::dialoguer_wasm::MultiSelect;
 use crate::{
     State,
     cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
@@ -33,6 +35,7 @@ use advisories::{
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
+#[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
 use importers::{select_audited_importers, signature_packages};
 

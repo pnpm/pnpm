@@ -243,7 +243,7 @@ impl Build {
         }
         let directory = config.store_dir.tmp();
         std::fs::create_dir_all(&directory).into_diagnostic()?;
-        let mut file = tempfile::NamedTempFile::new_in(&directory).into_diagnostic()?;
+        let mut file = pnpm_fs::private_named_tempfile_in(&directory).into_diagnostic()?;
         file.write_all(&response.body).into_diagnostic()?;
         Ok(file)
     }
@@ -335,8 +335,12 @@ fn read_build(item: &ShasumsFileItem, triple: &str, suffix: &str) -> Option<Buil
 /// What python-build-standalone calls the interpreter of this machine.
 /// `None` where it builds none, which is where pnpm installs none.
 pub(super) fn host_triple() -> Option<String> {
-    let architecture = std::env::consts::ARCH;
-    Some(match std::env::consts::OS {
+    #[cfg(not(target_family = "wasm"))]
+    let (architecture, os) = (std::env::consts::ARCH, std::env::consts::OS);
+    #[cfg(target_family = "wasm")]
+    let (architecture, os) =
+        (pnpm_detect_libc::host_target_arch(), pnpm_detect_libc::host_platform());
+    Some(match os {
         "linux" => {
             let architecture = match architecture {
                 "x86_64" | "aarch64" | "riscv64" | "s390x" => architecture,
@@ -351,11 +355,11 @@ pub(super) fn host_triple() -> Option<String> {
             };
             format!("{architecture}-unknown-linux-{libc}")
         }
-        "macos" => match architecture {
+        "macos" | "darwin" => match architecture {
             "x86_64" | "aarch64" => format!("{architecture}-apple-darwin"),
             _ => return None,
         },
-        "windows" => match architecture {
+        "windows" | "win32" => match architecture {
             "x86_64" | "aarch64" => format!("{architecture}-pc-windows-msvc"),
             "x86" => "i686-pc-windows-msvc".to_string(),
             _ => return None,

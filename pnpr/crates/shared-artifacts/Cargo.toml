@@ -29,5 +29,8 @@ tracing = { workspace = true }
 [dev-dependencies]
 async-trait = { workspace = true }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
 [lints]
 workspace = true

@@ -5,7 +5,9 @@
 //! pair (real network + real `git` binary) or supply their own
 //! ports of the traits in tests.
 
-use std::{future::Future, path::PathBuf, pin::Pin, process::Command, sync::Arc, time::Duration};
+use crate::process::Command;
+
+use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc, time::Duration};
 
 use pnpm_network::{AddressGuard, ThrottledClient};
 use reqwest::StatusCode;

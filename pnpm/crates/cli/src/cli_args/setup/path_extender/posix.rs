@@ -390,7 +390,7 @@ fn replace_section(content: &str, new_section: &str, section: &str) -> String {
 }
 
 fn home_dir() -> Result<PathBuf, PathExtenderError> {
-    home::home_dir().ok_or(PathExtenderError::NoHomeDir)
+    pnpm_config::home_dir().ok_or(PathExtenderError::NoHomeDir)
 }
 
 fn zdotdir_or_home() -> Result<PathBuf, PathExtenderError> {

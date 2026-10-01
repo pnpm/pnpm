@@ -2,7 +2,6 @@ use crate::lifecycle::{DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_R
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    env,
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
@@ -259,7 +258,7 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
 fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-    env::split_paths(path)
+    pnpm_fs::split_paths(path)
         .find_map(|dir| {
             let candidate = dir.join(node_name);
             candidate.is_file().then_some(candidate)

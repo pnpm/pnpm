@@ -1,5 +1,6 @@
 pub(crate) use clean::clean_expired_dlx_cache;
 
+use crate::process::Command;
 use crate::{
     State,
     cli_args::{
@@ -40,7 +41,6 @@ use std::{
     ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
-    process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -223,7 +223,7 @@ impl DlxArgs {
 
 /// End pnpm the way a failed child did. `exit_like` runs no destructors,
 /// so a caller drops what has to be cleaned up before calling this.
-pub(crate) fn exit_unless_success(status: std::process::ExitStatus) {
+pub(crate) fn exit_unless_success(status: crate::process::ExitStatus) {
     if !status.success() {
         pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
     }
@@ -336,7 +336,7 @@ fn run_bin(
     args: &[String],
     bin_dirs: Vec<PathBuf>,
     spawn: &DlxSpawn<'_>,
-) -> miette::Result<std::process::ExitStatus> {
+) -> miette::Result<crate::process::ExitStatus> {
     let mut prepend = bin_dirs;
     prepend.extend(spawn.extra_bin_paths.iter().cloned());
     let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;

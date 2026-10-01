@@ -14,6 +14,7 @@ use pnpm_package_manifest::parse_manifest_bytes;
 use ssri::{Integrity, IntegrityChecker};
 use tar::Archive;
 
+#[cfg(not(target_os = "wasi"))]
 pub(crate) async fn open_local_tarball(
     path: &Path,
 ) -> Result<(tokio::fs::File, u64), TarballError> {
@@ -40,6 +41,26 @@ pub(crate) async fn open_local_tarball(
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     reject_non_file_local_tarball(path, &metadata)?;
     Ok((file, metadata.len()))
+}
+
+#[cfg(target_os = "wasi")]
+pub(crate) async fn open_local_tarball(
+    path: &Path,
+) -> Result<(tokio::fs::File, u64), TarballError> {
+    let opened_path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        let file = open_local_file_sync(&opened_path)?;
+        let length = file
+            .metadata()
+            .map_err(|source| TarballError::ReadLocalTarball { path: opened_path, source })?
+            .len();
+        Ok((tokio::fs::File::from_std(file), length))
+    })
+    .await
+    .map_err(|source| TarballError::ReadLocalTarball {
+        path: path.to_path_buf(),
+        source: io::Error::other(source),
+    })?
 }
 
 pub(crate) fn reject_non_file_local_tarball(
@@ -373,14 +394,21 @@ pub fn verify_local_file_integrity(path: &Path, integrity: &Integrity) -> Result
 }
 
 fn open_local_file_sync(path: &Path) -> Result<std::fs::File, TarballError> {
+    #[cfg(not(target_os = "wasi"))]
     let mut options = std::fs::OpenOptions::new();
+    #[cfg(not(target_os = "wasi"))]
     options.read(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt as _;
         options.custom_flags(libc::O_NONBLOCK);
     }
-    let file = match options.open(path) {
+    #[cfg(not(target_os = "wasi"))]
+    let opened = options.open(path);
+    #[cfg(target_os = "wasi")]
+    let opened = std::fs::canonicalize(path)
+        .and_then(|resolved| pnpm_fs::open_file_without_following(&resolved));
+    let file = match opened {
         Ok(file) => file,
         Err(source) => {
             if path.is_dir() {

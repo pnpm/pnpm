@@ -1,5 +1,6 @@
 pub use output::StreamedScript;
 
+use crate::process::{Command, ExitStatus, Stdio};
 use crate::{
     extend_path::extend_path,
     make_env::{EnvBuild, EnvOptions, build_env, is_path_key, path_value},
@@ -29,7 +30,6 @@ use std::{
     fs,
     io::{self, BufRead, BufReader, Read},
     path::Path,
-    process::{Command, ExitStatus, Stdio},
     thread,
 };
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};

@@ -6,6 +6,7 @@
 //! scripts. Honors the `allowBuild` gate, and rejects sub-paths that
 //! escape the git root via [`safe_join_path`].
 
+use crate::process::Command;
 use crate::{
     error::PreparePackageError,
     pm_shims::{provide_running_pnpm, shim_names, write_pm_shims},
@@ -20,7 +21,6 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    process::Command,
     sync::{LazyLock, Mutex, PoisonError},
 };
 
