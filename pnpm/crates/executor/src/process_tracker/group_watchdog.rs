@@ -127,6 +127,9 @@ impl GroupWatch {
     /// one that died.
     fn start_watchdog(&mut self) -> io::Result<bool> {
         if let Some(mut dead) = self.watchdog.take() {
+            // pnpm still holds its pipe, so a watchdog that is only refusing
+            // writes would never see end of input and could not be reaped.
+            let _ = dead.process.kill();
             let _ = dead.process.wait();
         }
         let Some(mut watchdog) = GroupWatchdog::spawn()? else {
