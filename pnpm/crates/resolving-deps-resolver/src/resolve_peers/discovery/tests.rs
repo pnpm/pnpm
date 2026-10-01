@@ -1,6 +1,8 @@
 //! Unit tests for the peer-hoist discovery engine.
 
-use super::{CanonicalCycleGate, PeerDiscoveryCaches, PeerHoistDiscovery, discover_peers};
+use super::{
+    CanonicalCycleGate, PeerDiscoveryCaches, PeerHoistDiscovery, ViewGeneration, discover_peers,
+};
 use crate::{
     node_id::NodeId,
     resolve_dependency_tree::WorkspaceTreeCtx,
@@ -28,7 +30,7 @@ fn mutual_dependency_children() -> ResolvedTree {
 #[test]
 fn cycle_gate_cuts_one_edge_of_a_mutual_dependency() {
     let tree = mutual_dependency_children();
-    let table = CanonicalCycleGate::default().table(&tree, 1);
+    let table = CanonicalCycleGate::default().table(&tree, ViewGeneration::default());
 
     assert_eq!(table["a@1.0.0"], table["b@1.0.0"], "mutually dependent packages form one cycle");
     assert_ne!(table["c@1.0.0"], table["a@1.0.0"], "a package that enters the cycle is outside it");
@@ -50,17 +52,20 @@ fn cycle_gate_cuts_one_edge_of_a_mutual_dependency() {
 fn cycle_gate_rebuilds_its_table_for_a_newer_view_generation() {
     let mut tree = mutual_dependency_children();
     let gate = CanonicalCycleGate::default();
-    let table = gate.table(&tree, 1);
+    let generation = ViewGeneration::default();
+    let table = gate.table(&tree, generation);
 
     // The engine advances the generation with every change of its view,
     // so a read under the same generation shares the table as built.
     tree.children_by_id.insert("b@1.0.0".into(), Arc::new(Vec::new()));
     assert!(
-        Arc::ptr_eq(&table, &gate.table(&tree, 1)),
+        Arc::ptr_eq(&table, &gate.table(&tree, generation)),
         "reads under one view generation share one table",
     );
 
-    let rebuilt = gate.table(&tree, 2);
+    let mut newer = generation;
+    newer.advance();
+    let rebuilt = gate.table(&tree, newer);
     assert_ne!(
         rebuilt["a@1.0.0"], rebuilt["b@1.0.0"],
         "a newer generation rebuilds the table from the current view",

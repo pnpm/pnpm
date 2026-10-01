@@ -82,10 +82,7 @@ impl PeerHoistDiscovery {
                 };
                 workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
-            // The refreshed view is a new generation: a cache derived from
-            // the previous view, the SCC table among them, rebuilds on its
-            // next read.
-            self.caches.view_generation += 1;
+            self.caches.view_generation.advance();
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
@@ -121,16 +118,29 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
     pub(super) peer_providers: PeerProviderIndex,
     pub(super) canonical_cycles: CanonicalCycleGate,
-    /// How many times the engine has refreshed or rebuilt the view these
-    /// caches belong to. A cache derived from the view records the
-    /// generation it was built under and rebuilds when read under a
-    /// newer one; see [`CanonicalCycleGate::table`].
-    view_generation: u64,
+    view_generation: ViewGeneration,
 }
 
 impl PeerDiscoveryCaches {
-    pub(super) fn view_generation(&self) -> u64 {
+    pub(super) fn view_generation(&self) -> ViewGeneration {
         self.view_generation
+    }
+}
+
+/// Which refresh of the discovery engine's tree view a cache was built
+/// under. The engine advances it with every refresh or rebuild of its
+/// view ([`PeerHoistDiscovery::discover`]), and nothing else changes it.
+/// A cache derived from the view records the generation it was built
+/// under and rebuilds when read under a different one, so a table built
+/// from an earlier view is never served for a later one; see
+/// [`CanonicalCycleGate::table`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ViewGeneration(u64);
+
+impl ViewGeneration {
+    /// Step to the generation of the next view.
+    pub(super) fn advance(&mut self) {
+        self.0 += 1;
     }
 }
 
@@ -183,7 +193,7 @@ pub(super) struct CanonicalCycleGate {
 /// The SCC table of one view generation.
 #[derive(Debug)]
 struct SccTable {
-    view_generation: u64,
+    view_generation: ViewGeneration,
     ids: Arc<HashMap<Arc<str>, usize>>,
 }
 
@@ -194,7 +204,7 @@ impl CanonicalCycleGate {
     pub(super) fn table(
         &self,
         tree: &ResolvedTree,
-        view_generation: u64,
+        view_generation: ViewGeneration,
     ) -> Arc<HashMap<Arc<str>, usize>> {
         let mut sccs = self.sccs.borrow_mut();
         if let Some(table) = sccs.as_ref()
