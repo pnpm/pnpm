@@ -664,6 +664,7 @@ patchedDependencies:
   '@tybys/wasm-util@0.10.4': __patches__/@tybys__wasm-util@0.10.4.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   normalize-registry-url@2.0.1: __patches__/normalize-registry-url@2.0.1.patch
+  unrs-resolver@1.12.2: __patches__/unrs-resolver@1.12.2.patch
 
 patchesDir: __patches__
 

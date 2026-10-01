@@ -182,7 +182,7 @@ async function runScriptTask (pkg) {
     } else if (pkg.manifest.name === '@pnpm/eslint-config') {
       await runCommand('node', ['--test', 'test/perfectionist.test.js'], { cwd: pkg.path })
     } else if (pkg.manifest.name === '@pnpm/esm-loader') {
-      await runCommand('node', ['--test', 'test/loader.test.mjs'], { cwd: pkg.path })
+      await runCommand('node', ['--test', 'test/loader.test.mjs', 'scripts/test-unrs-resolver.mjs'], { cwd: pkg.path })
     } else {
       throw new Error(`Unsupported non-Jest .test script in ${relDir}: ${pkg.manifest.scripts['.test']}`)
     }

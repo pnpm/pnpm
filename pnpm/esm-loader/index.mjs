@@ -24,21 +24,18 @@ export function createStoreHooks (manifestURL) {
       if (!owner) return nextResolve(specifier, context)
       const request = fileRequest(specifier, context)
       if (request === null) return nextResolve(specifier, context)
-      if (!owner.stored && request.filename && !within(store.virtualRoot, request.filename)) {
+      if (request.filename && (!owner.stored || !request.relative) && !within(store.virtualRoot, request.filename)) {
         return nextResolve(specifier, context)
       }
-      if (owner.stored && request.filename && !within(owner.root, request.filename)) {
+      if (owner.stored && request.relative && !within(owner.root, request.filename)) {
         throw loaderError('ERR_PNPM_LOADER_PATH_ESCAPE', `Import ${specifier} escapes package ${owner.id}`)
       }
       const resolved = resolvePackage(request.specifier, parent, context.conditions)
       const url = pathToFileURL(resolved.path)
       url.search = request.search || resolved.query || ''
       url.hash = request.hash || resolved.fragment || ''
-      if (within(store.virtualRoot, resolved.path) && !context.conditions.includes('require')) {
-        const format = moduleFormat(resolved.path, store, manifests)
-        if (format === 'json' && context.importAttributes?.type !== 'json') {
-          throw loaderError('ERR_IMPORT_ATTRIBUTE_MISSING', `Module ${url.href} needs an import attribute of type json`)
-        }
+      if (within(store.virtualRoot, resolved.path)) {
+        moduleFormat(resolved.path, store, manifests)
       }
       return { url: url.href, shortCircuit: true }
     },
@@ -47,6 +44,9 @@ export function createStoreHooks (manifestURL) {
       const filename = fileURLToPath(url)
       if (!within(store.virtualRoot, filename)) return nextLoad(url, context)
       const format = moduleFormat(filename, store, manifests)
+      if (format === 'json' && !context.conditions.includes('require') && context.importAttributes?.type !== 'json') {
+        throw loaderError('ERR_IMPORT_ATTRIBUTE_MISSING', `Module ${url} needs an import attribute of type json`)
+      }
       validateAttributes(format, context.importAttributes, url)
       return { format, source: store.filesystem.readFileSync(filename), shortCircuit: true }
     },
@@ -58,12 +58,12 @@ function fileRequest (specifier, context) {
   const nativeAbsolute = path.isAbsolute(specifier) && !specifier.startsWith('/')
   if (nativeAbsolute || (context.conditions.includes('require') && (relative || path.isAbsolute(specifier)))) {
     const filename = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier)
-    return { filename, specifier: escapeFilename(filename) }
+    return { filename, relative, specifier: escapeFilename(filename) }
   }
   if (specifier.startsWith('file:') || specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('/')) {
     const url = new URL(specifier, context.parentURL)
     const filename = fileURLToPath(url)
-    return { filename, specifier: escapeFilename(filename), search: url.search, hash: url.hash }
+    return { filename, relative, specifier: escapeFilename(filename), search: url.search, hash: url.hash }
   }
   if (specifier.includes(':')) return null
   if (!specifier.startsWith('#') && (specifier.includes('\\') || specifier.split('/').includes('..'))) {

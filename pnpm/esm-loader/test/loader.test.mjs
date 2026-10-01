@@ -1,48 +1,11 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
-import process from 'node:process'
 import { test } from 'node:test'
-import { fileURLToPath, URL } from 'node:url'
 
-const register = fileURLToPath(new URL('../register.mjs', import.meta.url))
+import { fixture } from './fixture.mjs'
 
-function fixture (context) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-store-loader-'))
-  context.after(() => fs.rmSync(root, { recursive: true, force: true }))
-  const manifest = { version: 1, storeDir: './store', packages: { '.': { root: '.', dependencies: {} } } }
-  function write (filename, content) {
-    const target = path.join(root, filename)
-    fs.mkdirSync(path.dirname(target), { recursive: true })
-    fs.writeFileSync(target, content)
-  }
-  function add (id, contents, dependencies = {}) {
-    const files = {}
-    for (const [name, source] of Object.entries(contents)) {
-      const hash = createHash('sha512').update(source).digest('hex')
-      files[name] = hash
-      write(`store/files/${hash.slice(0, 2)}/${hash.slice(2)}`, source)
-    }
-    manifest.packages[id] = { files, dependencies }
-    return files
-  }
-  function run (source, options = {}) {
-    write('.pnpm-store.json', JSON.stringify(manifest))
-    write('app.mjs', source)
-    const result = spawnSync(process.execPath, ['--import', register, ...(options.args ?? []), 'app.mjs'], {
-      cwd: root, encoding: 'utf8', env: { ...process.env, PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json') },
-    })
-    assert.equal(fs.existsSync(path.join(root, 'node_modules')), false)
-    assert.equal(fs.existsSync(path.join(root, '.pnpm-loader')), false)
-    if (!options.failure) assert.equal(result.status, 0, result.stderr)
-    else assert.notEqual(result.status, 0, result.stdout)
-    return result
-  }
-  return { root, manifest, write, add, run }
-}
 
 const esm = JSON.stringify({ name: 'example', type: 'module', exports: './index.js' })
 
@@ -156,13 +119,14 @@ test('preserves URL query identity and encoded filenames', context => {
   assert.equal(setup.run("import value from 'example'; console.log(JSON.stringify(value))").stdout.trim(), '[true,true]')
 })
 
-test('enforces JSON import attributes while allowing require of JSON', context => {
+test('enforces JSON import attributes while allowing require and resolution of JSON', context => {
   const setup = fixture(context)
   setup.add('example@1', {
     'package.json': JSON.stringify({ type: 'module', exports: { '.': './data.json', './code': './index.js' } }),
     'data.json': '{"value":42}', 'index.js': 'export default 1',
   })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.match(setup.run("console.log(import.meta.resolve('example'))").stdout, /data.json/)
   assert.match(setup.run("import value from 'example'", { failure: true }).stderr, /ERR_IMPORT_ATTRIBUTE_MISSING/)
   assert.match(setup.run("import value from 'example/code' with { type: 'json' }", { failure: true }).stderr, /ERR_IMPORT_ATTRIBUTE_TYPE_INCOMPATIBLE/)
   assert.equal(setup.run("import { createRequire } from 'node:module'; console.log(createRequire(import.meta.url)('example').value)").stdout.trim(), '42')
@@ -195,6 +159,7 @@ test('rejects unsupported native addons explicitly', context => {
   setup.add('addon@1', { 'package.json': '{"main":"binding.node"}', 'binding.node': 'not a native binary' })
   setup.manifest.packages['.'].dependencies.addon = 'addon@1'
   assert.match(setup.run("import 'addon'", { failure: true }).stderr, /ERR_PNPM_LOADER_UNSUPPORTED_FORMAT/)
+  assert.match(setup.run("import { createRequire } from 'node:module'; createRequire(import.meta.url)('addon')", { failure: true }).stderr, /ERR_PNPM_LOADER_UNSUPPORTED_FORMAT/)
 })
 
 test('handles executable store blobs, missing files, and unknown dependency targets', context => {
@@ -244,4 +209,13 @@ test('rejects package subpaths that escape into another dependency context', con
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   const hiddenRoot = createHash('sha256').update('hidden@1').digest('hex')
   assert.match(setup.run(`import 'example/../${hiddenRoot}/index.js'`, { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+})
+
+test('loads resolved absolute paths from a stored tool', context => {
+  const setup = fixture(context)
+  setup.add('tool@1', { 'index.js': 'exports.load = filename => require(filename)' })
+  setup.add('value@1', { 'index.js': 'module.exports = 42' })
+  setup.manifest.packages['.'].dependencies = { tool: 'tool@1', value: 'value@1' }
+  setup.write('config.cjs', 'module.exports = 7')
+  assert.equal(setup.run("import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); const tool = require('tool'); console.log(tool.load(require.resolve('value')), tool.load(require.resolve('./config.cjs')))").stdout.trim(), '42 7')
 })

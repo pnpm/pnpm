@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -89,6 +90,9 @@ function isRecord (value) {
 function indexFiles (pkg, files, directories, storeDir) {
   if (!pkg.stored) return
   directories.add(pkg.root)
+  if (!Object.hasOwn(pkg.files, 'package.json')) {
+    files.set(path.join(pkg.root, 'package.json'), { source: Buffer.from('{}') })
+  }
   for (const [name, hash] of Object.entries(pkg.files)) {
     if (!validFilename(name) || typeof hash !== 'string' || !/^[a-f0-9]{128}(?:-exec)?$/.test(hash)) {
       throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid store file ${pkg.id}/${name}`)
@@ -126,6 +130,7 @@ function virtualFilesystem ({ files, directories, virtualRoot }) {
     if (!within(virtualRoot, normalized)) return fs.readFileSync(filename, encoding)
     const entry = files.get(normalized)
     if (!entry) throw missing(filename)
+    if (entry.source) return encoding ? entry.source.toString(encoding) : entry.source
     const source = fs.readFileSync(entry.blob)
     if (createHash('sha512').update(source).digest('hex') !== entry.hash) {
       throw loaderError('ERR_PNPM_LOADER_INTEGRITY', `Store file failed integrity verification: ${entry.blob}`)

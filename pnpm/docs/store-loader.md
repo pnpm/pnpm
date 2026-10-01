@@ -8,7 +8,7 @@ This is an experimental runtime API. `pnpm install` does not yet generate its ma
 
 ## Running an application
 
-The loader requires Node.js 22.15.0 or later in the 22.x release line, or Node.js 24 or later. It uses synchronous module hooks. Make the loader available separately from the application's dependencies, then preload its registration module:
+The loader requires Node.js 26.10.0 or later. It uses synchronous module hooks. Make the loader available separately from the application's dependencies, then preload its registration module:
 
 ```sh
 PNPM_LOADER_MANIFEST=/absolute/path/to/.pnpm-store.json \
@@ -76,7 +76,7 @@ The loader supports ESM and CommonJS, relative modules, dynamic imports, `create
 
 Stored modules have virtual file URLs under `.pnpm-loader/` next to the manifest. That directory is never created. These URLs retain package identity and source filenames; the loader reads the corresponding bytes from CAS and verifies their hashes. The virtual namespace is reserved and cannot also be a workspace root.
 
-Only declared dependencies are available through bare imports. There is no fallback to an application's existing `node_modules` tree for a dependency missing from the manifest. Built-in modules continue to use Node's loader. Relative local application files use Node's normal resolution.
+Only declared dependencies are available through bare imports. There is no fallback to an application's existing `node_modules` tree for a dependency missing from the manifest. Built-in modules continue to use Node's loader. Absolute paths returned by resolvers remain loadable. Relative local application files use Node's normal resolution. Packages without a `package.json` receive an in-memory empty manifest to keep resolution within their package boundary.
 
 ## Compatibility limits
 
@@ -89,3 +89,27 @@ Use `.mjs` or `"type": "module"` for ESM. Stored `.js` files without a package t
 The loader does not run lifecycle scripts, select side-effects cache entries, create command shims, or generate manifests from lockfiles. A package with install scripts can run from stored build outputs if its effective files otherwise meet these compatibility requirements. Runtime and development dependencies have the same filesystem constraints.
 
 The manifest is trusted configuration, as a lockfile and preload script are. Dependency restrictions and blob verification do not sandbox package code.
+
+## Repository compatibility check
+
+From a checkout with dependencies installed and compiled, run:
+
+```sh
+node pnpm/esm-loader/scripts/test-repository.mjs
+```
+
+This manual compatibility check first runs the existing CLI argument parser test suite as a baseline. It then snapshots the installed dependency graph into a temporary CAS, copies the compiled workspaces without `node_modules`, bundles the loader so its own dependencies require no package directories, and attempts the parser suite, a pnpm CLI suite, and unbundled CLI startup. It verifies that the temporary tree contains no `node_modules` directories or symlinks outside the tree. The original checkout is not modified. The fixture and logs are retained at the printed path.
+
+This tests runtime compatibility against the installed packages. It does not test fetching, automatic installation, or generation of a manifest from a lockfile. Missing optional/platform dependencies from the installed graph are recorded in `missing-dependencies.json`.
+
+The repository patch for `unrs-resolver` enables Node resolution with `UNRS_RESOLVER_NODE_RESOLUTION=1`. The compatibility check sets this automatically. It delegates to `createRequire().resolve()` and forwards conditional exports through a temporary synchronous hook. This mode uses Node semantics; unrs-specific aliases, TypeScript configuration, and custom extension searches are not implemented. Normal runs retain the native resolver.
+
+The patched run indexed 1,793 packages and 37,807 files. The parser baseline passed 51 tests. Without `node_modules`, Jest resolved its configuration and started the parser suite, then failed when its VM runtime read `source-map-support.js` directly through `fs`. Zero tests executed. The CLI suite reached registry setup and required the external `pnpr-prepare` test binary. The unbundled CLI's `with current --version` and `with current help` commands succeeded; `with current` prevents switching to the repository's pinned package manager. The unbundled development build reports version `0.0.0`.
+
+These results do not establish compatibility with pnpm's test suite. The command exits unsuccessfully while any scenario fails. Running Jest requires additional filesystem integration and native-tooling support or materialization. See [the install-mode plan](https://github.com/pnpm/tasks/issues/64).
+
+The resolver patch has a separate regression test that runs from CAS without a native binding or `node_modules`:
+
+```sh
+node --test pnpm/esm-loader/scripts/test-unrs-resolver.mjs
+```
