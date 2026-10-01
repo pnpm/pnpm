@@ -1,10 +1,9 @@
 //! Running one package's build scripts.
 
-mod linked_copies;
+mod dangling_links;
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
-use linked_copies::unlink_project_links;
 use patched_engines::skip_incompatible_optional;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
@@ -369,12 +368,12 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !context.directories.layout.enable_global_virtual_store()
                 || (context.rebuild.is_none() && slot_lock.is_some())
             {
-                unlink_project_links(context, &context.pkg_roots().all(snapshot_key));
                 discard_skipped_optional_dependency(
                     context.pkg_roots(),
                     context.directories.lockfile_dir,
                     snapshot_key,
                 )?;
+                dangling_links::remove_dangling_links(context, snapshot_key, name)?;
             }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,

@@ -95,8 +95,9 @@ async function realpathOrUndefined (target: string): Promise<string | undefined>
   try {
     return await fs.realpath(target)
   } catch (err: unknown) {
-    // A dangling or cyclic link resolves to nothing, so it cannot point at the target.
-    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ELOOP')) return undefined
+    // A dangling or cyclic link, or one whose target runs through a regular
+    // file, resolves to nothing, so it cannot point at the target.
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ELOOP' || err.code === 'ENOTDIR')) return undefined
     throw err
   }
 }
