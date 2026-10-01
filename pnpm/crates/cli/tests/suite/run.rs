@@ -3,7 +3,7 @@ use crate::_utils::write_executable;
 use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use serde_json::json;
 use std::{fs, time::Duration};
 
@@ -298,13 +298,8 @@ fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
         .expect("spawn pacquet run");
     assert!(!output.status.success(), "a missing script must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let stderr = stderr
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
     assert!(stderr.contains("ERR_PNPM_NO_SCRIPT"), "should surface NO_SCRIPT:\n{stderr}");
-    let command = format!(r#""pnpm {filter_option} <selector> run build""#);
-    assert!(stderr.contains(&command), "{script_args:?} should suggest {command}:\n{stderr}");
+    assert_diagnostic_contains(&stderr, &format!(r#""pnpm {filter_option} <selector> run build""#));
     assert!(
         !stderr.contains("@local/b"),
         "{script_args:?} should not echo the selector:\n{stderr}",
