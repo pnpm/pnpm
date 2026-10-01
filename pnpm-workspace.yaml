@@ -52,6 +52,7 @@ packages:
   - pnpm11/workspace/*
   - pnpm11/yaml/*
   - pnpm/npm/napi
+  - pnpm/esm-loader
   - pnpm/npm/pnpm
   - pnpm/tasks/registry-mock
   - pnpm/tasks/ecosystem-e2e/webcontainer
