@@ -168,13 +168,15 @@ fn remove_retired_executables(dir: &Path) -> io::Result<()> {
 }
 
 /// Windows reports a retired executable that is still running as access
-/// denied.
+/// denied, and one another process holds open as a sharing violation.
 fn remove_retired_executable(path: &Path) -> io::Result<()> {
     match fs::remove_file(path) {
         Err(error)
             if matches!(
                 error.kind(),
-                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied,
+                io::ErrorKind::NotFound
+                    | io::ErrorKind::PermissionDenied
+                    | io::ErrorKind::ResourceBusy,
             ) =>
         {
             Ok(())
