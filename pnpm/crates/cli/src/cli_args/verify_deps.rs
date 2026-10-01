@@ -234,9 +234,9 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 /// already decided that an install is required.
 ///
 /// An install that exits with an error only warns, so a sandbox with a
-/// read-only store or no network can still run its scripts. An install killed
-/// by a signal (e.g. Ctrl-C) aborts the command.
-#[expect(clippy::exit, reason = "a signal-killed spawned install must stop the command")]
+/// read-only store or no network can still run its scripts. An interrupted
+/// install aborts the command.
+#[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
     install_args: &[String],
@@ -268,24 +268,29 @@ fn spawn_install(
         return Ok(());
     }
     // The child already reported its own failure.
-    if status.code().is_none() {
+    if is_interrupted(status) {
         exit(1);
     }
-    warn(
-        matches!(reporter, ReporterType::Silent),
-        &format!(
-            r#""pnpm {}" failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install before running scripts."#,
-            install_command(install_args),
-        ),
-    );
+    warn(matches!(reporter, ReporterType::Silent), FAILED_INSTALL_WARNING);
     Ok(())
 }
 
-fn install_command(install_args: &[String]) -> String {
-    std::iter::once("install")
-        .chain(install_args.iter().map(String::as_str))
-        .collect::<Vec<_>>()
-        .join(" ")
+const FAILED_INSTALL_WARNING: &str = r#"The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install."#;
+
+/// The exit code Windows reports for a process ended by `Ctrl+C`.
+#[cfg(windows)]
+const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
+
+/// Whether the install ended by a signal, or by `Ctrl+C` on Windows,
+/// rather than by exiting with an error of its own.
+fn is_interrupted(status: std::process::ExitStatus) -> bool {
+    match status.code() {
+        None => true,
+        #[cfg(windows)]
+        Some(code) => code.cast_unsigned() == STATUS_CONTROL_C_EXIT,
+        #[cfg(not(windows))]
+        Some(_) => false,
+    }
 }
 
 /// Print a `globalWarn`-shaped line to stderr. The gate runs before any
@@ -313,7 +318,10 @@ fn prompt_install(
         refuse_install_dropping_ignored_settings(dir, config)?;
         return Err(VerifyDepsError::CannotPrompt { issue }.into());
     }
-    let command = install_command(install_args);
+    let command = std::iter::once("install")
+        .chain(install_args.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join(" ");
     let message = format!(
         "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
     );

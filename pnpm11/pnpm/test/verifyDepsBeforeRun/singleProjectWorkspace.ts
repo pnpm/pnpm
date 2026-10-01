@@ -268,6 +268,6 @@ test('a failed install before the script is reported as a warning and the script
 
   const { stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=install', 'start'], { expectSuccess: true })
   const output = stdout.toString() + stderr.toString()
-  expect(output).toContain('"pnpm install" failed, so your node_modules may be out of sync with your lockfile.')
+  expect(output).toContain('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile.')
   expect(output).toContain('hello from script')
 })

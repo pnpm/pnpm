@@ -475,7 +475,7 @@ test('warns and lets the command run when the install exits with an error', asyn
     verifyDepsBeforeRun: 'install',
   })
 
-  expect(globalWarn).toHaveBeenCalledWith('"pnpm install" failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install before running scripts.')
+  expect(globalWarn).toHaveBeenCalledWith('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install.')
 })
 
 test('aborts when the install is killed by a signal', async () => {
@@ -485,6 +485,33 @@ test('aborts when the install is killed by a signal', async () => {
     workspaceState: undefined,
   })
   const killed = Object.assign(new Error('Command was killed with SIGINT: pnpm install'), { exitCode: undefined, signal: 'SIGINT' })
+  runPnpmCli.mockImplementation(() => {
+    throw killed
+  })
+
+  await expect(runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+      dependencies: { foo: '1.0.0' },
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+  })).rejects.toBe(killed)
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('aborts when the install is ended by Ctrl+C on Windows', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    issue: 'The lockfile is not up to date',
+    workspaceState: undefined,
+  })
+  const killed = Object.assign(new Error('Command failed with exit code 3221225786: pnpm install'), { exitCode: 0xC000_013A })
   runPnpmCli.mockImplementation(() => {
     throw killed
   })
