@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
+import { LOCKFILE_VERSION } from '../../../pnpm11/core/constants/lib/index.js'
 import { parse as parseDependencyPath, refToRelative } from '../../../pnpm11/deps/path/lib/index.js'
 import { readModulesManifest } from '../../../pnpm11/installing/modules-yaml/lib/index.js'
 import { readCurrentLockfile, writeWantedLockfile } from '../../../pnpm11/lockfile/fs/lib/index.js'
@@ -18,8 +19,9 @@ export async function installOptOuts (source, manifest, names) {
   const selected = selectPackages(manifest, names)
   const modules = await readModulesManifest(path.join(source.repo, 'node_modules'))
   if (!modules) throw new Error(`No installed dependency graph in ${source.repo}`)
-  const lockfile = await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false }) ??
-    await readCurrentLockfile(path.join(source.repo, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+  const lockfileOptions = { ignoreIncompatible: false, wantedVersions: [LOCKFILE_VERSION] }
+  const lockfile = await readCurrentLockfile(modules.virtualStoreDir, lockfileOptions) ??
+    await readCurrentLockfile(path.join(source.repo, 'node_modules/.pnpm'), lockfileOptions)
   if (!lockfile) throw new Error(`No installed lockfile in ${modules.virtualStoreDir}`)
   const packageManifest = JSON.parse(fs.readFileSync(path.join(source.repo, 'package.json'), 'utf8'))
   const config = { ...packageManifest.pnpm, ...await readWorkspaceManifest(source.repo) }
