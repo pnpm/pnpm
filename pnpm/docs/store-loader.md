@@ -127,3 +127,39 @@ This diagnostic retries the parser suite after each missing store-backed filesys
 The parser suite passed all 51 tests after materializing 71 of the 1,585 stored package instances: 656 files, 3.4 MiB. The other 1,514 package instances remained in CAS, and the fixture contained no `node_modules` directory or external symlink. The 208 workspace projects already had physical sources and compiled outputs.
 
 The selected packages include Jest internals and dependencies of the code under test, such as `@pnpm/nopt` and `didyoumean2`. Jest's VM reads those sources too. This demonstrates that selective materialization works for this suite, but does not establish that materializing Jest alone is sufficient or that all remaining CAS packages were exercised.
+
+### External repository checks
+
+The standalone diagnostic scripts also accept installed pnpm workspaces. These checks ran on Linux with Node.js 26.10.0. They snapshot workspace files and dependency blobs, then verify that the snapshot contains neither `node_modules` directories nor symlinks outside it. They do not add an install-time analyzer or change the repositories' source code.
+
+| Repository revision | Workload | Normal installation | Store-backed result |
+| --- | --- | --- | --- |
+| [Vue 4ab865a](https://github.com/vuejs/core/tree/4ab865a848a1da3d10fb674f857e5fff13094644) | Reactivity suite | 445 passed, 4 skipped | Same result after materializing 3 tooling packages; all-CAS startup needs a native Rolldown binding |
+| [Vite 1003321](https://github.com/vitejs/vite/tree/10033218d239c927cdc375970b5741cce408e81b) | Utility suite | 131 passed | No tests executed; after materializing 2 tooling packages, Vitest's runner cannot resolve `magic-string` |
+| [Svelte 020242d](https://github.com/sveltejs/svelte/tree/020242d6bef059df9ae8c13dc8dbff4c9b31e0ff) | Store suite | 33 passed | No tests executed; after materializing 8 tooling packages, Vite's runner cannot resolve `esm-env` |
+| Same Svelte revision | Compile 100 repository components for client and server | 200 compilations succeeded | All 200 outputs match, with no registry packages materialized; 297 modules from 15 packages loaded from CAS |
+
+Vue's snapshot contains 509 registry package instances and 18 workspace projects. Its materialized subset is `vitest`, `vite`, and `@rolldown/binding-linux-x64-gnu`: 154 files, 22.5 MiB. Vite's snapshot contains 1,150 registry package instances and 285 workspace projects. Svelte's contains 410 registry package instances and 3 workspace projects. Workspace sources and built outputs remain physical in every scenario.
+
+Both `magic-string` and `esm-env` resolve successfully through native Node resolution with the loader. The remaining failures are in the test runners' resolution paths. These are compatibility probes, not full-repository test passes. The Svelte compiler comparison exercises the compiler directly and does not replace its Vitest suite.
+
+After installing the pinned dependencies in each checkout, run these from the pnpm repository:
+
+```sh
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/vue run --project unit packages/reactivity/__tests__ --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/vite run packages/vite/src/node/__tests__/utils.spec.ts --maxWorkers=2 --configLoader native --no-cache
+node pnpm/esm-loader/scripts/test-ecosystem.mjs /path/to/svelte run packages/svelte/tests/store/test.ts --maxWorkers=2 --configLoader native --no-cache
+```
+
+Vite's checkout needs `pnpm --filter vite run build-bundle` first. Each command runs the normal baseline, prints the retained snapshot directory, and exits nonzero if the all-CAS run fails. `--configLoader native` avoids bundling the test configuration with a separate resolver. `--no-cache` prevents Vitest from creating `node_modules/.vite` for its result cache.
+
+Use the corresponding snapshot directory for the follow-up experiments:
+
+```sh
+node pnpm/esm-loader/scripts/test-selective-repository.mjs /vue-snapshot @rolldown/binding-linux-x64-gnu vite vitest
+node pnpm/esm-loader/scripts/test-selective-repository.mjs /vite-snapshot @rolldown/binding-linux-x64-gnu vitest
+node pnpm/esm-loader/scripts/test-selective-repository.mjs /svelte-snapshot vite vitest esbuild @esbuild/linux-x64
+node pnpm/esm-loader/scripts/test-svelte-compiler.mjs /svelte-snapshot
+```
+
+The selective experiment accepts explicit package names and can additionally materialize packages identified by missing-file or unsupported-native-addon errors. It does not infer dependencies through static analysis. Its loader preload is inherited through `NODE_OPTIONS` so worker processes can resolve CAS packages too. Reports preserve package counts, exit statuses, and individual attempt logs. The compiler check uses the original all-CAS manifest and compares hashes of generated JavaScript, CSS, source maps, and warnings.

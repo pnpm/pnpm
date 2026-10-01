@@ -89,7 +89,7 @@ function moduleFormat (filename, store, manifests) {
     const manifestPath = path.join(directory, 'package.json')
     if (!store.files.has(manifestPath)) continue
     if (!manifests.has(manifestPath)) {
-      manifests.set(manifestPath, JSON.parse(store.filesystem.readFileSync(manifestPath, 'utf8')))
+      manifests.set(manifestPath, store.filesystem.readJsonSync(manifestPath))
     }
     return manifests.get(manifestPath).type === 'module' ? 'module' : 'commonjs'
   }

@@ -137,7 +137,11 @@ function virtualFilesystem ({ files, directories, virtualRoot }) {
     }
     return encoding ? source.toString(encoding) : source
   }
-  return { statSync, readFileSync }
+  function readJsonSync (filename) {
+    const source = readFileSync(filename, 'utf8')
+    return JSON.parse(source.charCodeAt(0) === 0xFEFF ? source.slice(1) : source)
+  }
+  return { statSync, readFileSync, readJsonSync }
 }
 
 function missing (filename) {
