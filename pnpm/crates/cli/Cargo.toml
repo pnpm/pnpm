@@ -33,7 +33,6 @@ pnpm-pnpr-client = { workspace = true }
 pnpm-env-installer = { workspace = true }
 pnpm-executor = { workspace = true }
 pnpm-fs = { workspace = true }
-pnpm-local-spec = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
 pnpm-github-actions = { workspace = true }
 pnpm-global = { workspace = true }
@@ -41,6 +40,7 @@ pnpm-graph-hasher = { workspace = true }
 pnpm-hooks = { workspace = true }
 pnpm-injected-deps-syncer = { workspace = true }
 pnpm-install-coordinator = { workspace = true }
+pnpm-local-spec = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-lockfile-import = { workspace = true }
 pnpm-lockfile-preferred-versions = { workspace = true }
