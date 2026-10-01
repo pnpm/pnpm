@@ -128,12 +128,8 @@ impl PeerDiscoveryCaches {
 }
 
 /// Which refresh of the discovery engine's tree view a cache was built
-/// under. The engine advances it with every refresh or rebuild of its
-/// view ([`PeerHoistDiscovery::discover`]), and nothing else changes it.
-/// A cache derived from the view records the generation it was built
-/// under and rebuilds when read under a different one, so a table built
-/// from an earlier view is never served for a later one; see
-/// [`CanonicalCycleGate::table`].
+/// under; [`PeerHoistDiscovery::discover`] advances it with every
+/// refresh or rebuild of the view.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ViewGeneration(u64);
 
@@ -146,9 +142,8 @@ impl ViewGeneration {
 
 /// Which child edges of each package can stand in as peer-dependency
 /// providers (see [`index_peer_provider_children`]), indexed for the
-/// walkers of one tree view. Which edges count depends on the tree's
-/// peer names, so the index records the names it was built under; see
-/// [`Self::refresh`].
+/// walkers of one tree view and valid for the peer names it was built
+/// under; see [`Self::refresh`].
 #[derive(Debug, Default)]
 pub(super) struct PeerProviderIndex {
     pub(super) children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
@@ -156,9 +151,7 @@ pub(super) struct PeerProviderIndex {
 }
 
 impl PeerProviderIndex {
-    /// Bring the index up to `tree`: rebuilt when the tree's peer names
-    /// differ from the ones it was built under, then extended with the
-    /// packages it does not cover yet.
+    /// Bring the index up to `tree` and its peer names.
     pub(super) fn refresh(&mut self, tree: &ResolvedTree) {
         if self.peer_names != tree.all_peer_dep_names {
             self.children_by_pkg_id.clear();
@@ -173,13 +166,9 @@ impl PeerProviderIndex {
 /// shared record-only occurrence per canonical back-edge target.
 #[derive(Debug, Default)]
 pub(super) struct CanonicalCycleGate {
-    /// Children-graph SCC ids: every intra-SCC edge whose target is not
-    /// canonically later (package-id order) is cut, the same cut at
-    /// every occurrence, so realized subtrees are entry-independent and
-    /// no walk path can revisit a package. A function of the tree view's
-    /// `children_by_id`: [`Self::table`] builds it on first use, shares
-    /// it with every walker over that view, and rebuilds it when read
-    /// under a newer view generation.
+    /// The children-graph SCC ids [`Walker::cuts_cycle_edge`] reads, a
+    /// function of the view's [`ResolvedTree::children_by_id`]; see
+    /// [`Self::table`].
     sccs: RefCell<Option<SccTable>>,
     /// The shared record-only occurrence per canonical back-edge
     /// target; persisted so later rounds reuse instead of re-creating
@@ -197,9 +186,8 @@ struct SccTable {
 }
 
 impl CanonicalCycleGate {
-    /// The SCC table of `tree`'s children graph, `tree` being the view at
-    /// `view_generation`: built on first use and shared until a read
-    /// under a newer generation.
+    /// The SCC table of `tree`'s children graph; reads under one
+    /// `view_generation` share it.
     pub(super) fn table(
         &self,
         tree: &ResolvedTree,

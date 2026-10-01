@@ -271,9 +271,7 @@ pub enum TreeChildren {
     Realized(Arc<BTreeMap<String, NodeId>>),
     /// Children are known by spec only: the reader expands them from
     /// [`ResolvedTree::children_by_id`] under the peer walk's canonical
-    /// cycle gate, which cuts the same edges at every occurrence of a
-    /// package, so a revisit's subtree needs no per-occurrence state to
-    /// agree with the first walk's.
+    /// cycle gate.
     Lazy,
 }
 

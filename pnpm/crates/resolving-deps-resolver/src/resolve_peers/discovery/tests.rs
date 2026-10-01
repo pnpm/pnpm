@@ -55,8 +55,8 @@ fn cycle_gate_rebuilds_its_table_for_a_newer_view_generation() {
     let generation = ViewGeneration::default();
     let table = gate.table(&tree, generation);
 
-    // The engine advances the generation with every change of its view,
-    // so a read under the same generation shares the table as built.
+    // The generation, not the tree, keys the table: the engine advances
+    // it with every change of its view.
     tree.children_by_id.insert("b@1.0.0".into(), Arc::new(Vec::new()));
     assert!(
         Arc::ptr_eq(&table, &gate.table(&tree, generation)),
@@ -80,6 +80,8 @@ fn cycle_gate_rebuilds_its_table_for_a_newer_view_generation() {
 fn discovery_engine_refreshes_the_cycle_gate_with_its_view() {
     let workspace = WorkspaceTreeCtx::default();
     let mut engine = PeerHoistDiscovery::new();
+    // The view is filled directly: recording children is private to the
+    // dependency walk, and this is the shape its sync produces.
     let view = &mut engine.tree;
     view.packages.insert("a@1.0.0".into(), package("a", "1.0.0", &[], false));
     view.packages.insert("b@1.0.0".into(), package("b", "1.0.0", &[], true));
@@ -91,7 +93,6 @@ fn discovery_engine_refreshes_the_cycle_gate_with_its_view() {
     let table = engine.caches.canonical_cycles.table(&engine.tree, first_round);
     assert!(table.get("p@1.0.0").is_none(), "the first round's view has no `p` yet");
 
-    // A hoist round installs `p`, and `p` and `q` depend on each other.
     let view = &mut engine.tree;
     view.packages.insert("p@1.0.0".into(), package("p", "1.0.0", &[], false));
     view.packages.insert("q@1.0.0".into(), package("q", "1.0.0", &[], false));
@@ -110,8 +111,7 @@ fn discovery_engine_refreshes_the_cycle_gate_with_its_view() {
         "the refreshed gate knows the cycle the hoist round installed",
     );
 
-    // The round walks the hoisted package: the gate cuts the edge back
-    // to `p`, so the walk over the cycle completes.
+    // Only a cut `q -> p` edge lets the walk over the cycle finish.
     let hoisted = direct[1..].to_vec();
     engine.discover(&workspace, &direct, &hoisted, ResolvePeersOptions::default());
     assert!(
