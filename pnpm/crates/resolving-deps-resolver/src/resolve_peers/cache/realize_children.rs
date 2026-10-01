@@ -168,11 +168,22 @@ impl Walker<'_> {
         (providers, Some(UndoRealize { newly_inserted }))
     }
 
-    /// The `(alias → NodeId)` children of `node_id`: a
-    /// [`TreeChildren::Lazy`] entry is expanded from
-    /// [`crate::ResolvedTree::children_by_id`] under the canonical cycle
-    /// gate ([`Walker::cuts_cycle_edge`]) and becomes
-    /// [`TreeChildren::Realized`]; a realized entry yields its map.
+    /// Realize the `(alias → NodeId)` children of `node_id` if it's
+    /// currently a [`TreeChildren::Lazy`] entry; return the realized
+    /// map (cloned for the caller). On a [`TreeChildren::Realized`]
+    /// entry, just clones and returns. Expands the thunk on demand:
+    ///
+    /// 1. Walk [`crate::ResolvedTree::children_by_id`] for this node's
+    ///    package id.
+    /// 2. Cut the edges the canonical cycle gate cuts
+    ///    ([`Walker::cuts_cycle_edge`]); a canonical back-edge is
+    ///    recorded against its target's shared occurrence instead.
+    /// 3. For each surviving child, allocate a per-occurrence
+    ///    `NodeId` (leaves reuse the deterministic `NodeId::leaf`
+    ///    for the leaf-collapse the eager walker does too) and
+    ///    insert a fresh lazy `dependencies_tree` entry.
+    /// 4. Flip this node's `children` field to `Realized` so a
+    ///    later visitor reuses the map.
     pub(super) fn realize_children(
         &mut self,
         node_id: &NodeId,
