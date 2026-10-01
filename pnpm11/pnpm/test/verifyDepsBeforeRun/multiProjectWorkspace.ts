@@ -866,6 +866,62 @@ test('exec installs the selected project after a filtered install', async () => 
   expect(fs.existsSync(path.resolve('bar/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
 })
 
+// The install the gate spawns selects the workspace dependencies of the
+// selected project, so a dependency the filtered install left without a
+// modules directory is installed too (https://github.com/pnpm/tasks/issues/45).
+test('exec installs a workspace dependency of the selected project after a filtered install', async () => {
+  prepareProjectWithWorkspaceDependency()
+
+  execPnpmSync(['--filter=foo', 'install'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('foo/node_modules'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+
+  const result = execPnpmSync([
+    '--config.verify-deps-before-run=install',
+    '--filter=foo',
+    'exec',
+    'node',
+    '-e',
+    "console.log('foo-ok')",
+  ], { expectSuccess: true })
+
+  expect(result.stdout.toString()).toContain('foo-ok')
+  expect(fs.existsSync(path.resolve('bar/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+})
+
+// A negated selector reaches the install the gate spawns unchanged, so the
+// project it excludes is not required to have a modules directory.
+test('exec does not require a workspace dependency that a negated selector excludes', async () => {
+  prepareProjectWithWorkspaceDependency()
+
+  execPnpmSync(['--filter=!bar', 'install'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+
+  const result = execPnpmSync([...CONFIG, '--filter=!bar', 'exec', 'node', '-e', "console.log('ok')"], { expectSuccess: true })
+
+  expect(result.stdout.toString()).toContain('ok')
+})
+
+function prepareProjectWithWorkspaceDependency (): void {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: { bar: 'workspace:*' },
+    },
+    {
+      name: 'bar',
+      private: true,
+      dependencies: { '@pnpm.e2e/foo': '=100.0.0' },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+}
+
 test('no dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {

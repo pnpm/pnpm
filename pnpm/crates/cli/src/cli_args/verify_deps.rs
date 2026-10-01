@@ -344,7 +344,7 @@ fn filter_selector_args(filters: &[String], filter_prod: &[String]) -> Vec<Strin
     filters.chain(filter_prod).collect()
 }
 
-fn with_dependencies(selector: &str) -> String {
+pub(crate) fn with_dependencies(selector: &str) -> String {
     if selector.starts_with('!') || selector.ends_with("...") {
         selector.to_string()
     } else {

@@ -4530,6 +4530,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: link:../../workspace/projects-filter
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../../workspace/projects-reader
@@ -4591,9 +4594,6 @@ importers:
       '@pnpm/testing.command-defaults':
         specifier: workspace:*
         version: link:../../testing/command-defaults
-      '@pnpm/workspace.projects-filter':
-        specifier: workspace:*
-        version: link:../../workspace/projects-filter
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
