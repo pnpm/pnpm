@@ -1,6 +1,6 @@
 use super::{
     DateTime, HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path,
-    PolicyMatch, TrustPolicy, Utc, VersionSelectors,
+    TrustPolicy, Utc, VersionSelectors,
 };
 
 /// Process-shared context every [`super::pick_package`] call reads from.
@@ -111,10 +111,7 @@ impl PackagePickPolicy<'_> {
     /// versions is picked as if the cutoff were off.
     pub(crate) fn release_age_applies_to(&self, name: &str) -> bool {
         self.published_by.is_some()
-            && !matches!(
-                self.published_by_exclude.map(|policy| policy.matches(name)),
-                Some(PolicyMatch::AnyVersion),
-            )
+            && !self.published_by_exclude.is_some_and(|policy| policy.covers_every_version(name))
     }
 }
 
