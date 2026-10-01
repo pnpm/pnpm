@@ -273,13 +273,11 @@ fn windows_shim_bodies(
 /// header in place. [`is_sh_shim_basedir_anchor_current`] does the same for
 /// the physical directory anchor.
 fn existing_shim_is_current(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>) -> bool {
-    if spec.options.force {
-        return false;
-    }
     let Some(existing) = existing else {
         return false;
     };
-    if cfg!(target_family = "wasm")
+    if spec.options.force
+        || cfg!(target_family = "wasm")
         || !spec.node_path.is_empty()
         || spec.relocatable_root().is_some()
     {

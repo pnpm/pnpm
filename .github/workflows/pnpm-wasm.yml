@@ -70,6 +70,11 @@ jobs:
           WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
         run: pnpm --filter @pnpm-private/wasm-runtime test
 
+      - name: Test WASM store permissions on Node.js
+        run: |
+          pnpm_probe_dir=$(mktemp -d)
+          PROBE_DIR="$pnpm_probe_dir" PROBE_STORE=roundtrip node pnpm/wasm/run.mjs target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
+
       - name: Install Chromium
         run: pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --with-deps --only-shell chromium
 

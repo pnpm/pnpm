@@ -9,6 +9,7 @@ import type { DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import { prepareBinPaths, runBuild } from '../../after-install/src/buildSinglePackage.js'
 import { relinkBins } from '../../after-install/src/rebuildGraph.js'
 import type { RebuildState } from '../../after-install/src/rebuildTypes.js'
+import { relinkHoistedPackageBins } from '../../after-install/src/relinkHoistedPackageBins.js'
 
 const toolDepPath = 'tool@1.0.0' as DepPath
 const parentDepPath = 'parent@1.0.0' as DepPath
@@ -20,6 +21,7 @@ testOnUnix('post-build relinking refreshes changed interpreters in project and d
   const { modules, parent, executable, state } = fixture()
   await relinkBins(state, () => modules)
   fs.writeFileSync(executable, '#!/bin/sh\nprintf "built binary\\n"\n')
+  state.builtDepPaths.add(toolDepPath)
 
   await prepareBinPaths({ depPath: parentDepPath, pkgRoot: parent }, state)
   const parentBuild = spawnSync(path.join(parent, 'node_modules/.bin/tool'), { encoding: 'utf8' })
@@ -53,19 +55,7 @@ testOnUnix('hoisted completed builds refresh shared launchers without rewriting 
   }
   state.pkgSnapshots[toolDepPath].resolution = { type: 'directory', directory: '../tool' }
   state.pkgSnapshots[rivalDepPath] = { resolution: { type: 'directory', directory: '../rival' } }
-  state.ctx.modulesFile = {
-    hoistedLocations: { [toolDepPath]: ['node_modules/tool'], [rivalDepPath]: ['node_modules/rival'] },
-    hoistedDependencies: {},
-    included: { dependencies: true, devDependencies: true, optionalDependencies: true },
-    layoutVersion: 5,
-    packageManager: 'pnpm@11.0.0',
-    pendingBuilds: [],
-    prunedAt: new Date(0).toUTCString(),
-    skipped: [],
-    storeDir: path.join(state.opts.lockfileDir, 'store'),
-    virtualStoreDir: path.join(modules, '.pnpm'),
-    virtualStoreDirMaxLength: 120,
-  }
+  state.ctx.modulesFile = modulesManifest(modules)
   await relinkBins({ ...state, pkgSnapshots: {} }, () => modules)
   const stableBin = path.join(modules, '.bin/stable')
   fs.utimesSync(stableBin, 100, 100)
@@ -75,6 +65,8 @@ testOnUnix('hoisted completed builds refresh shared launchers without rewriting 
   fs.utimesSync(toolBin, 100, 100)
   await runBuild(rivalDepPath, state)
   expect(fs.statSync(toolBin).mtimeMs).toBe(100000)
+  expect(fs.statSync(stableBin).mtimeMs).toBe(100000)
+  await relinkBins({ ...state, pkgSnapshots: {} }, () => modules)
   expect(fs.statSync(stableBin).mtimeMs).toBe(100000)
 
   await Promise.all([parent, path.join(modules, 'second-parent')].map(async pkgRoot => {
@@ -87,6 +79,37 @@ testOnUnix('hoisted completed builds refresh shared launchers without rewriting 
     expect(result.status).toBe(0)
     expect(result.stdout).toBe('built binary\n')
   }))
+})
+
+testOnUnix('final relinking refreshes publicly hoisted built transitive commands', async () => {
+  const { modules, executable, state } = fixture()
+  state.ctx.currentLockfile.importers = {}
+  state.ctx.modulesFile = modulesManifest(modules)
+  state.ctx.modulesFile.hoistedDependencies[toolDepPath] = { tool: 'public' }
+  await relinkBins(state, () => modules)
+  fs.writeFileSync(executable, '#!/bin/sh\nprintf "built binary\\n"\n')
+  state.builtDepPaths.add(toolDepPath)
+  await relinkBins(state, () => modules)
+  const result = spawnSync(path.join(modules, '.bin/tool'), { encoding: 'utf8' })
+  expect(result.stderr).toBe('')
+  expect(result.status).toBe(0)
+  expect(result.stdout).toBe('built binary\n')
+})
+
+testOnUnix('hoisted refresh plans keep duplicate placements in their own physical directories', async () => {
+  const { modules, state } = fixture()
+  const roots = [path.join(modules, 'tool'), path.join(modules, 'parent/node_modules/tool')]
+  for (const [index, pkgRoot] of roots.entries()) {
+    fs.mkdirSync(pkgRoot, { recursive: true })
+    fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'tool' }))
+    fs.writeFileSync(path.join(pkgRoot, 'tool'), `#!/usr/bin/env node\nconsole.log(${index})\n`, { mode: 0o755 })
+  }
+  await relinkHoistedPackageBins(roots, state)
+  for (const [index, pkgRoot] of roots.entries()) {
+    const result = spawnSync(path.join(path.dirname(pkgRoot), '.bin/tool'), { encoding: 'utf8' })
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe(`${index}\n`)
+  }
 })
 
 function fixture () {
@@ -114,7 +137,7 @@ function fixture () {
       extraNodePaths: [],
       pkgsToRebuild: new Set(),
       skipped: new Set(),
-      currentLockfile: { lockfileVersion: '9.0', importers: {} },
+      currentLockfile: { lockfileVersion: '9.0', importers: { ['.' as ProjectId]: { specifiers: { tool: '1.0.0' }, dependencies: { tool: '1.0.0' } } } },
     },
     opts: { nodeLinker: 'isolated', lockfileDir: root, unsafePerm: true } as RebuildState['opts'],
     depGraph: {},
@@ -129,4 +152,20 @@ function fixture () {
     warn: () => {},
   }
   return { modules, parent, executable, state }
+}
+
+function modulesManifest (modules: string): NonNullable<RebuildState['ctx']['modulesFile']> {
+  return {
+    hoistedLocations: { [toolDepPath]: ['node_modules/tool'], [rivalDepPath]: ['node_modules/rival'] },
+    hoistedDependencies: {},
+    included: { dependencies: true, devDependencies: true, optionalDependencies: true },
+    layoutVersion: 5,
+    packageManager: 'pnpm@11.0.0',
+    pendingBuilds: [],
+    prunedAt: new Date(0).toUTCString(),
+    skipped: [],
+    storeDir: path.join(modules, '../store'),
+    virtualStoreDir: path.join(modules, '.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  }
 }

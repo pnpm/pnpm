@@ -13,6 +13,7 @@ import { logger } from '@pnpm/logger'
 import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
+import { builtBinPackages, builtProjectBinPackages } from './builtBinPackages.js'
 import type { StrictBuildOptions } from './extendBuildOptions.js'
 import type { RebuildPackagesContext, RebuildState } from './rebuildTypes.js'
 
@@ -87,15 +88,19 @@ export async function relinkBins (state: RebuildState, getPkgModulesDir: (depPat
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshots[depPath])
         const modules = getPkgModulesDir(depPath, state)
         const binPath = path.join(safeJoinModulesDir(modules, pkgInfo.name), 'node_modules', '.bin')
-        return linkBins(modules, binPath, { warn, force: true })
+        const snapshot = pkgSnapshots[depPath]
+        const forceForPackages = builtBinPackages(modules, { ...snapshot.dependencies, ...snapshot.optionalDependencies }, state)
+        return linkBins(modules, binPath, { warn, forceForPackages })
       }))
   )
-  await Promise.all(Object.values(state.ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
+  await Promise.all(Object.values(state.ctx.projects).map(async ({ id, rootDir }) => limitLinking(async () => {
     const modules = path.join(rootDir, 'node_modules')
     const binPath = path.join(modules, '.bin')
+    const importer = state.ctx.currentLockfile.importers[id]
+    const dependencies = { ...importer?.dependencies, ...importer?.devDependencies, ...importer?.optionalDependencies }
     return linkBins(modules, binPath, {
       allowExoticManifests: true,
-      force: true,
+      forceForPackages: builtProjectBinPackages(modules, dependencies, state),
       warn,
     })
   })))

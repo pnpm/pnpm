@@ -297,7 +297,7 @@ impl BuildModules<'_> {
         // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
-        let slot_mutations = Mutex::new(HashSet::new());
+        let bin_state = crate::build_options::BuildBinState::default();
         let project_bin_dirs = self.project_bin_dirs(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
@@ -306,7 +306,7 @@ impl BuildModules<'_> {
                 &requires_build_map,
                 &dep_states,
                 &ignored_builds,
-                &slot_mutations,
+                &bin_state,
                 &project_bin_dirs,
             ),
             self.child_concurrency,
@@ -321,8 +321,9 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mutated_snapshot_keys =
-            slot_mutations.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mutated_snapshot_keys = bin_state.slot_mutations
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
             deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
@@ -395,7 +396,7 @@ impl BuildModules<'_> {
         requires_build_map: &'a HashMap<PackageKey, bool>,
         dep_states: &'a DepStates,
         ignored_builds: &'a Mutex<BTreeSet<String>>,
-        slot_mutations: &'a Mutex<HashSet<PackageKey>>,
+        bin_state: &'a crate::build_options::BuildBinState,
         project_bin_dirs: &'a [PathBuf],
     ) -> build_one_snapshot::BuildOneSnapshot<'a> {
         build_one_snapshot::BuildOneSnapshot {
@@ -413,7 +414,8 @@ impl BuildModules<'_> {
                 dep_graph: dep_states.graph.as_ref(),
                 deps_state_cache: &dep_states.cache,
                 ignored_builds,
-                slot_mutations,
+                slot_mutations: &bin_state.slot_mutations,
+                refreshed_hoisted_bins: &bin_state.refreshed_hoisted_bins,
             },
             scripts: self.scripts,
             project_bin_dirs,

@@ -67,6 +67,32 @@ export async function linkBinsOfPkgsByAliases (
     warn: WarnFunction
   }
 ): Promise<string[]> {
+  return _linkBins(await getCommandsByAliases(depsAliases, binsDir, opts), binsDir, opts)
+}
+
+/** Cache directory candidates; reread completed packages before selecting their winning commands. */
+export async function createBinRefreshPlan (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
+  const aliases = await readModulesDir(modulesDir) ?? []
+  let commands = await getCommandsByAliases(aliases, binsDir, { ...opts, modulesDir })
+  return async pkgRoots => {
+    const changedNames = new Set(commands.filter(cmd => pkgRoots.has(path.normalize(cmd.pkgDir))).map(cmd => cmd.name))
+    const refreshed = (await Promise.all(Array.from(pkgRoots, async pkgRoot => getPackageBins({ ...opts, allowExoticManifests: false }, normalizePath(pkgRoot))))).flat()
+    for (const cmd of refreshed) changedNames.add(cmd.name)
+    commands = [...commands.filter(cmd => !pkgRoots.has(path.normalize(cmd.pkgDir))), ...refreshed]
+    const allWinners = deduplicateCommands(commands)
+    const winners = allWinners.filter(cmd => changedNames.has(cmd.name))
+    const retainedNames = new Set(winners.map(cmd => cmd.name))
+    const removedNames = Array.from(changedNames).filter(name => !retainedNames.has(name))
+    await Promise.all(removedNames.map(async name => removeBin(path.join(binsDir, name))))
+    await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { forceForPackages: pkgRoots })
+  }
+}
+
+async function getCommandsByAliases (
+  depsAliases: string[],
+  binsDir: string,
+  opts: Parameters<typeof linkBinsOfPkgsByAliases>[2]
+): Promise<CommandInfo[]> {
   const pkgBinOpts = {
     allowExoticManifests: false,
     ...opts,
@@ -92,7 +118,7 @@ export async function linkBinsOfPkgsByAliases (
   )
 
   const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
-  return _linkBins(cmdsToLink, binsDir, opts)
+  return cmdsToLink
 }
 
 function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {

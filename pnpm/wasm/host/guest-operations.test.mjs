@@ -165,3 +165,26 @@ test('failed cleanup of an oversized response still wakes the guest and surfaces
   assert.equal(JSON.parse(new TextDecoder().decode(bytes)).ok, false)
   await assert.rejects(services.close(), error => error instanceof AggregateError && error.errors.includes(cleanupError))
 })
+
+test('fetch timeout causes cross the guest boundary without exposing cause messages', async () => {
+  for (const code of ['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT']) {
+    const services = createGuestOperations({
+      async dispatch () {
+        const cause = Object.assign(new Error('connection to https://user:secret@example.test failed'), { code })
+        throw new TypeError('fetch failed', { cause })
+      },
+      async close () {},
+    })
+    try {
+      const id = await services.dispatch('start', [{ operation: 'network.request' }])
+      assert.equal(await services.dispatch('wait', []), id)
+      const length = await services.dispatch('length', [id])
+      const bytes = await services.dispatch('read', [id, length])
+      assert.deepEqual(JSON.parse(new TextDecoder().decode(bytes)), {
+        ok: false, error: { message: 'fetch failed', code },
+      })
+    } finally {
+      await services.close()
+    }
+  }
+})

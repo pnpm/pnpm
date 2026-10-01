@@ -19,7 +19,7 @@ export function createGuestOperations (services = createHostServices()) {
     if (request.operation === 'network.request' && Array.isArray(request.body)) request.body = Uint8Array.from(request.body)
     const task = Promise.resolve().then(() => services.dispatch(request, { signal: entry.controller.signal })).then(
       value => settle(id, entry, { ok: true, value }),
-      error => settle(id, entry, { ok: false, error: { message: error.message, code: error.code } }),
+      error => settle(id, entry, { ok: false, error: { message: error.message, code: errorCode(error) } }),
     )
     track(task)
     return id
@@ -140,4 +140,9 @@ async function respond (buffer, response) {
     Atomics.store(header, 0, 1)
     Atomics.notify(header, 0)
   }
+}
+
+function errorCode (error) {
+  const code = error.code ?? error.cause?.code
+  return typeof code === 'string' ? code : undefined
 }

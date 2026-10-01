@@ -20,6 +20,7 @@ import type { DepPath } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { strict as isStrictSubdir } from 'is-subdir'
 
+import { builtBinPackages } from './builtBinPackages.js'
 import { binDirsInAllParentDirs } from './rebuildGraph.js'
 import type { PackageToBuild, RebuildState } from './rebuildTypes.js'
 import { relinkHoistedPackageBins } from './relinkHoistedPackageBins.js'
@@ -124,7 +125,9 @@ export async function prepareBinPaths ({ depPath, pkgRoot }: Pick<PackageToBuild
   }
   const modules = getPkgModulesDir(depPath, state)
   const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-  await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn: state.warn, force: true })
+  const snapshot = state.pkgSnapshots[depPath]
+  const forceForPackages = builtBinPackages(modules, { ...snapshot.dependencies, ...snapshot.optionalDependencies }, state)
+  await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn: state.warn, forceForPackages })
   return ctx.extraBinPaths
 }
 

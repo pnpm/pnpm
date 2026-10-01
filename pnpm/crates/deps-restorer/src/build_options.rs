@@ -236,6 +236,12 @@ pub struct BuildSnapshotInputs<'a> {
     pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
 }
 
+#[derive(Default)]
+pub(crate) struct BuildBinState {
+    pub(crate) slot_mutations: Mutex<HashSet<PackageKey>>,
+    pub(crate) refreshed_hoisted_bins: Mutex<HashMap<PathBuf, HashSet<PackageKey>>>,
+}
+
 #[derive(Clone, Copy)]
 pub struct BuildProgress<'a> {
     pub(crate) dep_graph:
@@ -247,6 +253,7 @@ pub struct BuildProgress<'a> {
     /// half-applied write still counts. See
     /// [`crate::BuildModulesOutput::mutated_slots`].
     pub(crate) slot_mutations: &'a Mutex<HashSet<PackageKey>>,
+    pub(crate) refreshed_hoisted_bins: &'a Mutex<HashMap<PathBuf, HashSet<PackageKey>>>,
 }
 
 impl BuildProgress<'_> {

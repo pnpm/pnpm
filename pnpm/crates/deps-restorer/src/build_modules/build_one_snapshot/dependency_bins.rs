@@ -1,6 +1,13 @@
 use super::{BuildModulesError, BuildOneSnapshot, PackageKey};
 use pnpm_cmd_shim::{Host, LinkBinsOptions, link_bins};
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn refresh(
     context: &BuildOneSnapshot<'_>,
@@ -47,16 +54,41 @@ fn refresh_hoisted(
     options: &LinkBinsOptions,
 ) -> Result<(), BuildModulesError> {
     let Some(roots) = context.directories.pkg_roots_by_key else { return Ok(()) };
-    let modules: HashSet<_> = changed
-        .iter()
-        .filter_map(|key| roots.get(key))
-        .flatten()
-        .filter_map(|root| crate::link_hoisted_modules::containing_modules_dir(root))
-        .collect();
-    for directory in modules {
-        link_bins::<Host>(directory, &directory.join(".bin"), options)
-            .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
-            .map_err(BuildModulesError::BinLink)?;
+    let mut modules: HashMap<PathBuf, HashSet<PackageKey>> = HashMap::new();
+    for key in changed {
+        for root in roots.get(key).into_iter().flatten() {
+            if let Some(directory) = crate::link_hoisted_modules::containing_modules_dir(root) {
+                modules
+                    .entry(directory.to_owned())
+                    .or_default()
+                    .insert(key.clone());
+            }
+        }
     }
+    for (directory, completed) in modules {
+        refresh_directory(context.progress.refreshed_hoisted_bins, &directory, &completed, || {
+            link_bins::<Host>(&directory, &directory.join(".bin"), options)
+                .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
+                .map_err(BuildModulesError::BinLink)
+        })?;
+    }
+    Ok(())
+}
+
+fn refresh_directory(
+    refreshed: &Mutex<HashMap<PathBuf, HashSet<PackageKey>>>,
+    directory: &Path,
+    completed: &HashSet<PackageKey>,
+    scan: impl FnOnce() -> Result<(), BuildModulesError>,
+) -> Result<(), BuildModulesError> {
+    let mut refreshed = refreshed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let recorded = refreshed.entry(directory.to_owned()).or_default();
+    if completed.is_subset(recorded) {
+        return Ok(());
+    }
+    scan()?;
+    // Other packages in this directory may still be building. Only the current
+    // consumer's scheduled dependencies are known to have completed their writes.
+    recorded.extend(completed.iter().cloned());
     Ok(())
 }

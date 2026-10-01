@@ -210,8 +210,9 @@ pub fn create_inheriting_mode(
     if requested.is_some_and(|mode| mode.trailing_zeros() >= 6) {
         return create_new(path, requested.unwrap_or(0o600));
     }
-    let Ok(parent_mode) = open_nofollow(parent).and_then(|file| file_mode(&file)) else {
-        return create_new(path, requested.unwrap_or(0o666));
+    let parent_mode = match path_mode(parent) {
+        Ok(mode) if mode & libc::S_IFMT == libc::S_IFDIR => mode,
+        _ => return create_new(path, requested.unwrap_or(0o666)),
     };
     let mode = crate::file_mode::inherited_file_mode(
         parent_mode,

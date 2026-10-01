@@ -27,7 +27,11 @@ impl Error {
         Self { message: message.into(), source: None, url: None, status: None, kind }
     }
     pub(crate) fn host(error: pnpm_wasm_host::HostError) -> Self {
-        let kind = if error.message.contains("timed out") {
+        let kind = if matches!(
+            error.code.as_deref(),
+            Some("ETIMEDOUT" | "ESOCKETTIMEDOUT" | "UND_ERR_CONNECT_TIMEOUT")
+        ) || error.message.contains("timed out")
+        {
             Kind::Timeout
         } else if matches!(error.code.as_deref(), Some("ECONNREFUSED" | "ENOTFOUND" | "EAI_AGAIN"))
         {
