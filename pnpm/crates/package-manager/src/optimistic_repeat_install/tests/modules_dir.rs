@@ -195,6 +195,22 @@ fn a_direct_dependency_linked_to_a_missing_target_is_not_installed() {
     ));
 }
 
+/// A failed optional build removes the package directory and keeps its
+/// link. Rerunning the full install would only rerun the failing build
+/// ([#16468](https://github.com/pnpm/pnpm/issues/16468)).
+#[test]
+fn an_optional_dependency_linked_to_a_missing_target_is_installed() {
+    let decision = root_direct_dependency_decision(|link| {
+        let target = link.with_file_name(".pnpm").join("foo@1.0.0");
+        fs::create_dir_all(&target).unwrap();
+        pnpm_fs::symlink_dir(&target, link).unwrap();
+        let bar_link = link.with_file_name("bar");
+        pnpm_fs::symlink_dir(&bar_link.with_file_name(".pnpm").join("bar@1.0.0"), &bar_link)
+            .unwrap();
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
 #[test]
 fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
     let linker = pnpm_config::NodeLinker::Hoisted;

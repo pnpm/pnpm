@@ -979,3 +979,27 @@ test('a repeat hoisted install relinks a workspace project dependency whose root
 
   expect((await readPackageJsonFromDir(rootEntry)).version).toBe('1.0.0')
 })
+
+// A failed optional build removes the package directory and keeps its link.
+// Rerunning the full install would only rerun the failing build.
+test('a repeat install stays up to date when an optional dependency link points to a missing target', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const optionalLink = path.resolve('node_modules/is-negative')
+  fs.rmSync(optionalLink)
+  fs.symlinkSync(path.resolve('node_modules/.pnpm/is-negative@0.0.0'), optionalLink, 'junction')
+
+  const { status, stdout } = execPnpmSync(['install'])
+
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Already up to date')
+})
