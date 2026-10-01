@@ -57,24 +57,7 @@ export function createPackageStore (
     cafsLocker: initOpts.cafsLocker,
     packageImportMethod: initOpts.packageImportMethod,
   })
-  const packageRequester = createPackageRequester({
-    force: initOpts.force,
-    forceIgnoresPlatform: initOpts.forceIgnoresPlatform,
-    engineStrict: initOpts.engineStrict,
-    nodeVersion: initOpts.nodeVersion,
-    pnpmVersion: initOpts.pnpmVersion,
-    resolve,
-    fetchers,
-    cafs,
-    ignoreFile: initOpts.ignoreFile,
-    networkConcurrency: initOpts.networkConcurrency,
-    storeDir: initOpts.storeDir,
-    verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
-    virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
-    strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
-    customFetchers: initOpts.customFetchers,
-    frozenStore: initOpts.frozenStore,
-  })
+  const packageRequester = createStorePackageRequester(initOpts, { resolve, fetchers, cafs })
 
   return {
     hasCustomFetchers: (initOpts.customFetchers?.length ?? 0) > 0,
@@ -95,6 +78,28 @@ export function createPackageStore (
     quarantineRemoteSideEffects: initOpts.frozenStore ? undefined : quarantineRemoteSideEffects.bind(null, initOpts.storeIndex),
     clearResolutionCache: initOpts.clearResolutionCache,
   }
+}
+
+function createStorePackageRequester (
+  initOpts: CreatePackageStoreOptions,
+  dependencies: Pick<Parameters<typeof createPackageRequester>[0], 'resolve' | 'fetchers' | 'cafs'>
+): ReturnType<typeof createPackageRequester> {
+  return createPackageRequester({
+    force: initOpts.force,
+    forceIgnoresPlatform: initOpts.forceIgnoresPlatform,
+    engineStrict: initOpts.engineStrict,
+    nodeVersion: initOpts.nodeVersion,
+    pnpmVersion: initOpts.pnpmVersion,
+    ...dependencies,
+    ignoreFile: initOpts.ignoreFile,
+    networkConcurrency: initOpts.networkConcurrency,
+    storeDir: initOpts.storeDir,
+    verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+    virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
+    customFetchers: initOpts.customFetchers,
+    frozenStore: initOpts.frozenStore,
+  })
 }
 
 function ensureStoreContentDir (storeDir: string, frozenStore: boolean | undefined): void {
