@@ -71,7 +71,7 @@ pub fn extract_main_document(content: &str) -> Cow<'_, str> {
 ///   a lockfile with no dependencies whose empty main document was
 ///   trimmed off together with the separator. Its env document is
 ///   everything after the leading marker, less a closing `---` line, as
-///   long as it has the root importer's `configDependencies` key.
+///   long as its root importer opens with `configDependencies`.
 #[must_use]
 pub fn extract_env_document(content: &str) -> Option<Cow<'_, str>> {
     match normalize_lockfile_content(content) {
@@ -249,8 +249,8 @@ fn env_document_of(content: &str) -> Option<&str> {
 
 /// The env document of a file that has no main document after it: `rest`
 /// up to where the separator would start, so a closing `---` line that has
-/// no newline after it is dropped too. Only a body carrying the
-/// `configDependencies` key that every env document's root importer has
+/// no newline after it is dropped too. Only a body whose root importer
+/// opens with the `configDependencies` key every env document writes
 /// qualifies, so a main lockfile that merely opens with `---` is not
 /// mistaken for one.
 fn env_only_document(rest: &str) -> Option<&str> {
@@ -258,8 +258,11 @@ fn env_only_document(rest: &str) -> Option<&str> {
         .strip_suffix("\n---")
         .or_else(|| rest.strip_suffix('\n'))
         .unwrap_or(rest);
-    document.contains("configDependencies:").then_some(document)
+    document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES).then_some(document)
 }
+
+/// How an env document lays out the start of its root importer.
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES: &str = "\n  .:\n    configDependencies:";
 
 #[cfg(test)]
 mod tests;

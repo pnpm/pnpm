@@ -163,6 +163,8 @@ describe('extractEnvDocument', () => {
   test('returns null for a main lockfile that starts with --- and has no separator', () => {
     expect(extractEnvDocument("---\nlockfileVersion: '9.0'\nimporters:\n  .: {}\n")).toBeNull()
     expect(extractEnvDocument('---\nfoo: bar\n')).toBeNull()
+    expect(extractEnvDocument('---\n# configDependencies: {}\nimporters:\n  .: {}\n')).toBeNull()
+    expect(extractEnvDocument('---\nimporters:\n  .:\n    specifiers:\n      configDependencies: 1.0.0\n')).toBeNull()
     expect(extractEnvDocument('---\n---\n')).toBeNull()
     expect(extractEnvDocument('---')).toBeNull()
   })

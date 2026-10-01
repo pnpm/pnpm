@@ -123,6 +123,11 @@ fn streams_an_env_only_file_closed_by_a_marker_without_a_newline() {
 fn streams_no_env_document_from_a_main_lockfile_that_opens_with_a_marker() {
     assert_streams("---\nlockfileVersion: '9.0'\nimporters:\n  .: {}\n", None);
     assert_streams("---\nfoo: bar\n", None);
+    assert_streams("---\n# configDependencies: {}\nimporters:\n  .: {}\n", None);
+    assert_streams(
+        "---\nimporters:\n  .:\n    specifiers:\n      configDependencies: 1.0.0\n",
+        None,
+    );
     assert_streams("---\n", None);
     assert_streams("---\n---\n", None);
 }

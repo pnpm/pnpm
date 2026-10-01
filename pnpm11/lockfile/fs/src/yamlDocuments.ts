@@ -10,6 +10,9 @@ export const YAML_DOCUMENT_START = '---\n'
 
 const READ_BUFFER_SIZE = 64 * 1024
 
+/** How an env document lays out the start of its root importer. */
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES = '\n  .:\n    configDependencies:'
+
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
  * The file must start with "---\n" to indicate it contains an env lockfile document.
@@ -137,9 +140,9 @@ export function extractEnvDocument (content: string): string | null {
  * The env document of a lockfile whose empty main document was trimmed off
  * together with the separator: `rest` up to where the separator would start, so
  * a closing `---` line that has no newline after it is dropped too. Only a body
- * carrying the `configDependencies` key that every env document's root importer
- * has qualifies, so a main lockfile that merely opens with `---` is not
- * mistaken for one.
+ * whose root importer opens with the `configDependencies` key every env
+ * document writes qualifies, so a main lockfile that merely opens with `---`
+ * is not mistaken for one.
  */
 function envOnlyDocument (rest: string): string | null {
   let document = rest
@@ -149,7 +152,7 @@ function envOnlyDocument (rest: string): string | null {
       break
     }
   }
-  return document.includes('configDependencies:') ? document : null
+  return document.includes(ROOT_IMPORTER_CONFIG_DEPENDENCIES) ? document : null
 }
 
 /**
