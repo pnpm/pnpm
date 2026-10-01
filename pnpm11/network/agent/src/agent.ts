@@ -24,9 +24,7 @@ export function getAgent (uri: string, opts: AgentOptions): Agent | undefined {
 }
 
 function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
-  const parsedUri = new URL(uri)
-  const isHttps = parsedUri.protocol === 'https:'
-
+  const isHttps = new URL(uri).protocol === 'https:'
   const { ca, cert, key: certKey } = {
     ...opts,
     ...pickSettingByUrl(opts.clientCertificates, uri),
@@ -46,70 +44,105 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
       ? 0
       : opts.timeout + 1
 
-  const key = [
-    `https:${isHttps.toString()}`,
-    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
-    `max-sockets:${maxSockets}`,
-    `timeout:${agentTimeout}`,
-    `strict-ssl:${
-      isHttps ? strictSsl.toString() : '>no-strict-ssl<'
-    }`,
-    `ca:${isHttps && (ca?.toString()) || '>no-ca<'}`,
-    `cert:${isHttps && (cert?.toString()) || '>no-cert<'}`,
-    `key:${isHttps && (certKey?.toString()) || '>no-key<'}`,
-  ].join(':')
+  const key = buildAgentCacheKey({
+    agentTimeout,
+    ca,
+    cert,
+    certKey,
+    isHttps,
+    localAddress: opts.localAddress,
+    maxSockets,
+    strictSsl,
+  })
 
-  if (AGENT_CACHE.peek(key)) {
-    return AGENT_CACHE.get(key)
+  const cachedAgent = AGENT_CACHE.get(key)
+  if (cachedAgent) {
+    return cachedAgent
   }
 
+  const agent = createAgent({
+    agentTimeout,
+    ca,
+    cert,
+    certKey,
+    isHttps,
+    localAddress: opts.localAddress,
+    maxSockets,
+    strictSsl,
+  })
+  AGENT_CACHE.set(key, agent)
+  return agent
+}
+
+interface AgentParams {
+  agentTimeout: number
+  ca?: unknown
+  cert?: unknown
+  certKey?: unknown
+  isHttps: boolean
+  localAddress?: string
+  maxSockets: number
+  strictSsl: boolean
+}
+
+function buildAgentCacheKey (params: AgentParams): string {
+  const { agentTimeout, ca, cert, certKey, isHttps, localAddress, maxSockets, strictSsl } = params
+  return [
+    `https:${isHttps.toString()}`,
+    `local-address:${localAddress ?? '>no-local-address<'}`,
+    `max-sockets:${maxSockets}`,
+    `timeout:${agentTimeout}`,
+    `strict-ssl:${isHttps ? strictSsl.toString() : '>no-strict-ssl<'}`,
+    `ca:${(isHttps && ca?.toString()) || '>no-ca<'}`,
+    `cert:${(isHttps && cert?.toString()) || '>no-cert<'}`,
+    `key:${(isHttps && certKey?.toString()) || '>no-key<'}`,
+  ].join(':')
+}
+
+function createAgent (params: AgentParams): Agent {
+  const { agentTimeout, ca, cert, certKey, isHttps, localAddress, maxSockets, strictSsl } = params
   // NOTE: localAddress is passed to the agent here even though it is an
   // undocumented option of the agent's constructor.
   //
   // This works because all options of the agent are merged with
   // all options of the request:
   // https://github.com/nodejs/node/blob/350a95b89faab526de852d417bbb8a3ac823c325/lib/_http_agent.js#L254
-  const agent = isHttps
+  return isHttps
     ? new HttpsAgent({
       ca,
       cert,
       key: certKey,
-      localAddress: opts.localAddress,
+      localAddress,
       maxSockets,
       rejectUnauthorized: strictSsl,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- localAddress is an undocumented agent option missing from the typings
     : new HttpAgent({
-      localAddress: opts.localAddress,
+      localAddress,
       maxSockets,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- localAddress is an undocumented agent option missing from the typings
-  AGENT_CACHE.set(key, agent)
-  return agent
 }
 
-function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }) {
-  const host = new URL(uri).hostname
-    .split('.')
-    .filter(label => label)
-    .reverse()
-  if (typeof opts.noProxy === 'string') {
-    const noproxyArr = opts.noProxy.split(',').map((entry) => entry.trim())
-    return noproxyArr.some(no => {
-      const noParts = no
-        .split('.')
-        .filter(label => label)
-        .reverse()
-      if (noParts.length === 0) {
-        return false
-      }
-      for (let labelIndex = 0; labelIndex < noParts.length; labelIndex++) {
-        if (host[labelIndex] !== noParts[labelIndex]) {
-          return false
-        }
-      }
-      return true
-    })
+function checkNoProxy (uri: string, opts: { noProxy?: boolean | string }): boolean | string | undefined {
+  if (typeof opts.noProxy !== 'string') {
+    return opts.noProxy
   }
-  return opts.noProxy
+  const hostLabels = new URL(uri).hostname
+    .split('.')
+    .filter(Boolean)
+    .reverse()
+  const noproxyEntries = opts.noProxy.split(',').map((entry) => entry.trim())
+  return noproxyEntries.some((entry) => matchesNoProxyEntry(hostLabels, entry))
+}
+
+function matchesNoProxyEntry (hostLabels: string[], entry: string): boolean {
+  const entryParts = entry
+    .split('.')
+    .filter(Boolean)
+    .reverse()
+  if (entryParts.length === 0) {
+    return false
+  }
+  return entryParts.every((part, index) => hostLabels[index] === part)
 }

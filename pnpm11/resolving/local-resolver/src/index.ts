@@ -86,36 +86,7 @@ async function resolveSpec (
   if (spec == null) return null
 
   if (spec.type === 'file') {
-    let integrity: string
-    try {
-      integrity = await getTarballIntegrity(spec.fetchSpec)
-    } catch (err: unknown) {
-      const mayReuseLockedTarball = !opts.update && (err as { code?: string })?.code === 'ENOENT'
-      if (
-        mayReuseLockedTarball &&
-        opts.currentPkg?.resolution &&
-        'tarball' in opts.currentPkg.resolution &&
-        Boolean(opts.currentPkg.resolution.integrity) &&
-        (opts.currentPkg.id === spec.id || opts.currentPkg.resolution.tarball === spec.id)
-      ) {
-        return {
-          id: spec.id,
-          normalizedBareSpecifier: spec.normalizedBareSpecifier,
-          resolution: opts.currentPkg.resolution as TarballResolution,
-          resolvedVia: 'local-filesystem',
-        }
-      }
-      throw err
-    }
-    return {
-      id: spec.id,
-      normalizedBareSpecifier: spec.normalizedBareSpecifier,
-      resolution: {
-        integrity,
-        tarball: spec.id,
-      },
-      resolvedVia: 'local-filesystem',
-    }
+    return resolveTarballSpec(spec, opts)
   }
 
   // Skip resolution if we have a current package and not updating
@@ -127,46 +98,7 @@ async function resolveSpec (
     }
   }
 
-  let localDependencyManifest!: DependencyManifest
-  try {
-    localDependencyManifest = await readProjectManifestOnly(spec.fetchSpec) as DependencyManifest
-  } catch (internalErr: any) { // eslint-disable-line
-    if (!existsSync(spec.fetchSpec)) {
-      if (spec.id.startsWith('file:')) {
-        throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND',
-          `Could not install from "${spec.fetchSpec}" as it does not exist.`)
-      }
-      logger.warn({
-        message: `Installing a dependency from a non-existent directory: ${spec.fetchSpec}`,
-        prefix: opts.projectDir,
-      })
-      localDependencyManifest = {
-        name: path.basename(spec.fetchSpec),
-      } as DependencyManifest
-    } else {
-      switch (internalErr.code) {
-        case 'ENOTDIR': {
-          throw new PnpmError('NOT_PACKAGE_DIRECTORY',
-            `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
-        }
-        case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
-        case 'ENOENT': {
-          const parentManifest = await safeReadParentPublishManifest(spec.fetchSpec) as DependencyManifest | null
-          if (parentManifest) {
-            localDependencyManifest = parentManifest
-            break
-          }
-          localDependencyManifest = {
-            name: path.basename(spec.fetchSpec),
-          } as DependencyManifest
-          break
-        }
-        default: {
-          throw internalErr
-        }
-      }
-    }
-  }
+  const localDependencyManifest = await readLocalDependencyManifest(spec, opts)
   return {
     id: spec.id,
     manifest: localDependencyManifest,
@@ -178,3 +110,84 @@ async function resolveSpec (
     resolvedVia: 'local-filesystem',
   }
 }
+
+async function resolveTarballSpec (
+  spec: LocalPackageSpec,
+  opts: LocalResolverOptions
+): Promise<LocalResolveResult> {
+  let integrity: string
+  try {
+    integrity = await getTarballIntegrity(spec.fetchSpec)
+  } catch (err: unknown) {
+    const mayReuseLockedTarball = !opts.update && (err as { code?: string })?.code === 'ENOENT'
+    if (
+      mayReuseLockedTarball &&
+      opts.currentPkg?.resolution &&
+      'tarball' in opts.currentPkg.resolution &&
+      Boolean(opts.currentPkg.resolution.integrity) &&
+      (opts.currentPkg.id === spec.id || opts.currentPkg.resolution.tarball === spec.id)
+    ) {
+      return {
+        id: spec.id,
+        normalizedBareSpecifier: spec.normalizedBareSpecifier,
+        resolution: opts.currentPkg.resolution as TarballResolution,
+        resolvedVia: 'local-filesystem',
+      }
+    }
+    throw err
+  }
+  return {
+    id: spec.id,
+    normalizedBareSpecifier: spec.normalizedBareSpecifier,
+    resolution: {
+      integrity,
+      tarball: spec.id,
+    },
+    resolvedVia: 'local-filesystem',
+  }
+}
+
+async function readLocalDependencyManifest (
+  spec: LocalPackageSpec,
+  opts: LocalResolverOptions
+): Promise<DependencyManifest> {
+  try {
+    return (await readProjectManifestOnly(spec.fetchSpec)) as DependencyManifest
+  } catch (internalErr: unknown) {
+    if (!existsSync(spec.fetchSpec)) {
+      return handleMissingLocalDir(spec, opts.projectDir)
+    }
+    return handleExistingDirManifestError(internalErr, spec.fetchSpec)
+  }
+}
+
+function handleMissingLocalDir (spec: LocalPackageSpec, projectDir: string): DependencyManifest {
+  if (spec.id.startsWith('file:')) {
+    throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND', `Could not install from "${spec.fetchSpec}" as it does not exist.`)
+  }
+  logger.warn({
+    message: `Installing a dependency from a non-existent directory: ${spec.fetchSpec}`,
+    prefix: projectDir,
+  })
+  return {
+    name: path.basename(spec.fetchSpec),
+  } as DependencyManifest
+}
+
+async function handleExistingDirManifestError (internalErr: unknown, fetchSpec: string): Promise<DependencyManifest> {
+  const errCode = (internalErr as { code?: string })?.code
+  if (errCode === 'ENOTDIR') {
+    throw new PnpmError('NOT_PACKAGE_DIRECTORY', `Could not install from "${fetchSpec}" as it is not a directory.`)
+  }
+  if (errCode === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND' || errCode === 'ENOENT') {
+    const parentManifest = (await safeReadParentPublishManifest(fetchSpec)) as DependencyManifest | null
+    if (parentManifest) {
+      return parentManifest
+    }
+    return {
+      name: path.basename(fetchSpec),
+    } as DependencyManifest
+  }
+  throw internalErr
+}
+
