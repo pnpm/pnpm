@@ -27,8 +27,8 @@ use crate::{
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
-        ImporterPeerInput, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceResolvePeersResult,
-        resolve_peers_workspace,
+        ImporterPeerInput, PeerHoistDiscovery, ResolvePeersOptions, WorkspacePeerSettings,
+        WorkspaceResolvePeersResult, resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
 };
@@ -450,9 +450,11 @@ fn resolve_workspace_peers(
         tree,
         &inputs.per_importer,
         &settings.peers.lockfile_dir,
-        settings.peers.dedupe_injected_deps,
-        settings.peers.dedupe_peer_dependents,
-        settings.peers.resolve_peers_from_workspace_root,
+        WorkspacePeerSettings {
+            dedupe_injected_deps: settings.peers.dedupe_injected_deps,
+            dedupe_peer_dependents: settings.peers.dedupe_peer_dependents,
+            resolve_peers_from_workspace_root: settings.peers.resolve_peers_from_workspace_root,
+        },
         ResolvePeersOptions {
             peers_suffix_max_length: settings.peers.peers_suffix_max_length,
             dedupe_peers: settings.peers.dedupe_peers,

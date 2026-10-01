@@ -159,6 +159,16 @@ impl Default for ResolvePeersOptions {
     }
 }
 
+/// The workspace-wide switches of [`fn@resolve_peers_workspace`]: which
+/// dedupe passes run after the walk, and whether a non-root importer may
+/// resolve peers from the root importer's direct dependencies.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WorkspacePeerSettings {
+    pub dedupe_injected_deps: bool,
+    pub dedupe_peer_dependents: bool,
+    pub resolve_peers_from_workspace_root: bool,
+}
+
 /// See [`crate::PeerResolutionScope::hoist_missing_scope`].
 #[derive(Debug, Clone)]
 pub struct HoistMissingScope {
@@ -333,9 +343,7 @@ pub fn resolve_peers_workspace(
     tree: &mut ResolvedTree,
     importers: &[ImporterPeerInput],
     lockfile_dir: &Path,
-    dedupe_injected_deps_enabled: bool,
-    dedupe_peer_dependents_enabled: bool,
-    resolve_peers_from_workspace_root: bool,
+    settings: WorkspacePeerSettings,
     opts: ResolvePeersOptions,
 ) -> WorkspaceResolvePeersResult {
     let node_ids_by_previous_dep_path = build_node_ids_by_previous_dep_path(tree, &opts);
@@ -349,18 +357,18 @@ pub fn resolve_peers_workspace(
     );
     let importers = sorted_importer_inputs(importers);
     let peer_dependency_issues_by_importer =
-        walk_importers(&mut walker, &importers, resolve_peers_from_workspace_root);
+        walk_importers(&mut walker, &importers, settings.resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let peer_id_recording = if dedupe_peer_dependents_enabled {
+    let peer_id_recording = if settings.dedupe_peer_dependents {
         PeerIdRecording::Record
     } else {
         PeerIdRecording::Skip
     };
     let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir, peer_id_recording);
-    if dedupe_peer_dependents_enabled {
+    if settings.dedupe_peer_dependents {
         finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
     }
-    if dedupe_injected_deps_enabled {
+    if settings.dedupe_injected_deps {
         dedupe_injected_deps(
             &mut finished.graph,
             &mut finished.direct_dependencies_by_importer,
