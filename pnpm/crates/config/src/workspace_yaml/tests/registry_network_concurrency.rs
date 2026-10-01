@@ -113,3 +113,15 @@ fn the_resolved_view_caps_every_spelling_of_one_registry() {
         assert_eq!(declaration.network_concurrency, limit(4), "{registry}");
     }
 }
+
+#[test]
+fn two_spellings_of_one_registry_keep_the_smallest_cap() {
+    let config = load(
+        "registries:\n  https://npm.corp.example/npm:\n    networkConcurrency: 2\n  https://npm.corp.example/npm/:\n    networkConcurrency: 6\n",
+    )
+    .unwrap();
+    assert_eq!(
+        config.network_concurrency_by_registry.get("https://npm.corp.example/npm/").copied(),
+        limit(2),
+    );
+}

@@ -344,7 +344,10 @@ fn extend_lookups_with_declarations(
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
         if let Some(limit) = declaration.network_concurrency {
-            lookups.network_concurrency_by_registry.insert(normalized.clone(), limit);
+            lookups.network_concurrency_by_registry
+                .entry(normalized.clone())
+                .and_modify(|smallest| *smallest = (*smallest).min(limit))
+                .or_insert(limit);
         }
         if !ecosystems::collect_index(&mut lookups.indexes_by_ecosystem, &normalized, &declaration)
         {
