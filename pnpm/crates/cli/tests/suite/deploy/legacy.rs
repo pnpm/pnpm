@@ -77,7 +77,7 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
                 "link-dep": "link:../../local/link-dep",
                 "path-dep": "../../local/path-dep",
                 "backslash-dep": r"file:..\..\local\backslash-dep",
-                "copied-dep": "./copied-dep",
+                "copied-dep": "../app/copied-dep",
             },
             "peerDependencies": { "peer-dep": "link:../../local/peer-dep" },
         }),

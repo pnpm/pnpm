@@ -277,9 +277,13 @@ fn rebase_local_specifiers(manifest: &mut Value, project_dir: &Path, deploy_dir:
             else {
                 continue;
             };
-            if !was_copied_into_deploy(local.absolute_path(), project_dir, deploy_dir) {
-                *specifier = Value::String(local.render(Some(deploy_dir)));
-            }
+            let consumer_dir =
+                if was_copied_into_deploy(local.absolute_path(), project_dir, deploy_dir) {
+                    project_dir
+                } else {
+                    deploy_dir
+                };
+            *specifier = Value::String(local.render(Some(consumer_dir)));
         }
     }
 }
