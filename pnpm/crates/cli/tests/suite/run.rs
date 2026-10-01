@@ -286,6 +286,25 @@ fn run_missing_script_hints_at_filter_after_script_name() {
     assert_filter_hint(&["--filter-prod=@local/b"], "--filter-prod");
 }
 
+/// A script name that would need quoting is replaced in the suggested
+/// command, so pasting it cannot run shell syntax.
+#[test]
+fn run_missing_script_hint_does_not_echo_an_unsafe_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["run", "$(touch pwned)", "--filter", "@local/b"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "a missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, r#""pnpm --filter <selector> run <script>""#);
+
+    drop(root);
+}
+
 fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();

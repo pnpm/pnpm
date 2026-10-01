@@ -130,14 +130,24 @@ impl RunError {
     fn no_script(script_name: &str, args: &[String]) -> Self {
         let not_found = format!(r#"Command "{script_name}" not found."#);
         let hint = if let Some(filter_option) = filter_option(args) {
+            let script = if is_shell_safe(script_name) { script_name } else { "<script>" };
             format!(
-                r#"{not_found} Options after the script name are passed to the script. To select workspace projects, put {filter_option} before it: "pnpm {filter_option} <selector> run {script_name}"."#,
+                r#"{not_found} Options after the script name are passed to the script. To select workspace projects, put {filter_option} before it: "pnpm {filter_option} <selector> run {script}"."#,
             )
         } else {
             not_found
         };
         RunError::NoScript { script: script_name.to_owned(), hint }
     }
+}
+
+/// Whether `text` can be pasted into a POSIX shell or `cmd` as one argument
+/// without quoting or expansion.
+fn is_shell_safe(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || "_@+=:,./-".contains(ch))
 }
 
 fn filter_option(args: &[String]) -> Option<&'static str> {
