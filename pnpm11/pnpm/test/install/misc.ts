@@ -982,24 +982,19 @@ test('a repeat hoisted install relinks a workspace project dependency whose root
 
 // A failed optional build removes the package directory and keeps its link.
 // Rerunning the full install would only rerun the failing build.
-test('a repeat install stays up to date when an optional dependency link points to a missing target', async () => {
+test('a repeat install does not rerun the failed build of an optional dependency', async () => {
   prepare({
-    dependencies: {
-      'is-positive': '1.0.0',
-    },
     optionalDependencies: {
-      'is-negative': '1.0.0',
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
     },
   })
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { '@pnpm.e2e/failing-postinstall': true } })
 
-  await execPnpm(['install'])
-
-  const optionalLink = path.resolve('node_modules/is-negative')
-  fs.rmSync(optionalLink)
-  fs.symlinkSync(path.resolve('node_modules/.pnpm/is-negative@0.0.0'), optionalLink, 'junction')
+  expect(execPnpmSync(['install']).stdout.toString()).toContain('postinstall')
 
   const { status, stdout } = execPnpmSync(['install'])
 
   expect(status).toBe(0)
   expect(stdout.toString()).toContain('Already up to date')
+  expect(stdout.toString()).not.toContain('postinstall')
 })

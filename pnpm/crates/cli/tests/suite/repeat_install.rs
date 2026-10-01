@@ -124,6 +124,50 @@ fn repeat_install_relinks_a_dangling_direct_dependency() {
     drop((root, mock_instance));
 }
 
+/// A failed optional build removes the package directory and keeps its
+/// link. Rerunning the full install would only rerun the failing build
+/// ([#16468](https://github.com/pnpm/pnpm/issues/16468)).
+#[test]
+fn repeat_install_does_not_rerun_a_failed_optional_build() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "optionalDependencies": { "@pnpm.e2e/failing-postinstall": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  '@pnpm.e2e/failing-postinstall': true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let first = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run the first install");
+    assert!(first.status.success(), "a failing optional build must not fail the install");
+    assert!(String::from_utf8_lossy(&first.stdout).contains("postinstall"));
+
+    let second = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run the repeat install");
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(second.status.success(), "{stdout}");
+    assert!(stdout.contains("Already up to date"), "{stdout}");
+    assert!(!stdout.contains("postinstall"), "the failed build must not rerun: {stdout}");
+
+    drop((root, mock_instance));
+}
+
 /// TS: `repeat install with no inner lockfile should not rewrite
 /// packages in node_modules` (`deps-installer lockfile.ts:547`).
 #[test]
