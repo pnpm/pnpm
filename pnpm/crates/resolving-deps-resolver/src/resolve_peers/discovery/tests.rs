@@ -6,7 +6,8 @@ use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_peers::{
         ResolvePeersOptions,
-        test_support::{package, tree_node},
+        test_support::{add_lazy_direct_dep, child_edge, package, tree_node},
+        walker::Walker,
     },
     resolved_tree::{DirectDep, ResolvedTree},
 };
@@ -14,36 +15,106 @@ use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
+/// The children graph `c -> a <-> b`: a mutual dependency entered from a
+/// package outside the cycle.
+fn mutual_dependency_children() -> ResolvedTree {
+    let mut tree = ResolvedTree::default();
+    tree.children_by_id.insert("a@1.0.0".into(), Arc::new(vec![child_edge("b", "b@1.0.0")]));
+    tree.children_by_id.insert("b@1.0.0".into(), Arc::new(vec![child_edge("a", "a@1.0.0")]));
+    tree.children_by_id.insert("c@1.0.0".into(), Arc::new(vec![child_edge("a", "a@1.0.0")]));
+    tree
+}
+
+#[test]
+fn cycle_gate_cuts_one_edge_of_a_mutual_dependency() {
+    let tree = mutual_dependency_children();
+    let table = CanonicalCycleGate::default().table(&tree, 1);
+
+    assert_eq!(table["a@1.0.0"], table["b@1.0.0"], "mutually dependent packages form one cycle");
+    assert_ne!(table["c@1.0.0"], table["a@1.0.0"], "a package that enters the cycle is outside it");
+    assert!(
+        Walker::cuts_cycle_edge(&table, "b@1.0.0", "a@1.0.0"),
+        "the edge back to the cycle's canonically first member is cut",
+    );
+    assert!(
+        !Walker::cuts_cycle_edge(&table, "a@1.0.0", "b@1.0.0"),
+        "the cycle's forward edge is walked",
+    );
+    assert!(
+        !Walker::cuts_cycle_edge(&table, "c@1.0.0", "a@1.0.0"),
+        "the edge into the cycle is walked",
+    );
+}
+
 #[test]
 fn cycle_gate_rebuilds_its_table_for_a_newer_view_generation() {
-    let tree = ResolvedTree::default();
+    let mut tree = mutual_dependency_children();
     let gate = CanonicalCycleGate::default();
-    let first = gate.table(&tree, 1);
-    assert!(Arc::ptr_eq(&first, &gate.table(&tree, 1)), "reads under one generation share it");
-    assert!(!Arc::ptr_eq(&first, &gate.table(&tree, 2)), "a newer generation rebuilds it");
+    let table = gate.table(&tree, 1);
+
+    // The engine advances the generation with every change of its view,
+    // so a read under the same generation shares the table as built.
+    tree.children_by_id.insert("b@1.0.0".into(), Arc::new(Vec::new()));
+    assert!(
+        Arc::ptr_eq(&table, &gate.table(&tree, 1)),
+        "reads under one view generation share one table",
+    );
+
+    let rebuilt = gate.table(&tree, 2);
+    assert_ne!(
+        rebuilt["a@1.0.0"], rebuilt["b@1.0.0"],
+        "a newer generation rebuilds the table from the current view",
+    );
+    assert!(
+        !Walker::cuts_cycle_edge(&rebuilt, "a@1.0.0", "b@1.0.0"),
+        "without the cycle, the edge is walked",
+    );
 }
 
 #[test]
-fn discovery_engine_advances_the_view_generation_when_it_refreshes() {
+fn discovery_engine_refreshes_the_cycle_gate_with_its_view() {
     let workspace = WorkspaceTreeCtx::default();
     let mut engine = PeerHoistDiscovery::new();
-    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
-    let synced = engine.caches.view_generation();
+    let view = &mut engine.tree;
+    view.packages.insert("a@1.0.0".into(), package("a", "1.0.0", &[], false));
+    view.packages.insert("b@1.0.0".into(), package("b", "1.0.0", &[], true));
+    view.children_by_id.insert("a@1.0.0".into(), Arc::new(vec![child_edge("b", "b@1.0.0")]));
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut view.direct, "a", "a@1.0.0");
+    let direct = engine.tree.direct.clone();
+    engine.discover(&workspace, &direct, &direct, ResolvePeersOptions::default());
+    let first_round = engine.caches.view_generation();
+    let table = engine.caches.canonical_cycles.table(&engine.tree, first_round);
+    assert!(table.get("p@1.0.0").is_none(), "the first round's view has no `p` yet");
 
-    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
-    assert_eq!(engine.caches.view_generation(), synced, "an unchanged tree keeps its generation");
-
+    // A hoist round installs `p`, and `p` and `q` depend on each other.
+    let view = &mut engine.tree;
+    view.packages.insert("p@1.0.0".into(), package("p", "1.0.0", &[], false));
+    view.packages.insert("q@1.0.0".into(), package("q", "1.0.0", &[], false));
+    view.children_by_id.insert("p@1.0.0".into(), Arc::new(vec![child_edge("q", "q@1.0.0")]));
+    view.children_by_id.insert("q@1.0.0".into(), Arc::new(vec![child_edge("p", "p@1.0.0")]));
+    add_lazy_direct_dep(&mut view.dependencies_tree, &mut view.direct, "p", "p@1.0.0");
     workspace.tree.bump_revision();
-    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
-    assert_eq!(engine.caches.view_generation(), synced + 1, "a refreshed view is a new generation");
+    let direct = engine.tree.direct.clone();
+    engine.discover(&workspace, &direct, &[], ResolvePeersOptions::default());
+    let table = engine.caches.canonical_cycles.table(&engine.tree, engine.caches.view_generation());
+    let hoisted_cycle =
+        table.get("p@1.0.0").expect("the refreshed gate indexes the hoisted package");
+    assert_eq!(
+        table.get("q@1.0.0"),
+        Some(hoisted_cycle),
+        "the refreshed gate knows the cycle the hoist round installed",
+    );
 
-    workspace.tree.record_children_rewrite();
-    workspace.tree.bump_revision();
-    engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
-    assert_eq!(engine.caches.view_generation(), synced + 2, "a rebuilt view is a new generation");
+    // The round walks the hoisted package: the gate cuts the edge back
+    // to `p`, so the walk over the cycle completes.
+    let hoisted = direct[1..].to_vec();
+    engine.discover(&workspace, &direct, &hoisted, ResolvePeersOptions::default());
+    assert!(
+        engine.caches.pure_pkgs.contains_key("p@1.0.0"),
+        "the walk over the hoisted cycle completed and recorded its verdict",
+    );
 }
 
-/// See [`PeersCacheItem`] for why a cache hit reports no providers.
 #[test]
 fn cached_subtree_reuse_reports_no_peer_providers() {
     let peerx = NodeId::leaf("peerx@1.0.0");
