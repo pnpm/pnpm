@@ -53,10 +53,9 @@ pub struct HoistPeersOptions<'a> {
     /// Directory of the importer the peers are hoisted into. Only read
     /// to resolve a local override target; see [`DependencyOverrider`].
     pub project_dir: &'a Path,
-    /// Version tiers per peer name, tried in order before the rest of the
-    /// preferred versions: the locked versions this run resolved, every
-    /// version this run resolved, then the locked versions.
-    pub preferred_tiers: &'a HashMap<String, Vec<HashSet<String>>>,
+    /// The versions of each peer that this run has resolved. A satisfying
+    /// one wins over a version that only the wanted lockfile holds.
+    pub resolved_versions: &'a HashMap<String, HashSet<String>>,
 }
 
 /// Pick a specifier for each missing required peer. Returns a map of
@@ -101,10 +100,7 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
     let Some(selectors) = opts.all_preferred_versions.get(peer_name) else {
         return opts.auto_install_peers.then(|| range.to_string());
     };
-    let preferred_tiers = opts.preferred_tiers
-        .get(peer_name)
-        .map_or(&[][..], Vec::as_slice);
-    preferred_version_specifier(opts, selectors, preferred_tiers, range)
+    preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
 }
 
 /// Dedupe onto a preferred version only when it actually satisfies the wanted
@@ -120,17 +116,28 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
 fn preferred_version_specifier(
     opts: &HoistPeersOptions<'_>,
     selectors: &VersionSelectors,
-    preferred_tiers: &[HashSet<String>],
+    resolved_versions: Option<&HashSet<String>>,
     range: &str,
 ) -> Option<String> {
     let (versions, non_versions) = split_version_selectors(selectors);
     let range_for_match = get_peer_version_range(range);
     let is_semver_range = range_for_match.parse::<Range>().is_ok();
-    let satisfying_version = if is_semver_range {
-        max_satisfying_in_tiers(&versions, preferred_tiers, &range_for_match)
-    } else {
-        None
-    };
+    // A version that only the wanted lockfile holds is a weight whose
+    // provider has moved on, so it must not outrank one this run resolved.
+    let satisfying_version = is_semver_range
+        .then(|| {
+            resolved_versions
+                .and_then(|resolved| {
+                    let in_run: Vec<&str> = versions
+                        .iter()
+                        .copied()
+                        .filter(|version| resolved.contains(*version))
+                        .collect();
+                    max_satisfying(&in_run, &range_for_match)
+                })
+                .or_else(|| max_satisfying(&versions, &range_for_match))
+        })
+        .flatten();
     if let Some(satisfying) = satisfying_version {
         let mut parts: Vec<&str> = vec![satisfying];
         parts.extend(non_versions.iter().copied());
@@ -152,26 +159,6 @@ fn preferred_version_specifier(
         parts.push((*spec).to_string());
     }
     (!parts.is_empty()).then(|| parts.join(" || "))
-}
-
-/// The highest of `versions` satisfying `range`, taken from the first of
-/// `preferred_tiers` that holds one, or from all of `versions` when none does.
-fn max_satisfying_in_tiers<'a>(
-    versions: &[&'a str],
-    preferred_tiers: &[HashSet<String>],
-    range: &str,
-) -> Option<&'a str> {
-    preferred_tiers
-        .iter()
-        .find_map(|tier| {
-            let in_tier: Vec<&str> = versions
-                .iter()
-                .copied()
-                .filter(|version| tier.contains(*version))
-                .collect();
-            max_satisfying(&in_tier, range)
-        })
-        .or_else(|| max_satisfying(versions, range))
 }
 
 /// Split a package's version selectors into the plain versions and the
@@ -304,12 +291,12 @@ fn max_hoistable_optional_version(
         .or_else(|| max_hoistable(None))
 }
 
-/// The version tiers both peer pickers try in order: the `locked`
-/// versions this run `resolved`, then every version it resolved, then the
-/// `locked` ones. A locked version the run no longer resolves survives
-/// only as a lockfile weight, since whatever provided it has moved on, so
-/// it must not outrank what the graph now holds.
-pub(crate) fn peer_version_tiers(
+/// The version tiers the optional-peer picker tries in order: the
+/// `locked` versions this run `resolved`, then every version it
+/// resolved, then the `locked` ones. A locked version the run no longer
+/// resolves survives only as a lockfile weight, since whatever provided
+/// it has moved on, so it must not outrank what the graph now holds.
+pub(crate) fn optional_peer_version_tiers(
     locked: Option<&HashSet<String>>,
     resolved: HashSet<String>,
 ) -> Vec<HashSet<String>> {

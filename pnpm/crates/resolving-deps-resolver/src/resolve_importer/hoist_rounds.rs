@@ -185,7 +185,7 @@ impl ImporterHoistState {
         let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
         let hoist_preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
-        let preferred_tiers = self.ctx.peer_version_tiers(&self.selection.locked_versions, names());
+        let resolved_versions = self.ctx.run_resolved_versions(names());
         let hoisted = hoist_peers(
             &HoistPeersOptions {
                 auto_install_peers: self.policy.peers.auto_install_peers,
@@ -193,7 +193,7 @@ impl ImporterHoistState {
                 workspace_root_deps: self.hoist_root_deps(),
                 override_bare_specifier: self.selection.override_bare_specifier.as_deref(),
                 project_dir: &self.project_dir,
-                preferred_tiers: &preferred_tiers,
+                resolved_versions: &resolved_versions,
             },
             &missing_as_pairs,
         );
@@ -340,7 +340,8 @@ impl ImporterHoistState {
         let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
         let hoist_preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
-        let preferred_tiers = self.ctx.peer_version_tiers(&self.selection.locked_versions, names());
+        let preferred_tiers =
+            self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let workspace = self.ctx.workspace();
         let peer_ranges = CandidatePeerRanges::new(workspace);
