@@ -170,6 +170,7 @@ struct RecursiveCliOptions<'a> {
     report_summary: bool,
     parallel: bool,
     if_present: bool,
+    sequential: bool,
 }
 
 impl<'a> RecursiveCliOptions<'a> {
@@ -190,6 +191,7 @@ impl<'a> RecursiveCliOptions<'a> {
             report_summary: ctx.workspace.report_summary,
             parallel: ctx.workspace.parallel,
             if_present: ctx.workspace.if_present,
+            sequential: ctx.workspace.sequential,
         }
     }
 }
@@ -201,6 +203,7 @@ fn with_recursive_run_options(
 ) -> RunArgs {
     args.workspace = cli_options.execution_args(config);
     args.if_present |= cli_options.if_present;
+    args.sequential |= cli_options.sequential;
     args
 }
 
