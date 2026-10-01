@@ -305,6 +305,49 @@ fn run_missing_script_hint_does_not_echo_an_unsafe_script_name() {
     drop(root);
 }
 
+/// The shorthand falls back to `exec` when no script matches, so the hint
+/// belongs on `exec`'s error once no executable matches either.
+#[test]
+fn shorthand_missing_script_and_command_hints_at_filter_after_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["categories", "--filter", "sitemaps"])
+        .output()
+        .expect("spawn pacquet categories");
+    assert!(!output.status.success(), "a missing command must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL"),
+        "should keep the exec error code:\n{stderr}",
+    );
+    assert_diagnostic_contains(&stderr, r#""pnpm --filter <selector> run categories""#);
+
+    drop(root);
+}
+
+/// An executable that matches the name still runs and receives the filter
+/// option as an argument.
+#[test]
+fn shorthand_runs_a_matching_bin_despite_a_trailing_filter() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    write_fake_bin(&workspace.join("node_modules/.bin"), "categories", "ran-the-bin");
+
+    let output = pacquet
+        .with_args(["categories", "--filter", "sitemaps"])
+        .output()
+        .expect("spawn pacquet categories");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the bin must run:\n{output:?}");
+    assert!(stdout.contains("ran-the-bin"), "the bin must run:\n{stdout}");
+
+    drop(root);
+}
+
 fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
