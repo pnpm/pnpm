@@ -1,6 +1,6 @@
 use super::{
-    DependencySpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver, TreeCtx,
-    WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
+    DependencySpec, HashSet, NodeKind, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver,
+    TreeCtx, WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
     claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
     opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
     resolve_catalog_child_specs, resolve_wanted_cached, resolves_children_through_catalogs,
@@ -32,7 +32,7 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.is_link || !claim_children_warmup(ctx, &pending.identity.id) {
+    if pending.kind == NodeKind::Link || !claim_children_warmup(ctx, &pending.identity.id) {
         return;
     }
     warm_result_children(

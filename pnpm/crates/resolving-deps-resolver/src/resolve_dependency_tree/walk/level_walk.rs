@@ -1,7 +1,7 @@
 use super::{
     Arc, BTreeMap, ChildrenOwnerClaim, ChildrenRecording, DependencySpec, DirectDep, FrontierNode,
-    HashMap, HashSet, NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
-    RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
+    HashMap, HashSet, NodeId, NodeKind, NodeSeed, ParentPkgAliases, PendingNode,
+    PreferredVersionsOverlay, RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
     SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
     claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
     lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
@@ -24,7 +24,7 @@ pub(super) fn assign_level_owners<'seed>(
     // so they never own children here.
     let mut level: Vec<&mut Box<PendingNode>> = seeds
         .filter_map(|seed| match seed {
-            NodeSeed::Pending(pending) if !pending.is_link => Some(pending),
+            NodeSeed::Pending(pending) if pending.kind != NodeKind::Link => Some(pending),
             _ => None,
         })
         .collect();
@@ -72,7 +72,7 @@ pub(super) fn install_owner_peer_dependencies(
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
 ) -> Result<(), ResolveDependencyTreeError> {
-    if pending.is_link || !claim.owns_children {
+    if pending.kind == NodeKind::Link || !claim.owns_children {
         return Ok(());
     }
     let peer_dependencies = extract_peer_dependencies(
@@ -108,11 +108,10 @@ pub(super) fn settle_seeds(
     for seed in seeds {
         let NodeSeed::Pending(mut pending) = seed else { continue };
         let claim = pending.claim.take();
-        // Linked nodes don't walk their manifest's deps — see the
-        // `is_link` comment block in [`fn@resolve_node_seed`]. They get
-        // an empty `Realized` map: a linked node has no children of its
-        // own here.
-        if pending.is_link {
+        // Linked nodes don't walk their manifest's deps — see
+        // [`NodeKind::Link`]. They get an empty `Realized` map: a linked
+        // node has no children of its own here.
+        if pending.kind == NodeKind::Link {
             insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
             continue;
         }
@@ -259,7 +258,7 @@ pub(super) fn children_context(
 /// Linked nodes carry `depth = -1` so the peer-resolution pass
 /// short-circuits them.
 pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children: TreeChildren) {
-    let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
+    let depth = if pending.kind == NodeKind::Link { -1 } else { pending.ancestry.depth };
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 

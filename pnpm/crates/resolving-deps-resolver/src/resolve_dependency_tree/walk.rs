@@ -162,12 +162,45 @@ pub(super) enum NodeSeed {
     Pending(Box<PendingNode>),
 }
 
+/// How the walk treats one package occurrence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NodeKind {
+    /// A workspace link. The linked project resolves its own dependencies
+    /// as a separate importer, so the node gets no children, no peer
+    /// dependencies, and `depth = -1` for the peer-resolution
+    /// short-circuit. Its node id is collapsed to a leaf so every
+    /// reference to the same workspace path shares one [`NodeId`].
+    Link,
+    /// A package with no dependencies, optional dependencies, peers, or
+    /// `peerDependenciesMeta`.
+    Leaf,
+    /// A package whose children are walked.
+    Branch,
+}
+
+impl NodeKind {
+    pub(super) fn of(result: &pnpm_resolving_resolver_base::ResolveResult, id: &str) -> Self {
+        if id.starts_with("link:") {
+            NodeKind::Link
+        } else if pkg_is_leaf(result) {
+            NodeKind::Leaf
+        } else {
+            NodeKind::Branch
+        }
+    }
+
+    /// Links and leaves share one tree node per package: see [`fn@node_id_for`].
+    pub(super) fn is_leaf(self) -> bool {
+        matches!(self, NodeKind::Link | NodeKind::Leaf)
+    }
+}
+
 /// A resolved-but-not-settled node: everything the level settlement
 /// needs to decide whether this occurrence walks the package's
 /// children, and [`fn@seed_node_children`] needs to seed them.
 pub(super) struct PendingNode {
     result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
-    is_link: bool,
+    kind: NodeKind,
     resolves_children_through_catalogs: bool,
     /// The dependency names this occurrence's own `peerDependencies`
     /// shadow. Ownership of the package's children is settled across
@@ -211,8 +244,7 @@ struct SeededPackage<'a> {
     peer_shadowed: &'a HashSet<String>,
     resolves_children_through_catalogs: bool,
     current_is_optional: bool,
-    is_link: bool,
-    is_leaf: bool,
+    kind: NodeKind,
 }
 
 /// The parent-side context one child edge resolves in.
