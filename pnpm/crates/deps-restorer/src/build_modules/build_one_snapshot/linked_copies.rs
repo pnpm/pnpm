@@ -11,9 +11,10 @@ pub(super) fn unlink_project_links(context: &BuildOneSnapshot<'_>, dirs: &[PathB
     for modules_dir in project_modules_dirs(context) {
         unlink_children(&modules_dir, dirs);
     }
-    let install_state_dir = context.scripts.patched_engines.install_state_dir.unwrap_or(
-        context.directories.layout.package_store_dir(),
-    );
+    let install_state_dir =
+        context.scripts.patched_engines.install_state_dir.unwrap_or_else(|| {
+            context.directories.layout.package_store_dir()
+        });
     unlink_children(&install_state_dir.join("node_modules"), dirs);
 }
 
