@@ -1,4 +1,5 @@
 use super::{OriginGates, OriginPermit};
+use crate::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
 use std::time::Duration;
 
 const SLOW_ORIGIN: &str = "https://a.example";
@@ -59,4 +60,24 @@ async fn a_request_still_queued_for_global_admission_is_not_a_peer() {
     assert!(!downscale(&gates, SLOW_ORIGIN));
     queued.mark_active();
     assert!(downscale(&gates, SLOW_ORIGIN));
+}
+
+#[tokio::test]
+async fn a_request_waiting_for_a_global_slot_is_not_a_peer_of_a_timed_out_one() {
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings { network_concurrency: 1, ..NetworkSettings::default() },
+    )
+    .expect("client builds");
+    let url = "https://registry.example/pkg";
+    let active = client.acquire_for_url(url).await;
+    let queued = client.acquire_for_url(url);
+    tokio::pin!(queued);
+    let waiting = tokio::time::timeout(Duration::from_millis(50), &mut queued).await;
+    assert!(waiting.is_err(), "the only global slot is taken");
+    assert!(!client.downscale_while_peers_active(url));
+    drop(active);
+    drop(queued.await);
 }
