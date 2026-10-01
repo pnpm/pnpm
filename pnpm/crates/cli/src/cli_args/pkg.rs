@@ -201,7 +201,7 @@ fn get_output(manifest: &Value, keys: &[String], json: bool) -> miette::Result<S
     }
 }
 
-/// Print the selected keys of every project, keyed as [`report_keys`]
+/// Print the selected keys of every project, keyed as [`report_keys()`]
 /// describes.
 fn print_recursive_get<'a>(
     projects: impl Iterator<Item = &'a pnpm_workspace::Project>,
