@@ -63,6 +63,52 @@ fn frozen_store_install_does_not_register_the_project() {
 }
 
 #[test]
+fn up_to_date_frozen_store_install_does_not_register_the_project() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    fs::remove_dir_all(store_dir.projects()).expect("clear the project registry");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-store"])
+        .assert()
+        .success();
+
+    assert!(!store_dir.projects().exists());
+}
+
+#[test]
+fn up_to_date_no_frozen_store_install_registers_the_project() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    append_workspace_yaml_key(&workspace, "frozenStore", true);
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    fs::remove_dir_all(store_dir.projects()).expect("clear the project registry");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--no-frozen-store"])
+        .assert()
+        .success();
+
+    let projects: Vec<_> = pnpm_store_dir::get_registered_projects(&store_dir)
+        .expect("list registered projects")
+        .iter()
+        .map(|project| canonicalize(project))
+        .collect();
+    assert_eq!(projects, [canonicalize(&workspace)]);
+}
+
+#[test]
 fn repeat_install_registers_an_unregistered_project() {
     for args in [&["install"][..], &["install", "--filter=."]] {
         assert_repeat_install_registers_the_project(args);
