@@ -10,8 +10,8 @@ export interface ReportIdentity {
  *
  * A project is keyed by its name unless that would hide another project:
  * a project without a name, every project that shares its name with
- * another selected project, and a project whose name equals another
- * project's directory key are keyed by their directory instead. Directories
+ * another selected project, and a project whose name equals the directory
+ * key another project is reported under are keyed by their directory instead. Directories
  * are distinct, so the keys are too, and a workspace whose names are unique
  * keeps its name keys.
  */
