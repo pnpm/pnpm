@@ -30,7 +30,7 @@ An entry may carry:
 | [`prefix`](#prefix)                       | `string`   | The bare-specifier prefix this registry answers to.                  |
 | [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm` or `artifactory`.        |
 | [`supportsTimeField`](#supportstimefield) | `boolean`  | Whether the server's abbreviated metadata carries the `time` field.  |
-| [`networkConcurrency`](#networkconcurrency) | `number` | The most requests pnpm keeps in flight to this registry's host.      |
+| [`networkConcurrency`](#networkconcurrency) | `number` | The most requests pnpm keeps in flight to this registry's origin.    |
 
 Any other field is rejected. In particular, credentials (`_authToken`, `_auth`, `_password`, `username`, `tokenHelper`) and TLS material (`ca`, `cafile`, `cert`, `certfile`, `key`, `keyfile`) are refused rather than silently ignored — `pnpm-workspace.yaml` is committed to the repository, so they belong in [`.npmrc`](./npmrc.md) (e.g. `//npm.corp.example.com/:_authToken=...`). A URL key that embeds `user:pass@` credentials is refused for the same reason.
 
@@ -125,7 +125,7 @@ This is the per-registry form of the [`registrySupportsTimeField`](./settings/ot
 
 Added in: v12.9.0
 
-The most requests pnpm keeps in flight to this registry's host at once. Use it for a server that rate-limits or slows down under load, without lowering concurrency for every other registry:
+The most requests pnpm keeps in flight to this registry's origin (its scheme, host, and port) at once. Use it for a server that rate-limits or slows down under load, without lowering concurrency for every other registry:
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
@@ -134,9 +134,9 @@ registries:
     networkConcurrency: 4
 ```
 
-The limit applies to every request whose URL is on the entry's host, including tarballs the registry serves from the same host. Requests to that host still count against the overall [`networkConcurrency`](./settings/network.md#networkconcurrency), so a value above it has no effect. Entries whose URLs share a host share the smallest of their limits. An entry may set only `networkConcurrency`, for example to limit the default registry or a host that serves tarballs.
+The limit applies to every request whose URL is on the entry's origin, including tarballs the registry serves from the same origin. A request that reaches the origin through a redirect from another one counts against the origin it was sent to. Requests still count against the overall [`networkConcurrency`](./settings/network.md#networkconcurrency), so a value above it has no effect. Entries whose URLs share an origin share the smallest of their limits. An entry may set only `networkConcurrency`, for example to limit the default registry or a host that serves tarballs.
 
-If a request to the host times out while other requests to it are still running, pnpm lowers that host's limit to one request for the rest of the command, as it does for hosts without an entry. The value must be a positive integer. Unlike the npm-specific fields, it is accepted for Cargo and PyPI entries too.
+If a request to the origin times out while other requests to it are still running, pnpm lowers its limit to one request for the rest of the command, as it does for origins without an entry. The value must be a positive integer. Unlike the npm-specific fields, it is accepted for Cargo and PyPI entries too.
 
 ### ecosystem
 

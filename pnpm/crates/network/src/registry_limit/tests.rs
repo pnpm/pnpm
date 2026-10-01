@@ -45,3 +45,37 @@ async fn registries_sharing_an_origin_share_the_smallest_limit() {
     let _only = client.acquire_for_url("https://corp.example/npm-a/pkg").await;
     assert!(!is_granted_soon(&client, "https://corp.example/npm-a/other").await);
 }
+
+#[tokio::test]
+async fn a_capped_registry_serves_queued_metadata_before_queued_downloads() {
+    let client = std::sync::Arc::new(client_with_registry_limits(&[("https://slow.example/", 1)]));
+    let held = client.acquire_for_url("https://slow.example/held").await;
+    let order = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let download = tokio::spawn({
+        let (client, order) = (std::sync::Arc::clone(&client), std::sync::Arc::clone(&order));
+        async move {
+            let _slot =
+                client.acquire_for_url_with_priority("https://slow.example/a.tgz", 100).await;
+            order.lock().unwrap().push("download");
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let metadata = tokio::spawn({
+        let (client, order) = (std::sync::Arc::clone(&client), std::sync::Arc::clone(&order));
+        async move {
+            let _slot = client.acquire_for_url("https://slow.example/pkg").await;
+            order.lock().unwrap().push("metadata");
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    drop(held);
+    metadata.await.unwrap();
+    download.await.unwrap();
+    assert_eq!(*order.lock().unwrap(), vec!["metadata", "download"]);
+}
+
+#[tokio::test]
+async fn a_registry_limit_above_the_global_limit_is_held_to_it() {
+    let client = client_with_registry_limits(&[("https://huge.example/", usize::MAX)]);
+    assert!(is_granted_soon(&client, "https://huge.example/pkg").await);
+}

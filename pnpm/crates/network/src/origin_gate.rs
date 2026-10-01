@@ -6,7 +6,9 @@
 //! keeps the configured `networkConcurrency`. The cap never rises again
 //! within the client's lifetime.
 
-use crate::{HostSocketLimit, ThrottledClient, registry_limit::RegistryLimits};
+use crate::{
+    HostSocketLimit, ThrottledClient, priority_semaphore::Permit, registry_limit::RegistryLimits,
+};
 use std::{
     collections::HashMap,
     sync::{
@@ -39,8 +41,9 @@ impl OriginLimits {
         url: &str,
         origin: &str,
         is_proxied: bool,
+        priority: u64,
     ) -> (OriginPermit, Option<OwnedSemaphorePermit>) {
-        let registry_slot = self.registries.acquire(url).await;
+        let registry_slot = self.registries.acquire(url, priority).await;
         let mut origin_permit = self.timeouts.acquire(origin).await;
         origin_permit.registry_slot = registry_slot;
         (origin_permit, self.sockets.acquire(origin, is_proxied).await)
@@ -82,7 +85,7 @@ pub(crate) struct OriginPermit {
     permit: Option<OwnedSemaphorePermit>,
     active: bool,
     /// The slot of the `registries` entry capping this request's origin.
-    registry_slot: Option<OwnedSemaphorePermit>,
+    registry_slot: Option<Permit>,
 }
 
 impl OriginGates {

@@ -234,7 +234,10 @@ impl ThrottledClient {
             default_clients,
             per_registry,
             origin_limits: OriginLimits::new(
-                RegistryLimits::new(&settings.network_concurrency_by_registry),
+                RegistryLimits::new(
+                    &settings.network_concurrency_by_registry,
+                    settings.network_concurrency,
+                ),
                 HostSocketLimit::new(None),
             ),
             proxy_routing,

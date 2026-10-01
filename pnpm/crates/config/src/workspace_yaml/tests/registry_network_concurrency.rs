@@ -80,3 +80,19 @@ fn the_global_config_may_set_a_registry_concurrency() {
     );
     assert!(config.registry_options_by_url.is_empty(), "serverType stays workspace-only");
 }
+
+#[test]
+fn the_resolved_view_keeps_a_prefixed_registry_in_one_entry() {
+    let config = load(
+        "registries:\n  https://npm.corp.example/npm:\n    prefix: work\n    networkConcurrency: 4\n",
+    )
+    .unwrap();
+    let resolved = config.resolved_registry_declarations();
+    let corp: Vec<_> = resolved
+        .iter()
+        .filter(|(registry, _)| registry.contains("npm.corp.example"))
+        .collect();
+    assert_eq!(corp.len(), 1, "{resolved:?}");
+    assert_eq!(corp[0].1.prefix.as_deref(), Some("work"));
+    assert_eq!(corp[0].1.network_concurrency, limit(4));
+}
