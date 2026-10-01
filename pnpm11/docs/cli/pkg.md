@@ -80,4 +80,4 @@ pnpm -r pkg set version=1.0.0
 pnpm --filter "./packages/*" pkg get name
 ```
 
-`pnpm -r pkg get` returns a JSON object keyed by package name; `set`, `delete`, and `fix` apply to each matched project.
+`pnpm -r pkg get` returns a JSON object keyed by package name. A project is keyed by its directory, relative to the workspace root, when it has no name, when another selected project has the same name, or when its name matches the directory key of another project reported that way. `set`, `delete`, and `fix` apply to each matched project.

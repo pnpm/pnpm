@@ -123,6 +123,7 @@ mod ping;
 mod pipeline_cache;
 mod pipeline_cargo_cache;
 mod pipeline_watch;
+mod pkg_recursive;
 mod pnpm_compatibility;
 mod pnpr_install;
 mod pnpx_alias;

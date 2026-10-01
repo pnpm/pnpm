@@ -326,6 +326,27 @@ describe('pkg command', () => {
       })
     })
 
+    test('keys projects that share a name by their directory', async () => {
+      const { selectedProjectsGraph } = setupWorkspace({
+        a: { name: 'pkg-a', version: '1.0.0' },
+        b: { name: 'pkg-a', version: '2.3.0' },
+        c: { name: 'pkg-c', version: '0.1.0' },
+      })
+
+      const result = await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        recursive: true,
+        selectedProjectsGraph,
+      }, ['get', 'version'])
+
+      expect(JSON.parse(result as string)).toEqual({
+        a: { version: '1.0.0' },
+        b: { version: '2.3.0' },
+        'pkg-c': { version: '0.1.0' },
+      })
+    })
+
     test('runs `set` against every selected workspace package', async () => {
       const { allProjects, selectedProjectsGraph } = setupWorkspace({
         'pkg-a': { name: 'pkg-a', version: '1.0.0' },
