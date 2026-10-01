@@ -252,3 +252,22 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     expect(stdout.toString()).toContain('hello from the nested script')
   }
 })
+
+// https://github.com/pnpm/pnpm/issues/15173
+test('a failed install before the script is reported as a warning and the script still runs', async () => {
+  prepare({
+    name: 'root',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/this-package-does-not-exist': '1.0.0',
+    },
+    scripts: {
+      start: 'echo hello from script',
+    },
+  })
+
+  const { stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=install', 'start'], { expectSuccess: true })
+  const output = stdout.toString() + stderr.toString()
+  expect(output).toContain('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile.')
+  expect(output).toContain('hello from script')
+})

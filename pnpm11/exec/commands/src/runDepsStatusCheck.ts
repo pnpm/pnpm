@@ -247,11 +247,34 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
       if (await installNotRequired(opts, upToDate, workspaceState)) return
       command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
-    const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
-    runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
+    runInstall(opts, command)
   } finally {
     await lock?.release()
   }
+}
+
+/**
+ * An install that exits with an error only warns, so a sandbox with a
+ * read-only store or no network can still run its scripts. The install has
+ * already reported why it failed. An install killed by a signal or by Ctrl-C
+ * still aborts the command.
+ */
+function runInstall (opts: RunDepsStatusCheckOptions, command: string[]): void {
+  const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
+  try {
+    runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
+  } catch (err: unknown) {
+    if (!isFailedInstall(err)) throw err
+    globalWarn('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install.')
+  }
+}
+
+// The exit code Windows reports for a process ended by Ctrl+C.
+const STATUS_CONTROL_C_EXIT = 0xC000_013A
+
+function isFailedInstall (err: unknown): boolean {
+  return typeof err === 'object' && err != null && 'exitCode' in err &&
+    typeof err.exitCode === 'number' && err.exitCode !== STATUS_CONTROL_C_EXIT
 }
 
 async function installLockPath (root: string): Promise<string> {
