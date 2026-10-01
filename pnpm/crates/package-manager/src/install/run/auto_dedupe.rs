@@ -22,7 +22,8 @@ impl RunExecution<'_> {
 
     /// The baseline of an `autoDedupe` `--lockfile-only` install that
     /// resolves the whole workspace against the lockfile's pins and saves
-    /// what it resolves. `None` for every other install.
+    /// what it resolves. `None` for every other install, including a dry run,
+    /// which always resolves and saves nothing.
     pub(super) fn auto_dedupe_baseline(
         &self,
         scope: &InstallScope<'_>,
@@ -32,6 +33,7 @@ impl RunExecution<'_> {
         if !config.auto_dedupe
             || !self.mode.lockfile_only
             || self.install.lockfile_policy.frozen
+            || self.install.execution.dry_run
             || !self.resolves_the_whole_workspace(scope)
         {
             return None;
