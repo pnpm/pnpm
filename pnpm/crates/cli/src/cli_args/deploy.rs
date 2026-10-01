@@ -13,7 +13,7 @@ use lockfile::{
     load_deploy_lockfile, manifest_dependency_names,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use paths::{ProjectPathKey, relative_path, same_path};
+use path_compare::{ProjectPathKey, is_ancestor_path, is_child_path, same_path};
 use peers::{
     LinkedWorkspaceProject, bind_singleton_peers, deploy_peer_edges,
     omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
@@ -51,8 +51,8 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
 };
 use target::{
-    apply_deploy_hook, copy_project, is_ancestor_path, is_child_path, prepare_deploy_dir,
-    real_deploy_dir, resolve_target_dir, validate_deploy_target, write_deploy_files,
+    apply_deploy_hook, copy_project, prepare_deploy_dir, real_deploy_dir, relative_path,
+    resolve_target_dir, validate_deploy_target, write_deploy_files,
 };
 use workspace_manifest::deploy_workspace_settings;
 
@@ -390,11 +390,11 @@ mod tests;
 
 mod target;
 
+mod path_compare;
+
 mod resolution;
 
 mod peers;
-
-mod paths;
 
 mod lockfile;
 

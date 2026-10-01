@@ -1,7 +1,12 @@
-//! Lexical comparison of deploy paths and the relative paths the deployed
-//! manifest records.
+use super::{Path, lexical_normalize};
 
-use super::{IntoDiagnostic, Path, PathBuf, lexical_normalize};
+pub(super) fn is_ancestor_path(parent: &Path, child: &Path) -> bool {
+    is_child_path(child, parent)
+}
+
+pub(super) fn is_child_path(child: &Path, parent: &Path) -> bool {
+    has_path_prefix(child, parent) && !same_path(child, parent)
+}
 
 pub(super) fn same_path(left: &Path, right: &Path) -> bool {
     let left = lexical_normalize(left);
@@ -57,25 +62,4 @@ fn comparison_component(component: &str) -> String {
 #[cfg(not(windows))]
 fn comparison_component(component: &str) -> String {
     component.to_string()
-}
-
-pub(super) fn relative_components_from_child(
-    parent: &Path,
-    child: &Path,
-) -> miette::Result<Vec<PathBuf>> {
-    let parent = lexical_normalize(parent);
-    let child = lexical_normalize(child);
-    if !has_path_prefix(&child, &parent) {
-        child.strip_prefix(&parent).into_diagnostic()?;
-    }
-    Ok(child
-        .components()
-        .skip(parent.components().count())
-        .map(|component| PathBuf::from(component.as_os_str()))
-        .collect())
-}
-
-pub(super) fn relative_path(from: &Path, to: &Path) -> String {
-    let relative = pathdiff::diff_paths(to, from).unwrap_or_else(|| to.to_path_buf());
-    relative.to_string_lossy().replace('\\', "/")
 }

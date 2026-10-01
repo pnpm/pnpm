@@ -2,9 +2,8 @@ use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
     IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
     WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
-    lexical_normalize,
-    paths::{has_path_prefix, relative_components_from_child, same_path},
-    remove_dirent, warn,
+    is_ancestor_path, is_child_path, lexical_normalize, path_compare::has_path_prefix,
+    remove_dirent, same_path, warn,
 };
 use pnpm_local_spec::LocalSpec;
 #[cfg(windows)]
@@ -106,14 +105,6 @@ fn validate_workspace_child_target_components(
 
 fn unsafe_deploy_target<Output>(deploy_dir: &Path, reason: &'static str) -> miette::Result<Output> {
     Err(DeployError::UnsafeDeployTarget { deploy_dir: deploy_dir.to_path_buf(), reason }.into())
-}
-
-pub(super) fn is_ancestor_path(parent: &Path, child: &Path) -> bool {
-    is_child_path(child, parent)
-}
-
-pub(super) fn is_child_path(child: &Path, parent: &Path) -> bool {
-    has_path_prefix(child, parent) && !same_path(child, parent)
 }
 
 pub(super) fn prepare_deploy_dir<ReporterT: Reporter>(
@@ -341,6 +332,24 @@ fn copied_path_inside_project(
         .join(&inside_project)
         .exists()
         .then_some(inside_project)
+}
+
+fn relative_components_from_child(parent: &Path, child: &Path) -> miette::Result<Vec<PathBuf>> {
+    let parent = lexical_normalize(parent);
+    let child = lexical_normalize(child);
+    if !has_path_prefix(&child, &parent) {
+        child.strip_prefix(&parent).into_diagnostic()?;
+    }
+    Ok(child
+        .components()
+        .skip(parent.components().count())
+        .map(|component| PathBuf::from(component.as_os_str()))
+        .collect())
+}
+
+pub(super) fn relative_path(from: &Path, to: &Path) -> String {
+    let relative = pathdiff::diff_paths(to, from).unwrap_or_else(|| to.to_path_buf());
+    relative.to_string_lossy().replace('\\', "/")
 }
 
 pub(super) fn write_deploy_files(
