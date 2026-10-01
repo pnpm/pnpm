@@ -1,11 +1,12 @@
 //! A record that the wanted lockfile on disk is what an `autoDedupe` resolution
 //! wrote. A lockfile does not say whether it was deduplicated, so `autoDedupe`
-//! resolves on every install that is not frozen. A deduplicating resolution
-//! converges, so after a `--lockfile-only` one writes the lockfile, the install
-//! records a digest of what it read: the pnpm version, the workspace-state
-//! settings, whether it ignored the pnpmfile, the project manifests, the
-//! lockfile bytes and the local packages the lockfile resolves. A later
-//! `--lockfile-only` install whose digest matches takes the up-to-date path.
+//! keeps installs off the up-to-date path unless this record vouches for the
+//! lockfile. A deduplicating resolution converges, so after a `--lockfile-only`
+//! one writes the lockfile, the install records digests of what it read: the
+//! pnpm version, the workspace-state settings, whether it ignored the
+//! pnpmfile, the project manifests, the lockfile bytes and the local packages
+//! the lockfile resolves. A later `--lockfile-only` install whose digests
+//! match takes the up-to-date path.
 //! Like the repeat-install fast path, it does not re-resolve for a setting the
 //! workspace state leaves out, a change inside a `link:` target that is not a
 //! workspace project, or versions published since. A local file that is missing
@@ -53,12 +54,19 @@ impl AutoDedupeBaseline {
 
     /// Whether a deduplicating resolution under these inputs wrote the
     /// lockfile as it is on disk now, `lockfile` being its parsed document.
+    /// Compares the cheapest digest first, so a changed manifest or lockfile
+    /// misses without reading the local packages.
     pub(crate) fn matches(&self, lockfile: &Lockfile) -> bool {
-        fs::read_to_string(&self.record)
-            .is_ok_and(|recorded| {
-                self.digest(lockfile)
-                    .is_some_and(|digest| digest == recorded)
-            })
+        let Ok(recorded) = fs::read_to_string(&self.record) else { return false };
+        let Some((inputs, rest)) = recorded.split_once('\n') else { return false };
+        let Some((file, local)) = rest.split_once('\n') else { return false };
+        inputs == self.inputs
+            && self
+                .lockfile_file_digest()
+                .is_some_and(|digest| digest == file)
+            && self
+                .local_packages_digest(lockfile)
+                .is_some_and(|digest| digest == local)
     }
 
     /// Record the lockfile on disk, `lockfile` being the document written
@@ -82,9 +90,17 @@ impl AutoDedupeBaseline {
     }
 
     fn digest(&self, lockfile: &Lockfile) -> Option<String> {
-        let file = create_hex_hash_from_file(&self.lockfile).ok()?;
-        let local = local_packages_digest(self.lockfile.parent()?, lockfile)?;
-        Some(create_hex_hash(&format!("{}\n{file}\n{local}", self.inputs)))
+        let file = self.lockfile_file_digest()?;
+        let local = self.local_packages_digest(lockfile)?;
+        Some(format!("{}\n{file}\n{local}", self.inputs))
+    }
+
+    fn lockfile_file_digest(&self) -> Option<String> {
+        create_hex_hash_from_file(&self.lockfile).ok()
+    }
+
+    fn local_packages_digest(&self, lockfile: &Lockfile) -> Option<String> {
+        local_packages_digest(self.lockfile.parent()?, lockfile)
     }
 }
 

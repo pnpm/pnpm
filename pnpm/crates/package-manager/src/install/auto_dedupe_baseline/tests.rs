@@ -129,3 +129,20 @@ fn project_order_does_not_change_the_record() {
     workspace.manifests.reverse();
     assert!(workspace.matches());
 }
+
+#[test]
+fn an_unchanged_workspace_matches() {
+    let workspace = Workspace::new();
+    workspace.record();
+    assert!(workspace.matches());
+}
+
+#[test]
+fn a_changed_project_manifest_misses() {
+    let mut workspace = Workspace::new();
+    workspace.record();
+    let (dir, _) = &workspace.manifests[1];
+    let value = serde_json::json!({"name": "a", "version": "1.0.1"});
+    workspace.manifests[1].1 = PackageManifest::from_value(dir.join("package.json"), value);
+    assert!(!workspace.matches());
+}
