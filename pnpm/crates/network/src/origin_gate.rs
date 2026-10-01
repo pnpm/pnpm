@@ -9,10 +9,7 @@
 use crate::{HostSocketLimit, ThrottledClient};
 use std::{
     collections::HashMap,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
@@ -51,10 +48,18 @@ pub(crate) struct OriginGates {
 #[derive(Debug)]
 struct OriginGate {
     slots: Arc<Semaphore>,
-    downscaled: AtomicBool,
+    /// Held across a downscale and across every permit release, so no slot
+    /// can return to the pool between retiring the free slots and recording
+    /// how many held ones still have to go.
+    retirement: Mutex<Retirement>,
+}
+
+#[derive(Debug, Default)]
+struct Retirement {
+    downscaled: bool,
     /// Slots still to retire as requests granted before the downscale finish.
     /// Always the slot count minus one after a downscale.
-    excess: AtomicUsize,
+    excess: usize,
 }
 
 /// Counts one request against its origin until dropped.
@@ -93,20 +98,25 @@ impl OriginGate {
     fn new() -> Self {
         OriginGate {
             slots: Arc::new(Semaphore::new(Semaphore::MAX_PERMITS)),
-            downscaled: AtomicBool::new(false),
-            excess: AtomicUsize::new(0),
+            retirement: Mutex::default(),
         }
     }
 
+    fn retirement(&self) -> MutexGuard<'_, Retirement> {
+        // A release runs in `Drop`, where a poisoned-lock panic would abort.
+        self.retirement.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn downscale_while_peers_active(&self) -> bool {
+        let mut retirement = self.retirement();
         let in_flight = Semaphore::MAX_PERMITS - self.slots.available_permits();
-        if in_flight <= 1 || self.downscaled.swap(true, Ordering::AcqRel) {
+        if retirement.downscaled || in_flight <= 1 {
             return false;
         }
         // Every slot not held right now is retired at once. The held ones
         // are retired as they are released, all but the last.
         let held = Semaphore::MAX_PERMITS - self.slots.forget_permits(Semaphore::MAX_PERMITS);
-        self.excess.store(held.saturating_sub(1), Ordering::Release);
+        *retirement = Retirement { downscaled: true, excess: held.saturating_sub(1) };
         true
     }
 }
@@ -116,11 +126,12 @@ impl Drop for OriginPermit {
         let Some(permit) = self.permit.take() else {
             return;
         };
-        let retire = self.gate.excess
-            .try_update(Ordering::AcqRel, Ordering::Acquire, |excess| excess.checked_sub(1))
-            .is_ok();
-        if retire {
+        let mut retirement = self.gate.retirement();
+        if retirement.excess > 0 {
+            retirement.excess -= 1;
             permit.forget();
+        } else {
+            drop(permit);
         }
     }
 }
@@ -168,7 +179,7 @@ impl ThrottledClient {
         self.proxy_routing
             .effective_socket_origin(url)
             .and_then(|(origin, _)| self.origin_limits.timeouts.get(&origin))
-            .is_some_and(|gate| gate.downscaled.load(Ordering::Acquire))
+            .is_some_and(|gate| gate.retirement().downscaled)
     }
 }
 
