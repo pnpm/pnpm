@@ -363,7 +363,7 @@ async fn document_from_response(
     let raw_body = response
         .text()
         .await
-        .inspect_err(|error| opts.http.http_client.downscale_on_timeout(error))
+        .inspect_err(|error| opts.http.http_client.downscale_on_timeout(url, error))
         .map_err(|error| FetchMetadataError::BodyRead {
             url: redact_url_credentials(url),
             error: error.without_url(),

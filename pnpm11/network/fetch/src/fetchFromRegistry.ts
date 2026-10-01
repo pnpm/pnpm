@@ -6,7 +6,7 @@ import type { RegistryConfig } from '@pnpm/types'
 
 import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
-import { createNetworkConcurrencyGate, type NetworkConcurrencyGate } from './networkConcurrencyGate.js'
+import { createOriginConcurrencyGates, type GetOriginConcurrencyGate } from './networkConcurrencyGate.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -67,14 +67,14 @@ type FetchFromRegistryRequestOptions = Parameters<FetchFromRegistry>[1]
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   const clientCertificates = extractTlsConfigs(defaultOpts.configByUri)
-  const concurrencyGate = createNetworkConcurrencyGate()
+  const concurrencyGateFor = createOriginConcurrencyGates()
   return async (url, opts): Promise<Response> => fetchFollowingRedirects({
     url,
     opts,
     headers: createRequestHeaders(defaultOpts.userAgent, opts),
     defaultOpts,
     clientCertificates,
-    concurrencyGate,
+    concurrencyGateFor,
   })
 }
 
@@ -113,10 +113,10 @@ interface RedirectFollowingRequest {
   headers: Record<string, string>
   defaultOpts: CreateFetchFromRegistryOptions
   clientCertificates: ClientCertificates | undefined
-  concurrencyGate: NetworkConcurrencyGate
+  concurrencyGateFor: GetOriginConcurrencyGate
 }
 
-async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clientCertificates, concurrencyGate }: RedirectFollowingRequest): Promise<Response> {
+async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clientCertificates, concurrencyGateFor }: RedirectFollowingRequest): Promise<Response> {
   let redirects = 0
   let urlObject = new URL(url)
   const originalOrigin = urlObject.origin
@@ -138,7 +138,7 @@ async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clien
       redirect: 'manual',
       retry: opts?.retry,
       timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
-      concurrencyGate,
+      concurrencyGate: concurrencyGateFor(urlObject.origin),
     })
     if (
       opts?.redirect === 'manual' ||

@@ -228,7 +228,7 @@ impl TarballDownload<'_> {
             Ok(prefix) => prefix,
             Err(error) => {
                 if error.is_fetch_timeout() {
-                    self.http_client.downscale_while_peers_active();
+                    self.http_client.downscale_while_peers_active(self.package_url);
                 }
                 return Err(error);
             }

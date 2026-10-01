@@ -177,7 +177,7 @@ fn classify_response(
         }
         Ok(res) => AttemptOutcome::Success(res),
         Err(err) => {
-            http_client.downscale_on_timeout(&err);
+            http_client.downscale_on_timeout(url, &err);
             if attempt >= retry_opts.retries || is_permanent_error(&err) {
                 AttemptOutcome::Fatal(err)
             } else {

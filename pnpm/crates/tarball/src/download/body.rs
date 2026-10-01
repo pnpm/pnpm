@@ -109,7 +109,7 @@ where
     if let Some(error) = &body_error
         && error.is_fetch_timeout()
     {
-        http_client.downscale_while_peers_active();
+        http_client.downscale_while_peers_active(package_url);
     }
     if body_error.is_none() {
         progress.warn_if_slow(http_client, package_url);
@@ -285,7 +285,7 @@ where
     }
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| {
-            inputs.http_client.downscale_on_timeout(&error);
+            inputs.http_client.downscale_on_timeout(inputs.package_url, &error);
             fetch_error(inputs.package_url, error)
         })?;
         buf.extend_from_slice(&chunk);
@@ -309,7 +309,7 @@ where
             )
             .await;
             if error.is_fetch_timeout() {
-                inputs.http_client.downscale_while_peers_active();
+                inputs.http_client.downscale_while_peers_active(inputs.package_url);
             }
             return Err(error);
         }

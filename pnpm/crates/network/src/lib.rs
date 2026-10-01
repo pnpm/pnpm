@@ -20,6 +20,7 @@ mod address_guard;
 mod auth;
 mod error_chain;
 mod limited_body;
+mod origin_gate;
 mod priority_semaphore;
 mod proxy;
 mod retry;
@@ -30,6 +31,7 @@ mod token_helper;
 
 mod url_encoding;
 
+use origin_gate::{OriginLimits, OriginPermit};
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
 use reqwest::{
@@ -181,9 +183,9 @@ pub struct ThrottledClient {
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
     per_registry: tls::PerRegistryMap<ClientPair>,
-    /// Per-origin socket cap (the `maxSockets` setting) and proxy socket
-    /// cap.
-    host_socket_limit: HostSocketLimit,
+    /// Per-origin socket cap (the `maxSockets` setting), proxy socket cap,
+    /// and the cap a fetch timeout lowers to one request.
+    origin_limits: OriginLimits,
     /// Effective proxy routing configuration used to determine socket origin.
     proxy_routing: ProxyRouting,
     fetch_warn_timeout: Duration,
@@ -329,6 +331,9 @@ pub struct ThrottledClientGuard<'a> {
     /// as `permit`. `None` when no `maxSockets` cap is configured or the URL
     /// had no parseable origin.
     host_permit: Option<OwnedSemaphorePermit>,
+    /// Counts the request against its origin's timeout cap. `None` when the
+    /// URL had no parseable origin.
+    origin_permit: Option<OriginPermit>,
     client: &'a Client,
 }
 
@@ -337,6 +342,7 @@ pub struct ThrottledResponse {
     response: reqwest::Response,
     _permit: Permit,
     _host_permit: Option<OwnedSemaphorePermit>,
+    _origin_permit: Option<OriginPermit>,
     body_timeout: Duration,
     received_at: Instant,
 }
@@ -353,6 +359,7 @@ impl ThrottledClientGuard<'_> {
             response,
             _permit: self.permit,
             _host_permit: self.host_permit,
+            _origin_permit: self.origin_permit,
             body_timeout,
             received_at: Instant::now(),
         }
@@ -361,7 +368,13 @@ impl ThrottledClientGuard<'_> {
 
 impl ThrottledResponse {
     pub async fn bytes(self) -> Result<bytes::Bytes, reqwest::Error> {
-        let Self { response, _permit, _host_permit, .. } = self;
+        let Self {
+            response,
+            _permit,
+            _host_permit,
+            _origin_permit,
+            ..
+        } = self;
         response.bytes().await
     }
 
@@ -453,41 +466,6 @@ impl ThrottledClient {
         self.fetch_min_speed_ki_bps
     }
 
-    /// Drop the in-flight request cap to one connection when this caller
-    /// still holds its permit and at least one other request is running.
-    ///
-    /// Configured `networkConcurrency` is unchanged for a link that keeps
-    /// up. A timeout while peers are still in flight retires the extra
-    /// slots so the retry, and every later acquire, waits until a single
-    /// request remains. Already-granted permits finish. A lone timeout, or
-    /// a pool that is already one connection, does not change the cap.
-    ///
-    /// Returns whether this call performed the downscale.
-    pub fn downscale_while_peers_active(&self) -> bool {
-        let downscaled = self.semaphore.downscale_while_peers_active();
-        if downscaled {
-            tracing::warn!(
-                target: "pnpm_network::retry",
-                "Fetch timed out while other requests were still in flight; lowering network concurrency to 1",
-            );
-        }
-        downscaled
-    }
-
-    /// [`Self::downscale_while_peers_active`] when `error` is a timeout.
-    /// Call it while the failed request's guard is still held.
-    pub fn downscale_on_timeout(&self, error: &reqwest::Error) {
-        if error.is_timeout() {
-            self.downscale_while_peers_active();
-        }
-    }
-
-    /// Current in-flight cap. Test hook for [`Self::downscale_while_peers_active`].
-    #[cfg(test)]
-    pub(crate) fn concurrency_limit(&self) -> usize {
-        self.semaphore.concurrency_limit()
-    }
-
     /// Acquire a permit and return a guard granting access to the
     /// underlying [`Client`]. The permit is released when the guard
     /// is dropped, so callers control how long the request "counts"
@@ -498,6 +476,7 @@ impl ThrottledClient {
         ThrottledClientGuard {
             permit,
             host_permit: None,
+            origin_permit: None,
             client: &self.default_clients.follow_redirects,
         }
     }
@@ -511,7 +490,7 @@ impl ThrottledClient {
     /// uncapped.
     #[must_use]
     pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
-        self.host_socket_limit = HostSocketLimit::new(max_sockets);
+        self.origin_limits.sockets = HostSocketLimit::new(max_sockets);
         self
     }
 

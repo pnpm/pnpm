@@ -136,7 +136,7 @@ async fn check_archive_status(
             .is_some_and(|len| len <= DRAIN_CAP)
             && let Err(error) = response.bytes().await
         {
-            http_client.downscale_on_timeout(&error);
+            http_client.downscale_on_timeout(package_url, &error);
         }
         return Err(TarballError::HttpStatus(HttpStatusError {
             url: package_url.to_string(),
@@ -162,7 +162,7 @@ async fn send_archive_request(
             Ok(response) => return Ok(response),
             Err(error) => error,
         };
-        http_client.downscale_on_timeout(&error);
+        http_client.downscale_on_timeout(package_url, &error);
         let delay = retry_backoff_for_error(&error, attempt).ok_or(error)?;
         attempt += 1;
         if !delay.is_zero() {

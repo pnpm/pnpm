@@ -531,7 +531,7 @@ async fn a_timeout_while_another_request_is_in_flight_downscales_concurrency() {
     };
     assert!(left_error.is_timeout(), "{left_error:?}");
     assert!(right_error.is_timeout(), "{right_error:?}");
-    assert_eq!(client.concurrency_limit(), 1);
+    assert!(client.is_origin_downscaled(&url));
 }
 
 #[tokio::test]
@@ -552,7 +552,7 @@ async fn a_metadata_body_timeout_while_another_request_is_in_flight_downscales_c
     };
     assert!(left_error.is_timeout(), "{left_error:?}");
     assert!(right_error.is_timeout(), "{right_error:?}");
-    assert_eq!(client.concurrency_limit(), 1);
+    assert!(client.is_origin_downscaled(&url));
 }
 
 #[tokio::test]
@@ -573,7 +573,24 @@ async fn a_metadata_header_timeout_while_another_request_is_in_flight_downscales
     };
     assert!(left_error.is_timeout(), "{left_error:?}");
     assert!(right_error.is_timeout(), "{right_error:?}");
-    assert_eq!(client.concurrency_limit(), 1);
+    assert!(client.is_origin_downscaled(&url));
+}
+
+#[tokio::test]
+async fn a_timeout_with_peers_only_on_other_origins_keeps_concurrency() {
+    let first_addr = spawn_stalling_server(b"").await;
+    let second_addr = spawn_stalling_server(b"").await;
+    let client = client_with_short_fetch_timeout();
+    let first_url = format!("http://{first_addr}/pkg.tgz");
+    let second_url = format!("http://{second_addr}/pkg.tgz");
+    let retry = instant_retry_opts(0);
+    let first = crate::send_with_retry(&client, &first_url, retry, |http| http.get(&first_url));
+    let second = crate::send_with_retry(&client, &second_url, retry, |http| http.get(&second_url));
+    let (left, right) = tokio::join!(first, second);
+    assert!(left.is_err_and(|error| error.is_timeout()));
+    assert!(right.is_err_and(|error| error.is_timeout()));
+    assert!(!client.is_origin_downscaled(&first_url));
+    assert!(!client.is_origin_downscaled(&second_url));
 }
 
 /// Accept connections, write `head` to each, then hold the socket open

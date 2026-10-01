@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { afterEach, expect, test } from '@jest/globals'
 import { clearDispatcherCache, createFetchFromRegistry } from '@pnpm/network.fetch'
 
-import { createNetworkConcurrencyGate } from '../src/networkConcurrencyGate.js'
+import { createNetworkConcurrencyGate, createOriginConcurrencyGates } from '../src/networkConcurrencyGate.js'
 
 test('a timeout with peers in flight shrinks the cap and holds new acquires', async () => {
   const gate = createNetworkConcurrencyGate(3)
@@ -36,6 +36,21 @@ test('a lone in-flight request does not shrink the cap', async () => {
   expect(gate.downscaleIfPeersActive()).toBe(false)
   expect(gate.limit).toBe(4)
   gate.release()
+})
+
+test('a downscale on one origin leaves other origins unbounded', async () => {
+  const gateFor = createOriginConcurrencyGates()
+  const slow = gateFor('https://slow.example')
+  expect(gateFor('https://slow.example')).toBe(slow)
+  await slow.acquire()
+  await slow.acquire()
+  expect(slow.downscaleIfPeersActive()).toBe(true)
+
+  const other = gateFor('https://fast.example')
+  await other.acquire()
+  await other.acquire()
+  await other.acquire()
+  expect(other.limit).toBe(Number.POSITIVE_INFINITY)
 })
 
 afterEach(() => {

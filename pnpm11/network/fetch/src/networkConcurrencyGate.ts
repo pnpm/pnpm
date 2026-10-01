@@ -1,13 +1,14 @@
 import { isFetchTimeoutError } from '@pnpm/error'
 
 /**
- * In-flight cap for registry requests that share one
- * {@link createFetchFromRegistry} client.
+ * In-flight cap for the requests one {@link createFetchFromRegistry} client
+ * sends to a single origin.
  *
  * The cap starts unbounded. `networkConcurrency` (the package-requester
  * queue and `maxSockets`) remains the fast-path limit. After a fetch
- * timeout while another request is still running, the cap drops to one
- * so a slow link stops timing out its own downloads.
+ * timeout while another request to the same origin is still running, the
+ * cap drops to one so a slow link stops timing out its own downloads.
+ * Other origins keep their own gates.
  */
 export interface NetworkConcurrencyGate {
   readonly limit: number
@@ -18,6 +19,20 @@ export interface NetworkConcurrencyGate {
    * permit it acquired. Returns whether the cap changed.
    */
   downscaleIfPeersActive: () => boolean
+}
+
+export type GetOriginConcurrencyGate = (origin: string) => NetworkConcurrencyGate
+
+export function createOriginConcurrencyGates (): GetOriginConcurrencyGate {
+  const gates = new Map<string, NetworkConcurrencyGate>()
+  return (origin) => {
+    let gate = gates.get(origin)
+    if (gate == null) {
+      gate = createNetworkConcurrencyGate()
+      gates.set(origin, gate)
+    }
+    return gate
+  }
 }
 
 export function createNetworkConcurrencyGate (limit: number = Number.POSITIVE_INFINITY): NetworkConcurrencyGate {

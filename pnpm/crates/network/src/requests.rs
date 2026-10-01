@@ -80,7 +80,7 @@ impl ThrottledClient {
         let status = response.status();
         let url = response.url().to_string();
         let body = read_limited_body(response, body_limit).await
-            .inspect_err(|error| self.downscale_on_timeout(error))?;
+            .inspect_err(|error| self.downscale_on_timeout(&url, error))?;
         Ok(SecureAuthResponse { status, body: body.bytes, body_truncated: body.truncated, url })
     }
 
@@ -120,7 +120,7 @@ impl ThrottledClient {
             let response = request
                 .send()
                 .await
-                .inspect_err(|error| self.downscale_on_timeout(error))?;
+                .inspect_err(|error| self.downscale_on_timeout(&current_url, error))?;
             let target = response
                 .headers()
                 .get(reqwest::header::LOCATION)
@@ -144,17 +144,21 @@ impl ThrottledClient {
         priority: u64,
         follow_redirects: bool,
     ) -> ThrottledClientGuard<'_> {
-        // Acquire the per-origin `maxSockets` permit *before* the global
+        // Acquire the per-origin permits *before* the global
         // concurrency permit: a request queued behind a saturated origin must
         // not hold a global slot while it waits, or a burst to one origin would
         // hoard every global permit and starve requests to other origins.
-        let host_permit = match self.proxy_routing.effective_socket_origin(url) {
-            Some((origin, is_proxied)) => self.host_socket_limit.acquire(&origin, is_proxied).await,
-            None => None,
+        let (origin_permit, host_permit) = match self.proxy_routing.effective_socket_origin(url) {
+            Some((origin, is_proxied)) => {
+                let (origin_permit, host_permit) =
+                    self.origin_limits.acquire(&origin, is_proxied).await;
+                (Some(origin_permit), host_permit)
+            }
+            None => (None, None),
         };
         let permit = self.semaphore.acquire(priority).await;
         let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
         let client = clients.select(follow_redirects);
-        ThrottledClientGuard { permit, host_permit, client }
+        ThrottledClientGuard { permit, host_permit, origin_permit, client }
     }
 }

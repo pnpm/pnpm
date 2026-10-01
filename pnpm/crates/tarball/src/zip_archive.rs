@@ -334,7 +334,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         .await
         .inspect_err(|error| {
             if error.is_fetch_timeout() {
-                http_client.downscale_while_peers_active();
+                http_client.downscale_while_peers_active(package_url);
             }
         })?;
     drop(client);
