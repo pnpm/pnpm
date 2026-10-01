@@ -1184,6 +1184,49 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   }
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/16453
+test('frozen-lockfile: a workspace project whose directory is absent is skipped until it reappears', async () => {
+  preparePackages([
+    {
+      name: 'package-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'package-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['install', '--store-dir', 'store'])
+
+  const package2Manifest = fs.readFileSync('package-2/package.json', 'utf8')
+  rimrafSync('node_modules')
+  rimrafSync('package-1/node_modules')
+  rimrafSync('package-2')
+
+  await execPnpm(['install', '--store-dir', 'store', '--frozen-lockfile'])
+
+  expect(fs.existsSync('package-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('package-2')).toBe(false)
+
+  fs.mkdirSync('package-2')
+  fs.writeFileSync('package-2/package.json', package2Manifest)
+
+  await execPnpm(['install', '--store-dir', 'store', '--frozen-lockfile'])
+
+  expect(fs.existsSync('package-2/node_modules/is-negative')).toBe(true)
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/1482
 test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is found', async () => {
   const project = prepare({

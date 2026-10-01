@@ -319,8 +319,8 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         // pnpm's importer-set gate sits in the auto-frozen branch of
         // `isFrozenInstallPossible`, which an explicit `--frozen-lockfile`
         // short-circuits past, so a project removed from the workspace
-        // patterns does not fail the install there. One whose manifest is
-        // gone does.
+        // patterns does not fail the install there. One whose directory
+        // remains without a manifest does.
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
                 allow_unresolved_optional_dependencies: true,

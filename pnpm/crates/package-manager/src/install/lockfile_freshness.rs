@@ -252,10 +252,11 @@ fn unclaimed_importer_id<'a>(
         .find(|importer_id| !manifest_ids.contains(importer_id) && matches(importer_id))
 }
 
-/// Fail on an importer no project claims whose directory holds no project
-/// manifest. A project left out of the workspace patterns keeps its manifest
-/// and a frozen install skips it, but one whose directory or manifest is gone
-/// cannot be installed at all.
+/// Fail on an importer no project claims whose directory exists but holds no
+/// project manifest, since that project cannot be installed. A frozen install
+/// skips a project left out of the workspace patterns, which keeps its
+/// manifest, and one whose whole directory is absent, as in a Docker build
+/// context that excludes it.
 pub(super) fn check_importer_manifests_exist(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
@@ -265,14 +266,17 @@ pub(super) fn check_importer_manifests_exist(
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
         let project_dir = inputs.lockfile_dir.join(importer_id);
-        !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
-            .iter()
-            .any(|basename| project_dir.join(basename).exists())
+        project_dir.exists()
+            && !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
+                .iter()
+                .any(|basename| project_dir.join(basename).exists())
     });
     match missing {
-        Some(importer_id) => Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
-            importer_id: importer_id.to_string(),
-        })),
+        Some(importer_id) => {
+            Err(FreshnessCheckError::Stale(StalenessReason::ImporterWithoutManifest {
+                importer_id: importer_id.to_string(),
+            }))
+        }
         None => Ok(()),
     }
 }
