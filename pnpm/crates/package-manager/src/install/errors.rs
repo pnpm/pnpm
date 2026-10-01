@@ -351,6 +351,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),
 
+    #[diagnostic(transparent)]
+    InvalidProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
+
     /// `disallowWorkspaceCycles` and the projects this install covers
     /// depend on each other in a cycle.
     #[diagnostic(transparent)]

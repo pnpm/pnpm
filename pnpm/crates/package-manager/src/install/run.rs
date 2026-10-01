@@ -17,6 +17,7 @@ mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
 mod execution;
+mod manifest_validation;
 mod mode;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
