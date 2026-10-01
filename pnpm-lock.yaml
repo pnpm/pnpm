@@ -1114,6 +1114,12 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pnpm/esm-loader:
+    dependencies:
+      enhanced-resolve:
+        specifier: 5.25.1
+        version: 5.25.1
+
   pnpm/npm/napi: {}
 
   pnpm/npm/pnpm:
