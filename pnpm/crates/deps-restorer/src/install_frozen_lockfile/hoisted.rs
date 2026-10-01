@@ -211,7 +211,7 @@ fn walk_hoisted_graph(
         for node in walked.graph.values_mut() {
             if files_by_pkg_id
                 .get(&node.package.pkg_id_with_patch_hash)
-                .is_some_and(|files| files.source_is_mutable)
+                .is_some_and(crate::HoistedPackageFiles::refreshes_installed_copy)
             {
                 node.present = false;
             }

@@ -65,12 +65,25 @@ pub struct HoistedPackageFiles {
     /// from the fetch's effective resolution. See
     /// [`crate::SlotImportSource::is_mutable`].
     pub source_is_mutable: bool,
+    /// Whether the mutable source was there to read from. See
+    /// [`crate::SlotImportSource::source_exists`].
+    pub source_exists: bool,
+}
+
+impl HoistedPackageFiles {
+    /// Whether a package already installed from these files has to be
+    /// imported again. A mutable source can change without the lockfile
+    /// changing. A missing one has only an empty file map to offer, which
+    /// would replace the installed copy with nothing.
+    pub fn refreshes_installed_copy(&self) -> bool {
+        self.source_is_mutable && self.source_exists
+    }
 }
 
 impl From<Arc<HashMap<String, PathBuf>>> for HoistedPackageFiles {
     /// Content-addressed files, which are never mutable.
     fn from(cas_paths: Arc<HashMap<String, PathBuf>>) -> Self {
-        HoistedPackageFiles { cas_paths, source_is_mutable: false }
+        HoistedPackageFiles { cas_paths, source_is_mutable: false, source_exists: true }
     }
 }
 
@@ -583,7 +596,7 @@ fn import_node<Reporter: self::Reporter>(
             import_method,
             &node.dir,
             cas_paths,
-            hoisted_import_opts(files.source_is_mutable),
+            hoisted_import_opts(files),
         )
         .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
     }
@@ -607,12 +620,13 @@ fn import_node<Reporter: self::Reporter>(
 
 /// A hoisted package replaces whatever is at its directory but keeps the
 /// nested `node_modules` other nodes were hoisted into. A directory
-/// dependency keeps its own symlinks.
-fn hoisted_import_opts(source_is_mutable: bool) -> ImportIndexedDirOpts {
+/// dependency keeps its own symlinks. A missing mutable source leaves an
+/// existing directory alone, as it does for a virtual-store slot.
+fn hoisted_import_opts(files: &HoistedPackageFiles) -> ImportIndexedDirOpts {
     ImportIndexedDirOpts {
-        force: true,
+        force: files.source_exists || !files.source_is_mutable,
         keep_modules_dir: true,
-        preserve_symlinks: source_is_mutable,
+        preserve_symlinks: files.source_is_mutable,
         ..ImportIndexedDirOpts::default()
     }
 }
