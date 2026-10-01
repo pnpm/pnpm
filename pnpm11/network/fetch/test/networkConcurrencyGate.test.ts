@@ -62,6 +62,12 @@ test('requests through one proxy share its origin unless noProxy exempts them', 
   expect(getConnectionOrigin(new URL('http://plain.example/pkg'), opts)).toBe('http://plain.example')
 })
 
+test('distinct SOCKS proxies get distinct connection origins without their credentials', () => {
+  const uri = new URL('https://registry.example/pkg')
+  expect(getConnectionOrigin(uri, { httpsProxy: 'socks5://user:secret@one.example:1080' })).toBe('socks5://one.example:1080')
+  expect(getConnectionOrigin(uri, { httpsProxy: 'socks5://two.example:1080' })).toBe('socks5://two.example:1080')
+})
+
 afterEach(() => {
   clearDispatcherCache()
 })

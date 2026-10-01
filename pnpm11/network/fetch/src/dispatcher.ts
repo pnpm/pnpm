@@ -176,7 +176,9 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
 export function getConnectionOrigin (uri: URL, opts: DispatcherOptions): string {
   const proxy = uri.protocol === 'https:' ? opts.httpsProxy : opts.httpProxy
   if (!proxy || checkNoProxy(uri, opts)) return uri.origin
-  return parseProxyUrl(proxy, uri.protocol).origin
+  const proxyUrl = parseProxyUrl(proxy, uri.protocol)
+  // `URL.origin` is "null" for non-special schemes such as socks5:.
+  return `${proxyUrl.protocol}//${proxyUrl.host}`
 }
 
 function inactivityTimeout (opts: DispatcherOptions): number {

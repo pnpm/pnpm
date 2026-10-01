@@ -9,7 +9,10 @@
 use crate::{HostSocketLimit, ThrottledClient};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc, Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
@@ -48,6 +51,10 @@ pub(crate) struct OriginGates {
 #[derive(Debug)]
 struct OriginGate {
     slots: Arc<Semaphore>,
+    /// Requests past every admission step, so on the network. Slots also
+    /// cover requests still queued for the global semaphore, which are not
+    /// peers of a timed-out request.
+    active: AtomicUsize,
     /// Held across a downscale and across every permit release, so no slot
     /// can return to the pool between retiring the free slots and recording
     /// how many held ones still have to go.
@@ -67,6 +74,7 @@ struct Retirement {
 pub(crate) struct OriginPermit {
     gate: Arc<OriginGate>,
     permit: Option<OwnedSemaphorePermit>,
+    active: bool,
 }
 
 impl OriginGates {
@@ -82,7 +90,7 @@ impl OriginGates {
             .acquire_owned()
             .await
             .expect("origin gate semaphore is never closed");
-        OriginPermit { gate, permit: Some(permit) }
+        OriginPermit { gate, permit: Some(permit), active: false }
     }
 
     fn get(&self, origin: &str) -> Option<Arc<OriginGate>> {
@@ -98,6 +106,7 @@ impl OriginGate {
     fn new() -> Self {
         OriginGate {
             slots: Arc::new(Semaphore::new(Semaphore::MAX_PERMITS)),
+            active: AtomicUsize::new(0),
             retirement: Mutex::default(),
         }
     }
@@ -109,8 +118,7 @@ impl OriginGate {
 
     fn downscale_while_peers_active(&self) -> bool {
         let mut retirement = self.retirement();
-        let in_flight = Semaphore::MAX_PERMITS - self.slots.available_permits();
-        if retirement.downscaled || in_flight <= 1 {
+        if retirement.downscaled || self.active.load(Ordering::Acquire) <= 1 {
             return false;
         }
         // Every slot not held right now is retired at once. The held ones
@@ -121,8 +129,21 @@ impl OriginGate {
     }
 }
 
+impl OriginPermit {
+    /// Count the request as on the network, once it holds every other permit.
+    pub(crate) fn mark_active(&mut self) {
+        if !self.active {
+            self.active = true;
+            self.gate.active.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+}
+
 impl Drop for OriginPermit {
     fn drop(&mut self) {
+        if self.active {
+            self.gate.active.fetch_sub(1, Ordering::AcqRel);
+        }
         let Some(permit) = self.permit.take() else {
             return;
         };
