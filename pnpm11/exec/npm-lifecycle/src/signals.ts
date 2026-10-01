@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import { Socket } from 'node:net'
 import path from 'node:path'
+import type { Writable } from 'node:stream'
 
 /** A child pnpm relays its signals to. */
 export interface SignalTarget {
@@ -326,22 +328,44 @@ export function hasControllingTerminal (): boolean {
 }
 
 /**
- * What the watchdog runs, with the process group to kill as `$1`. A line on
- * standard input releases it; end of input without one means pnpm is gone.
- * It ignores the signals pnpm relays, so a signal sent to every process pnpm
- * started does not take it down before the group it watches.
+ * What the watchdog runs. A line `+<pgid>` on standard input starts a watch
+ * over a group and `-<pgid>` ends one; end of input kills every group still
+ * watched. It ignores the signals pnpm relays, so a signal sent to every
+ * process pnpm started does not take it down before the groups it watches.
  *
  * `kill -9 -<pgid>` is the one spelling dash, bash, zsh and busybox sh all
  * take: dash refuses `--` after a signal given by number, and busybox refuses
  * `--` altogether.
+ *
+ * `groups` keeps each watched pgid between spaces, so a release cuts one out
+ * with two pattern expansions instead of a loop over every group.
  */
-const WATCHDOG_SCRIPT = "trap '' INT TERM HUP; read -r _ || kill -9 -$1"
+const WATCHDOG_SCRIPT = [
+  "trap '' INT TERM HUP",
+  "groups=' '",
+  'while read -r line; do',
+  '  group=${line#?}',
+  '  case $line in',
+  '    +*) groups="$groups$group " ;;',
+  '    -*)',
+  '      case $groups in',
+  '        *" $group "*) groups="${groups%% "$group" *} ${groups#* "$group" }" ;;',
+  '      esac',
+  '      ;;',
+  '  esac',
+  'done',
+  'for group in $groups; do kill -9 -"$group"; done',
+].join('\n')
 
-/** A sh that kills a process group if pnpm dies before releasing it. */
+/** A watch over a process group, kept until pnpm is done with the group. */
 export interface ProcessGroupWatchdog {
   /** Tell the watchdog that pnpm is done with the group. */
   release: () => void
 }
+
+/** The leader of every group under watch. */
+const watchedLeaders: number[] = []
+let watchdogLifeline: Writable | undefined
 
 /**
  * Stand watch over the process group led by `leader`.
@@ -351,26 +375,58 @@ export interface ProcessGroupWatchdog {
  * webServer stops the command it started, ends pnpm and leaves the script
  * running, holding the caller's pipes open
  * (https://github.com/pnpm/pnpm/issues/15555). The signal cannot be relayed,
- * so a sh in a group of its own reads a pipe only pnpm writes to, and kills
- * the group if the pipe ends before pnpm has released it. Without a sh to run
- * there is no watchdog, and the group is on its own.
+ * so a sh in a group of its own reads a pipe only pnpm writes to, on which
+ * pnpm names each group it watches and each group it is done with, and kills
+ * the groups still named when the pipe ends. One watchdog serves every group
+ * of a pnpm process. Without a sh to run there is no watchdog, and the groups
+ * are on their own.
  */
 export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
-  const watchdog = spawn('sh', ['-c', WATCHDOG_SCRIPT, 'sh', String(leader)], {
+  watchedLeaders.push(leader)
+  if (watchdogLifeline == null) {
+    startWatchdog()
+  } else {
+    watchdogLifeline.write(`+${leader}\n`)
+  }
+  let released = false
+  return {
+    release: () => {
+      if (released) return
+      released = true
+      watchedLeaders.splice(watchedLeaders.indexOf(leader), 1)
+      watchdogLifeline?.write(`-${leader}\n`)
+    },
+  }
+}
+
+/**
+ * Start a watchdog over every group in `watchedLeaders` that neither keeps
+ * pnpm alive nor is ended with pnpm's group. A watchdog killed while groups
+ * are watched is replaced at once: a watch written to its pipe before its
+ * exit is seen is lost. One that could not start is replaced by the next
+ * watch.
+ */
+function startWatchdog (): void {
+  const watchdog = spawn('sh', ['-c', WATCHDOG_SCRIPT], {
     // A session of its own keeps it out of a kill aimed at pnpm's group.
     detached: true,
     stdio: ['pipe', 'ignore', 'ignore'],
   })
-  watchdog.on('error', () => {})
-  watchdog.unref()
   const lifeline = watchdog.stdin!
+  watchdogLifeline = lifeline
+  const forget = (): void => {
+    if (watchdogLifeline === lifeline) watchdogLifeline = undefined
+  }
+  watchdog.on('error', forget)
+  watchdog.on('exit', (_code, signal) => {
+    forget()
+    if (signal != null && watchdogLifeline == null && watchedLeaders.length > 0) startWatchdog()
+  })
+  watchdog.unref()
   // A watchdog that died already cannot be told, and needs no telling.
   lifeline.on('error', () => {})
-  return {
-    release: () => {
-      lifeline.end('\n')
-    },
-  }
+  if (lifeline instanceof Socket) lifeline.unref()
+  lifeline.write(watchedLeaders.map((watched) => `+${watched}\n`).join(''))
 }
 
 /**
