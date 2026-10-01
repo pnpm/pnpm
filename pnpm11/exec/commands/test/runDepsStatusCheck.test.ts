@@ -9,6 +9,7 @@ import type { ProjectManifest } from '@pnpm/types'
 
 const checkDepsStatus = jest.fn<typeof checkDepsStatusFn>()
 const runPnpmCli = jest.fn<typeof runPnpmCliFn>()
+const globalWarn = jest.fn()
 
 jest.unstable_mockModule('@pnpm/deps.status', () => ({
   checkDepsStatus,
@@ -21,7 +22,7 @@ jest.unstable_mockModule('@pnpm/exec.pnpm-cli-runner', () => ({
 const actualLogger = await import('@pnpm/logger')
 jest.unstable_mockModule('@pnpm/logger', () => ({
   ...actualLogger,
-  globalWarn: jest.fn(),
+  globalWarn,
 }))
 
 const confirm = jest.fn<() => Promise<boolean>>()
@@ -36,6 +37,7 @@ beforeEach(() => {
   checkDepsStatus.mockReset()
   runPnpmCli.mockReset()
   confirm.mockReset()
+  globalWarn.mockReset()
 })
 
 test('does not install when dependency status is unavailable without a project manifest', async () => {
@@ -448,3 +450,57 @@ async function withTTY (fn: () => Promise<void>): Promise<void> {
     process.stdin.isTTY = isTTY
   }
 }
+
+test('warns and lets the command run when the install exits with an error', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    issue: 'The lockfile is not up to date',
+    workspaceState: undefined,
+  })
+  runPnpmCli.mockImplementation(() => {
+    throw Object.assign(new Error('Command failed with exit code 1: pnpm install'), { exitCode: 1 })
+  })
+
+  await runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+      dependencies: { foo: '1.0.0' },
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(globalWarn).toHaveBeenCalledWith('"pnpm install" failed, so your node_modules may be out of sync with your lockfile.')
+})
+
+test('aborts when the install is killed by a signal', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    issue: 'The lockfile is not up to date',
+    workspaceState: undefined,
+  })
+  const killed = Object.assign(new Error('Command was killed with SIGINT: pnpm install'), { exitCode: undefined, signal: 'SIGINT' })
+  runPnpmCli.mockImplementation(() => {
+    throw killed
+  })
+
+  await expect(runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+      dependencies: { foo: '1.0.0' },
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+  })).rejects.toBe(killed)
+  expect(globalWarn).not.toHaveBeenCalled()
+})
