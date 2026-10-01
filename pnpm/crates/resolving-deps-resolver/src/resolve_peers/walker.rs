@@ -263,7 +263,6 @@ impl<'tree> Walker<'tree> {
                         Arc::clone(pkg_id),
                         TreeChildren::Lazy,
                         depth,
-                        true,
                     ),
                 );
             }
@@ -281,7 +280,6 @@ impl<'tree> Walker<'tree> {
                 Arc::clone(pkg_id),
                 TreeChildren::Lazy,
                 depth,
-                true,
             ),
         );
         self.caches.canonical_cycles.backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());

@@ -880,7 +880,6 @@ fn assert_descendant_walk_skips_cut_cycle_edge(realized_zed: bool) {
             Arc::from("zed@1.0.0"),
             TreeChildren::Lazy,
             2,
-            true,
         )
     };
 

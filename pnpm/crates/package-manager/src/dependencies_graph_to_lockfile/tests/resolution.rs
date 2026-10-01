@@ -149,7 +149,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         ]),
         dependencies_tree: HashMap::from_iter([(
             outer_node_id,
-            DependenciesTreeNode::new(Arc::<str>::clone(&outer_id), TreeChildren::Lazy, 0, true),
+            DependenciesTreeNode::new(Arc::<str>::clone(&outer_id), TreeChildren::Lazy, 0),
         )]),
         all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),

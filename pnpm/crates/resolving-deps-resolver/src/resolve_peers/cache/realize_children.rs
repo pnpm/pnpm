@@ -35,7 +35,7 @@ impl Walker<'_> {
             DeferredChildResolution::Materialize(pkg_id) => {
                 self.tree.dependencies_tree.insert(
                     context.node_id.clone(),
-                    DependenciesTreeNode::new(pkg_id, TreeChildren::Lazy, context.depth, true),
+                    DependenciesTreeNode::new(pkg_id, TreeChildren::Lazy, context.depth),
                 );
                 let output = self.resolve_node(&context.node_id, context.walk);
                 if !self.caches.parent_pkgs_of_node.contains_key(&context.node_id)
@@ -158,7 +158,6 @@ impl Walker<'_> {
                         std::sync::Arc::<str>::clone(&edge.pkg_id),
                         TreeChildren::Lazy,
                         lazy.depth + 1,
-                        true,
                     ),
                 );
                 newly_inserted.push(child_node_id.clone());
@@ -297,7 +296,6 @@ impl Walker<'_> {
                     Arc::<str>::clone(&edge.pkg_id),
                     TreeChildren::Lazy,
                     child_depth,
-                    true,
                 ),
             );
             return true;

@@ -212,13 +212,14 @@ pub struct DependenciesTreeNode {
 impl DependenciesTreeNode {
     /// Node with no wanted-lockfile carry-over (a fresh resolution).
     #[must_use]
-    pub fn new(
-        resolved_package_id: Arc<str>,
-        children: TreeChildren,
-        depth: i32,
-        installable: bool,
-    ) -> Self {
-        DependenciesTreeNode { resolved_package_id, children, depth, installable, locked: None }
+    pub fn new(resolved_package_id: Arc<str>, children: TreeChildren, depth: i32) -> Self {
+        DependenciesTreeNode {
+            resolved_package_id,
+            children,
+            depth,
+            installable: true,
+            locked: None,
+        }
     }
 
     /// Wanted-lockfile `DepPath` for this occurrence, if it carried one.
