@@ -112,14 +112,16 @@ async function throwOnImporterWithoutProjectManifest (ctx: PnpmContext, opts: St
       hint: `${FROZEN_LOCKFILE_HINT}
 
   Failure reason:
-  The lockfile records importers["${removedImporterId}"], but that project's directory or package.json is missing`,
+  The lockfile records importers["${removedImporterId}"], but that project's directory has no package.json`,
     })
 }
 
 /**
- * A project removed from the workspace patterns keeps its directory and is
- * skipped by a frozen install. One whose directory or manifest is gone cannot
- * be installed at all, so the lockfile no longer describes the workspace.
+ * A project whose directory exists without a manifest cannot be installed, so
+ * the lockfile no longer describes the workspace. A frozen install skips a
+ * project removed from the workspace patterns, which keeps its manifest, and
+ * one whose whole directory is absent, as in a Docker build context that
+ * excludes it.
  */
 async function findImporterWithoutProjectManifest (
   lockfile: LockfileObject,
@@ -129,10 +131,15 @@ async function findImporterWithoutProjectManifest (
   for (const importerId of Object.keys(lockfile.importers)) {
     if (projectIds.has(importerId)) continue
     // eslint-disable-next-line no-await-in-loop -- the search stops at the first importer without a manifest
-    const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(opts.lockfileDir, importerId, basename))))
-    if (!manifestExists.some(Boolean)) return importerId
+    if (await isDirectoryWithoutManifest(path.join(opts.lockfileDir, importerId))) return importerId
   }
   return undefined
+}
+
+async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean> {
+  if (!await pathExists(projectDir)) return false
+  const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(projectDir, basename))))
+  return !manifestExists.some(Boolean)
 }
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
