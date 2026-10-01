@@ -191,7 +191,7 @@ pub(super) fn global_group_config(
 ) -> miette::Result<Config> {
     let mut cfg = base_config.clone();
     cfg.modules_dir = install_dir.join("node_modules");
-    cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
+    cfg.install_state_dir = install_dir.join("node_modules").join(".pnpm");
     // Each global group is self-contained, so the virtual store lives
     // inside its install dir (never the shared global one).
     cfg.enable_global_virtual_store = false;

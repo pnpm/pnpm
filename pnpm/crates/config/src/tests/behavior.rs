@@ -257,7 +257,7 @@ pub fn gvs_disabled_keeps_project_local_virtual_store() {
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(!config.enable_global_virtual_store);
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
@@ -270,10 +270,18 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
         format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.enable_global_virtual_store);
-    assert_eq!(config.virtual_store_dir, user_path);
+    assert_eq!(config.install_state_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, user_path);
+
+    config.apply_global_virtual_store_derivation(true, false);
+    assert_eq!(config.global_virtual_store_dir, user_path);
+    assert_eq!(config.virtual_store_dir(), user_path);
+
+    config.enable_global_virtual_store = false;
+    config.apply_global_virtual_store_derivation(true, false);
+    assert_eq!(config.install_state_dir, user_path);
 }
 
 /// A single-project install (no `pnpm-workspace.yaml` anywhere)
@@ -288,7 +296,7 @@ pub fn single_project_anchors_modules_at_cwd() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, tmp.path().join("node_modules/.pnpm"));
 }
 
 /// `scriptShell` is path-resolved only when it comes from the workspace

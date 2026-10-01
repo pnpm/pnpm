@@ -80,15 +80,15 @@ export async function checkRootProjectDepsStatus (ctx: RootProjectDepsStatusCont
 }
 
 async function readRootProjectLockfiles ({ opts, rootProjectManifestDir, wantedLockfileName }: RootProjectDepsStatusContext): Promise<RootProjectLockfiles> {
-  const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
-  const currentLockfilePromise = allowUnawaitedFailure(readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false }))
+  const installStateDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
+  const currentLockfilePromise = allowUnawaitedFailure(readCurrentLockfile(installStateDir, { ignoreIncompatible: false }))
   const wantedLockfilePromise = allowUnawaitedFailure(readWantedLockfileIn(rootProjectManifestDir, opts))
   const [
     currentLockfileStats,
     wantedLockfileStats,
     manifestStats,
   ] = await Promise.all([
-    safeStat(path.join(internalPnpmDir, 'lock.yaml')),
+    safeStat(path.join(installStateDir, 'lock.yaml')),
     safeStat(path.join(rootProjectManifestDir, wantedLockfileName)),
     statManifestFile(rootProjectManifestDir),
   ])

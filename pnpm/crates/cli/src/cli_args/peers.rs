@@ -101,7 +101,7 @@ impl PeersArgs {
         if self.lockfile_only {
             return Lockfile::load_wanted_from_dir(lockfile_dir);
         }
-        match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)? {
+        match Lockfile::load_current_from_install_state_dir(&config.install_state_dir)? {
             Some(lockfile) => Ok(Some(lockfile)),
             None => Lockfile::load_wanted_from_dir(lockfile_dir),
         }

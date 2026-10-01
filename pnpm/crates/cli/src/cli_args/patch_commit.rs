@@ -151,7 +151,7 @@ impl PatchCommitArgs {
         let (name, version, patched_manifest) = patched_identity(&patch_dir)?;
 
         let current_lockfile =
-            Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
+            Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
                 .map_err(PatchCommitError::LoadLockfile)?
                 .ok_or(PatchCommitError::PatchNoLockfile)?;
         let target = patch_target_from_state(&state_value, &name, &version, &current_lockfile)?;

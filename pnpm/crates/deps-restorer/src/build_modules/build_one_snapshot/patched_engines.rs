@@ -36,8 +36,8 @@ fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKe
     for modules_dir in project_modules_dirs(context) {
         unlink_children(&modules_dir, &dirs);
     }
-    let virtual_store_dir = context.scripts.patched_engines.virtual_store_dir.unwrap_or(store);
-    unlink_children(&virtual_store_dir.join("node_modules"), &dirs);
+    let install_state_dir = context.scripts.patched_engines.install_state_dir.unwrap_or(store);
+    unlink_children(&install_state_dir.join("node_modules"), &dirs);
     // A global virtual store slot, and the links between slots, are shared
     // with every other project that resolves to them.
     if layout.enable_global_virtual_store()

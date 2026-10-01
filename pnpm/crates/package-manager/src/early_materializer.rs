@@ -67,7 +67,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         let permits = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get);
         EarlyMaterializer {
             shared: Arc::new(Shared {
-                layout: VirtualStoreLayout::legacy(config.virtual_store_dir.clone(), max_length),
+                layout: VirtualStoreLayout::legacy(
+                    config.virtual_store_dir().to_path_buf(),
+                    max_length,
+                ),
                 import_method: config.package_import_method,
                 symlink: config.symlink,
                 logged_methods: AtomicU8::new(0),

@@ -481,6 +481,36 @@ scripts:
     drop(root);
 }
 
+/// `-s` ahead of a script name is `run`'s `--sequential`
+/// (<https://github.com/pnpm/pnpm/issues/16446>).
+#[test]
+fn top_level_fallback_accepts_short_sequential_before_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("linted.txt");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "scripts": {
+                "lint": r#"node -e "require('fs').writeFileSync(process.env.MARKER_PATH, 'linted')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("MARKER_PATH", marker.to_string_lossy().as_ref())
+        .with_arg("-s")
+        .with_arg("lint")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "linted");
+
+    drop(root);
+}
+
 /// npm's `--prefix` is accepted as a spelling of `--dir`
 /// (<https://github.com/pnpm/pnpm/issues/13583>) — ahead of the
 /// subcommand, where pnpm's own options live. Past the script name the

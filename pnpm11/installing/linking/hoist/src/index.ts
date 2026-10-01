@@ -300,7 +300,7 @@ async function symlinkHoistedDependencies<NodeId extends string> (
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, {
     virtualStoreDir: opts.virtualStoreDir,
-    internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
+    installStateDir: path.dirname(opts.privateHoistedModulesDir),
   })
   await Promise.all(Array.from(hoistedDependenciesByNodeId.entries(), async ([hoistedDepNodeId, pkgAliases]) => {
     const node = opts.graph[hoistedDepNodeId]

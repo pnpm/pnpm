@@ -19,7 +19,7 @@ use command_extra::CommandExtra;
 use pnpm_lockfile::PkgName;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
+    fs::{bump_mtime, is_symlink_or_junction},
 };
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path, process::Command};

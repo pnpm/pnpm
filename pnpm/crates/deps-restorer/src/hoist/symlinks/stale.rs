@@ -8,7 +8,7 @@ mod tests;
 
 /// Read the existing symlink at `dest` and decide whether it should
 /// be replaced. If it already points at `dep_dir`, leave it untouched.
-/// If it points inside `package_store_dir` or `internal_pnpm_dir`
+/// If it points inside `package_store_dir` or `install_state_dir`
 /// (a pnpm-internal symlink — e.g., a stale link from a prior non-GVS
 /// install), remove it and create a new symlink to `dep_dir`. External
 /// symlinks (and non-symlink occupants) are left in place.
@@ -21,7 +21,7 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
     dep_dir: &Path,
     dest: &Path,
     package_store_dir: &Path,
-    internal_pnpm_dir: &Path,
+    install_state_dir: &Path,
 ) -> Result<(), crate::SymlinkPackageError> {
     let symlink_error = |error| crate::SymlinkPackageError::SymlinkDir {
         symlink_target: dep_dir.to_path_buf(),
@@ -40,7 +40,7 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
         return Ok(());
     }
     if !pnpm_fs::is_subdir(package_store_dir, &existing)
-        && !pnpm_fs::is_subdir(internal_pnpm_dir, &existing)
+        && !pnpm_fs::is_subdir(install_state_dir, &existing)
     {
         return Ok(());
     }

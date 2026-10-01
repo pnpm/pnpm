@@ -56,12 +56,12 @@ pub(crate) fn modified_manifests_match_lockfile(
         };
         (wanted, mtime)
     } else {
-        let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let current_path = check.config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
         let Some(mtime) = file_mtime(&current_path) else {
             return Err("a manifest is newer than the last validation and no lockfile is loaded");
         };
         let current =
-            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+            Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
                 .map_err(|_| "the current lockfile cannot be loaded")?
                 .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
         wanted_is_current = true;
@@ -135,7 +135,7 @@ struct WantedLockfileStat<'a> {
 
 /// The modified projects that need the full content check. Deciding this also
 /// asserts, where it applies, that the wanted lockfile equals the current one
-/// (`<virtual_store_dir>/lock.yaml`).
+/// (`<install_state_dir>/lock.yaml`).
 fn projects_to_content_check<'a>(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
@@ -180,7 +180,7 @@ fn single_project_projects_to_check<'a>(
     modified: &'a [&'a ManifestStat<'a>],
     wanted: &WantedLockfileStat<'_>,
 ) -> Result<&'a [&'a ManifestStat<'a>], &'static str> {
-    let current_mtime_ms = mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME));
+    let current_mtime_ms = mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME));
     if let Some(current_mtime_ms) = current_mtime_ms
         && modified_at_or_after(wanted.mtime, current_mtime_ms)
     {

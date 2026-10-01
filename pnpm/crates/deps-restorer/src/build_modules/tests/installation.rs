@@ -281,7 +281,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -386,7 +386,7 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -515,7 +515,7 @@ async fn write_path_disabled_skips_upload() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -666,7 +666,7 @@ async fn upload_error_does_not_interrupt_install() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -721,7 +721,7 @@ fn pkg_root_for_key_isolated_uses_layout() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
-    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    config.install_state_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
     let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
@@ -731,7 +731,7 @@ fn pkg_root_for_key_isolated_uses_layout() {
         .expect("isolated lookup hits");
 
     assert!(
-        result.starts_with(&config.virtual_store_dir),
+        result.starts_with(&config.install_state_dir),
         "isolated pkg_dir lives under the virtual store: {result:?}",
     );
     assert!(
@@ -746,7 +746,7 @@ fn pkg_root_for_key_uses_parsed_name_for_non_registry_version() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
-    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    config.install_state_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
     let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
@@ -791,7 +791,7 @@ fn discard_skipped_optional_dependency_unlinks_the_hoisted_alias_too() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
-    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    config.install_state_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
     let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 

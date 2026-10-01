@@ -69,7 +69,7 @@ fn returns_up_to_date_when_bare_tarball_specs_are_ambiguous() {
         let path = dir.path().join(spec);
         fs::create_dir_all(path.parent().expect("tarball parent")).expect("create parent");
         fs::write(path, b"local file with an ambiguous specifier").expect("write local file");
-        let lockfile = write_registry_lockfile(dir.path(), &config.virtual_store_dir, spec);
+        let lockfile = write_registry_lockfile(dir.path(), &config.install_state_dir, spec);
         validate_existing_files(dir.path());
 
         let decision = check_with_lockfile(

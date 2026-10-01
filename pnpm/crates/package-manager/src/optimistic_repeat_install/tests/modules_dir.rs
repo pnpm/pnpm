@@ -20,7 +20,7 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
         "",
         |config| {
             config.modules_dir = config.modules_dir.with_file_name("vendor");
-            config.virtual_store_dir = config.modules_dir.join(".pnpm");
+            config.install_state_dir = config.modules_dir.join(".pnpm");
             configure(config);
         },
     );
@@ -110,7 +110,7 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
         r#""dependencies":{"foo":"1.0.0"}"#,
         |config| {
             config.modules_dir = config.modules_dir.with_file_name("custom").join("vendor");
-            config.virtual_store_dir = config.modules_dir.join(".pnpm");
+            config.install_state_dir = config.modules_dir.join(".pnpm");
         },
     );
     fs::create_dir_all(&config.modules_dir).unwrap();

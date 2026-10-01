@@ -6,12 +6,12 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
-interface DirDirEntry {
+export interface DirDirEntry {
   entryType: 'directory'
   entries: Record<string, DirEntry>
 }
 
-type DirEntry = {
+export type DirEntry = {
   entryType: 'index'
   depPath: string
 } | {

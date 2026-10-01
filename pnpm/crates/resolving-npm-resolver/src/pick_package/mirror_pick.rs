@@ -1,9 +1,9 @@
 use super::{
     Arc, MetadataCacheScope, Package, PackageMetaCache, PickPackageContext, PickPackageError,
-    PickPackageOptions, PickPackageResult, PickState, PolicyMatch, RegistryPackageSpec,
-    RegistryPackageSpecType, TrustPolicy, Utc, cached_meta_misses_preferred_version,
-    dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
-    pick_from_meta_fast, pick_from_meta_offline, pick_stable_cached_range_version,
+    PickPackageOptions, PickPackageResult, PickState, RegistryPackageSpec, RegistryPackageSpecType,
+    TrustPolicy, Utc, cached_meta_misses_preferred_version, dominant_lockfile_version,
+    get_file_mtime, load_meta_async, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
+    pick_stable_cached_range_version,
 };
 use crate::{
     errors::legacy_mirror_hint,
@@ -202,7 +202,7 @@ impl PickState<'_> {
             && !opts.pick_lowest_version
             && !opts.include_latest_tag
             && !opts.request.update_checksums
-            && opts.policy.published_by.is_none()
+            && !opts.policy.release_age_applies_to(&spec.name)
             && opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
             && opts.blocked_versions.is_none()
     }
@@ -223,14 +223,10 @@ impl PickState<'_> {
         if ctx.cache_policy.offline && matches!(spec.spec_type, RegistryPackageSpecType::Range) {
             return None;
         }
-        let published_by = opts.policy.published_by?;
-        let fully_excluded = matches!(
-            opts.policy.published_by_exclude.map(|policy| policy.matches(&spec.name)),
-            Some(PolicyMatch::AnyVersion),
-        );
-        if fully_excluded {
+        if !opts.policy.release_age_applies_to(&spec.name) {
             return None;
         }
+        let published_by = opts.policy.published_by?;
         let mtime = self.pkg_mirror.as_deref().and_then(get_file_mtime)?;
         if mtime < published_by {
             return None;

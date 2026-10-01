@@ -31,7 +31,7 @@ impl LoadedState {
             .into_diagnostic()
             .wrap_err("read the modules manifest")?;
         let current_lockfile =
-            Lockfile::load_current_from_virtual_store_dir(&modules_dir.join(".pnpm"))
+            Lockfile::load_current_from_install_state_dir(&modules_dir.join(".pnpm"))
                 .into_diagnostic()
                 .wrap_err("load the current lockfile")?;
         let wanted_lockfile = Lockfile::load_wanted_from_dir(lockfile_dir)

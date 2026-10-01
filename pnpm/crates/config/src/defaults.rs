@@ -265,7 +265,7 @@ where
     }
 }
 
-pub fn default_virtual_store_dir() -> PathBuf {
+pub fn default_install_state_dir() -> PathBuf {
     // TODO: find directory with package.json
     env::current_dir()
         .expect("current directory is unavailable")

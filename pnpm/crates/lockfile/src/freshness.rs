@@ -86,10 +86,17 @@ pub enum StalenessReason {
     /// The lockfile records an importer for a workspace project that
     /// no longer exists. Only reported for an unfiltered install of the
     /// whole workspace, where the project list is the complete one.
-    #[display(
-        r#"the lockfile records `importers["{importer_id}"]`, but that project's directory or package.json is missing"#
-    )]
+    #[display(r#"the lockfile records `importers["{importer_id}"]`, but no such project exists"#)]
     RemovedImporter { importer_id: String },
+
+    /// The lockfile records an importer whose project directory exists
+    /// but holds no project manifest, so the project cannot be installed.
+    /// An absent directory is not reported: a build context may leave
+    /// unneeded projects out.
+    #[display(
+        r#"the lockfile records `importers["{importer_id}"]`, but that project's directory has no package.json"#
+    )]
+    ImporterWithoutManifest { importer_id: String },
 
     /// The flat union of `dependencies ∪ devDependencies ∪
     /// optionalDependencies` from the manifest doesn't match the
@@ -315,6 +322,7 @@ impl StalenessReason {
             | StalenessReason::UncheckablePatchHashes
             | StalenessReason::NoImporter { .. }
             | StalenessReason::RemovedImporter { .. }
+            | StalenessReason::ImporterWithoutManifest { .. }
             | StalenessReason::SpecifiersDiffer(_)
             | StalenessReason::PublishDirectoryMismatch { .. }
             | StalenessReason::LinkDirectoryMismatch { .. }

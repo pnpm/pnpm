@@ -90,7 +90,7 @@ impl ProjectConfig {
         }
         if let Some(modules_dir) = self.modules_dir_for(project_dir) {
             config.modules_dir = modules_dir;
-            config.follow_modules_dir_with_virtual_store();
+            config.follow_modules_dir_with_install_state_dir();
             if let Some(raw) = self.modules_dir {
                 config.explicit_settings.insert(
                     "modulesDir".to_string(),

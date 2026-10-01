@@ -56,6 +56,9 @@ impl CliArgs {
         if self.workspace.ordering.parallel {
             self.validate_parallel_global_option()?;
         }
+        if self.workspace.execution.sequential {
+            self.validate_sequential_top_level_option()?;
+        }
         if self.output.lifecycle.hide_prefix {
             self.validate_run_scoped_global_option("--reporter-hide-prefix")?;
         }
@@ -180,6 +183,13 @@ impl CliArgs {
             CliCommand::Exec(_) => Err(Self::unexpected_argument_error("--if-present")),
             _ => self.validate_run_scoped_global_option("--if-present"),
         }
+    }
+
+    fn validate_sequential_top_level_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Run(_) | CliCommand::External(_)) {
+            return Ok(());
+        }
+        Err(Self::unexpected_argument_error("--sequential"))
     }
 
     fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {

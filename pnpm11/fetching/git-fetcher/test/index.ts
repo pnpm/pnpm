@@ -324,7 +324,7 @@ test('fail when preparing a git-hosted package', async () => {
         allowBuild: (depPath) => depPath.startsWith('@pnpm.e2e/prepare-script-fails@'),
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
-  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+  ).rejects.toThrow(/Failed to prepare git-hosted package fetched from "https:\/\/github\.com\/pnpm-e2e\/prepare-script-fails\.git": @pnpm\.e2e\/prepare-script-fails@1\.0\.0 (npm|pnpm)-install: `(npm|pnpm) install`/)
 })
 
 test('reject a partial commit before invoking git', async () => {

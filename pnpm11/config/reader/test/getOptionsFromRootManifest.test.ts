@@ -925,3 +925,37 @@ test('getOptionsFromPnpmSettings() treats a null allowBuilds as unset', () => {
   })
   expect(options.allowBuilds).toBeNull()
 })
+
+test.each(['false', 'true', 1, 0, [], {}])('getOptionsFromPnpmSettings() rejects non-boolean allowUnusedPatches %p', (allowUnusedPatches) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowUnusedPatches: allowUnusedPatches as unknown as boolean,
+  })).toThrow(/The "allowUnusedPatches" setting should be a boolean/)
+})
+
+test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnusedPatches %p', (allowUnusedPatches) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), { allowUnusedPatches })
+  expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
+})
+
+test.each([
+  ['ignoredOptionalDependencies', 'foo', 'string'],
+  ['ignoredOptionalDependencies', ['foo', 123], 'array'],
+  ['requiredScripts', 'test', 'string'],
+  ['requiredScripts', ['build', null], 'array'],
+])('getOptionsFromPnpmSettings() rejects %s set to %p', (settingName, value, receivedType) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: `The "${settingName}" setting should be an array of strings, but got ${receivedType}`,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and requiredScripts', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    ignoredOptionalDependencies: ['foo', '@bar/*'],
+    requiredScripts: ['build', 'test'],
+  })
+  expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
+  expect(options.requiredScripts).toStrictEqual(['build', 'test'])
+})

@@ -5,26 +5,6 @@ import * as regexpPlugin from "eslint-plugin-regexp";
 // package from this list once it is refactored to pass them.
 const PENDING_SIZE_AND_SHAPE_REFACTOR = [
     ".meta-updater/**",
-    "pnpm11/bins/cmd-shim/**",
-    "pnpm11/engine/runtime/commands/**",
-    "pnpm11/exec/lifecycle/**",
-    "pnpm11/fetching/git-fetcher/**",
-    "pnpm11/fetching/tarball-fetcher/**",
-    "pnpm11/fs/indexed-pkg-importer/**",
-    "pnpm11/hooks/pnpmfile/**",
-    "pnpm11/installing/context/**",
-    "pnpm11/installing/linking/modules-cleaner/**",
-    "pnpm11/installing/linking/real-hoist/**",
-    "pnpm11/lockfile/pruner/**",
-    "pnpm11/lockfile/utils/**",
-    "pnpm11/modules-mounter/daemon/**",
-    "pnpm11/network/agent/**",
-    "pnpm11/releasing/exportable-manifest/**",
-    "pnpm11/resolving/default-resolver/**",
-    "pnpm11/resolving/git-resolver/**",
-    "pnpm11/resolving/local-resolver/**",
-    "pnpm11/resolving/registry/pkg-metadata-filter/**",
-    "pnpm11/store/commands/**"
 ]
 
 export default [
@@ -39,12 +19,12 @@ export default [
             "import-x/no-extraneous-dependencies": "off",
         },
     },
-    {
+    ...(PENDING_SIZE_AND_SHAPE_REFACTOR.length > 0 ? [{
         files: PENDING_SIZE_AND_SHAPE_REFACTOR,
         rules: Object.fromEntries(
             Object.keys(sizeAndShapeRules)
                 .filter((rule) => rule !== "perfectionist/overly-complex-condition" && rule !== "perfectionist/overly-long-method-chain")
                 .map((rule) => [rule, "off"])
         ),
-    },
+    }] : []),
 ]

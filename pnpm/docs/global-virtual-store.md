@@ -5,7 +5,7 @@ title: Global Virtual Store
 
 By default, pnpm creates a `.pnpm` directory inside each project's `node_modules` — this is the "virtual store". It contains hardlinks to files in the [content-addressable store](./settings/store.md#storedir). Every project gets its own projection of this virtual store — pnpm hardlinks files from the content-addressable store into the `.pnpm` directory structure. The actual file contents exist only once on disk, but the directory structure is recreated for each project so that Node.js's module resolution algorithm can find the right dependencies for each package.
 
-The **global virtual store** (`virtualStoreType: global`, spelled `enableGlobalVirtualStore: true` before v11.23.0) changes this. Instead of each project having its own `node_modules/.pnpm` directory, pnpm maintains a single shared virtual store (located at `<store-path>/links/`, run `pnpm store path` to find `<store-path>`). Each project's `node_modules` contains only symlinks pointing into this shared location.
+The **global virtual store** (`virtualStoreType: global`, spelled `enableGlobalVirtualStore: true` before v11.23.0) changes this. Instead of each project having its own virtual store in `node_modules/.pnpm`, pnpm maintains a single shared virtual store (located at `<store-path>/links/`, run `pnpm store path` to find `<store-path>`, or at [`virtualStoreDir`](./settings/node-modules.md#virtualstoredir) when it is set). Each project's `node_modules` contains only symlinks pointing into this shared location.
 
 ## Default behavior vs global virtual store
 
@@ -41,7 +41,7 @@ project-b/
     └── lodash → <global-store>/links/@/lodash/4.17.21/<hash>/node_modules/lodash  ← same target
 ```
 
-Both projects symlink directly to the same location in the global virtual store. There's no per-project `.pnpm` directory. The global virtual store itself contains the hardlinks to the content-addressable store — but that happens only once per dependency graph (more on that below), not per project.
+Both projects symlink directly to the same location in the global virtual store. No packages are linked into a per-project `.pnpm` directory: each project's `node_modules/.pnpm` holds only its current lockfile and hidden hoisted dependencies. The global virtual store itself contains the hardlinks to the content-addressable store — but that happens only once per dependency graph (more on that below), not per project.
 
 ## How package identity works
 

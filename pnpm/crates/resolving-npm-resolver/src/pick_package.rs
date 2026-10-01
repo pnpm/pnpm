@@ -100,10 +100,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::{
-    TrustPolicy,
-    version_policy::{PackageVersionPolicy, PolicyMatch},
-};
+use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_network::MetadataCacheScope;
 use pnpm_registry::{Package, PackageVersion};
 use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};

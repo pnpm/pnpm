@@ -239,7 +239,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         current_lockfile_exists: loaded.current.is_some(),
         store_dir: install.context.config.store_dir.display().to_string(),
         virtual_store_dir: install.context.config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
     }));
@@ -319,8 +319,8 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         // pnpm's importer-set gate sits in the auto-frozen branch of
         // `isFrozenInstallPossible`, which an explicit `--frozen-lockfile`
         // short-circuits past, so a project removed from the workspace
-        // patterns does not fail the install there. One whose manifest is
-        // gone does.
+        // patterns does not fail the install there. One whose directory
+        // remains without a manifest does.
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
                 allow_unresolved_optional_dependencies: true,

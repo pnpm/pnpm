@@ -29,7 +29,7 @@ pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
     let stable_range_pick = matches!(spec.spec_type, RegistryPackageSpecType::Range)
         && !opts.include_latest_tag
         && !opts.request.update_checksums
-        && opts.policy.published_by.is_none()
+        && !opts.policy.release_age_applies_to(&spec.name)
         && opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
         && opts.blocked_versions.is_none();
     if !stable_range_pick {

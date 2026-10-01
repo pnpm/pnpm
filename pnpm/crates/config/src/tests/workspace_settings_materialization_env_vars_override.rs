@@ -467,7 +467,7 @@ pub fn lockfile_dir_from_workspace_yaml_moves_the_paths_anchored_on_it() {
     assert_eq!(config.root_project_manifest_dir(&workspace), tmp.path());
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
     assert_eq!(
-        config.virtual_store_dir,
+        config.install_state_dir,
         tmp.path()
             .join("node_modules")
             .join(".pnpm"),
@@ -612,5 +612,5 @@ pub fn anchoring_to_a_created_workspace_matches_loading_inside_it() {
     assert_eq!(anchored.workspace_package_patterns, loaded.workspace_package_patterns);
     assert_eq!(anchored.extra_bin_paths, loaded.extra_bin_paths);
     assert_eq!(anchored.modules_dir, loaded.modules_dir);
-    assert_eq!(anchored.virtual_store_dir, loaded.virtual_store_dir);
+    assert_eq!(anchored.install_state_dir, loaded.install_state_dir);
 }

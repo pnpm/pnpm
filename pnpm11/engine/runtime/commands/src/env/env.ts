@@ -28,22 +28,7 @@ export function help (): string {
     descriptionLists: [
       {
         title: 'Commands',
-        list: [
-          {
-            description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
-            name: 'use',
-          },
-          {
-            description: 'Removes the specified version of Node.js.',
-            name: 'remove',
-            shortAlias: 'rm',
-          },
-          {
-            description: 'List remote Node.js versions available to install.',
-            name: 'list',
-            shortAlias: 'ls',
-          },
-        ],
+        list: getEnvCommands(),
       },
       {
         title: 'Options',
@@ -57,22 +42,45 @@ export function help (): string {
       },
     ],
     url: docsUrl('env'),
-    usages: [
-      'pnpm env use --global 24',
-      'pnpm env use --global lts',
-      'pnpm env use --global krypton',
-      'pnpm env use --global latest',
-      'pnpm env use --global rc/24',
-      'pnpm env remove --global 24',
-      'pnpm env rm --global 24',
-      'pnpm env list',
-      'pnpm env list 24',
-      'pnpm env list lts',
-      'pnpm env list krypton',
-      'pnpm env list latest',
-      'pnpm env list rc/24',
-    ],
+    usages: getEnvUsages(),
   })
+}
+
+function getEnvCommands () {
+  return [
+    {
+      description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
+      name: 'use',
+    },
+    {
+      description: 'Removes the specified version of Node.js.',
+      name: 'remove',
+      shortAlias: 'rm',
+    },
+    {
+      description: 'List remote Node.js versions available to install.',
+      name: 'list',
+      shortAlias: 'ls',
+    },
+  ]
+}
+
+function getEnvUsages (): string[] {
+  return [
+    'pnpm env use --global 24',
+    'pnpm env use --global lts',
+    'pnpm env use --global krypton',
+    'pnpm env use --global latest',
+    'pnpm env use --global rc/24',
+    'pnpm env remove --global 24',
+    'pnpm env rm --global 24',
+    'pnpm env list',
+    'pnpm env list 24',
+    'pnpm env list lts',
+    'pnpm env list krypton',
+    'pnpm env list latest',
+    'pnpm env list rc/24',
+  ]
 }
 
 export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number } | void> {

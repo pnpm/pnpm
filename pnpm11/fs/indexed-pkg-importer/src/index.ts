@@ -64,6 +64,35 @@ function createImportPackage (
   }
 }
 
+function probeCloneAndSwitch (to: string, opts: ImportOptions, createOpts?: CreateIndexedPkgImporterOptions): 'clone' | undefined {
+  if (process.platform === 'win32') return undefined
+  try {
+    if (!tryClonePkg(to, opts)) return undefined
+    if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'clone' })
+    return 'clone'
+  } catch {
+    return undefined
+  }
+}
+
+function handleHardlinkProbeError (
+  err: unknown,
+  to: string,
+  opts: ImportOptions,
+  createOpts?: CreateIndexedPkgImporterOptions
+): { nextAuto: ImportIndexedPackage, result: string | undefined } {
+  assert(isError(err))
+  if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
+    globalWarn(err.message)
+    globalInfo('Falling back to copying packages from store')
+    if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'copy' })
+    return { nextAuto: copyPkg, result: copyPkg(to, opts) }
+  }
+  if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'hardlink' })
+  const nextAuto = hardlinkPkg.bind(null, linkOrCopy)
+  return { nextAuto, result: nextAuto(to, opts) }
+}
+
 function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): ImportIndexedPackage {
   let auto = initialAuto
 
@@ -73,24 +102,9 @@ function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): Impo
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    // Although reflinks are supported on Windows Dev Drives,
-    // they are 10x slower than hard links.
-    // Hence, we prefer reflinks by default only on Linux and macOS.
-    if (process.platform !== 'win32') {
-      try {
-        // Probe with the raw clone function (no ENOTSUP fallback).
-        // On filesystems that don't support reflinks (e.g. ext4), this
-        // throws and we fall through to hardlinks — which is much faster
-        // than copying.  If the probe succeeds, we switch to the full
-        // clone importer (with ENOTSUP fallback for transient failures
-        // during heavy parallel I/O) for all subsequent packages.
-        if (!tryClonePkg(to, opts)) return undefined
-        if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'clone' })
-        auto = createClonePkg()
-        return 'clone'
-      } catch {
-        // ignore
-      }
+    if (probeCloneAndSwitch(to, opts, createOpts)) {
+      auto = createClonePkg()
+      return 'clone'
     }
     try {
       if (!hardlinkPkg(linkOrThrowOnLinkFailure, to, opts)) return undefined
@@ -98,18 +112,9 @@ function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): Impo
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
     } catch (err: unknown) {
-      assert(isError(err))
-      if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
-        globalWarn(err.message)
-        globalInfo('Falling back to copying packages from store')
-        if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'copy' })
-        auto = copyPkg
-        return auto(to, opts)
-      }
-      // We still choose hard linking that will fall back to copying in edge cases.
-      if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg.bind(null, linkOrCopy)
-      return auto(to, opts)
+      const { nextAuto, result } = handleHardlinkProbeError(err, to, opts, createOpts)
+      auto = nextAuto
+      return result
     }
   }
 }
@@ -165,17 +170,8 @@ function tryClonePkg (
   return undefined
 }
 
-/**
- * Creates a clone-based package importer.  Reflinks are atomic, so clone can
- * serve as both importFile and importFileAtomic.  However, on Linux
- * copy_file_range can transiently fail with ENOTSUP under heavy parallel I/O,
- * so we fall back to copy on ENOTSUP.  Regular files use a simple copy;
- * package.json (the completion marker) uses a temp+rename fallback to stay
- * atomic.
- */
-function createClonePkg (): ImportIndexedPackage {
-  const clone = alignedClone(createCloneFunction())
-  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
+function withCloneFallback (clone: CloneFunction, fallback: CloneFunction): ImportFile {
+  return (src, dest) => {
     try {
       clone(src, dest)
     } catch (err: unknown) {
@@ -186,9 +182,21 @@ function createClonePkg (): ImportIndexedPackage {
       throw err
     }
   }
+}
+
+/**
+ * Creates a clone-based package importer.  Reflinks are atomic, so clone can
+ * serve as both importFile and importFileAtomic.  However, on Linux
+ * copy_file_range can transiently fail with ENOTSUP under heavy parallel I/O,
+ * so we fall back to copy on ENOTSUP.  Regular files use a simple copy;
+ * package.json (the completion marker) uses a temp+rename fallback to stay
+ * atomic.
+ */
+function createClonePkg (): ImportIndexedPackage {
+  const clone = alignedClone(createCloneFunction())
   const importer: Importer = {
-    importFile: withFallback(resilientCopyFileSync),
-    importFileAtomic: withFallback(atomicCopyFileSync),
+    importFile: withCloneFallback(clone, resilientCopyFileSync),
+    importFileAtomic: withCloneFallback(clone, atomicCopyFileSync),
   }
   return (to: string, opts: ImportOptions) => {
     if (shouldImportPkg(to, opts)) {
@@ -235,31 +243,36 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
 
 let _cloneFunction: CloneFunction | undefined
 
+function createNativeReflinkClone (): CloneFunction {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loads the native addon only on the platforms that use it
+  const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
+  return (fr, to) => {
+    try {
+      reflinkFileSync(fr, to)
+    } catch (err: unknown) {
+      if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    }
+  }
+}
+
+function createPosixReflinkClone (): CloneFunction {
+  return (src: string, dest: string) => {
+    try {
+      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    } catch (err: unknown) {
+      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    }
+  }
+}
+
 function createCloneFunction (): CloneFunction {
   if (_cloneFunction) return _cloneFunction
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- loads the native addon only on the platforms that use it
-    const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-    _cloneFunction = (fr, to) => {
-      try {
-        reflinkFileSync(fr, to)
-      } catch (err: unknown) {
-        // If the file already exists, then we just proceed.
-        // This will probably only happen if the package's index file contains the same file twice.
-        // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
-      }
-    }
+    _cloneFunction = createNativeReflinkClone()
   } else {
-    _cloneFunction = (src: string, dest: string) => {
-      try {
-        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-      } catch (err: unknown) {
-        if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-      }
-    }
+    _cloneFunction = createPosixReflinkClone()
   }
   return _cloneFunction
 }

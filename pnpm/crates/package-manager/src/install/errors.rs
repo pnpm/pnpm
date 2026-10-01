@@ -188,7 +188,7 @@ pub enum InstallError {
 
     /// Surfaces a failure to persist `pnpm-lock.yaml` after the
     /// `cache+node_modules` shortcut regenerated it from the
-    /// materialized snapshot at `<virtual_store_dir>/lock.yaml`.
+    /// materialized snapshot at `<install_state_dir>/lock.yaml`.
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 

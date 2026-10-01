@@ -85,6 +85,13 @@ export function getOptionsFromPnpmSettings (
   if (settings.allowBuilds != null) {
     assertValidAllowBuilds(settings.allowBuilds)
   }
+  assertOptionalBoolean(settings.allowUnusedPatches, 'allowUnusedPatches')
+  if (settings.ignoredOptionalDependencies != null) {
+    assertStringArray(settings.ignoredOptionalDependencies, 'ignoredOptionalDependencies')
+  }
+  if (settings.requiredScripts != null) {
+    assertStringArray(settings.requiredScripts, 'requiredScripts')
+  }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)

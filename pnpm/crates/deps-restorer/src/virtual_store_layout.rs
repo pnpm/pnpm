@@ -51,16 +51,8 @@ use std::{
 /// touch — it returns an absolute directory whose `node_modules/<name>`
 /// subdirectory holds the unpacked package.
 pub struct VirtualStoreLayout {
-    /// Root containing every per-snapshot subdirectory. Picked from
-    /// `Config::global_virtual_store_dir` when GVS is enabled (the
-    /// shared `<store_dir>/links` path, or the user's pinned override)
-    /// and from `Config::virtual_store_dir` when GVS is disabled (the
-    /// project-local `<modules_dir>/.pnpm`). Pacquet keeps the two
-    /// fields separate so the legacy non-frozen install path can keep reading
-    /// `virtual_store_dir` directly via [`Self::legacy`] without the
-    /// frozen-lockfile derivation redirecting it. See
-    /// [`Config::apply_global_virtual_store_derivation`] for the
-    /// reasoning behind the field split.
+    /// Root containing every per-snapshot subdirectory:
+    /// [`Config::virtual_store_dir`].
     ///
     /// Stored separately from a `&Config` so callers don't have to
     /// thread the full config through the helpers that only need a
@@ -194,18 +186,7 @@ impl VirtualStoreLayout {
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&Path>,
     ) -> Self {
-        // Pacquet keeps `virtual_store_dir` and `global_virtual_store_dir`
-        // as two separate fields (see
-        // [`Config::apply_global_virtual_store_derivation`] for why).
-        // The frozen-lockfile install picks
-        // `global_virtual_store_dir` here when GVS is on so the
-        // without-lockfile path can stay on the project-local
-        // `virtual_store_dir` without colliding.
-        let package_store_dir = if config.enable_global_virtual_store {
-            config.global_virtual_store_dir.clone()
-        } else {
-            config.virtual_store_dir.clone()
-        };
+        let package_store_dir = config.virtual_store_dir().to_path_buf();
         let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
         if !config.enable_global_virtual_store {
             return VirtualStoreLayout {
@@ -341,9 +322,8 @@ impl VirtualStoreLayout {
     /// Root of the layout — the directory that contains every per-
     /// snapshot subdirectory. Exposed so callers that need to pass a
     /// path to existing helpers (e.g. the
-    /// [`pnpm_modules_yaml::Modules`] writer, which still records
-    /// the legacy [`Config::virtual_store_dir`] string) have one
-    /// source of truth.
+    /// [`pnpm_modules_yaml::Modules`] writer, which records
+    /// [`Config::virtual_store_dir`]) have one source of truth.
     #[must_use]
     pub fn package_store_dir(&self) -> &Path {
         &self.package_store_dir

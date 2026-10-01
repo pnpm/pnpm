@@ -108,7 +108,7 @@ pub struct HoistedProjects<'a> {
 
 #[derive(Clone, Copy)]
 pub struct PriorHoistedState<'a> {
-    /// Previous install's `<virtual_store_dir>/lock.yaml`. The walker
+    /// Previous install's `<install_state_dir>/lock.yaml`. The walker
     /// diffs orphans against it and compares the resolution it records
     /// for a directory against the wanted one. Both install paths pass
     /// it; `None` when the file is absent, which is a first install.

@@ -135,7 +135,7 @@ test('frozen-lockfile: installation fails if a workspace package recorded in the
 
   await install(survivors, { frozenLockfile: true })
 
-  fs.rmSync('project-2', { recursive: true })
+  fs.rmSync('project-2/package.json')
   await expect(install(survivors, { frozenLockfile: true })).rejects.toMatchObject({
     code: 'ERR_PNPM_OUTDATED_LOCKFILE',
     hint: expect.stringContaining('importers["project-2"]'),
@@ -143,6 +143,25 @@ test('frozen-lockfile: installation fails if a workspace package recorded in the
   expect(Object.keys(readLockfile().importers)).toStrictEqual(['project-1', 'project-2'])
 
   await install(survivors, { frozenLockfile: true, pruneLockfileImporters: false })
+})
+
+test('frozen-lockfile: installation skips a workspace package recorded in the lockfile whose directory is absent', async () => {
+  const { install, readLockfile } = prepareWorkspace()
+  const survivors: WorkspaceProject[] = [
+    { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } },
+  ]
+  await install([
+    ...survivors,
+    { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+  ])
+  fs.rmSync('project-1/node_modules', { recursive: true })
+  fs.rmSync('project-2', { recursive: true })
+
+  await install(survivors, { frozenLockfile: true })
+
+  expect(fs.existsSync('project-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('project-2')).toBe(false)
+  expect(Object.keys(readLockfile().importers)).toStrictEqual(['project-1', 'project-2'])
 })
 
 test('dropping a workspace package a survivor links to falls back to the resolver', async () => {

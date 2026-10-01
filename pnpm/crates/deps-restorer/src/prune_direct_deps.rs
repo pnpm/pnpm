@@ -68,7 +68,7 @@ pub enum PruneDirectDepsError {
 
 /// Remove the direct-dependency links that `old_included` selected but
 /// `new_included` does not, for every importer recorded in the current
-/// lockfile (`<virtual_store_dir>/lock.yaml` — what the previous install
+/// lockfile (`<install_state_dir>/lock.yaml` — what the previous install
 /// actually materialized). When `prunable_importer_ids` is set, only links
 /// belonging to those importers are eligible for removal; a filtered
 /// install leaves every other importer's links untouched because it never

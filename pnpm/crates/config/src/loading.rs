@@ -135,7 +135,7 @@ impl Config {
     /// Anchor module defaults to the requested directory, which may differ from the process cwd.
     pub(super) fn anchor_default_module_dirs(&mut self, start_dir: &std::path::Path) {
         self.modules_dir = start_dir.join("node_modules");
-        self.virtual_store_dir = self.modules_dir.join(".pnpm");
+        self.install_state_dir = self.modules_dir.join(".pnpm");
     }
 
     pub(super) fn apply_bootstrap_settings<Sys: EnvVar>(

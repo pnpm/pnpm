@@ -204,7 +204,7 @@ pub(crate) struct FreshInstallExecution {
     /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
     /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
     /// file untouched — the resolved graph is still returned and still
-    /// drives `<virtual_store_dir>/lock.yaml`. See
+    /// drives `<install_state_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub(crate) save_lockfile: bool,
 }
@@ -221,7 +221,7 @@ pub(crate) struct FreshManifestOptions<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct FreshPriorInstall<'a> {
     /// What the previous install materialized
-    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
+    /// (`<install_state_dir>/lock.yaml`). Drives the pre-link
     /// [`crate::PruneStaleModules`] reconciliation and the hoisted
     /// linker's previous-graph orphan diff. `None` on a first install.
     pub(crate) lockfile: Option<&'a Lockfile>,
@@ -373,7 +373,7 @@ pub(crate) struct FreshProjectInputs {
 ///
 /// Returns the hoist-graph slot the dispatch already consumed plus the
 /// freshly-built [`Lockfile`], so the caller can save it as
-/// `<virtual_store_dir>/lock.yaml` after `.modules.yaml` succeeds — the
+/// `<install_state_dir>/lock.yaml` after `.modules.yaml` succeeds — the
 /// same ordering the frozen-lockfile path uses to guarantee a manifest
 /// failure can't leave a current-lockfile pointing at incomplete install state.
 #[must_use]
@@ -386,7 +386,7 @@ pub struct InstallWithFreshLockfileResult {
     /// importers.
     pub peer_issue_importer_ids: HashSet<String>,
     /// The resolved [`Lockfile`] for the install. Retained in-memory to
-    /// materialize the dependency graph and write `<virtual_store_dir>/lock.yaml`
+    /// materialize the dependency graph and write `<install_state_dir>/lock.yaml`
     /// even when disk persistence of the wanted `pnpm-lock.yaml` is skipped
     /// (`config.lockfile=false` or `save_lockfile=false`).
     pub wanted_lockfile: Option<Lockfile>,

@@ -1,5 +1,5 @@
 //! Filter a wanted lockfile down to the "current" shape pacquet
-//! writes under `<virtual_store_dir>/lock.yaml`.
+//! writes under `<install_state_dir>/lock.yaml`.
 //!
 //! Rather than re-running the engine + `supportedArchitectures` +
 //! `skipped` checks at filter time, reuse the [`SkippedSnapshots`]

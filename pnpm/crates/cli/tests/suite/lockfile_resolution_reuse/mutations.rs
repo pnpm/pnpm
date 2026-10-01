@@ -59,7 +59,7 @@ fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(&workspace.join(
+    let current = pnpm_lockfile::Lockfile::load_current_from_install_state_dir(&workspace.join(
         "node_modules/.pnpm",
     ))
     .expect("load current lockfile")
@@ -566,7 +566,7 @@ fn a_remove_keeps_the_specifiers_a_project_rewriting_pnpmfile_recorded() {
 }
 
 #[test]
-fn a_frozen_install_rejects_the_importer_of_a_deleted_workspace_project() {
+fn a_frozen_install_skips_the_importer_of_an_absent_workspace_project() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -576,19 +576,14 @@ fn a_frozen_install_rejects_the_importer_of_a_deleted_workspace_project() {
         .assert()
         .success();
 
+    // A Docker build context can leave a project out (pnpm/pnpm#16453).
     fs::remove_dir_all(workspace.join("packages/b")).expect("remove the member");
 
-    let output = pacquet_at(&workspace)
+    pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
-        .output()
-        .expect("run frozen install");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "frozen install accepted the deleted member");
-    assert!(
-        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
-            && stderr.contains(r#"importers["packages/b"]"#),
-        "the deleted member returned the wrong error\nstderr:\n{stderr}",
-    );
+        .assert()
+        .success();
+    assert!(!workspace.join("packages/b").exists(), "the frozen install recreated packages/b");
 
     drop((root, mock_instance));
 }

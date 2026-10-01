@@ -527,3 +527,36 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
 
     drop((root, mock_instance));
 }
+
+/// `--virtual-store-dir` names the global virtual store's root, as the
+/// setting does, while the project's current lockfile stays in its own
+/// `node_modules/.pnpm`.
+#[test]
+fn the_virtual_store_dir_flag_moves_the_global_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+
+    pacquet(&workspace)
+        .with_args(["install", "--virtual-store-dir=../flag-links"])
+        .assert()
+        .success();
+
+    let store_root = root.path().join("flag-links");
+    assert!(
+        store_root.join("@pnpm.e2e/pkg-with-1-dep/100.0.0").is_dir(),
+        "the package must be materialized under the store root the flag names",
+    );
+    assert!(
+        workspace.join("node_modules/.pnpm/lock.yaml").is_file(),
+        "the current lockfile must be written to the project's node_modules/.pnpm",
+    );
+    assert!(
+        !store_root.join("lock.yaml").exists(),
+        "the store root must not hold the project's current lockfile",
+    );
+
+    drop((root, mock_instance));
+}

@@ -9,7 +9,7 @@ Safely remove `node_modules` contents from all workspace projects. Uses Node.js 
 
 In a workspace, `node_modules` directories are cleaned in the root and every workspace package. Non-pnpm hidden entries (e.g., `.cache`) inside `node_modules` are preserved.
 
-If a custom [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir) is configured and it resides inside the project root (but outside `node_modules`), it is also removed.
+If a custom [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir) or `globalVirtualStoreDir` is configured and it resides inside the project root (but outside `node_modules`), it is also removed.
 
 ## Options
 

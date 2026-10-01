@@ -105,6 +105,16 @@ pub struct PackagePickPolicy<'a> {
     pub trust_policy: Option<TrustPolicy>,
 }
 
+impl PackagePickPolicy<'_> {
+    /// Whether the `minimumReleaseAge` cutoff narrows the versions of
+    /// `name`. A package `minimumReleaseAgeExclude` lists without naming
+    /// versions is picked as if the cutoff were off.
+    pub(crate) fn release_age_applies_to(&self, name: &str) -> bool {
+        self.published_by.is_some()
+            && !self.published_by_exclude.is_some_and(|policy| policy.covers_every_version(name))
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct MetadataPickRequest {
     /// `true` skips the cache write-back on a 200 response — used when

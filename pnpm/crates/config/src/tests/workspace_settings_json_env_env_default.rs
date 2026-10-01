@@ -504,7 +504,7 @@ pub fn invalid_workspace_yaml_propagates_error() {
 }
 
 /// Running `pacquet install` from a workspace subdirectory must
-/// not leave `modules_dir` / `virtual_store_dir` anchored at the
+/// not leave `modules_dir` / `install_state_dir` anchored at the
 /// CLI `--dir`. The presence of `pnpm-workspace.yaml` in an
 /// ancestor signals that the workspace root is the install anchor,
 /// matching pnpm v11, which anchors the install at the lockfile
@@ -529,7 +529,7 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
         "modules_dir must be anchored at the workspace root, not the subdir",
     );
     assert_eq!(
-        config.virtual_store_dir,
+        config.install_state_dir,
         workspace_root.join("node_modules/.pnpm"),
         "virtual_store_dir must be anchored at the workspace root, not the subdir",
     );
@@ -591,7 +591,7 @@ pub fn pnpm_config_workspace_dir_re_anchors_modules() {
         "modules_dir must follow PNPM_CONFIG_WORKSPACE_DIR, not the cwd",
     );
     assert_eq!(
-        config.virtual_store_dir,
+        config.install_state_dir,
         env_workspace.path().join("node_modules/.pnpm"),
         "virtual_store_dir must follow PNPM_CONFIG_WORKSPACE_DIR, not the cwd",
     );
@@ -631,7 +631,7 @@ pub fn empty_workspace_dir_env_var_falls_through() {
         Config::new().current::<HostWithEmptyEnvWorkspaceDir>(tmp.path()).expect("config loads");
     // No yaml in tmp → no re-anchor → cwd-anchored defaults.
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, tmp.path().join("node_modules/.pnpm"));
 }
 
 #[test]
@@ -771,9 +771,11 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
     let config =
         Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
     assert_eq!(
-        config.virtual_store_dir, global_path,
+        config.virtual_store_dir(),
+        global_path,
         "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
     );
+    assert_eq!(config.install_state_dir, project.path().join("node_modules/.pnpm"));
 }
 
 /// Workspace-only keys in the global `config.yaml` are silently
