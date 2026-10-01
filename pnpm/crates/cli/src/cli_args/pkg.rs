@@ -13,6 +13,7 @@ use pnpm_config::{
     property_path::{Segment, get_object_value_by_property_path, parse_property_path},
 };
 use pnpm_package_manifest::PackageManifest;
+use report_keys::{ReportIdentity, report_keys};
 use serde_json::{Map, Value};
 use std::path::Path;
 
@@ -200,16 +201,24 @@ fn get_output(manifest: &Value, keys: &[String], json: bool) -> miette::Result<S
     }
 }
 
-/// Print the selected keys of every project, keyed by project name.
+/// Print the selected keys of every project, keyed as [`report_keys`]
+/// describes.
 fn print_recursive_get<'a>(
     projects: impl Iterator<Item = &'a pnpm_workspace::Project>,
     keys: &[String],
     workspace_root: &Path,
 ) -> miette::Result<()> {
+    let projects: Vec<_> = projects.collect();
+    let identities: Vec<_> = projects
+        .iter()
+        .map(|project| report_identity(project, workspace_root))
+        .collect();
     let mut entries = Map::new();
-    for project in projects {
-        let name = project_report_name(project, workspace_root);
-        entries.insert(name, select_from_manifest(project.manifest.value(), keys)?);
+    for (project, key) in projects
+        .iter()
+        .zip(report_keys(&identities))
+    {
+        entries.insert(key, select_from_manifest(project.manifest.value(), keys)?);
     }
     let output = serde_json::to_string_pretty(&Value::Object(entries))
         .map_err(|error| miette::miette!("{error}"))?;
@@ -217,23 +226,19 @@ fn print_recursive_get<'a>(
     Ok(())
 }
 
-/// How the recursive report names one project: its manifest name, or
-/// its workspace-relative directory when it declares none.
-fn project_report_name(project: &pnpm_workspace::Project, workspace_root: &Path) -> String {
-    project.manifest
-        .value()
-        .get("name")
-        .and_then(Value::as_str)
-        .map_or_else(
-            || {
-                project.root_dir
-                    .strip_prefix(workspace_root)
-                    .unwrap_or(&project.root_dir)
-                    .display()
-                    .to_string()
-            },
-            String::from,
-        )
+fn report_identity(project: &pnpm_workspace::Project, workspace_root: &Path) -> ReportIdentity {
+    ReportIdentity {
+        name: project.manifest
+            .value()
+            .get("name")
+            .and_then(Value::as_str)
+            .map(String::from),
+        dir_key: project.root_dir
+            .strip_prefix(workspace_root)
+            .unwrap_or(&project.root_dir)
+            .display()
+            .to_string(),
+    }
 }
 
 /// Read one project's manifest, apply `edit`, and write it back.
@@ -358,3 +363,5 @@ fn remove_ill_typed_field(
 mod tests;
 
 mod editing;
+
+mod report_keys;

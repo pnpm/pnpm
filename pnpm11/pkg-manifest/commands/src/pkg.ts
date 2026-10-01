@@ -11,6 +11,8 @@ import {
 import type { ProjectManifest } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
+import { assignReportKeys } from './reportKeys.js'
+
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -84,12 +86,18 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
   }
 
   if (subcmd === 'get') {
-    const entries = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
+    const projects = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
       const manifest = await readProjectManifestOnly(pkg.rootDir) as Record<string, unknown>
-      const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
-      return [pkgName, selectFromManifest(manifest, args)] as const
+      return {
+        identity: {
+          name: manifest.name == null ? undefined : String(manifest.name),
+          dirKey: path.relative(workspaceDir, pkg.rootDir),
+        },
+        value: selectFromManifest(manifest, args),
+      }
     }))
-    return JSON.stringify(Object.fromEntries(entries), undefined, 2)
+    const keys = assignReportKeys(projects.map(({ identity }) => identity))
+    return JSON.stringify(Object.fromEntries(projects.map(({ value }, index) => [keys[index], value])), undefined, 2)
   }
 
   await Promise.all(selectedProjects.map(({ package: pkg }) =>
