@@ -10,10 +10,14 @@ export const YAML_DOCUMENT_START = '---\n'
 
 const READ_BUFFER_SIZE = 64 * 1024
 
+/** How an env document lays out the start of its root importer. */
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES = '\n  .:\n    configDependencies:'
+
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
  * The file must start with "---\n" to indicate it contains an env lockfile document.
  * Stops reading as soon as the second document separator is found.
+ * A file with no separator is env-only, see {@link envOnlyDocument}.
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
@@ -43,7 +47,7 @@ async function readFirstYamlDocument (fileHandle: FileHandle, readBufferSize: nu
   let position = 0
   while (true) {
     const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop -- each read continues at the position the previous one reached
-    if (bytesRead === 0) return null
+    if (bytesRead === 0) return documentWithoutSeparator(decoded.text + decoder.end())
     position += bytesRead
     appendDecodedChunk(decoded, decoder.write(readBuffer.subarray(0, bytesRead)))
     const document = findFirstYamlDocument(decoded.text)
@@ -60,6 +64,10 @@ function appendDecodedChunk (decoded: DecodedText, chunk: string): void {
   }
   // Normalize CRLF (Windows) to LF so document separator detection works.
   decoded.text = (decoded.text + chunk).replace(/\r\n/g, '\n')
+}
+
+function documentWithoutSeparator (text: string): string | null {
+  return text.startsWith(YAML_DOCUMENT_START) ? envOnlyDocument(text.slice(YAML_DOCUMENT_START.length)) : null
 }
 
 /**
@@ -124,8 +132,27 @@ export function extractEnvDocument (content: string): string | null {
   content = content.replace(/\r\n/g, '\n')
   if (!content.startsWith(YAML_DOCUMENT_START)) return null
   const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
-  if (sep === -1) return null
+  if (sep === -1) return envOnlyDocument(content.slice(YAML_DOCUMENT_START.length))
   return content.slice(YAML_DOCUMENT_START.length, sep)
+}
+
+/**
+ * The env document of a lockfile whose empty main document was trimmed off
+ * together with the separator: `rest` up to where the separator would start, so
+ * a closing `---` line that has no newline after it is dropped too. Only a body
+ * whose root importer opens with the `configDependencies` key every env
+ * document writes qualifies, so a main lockfile that merely opens with `---`
+ * is not mistaken for one.
+ */
+function envOnlyDocument (rest: string): string | null {
+  let document = rest
+  for (const end of ['\n---', '\n']) {
+    if (rest.endsWith(end)) {
+      document = rest.slice(0, -end.length)
+      break
+    }
+  }
+  return document.includes(ROOT_IMPORTER_CONFIG_DEPENDENCIES) ? document : null
 }
 
 /**

@@ -236,6 +236,29 @@ fn saving_main_lockfile_preserves_env_document() {
     assert_eq!(read_back.unwrap(), env);
 }
 
+/// A lockfile pnpm wrote for a project with no dependencies, with its empty
+/// main document and the separator before it trimmed off
+/// (<https://github.com/pnpm/pnpm/issues/16477>).
+#[test]
+fn reads_and_preserves_an_env_only_lockfile() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let env = sample_env_lockfile();
+    env.write(dir.path()).unwrap();
+    let combined = std::fs::read_to_string(&path).unwrap();
+    let env_only = combined.strip_suffix("---\n").expect("an empty main document");
+    std::fs::write(&path, env_only).unwrap();
+
+    assert_eq!(EnvLockfile::read(dir.path()).unwrap().as_ref(), Some(&env));
+
+    let main_doc = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
+    let main: Lockfile = serde_saphyr::from_str(main_doc).unwrap();
+    main.save_to_path(&path).unwrap();
+
+    assert_eq!(EnvLockfile::read(dir.path()).unwrap().as_ref(), Some(&env));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), format!("{combined}{main_doc}"));
+}
+
 /// A combined lockfile whose *env* document Git left conflicted between
 /// two branches that each added a config dependency. The main document
 /// below it is untouched and parses as it stands.

@@ -13,18 +13,45 @@ use text_block_macros::text_block;
 #[tokio::test]
 async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let dirs = InstallDirs::new();
+    let manifest = manifest_with_a_dependency(&dirs);
 
-    let manifest_path = dirs.path().join("package.json");
-    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    let result = frozen_install_without_lockfile(&dirs, &manifest, true).await;
 
+    assert!(matches!(result, Err(InstallError::NoLockfile)));
+    drop(dirs.dir);
+}
+
+/// pnpm requires the lockfile only when some project has a dependency for
+/// it to be out of date with (<https://github.com/pnpm/pnpm/issues/16477>).
+#[tokio::test]
+async fn frozen_lockfile_without_a_lockfile_installs_a_project_with_no_dependencies() {
+    let dirs = InstallDirs::new();
+    let manifest = PackageManifest::create_if_needed(dirs.path().join("package.json")).unwrap();
+
+    frozen_install_without_lockfile(&dirs, &manifest, true).await
+        .expect("a project with no dependencies needs no lockfile");
+    drop(dirs.dir);
+}
+
+fn manifest_with_a_dependency(dirs: &InstallDirs) -> PackageManifest {
+    let mut manifest = PackageManifest::create_if_needed(dirs.path().join("package.json")).unwrap();
+    manifest.add_dependency("is-positive", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest
+}
+
+async fn frozen_install_without_lockfile(
+    dirs: &InstallDirs,
+    manifest: &PackageManifest,
+    lockfile: bool,
+) -> Result<(), InstallError> {
     let mut config = Config::new();
-    config.lockfile = true;
+    config.lockfile = lockfile;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
-    let result = Install {
+    Install {
         lockfile_policy: crate::InstallLockfilePolicy {
             frozen: true,
             prefer_frozen: None,
@@ -54,7 +81,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         context: crate::InstallInvocation {
             http_client: &Default::default(),
             config,
-            manifest: &manifest,
+            manifest,
             emit_initial_manifest: true,
             lockfile: MaybeLazyLockfile::Loaded(None),
             lockfile_path: None,
@@ -74,11 +101,9 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         },
     }
     .run::<SilentReporter>()
-    .await;
-
-    assert!(matches!(result, Err(InstallError::NoLockfile)));
-    drop(dirs.dir);
+    .await
 }
+
 #[tokio::test]
 async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     let dirs = InstallDirs::new();
@@ -253,68 +278,9 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
 #[tokio::test]
 async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let dirs = InstallDirs::new();
+    let manifest = manifest_with_a_dependency(&dirs);
 
-    let manifest_path = dirs.path().join("package.json");
-    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-
-    let mut config = Config::new();
-    config.lockfile = false;
-    config.store_dir = dirs.store_dir.clone().into();
-    config.modules_dir = dirs.modules_dir.clone();
-    config.install_state_dir = dirs.virtual_store_dir.clone();
-    let config = config.leak();
-
-    let result = Install {
-        lockfile_policy: crate::InstallLockfilePolicy {
-            frozen: true,
-            prefer_frozen: None,
-            ignore_manifest_check: false,
-            trust: false,
-            update_checksums: false,
-            excludes: PolicyExcludes::Persist,
-            disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
-        },
-        execution: crate::InstallExecution {
-            skip_runtimes: false,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            node_linker: pnpm_config::NodeLinker::default(),
-            lockfile_only: false,
-            dry_run: false,
-        },
-        resolution: crate::ResolutionInputs {
-            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-        },
-        context: crate::InstallInvocation {
-            http_client: &Default::default(),
-            config,
-            manifest: &manifest,
-            emit_initial_manifest: true,
-            lockfile: MaybeLazyLockfile::Loaded(None),
-            lockfile_path: None,
-        },
-        fetching: crate::InstallFetching {
-            tarball_mem_cache: Default::default(),
-            http_client_arc: std::sync::Arc::new(Default::default()),
-            resolved_packages: &Default::default(),
-        },
-        projects: crate::InstallProjects {
-            dependency_groups: [DependencyGroup::Prod],
-            supported_architectures: None,
-            catalogs_override: None,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-            dedicated: None,
-        },
-    }
-    .run::<SilentReporter>()
-    .await;
+    let result = frozen_install_without_lockfile(&dirs, &manifest, false).await;
 
     assert!(matches!(result, Err(InstallError::NoLockfile)));
     drop(dirs.dir);

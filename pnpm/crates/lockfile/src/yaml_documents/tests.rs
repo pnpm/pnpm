@@ -11,9 +11,13 @@ fn returns_entire_content_when_it_does_not_start_with_separator() {
 }
 
 #[test]
-fn returns_empty_string_when_content_starts_with_separator_but_has_no_second_separator() {
-    let content = "---\nfoo: bar\n";
+fn reads_a_file_with_no_second_separator_as_env_only() {
+    let content = "---\nimporters:\n  .:\n    configDependencies: {}\n";
     assert_eq!(extract_main_document(content), "");
+    assert_eq!(
+        extract_env_document(content).as_deref(),
+        Some("importers:\n  .:\n    configDependencies: {}"),
+    );
 }
 
 #[test]
@@ -97,9 +101,40 @@ fn streams_no_env_document_when_the_file_does_not_start_with_a_marker() {
     assert_streams("lockfileVersion: 9.0\npackages: {}\n", None);
 }
 
+const ENV_ONLY: &str = "importers:\n  .:\n    configDependencies: {}";
+
 #[test]
-fn streams_no_env_document_when_the_separator_is_missing() {
+fn streams_an_env_only_file() {
+    assert_streams(&format!("---\n{ENV_ONLY}\n"), Some(ENV_ONLY));
+    assert_streams(&format!("---\n{ENV_ONLY}"), Some(ENV_ONLY));
+    assert_streams(
+        &format!("\u{feff}---\r\n{}\r\n", ENV_ONLY.replace('\n', "\r\n")),
+        Some(ENV_ONLY),
+    );
+    assert_streams(&format!("---\n{ENV_ONLY}\r"), Some(&format!("{ENV_ONLY}\r")));
+}
+
+#[test]
+fn streams_an_env_only_file_closed_by_a_marker_without_a_newline() {
+    assert_streams(&format!("---\n{ENV_ONLY}\n---"), Some(ENV_ONLY));
+}
+
+#[test]
+fn streams_no_env_document_from_a_main_lockfile_that_opens_with_a_marker() {
+    assert_streams("---\nlockfileVersion: '9.0'\nimporters:\n  .: {}\n", None);
     assert_streams("---\nfoo: bar\n", None);
+    assert_streams("---\n# configDependencies: {}\nimporters:\n  .: {}\n", None);
+    assert_streams(
+        "---\nimporters:\n  .:\n    specifiers:\n      configDependencies: 1.0.0\n",
+        None,
+    );
+    assert_streams("---\n", None);
+    assert_streams("---\n---\n", None);
+}
+
+#[test]
+fn streams_no_env_document_from_a_truncated_start_marker() {
+    assert_streams("---", None);
 }
 
 #[test]
