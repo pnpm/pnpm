@@ -26,6 +26,7 @@ import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfil
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import spawn from 'cross-spawn'
+import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
@@ -46,6 +47,8 @@ const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': 
  * would otherwise pin one and break every teammate on `@pnpm/exe`.
  */
 const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
+
+const FIRST_PNPM_EXE_WITH_X64_MUSL_BINARY = '11.0.0-rc.3'
 
 /**
  * Whether `version` can be installed at all — false for the
@@ -72,12 +75,37 @@ export function assertReleaseIsInstallable (version: string): void {
  * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
  * `pnpm` is itself the native exe (equal content to `@pnpm/exe`), so v12+ always
  * converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier majors keep
- * `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the running identity.
+ * `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the running identity,
+ * except that `@pnpm/exe` falls back to `pnpm` where the target release has no
+ * binary that runs on this host (see {@link pnpmExeRunsOn}).
  */
 export function pnpmPackageNameToInstall (pnpmVersion: string): string {
   const parsed = semver.parse(pnpmVersion, { loose: true })
   if (parsed != null && parsed.major >= 12) return 'pnpm'
-  return getCurrentPackageName()
+  const currentPackageName = getCurrentPackageName()
+  const host = { platform: process.platform, arch: process.arch, libcFamily: familySync() }
+  if (currentPackageName === '@pnpm/exe' && !pnpmExeRunsOn(pnpmVersion, host)) return 'pnpm'
+  return currentPackageName
+}
+
+export interface PnpmExeHost {
+  platform: NodeJS.Platform
+  arch: string
+  libcFamily: string | null
+}
+
+/**
+ * Whether `@pnpm/exe` of the given pre-v12 version has a working binary for
+ * `host`. On musl Linux none does on arm64, as it is either missing or
+ * segfaults at startup (https://github.com/pnpm/pnpm/issues/10443), and on
+ * x64 the first is `11.0.0-rc.3` (https://github.com/pnpm/pnpm/issues/16467).
+ * A version semver cannot parse is assumed to have one.
+ */
+export function pnpmExeRunsOn (pnpmVersion: string, host: PnpmExeHost): boolean {
+  if (host.platform !== 'linux' || host.libcFamily !== 'musl') return true
+  const parsed = semver.parse(pnpmVersion, { loose: true })
+  if (parsed == null) return true
+  return host.arch === 'x64' && semver.gte(parsed, FIRST_PNPM_EXE_WITH_X64_MUSL_BINARY)
 }
 
 export interface InstallPnpmResult {

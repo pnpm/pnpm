@@ -276,19 +276,35 @@ fn pnpm_package_to_install_on(
     if version.major >= 12 {
         return PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: true };
     }
-    if version_gte(&version, PNPM_EXE_INTRODUCED) && pnpm_exe_runs_on(platform, arch, libc) {
+    if version_gte(&version, PNPM_EXE_INTRODUCED)
+        && pnpm_exe_runs_on(&version, platform, arch, libc)
+    {
         PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true }
     } else {
         PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false }
     }
 }
 
-/// Whether `@pnpm/exe` below v12 has a working binary for the host. On
-/// arm64 musl Linux it ships either none or one that segfaults at startup
-/// (<https://github.com/pnpm/pnpm/issues/10443>), so the JavaScript `pnpm`
-/// runs there instead.
-fn pnpm_exe_runs_on(platform: &str, arch: &str, libc: &str) -> bool {
-    !(platform == "linux" && arch == "arm64" && libc == "musl")
+/// Whether `@pnpm/exe` of the given pre-v12 `version` has a working binary
+/// for the host. On musl Linux the JavaScript `pnpm` runs instead unless the
+/// release ships a musl binary that works: on arm64 none does, as it is
+/// either missing or segfaults at startup
+/// (<https://github.com/pnpm/pnpm/issues/10443>), and on x64 the first is
+/// `11.0.0-rc.3` (<https://github.com/pnpm/pnpm/issues/16467>).
+fn pnpm_exe_runs_on(
+    version: &node_semver::Version,
+    platform: &str,
+    arch: &str,
+    libc: &str,
+) -> bool {
+    if platform != "linux" || libc != "musl" {
+        return true;
+    }
+    arch == "x64" && *version >= first_pnpm_exe_with_x64_musl_binary()
+}
+
+fn first_pnpm_exe_with_x64_musl_binary() -> node_semver::Version {
+    node_semver::Version::parse("11.0.0-rc.3").expect("valid semver literal")
 }
 
 fn version_gte(version: &node_semver::Version, minimum: (u64, u64, u64)) -> bool {

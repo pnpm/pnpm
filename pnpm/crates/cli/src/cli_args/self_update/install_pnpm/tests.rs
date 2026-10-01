@@ -200,6 +200,25 @@ fn arm64_musl_runs_the_javascript_pnpm_below_v12() {
     }
 }
 
+#[test]
+fn x64_musl_runs_the_javascript_pnpm_before_pnpm_exe_shipped_a_musl_binary() {
+    let on_alpine_x64 = |version| pnpm_package_to_install_on(version, "linux", "x64", "musl");
+    for version in ["11.0.0-rc.2", "10.34.4", "6.17.1"] {
+        let package = on_alpine_x64(version);
+        assert_eq!(package.name, PNPM_PACKAGE_NAME, "{version}");
+        assert!(!package.links_native_binary, "{version}");
+    }
+    for version in ["11.0.0-rc.3", "11.0.0-rc.4", "11.0.0", "11.26.0"] {
+        let package = on_alpine_x64(version);
+        assert_eq!(package.name, PNPM_EXE_PACKAGE_NAME, "{version}");
+        assert!(package.links_native_binary, "{version}");
+    }
+
+    let on_glibc_x64 = pnpm_package_to_install_on("10.34.4", "linux", "x64", "glibc");
+    assert_eq!(on_glibc_x64.name, PNPM_EXE_PACKAGE_NAME);
+    assert!(on_glibc_x64.links_native_binary);
+}
+
 /// Lay out a fake engine install: the `pnpm` wrapper and, under
 /// `@pnpm/<host-platform-dir>`, the native binary the wrapper's preinstall
 /// would normally link.
