@@ -646,7 +646,9 @@ fn switching_runs_the_native_binary_of_the_pinned_pnpm_without_its_shell_shim() 
     drop((root, mock_instance));
 }
 
-/// The `pnpm` bin of the one engine installed under `links`.
+/// The `pnpm` bin of the one engine installed under `links`, at
+/// `<scope>/<name>/<version>/<hash>/bin/pnpm`.
+#[cfg(unix)]
 fn engine_shim(links: &Path) -> PathBuf {
     let shims: Vec<_> = walkdir::WalkDir::new(links)
         .into_iter()
@@ -654,7 +656,12 @@ fn engine_shim(links: &Path) -> PathBuf {
         .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
         .map(|entry| entry.path().join("pnpm"))
         .collect();
-    assert_eq!(shims.len(), 1, "{shims:?}");
+    assert_eq!(
+        shims.len(),
+        1,
+        "expected one engine at {}/<scope>/<name>/<version>/<hash>/bin: {shims:?}",
+        links.display(),
+    );
     shims
         .into_iter()
         .next()
