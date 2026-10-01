@@ -193,7 +193,7 @@ impl Lockfile {
     }
 
     /// Save the *current* lockfile under
-    /// `<virtual_store_dir>/lock.yaml` at end-of-install:
+    /// `<install_state_dir>/lock.yaml` at end-of-install:
     ///
     /// - When the lockfile is empty ([`Lockfile::is_empty`]) the
     ///   existing file is removed and no new content is written, so an
@@ -202,11 +202,11 @@ impl Lockfile {
     ///   is written atomically: serialize → write next-to + rename.
     ///   The rename is the only step an observer can race against,
     ///   so a partial install will never leave a torn lockfile.
-    pub fn save_current_to_virtual_store_dir(
+    pub fn save_current_to_install_state_dir(
         &self,
-        virtual_store_dir: &Path,
+        install_state_dir: &Path,
     ) -> Result<(), SaveLockfileError> {
-        let target = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let target = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
 
         if self.is_empty() {
             match fs::remove_file(&target) {
@@ -215,9 +215,9 @@ impl Lockfile {
                 Err(error) => Err(SaveLockfileError::RemoveFile { path: target, error }),
             }
         } else {
-            fs::create_dir_all(virtual_store_dir)
+            fs::create_dir_all(install_state_dir)
                 .map_err(|error| SaveLockfileError::CreateDir {
-                    dir: virtual_store_dir.to_path_buf(),
+                    dir: install_state_dir.to_path_buf(),
                     error,
                 })?;
             let content = self.to_yaml_string()?;

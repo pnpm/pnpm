@@ -36,7 +36,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Lockfile with a runtime entry whose variants only target a
@@ -159,7 +159,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -300,7 +300,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     // 100 years in minutes. Anything the registry has shipped to
     // date is inside the cutoff, so the publish-time check rejects
@@ -421,7 +421,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -577,7 +577,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -585,7 +585,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
 
     std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
     seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
@@ -685,7 +685,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -695,7 +695,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     // frozen, the skip cache would carry the install to success.
     std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
     seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
@@ -763,7 +763,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         "fresh-resolve fall-through must not surface as OutdatedLockfile, got {err:?}",
     );
 }
-/// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
+/// End-to-end: when `.modules.yaml`, `<install_state_dir>/lock.yaml`,
 /// and the wanted lockfile agree, workspace state records the current root,
 /// and the tree those files describe is still on disk (the short-circuit
 /// probes it; a missing entry falls through to the repairing full path),
@@ -801,7 +801,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -832,7 +832,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -840,7 +840,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     };
     write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
     let seed_state = build_workspace_state::<Host>(
         &dirs.project_root,

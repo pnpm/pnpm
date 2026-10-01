@@ -184,7 +184,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// which is why it arrives lazily, so the common repeat-install
     /// run skips the YAML parse entirely. A separately bounded byte
     /// scan only runs when lockfile metadata changed. When absent and
-    /// `<virtual_store_dir>/lock.yaml` exists, the current lockfile
+    /// `<install_state_dir>/lock.yaml` exists, the current lockfile
     /// stands in as the wanted one — it records exactly what the
     /// previous install materialized — and `pnpm-lock.yaml` is
     /// regenerated from it before the check reports up-to-date.
@@ -483,7 +483,7 @@ fn lockfile_inputs_block_fast_path(
     // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
     // stat is absent, which resolves to not-up-to-date. Pacquet
     // additionally accepts the *current* lockfile
-    // (`<virtual_store_dir>/lock.yaml`) as a stand-in when
+    // (`<install_state_dir>/lock.yaml`) as a stand-in when
     // `pnpm-lock.yaml` is missing: it records exactly what the
     // previous install materialized, so the content checks can run
     // against it and `pnpm-lock.yaml` is regenerated from it on
@@ -505,7 +505,7 @@ fn lockfile_inputs_block_fast_path(
     }
     if !is_workspace_install
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+        && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some("wanted lockfile missing");
     }

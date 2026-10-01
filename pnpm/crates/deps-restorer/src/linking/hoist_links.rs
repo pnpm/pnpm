@@ -30,11 +30,8 @@ impl HoistLinks {
 /// (`<virtual_store>/node_modules`) and public (`<root>/node_modules`)
 /// targets, then shim the private side's bins.
 ///
-/// Enabling the global virtual store does not move the private target:
-/// pacquet leaves `virtual_store_dir` at its project-local (or
-/// yaml-pinned) value and routes the shared root through
-/// `global_virtual_store_dir` instead — see
-/// [`Config::apply_global_virtual_store_derivation`]. Only the symlink
+/// Enabling the global virtual store does not move the private target,
+/// which is under [`Config::install_state_dir`]. Only the symlink
 /// *target* under the slot dir is GVS-aware, which `layout` resolves.
 pub(super) fn write_hoist_links(
     plan: HoistPlan,
@@ -43,7 +40,7 @@ pub(super) fn write_hoist_links(
     link_options: &LinkBinsOptions,
 ) -> Result<HoistLinks, LinkPhaseError> {
     let HoistPlan { graph, result, skipped, .. } = plan;
-    let private_hoist_dir = config.virtual_store_dir.join("node_modules");
+    let private_hoist_dir = config.install_state_dir.join("node_modules");
     let public_hoist_dir = config.modules_dir.clone();
     symlink_hoisted_dependencies(
         &result.hoisted_dependencies_by_node_id,

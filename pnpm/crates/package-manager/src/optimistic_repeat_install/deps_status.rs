@@ -206,7 +206,7 @@ fn first_workspace_drift(
     }
     if !is_workspace_install
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+        && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
     }
@@ -340,7 +340,7 @@ pub(crate) fn missing_wanted_lockfile_stand_in_ok(
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
         return Ok(());
     }
-    match Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir) {
+    match Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir) {
         Ok(Some(_)) => Ok(()),
         Ok(None) => Err(format!("Cannot find a lockfile in {}", check.workspace_root.display())),
         Err(_) => Err("the current lockfile cannot be loaded".to_string()),

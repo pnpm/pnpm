@@ -58,7 +58,7 @@ export async function readLockfiles (
     useLockfile: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
-    internalPnpmDir: string
+    installStateDir: string
   }
 ): Promise<{
   currentLockfile: LockfileObject
@@ -79,7 +79,7 @@ export async function readLockfiles (
   }
 
   const wantedResult = await loadWantedLockfile(opts, lockfileOpts)
-  const currentLockfileRaw = await loadCurrentLockfile(opts.internalPnpmDir, opts.lockfileDir, lockfileOpts)
+  const currentLockfileRaw = await loadCurrentLockfile(opts.installStateDir, opts.lockfileDir, lockfileOpts)
   const importerIds = opts.projects.map((importer) => importer.id)
   const sopts: CreateLockfileOpts = {
     autoInstallPeers: opts.autoInstallPeers,
@@ -227,14 +227,14 @@ async function readWantedNonFrozen (lockfileDir: string, lockfileOpts: LockfileF
   }
 }
 
-async function loadCurrentLockfile (internalPnpmDir: string, lockfileDir: string, lockfileOpts: LockfileFsOptions): Promise<LockfileObject | undefined> {
+async function loadCurrentLockfile (installStateDir: string, lockfileDir: string, lockfileOpts: LockfileFsOptions): Promise<LockfileObject | undefined> {
   try {
-    const lockfile = await readCurrentLockfile(internalPnpmDir, lockfileOpts)
+    const lockfile = await readCurrentLockfile(installStateDir, lockfileOpts)
     return lockfile ?? undefined
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     logger.warn({
-      message: `Ignoring broken lockfile at ${internalPnpmDir}: ${message}`,
+      message: `Ignoring broken lockfile at ${installStateDir}: ${message}`,
       prefix: lockfileDir,
     })
     return undefined

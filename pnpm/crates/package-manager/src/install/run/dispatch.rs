@@ -239,7 +239,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         current_lockfile_exists: loaded.current.is_some(),
         store_dir: install.context.config.store_dir.display().to_string(),
         virtual_store_dir: install.context.config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
     }));

@@ -115,7 +115,7 @@ async fn run_hands_the_set_request_off_to_add_package() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = dir.path().join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pacquet");
+    config.install_state_dir = config.modules_dir.join(".pacquet");
     config.offline = true;
     let config = config.leak();
     let state = State::init(dir.path().join("package.json"), config, false).expect("init state");

@@ -59,7 +59,7 @@ fn adding_and_removing_an_ignored_optional_dependency_uses_the_safe_path() {
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(&workspace.join(
+    let current = pnpm_lockfile::Lockfile::load_current_from_install_state_dir(&workspace.join(
         "node_modules/.pnpm",
     ))
     .expect("load current lockfile")

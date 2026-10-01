@@ -673,7 +673,7 @@ impl UpdateFixture {
         config.store_dir = dir.path().join("store").into();
         config.cache_dir = cache_dir.clone();
         config.modules_dir = project.join("node_modules");
-        config.virtual_store_dir = project.join("node_modules/.pnpm");
+        config.install_state_dir = project.join("node_modules/.pnpm");
         config.enable_global_virtual_store = false;
         customize(&mut config);
         let config = Config::leak(config);
@@ -692,7 +692,7 @@ impl UpdateFixture {
         config.store_dir = dir.path().join("store").into();
         config.cache_dir = cache_dir.clone();
         config.modules_dir = project.join("node_modules");
-        config.virtual_store_dir = project.join("node_modules/.pnpm");
+        config.install_state_dir = project.join("node_modules/.pnpm");
         config.enable_global_virtual_store = false;
         let config = Config::leak(config);
         Self { dir, project, cache_dir, config, registry }

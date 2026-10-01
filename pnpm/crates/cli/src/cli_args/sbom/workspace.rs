@@ -192,7 +192,7 @@ pub(super) fn merged_dedicated_lockfile_state(
 fn anchored_virtual_store_dir(config: &Config, project_dir: &Path) -> PathBuf {
     let mut project_config = config.clone();
     project_config.anchor_lockfile_paths(project_dir);
-    project_config.effective_virtual_store_dir().to_path_buf()
+    project_config.virtual_store_dir().to_path_buf()
 }
 
 /// Re-key a dedicated lockfile's importers from its own root to the

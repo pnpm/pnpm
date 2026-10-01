@@ -48,7 +48,7 @@ async fn install_unfetchable_optional_dependency(progress_reported: &SharedRepor
     let mut config = Config::new();
     config.registry = "https://registry.test".to_string();
     config.store_dir = root.path().join("store").into();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     config.modules_dir = modules_dir;
     // The tarball is in neither the store nor a memory cache, so the
     // offline fetch fails on the fetch side, which an optional snapshot

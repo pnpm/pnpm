@@ -14,7 +14,7 @@ use tokio::sync::RwLock;
 #[tokio::test]
 async fn repeated_resolution_rounds_schedule_each_slot_once() {
     let dir = tempfile::tempdir().unwrap();
-    let config = Config { virtual_store_dir: dir.path().join(".pnpm"), ..Config::default() };
+    let config = Config { install_state_dir: dir.path().join(".pnpm"), ..Config::default() };
     let materializer =
         EarlyMaterializer::<SilentReporter>::new(&config, Arc::new(MemCache::default()));
     let package = finalized_package("foo", "1.0.0");
@@ -32,7 +32,7 @@ async fn repeated_resolution_rounds_schedule_each_slot_once() {
 async fn a_package_that_requires_a_build_is_left_to_the_link_phase() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join(".pnpm");
-    let config = Config { virtual_store_dir: virtual_store_dir.clone(), ..Config::default() };
+    let config = Config { install_state_dir: virtual_store_dir.clone(), ..Config::default() };
     let mem_cache = Arc::new(MemCache::default());
     for (name, manifest) in [
         ("built", r#"{"name":"built","version":"1.0.0","scripts":{"postinstall":"node x.js"}}"#),

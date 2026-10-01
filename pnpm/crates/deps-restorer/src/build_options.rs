@@ -53,7 +53,7 @@ pub struct ScriptPath<'a> {
     /// `node_modules/.bin`.
     pub extra_bin_paths: &'a [PathBuf],
     /// Whether `config.hoist_pattern` hoists anything privately, which puts
-    /// hoisted bins in [`PatchedEngineCheck::virtual_store_dir`]'s
+    /// hoisted bins in [`PatchedEngineCheck::install_state_dir`]'s
     /// `node_modules/.bin`.
     pub private_hoisting: bool,
 }
@@ -65,10 +65,9 @@ pub struct PatchedEngineCheck<'a> {
     pub engine_strict: bool,
     /// Explicit Node.js version to check against, or `None` to detect ambient version.
     pub node_version: Option<&'a str>,
-    /// The project's own virtual store directory, whose `node_modules` holds
-    /// the privately hoisted links. It stays in the project under the global
-    /// virtual store too.
-    pub virtual_store_dir: Option<&'a Path>,
+    /// [`pnpm_config::Config::install_state_dir`], whose `node_modules` holds
+    /// the privately hoisted links.
+    pub install_state_dir: Option<&'a Path>,
 }
 
 impl<'a> BuildScriptOptions<'a> {
@@ -93,7 +92,7 @@ impl<'a> BuildScriptOptions<'a> {
             patched_engines: PatchedEngineCheck {
                 engine_strict: config.effective_engine_strict(),
                 node_version: config.node_version.as_deref(),
-                virtual_store_dir: Some(&config.virtual_store_dir),
+                install_state_dir: Some(&config.install_state_dir),
             },
         }
     }

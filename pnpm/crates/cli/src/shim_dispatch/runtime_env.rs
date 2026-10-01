@@ -92,7 +92,7 @@ pub(super) fn hardened_install_config(
 ) -> Config {
     let mut install_config = config;
     install_config.modules_dir = environment_dir.join("node_modules");
-    install_config.virtual_store_dir = environment_dir.join("node_modules").join(".pnpm");
+    install_config.install_state_dir = environment_dir.join("node_modules").join(".pnpm");
     install_config.enable_global_virtual_store = global_virtual_store_dir.is_some();
     if let Some(global_virtual_store_dir) = global_virtual_store_dir {
         install_config.global_virtual_store_dir = global_virtual_store_dir;

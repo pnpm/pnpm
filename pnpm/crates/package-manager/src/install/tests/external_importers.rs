@@ -47,7 +47,7 @@ fn capsules(root: &Path, registry_url: &str) -> CapsuleLayout {
     let mut config = Config::new();
     config.cache_dir = root.join("cache");
     config.store_dir = root.join("store").into();
-    config.virtual_store_dir = modules_dir.join(".pnpm");
+    config.install_state_dir = modules_dir.join(".pnpm");
     config.modules_dir = modules_dir;
     config.registry = registry_url.to_string();
     CapsuleLayout { root: root.to_path_buf(), capsule, capsules, config: config.leak() }

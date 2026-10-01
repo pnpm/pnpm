@@ -196,7 +196,7 @@ fn validated_moved_lockfile<'a>(
             crate::install::modules_layout_consistent_with(modules, config, node_linker)
         })
         .ok_or("the moved tree's store or virtual store does not resolve from where it is")?;
-    let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+    let current = Lockfile::load_current_from_install_state_dir(&config.install_state_dir)
         .map_err(|_| "the current lockfile cannot be loaded")?;
     let wanted = check.lockfile
         .get()

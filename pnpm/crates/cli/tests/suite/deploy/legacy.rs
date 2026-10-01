@@ -270,7 +270,7 @@ fn legacy_deploy_prefers_workspace_lockfile_versions() {
     assert_eq!(deploy_manifest["dependenciesMeta"]["lib"]["injected"], true);
 
     let virtual_store_dir = deploy_dir.join("node_modules/.pnpm");
-    let current_lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+    let current_lockfile = Lockfile::load_current_from_install_state_dir(&virtual_store_dir)
         .expect("load deploy current lockfile")
         .expect("deploy current lockfile exists");
     assert_eq!(
@@ -576,7 +576,7 @@ fn legacy_deploy_preserves_source_pnpmfile_hooks() {
     .expect("parse deploy manifest");
     assert_eq!(deploy_manifest["dependencies"]["@pnpm.e2e/foo"], "^100.0.0");
     let current_lockfile =
-        Lockfile::load_current_from_virtual_store_dir(&deploy_dir.join("node_modules/.pnpm"))
+        Lockfile::load_current_from_install_state_dir(&deploy_dir.join("node_modules/.pnpm"))
             .expect("load deploy current lockfile")
             .expect("deploy current lockfile exists");
     let foo_name = PkgName::parse("@pnpm.e2e/foo").expect("parse fixture package name");

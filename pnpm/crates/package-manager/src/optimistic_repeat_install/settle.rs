@@ -110,7 +110,7 @@ pub(super) fn regenerate_wanted_lockfile_if_missing(
     }
     let current = match loaded_current {
         Some(current) => Some(current),
-        None => Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+        None => Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
             .map_err(|_| "the current lockfile cannot be loaded")?,
     };
     let Some(current) = current else {
@@ -172,7 +172,7 @@ pub(super) fn current_lockfile_unusable_with_non_empty_wanted(
     if check.is_workspace_install || !check.config.lockfile {
         return Ok(false);
     }
-    if current_lockfile_file_has_content(&check.config.virtual_store_dir) {
+    if current_lockfile_file_has_content(&check.config.install_state_dir) {
         return Ok(false);
     }
     let Some(wanted) =

@@ -98,7 +98,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&modules_dir, "keep-me", None);
@@ -167,7 +167,7 @@ fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
@@ -201,7 +201,7 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&modules_dir, "dev-dep", Some("devtool"));
@@ -245,7 +245,7 @@ fn refuses_to_unlink_through_a_symlinked_scope_dir() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     fs::create_dir_all(&modules_dir).unwrap();
@@ -284,7 +284,7 @@ fn widening_the_selection_removes_nothing() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&modules_dir, "keep-me", None);
@@ -317,7 +317,7 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pacquet");
+    config.install_state_dir = config.modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&selected_modules, "selected-dev", None);

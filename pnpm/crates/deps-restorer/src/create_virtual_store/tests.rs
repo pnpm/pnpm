@@ -111,7 +111,7 @@ impl SeededStoreInstall {
         config.registry = "https://registry.test".to_string();
         config.store_dir = root.path().join("store").into();
         config.modules_dir = modules_dir.clone();
-        config.virtual_store_dir = modules_dir.join(".pacquet");
+        config.install_state_dir = modules_dir.join(".pacquet");
         config.enable_global_virtual_store = true;
         config.global_virtual_store_dir = root.path().join("links");
         config.package_import_method = PackageImportMethod::Copy;
@@ -347,7 +347,7 @@ fn gvs_layout(
 ) -> crate::VirtualStoreLayout {
     let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
-    config.virtual_store_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
+    config.install_state_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
     config.global_virtual_store_dir = std::path::PathBuf::from("/tmp/store/links");
     let config = config.leak();
     crate::VirtualStoreLayout::new(

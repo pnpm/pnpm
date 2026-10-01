@@ -37,7 +37,7 @@ fn shared_workspace_lockfile() -> Lockfile {
 fn tree_intact(root: &Path, node_linker: NodeLinker, lockfile: &Lockfile) -> bool {
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     tree_intact_with_config(root, node_linker, lockfile, &config)
 }
 
@@ -231,7 +231,7 @@ fn skipped_direct_dependency_does_not_claim_a_workspace_hoist_alias() {
     .unwrap();
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     config.hoist_workspace_packages = true;
     config.hoist_pattern = Some(vec!["*".to_string()]);
     let included = IncludedDependencies {
@@ -265,7 +265,7 @@ fn workspace_hoist_link_must_target_the_selected_project() {
     );
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     config.hoist_workspace_packages = true;
     config.hoist_pattern = Some(vec!["*".to_string()]);
     let projects = [(project_dir.clone(), &manifest)];
@@ -286,11 +286,11 @@ fn workspace_hoist_link_must_target_the_selected_project() {
         )
     };
 
-    fs::create_dir_all(config.virtual_store_dir.join("node_modules")).unwrap();
-    pnpm_fs::symlink_dir(&stale_dir, &config.virtual_store_dir.join("node_modules/foo")).unwrap();
+    fs::create_dir_all(config.install_state_dir.join("node_modules")).unwrap();
+    pnpm_fs::symlink_dir(&stale_dir, &config.install_state_dir.join("node_modules/foo")).unwrap();
     assert!(!present());
-    pnpm_fs::remove_symlink_dir(&config.virtual_store_dir.join("node_modules/foo")).unwrap();
-    pnpm_fs::symlink_dir(&project_dir, &config.virtual_store_dir.join("node_modules/foo")).unwrap();
+    pnpm_fs::remove_symlink_dir(&config.install_state_dir.join("node_modules/foo")).unwrap();
+    pnpm_fs::symlink_dir(&project_dir, &config.install_state_dir.join("node_modules/foo")).unwrap();
     assert!(present());
 }
 
@@ -344,9 +344,9 @@ fn symlink_disabled_install_requires_a_complete_local_virtual_store() {
     let root = dir.path();
     let mut config = Config::new();
     config.modules_dir = root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     config.symlink = false;
-    let package_dir = config.virtual_store_dir.join("foo@1.0.0/node_modules/foo");
+    let package_dir = config.install_state_dir.join("foo@1.0.0/node_modules/foo");
     fs::create_dir_all(&package_dir).unwrap();
     let lockfile = shared_workspace_lockfile();
     let intact =

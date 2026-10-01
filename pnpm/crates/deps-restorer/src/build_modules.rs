@@ -354,9 +354,9 @@ impl BuildModules<'_> {
     /// fail without them.
     fn project_bin_dirs(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> Vec<PathBuf> {
         let hoisted_bin_dir = self.scripts.path.private_hoisting
-            .then_some(self.scripts.patched_engines.virtual_store_dir)
+            .then_some(self.scripts.patched_engines.install_state_dir)
             .flatten()
-            .map(|virtual_store_dir| virtual_store_dir.join("node_modules").join(".bin"));
+            .map(|install_state_dir| install_state_dir.join("node_modules").join(".bin"));
         self.runtime_node_bin_dir(snapshots)
             .into_iter()
             .chain(hoisted_bin_dir)

@@ -126,7 +126,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = registry_url;
     config.minimum_release_age = Some(24 * 60);
     config.minimum_release_age_exclude = Some(vec![package_name.to_string()]);
@@ -192,7 +192,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();

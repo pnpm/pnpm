@@ -351,7 +351,7 @@ fn build_engine_install_config(
     let mut cfg = base_config.clone();
     apply_package_manager_bootstrap(&mut cfg, &base_config.package_manager_bootstrap);
     cfg.modules_dir = install_dir.join("node_modules");
-    cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
+    cfg.install_state_dir = install_dir.join("node_modules").join(".pnpm");
     cfg.enable_global_virtual_store = shared_engine_packages.is_some();
     cfg.lockfile = true;
     cfg.workspace_dir = Some(install_dir.to_path_buf());

@@ -9,7 +9,7 @@ fn uses_configured_node_metadata_locations() {
     let config = Config {
         lockfile_dir: Some(root.clone()),
         modules_dir: root.join("custom_modules"),
-        virtual_store_dir: root.join("project-store"),
+        install_state_dir: root.join("project-store"),
         global_virtual_store_dir: root.join("global-store"),
         enable_global_virtual_store: true,
         ..Config::default()

@@ -105,7 +105,7 @@ test('readLockfiles() throws on incompatible lockfile in CI when frozenLockfile 
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
-    internalPnpmDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
   })).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
 })
 
@@ -124,7 +124,7 @@ test('readLockfiles() throws on an empty wanted lockfile when frozenLockfile is 
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
-    internalPnpmDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
   })).rejects.toMatchObject({ code: 'ERR_PNPM_BROKEN_LOCKFILE' })
 })
 
@@ -143,7 +143,7 @@ test('readLockfiles() ignores incompatible lockfile in CI when frozenLockfile is
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
-    internalPnpmDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
   })
 
   expect(context.existsWantedLockfile).toBe(false)

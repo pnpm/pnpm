@@ -174,7 +174,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -264,7 +264,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -441,7 +441,7 @@ async fn write_path_populates_side_effects_row() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 

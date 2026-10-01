@@ -47,7 +47,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -79,7 +79,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -87,7 +87,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     };
     write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
 
     let mut projects = std::collections::BTreeMap::new();
@@ -205,7 +205,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     // Config declares an extension the lockfile doesn't carry → drift.
     let mut deps = std::collections::BTreeMap::new();
     deps.insert("dep-a".to_string(), "1.0.0".to_string());
@@ -300,7 +300,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -386,7 +386,7 @@ async fn frozen_lockfile_errors_when_an_importer_reference_has_no_snapshot() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(

@@ -41,9 +41,9 @@ use std::{
 /// - Emit one `pnpm:root added` per direct dependency with the
 ///   importer's `rootDir` as the event prefix (a per-project emit).
 ///
-/// The virtual store dir (`config.virtual_store_dir`) stays singular
+/// The virtual store dir (`config.virtual_store_dir()`) stays singular
 /// across the install — only the per-project `node_modules/` and its
-/// symlinks fan out. By default `pnpm_config::default_virtual_store_dir`
+/// symlinks fan out. By default `pnpm_config::default_install_state_dir`
 /// anchors it at `<workspace_root>/node_modules/.pnpm` (matching pnpm),
 /// but the actual location is whatever the resolved `Config` field
 /// holds — `pnpm-workspace.yaml`'s `virtualStoreDir` can move it.

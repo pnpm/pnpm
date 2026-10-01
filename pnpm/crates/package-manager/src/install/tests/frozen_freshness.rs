@@ -21,7 +21,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     config.lockfile = true;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -90,7 +90,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     config.lockfile = true;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -174,7 +174,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Minimal v9 lockfile with no snapshots — the frozen path will
@@ -261,7 +261,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let result = Install {
@@ -351,7 +351,7 @@ pub(super) async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() 
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -430,7 +430,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     // Config declares an override the lockfile doesn't carry → drift.
     let mut overrides = indexmap::IndexMap::new();
     overrides.insert("placeholder".to_string(), "9.9.9".to_string());
@@ -532,7 +532,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let mut overrides = indexmap::IndexMap::new();
     overrides.insert("placeholder".to_string(), "1.0.0".to_string());
     config.overrides = Some(overrides);
@@ -665,7 +665,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
     let mut config = Config::new();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     // Override value is `catalog:`, which must resolve to the
     // catalog's `placeholder: 1.0.0` entry before the freshness
     // comparison. The lockfile records the *resolved* `1.0.0`, so a
@@ -774,7 +774,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     // Empty-importers lockfile — valid v9 shape, but no entry for
@@ -876,7 +876,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     // Pin the GVS root to a known location under the test temp dirs.dir
     // so any future assertions can target it without walking the
     // SmartDefault'd cwd-based fallback.
