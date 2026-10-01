@@ -76,10 +76,13 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
                 "file-dep": "file:../../local/file-dep",
                 "link-dep": "link:../../local/link-dep",
                 "path-dep": "../../local/path-dep",
+                "backslash-dep": r"file:..\..\local\backslash-dep",
             },
+            "peerDependencies": { "peer-dep": "link:../../local/peer-dep" },
         }),
     );
-    for name in ["file-dep", "link-dep", "path-dep"] {
+    let names = ["file-dep", "link-dep", "path-dep", "backslash-dep", "peer-dep"];
+    for name in names {
         let dir = workspace.join("local").join(name);
         fs::create_dir_all(&dir).unwrap();
         fs::write(
@@ -91,7 +94,7 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
     }
     fs::write(
         workspace.join("packages/app/index.js"),
-        "console.log(['file-dep', 'link-dep', 'path-dep'].map(require).join(','))",
+        format!("console.log({names:?}.map(require).join(','))"),
     )
     .unwrap();
 
@@ -109,7 +112,7 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
         .arg("index.js")
         .assert()
         .success()
-        .stdout("file-dep,link-dep,path-dep\n");
+        .stdout(format!("{}\n", names.join(",")));
     drop((root, mock_instance));
 }
 

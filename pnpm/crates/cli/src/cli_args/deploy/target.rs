@@ -264,7 +264,7 @@ pub(super) fn apply_deploy_hook(deploy_dir: &Path, project_dir: &Path) -> miette
 }
 
 fn rebase_local_specifiers(manifest: &mut Value, project_dir: &Path, deploy_dir: &Path) {
-    for field in ["optionalDependencies", "dependencies", "devDependencies"] {
+    for field in ["optionalDependencies", "dependencies", "devDependencies", "peerDependencies"] {
         let Some(dependencies) = manifest.get_mut(field).and_then(Value::as_object_mut) else {
             continue;
         };
