@@ -66,6 +66,8 @@ jobs:
           pnpm build:wasm-runtime-probe
 
       - name: Test the Node host and Rust runtime
+        env:
+          WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
         run: pnpm --filter @pnpm-private/wasm-runtime test
 
       - name: Install Chromium
