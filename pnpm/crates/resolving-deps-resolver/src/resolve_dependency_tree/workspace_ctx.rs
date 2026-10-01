@@ -68,6 +68,15 @@ pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 /// `optionalDependencies` sections.
 pub(super) type ChildSpec = (String, String, bool, bool);
 
+/// What registering a package in the workspace's package table found, with
+/// the table's shared id either way.
+pub(super) enum PackageRegistration {
+    /// This occurrence created the entry.
+    Created(Arc<str>),
+    /// Another occurrence created it first.
+    Existing(Arc<str>),
+}
+
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
 /// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,

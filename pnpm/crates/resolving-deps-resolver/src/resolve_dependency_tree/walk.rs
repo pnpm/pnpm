@@ -90,9 +90,9 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, ChildrenRecording, RecordedChildrenContext,
-        SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey, claim_children_owner,
-        claim_children_warmup, insert_tree_node, is_current_children_owner,
+        ChildSpec, ChildrenOwnerClaim, ChildrenRecording, PackageRegistration,
+        RecordedChildrenContext, SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey,
+        claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
         make_non_owner_nodes_lazy, record_children, recorded_children_match,
         register_peer_dep_names,
     },

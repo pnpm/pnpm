@@ -1,16 +1,17 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
-    ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
-    SeededPackage, SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency,
-    WantedKey, async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
-    current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
-    extract_peer_dependencies, is_exotic_resolved_via, is_update_target, keeps_locked_version,
-    lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
-    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
-    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
-    pin_patched_revision, pkg_is_leaf, pkgs_info_from_ids, project_relative_cache_scope,
-    register_peer_dep_names, resolve_reused_node, resolve_wanted_cached,
-    resolves_children_through_catalogs, try_reuse_node, wanted_lockfile_contains_satisfying_entry,
+    Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PackageRegistration, PendingNode,
+    PkgNameVerPeer, ResolveDependencyTreeError, ResolveOptions, ResolvedPackage,
+    ResolvedPackageInput, Resolver, SeededPackage, SkippedOptionalDependency, TreeCtx,
+    UpdateBehavior, Value, WantedDependency, WantedKey, async_recursion,
+    build_pkg_id_with_patch_hash, catalogs_for_children, current_pkg_from_lockfile,
+    emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
+    is_exotic_resolved_via, is_update_target, keeps_locked_version, lock_recoverable, node_alias,
+    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
+    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
+    pin_locked_version, pin_patched_revision, pkg_is_leaf, pkgs_info_from_ids,
+    project_relative_cache_scope, register_peer_dep_names, resolve_reused_node,
+    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
+    wanted_lockfile_contains_satisfying_entry,
 };
 
 #[async_recursion]
@@ -276,21 +277,22 @@ pub(super) fn seed_pending(
     // package's children, which this level's settlement decides — see
     // [`fn@super::level_walk::install_owner_peer_dependencies`]. Seeding only has to fill
     // a package nothing has resolved yet.
-    let (id, created) = register_seeded_package(
-        ctx,
-        SeededPackage {
-            id: &resolved.id,
-            result: &result,
-            peer_shadowed: &peer_shadowed,
-            resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
-            current_is_optional: resolved.current_is_optional,
-            is_link: identity.is_link,
-            is_leaf: identity.is_leaf,
-        },
-    )?;
-    if created {
-        emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
-    }
+    let seeded = SeededPackage {
+        id: &resolved.id,
+        result: &result,
+        peer_shadowed: &peer_shadowed,
+        resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
+        current_is_optional: resolved.current_is_optional,
+        is_link: identity.is_link,
+        is_leaf: identity.is_leaf,
+    };
+    let id = match register_seeded_package(ctx, seeded)? {
+        PackageRegistration::Created(id) => {
+            emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+            id
+        }
+        PackageRegistration::Existing(id) => id,
+    };
 
     let ancestry = edge.pending_ancestry(&id, resolved.current_is_optional);
 
@@ -364,8 +366,7 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> boo
 }
 
 /// Build (or look up) the [`ResolvedPackage`] envelope, answering with the
-/// package table's `Arc` of the id and whether this occurrence is the one
-/// that created the envelope. The first visitor populates it; later
+/// package table's `Arc` of the id as a created or an existing entry. The first visitor populates it; later
 /// visitors AND-fold the `optional` flag so a single non-optional path
 /// flips it back to `false`.
 ///
@@ -376,7 +377,7 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> boo
 pub(super) fn register_seeded_package(
     ctx: &TreeCtx,
     seeded: SeededPackage<'_>,
-) -> Result<(Arc<str>, bool), ResolveDependencyTreeError> {
+) -> Result<PackageRegistration, ResolveDependencyTreeError> {
     let SeededPackage {
         id,
         result,
@@ -390,7 +391,7 @@ pub(super) fn register_seeded_package(
     if let Some(existing) = packages.get_mut(id) {
         ensure_same_registry_revision(existing, result)?;
         existing.optional = existing.optional && current_is_optional;
-        return Ok((Arc::clone(&existing.id), false));
+        return Ok(PackageRegistration::Existing(Arc::clone(&existing.id)));
     }
     // A workspace-link node carries no peer dependencies: peer matching is the
     // linked importer's responsibility, not the parent's.
@@ -416,7 +417,7 @@ pub(super) fn register_seeded_package(
             is_leaf,
         }),
     );
-    Ok((shared_id, true))
+    Ok(PackageRegistration::Created(shared_id))
 }
 
 /// A `workspace:` edge the resolver did not name carries its identity in the

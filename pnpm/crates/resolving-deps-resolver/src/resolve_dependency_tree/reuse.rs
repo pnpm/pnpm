@@ -42,8 +42,8 @@ use super::{
     tree_ctx::TreeCtx,
     walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
     workspace_ctx::{
-        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, RecordedChildrenContext,
-        claim_children_owner, insert_tree_node, is_current_children_owner,
+        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, PackageRegistration,
+        RecordedChildrenContext, claim_children_owner, insert_tree_node, is_current_children_owner,
         make_non_owner_nodes_lazy, record_children, register_peer_dep_names,
     },
 };
@@ -453,7 +453,7 @@ where
     let alias = node_alias(&wanted, &result, &id);
     let identity = reused_identity(ctx, &id, &result, &reused.key)?;
 
-    let (id, created) = register_reused_package(
+    let registration = register_reused_package(
         ctx,
         id,
         &result,
@@ -461,9 +461,13 @@ where
         current_is_optional,
         identity.is_leaf,
     );
-    if created {
-        emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
-    }
+    let id = match registration {
+        PackageRegistration::Created(id) => {
+            emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+            id
+        }
+        PackageRegistration::Existing(id) => id,
+    };
 
     attach_reused_children(
         ctx,
@@ -550,8 +554,7 @@ where
 }
 
 /// Insert a reused package into the workspace's package table, answering
-/// with the table's `Arc` of the id and whether this occurrence is the one
-/// that created the entry.
+/// with the table's `Arc` of the id as a created or an existing entry.
 fn register_reused_package(
     ctx: &TreeCtx,
     id: String,
@@ -559,11 +562,11 @@ fn register_reused_package(
     peer_dependencies: BTreeMap<String, PeerDep>,
     current_is_optional: bool,
     is_leaf: bool,
-) -> (Arc<str>, bool) {
+) -> PackageRegistration {
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
     if let Some(existing) = packages.get_mut(id.as_str()) {
         existing.optional = existing.optional && current_is_optional;
-        return (Arc::clone(&existing.id), false);
+        return PackageRegistration::Existing(Arc::clone(&existing.id));
     }
     register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(&id);
@@ -578,7 +581,7 @@ fn register_reused_package(
             is_leaf,
         }),
     );
-    (shared_id, true)
+    PackageRegistration::Created(shared_id)
 }
 
 #[cfg(test)]
