@@ -105,7 +105,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     };
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
-    context.progress.record_slot_mutation(snapshot_key);
+    super::dependency_bins::record_mutation(context, snapshot_key)?;
     for pkg_dir in context.pkg_roots().all(snapshot_key) {
         // No slot to materialize into (skipped / never linked) — nothing for
         // the build phase to do either.

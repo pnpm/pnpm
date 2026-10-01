@@ -278,6 +278,13 @@ impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
     pub fn run<Reporter: self::Reporter>(self) -> Result<BuildModulesOutput, BuildModulesError> {
+        self.run_with_bin_state::<Reporter>(&crate::build_options::BuildBinState::default())
+    }
+
+    pub(crate) fn run_with_bin_state<Reporter: self::Reporter>(
+        self,
+        bin_state: &crate::build_options::BuildBinState,
+    ) -> Result<BuildModulesOutput, BuildModulesError> {
         let Some(snapshots) = self.graph.snapshots else {
             return Ok(BuildModulesOutput::default());
         };
@@ -297,7 +304,6 @@ impl BuildModules<'_> {
         // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
-        let bin_state = crate::build_options::BuildBinState::default();
         let project_bin_dirs = self.project_bin_dirs(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
@@ -306,7 +312,7 @@ impl BuildModules<'_> {
                 &requires_build_map,
                 &dep_states,
                 &ignored_builds,
-                &bin_state,
+                bin_state,
                 &project_bin_dirs,
             ),
             self.child_concurrency,
@@ -321,9 +327,11 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mutated_snapshot_keys = bin_state.slot_mutations
-            .into_inner()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mutated_snapshot_keys = std::mem::take(
+            &mut *bin_state.slot_mutations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
             deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
@@ -517,7 +525,10 @@ fn schedule_builds<Reporter: self::Reporter>(
     let on_node_skipped: fn(&PackageKey) = |_| {};
     let run_node =
         |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(&snapshot_key, context) {
-            Ok(()) => TaskCompletion::Passed,
+            Ok(()) => {
+                build_one_snapshot::record_completion(context, &snapshot_key);
+                TaskCompletion::Passed
+            }
             Err(error) => {
                 first_error
                     .lock()

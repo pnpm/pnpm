@@ -1,10 +1,11 @@
 pub use discovery::collect_packages_in_modules_dir;
 pub use options::LinkBinsOptions;
+pub use refresh::DirectoryBinPlan;
 pub use relocatable::bin_dir_is_relocatable;
 pub use shim_writer::remove_bin;
 
 use crate::{
-    bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
+    bin_resolver::{Command, get_bins_from_package_manifest},
     capabilities::{
         DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
@@ -16,7 +17,6 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Version;
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
@@ -409,6 +409,23 @@ where
         + FsEnsureExecutableBits,
 {
     let chosen = choose_bins::<Sys>(packages, exclude_bins);
+    link_chosen_bins::<Sys>(chosen, bins_dir, options, cache)
+}
+
+fn link_chosen_bins<Sys>(
+    chosen: Vec<(Command, &PackageBinSource)>,
+    bins_dir: &Path,
+    options: &LinkBinsOptions,
+    cache: &ShimTargetCache,
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
     if chosen.is_empty() {
         return Ok(false);
     }
@@ -480,47 +497,6 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
     chosen.into_values().collect()
 }
 
-/// Return `true` when `candidate` should replace `existing` for `bin_name`.
-fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageBinSource) -> bool {
-    match (existing.origin, candidate.origin) {
-        (BinOrigin::Direct, BinOrigin::Hoisted | BinOrigin::Peer)
-        | (BinOrigin::Hoisted, BinOrigin::Peer) => return false,
-        (BinOrigin::Hoisted | BinOrigin::Peer, BinOrigin::Direct)
-        | (BinOrigin::Peer, BinOrigin::Hoisted) => return true,
-        _ => {}
-    }
-    let existing_name = package_name(existing);
-    let candidate_name = package_name(candidate);
-    let existing_owns = pkg_owns_bin(bin_name, existing_name);
-    let candidate_owns = pkg_owns_bin(bin_name, candidate_name);
-    match (existing_owns, candidate_owns) {
-        (true, false) => return false,
-        (false, true) => return true,
-        _ => {}
-    }
-    if candidate_name != existing_name {
-        return candidate_name < existing_name;
-    }
-    match (package_version(existing), package_version(candidate)) {
-        (Some(existing_version), Some(candidate_version)) => candidate_version > existing_version,
-        _ => false,
-    }
-}
-
-fn package_name(pkg: &PackageBinSource) -> &str {
-    pkg.manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-}
-
-fn package_version(pkg: &PackageBinSource) -> Option<Version> {
-    pkg.manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .and_then(|version| Version::parse(version).ok())
-}
-
 #[cfg(test)]
 mod tests;
 
@@ -533,8 +509,12 @@ use executable::{
     link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
 };
 
+mod conflicts;
+use conflicts::{package_name, pick_winner};
+
 mod discovery;
 mod options;
+mod refresh;
 
 mod exclusions;
 use exclusions::ExcludedBins;

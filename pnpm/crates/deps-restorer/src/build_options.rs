@@ -1,3 +1,7 @@
+pub(crate) use hoisted_bins::HoistedBinPlans;
+
+mod hoisted_bins;
+
 use pnpm_config::PackageImportMethod;
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
@@ -239,7 +243,7 @@ pub struct BuildSnapshotInputs<'a> {
 #[derive(Default)]
 pub(crate) struct BuildBinState {
     pub(crate) slot_mutations: Mutex<HashSet<PackageKey>>,
-    pub(crate) refreshed_hoisted_bins: Mutex<HashMap<PathBuf, HashSet<PackageKey>>>,
+    pub(crate) refreshed_hoisted_bins: HoistedBinPlans,
 }
 
 #[derive(Clone, Copy)]
@@ -253,7 +257,7 @@ pub struct BuildProgress<'a> {
     /// half-applied write still counts. See
     /// [`crate::BuildModulesOutput::mutated_slots`].
     pub(crate) slot_mutations: &'a Mutex<HashSet<PackageKey>>,
-    pub(crate) refreshed_hoisted_bins: &'a Mutex<HashMap<PathBuf, HashSet<PackageKey>>>,
+    pub(crate) refreshed_hoisted_bins: &'a HoistedBinPlans,
 }
 
 impl BuildProgress<'_> {

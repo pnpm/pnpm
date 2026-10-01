@@ -127,6 +127,7 @@ pub struct LinkPhaseOutput {
     pub publicly_hoisted_for_post_build: Vec<String>,
     /// See [`crate::HoistedLinkerOutput::held_back_bins_dirs`].
     pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
+    pub hoisted_bin_sources: crate::HoistedBinSources,
 }
 
 impl LinkPhaseOutput {
@@ -146,6 +147,7 @@ impl LinkPhaseOutput {
             hoisted_build_snapshots: None,
             publicly_hoisted_for_post_build: Vec::new(),
             held_back_bins_dirs: Vec::new(),
+            hoisted_bin_sources: crate::HoistedBinSources::default(),
         }
     }
 }
@@ -376,6 +378,7 @@ fn write_project_links<Reporter: self::Reporter>(
         hoisted_build_snapshots: hoisted.hoisted_build_snapshots,
         publicly_hoisted_for_post_build: links.publicly_hoisted_with_bins,
         held_back_bins_dirs: hoisted.held_back_bins_dirs,
+        hoisted_bin_sources: hoisted.hoisted_bin_sources,
     })
 }
 

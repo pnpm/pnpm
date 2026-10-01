@@ -187,7 +187,7 @@ impl Request {
         }), self.body.as_deref()).await?;
         Response::from_host(result)
     }
-    fn follow_redirect(&mut self, target: Url, status: u16) -> Result<()> {
+    fn follow_redirect(&mut self, mut target: Url, status: u16) -> Result<()> {
         if !matches!(target.scheme(), "http" | "https") {
             return Err(Error::new(Kind::Redirect, "Unsupported redirect scheme"));
         }
@@ -210,6 +210,10 @@ impl Request {
             self.headers.remove(CONTENT_TYPE);
             self.headers.remove(CONTENT_LENGTH);
         }
+        target.set_username("").map_err(|()| Error::new(Kind::Redirect, "Invalid redirect URL"))?;
+        target
+            .set_password(None)
+            .map_err(|()| Error::new(Kind::Redirect, "Invalid redirect URL"))?;
         self.url = target;
         Ok(())
     }

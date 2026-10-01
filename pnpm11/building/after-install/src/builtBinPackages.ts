@@ -6,15 +6,6 @@ import type { DepPath } from '@pnpm/types'
 
 import type { RebuildState } from './rebuildTypes.js'
 
-export function builtBinPackages (modulesDir: string, dependencies: Record<string, string>, state: RebuildState): Set<string> {
-  return new Set(Object.entries(dependencies)
-    .filter(([alias, reference]) => {
-      const depPath = refToRelative(reference, alias)
-      return depPath != null && state.builtDepPaths.has(depPath)
-    })
-    .map(([alias]) => path.normalize(safeJoinModulesDir(modulesDir, alias))))
-}
-
 export function builtProjectBinPackages (modulesDir: string, dependencies: Record<string, string>, state: RebuildState): Set<string> {
   const packages = builtBinPackages(modulesDir, dependencies, state)
   if (path.normalize(modulesDir) !== path.normalize(state.ctx.rootModulesDir)) return packages
@@ -25,4 +16,13 @@ export function builtProjectBinPackages (modulesDir: string, dependencies: Recor
     }
   }
   return packages
+}
+
+export function builtBinPackages (modulesDir: string, dependencies: Record<string, string>, state: RebuildState): Set<string> {
+  return new Set(Object.entries(dependencies)
+    .filter(([alias, reference]) => {
+      const depPath = refToRelative(reference, alias)
+      return depPath != null && state.builtDepPaths.has(depPath)
+    })
+    .map(([alias]) => path.normalize(safeJoinModulesDir(modulesDir, alias))))
 }

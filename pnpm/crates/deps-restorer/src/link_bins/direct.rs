@@ -345,6 +345,16 @@ pub(super) fn link_named_dep_bins(
     link_options: &LinkBinsOptions,
     build_pending: bool,
 ) -> Result<bool, LinkBinsError> {
+    link_named_dep_bins_with_sources(modules_dir, deps, link_options, build_pending)
+        .map(|(held_back, _)| held_back)
+}
+
+pub(crate) fn link_named_dep_bins_with_sources(
+    modules_dir: &Path,
+    deps: &[(&str, Option<&Path>)],
+    link_options: &LinkBinsOptions,
+    build_pending: bool,
+) -> Result<(bool, Vec<PackageBinSource>), LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
     // be an in-progress install. Every other IO error (permission
@@ -368,15 +378,13 @@ pub(super) fn link_named_dep_bins(
             Some(Ok(source))
         })
         .collect::<Result<_, _>>()?;
-    if bin_sources.is_empty() {
-        return Ok(false);
-    }
-    link_bins_of_packages_cached::<Host>(
+    let held_back = link_bins_of_packages_cached::<Host>(
         &bin_sources,
         &modules_dir.join(".bin"),
         link_options,
         &ShimTargetCache::default(),
-    )
+    )?;
+    Ok((held_back, bin_sources))
 }
 /// Link bins from resolved direct-dependency locations without requiring
 /// importer symlinks. This is the `symlink: false` counterpart of
@@ -409,59 +417,6 @@ pub fn link_new_bins_from_locations(
     let existing = existing_commands(&bins_dir)?;
     link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
 }
-/// Top-level bin link that links direct-dep candidates, publicly hoisted
-/// aliases, and auto-installed peer dependencies in a single
-/// [`link_bins_of_packages`] pass so direct dependencies take precedence
-/// over publicly hoisted packages, which take precedence over auto-installed peers.
-///
-/// Direct deps come from the importer's dependency groups, hoisted
-/// aliases from the hoist result, and peers from their resolved slots.
-///
-/// Lifecycle-script-created bins must pick up the post-install
-/// state of `package.json` (a `postinstall` script can write a
-/// binary that didn't exist at extract time and pacquet must shim
-/// it). The caller schedules this pass *after* `BuildModules` runs
-/// so the manifests-on-disk reflect the post-script state.
-pub fn link_top_level_bins(
-    modules_dir: &Path,
-    direct_dep_names: &[String],
-    hoisted_dep_names: &[String],
-    peer_locations: &[PathBuf],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let mut bin_sources: Vec<PackageBinSource> = Vec::new();
-    // Tag direct deps as `Direct` and hoisted as `Hoisted` so the
-    // single downstream `pick_winner` call resolves conflicts via
-    // the new [`BinOrigin`] tier.
-    for source in read_bin_sources(modules_dir, direct_dep_names)? {
-        bin_sources.push(source.with_origin(BinOrigin::Direct));
-    }
-    // Skip hoisted aliases that already appear under a direct
-    // name. Reading the same `package.json` twice wouldn't change
-    // the outcome — `pick_winner` would pick the Direct copy
-    // anyway — but the work is wasted, so de-duplicate here by
-    // filtering out hoisted candidates whose name already appears
-    // in the direct set.
-    let direct_set: HashSet<&str> = direct_dep_names
-        .iter()
-        .map(String::as_str)
-        .collect();
-    let hoisted_only: Vec<String> = hoisted_dep_names
-        .iter()
-        .filter(|name| !direct_set.contains(name.as_str()))
-        .cloned()
-        .collect();
-    for source in read_bin_sources(modules_dir, &hoisted_only)? {
-        bin_sources.push(source.with_origin(BinOrigin::Hoisted));
-    }
-    for source in read_location_bin_sources(peer_locations)? {
-        bin_sources.push(source.with_origin(BinOrigin::Peer));
-    }
-    if bin_sources.is_empty() {
-        return Ok(());
-    }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
-}
 /// Link a project's top-level bins while preserving direct-dependency
 /// precedence over every other package present in its `node_modules`.
 pub fn link_project_bins(
@@ -488,38 +443,4 @@ pub fn link_project_bins(
         return Ok(());
     }
     link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"), link_options)
-}
-/// Read each `<modules_dir>/<name>/package.json` and assemble the
-/// list of [`PackageBinSource`]s. Same `NotFound`-tolerant /
-/// other-IO-fatal policy as [`link_direct_dep_bins`]; factored out
-/// so [`link_top_level_bins`] can reuse the read pass for both
-/// direct and hoisted candidate lists.
-pub(super) fn read_bin_sources(
-    modules_dir: &Path,
-    dep_names: &[String],
-) -> Result<Vec<PackageBinSource>, LinkBinsError> {
-    let locations: Vec<PathBuf> = dep_names
-        .iter()
-        .map(|name| modules_dir.join(name))
-        .collect();
-    locations
-        .par_iter()
-        .filter_map(|location| {
-            let manifest_path = location.join("package.json");
-            let bytes = match fs::read(&manifest_path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-                }
-            };
-            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-                }
-            };
-            Some(Ok(PackageBinSource::new(location.clone(), Arc::new(manifest))))
-        })
-        .collect()
 }

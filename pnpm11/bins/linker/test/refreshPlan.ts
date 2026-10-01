@@ -52,6 +52,27 @@ test('removing a command preserves another command named with its Windows suffix
   expect(runCommand(path.join(bins, 'tool.cmd'))).toBe('retained\n')
 })
 
+test('refreshing a winning alias preserves discovery order when package names and versions tie', async () => {
+  const modules = path.join(temporaryDirectory(), 'node_modules')
+  const bins = path.join(modules, '.bin')
+  const aliases = ['first-alias', 'second-alias']
+  for (const alias of aliases) {
+    const pkgRoot = path.join(modules, alias)
+    fs.mkdirSync(pkgRoot, { recursive: true })
+    fs.writeFileSync(path.join(pkgRoot, 'package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: { tool: 'cli.js' } }))
+    fs.writeFileSync(path.join(pkgRoot, 'cli.js'), `#!/usr/bin/env node\nconsole.log(${JSON.stringify(alias)})\n`, { mode: 0o755 })
+  }
+  readDirectory.mockResolvedValueOnce(aliases)
+  await linkBins(modules, bins, { warn: () => {} })
+  expect(runCommand(path.join(bins, 'tool'))).toBe('first-alias\n')
+  readDirectory.mockResolvedValueOnce(aliases)
+  const refresh = await createBinRefreshPlan(modules, bins, { warn: () => {} })
+  await refresh(new Set([path.join(modules, 'first-alias')]))
+  expect(runCommand(path.join(bins, 'tool'))).toBe('first-alias\n')
+  await refresh(new Set([path.join(modules, 'second-alias')]))
+  expect(runCommand(path.join(bins, 'tool'))).toBe('first-alias\n')
+})
+
 function runCommand (bin: string): string {
   const result = process.platform === 'win32'
     ? spawnSync(`"${bin}.cmd"`, { shell: process.env.ComSpec ?? 'cmd.exe', encoding: 'utf8' })

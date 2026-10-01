@@ -1,5 +1,7 @@
 //! Running one package's build scripts.
 
+pub(super) use dependency_bins::record_completion;
+
 mod dependency_bins;
 mod linked_copies;
 mod patched_engines;
@@ -310,7 +312,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
             dep_path: snapshot_key.to_string(),
         })?;
-    context.progress.record_slot_mutation(snapshot_key);
+    dependency_bins::record_mutation(context, snapshot_key)?;
     for patched_dir in context.pkg_roots().all(snapshot_key) {
         if !patched_dir.exists() {
             continue;
@@ -351,7 +353,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
         return Ok(Some(false));
     }
     dependency_bins::refresh(context, snapshot_key)?;
-    context.progress.record_slot_mutation(snapshot_key);
+    dependency_bins::record_mutation(context, snapshot_key)?;
     let result =
         run_candidate_hooks::<Reporter>(context, snapshot_key, pkg_dir, extra_bin_paths, optional);
     match result {

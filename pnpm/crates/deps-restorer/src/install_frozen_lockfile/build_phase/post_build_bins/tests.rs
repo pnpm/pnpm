@@ -48,3 +48,82 @@ fn refreshes_the_physical_hoisted_bin_container_for_scoped_and_unscoped_packages
         assert_eq!(output.stdout, b"built binary\n");
     }
 }
+
+#[test]
+fn final_hoisted_refresh_reuses_discovery_and_completed_provider_reads() {
+    let temp = tempfile::tempdir().unwrap();
+    let modules = temp.path().join("node_modules");
+    let root = modules.join("tool");
+    let stable = modules.join("stable");
+    for (directory, name) in [(&root, "tool"), (&stable, "stable")] {
+        fs::create_dir_all(directory).unwrap();
+        fs::write(
+            directory.join("package.json"),
+            serde_json::json!({"name": name, "bin": "tool"}).to_string(),
+        )
+        .unwrap();
+        fs::write(directory.join("tool"), "#!/usr/bin/env node\n").unwrap();
+    }
+    let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
+    link_bins::<Host>(&modules, &modules.join(".bin"), &options).unwrap();
+    let plans = crate::build_options::HoistedBinPlans::default();
+    plans
+        .directory(&modules)
+        .lock()
+        .unwrap()
+        .plan = Some(pnpm_cmd_shim::DirectoryBinPlan::discover::<Host>(&modules).unwrap());
+    fs::write(stable.join("package.json"), "unchanged package must not be reread").unwrap();
+    fs::write(root.join("tool"), "#!/bin/sh\nprintf 'refreshed\\n'\n").unwrap();
+    let key: PackageKey = "tool@1.0.0".parse().unwrap();
+    let roots = HashMap::from([(key.clone(), vec![root.clone()])]);
+    let mutated = HashSet::from([key]);
+    assert!(super::refresh_cached_directory(&plans, &modules, &roots, &mutated, &options).unwrap());
+    let output = Command::new(modules.join(".bin/tool")).output().unwrap();
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"refreshed\n");
+    fs::write(root.join("package.json"), "completed provider must not be reread").unwrap();
+    assert!(super::refresh_cached_directory(&plans, &modules, &roots, &mutated, &options).unwrap());
+    assert!(
+        !super::refresh_cached_directory(
+            &plans,
+            &modules.join("uncovered"),
+            &roots,
+            &mutated,
+            &options
+        )
+        .unwrap(),
+    );
+}
+
+#[test]
+fn final_importer_sources_clear_pending_without_changing_pre_consumer_candidates() {
+    let modules = std::path::Path::new("project/node_modules");
+    let location = modules.join("tool");
+    let source = pnpm_cmd_shim::PackageBinSource::new(
+        location.clone(),
+        std::sync::Arc::new(serde_json::json!({ "name": "tool", "bin": "cli" })),
+    )
+    .with_build_pending(true);
+    let plans = crate::build_options::HoistedBinPlans::default();
+    plans.seed(&HashMap::from([(modules.to_owned(), vec![source].into())]));
+    plans
+        .directory(modules)
+        .lock()
+        .unwrap()
+        .initialize(modules)
+        .unwrap();
+    let sources = super::importer_sources(&plans, modules, &["tool".into()], &[]).unwrap();
+    assert!(!sources[&location].build_pending);
+    assert!(
+        plans
+            .directory(modules)
+            .lock()
+            .unwrap()
+            .plan
+            .as_ref()
+            .unwrap()
+            .package_source(&location)
+            .unwrap()
+            .build_pending,
+    );
+}

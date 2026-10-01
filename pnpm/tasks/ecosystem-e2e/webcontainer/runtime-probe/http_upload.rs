@@ -13,6 +13,12 @@ const server = http.createServer((request, response) => {
     response.end();
     return;
   }
+  if (request.url === '/same-userinfo' || request.url === '/cross-userinfo') {
+    const port = request.url === '/same-userinfo' ? server.address().port : other.address().port;
+    response.writeHead(302, {location: 'http://redirect:secret@127.0.0.1:' + port + '/headers'});
+    response.end();
+    return;
+  }
   if (request.url === '/headers') return headers(request, response);
   let length = 0;
   let valid = true;
@@ -52,16 +58,21 @@ other.listen(0, '127.0.0.1', () => server.listen(0, '127.0.0.1', () => console.l
 }
 
 async fn check_redirect_auth(url: &str) {
-    for (route, authorization) in [("same", json!("Bearer secret")), ("redirect", Value::Null)] {
-        let headers: Value = pnpm_http::Client::new()
+    for (route, authorization) in [
+        ("same", json!("Bearer secret")),
+        ("redirect", Value::Null),
+        ("same-userinfo", json!("Bearer secret")),
+        ("cross-userinfo", Value::Null),
+    ] {
+        let response = pnpm_http::Client::new()
             .get(format!("{url}/{route}"))
             .bearer_auth("secret")
             .send()
             .await
-            .expect("redirect request")
-            .json()
-            .await
-            .expect("redirect request headers");
+            .expect("redirect request");
+        assert_eq!(response.url().username(), "");
+        assert_eq!(response.url().password(), None);
+        let headers: Value = response.json().await.expect("redirect request headers");
         assert_eq!(headers["authorization"], authorization);
     }
     println!("HTTP redirects preserve same-origin credentials and remove cross-origin credentials");

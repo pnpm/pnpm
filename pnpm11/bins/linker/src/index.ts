@@ -72,20 +72,30 @@ export async function linkBinsOfPkgsByAliases (
 
 /** Cache directory candidates; reread completed packages before selecting their winning commands. */
 export async function createBinRefreshPlan (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
-  const aliases = await readModulesDir(modulesDir) ?? []
-  let commands = await getCommandsByAliases(aliases, binsDir, { ...opts, modulesDir })
+  const candidates = await readBinCandidates(modulesDir, binsDir, opts)
   return async pkgRoots => {
-    const changedNames = new Set(commands.filter(cmd => pkgRoots.has(path.normalize(cmd.pkgDir))).map(cmd => cmd.name))
-    const refreshed = (await Promise.all(Array.from(pkgRoots, async pkgRoot => getPackageBins({ ...opts, allowExoticManifests: false }, normalizePath(pkgRoot))))).flat()
-    for (const cmd of refreshed) changedNames.add(cmd.name)
-    commands = [...commands.filter(cmd => !pkgRoots.has(path.normalize(cmd.pkgDir))), ...refreshed]
-    const allWinners = deduplicateCommands(commands)
+    const changedNames = new Set(Array.from(pkgRoots).flatMap(pkgRoot => (candidates.get(pkgRoot) ?? []).map(cmd => cmd.name)))
+    await Promise.all(Array.from(pkgRoots, async pkgRoot => {
+      const refreshed = await getPackageBins({ ...opts, allowExoticManifests: false }, normalizePath(pkgRoot))
+      for (const cmd of refreshed) changedNames.add(cmd.name)
+      candidates.set(pkgRoot, refreshed)
+    }))
+    const allWinners = deduplicateCommands(Array.from(candidates.values()).flat())
     const winners = allWinners.filter(cmd => changedNames.has(cmd.name))
     const retainedNames = new Set(winners.map(cmd => cmd.name))
     const removedNames = Array.from(changedNames).filter(name => !retainedNames.has(name))
     await Promise.all(removedNames.map(async name => removeBin(path.join(binsDir, name))))
     await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { forceForPackages: pkgRoots })
   }
+}
+
+async function readBinCandidates (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<Map<string, CommandInfo[]>> {
+  const aliases = await readModulesDir(modulesDir) ?? []
+  const candidates = new Map(aliases.map(alias => [path.normalize(path.resolve(modulesDir, alias)), [] as CommandInfo[]]))
+  for (const command of await getCommandsByAliases(aliases, binsDir, { ...opts, modulesDir })) {
+    candidates.get(path.normalize(command.pkgDir))!.push(command)
+  }
+  return candidates
 }
 
 async function getCommandsByAliases (

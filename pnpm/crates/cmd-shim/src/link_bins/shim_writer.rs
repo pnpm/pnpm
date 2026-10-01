@@ -453,7 +453,7 @@ pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn remove_if_exists(path: &Path) -> io::Result<()> {
+pub(super) fn remove_if_exists(path: &Path) -> io::Result<()> {
     match pnpm_fs::remove_file_with_retry(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),

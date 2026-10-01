@@ -2,16 +2,18 @@ use super::{
     Config, HoistedLinkerError, NodeLinker, Path, PathBuf, SymlinkDirectDependenciesError,
     SymlinkPackageError,
 };
+use std::collections::HashSet;
 
 pub(crate) fn link_selected_hoisted_direct_dependencies(
     config: &Config,
     lockfile_dir: &Path,
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
-) -> Result<(), HoistedLinkerError> {
+) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
     let modules_dir_name = config.modules_dir_name();
     let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
+    let mut changed_dirs = HashSet::new();
     for (project_dir, _) in project_manifests {
         // The workspace root owns the hoisted slot itself, so its own
         // entries are the real directories rather than links to them.
@@ -27,9 +29,11 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
             },
             is_workspace_root,
         };
-        scope.link_direct_dependencies(direct_dependencies_by_importer_id, &link_options)?;
+        if scope.link_direct_dependencies(direct_dependencies_by_importer_id, &link_options)? {
+            changed_dirs.insert(scope.modules_dir);
+        }
     }
-    Ok(())
+    Ok(changed_dirs)
 }
 
 /// One importer's share of the hoisted direct-dependency linking.
@@ -47,14 +51,17 @@ impl HoistedLinkScope<'_> {
         &self,
         direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
         link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    ) -> Result<(), HoistedLinkerError> {
+    ) -> Result<bool, HoistedLinkerError> {
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&self.importer_id)
         else {
-            return Ok(());
+            return Ok(false);
         };
         let mut linked_names = Vec::new();
+        let mut changed = false;
         for (alias, target) in direct_dependencies {
-            if self.link_one(alias, target)? {
+            let (linked, replaced) = self.link_one(alias, target)?;
+            changed |= replaced;
+            if linked {
                 linked_names.push(alias.clone());
             }
         }
@@ -64,12 +71,12 @@ impl HoistedLinkScope<'_> {
                     SymlinkDirectDependenciesError::LinkBins(source),
                 )
             })
-            .map(|_| ())
+            .map(|_| changed)
     }
 
     /// `Ok(true)` when the alias now resolves inside the project's own
     /// `node_modules`, so its bins are this importer's to link.
-    fn link_one(&self, alias: &str, target: &Path) -> Result<bool, HoistedLinkerError> {
+    fn link_one(&self, alias: &str, target: &Path) -> Result<(bool, bool), HoistedLinkerError> {
         let link_path =
             crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
                 .map_err(|source| {
@@ -85,14 +92,14 @@ impl HoistedLinkScope<'_> {
                 == pnpm_fs::lexical_normalize(&self.root_modules_dir.join(alias))
         {
             self.remove_root_shadow(alias, target, &link_path)?;
-            return Ok(false);
+            return Ok((false, true));
         }
         if pnpm_fs::lexical_normalize(&link_path) == pnpm_fs::lexical_normalize(target) {
-            return Ok(true);
+            return Ok((true, false));
         }
         crate::symlink_package(target, &link_path)
             .map_err(|source| self.symlink_failure(alias, source))?;
-        Ok(true)
+        Ok((true, true))
     }
 
     /// An install that predates the walk-up rule, or one where the

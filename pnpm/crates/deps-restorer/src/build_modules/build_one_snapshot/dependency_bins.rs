@@ -1,9 +1,9 @@
 use super::{BuildModulesError, BuildOneSnapshot, PackageKey};
-use pnpm_cmd_shim::{Host, LinkBinsOptions, link_bins};
+use crate::build_options::HoistedBinPlans;
+use pnpm_cmd_shim::{DirectoryBinPlan, Host, LinkBinsOptions};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 
 #[cfg(test)]
@@ -66,29 +66,99 @@ fn refresh_hoisted(
         }
     }
     for (directory, completed) in modules {
-        refresh_directory(context.progress.refreshed_hoisted_bins, &directory, &completed, || {
-            link_bins::<Host>(&directory, &directory.join(".bin"), options)
-                .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
-                .map_err(BuildModulesError::BinLink)
-        })?;
+        refresh_directory(
+            context.progress.refreshed_hoisted_bins,
+            &directory,
+            &completed,
+            |plan, pending| {
+                let locations = completed_locations(roots, pending, &directory);
+                plan.refresh::<Host>(&locations, &directory.join(".bin"), options)
+                    .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
+                    .map_err(BuildModulesError::BinLink)
+            },
+        )?;
     }
     Ok(())
 }
 
 fn refresh_directory(
-    refreshed: &Mutex<HashMap<PathBuf, HashSet<PackageKey>>>,
+    refreshed: &HoistedBinPlans,
     directory: &Path,
     completed: &HashSet<PackageKey>,
-    scan: impl FnOnce() -> Result<(), BuildModulesError>,
+    scan: impl FnOnce(&mut DirectoryBinPlan, &HashSet<PackageKey>) -> Result<(), BuildModulesError>,
 ) -> Result<(), BuildModulesError> {
-    let mut refreshed = refreshed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let recorded = refreshed.entry(directory.to_owned()).or_default();
-    if completed.is_subset(recorded) {
+    let entry = refreshed.directory(directory);
+    let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let pending: HashSet<_> = completed
+        .union(&entry.ready)
+        .filter(|key| !entry.completed.contains(*key))
+        .cloned()
+        .collect();
+    if pending.is_empty() {
         return Ok(());
     }
-    scan()?;
-    // Other packages in this directory may still be building. Only the current
-    // consumer's scheduled dependencies are known to have completed their writes.
-    recorded.extend(completed.iter().cloned());
+    let plan = entry.plan.as_mut().expect("hoisted bin plan seeded before mutation");
+    scan(plan, &pending)?;
+    for key in pending {
+        entry.ready.remove(&key);
+        entry.completed.insert(key);
+    }
     Ok(())
+}
+
+pub(super) fn record_mutation(
+    context: &BuildOneSnapshot<'_>,
+    key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    if context.directories.gather_ancestor_bin_paths {
+        for root in context.pkg_roots().all(key) {
+            let Some(directory) = crate::link_hoisted_modules::containing_modules_dir(&root) else {
+                continue;
+            };
+            let entry = context.progress.refreshed_hoisted_bins.directory(directory);
+            let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            entry
+                .initialize(directory)
+                .map_err(crate::LinkVirtualStoreBinsError::LinkBins)
+                .map_err(BuildModulesError::BinLink)?;
+        }
+    }
+    context.progress.record_slot_mutation(key);
+    Ok(())
+}
+
+fn completed_locations(
+    roots: &HashMap<PackageKey, Vec<PathBuf>>,
+    completed: &HashSet<PackageKey>,
+    directory: &Path,
+) -> HashSet<PathBuf> {
+    completed
+        .iter()
+        .filter_map(|key| roots.get(key))
+        .flatten()
+        .filter(|root| crate::link_hoisted_modules::containing_modules_dir(root) == Some(directory))
+        .cloned()
+        .collect()
+}
+
+/// Publish mutations only after the scheduler's entire snapshot task completed successfully.
+pub(crate) fn record_completion(context: &BuildOneSnapshot<'_>, key: &PackageKey) {
+    if !context.directories.gather_ancestor_bin_paths
+        || !context.progress.slot_mutations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains(key)
+    {
+        return;
+    }
+    for root in context.pkg_roots().all(key) {
+        let Some(directory) = crate::link_hoisted_modules::containing_modules_dir(&root) else {
+            continue;
+        };
+        let entry = context.progress.refreshed_hoisted_bins.directory(directory);
+        let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !entry.completed.contains(key) {
+            entry.ready.insert(key.clone());
+        }
+    }
 }
