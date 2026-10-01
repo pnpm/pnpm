@@ -56,7 +56,9 @@ Since v12.7.0, `pnpm store prune` also removes private copies of pnpm or a
 runtime that a killed pnpm process left behind. pnpm makes such a copy when a
 project pins a version that another pnpm process is installing at that moment.
 
-When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on the global virtual store's `links/` directory. Projects using the store are registered via symlinks in `{storeDir}/v11/projects/`, allowing pnpm to track active usage and safely remove unused packages from the global virtual store.
+`pnpm install` registers the project in `{storeDir}/v11/projects/`, with or without the global virtual store. Each entry is a symlink to the project directory, so `ls -l "$(pnpm store path)/projects"` lists the projects that use a store. Without the global virtual store, an install with `--frozen-store` or `enableModulesDir: false` does not write the registry. Neither do `--lockfile-only` and `--dry-run` installs.
+
+When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on the global virtual store's `links/` directory. It walks the registered projects to find the packages still in use and removes the rest. If no registered project links into `links/`, prune leaves it unchanged.
 
 [global virtual store]: ../settings/node-modules.md#enableglobalvirtualstore
 
