@@ -32,7 +32,11 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.kind == NodeKind::Link || !claim_children_warmup(ctx, &pending.identity.id) {
+    match pending.kind {
+        NodeKind::Link => return,
+        NodeKind::Leaf | NodeKind::Branch => {}
+    }
+    if !claim_children_warmup(ctx, &pending.identity.id) {
         return;
     }
     warm_result_children(

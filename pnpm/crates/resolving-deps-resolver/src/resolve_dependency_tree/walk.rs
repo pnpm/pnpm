@@ -191,7 +191,10 @@ impl NodeKind {
 
     /// Links and leaves share one tree node per package: see [`fn@node_id_for`].
     pub(super) fn is_leaf(self) -> bool {
-        matches!(self, NodeKind::Link | NodeKind::Leaf)
+        match self {
+            NodeKind::Link | NodeKind::Leaf => true,
+            NodeKind::Branch => false,
+        }
     }
 }
 

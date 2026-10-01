@@ -91,8 +91,11 @@ impl ChildOutputs {
         {
             self.missing_summaries.push(summary);
         }
-        if mode == PeerWalkMode::Final {
-            self.dep_paths.insert(alias.to_string(), dep_path);
+        match mode {
+            PeerWalkMode::Final => {
+                self.dep_paths.insert(alias.to_string(), dep_path);
+            }
+            PeerWalkMode::Discovery => {}
         }
         self.auto_install_resolved_peers.extend(auto_install_resolved_peers);
         for (peer_alias, peer_node_id) in external_resolved_peers.iter() {

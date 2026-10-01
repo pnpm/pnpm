@@ -544,8 +544,7 @@ where
     let (children, recording) = reused_children(ctx, resolver, &children_owner, reused).await?;
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children
-        && (recording == ChildrenRecording::PublishedOverStale
-            || !children_owner.children_context_unchanged)
+        && recording.stales_other_occurrences(&children_owner)
         && is_current_children_owner(ctx, reused_id, &children_owner.owner)
     {
         make_non_owner_nodes_lazy(ctx, reused_id, node_id);

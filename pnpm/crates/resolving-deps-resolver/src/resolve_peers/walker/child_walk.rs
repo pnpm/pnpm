@@ -16,9 +16,11 @@ impl Walker<'_> {
         node_id: &NodeId,
         pkg_id: &Arc<str>,
     ) -> Option<Arc<Vec<ChildEdge>>> {
-        if self.traversal.mode == PeerWalkMode::Final
-            || !matches!(self.tree.dependencies_tree[node_id].children, TreeChildren::Lazy)
-        {
+        match self.traversal.mode {
+            PeerWalkMode::Final => return None,
+            PeerWalkMode::Discovery => {}
+        }
+        if !matches!(self.tree.dependencies_tree[node_id].children, TreeChildren::Lazy) {
             return None;
         }
         Some(
@@ -125,16 +127,22 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
     ) {
-        if self.traversal.mode == PeerWalkMode::Final {
-            self.nodes.external_peers.insert(
-                node_id.clone(),
-                Arc::clone(result.all_resolved_peers),
-            );
-            self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(result.all_missing_peers));
-            self.nodes.children_missing_peers.insert(
-                node_id.clone(),
-                Arc::clone(result.missing_peers_of_children),
-            );
+        match self.traversal.mode {
+            PeerWalkMode::Final => {
+                self.nodes.external_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.all_resolved_peers),
+                );
+                self.nodes.missing_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.all_missing_peers),
+                );
+                self.nodes.children_missing_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.missing_peers_of_children),
+                );
+            }
+            PeerWalkMode::Discovery => {}
         }
         if result.is_pure {
             self.caches.pure_pkgs.insert(Arc::clone(pkg_id), result.dep_path.clone());

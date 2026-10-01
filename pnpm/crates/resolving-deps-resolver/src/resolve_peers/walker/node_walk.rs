@@ -57,8 +57,11 @@ impl Walker<'_> {
         self.record_node(node_id, &entry, walk, &mut walked, &settled);
 
         let output = settled.node_output(&mut walked);
-        if self.traversal.mode == PeerWalkMode::Discovery {
-            self.undo_realize(node_id, walked.realize_undo, Some(&output));
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                self.undo_realize(node_id, walked.realize_undo, Some(&output));
+            }
+            PeerWalkMode::Final => {}
         }
         output
     }
@@ -219,26 +222,29 @@ impl Walker<'_> {
                 is_pure: settled.is_pure,
             },
         );
-        if self.traversal.mode == PeerWalkMode::Final {
-            self.record_walked_node(WalkedNode {
-                node_id,
-                pkg: &entry.pkg,
-                dep_path: &settled.dep_path,
-                children: &walked.children_map,
-                child_dep_paths: std::mem::take(&mut walked.outputs.dep_paths),
-                installable: entry.installable,
-                ancestry: crate::resolve_peers::finalize::WalkedNodeAncestry {
-                    parent_node_ids: walk.parent_node_ids,
-                    parent_pkg_ids_chain: walk.parent_pkg_ids,
-                    depth: entry.depth,
-                },
-                peers: crate::resolve_peers::finalize::WalkedNodePeers {
-                    resolved: &settled.all_resolved,
-                    missing: &settled.all_missing,
-                    own_resolved: &settled.own_resolved,
-                    is_pure: settled.is_pure,
-                },
-            });
+        match self.traversal.mode {
+            PeerWalkMode::Final => {
+                self.record_walked_node(WalkedNode {
+                    node_id,
+                    pkg: &entry.pkg,
+                    dep_path: &settled.dep_path,
+                    children: &walked.children_map,
+                    child_dep_paths: std::mem::take(&mut walked.outputs.dep_paths),
+                    installable: entry.installable,
+                    ancestry: crate::resolve_peers::finalize::WalkedNodeAncestry {
+                        parent_node_ids: walk.parent_node_ids,
+                        parent_pkg_ids_chain: walk.parent_pkg_ids,
+                        depth: entry.depth,
+                    },
+                    peers: crate::resolve_peers::finalize::WalkedNodePeers {
+                        resolved: &settled.all_resolved,
+                        missing: &settled.all_missing,
+                        own_resolved: &settled.own_resolved,
+                        is_pure: settled.is_pure,
+                    },
+                });
+            }
+            PeerWalkMode::Discovery => {}
         }
         self.traversal.in_progress.remove(node_id);
     }
@@ -317,12 +323,13 @@ impl Walker<'_> {
         let own_peers_bind = !self.tree.packages[&tree_node.resolved_package_id]
             .peer_dependencies
             .is_empty();
-        if own_peers_bind
-            || (self.traversal.mode == PeerWalkMode::Final
-                && self.output.graph
-                    .get(dep_path)
-                    .is_none_or(|graph_node| graph_node.depth > tree_node.depth))
-        {
+        let final_graph_lacks_shallower_node = match self.traversal.mode {
+            PeerWalkMode::Final => self.output.graph
+                .get(dep_path)
+                .is_none_or(|graph_node| graph_node.depth > tree_node.depth),
+            PeerWalkMode::Discovery => false,
+        };
+        if own_peers_bind || final_graph_lacks_shallower_node {
             return None;
         }
         Some((tree_node.depth, dep_path.clone()))

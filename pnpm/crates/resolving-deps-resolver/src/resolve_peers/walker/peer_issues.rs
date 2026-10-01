@@ -32,19 +32,21 @@ impl Walker<'_> {
             .entry(peer_name.to_string())
             .or_default()
             .push(issue);
-        if self.traversal.mode == PeerWalkMode::Discovery {
-            self.output.missing_ancestor_pkg_ids
-                .entry(peer_name.to_string())
-                .or_default()
-                .push(ancestor_pkg_ids.clone());
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                self.output.missing_ancestor_pkg_ids
+                    .entry(peer_name.to_string())
+                    .or_default()
+                    .push(ancestor_pkg_ids.clone());
+            }
+            PeerWalkMode::Final => {}
         }
     }
 
     pub(in super::super) fn issue_parents(&self, chain: &SharedChain<Arc<str>>) -> ParentChain {
-        if self.traversal.mode == PeerWalkMode::Discovery {
-            ParentChain::default()
-        } else {
-            ParentChain(chain.clone())
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => ParentChain::default(),
+            PeerWalkMode::Final => ParentChain(chain.clone()),
         }
     }
 
@@ -216,9 +218,13 @@ impl Walker<'_> {
         node_id: &NodeId,
         dep_path: &DepPath,
     ) {
-        let retain = self.traversal.mode == PeerWalkMode::Final
-            || self.caches.parent_pkgs_of_node.contains_key(node_id)
-            || self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id);
+        let retain = match self.traversal.mode {
+            PeerWalkMode::Final => true,
+            PeerWalkMode::Discovery => {
+                self.caches.parent_pkgs_of_node.contains_key(node_id)
+                    || self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id)
+            }
+        };
         if !retain {
             return;
         }

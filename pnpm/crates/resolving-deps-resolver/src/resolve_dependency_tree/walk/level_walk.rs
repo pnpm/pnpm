@@ -24,8 +24,11 @@ pub(super) fn assign_level_owners<'seed>(
     // so they never own children here.
     let mut level: Vec<&mut Box<PendingNode>> = seeds
         .filter_map(|seed| match seed {
-            NodeSeed::Pending(pending) if pending.kind != NodeKind::Link => Some(pending),
-            _ => None,
+            NodeSeed::Pending(pending) => match pending.kind {
+                NodeKind::Link => None,
+                NodeKind::Leaf | NodeKind::Branch => Some(pending),
+            },
+            NodeSeed::Done(_) => None,
         })
         .collect();
     let winners: Vec<usize> = {
@@ -72,7 +75,11 @@ pub(super) fn install_owner_peer_dependencies(
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
 ) -> Result<(), ResolveDependencyTreeError> {
-    if pending.kind == NodeKind::Link || !claim.owns_children {
+    let owns_children = match pending.kind {
+        NodeKind::Link => false,
+        NodeKind::Leaf | NodeKind::Branch => claim.owns_children,
+    };
+    if !owns_children {
         return Ok(());
     }
     let peer_dependencies = extract_peer_dependencies(
@@ -111,9 +118,16 @@ pub(super) fn settle_seeds(
         // Linked nodes don't walk their manifest's deps — see
         // [`NodeKind::Link`]. They get an empty `Realized` map: a linked
         // node has no children of its own here.
-        if pending.kind == NodeKind::Link {
-            insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
-            continue;
+        match pending.kind {
+            NodeKind::Link => {
+                insert_walked_node(
+                    ctx,
+                    &pending,
+                    TreeChildren::Realized(Arc::new(BTreeMap::new())),
+                );
+                continue;
+            }
+            NodeKind::Leaf | NodeKind::Branch => {}
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
             insert_walked_node(ctx, &pending, TreeChildren::Lazy);
@@ -158,7 +172,7 @@ pub(super) fn settle_level(
         let (children, recording) =
             record_walked_children(ctx, &pending, &claim, &child_specs, &seeds);
         insert_walked_node(ctx, &pending, children);
-        if (recording == ChildrenRecording::PublishedOverStale || !claim.children_context_unchanged)
+        if recording.stales_other_occurrences(&claim)
             && is_current_children_owner(ctx, &pending.identity.id, &claim.owner)
         {
             make_non_owner_nodes_lazy(ctx, &pending.identity.id, &pending.identity.node_id);
@@ -258,7 +272,10 @@ pub(super) fn children_context(
 /// Linked nodes carry `depth = -1` so the peer-resolution pass
 /// short-circuits them.
 pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children: TreeChildren) {
-    let depth = if pending.kind == NodeKind::Link { -1 } else { pending.ancestry.depth };
+    let depth = match pending.kind {
+        NodeKind::Link => -1,
+        NodeKind::Leaf | NodeKind::Branch => pending.ancestry.depth,
+    };
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 

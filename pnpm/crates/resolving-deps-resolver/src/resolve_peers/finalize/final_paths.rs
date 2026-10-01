@@ -78,8 +78,11 @@ impl Walker<'_> {
         let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
         let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
         let dep_path = DepPath::from(format!("{}{}", self.tree.packages[pkg_id].id, suffix));
-        if final_dep_paths.recording == PeerIdRecording::Record {
-            final_dep_paths.peer_ids.insert(dep_path.clone(), peer_ids);
+        match final_dep_paths.recording {
+            PeerIdRecording::Record => {
+                final_dep_paths.peer_ids.insert(dep_path.clone(), peer_ids);
+            }
+            PeerIdRecording::Skip => {}
         }
         final_dep_paths.by_node_id.insert(node_id.clone(), dep_path.clone());
         final_dep_paths.visiting.remove(node_id);

@@ -220,7 +220,7 @@ fn collect_deps(
     let Some(map) = manifest.get::<&str>(group.into()).and_then(Value::as_object) else {
         return Ok(());
     };
-    let optional = group == DependencyGroup::Optional;
+    let optional = declares_optional_dependencies(group);
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
             if !crate::is_valid_dependency_alias(name) {
@@ -241,6 +241,13 @@ fn collect_deps(
         }
     }
     Ok(())
+}
+
+fn declares_optional_dependencies(group: DependencyGroup) -> bool {
+    match group {
+        DependencyGroup::Optional => true,
+        DependencyGroup::Prod | DependencyGroup::Dev | DependencyGroup::Peer => false,
+    }
 }
 
 fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String {

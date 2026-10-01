@@ -379,14 +379,13 @@ pub(super) fn register_seeded_package(
     }
     // A workspace-link node carries no peer dependencies: peer matching is the
     // linked importer's responsibility, not the parent's.
-    let peer_dependencies = if kind == NodeKind::Link {
-        BTreeMap::new()
-    } else {
-        extract_peer_dependencies(
+    let peer_dependencies = match kind {
+        NodeKind::Link => BTreeMap::new(),
+        NodeKind::Leaf | NodeKind::Branch => extract_peer_dependencies(
             result,
             peer_shadowed,
             catalogs_for_children(ctx, resolves_children_through_catalogs),
-        )?
+        )?,
     };
     register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(id);

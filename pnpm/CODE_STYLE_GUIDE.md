@@ -92,6 +92,8 @@ A `bool` is the right type for a fact about the data that reads as a predicate w
 
 When one of these fails, name the cases: a two-variant enum, a struct with named fields, or an existing type that already carries the information, such as a `DependencyGroup` in place of a manifest key paired with an `optional` flag. Do not convert mechanically. `Installable::Yes` reads no better than `true` when every caller passes it.
 
+Branch on the replacement with an exhaustive `match` that names every variant. No wildcard arm, no `matches!`, and no `==` against a variant: each of those keeps compiling when a variant is added and silently lumps the new one in with the old. A `match` makes the addition a compile error at every site that has to decide.
+
 Name a surviving `bool` as a predicate, with `is_`, `has_`, `should_`, or a past participle such as `optional`, so that a read forms a sentence.
 
 Exempt by construction: setter and builder methods, struct literals with named fields, fields that mirror an external format, and locals destructured on the line that produces them. Clippy's `fn_params_excessive_bools` and `struct_excessive_bools` only count three or more `bool`s in one signature or struct. This rule applies to each one.
