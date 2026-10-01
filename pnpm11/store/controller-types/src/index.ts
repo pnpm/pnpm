@@ -54,6 +54,7 @@ export interface UploadPkgToStoreResult {
 export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
 
 export interface StoreController {
+  readonly hasCustomFetchers?: boolean
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction | FetchPackageToStoreFunctionAsync
   getFilesIndexFilePath: GetFilesIndexFilePath

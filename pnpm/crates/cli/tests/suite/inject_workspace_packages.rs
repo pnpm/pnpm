@@ -773,6 +773,42 @@ fn injected_copy_of_a_package_that_publishes_from_a_directory_gets_the_prepare_o
     drop((root, mock_instance));
 }
 
+/// A hoisted reinstall reads the publish directory before `prepare` rebuilds
+/// it. While it is missing, the installed copy must survive.
+#[test]
+fn hoisted_reinstall_keeps_the_injected_copy_while_the_publish_directory_is_missing() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    let settings = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&settings).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: hoisted\n");
+    fs::write(&settings, yaml).expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = workspace.join("project-2/node_modules/project-1");
+    assert_eq!(fs::read_to_string(copy.join("index.js")).unwrap(), "built");
+
+    fs::remove_dir_all(workspace.join("project-1/dist")).expect("remove the publish directory");
+    fs::write(workspace.join("project-1/build.cjs"), "").expect("stop prepare from building");
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(copy.join("index.js")).unwrap(), "built");
+
+    drop((root, mock_instance));
+}
+
 /// A `file:` dependency on project-1 bypasses the `workspace:` protocol's
 /// publish-directory redirect (`resolve_workspace_package_dir` in
 /// `pnpm-resolving-npm-resolver` only applies to `workspace:` specs), so its

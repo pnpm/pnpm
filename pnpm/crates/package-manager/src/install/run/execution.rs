@@ -28,6 +28,7 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
+        self.check_custom_fetcher_reuse().await?;
         if scope.is_already_up_to_date::<Reporter>(
             self.install,
             &self.owned,

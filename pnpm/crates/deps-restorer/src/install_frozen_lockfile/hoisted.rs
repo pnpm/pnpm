@@ -204,9 +204,19 @@ fn walk_hoisted_graph(
         .map(std::string::ToString::to_string)
         .collect();
     let walker_opts = hoisted_walker_options(inputs, lockfile, walker_skipped.clone());
-    let walked =
+    let mut walked =
         lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
             .map_err(HoistedLinkerError::HoistedDepGraph)?;
+    if let Some(files_by_pkg_id) = &inputs.graph.cas_paths_by_pkg_id {
+        for node in walked.graph.values_mut() {
+            if files_by_pkg_id
+                .get(&node.package.pkg_id_with_patch_hash)
+                .is_some_and(crate::HoistedPackageFiles::refreshes_installed_copy)
+            {
+                node.present = false;
+            }
+        }
+    }
     for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
         if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
             skipped.insert_installability(key);

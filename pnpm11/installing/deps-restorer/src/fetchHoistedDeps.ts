@@ -178,11 +178,45 @@ async function reuseOrRequestPackage (opts: FetchDepsOptions, placedDep: PlacedD
   if (!await dirHasPackageJsonWithVersion(path.join(opts.lockfileDir, placedDep.depLocation), placedDep.pkgVersion)) {
     return requestPackage(opts, placedDep)
   }
+  if (mayDelegateToDirectory(opts, placedDep.pkgSnapshot.resolution)) {
+    return refetchPresentPackage(opts, placedDep)
+  }
   const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
     ignoreScripts: opts.ignoreScripts,
     pkg: toPkgResolution(opts, placedDep),
   })
   return { filesIndexFile } as unknown as FetchResponse
+}
+
+/**
+ * Whether a custom fetcher may serve the resolution from a mutable local
+ * directory. The installed version alone cannot tell whether such a source
+ * changed since the last install. An integrity-pinned archive cannot change.
+ */
+function mayDelegateToDirectory (opts: FetchDepsOptions, resolution: PackageSnapshot['resolution']): boolean {
+  if (opts.storeController.hasCustomFetchers !== true) return false
+  const isArchive = !('type' in resolution) || resolution.type == null || resolution.type === 'binary'
+  const hasIntegrity = 'integrity' in resolution && typeof resolution.integrity === 'string' && resolution.integrity.length > 0
+  return !(isArchive && hasIntegrity)
+}
+
+/**
+ * Fetches a package that is already installed. Only files fetched from a
+ * local directory are imported again. Any other source cannot have changed,
+ * so the installed copy is kept.
+ */
+async function refetchPresentPackage (opts: FetchDepsOptions, placedDep: PlacedDep): Promise<FetchResponse | undefined> {
+  const fetchResponse = await requestPackage(opts, placedDep)
+  if (fetchResponse == null) return undefined
+  let resolvedFrom: string
+  try {
+    resolvedFrom = (await fetchResponse.fetching()).files.resolvedFrom
+  } catch (err: unknown) {
+    if (placedDep.pkgSnapshot.optional) return undefined
+    throw err
+  }
+  if (resolvedFrom === 'local-dir') return fetchResponse
+  return { filesIndexFile: fetchResponse.filesIndexFile } as unknown as FetchResponse
 }
 
 function requestPackage (

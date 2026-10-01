@@ -16,6 +16,7 @@ use lockfile_load::{Loaded, load_lockfiles};
 mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
+mod custom_fetcher_reuse;
 mod execution;
 mod mode;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
