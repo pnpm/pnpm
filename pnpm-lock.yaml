@@ -986,6 +986,7 @@ packageExtensionsChecksum: sha256-afnSchwgsGYV22VV80QjlI0hyn+fIdgHGgU/tNooSiY=
 pnpmfileChecksum: sha256-C2XY6+pe0kqyHiBBFj5dX5DnhJzLAwdcic3kR7l3o5w=
 
 patchedDependencies:
+  '@tybys/wasm-util@0.10.4': 055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665
   graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
   normalize-registry-url@2.0.1: e80227ac379f28c9f982c0588f5dfbcd517912bdd3a5c77a75e944c328fd8932
 
@@ -1153,7 +1154,7 @@ importers:
         version: 1.2.1
       '@tybys/wasm-util':
         specifier: 'catalog:'
-        version: 0.10.4
+        version: 0.10.4(patch_hash=055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665)
       '@yarnpkg/parsers':
         specifier: 'catalog:'
         version: 3.1.0
@@ -19472,7 +19473,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
-      '@tybys/wasm-util': 0.10.4
+      '@tybys/wasm-util': 0.10.4(patch_hash=055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665)
     optional: true
 
   '@nodelib/fs.scandir@2.1.5':
@@ -20772,7 +20773,7 @@ snapshots:
       '@tufjs/canonical-json': 2.0.0
       minimatch: 10.2.6
 
-  '@tybys/wasm-util@0.10.4':
+  '@tybys/wasm-util@0.10.4(patch_hash=055e4dc4f0d5875fa7a4fe053318a52f9018a9d1020af186bd2fc41987d7a665)':
     dependencies:
       tslib: 2.8.1
 

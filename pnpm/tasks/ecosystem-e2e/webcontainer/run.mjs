@@ -16,6 +16,9 @@ import { parseArgs, stripVTControlCharacters } from 'node:util'
 
 import { chromium } from 'playwright-core'
 
+import { coreWorkflowSteps, packageWorkflowSteps, wrapperSelectionSteps } from './cli-workflows.mjs'
+import { unpackWrapper } from './wrapper-fixture.mjs'
+
 const STEP_TIMEOUT_MS = 10 * 60_000
 
 const PNPM = ['../pnpm/bin/pnpm.mjs']
@@ -59,22 +62,33 @@ const { values: opts } = parseArgs({
     'wasm-runtime': { type: 'string' },
     'wasm-cli': { type: 'string' },
     'wasm-package': { type: 'string' },
+    'wrapper-package': { type: 'string' },
+    'corepack-cache': { type: 'string' },
     'host-probe': { type: 'string' },
   },
 })
 const pnpmDir = path.resolve(opts['pnpm-dir'])
-if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-package'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
-const servedFiles = opts['wasm-package'] ? new Map([['pnpm-wasm.tgz', path.resolve(opts['wasm-package'])]]) : opts['wasm-cli'] ? runtimeFiles().set('runtime/pnpm.wasm', path.resolve(opts['wasm-cli'])) : opts['host-probe'] ? runtimeFiles().set('probe.mjs', path.resolve(opts['host-probe'])) : opts['wasm-runtime'] ? runtimeFiles(opts['wasm-runtime']) : opts['wasm-probe']
+if ([opts['wasm-probe'], opts['wasm-runtime'], opts['wasm-cli'], opts['wasm-package'], opts['wrapper-package'], opts['host-probe']].filter(Boolean).length > 1) throw new Error('Select one probe mode')
+const wrapper = opts['wrapper-package'] ? unpackWrapper(path.resolve(opts['wrapper-package'])) : undefined
+const servedFiles = wrapper ? wrapper.files : opts['wasm-package'] ? new Map([['pnpm-wasm.tgz', path.resolve(opts['wasm-package'])]]) : opts['wasm-cli'] ? runtimeFiles().set('runtime/pnpm.wasm', path.resolve(opts['wasm-cli'])) : opts['host-probe'] ? runtimeFiles().set('probe.mjs', path.resolve(opts['host-probe'])) : opts['wasm-runtime'] ? runtimeFiles(opts['wasm-runtime']) : opts['wasm-probe']
   ? new Map([
     ['probe.wasm', path.resolve(opts['wasm-probe'])],
     ['probe.mjs', fileURLToPath(new URL('wasm-probe.mjs', import.meta.url))],
   ])
   : new Map(listPnpmPackageFiles(pnpmDir).map(file => [file, path.join(pnpmDir, file)]))
-if (opts['wasm-cli'] || opts['wasm-package']) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
+if (opts['wasm-cli'] || opts['wasm-package'] || opts['wrapper-package']) servedFiles.set('cli-fixture.mjs', fileURLToPath(new URL('./cli-fixture.mjs', import.meta.url)))
+if (opts['corepack-cache']) {
+  if (!wrapper) throw new Error('--corepack-cache requires --wrapper-package')
+  servedFiles.set('corepack-cache.tgz', path.resolve(opts['corepack-cache']))
+  servedFiles.set('corepack-fixture.mjs', fileURLToPath(new URL('./corepack-fixture.mjs', import.meta.url)))
+}
 for (const file of servedFiles.values()) fs.accessSync(file, fs.constants.R_OK)
-const steps = opts['wasm-package'] ? [
+const steps = opts['wrapper-package'] ? [
+  ...wrapperSelectionSteps(Boolean(opts['corepack-cache'])),
+  ...wrapperCliSteps(),
+] : opts['wasm-package'] ? [
   { name: 'install WASM distribution', command: 'npm', args: ['install', '--prefix', '../installed', '../pnpm/pnpm-wasm.tgz'] },
-  ...wasmCliSteps('../installed/node_modules/pnpm/pnpm.mjs'),
+  ...installedCliSteps('../installed/node_modules/.bin/pnpm'),
 ] : opts['wasm-cli'] ? wasmCliSteps() : opts['host-probe']
   ? [{ name: 'Node host capabilities', command: 'node', args: ['../pnpm/probe.mjs'] }]
   : opts['wasm-runtime']
@@ -105,7 +119,7 @@ try {
     console.log(`\n=== ${step.name}: ${step.command} ${step.args.join(' ')}`)
     // eslint-disable-next-line no-await-in-loop
     const { exitCode, output } = await withTimeout(
-      page.evaluate(({ command, args, env, input }) => window.run(command, args, 'app', env, input), step),
+      page.evaluate(({ command, args, env, input, cwd = 'app' }) => window.run(command, args, cwd, env, input), step),
       step.name
     )
     const text = stripVTControlCharacters(output).replaceAll('\r', '')
@@ -123,6 +137,7 @@ try {
 } finally {
   await browser?.close()
   server.close()
+  wrapper?.close()
 }
 if (failed) process.exit(1)
 console.log('\nAll WebContainer steps passed')
@@ -135,11 +150,12 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     name: 'frozen lockfile install', command: 'node', args: [entry, 'install', '--frozen-lockfile'],
   })
   return [
-    { name: 'prepare executable launcher', command: 'node', args: ['-e', `require('node:fs').chmodSync(${JSON.stringify(entry)}, 0o755)`] },
+    ...(opts['wasm-cli'] ? [{ name: 'prepare mounted executable launcher', command: 'node', args: ['-e', `require('node:fs').chmodSync(${JSON.stringify(entry)}, 0o755)`] }] : []),
     { name: 'Rust WASM CLI version', command: 'node', args: [entry, '--version'], expectOutput: '12.' },
     { name: 'Rust WASM CLI help', command: 'node', args: [entry, '--help'], expectOutput: 'Usage:' },
     { name: 'isolated WASM store namespace', command: 'node', args: [entry, 'store', 'path'], expectOutput: 'v11-wasm' },
     ...steps,
+    ...coreWorkflowSteps(entry),
     { name: 'execute a Node command', command: 'node', args: [entry, 'exec', 'node', '-e', "require('semver'); console.log('wasm-exec-ok')"], expectOutput: 'wasm-exec-ok' },
     { name: 'create workspace fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs'] },
     { name: 'install workspace and run lifecycle', command: 'node', args: [entry, 'install'] },
@@ -157,6 +173,7 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
       input: [{ after: 'Choose which packages to build', text: ' \r' }, { after: 'Do you approve?', text: 'y\r' }],
     },
     { name: 'verify approved dependency build', command: 'node', args: ['-e', "if (require('node:fs').readFileSync('node_modules/fixture-needs-build/built', 'utf8') !== 'yes') throw new Error('approved build did not run')"] },
+    ...packageWorkflowSteps(entry),
     { name: 'create frontend fixture', command: 'node', args: ['../pnpm/cli-fixture.mjs', '--frontend'] },
     { name: 'install frontend toolchain', command: 'node', args: [entry, 'install'] },
     { name: 'build a Vite app', command: 'node', args: [entry, 'exec', 'vite', 'build'] },
@@ -167,6 +184,29 @@ function wasmCliSteps (entry = '../pnpm/runtime/pnpm.mjs') {
     { name: 'reject native version switching', command: 'node', args: [entry, 'install'], expectExitCode: 1, expectOutput: 'ERR_PNPM_UNSUPPORTED_RUNTIME' },
     { name: 'use installed WASM version explicitly', command: 'node', args: [entry, 'install'], env: { npm_config_manage_package_manager_versions: 'false' } },
   ]
+}
+
+function installedCliSteps (entry) {
+  return wasmCliSteps(entry).map(step => step.command === 'node' && step.args[0] === entry
+    ? { ...step, command: entry, args: step.args.slice(1) }
+    : step)
+}
+
+function wrapperCliSteps () {
+  if (!opts['corepack-cache']) return installedCliSteps('../installed/node_modules/.bin/pnpm')
+  const entry = '../corepack-cli/node_modules/corepack/dist/pnpm.js'
+  const directRuntimeOnly = new Set([
+    'pin a different pnpm release', 'reject native version switching',
+    'use installed WASM version explicitly',
+  ])
+  return wasmCliSteps(entry)
+    .filter(step => !directRuntimeOnly.has(step.name))
+    .map(step => ({ ...step, env: {
+      COREPACK_HOME: '/home/project/corepack-home',
+      COREPACK_ENABLE_NETWORK: '0',
+      COREPACK_DEFAULT_TO_LATEST: '0',
+      ...step.env,
+    } }))
 }
 
 function runtimeSteps () {

@@ -231,3 +231,32 @@ test('executable access follows the host file permission check', context => {
   assert.equal(imports.path_access_executable(...guestPath(file)), 0)
   assert.equal(imports.path_access_executable(...guestPath(path.join(directory, 'missing'))), 44)
 })
+
+test('WASI resolves nested parent segments in absolute and preopen-relative paths', context => {
+  const { directory, wasi, guestPath } = fixture(context)
+  fs.mkdirSync(path.join(directory, 'packages', 'local'), { recursive: true })
+  for (const absolute of [true, false]) {
+    const name = absolute ? 'absolute-pack' : 'relative-pack'
+    const destination = `${directory}/packages/local/../../${name}`
+    assert.equal(wasi.path_create_directory(3, ...guestPath(absolute ? destination : destination.slice(1))), 0)
+    assert.ok(fs.statSync(path.join(directory, name)).isDirectory())
+    assert.equal(wasi.path_remove_directory(3, ...guestPath(`${directory}/packages/../${name}`)), 0)
+    assert.equal(fs.existsSync(path.join(directory, name)), false)
+  }
+})
+
+test('WASI preserves relative symlink targets with parent segments', context => {
+  const { directory, memory, wasi, guestPath } = fixture(context)
+  const nested = path.join(directory, 'packages', 'local')
+  fs.mkdirSync(nested, { recursive: true })
+  fs.writeFileSync(path.join(directory, 'source'), 'linked bytes')
+  const target = '../../source'
+  const targetBytes = new TextEncoder().encode(target)
+  new Uint8Array(memory.buffer, 1024, targetBytes.length).set(targetBytes)
+  const link = `${directory}/packages/local/../local/link`
+  assert.equal(wasi.path_symlink(1024, targetBytes.length, 3, ...guestPath(link)), 0)
+  assert.equal(fs.readlinkSync(path.join(nested, 'link')), target)
+  assert.equal(fs.readFileSync(path.join(nested, 'link'), 'utf8'), 'linked bytes')
+  assert.equal(wasi.path_open(3, 1, ...guestPath(link), 0, 2n | 2097152n, 0n, 0, 16), 0)
+  assert.equal(wasi.fd_close(new DataView(memory.buffer).getUint32(16, true)), 0)
+})

@@ -4,9 +4,29 @@ title: StackBlitz WebContainers
 ---
 
 The experimental WebAssembly distribution runs pnpm's Rust CLI inside a
-StackBlitz WebContainer. It requires the WebContainer's Node.js runtime and
-shared WebAssembly memory. Native pnpm installations continue to use the native
-executable.
+StackBlitz WebContainer. The npm package selects WebAssembly automatically in
+WebContainers. It requires Node.js 22.13 or newer and shared WebAssembly memory.
+Native pnpm installations continue to use the native executable.
+
+## Install pnpm
+
+Install a release that includes WebContainer support through npm:
+
+```sh
+npm install pnpm@12
+npx pnpm --version
+npx pnpm install
+```
+
+The package includes the WebAssembly runtime, so no separate WASM package or
+runtime setting is needed. Its launchers also work when npm skips installation
+scripts. Global installation works with a writable npm prefix.
+
+The Corepack entry point selects the same runtime. A cold download with Corepack
+0.36.0 failed in the tested WebContainer runtime's streaming hash implementation
+before pnpm started. Use npm if Corepack reports a hash-related host error.
+The npm package is larger because it includes that payload; native installations
+still launch the native executable directly.
 
 ## Build the distribution
 
@@ -30,8 +50,8 @@ pnpm --version
 pnpm install
 ```
 
-Use this distribution explicitly. The regular native pnpm package cannot run
-as a Linux executable inside a WebContainer. Projects that pin a different
+The standalone tarball is useful for testing a build before release. Native
+executable archives cannot run inside a WebContainer. Projects that pin a different
 package-manager version receive `ERR_PNPM_UNSUPPORTED_RUNTIME` when switching
 would require installing a native distribution.
 To keep using the installed WebAssembly distribution for such a project, disable
@@ -49,7 +69,7 @@ build-approval rules. Packages that require native executables or native Node.js
 addons remain subject to WebContainer limitations.
 
 WebContainer's bundled npm applies its own package compatibility replacements.
-This standalone distribution does not use those private integrations. Select
+This runtime does not use those private integrations. Select
 WebAssembly alternatives explicitly when a dependency normally downloads native
 code. For example, a Vite project can use these entries in `pnpm-workspace.yaml`:
 
@@ -87,5 +107,6 @@ Automatic provenance signing, Cargo workspace integration, `pnpm setup`,
 `pnpm self-update`, and `pnpm pack-app` are unavailable in this distribution.
 These operations fail explicitly before performing unsupported work.
 
-To update the WebAssembly distribution, install a newer `pnpm-wasm.tgz` package
-with npm.
+To update pnpm in a WebContainer, install the newer pnpm release with npm or
+select it through Corepack. For a standalone test build, install the newer
+`pnpm-wasm.tgz` package with npm.

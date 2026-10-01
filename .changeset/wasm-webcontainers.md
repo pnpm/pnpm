@@ -2,4 +2,4 @@
 "pacquet": minor
 ---
 
-Added an experimental WebAssembly distribution for running pnpm in StackBlitz WebContainers. Native installations continue to use the native executable.
+pnpm now automatically uses WebAssembly in StackBlitz WebContainers, including when installation scripts are disabled. Native installations continue to use the native executable when installation scripts are enabled.

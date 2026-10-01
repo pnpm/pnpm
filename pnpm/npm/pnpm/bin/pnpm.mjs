@@ -38,7 +38,11 @@ const DOWNLOADED_BINARY = path.join(
 const GET_PNPM = new URL('../dist/node_modules/get-pnpm/lib/index.js', import.meta.url)
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org'
 
-run(await nativeBinary())
+if ('webcontainer' in process.versions) {
+  await import('../dist/wasm/pnpm.mjs')
+} else {
+  run(await nativeBinary())
+}
 
 function run (binary) {
   // Ctrl-C reaches the whole foreground process group, so the binary gets its

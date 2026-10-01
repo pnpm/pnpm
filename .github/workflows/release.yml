@@ -521,6 +521,47 @@ jobs:
           if (actual !== expected) throw new Error('GitHub draft release body does not match RELEASE.md')
           NODE
 
+  build-wasm-payload:
+    name: Bundle WebContainer runtime
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    needs: plan
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    permissions:
+      contents: read
+    env:
+      RUSTUP_TOOLCHAIN: nightly-2026-08-27
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Install pinned WebAssembly toolchain
+        uses: $/.github/actions/wasm-toolchain
+
+      - name: Install runtime dependencies
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime
+
+      - name: Build and stage WebContainer runtime
+        run: |
+          pnpm build:pnpm:wasm
+          node pnpm/wasm/stage.mjs
+
+      - name: Archive payload
+        run: tar czf wasm-payload.tar.gz -C pnpm/npm/pnpm dist/wasm
+
+      - name: Upload payload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: wasm-payload
+          path: wasm-payload.tar.gz
+
   build-node-gyp-payload:
     name: Bundle node-gyp
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -887,6 +928,7 @@ jobs:
       - plan
       - build-rust
       - build-rust-napi
+      - build-wasm-payload
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -947,6 +989,15 @@ jobs:
 
       - name: Unpack node-gyp payload
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
+
+      - name: Restore WebContainer payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wasm-payload
+          path: wasm-payload
+
+      - name: Unpack WebContainer payload
+        run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Generate npm packages
         # Rewrites the committed private `pacquet` wrapper into the publishable
@@ -1044,6 +1095,7 @@ jobs:
       - plan
       - build-rust
       - build-rust-napi
+      - build-wasm-payload
       - verify-rust-artifacts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1083,6 +1135,15 @@ jobs:
 
       - name: Unpack node-gyp payload
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
+
+      - name: Restore WebContainer payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wasm-payload
+          path: wasm-payload
+
+      - name: Unpack WebContainer payload
+        run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm/pnpm
 
       - name: Generate npm packages
         run: |
