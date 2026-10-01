@@ -30,9 +30,10 @@ impl OriginLimits {
         OriginLimits { registries, sockets, timeouts: OriginGates::default() }
     }
 
-    /// The caps are taken from the narrowest configured one down, so a
-    /// request waiting on one holds no slot of the next. The registry cap is
-    /// keyed by `url`'s own origin, the others by `origin`, the connection's.
+    /// The registry cap is taken first, then the timeout gate, then the
+    /// `maxSockets` slot, so a request waiting on one holds none of the later
+    /// ones. The registry cap is keyed by `url`'s own origin, the others by
+    /// `origin`, the connection's.
     pub(crate) async fn acquire(
         &self,
         url: &str,

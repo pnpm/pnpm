@@ -16,17 +16,6 @@ pub(crate) struct RegistryLimits {
     by_origin: HashMap<String, Arc<Semaphore>>,
 }
 
-impl RegistryLimits {
-    /// A slot for `url`'s origin, or `None` when no registry caps it.
-    pub(crate) async fn acquire(&self, url: &str) -> Option<OwnedSemaphorePermit> {
-        if self.by_origin.is_empty() {
-            return None;
-        }
-        let slots = Arc::clone(self.by_origin.get(&origin_of(url)?)?);
-        Some(slots.acquire_owned().await.expect("registry limit semaphore is never closed"))
-    }
-}
-
 fn origin_of(url: &str) -> Option<String> {
     origin_of_url(&reqwest::Url::parse(url).ok()?)
 }
@@ -50,6 +39,15 @@ impl RegistryLimits {
                 .map(|(origin, limit)| (origin, Arc::new(Semaphore::new(limit))))
                 .collect(),
         }
+    }
+
+    /// A slot for `url`'s origin, or `None` when no registry caps it.
+    pub(crate) async fn acquire(&self, url: &str) -> Option<OwnedSemaphorePermit> {
+        if self.by_origin.is_empty() {
+            return None;
+        }
+        let slots = Arc::clone(self.by_origin.get(&origin_of(url)?)?);
+        Some(slots.acquire_owned().await.expect("registry limit semaphore is never closed"))
     }
 }
 
