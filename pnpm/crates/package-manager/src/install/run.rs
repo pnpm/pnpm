@@ -1,5 +1,8 @@
 mod fast_path;
-use fast_path::{UpToDateCheck, install_is_already_up_to_date};
+use fast_path::{
+    UpToDateCheck, install_is_already_up_to_date, pnpmfile_hook_override_changed,
+    report_already_up_to_date,
+};
 
 mod dispatch;
 use dispatch::{Dispatched, Settled, dispatch};
