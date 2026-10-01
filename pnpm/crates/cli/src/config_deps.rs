@@ -17,6 +17,7 @@ mod store_index;
 
 use crate::config_overrides::apply_store_dir_override;
 use engine_policy::engine_resolve_options;
+use network::EnvironmentNetwork;
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
@@ -318,8 +319,6 @@ struct EnvInstallerContext {
     network: EnvironmentNetwork,
     store: pnpm_env_installer::ConfigDependencyStore,
 }
-
-use network::EnvironmentNetwork;
 
 impl EnvInstallerContext {
     /// Context for resolving the project's `configDependencies`, using the
