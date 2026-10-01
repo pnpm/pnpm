@@ -6,7 +6,18 @@ use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
 use pnpm_global::{
     create_global_cache_key, get_hash_link, read_installed_packages, scan_global_packages,
 };
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    fs, io,
+    path::{Path, PathBuf},
+};
+
+/// A standalone pnpm executable copied into a directory on PATH. pnpm links
+/// itself there as `pnpm` and `pnpm.cmd` shims, and Windows prefers a
+/// `pnpm.exe` over `pnpm.cmd`, so a leftover one keeps running the old
+/// version after an update.
+const STANDALONE_EXECUTABLE: &str = "pnpm.exe";
+const RETIRED_EXECUTABLE_SUFFIX: &str = ".retired";
 
 /// Link the installed engine's bins into the global bin directory and
 /// record its cache-keyed hash symlink (so `pnpm ls -g` and `store prune`
@@ -20,17 +31,10 @@ pub(super) fn link_into_global_bin(
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let _global_bin_lock = crate::cli_args::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
-    refresh_global_shims(&global_bin, installed, version)?;
-
-    let pkgs = read_installed_packages(&installed.install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(
-        &pkgs,
-        &global_bin,
-        &HashSet::new(),
-        &LinkBinsOptions::default(),
-    )
-    .map_err(miette::Report::new)
-    .wrap_err("link the updated pnpm bins")?;
+    let retired = if cfg!(windows) { retire_standalone_executable(&global_bin)? } else { None };
+    let linked = refresh_global_shims(&global_bin, installed, version)
+        .and_then(|()| link_pnpm_bins(installed, &global_bin));
+    finish_retirement(retired, linked)?;
 
     let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
@@ -39,6 +43,139 @@ pub(super) fn link_into_global_bin(
         .into_diagnostic()
         .wrap_err("link the global pnpm install directory")?;
     unlink_replaced_engine_groups(&global_pkg_dir, &cache_hash)
+}
+
+pub(super) const LEGACY_HOME_DIR_WARNING: &str = "Detected a pnpm v10 installation layout at \
+    PNPM_HOME. The pnpm executable there was replaced with shims of the new version, but pnpm \
+    expects bins in PNPM_HOME/bin. Run \"pnpm setup\" to add PNPM_HOME/bin to your PATH.";
+
+/// pnpm v10 put the standalone executable straight into `PNPM_HOME` and that
+/// directory on PATH, while an update links into `PNPM_HOME/bin`. Replace
+/// that executable with shims of the updated pnpm, so PATH reaches the
+/// update. Returns whether `pnpm_home_dir` had that layout.
+pub(super) fn link_into_legacy_home_dir(
+    pnpm_home_dir: &Path,
+    installed: &install_pnpm::InstallPnpmResult,
+) -> miette::Result<bool> {
+    let Some(retired) = retire_standalone_executable(pnpm_home_dir)? else {
+        return Ok(false);
+    };
+    finish_retirement(Some(retired), link_pnpm_bins(installed, pnpm_home_dir))?;
+    Ok(true)
+}
+
+fn link_pnpm_bins(
+    installed: &install_pnpm::InstallPnpmResult,
+    bin_dir: &Path,
+) -> miette::Result<()> {
+    let pkgs = read_installed_packages(&installed.install_dir);
+    link_bins_of_packages_with_excludes::<CmdShimHost>(
+        &pkgs,
+        bin_dir,
+        &HashSet::new(),
+        &LinkBinsOptions::default(),
+    )
+    .map_err(miette::Report::new)
+    .wrap_err_with(|| format!("link the updated pnpm bins into {}", bin_dir.display()))
+}
+
+/// A [`STANDALONE_EXECUTABLE`] renamed out of the way of the shims being
+/// linked. Windows refuses to delete an executable while it runs but lets it
+/// be renamed.
+#[derive(Debug)]
+pub(super) struct RetiredExecutable {
+    executable: PathBuf,
+    retired: PathBuf,
+}
+
+/// Move a [`STANDALONE_EXECUTABLE`] in `dir` out of the way, first removing
+/// the ones earlier updates retired. A native shim named `pnpm` is left to
+/// [`refresh_global_shims`].
+pub(super) fn retire_standalone_executable(
+    dir: &Path,
+) -> miette::Result<Option<RetiredExecutable>> {
+    remove_retired_executables(dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("remove retired pnpm executables from {}", dir.display()))?;
+    let executable = dir.join(STANDALONE_EXECUTABLE);
+    if !executable.is_file()
+        || crate::shim_dispatch::native_shim_target(dir, "pnpm").into_diagnostic()?.is_some()
+    {
+        return Ok(None);
+    }
+    let retired = dir.join(format!(
+        ".{STANDALONE_EXECUTABLE}.{}{RETIRED_EXECUTABLE_SUFFIX}",
+        std::process::id(),
+    ));
+    fs::rename(&executable, &retired)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("move the old pnpm executable at {} aside", executable.display())
+        })?;
+    Ok(Some(RetiredExecutable { executable, retired }))
+}
+
+/// Remove `retired` once the shims replacing it are linked, or put it back
+/// when linking failed, so the directory keeps a working pnpm. One that is
+/// still running stays until a later update removes it.
+pub(super) fn finish_retirement(
+    retired: Option<RetiredExecutable>,
+    linked: miette::Result<()>,
+) -> miette::Result<()> {
+    let Some(RetiredExecutable { executable, retired }) = retired else {
+        return linked;
+    };
+    match linked {
+        Ok(()) => remove_retired_executable(&retired)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("remove the old pnpm executable at {}", retired.display())),
+        Err(error) => match fs::rename(&retired, &executable) {
+            Ok(()) => Err(error),
+            Err(restore_error) => Err(error.wrap_err(format!(
+                "restore the old pnpm executable at {} from {}: {restore_error}",
+                executable.display(),
+                retired.display(),
+            ))),
+        },
+    }
+}
+
+fn remove_retired_executables(dir: &Path) -> io::Result<()> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let is_retired = entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| {
+                name.starts_with(&format!(".{STANDALONE_EXECUTABLE}."))
+                    && name.ends_with(RETIRED_EXECUTABLE_SUFFIX)
+            });
+        if is_retired {
+            remove_retired_executable(&entry.path())?;
+        }
+    }
+    Ok(())
+}
+
+/// Windows reports a retired executable that is still running as access
+/// denied.
+fn remove_retired_executable(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied,
+            ) =>
+        {
+            Ok(())
+        }
+        result => result,
+    }
 }
 
 /// Unlink every other group that holds nothing but a pnpm engine. The engine

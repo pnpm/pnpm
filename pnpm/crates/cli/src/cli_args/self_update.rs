@@ -17,9 +17,9 @@ mod global_bin;
 use crate::config_deps::{self, EnginePolicyViolation};
 use clap::Args;
 use derive_more::{Display, Error};
-use global_bin::link_into_global_bin;
+use global_bin::{link_into_global_bin, link_into_legacy_home_dir};
 use miette::{Context, Diagnostic};
-use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
+use pnpm_config::{Config, Host, PNPM_VERSION, default_pnpm_home_dir, standalone_install_command};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -510,6 +510,12 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
     .await?;
 
     link_into_global_bin(config, &result, target_version)?;
+    if cfg!(windows)
+        && let Some(pnpm_home_dir) = default_pnpm_home_dir::<Host>()
+        && link_into_legacy_home_dir(&pnpm_home_dir, &result)?
+    {
+        warn::<Reporter>(prefix, global_bin::LEGACY_HOME_DIR_WARNING);
+    }
 
     if result.already_existed {
         return Ok(Some(format!(
