@@ -203,11 +203,13 @@ fn node_executable() -> std::path::PathBuf {
 /// a test that switches it would otherwise race every other process attached to
 /// the test runner's console.
 fn cmd_in_own_console() -> Command {
-    let mut command = Command::new("cmd.exe");
+    let command = Command::new("cmd.exe");
     #[cfg(windows)]
-    {
+    let command = {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut command = command;
         std::os::windows::process::CommandExt::creation_flags(&mut command, CREATE_NO_WINDOW);
-    }
+        command
+    };
     command
 }
