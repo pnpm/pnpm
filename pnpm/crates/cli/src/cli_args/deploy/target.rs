@@ -18,6 +18,26 @@ pub(super) fn resolve_target_dir(dir: &Path, target: &Path) -> PathBuf {
     }
 }
 
+/// The prepared deploy directory, as the deploy files diff their paths from
+/// and the deploy install resolves them against.
+///
+/// Those files record paths relative to the deploy directory. On Unix the
+/// kernel resolves a `..` from the real directory, so paths diffed from a
+/// target under a symlink, such as macOS `/tmp`, would climb out of the
+/// symlink's target. Windows collapses `..` lexically, so the target the
+/// deploy was given resolves correctly there.
+#[cfg(unix)]
+pub(super) fn real_deploy_dir(deploy_dir: &Path) -> miette::Result<PathBuf> {
+    fs::canonicalize(deploy_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve deploy directory {}", deploy_dir.display()))
+}
+
+#[cfg(not(unix))]
+pub(super) fn real_deploy_dir(deploy_dir: &Path) -> miette::Result<PathBuf> {
+    Ok(deploy_dir.to_path_buf())
+}
+
 pub(super) fn validate_deploy_target(
     deploy_dir: &Path,
     workspace_dir: &Path,

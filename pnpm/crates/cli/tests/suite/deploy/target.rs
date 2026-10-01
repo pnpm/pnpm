@@ -491,3 +491,69 @@ fn deploy_preserves_symlinks_in_nested_node_modules_listed_in_files() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn deploy_through_symlinked_ancestor_finds_patches_and_workspace_dependencies() {
+    const LEGACY_NODE_ENGINES_PATCH: &str = "\
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   \"name\": \"@pnpm.e2e/for-legacy-node\",
+   \"version\": \"1.0.0\",
+   \"engines\": {
+-    \"node\": \"0.10\"
++    \"node\": \"patched\"
+   }
+ }
+";
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    let manifest_path = workspace.join("packages/app/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["dependencies"]["@pnpm.e2e/for-legacy-node"] = "1.0.0".into();
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    fs::create_dir_all(workspace.join("patches")).unwrap();
+    fs::write(workspace.join("patches/for-legacy-node.patch"), LEGACY_NODE_ENGINES_PATCH).unwrap();
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = fs::read_to_string(&workspace_yaml_path).unwrap();
+    workspace_yaml.push_str(
+        "patchedDependencies:\n  '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch\n",
+    );
+    fs::write(workspace_yaml_path, workspace_yaml).unwrap();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // The link is shallower than its target, so on Unix `..` steps counted
+    // from the link's path stop short of the workspace once the kernel
+    // follows it. Windows links with a junction and collapses `..` lexically.
+    let deep_dir = root.path().join("deep/nested/dir");
+    fs::create_dir_all(&deep_dir).unwrap();
+    let link = root.path().join("link");
+    pnpm_fs::symlink_dir(&deep_dir, &link).unwrap();
+    let deploy_dir = link.join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let patched_manifest =
+        fs::read_to_string(deploy_dir.join("node_modules/@pnpm.e2e/for-legacy-node/package.json"))
+            .unwrap();
+    assert!(patched_manifest.contains(r#""patched""#), "patch not applied:\n{patched_manifest}");
+    assert!(deploy_dir.join("node_modules/lib/index.js").exists());
+
+    drop((root, mock_instance));
+}
