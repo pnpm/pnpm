@@ -552,6 +552,24 @@ fn force_symlink_dir_links_a_scoped_alias() {
     assert_eq!(resolved_link, resolved_target);
 }
 
+/// The standard library reads a junction like a symlink, so the helpers
+/// need no junction-specific fallback.
+#[cfg(windows)]
+#[test]
+fn a_junction_reads_as_a_symlink() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+    junction::create(&target, &link).expect("create junction");
+
+    assert!(super::is_symlink_or_junction(&link).expect("lstat the junction"));
+    assert_eq!(
+        fs::canonicalize(read_symlink_dir(&link).expect("read the junction")).unwrap(),
+        fs::canonicalize(&target).unwrap(),
+    );
+}
+
 #[test]
 fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
     let root = tempdir().expect("create temp dir");
@@ -562,8 +580,8 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
     force_symlink_dir(&target, &link).expect("write link");
     let read = read_symlink_dir(&link).expect("read back the link");
     // On Unix the read-back content matches what `symlink_dir`
-    // computed (relative). On Windows true symlinks read back as
-    // absolute; junctions get normalized by the `junction` crate.
+    // computed (relative). On Windows both true symlinks and
+    // junctions read back as absolute.
     // Both must canonicalize to the same target.
     let resolved_read = if read.is_absolute() {
         fs::canonicalize(&read)

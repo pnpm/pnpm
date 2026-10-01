@@ -117,11 +117,7 @@ pub fn register_project(
 fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), RegisterProjectError> {
     // Either the same project re-registering (no-op) or an
     // unrelated path that hashed to the same slug (heal).
-    // Resolve and compare the existing link's target. The
-    // cross-platform helper handles Windows junctions —
-    // `fs::read_link` alone would fail with `EINVAL` for
-    // every entry pacquet writes there (see
-    // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)).
+    // Resolve and compare the existing link's target.
     let existing_target = read_symlink_dir(&link_path)
         .map_err(|error| RegisterProjectError::InspectExisting {
             project_dir: project_dir.to_path_buf(),
@@ -286,19 +282,12 @@ fn registered_project_target(
         return Ok(None);
     }
 
-    // Use the cross-platform symlink reader. On Windows
-    // pacquet's writer creates junctions; `fs::read_link` alone
-    // would EINVAL on every live entry (see
-    // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)),
-    // and the EINVAL silent-skip below would then drop every
-    // registered project on that platform.
     match read_symlink_dir(&link_path) {
         Ok(target) => Ok(Some(target)),
         // pnpm silently skips both ENOENT and EINVAL (the
-        // "file is not a symlink" errno on Linux). Now that the
-        // helper handles junctions, an EINVAL here means the
-        // entry is neither a symlink nor a junction (some other
-        // reparse-point shape, or a race) — still benign to
+        // "file is not a symlink" errno on Linux). An EINVAL here
+        // means the entry is neither a symlink nor a junction (some
+        // other reparse-point shape, or a race) — benign to
         // skip. EINVAL doesn't have a portable `ErrorKind`
         // variant in stable Rust, so we match raw `errno` via
         // `raw_os_error` when present and fall through to the

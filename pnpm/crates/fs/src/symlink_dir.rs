@@ -113,28 +113,13 @@ fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
 /// Whether `link` is a directory symlink or, on Windows, a junction —
 /// the two shapes [`symlink_dir`] can produce.
 ///
-/// [`Path::is_symlink`] only reports the `IO_REPARSE_TAG_SYMLINK` shape,
-/// so a caller that cleans up after [`symlink_dir`] and tests with it
-/// alone misses every junction [`symlink_dir`] fell back to.
+/// On Windows the standard library reports both as symlinks, since a
+/// junction is a name-surrogate reparse point just like a symlink. There
+/// the `lstat` follows the retry policy of [`crate::rename_with_retry`],
+/// and a failed one is returned rather than read as `false`.
 pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
     #[cfg(windows)]
-    {
-        // Check the symlink case first so a true symlink never reaches
-        // `junction::exists`.
-        if crate::symlink_metadata_with_retry(link)?.file_type().is_symlink() {
-            return Ok(true);
-        }
-        // `junction::exists` reports a path that is not a reparse point
-        // at all (a plain directory) as `ERROR_NOT_A_REPARSE_POINT`
-        // rather than `Ok(false)`; for this question that is a plain
-        // "no".
-        const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
-        match crate::retry::retry_transient_file_locks(|| junction::exists(link)) {
-            Ok(is_junction) => Ok(is_junction),
-            Err(error) if error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT) => Ok(false),
-            Err(error) => Err(error),
-        }
-    }
+    return Ok(crate::symlink_metadata_with_retry(link)?.file_type().is_symlink());
     #[cfg(not(windows))]
     Ok(link.is_symlink())
 }
@@ -160,40 +145,12 @@ pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
 
 /// Read the target of a directory symlink (or junction on Windows).
 ///
-/// On Unix this is just [`std::fs::read_link`]. On Windows the
-/// stdlib's `read_link` only handles
-/// [`IO_REPARSE_TAG_SYMLINK`](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-tags)
-/// reparse points and returns `ERROR_NOT_A_REPARSE_POINT`
-/// (`InvalidInput`) for `IO_REPARSE_TAG_MOUNT_POINT` junctions —
-/// see [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528),
-/// which has been open since 2015. Since [`symlink_dir`] may create
-/// junctions on Windows, fall back to `junction::get_target` on
-/// `InvalidInput` to handle the junction case while keeping
-/// `fs::read_link` as the fast path for true symlinks. (Plain
-/// backticks rather than an intra-doc link because the `junction`
-/// crate is only in scope on Windows targets — a link would
-/// break the Linux doc build.)
+/// [`std::fs::read_link`] reads both on Windows. A junction's target is
+/// the absolute path it was created with.
 ///
 /// Target inspection follows the retry policy of [`crate::rename_with_retry`].
 pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
-    retry_transient_file_locks(|| read_symlink_dir_once(link))
-}
-
-fn read_symlink_dir_once(link: &Path) -> io::Result<PathBuf> {
-    #[cfg(unix)]
-    return std::fs::read_link(link);
-    #[cfg(windows)]
-    {
-        match std::fs::read_link(link) {
-            Ok(target) => Ok(target),
-            // EINVAL on Windows from `read_link` means the reparse
-            // point isn't a symbolic link tag — almost certainly a
-            // junction, the only other kind of reparse point
-            // pacquet's writer produces.
-            Err(error) if error.kind() == io::ErrorKind::InvalidInput => junction::get_target(link),
-            Err(error) => Err(error),
-        }
-    }
+    retry_transient_file_locks(|| std::fs::read_link(link))
 }
 
 /// Outcome of a [`force_symlink_dir`] call.

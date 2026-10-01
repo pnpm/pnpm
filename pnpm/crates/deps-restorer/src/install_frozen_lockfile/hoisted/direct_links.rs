@@ -106,14 +106,11 @@ impl HoistedLinkScope<'_> {
         target: &Path,
         link_path: &Path,
     ) -> Result<(), HoistedLinkerError> {
-        // `is_symlink_or_junction`, not `Path::is_symlink`: on Windows
-        // `symlink_dir` falls back to a junction when it cannot create a
-        // true symlink, and a junction is not a symlink to the stdlib.
+        // `is_symlink_or_junction`, not `Path::is_symlink`, so a failed
+        // `lstat` surfaces instead of reading as "no link".
         let stale_link = match pnpm_fs::is_symlink_or_junction(link_path) {
             Ok(is_link) => is_link,
-            // Nothing to clean up — the common case, and the one
-            // `junction::exists` reports as an error rather than
-            // `Ok(false)`.
+            // Nothing to clean up — the common case.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
             Err(error) => return Err(self.symlink_dir_failure(alias, target, link_path, error)),
         };
