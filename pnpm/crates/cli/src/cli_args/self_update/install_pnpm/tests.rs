@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
-    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
+    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, PnpmPackageToInstall, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
     package_dir, pnpm_package_to_install, pnpm_package_to_install_on, reuse_cached_engine,
     run_install,
@@ -159,26 +159,35 @@ fn next_platform_dir_names() {
     assert_eq!(exe_platform_pkg_dir_name_next("linux", "arm64", "musl"), "exe.linux-arm64-musl");
 }
 
+/// Resolve on a host every pre-v12 `@pnpm/exe` has a binary for, so the
+/// layout tests don't depend on the machine running them.
+fn pnpm_package_to_install_on_glibc_x64(version: &str) -> PnpmPackageToInstall {
+    pnpm_package_to_install_on(version, "linux", "x64", "glibc")
+}
+
 #[test]
 fn target_package_name_matches_pnpm_engine_layout() {
-    assert_eq!(pnpm_package_to_install("12.0.0-alpha.1").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("12.0.0").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("11.10.0").name, PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("10.34.4").name, PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("6.17.1").name, PNPM_EXE_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("6.16.0").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("5.18.10").name, PNPM_PACKAGE_NAME);
-    assert_eq!(pnpm_package_to_install("not-semver").name, PNPM_EXE_PACKAGE_NAME);
+    let package_name = |version| pnpm_package_to_install_on_glibc_x64(version).name;
+    assert_eq!(package_name("12.0.0-alpha.1"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("12.0.0"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("11.10.0"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(package_name("10.34.4"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(package_name("6.17.1"), PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(package_name("6.16.0"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("5.18.10"), PNPM_PACKAGE_NAME);
+    assert_eq!(package_name("not-semver"), PNPM_EXE_PACKAGE_NAME);
 }
 
 #[test]
 fn native_binary_linking_matches_pnpm_engine_layout() {
-    assert!(pnpm_package_to_install("12.0.0-alpha.1").links_native_binary);
-    assert!(pnpm_package_to_install("11.10.0").links_native_binary);
-    assert!(pnpm_package_to_install("6.17.1").links_native_binary);
-    assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
-    assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
-    assert!(pnpm_package_to_install("not-semver").links_native_binary);
+    let links_native_binary =
+        |version| pnpm_package_to_install_on_glibc_x64(version).links_native_binary;
+    assert!(links_native_binary("12.0.0-alpha.1"));
+    assert!(links_native_binary("11.10.0"));
+    assert!(links_native_binary("6.17.1"));
+    assert!(!links_native_binary("6.16.0"));
+    assert!(!links_native_binary("5.18.10"));
+    assert!(links_native_binary("not-semver"));
 }
 
 #[test]
