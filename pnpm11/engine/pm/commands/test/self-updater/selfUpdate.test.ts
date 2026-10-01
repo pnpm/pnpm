@@ -1741,6 +1741,18 @@ describe('pnpmPackageNameToInstall', () => {
     expect(pnpmPackageNameToInstall('11.9.0')).toBe('pnpm')
     expect(pnpmPackageNameToInstall('9.1.0')).toBe('pnpm')
   })
+
+  test('an @pnpm/exe on x64 musl installs the JavaScript pnpm where @pnpm/exe has no musl binary', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('11.0.0-rc.3', running)).toBe('@pnpm/exe')
+    expect(pnpmPackageNameToInstall('12.0.0', running)).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on glibc Linux keeps @pnpm/exe', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'glibc' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('@pnpm/exe')
+  })
 })
 
 describe('pnpmExeRunsOn', () => {

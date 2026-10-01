@@ -79,13 +79,22 @@ export function assertReleaseIsInstallable (version: string): void {
  * except that `@pnpm/exe` falls back to `pnpm` where the target release has no
  * binary that runs on this host (see {@link pnpmExeRunsOn}).
  */
-export function pnpmPackageNameToInstall (pnpmVersion: string): string {
+export function pnpmPackageNameToInstall (pnpmVersion: string, running: RunningPnpm = {}): string {
   const parsed = semver.parse(pnpmVersion, { loose: true })
   if (parsed != null && parsed.major >= 12) return 'pnpm'
-  const currentPackageName = getCurrentPackageName()
-  const host = { platform: process.platform, arch: process.arch, libcFamily: familySync() }
-  if (currentPackageName === '@pnpm/exe' && !pnpmExeRunsOn(pnpmVersion, host)) return 'pnpm'
-  return currentPackageName
+  const currentPackageName = running.packageName ?? getCurrentPackageName()
+  if (currentPackageName !== '@pnpm/exe') return currentPackageName
+  return pnpmExeRunsOn(pnpmVersion, running.host ?? currentHost()) ? '@pnpm/exe' : 'pnpm'
+}
+
+/** Overrides for the running package and host, which default to this process. */
+export interface RunningPnpm {
+  packageName?: string
+  host?: PnpmExeHost
+}
+
+function currentHost (): PnpmExeHost {
+  return { platform: process.platform, arch: process.arch, libcFamily: familySync() }
 }
 
 export interface PnpmExeHost {
