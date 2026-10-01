@@ -299,6 +299,23 @@ test('hoistPeers prefers a version this install resolved over a higher one that 
         '1.0.1': { selectorType: 'version', weight: 1000000 },
       },
     },
+    lockfileOnlyVersions: { foo: new Set(['1.0.1']) },
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers keeps demoting a lockfile-only version that another importer resolves while peers are hoisted', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '1.0.1': 'version',
+      },
+    },
+    lockfileOnlyVersions: { foo: new Set(['1.0.1']) },
     workspaceRootDeps: [],
   }, [['foo', { range: '1' }]])).toStrictEqual({
     foo: '1.0.0',
@@ -315,6 +332,7 @@ test('hoistPeers takes the highest version this install resolved', () => {
         '1.0.2': { selectorType: 'version', weight: 1000000 },
       },
     },
+    lockfileOnlyVersions: { foo: new Set(['1.0.2']) },
     workspaceRootDeps: [],
   }, [['foo', { range: '1' }]])).toStrictEqual({
     foo: '1.0.1',
@@ -330,6 +348,7 @@ test('hoistPeers falls back to a version that only the lockfile pins when no ver
         '2.0.0': { selectorType: 'version', weight: 1000000 },
       },
     },
+    lockfileOnlyVersions: { foo: new Set(['2.0.0']) },
     workspaceRootDeps: [],
   }, [['foo', { range: '2' }]])).toStrictEqual({
     foo: '2.0.0',
