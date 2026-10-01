@@ -11,6 +11,8 @@ Bump the package version.
 pnpm version <newversion>
 pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease|from-git>
 pnpm version -r [--dry-run]
+pnpm version --json
+pnpm -r version none --json
 ```
 
 `<newversion>` can be any of the bump types above or an explicit semver version (e.g. `1.2.3`). Workspaces and the `workspace:` protocol are supported, so cross-references between workspace packages are updated correctly.
@@ -26,6 +28,31 @@ pnpm version major
 pnpm version 2.0.0
 pnpm version prerelease --preid beta
 ```
+
+## Reading current versions
+
+Added in: v12.9.0
+
+Run with `--json` and no version argument to print the current package's name and version without changing anything:
+
+```sh
+pnpm version --json
+```
+
+```json
+{
+  "foo": "1.2.3"
+}
+```
+
+Pass `none` with `-r` to print the versions of the selected workspace packages. The bare `pnpm version -r` applies change intents instead, so recursive queries need the explicit `none`:
+
+```sh
+pnpm -r version none --json
+pnpm --filter "./packages/**" -r version none --json
+```
+
+Lifecycle scripts and git checks do not run. Packages without a name or version are left out, and two selected packages with the same name fail with `ERR_PNPM_DUPLICATE_PACKAGE_NAME`.
 
 ## Recursive releases
 
@@ -99,4 +126,4 @@ Apply the version bump to every package in the workspace (optionally narrowed wi
 
 ### --json
 
-Output the list of bumped packages in JSON format.
+Output the list of bumped packages in JSON format. `pnpm version --json` and `pnpm -r version none --json` print the current versions instead (see [Reading current versions](#reading-current-versions)).
