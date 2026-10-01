@@ -336,28 +336,25 @@ export function hasControllingTerminal (): boolean {
  * `kill -9 -<pgid>` is the one spelling dash, bash, zsh and busybox sh all
  * take: dash refuses `--` after a signal given by number, and busybox refuses
  * `--` altogether.
+ *
+ * `groups` keeps each watched pgid between spaces, so a release cuts one out
+ * with two pattern expansions instead of a loop over every group.
  */
 const WATCHDOG_SCRIPT = [
   "trap '' INT TERM HUP",
+  "groups=' '",
   'while read -r line; do',
+  '  group=${line#?}',
   '  case $line in',
-  '    +*) set -- "$@" "${line#+}" ;;',
+  '    +*) groups="$groups$group " ;;',
   '    -*)',
-  '      count=$# released=',
-  '      while [ "$count" -gt 0 ]; do',
-  '        group=$1',
-  '        shift',
-  '        count=$((count - 1))',
-  '        if [ -z "$released" ] && [ "$group" = "${line#-}" ]; then',
-  '          released=1',
-  '        else',
-  '          set -- "$@" "$group"',
-  '        fi',
-  '      done',
+  '      case $groups in',
+  '        *" $group "*) groups="${groups%% "$group" *} ${groups#* "$group" }" ;;',
+  '      esac',
   '      ;;',
   '  esac',
   'done',
-  'for group; do kill -9 -"$group"; done',
+  'for group in $groups; do kill -9 -"$group"; done',
 ].join('\n')
 
 /** A watch over a process group, kept until pnpm is done with the group. */
@@ -387,8 +384,7 @@ let watchdogLifeline: Writable | undefined
 export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
   watchedLeaders.push(leader)
   if (watchdogLifeline == null) {
-    watchdogLifeline = startWatchdog()
-    watchdogLifeline.write(watchedLeaders.map((watched) => `+${watched}\n`).join(''))
+    startWatchdog()
   } else {
     watchdogLifeline.write(`+${leader}\n`)
   }
@@ -404,27 +400,33 @@ export function watchProcessGroup (leader: number): ProcessGroupWatchdog {
 }
 
 /**
- * Start a watchdog that neither keeps pnpm alive nor is ended with pnpm's
- * group. Once it is gone, the next watch starts another one, which takes
- * over every group still watched.
+ * Start a watchdog over every group in `watchedLeaders` that neither keeps
+ * pnpm alive nor is ended with pnpm's group. A watchdog killed while groups
+ * are watched is replaced at once: a watch written to its pipe before its
+ * exit is seen is lost. One that could not start is replaced by the next
+ * watch.
  */
-function startWatchdog (): Writable {
+function startWatchdog (): void {
   const watchdog = spawn('sh', ['-c', WATCHDOG_SCRIPT], {
     // A session of its own keeps it out of a kill aimed at pnpm's group.
     detached: true,
     stdio: ['pipe', 'ignore', 'ignore'],
   })
   const lifeline = watchdog.stdin!
+  watchdogLifeline = lifeline
   const forget = (): void => {
     if (watchdogLifeline === lifeline) watchdogLifeline = undefined
   }
   watchdog.on('error', forget)
-  watchdog.on('exit', forget)
+  watchdog.on('exit', (_code, signal) => {
+    forget()
+    if (signal != null && watchdogLifeline == null && watchedLeaders.length > 0) startWatchdog()
+  })
   watchdog.unref()
   // A watchdog that died already cannot be told, and needs no telling.
   lifeline.on('error', () => {})
   if (lifeline instanceof Socket) lifeline.unref()
-  return lifeline
+  lifeline.write(watchedLeaders.map((watched) => `+${watched}\n`).join(''))
 }
 
 /**

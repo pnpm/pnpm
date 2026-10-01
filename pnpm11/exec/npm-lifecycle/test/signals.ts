@@ -153,15 +153,13 @@ testOnPosix('a released watchdog leaves the group alone', async () => {
   }
 })
 
-// A sh per watched group doubled the processes a recursive run starts.
 testOnPosix('one watchdog watches every process group', () => {
-  const before = listWatchdogs()
   const leaders = [spawnGroupLeader(), spawnGroupLeader(), spawnGroupLeader()]
   try {
     const watches = leaders.map((leader) => watchProcessGroup(leader.pid!))
-    const started = listWatchdogs().filter((watchdog) => !before.includes(watchdog))
+    const watchdogs = listWatchdogs(process.pid)
     for (const watch of watches) watch.release()
-    expect(started.length).toBeLessThanOrEqual(1)
+    expect(watchdogs).toHaveLength(1)
   } finally {
     for (const leader of leaders) killProcessGroup(leader.pid!)
   }
@@ -186,6 +184,25 @@ testOnPosix('the watchdog kills every group still watched when the runner dies',
   }
 })
 
+// A watch written to the pipe of a watchdog that was just killed is lost, so
+// the runner replaces it without waiting for the next watch.
+testOnPosix('a killed watchdog is replaced and takes over every group still watched', async () => {
+  const released = spawnGroupLeader()
+  const leaders = [spawnGroupLeader(), spawnGroupLeader()]
+  const runner = spawn(process.execPath, [watchScript, ...[released, ...leaders].map(({ pid }) => String(pid))], { stdio: ['ignore', 'pipe', 'inherit'] })
+  try {
+    await new Promise((resolve) => runner.stdout.once('data', resolve))
+    const [killed] = listWatchdogs(runner.pid!)
+    process.kill(killed, 'SIGKILL')
+    expect(await waitForReplacement(runner.pid!, killed, 10_000)).toBe(true)
+    runner.kill('SIGKILL')
+    expect(await Promise.all(leaders.map(async (leader) => endsWithin(leader.pid!, 10_000)))).toStrictEqual([true, true])
+  } finally {
+    runner.kill('SIGKILL')
+    for (const leader of [released, ...leaders]) killProcessGroup(leader.pid!)
+  }
+})
+
 // The watchdog and its pipe do not keep the runner alive.
 testOnPosix('a runner with a watchdog exits on its own', async () => {
   const leader = spawnGroupLeader()
@@ -203,12 +220,22 @@ function spawnGroupLeader (): ChildProcess {
   return spawn('sleep', ['30'], { detached: true, stdio: 'ignore' })
 }
 
-/** The pids of the running watchdogs this process started. */
-function listWatchdogs (): number[] {
+/** Resolves to whether a watchdog other than `killed` runs under `runner` within `timeout` ms. */
+async function waitForReplacement (runner: number, killed: number, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (listWatchdogs(runner).some((watchdog) => watchdog !== killed)) return true
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polling: each check must wait for the previous delay
+  }
+  return false
+}
+
+/** The pids of the running watchdogs `parent` started. */
+function listWatchdogs (parent: number): number[] {
   const { stdout } = spawnSync('ps', ['-A', '-o', 'pid=', '-o', 'ppid=', '-o', 'args='], { encoding: 'utf8' })
   return stdout.split('\n')
     .map((line) => line.trim().split(/\s+/))
-    .filter(([, parent, ...command]) => Number(parent) === process.pid && command.join(' ').includes("trap '' INT TERM HUP"))
+    .filter(([, ppid, ...command]) => Number(ppid) === parent && command.join(' ').includes("trap '' INT TERM HUP"))
     .map(([pid]) => Number(pid))
 }
 

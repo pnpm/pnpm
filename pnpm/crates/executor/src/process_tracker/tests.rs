@@ -44,8 +44,7 @@ fn foreground_children_share_the_terminal_process_group_only_at_a_terminal() {
     );
 }
 
-/// Every child in a group of its own is watched, by the same watchdog: a
-/// `sh` per child doubled the processes a recursive run starts.
+/// Every child in a group of its own is watched by the same watchdog.
 #[test]
 fn one_watchdog_watches_every_process_group() {
     let tracker = ProcessTracker::default();

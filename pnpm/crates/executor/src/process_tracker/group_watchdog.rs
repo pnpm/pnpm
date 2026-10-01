@@ -33,26 +33,23 @@ use std::{
 /// `kill -9 -<pgid>` is the one spelling dash, bash, zsh and busybox `sh`
 /// all take: dash refuses `--` after a signal given by number, and busybox
 /// refuses `--` altogether.
+///
+/// `groups` keeps each watched pgid between spaces, so a release cuts one
+/// out with two pattern expansions instead of a loop over every group.
 const WATCHDOG_SCRIPT: &str = r#"trap '' INT TERM HUP
+groups=' '
 while read -r line; do
+  group=${line#?}
   case $line in
-    +*) set -- "$@" "${line#+}" ;;
+    +*) groups="$groups$group " ;;
     -*)
-      count=$# released=
-      while [ "$count" -gt 0 ]; do
-        group=$1
-        shift
-        count=$((count - 1))
-        if [ -z "$released" ] && [ "$group" = "${line#-}" ]; then
-          released=1
-        else
-          set -- "$@" "$group"
-        fi
-      done
+      case $groups in
+        *" $group "*) groups="${groups%% "$group" *} ${groups#* "$group" }" ;;
+      esac
       ;;
   esac
 done
-for group; do kill -9 -"$group"; done"#;
+for group in $groups; do kill -9 -"$group"; done"#;
 
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
