@@ -75,6 +75,7 @@ impl HoistedPackageFiles {
     /// imported again. A mutable source can change without the lockfile
     /// changing. A missing one has only an empty file map to offer, which
     /// would replace the installed copy with nothing.
+    #[must_use]
     pub fn refreshes_installed_copy(&self) -> bool {
         self.source_is_mutable && self.source_exists
     }
