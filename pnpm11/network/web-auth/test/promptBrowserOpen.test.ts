@@ -11,14 +11,14 @@ jest.unstable_mockModule('open', () => ({
 
 const { promptBrowserOpen } = await import('@pnpm/network.web-auth')
 
-function createDeferred<T> (): {
-  promise: Promise<T>
-  resolve: (value: T) => void
+function createDeferred<Value> (): {
+  promise: Promise<Value>
+  resolve: (value: Value) => void
   reject: (reason?: unknown) => void
 } {
-  let resolve!: (value: T) => void
+  let resolve!: (value: Value) => void
   let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
+  const promise = new Promise<Value>((res, rej) => {
     resolve = res
     reject = rej
   })

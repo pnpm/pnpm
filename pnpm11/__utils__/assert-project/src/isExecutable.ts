@@ -5,8 +5,7 @@ import { sync as isExeSync } from 'isexe'
 
 const IS_WINDOWS = isWindows()
 
-// eslint-disable-next-line
-export default (ok: (value: any, comment: string) => void, filePath: string): void => {
+export function isExecutable (ok: (value: boolean, comment: string) => void, filePath: string): void {
   if (IS_WINDOWS) {
     if (fs.existsSync(`${filePath}.cmd`)) {
       ok(isExeSync(`${filePath}.cmd`), `${filePath}.cmd is executable`)

@@ -12,7 +12,7 @@ import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 interface PackumentFixture {
   versions: Record<string, { dist: { tarball: string } }>
@@ -24,7 +24,7 @@ interface PackumentFixture {
 // the tarball request — this is what lets the test run on any port instead of
 // pinning PNPM_REGISTRY_MOCK_PORT to match a baked-in value.
 function loadPackument (fixtureName: string): PackumentFixture {
-  const packument = loadJsonFileSync<PackumentFixture>(f.find(fixtureName))
+  const packument = loadJsonFileSync<PackumentFixture>(testFixtures.find(fixtureName))
   for (const version of Object.values(packument.versions)) {
     version.dist.tarball = `http://localhost:${REGISTRY_MOCK_PORT}${new URL(version.dist.tarball).pathname}`
   }
@@ -70,7 +70,7 @@ test('fail if a package cannot be fetched', async () => {
     .reply(200, loadPackument('pkg-with-1-dep.json'))
   mockPool.intercept({ path: '/@pnpm.e2e%2Fdep-of-pkg-with-1-dep', method: 'GET' }) // cspell:disable-line
     .reply(200, loadPackument('dep-of-pkg-with-1-dep.json'))
-  const tarballContent = fs.readFileSync(f.find('pkg-with-1-dep-100.0.0.tgz'))
+  const tarballContent = fs.readFileSync(testFixtures.find('pkg-with-1-dep-100.0.0.tgz'))
   mockPool.intercept({ path: '/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz', method: 'GET' })
     .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
   mockPool.intercept({ path: '/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz', method: 'GET' })

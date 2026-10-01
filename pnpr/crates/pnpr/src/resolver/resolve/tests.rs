@@ -352,7 +352,7 @@ async fn try_resolve_json_with(
     config.store_dir = StoreDir::new(temp.path().join("store"));
     config.cache_dir = temp.path().join("cache");
     config.modules_dir = temp.path().join("node_modules");
-    config.virtual_store_dir = temp.path().join("node_modules/.pnpm");
+    config.install_state_dir = temp.path().join("node_modules/.pnpm");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
     let request: ResolveRequest = serde_json::from_value(request).expect("resolve request parses");

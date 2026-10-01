@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.symlink-dependency",
-  "version": "1100.0.21",
+  "version": "1100.0.22",
   "description": "Symlink a dependency to node_modules",
   "keywords": [
     "pnpm",
@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "symlink-dir": "catalog:",
     "validate-npm-package-name": "catalog:"

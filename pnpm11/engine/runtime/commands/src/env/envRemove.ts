@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { removeGlobalGroups } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
@@ -23,19 +23,25 @@ function manifestDeclaresNode (manifest: unknown): boolean {
   if (!isRecord(manifest)) return false
   if (isRecord(manifest.dependencies) && 'node' in manifest.dependencies) return true
   if (isRecord(manifest.engines)) {
-    const runtime = manifest.engines.runtime
-    if (typeof runtime === 'string') return runtime === 'node'
-    if (Array.isArray(runtime)) {
-      return runtime.some((entry) => {
-        if (typeof entry === 'string') return entry === 'node'
-        if (isRecord(entry)) return entry.name === 'node'
-        return false
-      })
-    }
-    if (isRecord(runtime)) {
-      return runtime.name === 'node'
-    }
+    return enginesDeclareNode(manifest.engines.runtime)
   }
+  return false
+}
+
+function enginesDeclareNode (runtime: unknown): boolean {
+  if (typeof runtime === 'string') return runtime === 'node'
+  if (Array.isArray(runtime)) {
+    return runtime.some((entry) => isNodeRuntimeEntry(entry))
+  }
+  if (isRecord(runtime)) {
+    return runtime.name === 'node'
+  }
+  return false
+}
+
+function isNodeRuntimeEntry (entry: unknown): boolean {
+  if (typeof entry === 'string') return entry === 'node'
+  if (isRecord(entry)) return entry.name === 'node'
   return false
 }
 
@@ -50,7 +56,7 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
   try {
     entries = await fs.promises.readdir(globalDir, { withFileTypes: true })
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -58,36 +64,37 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
   const groups = await Promise.all(
     entries
       .filter((entry) => entry.isSymbolicLink())
-      .map(async (entry) => {
-        const linkPath = path.join(globalDir, entry.name)
-        try {
-          // The JS realpath, like scanGlobalPackages, keeps Windows 8.3 short
-          // names, so the install dir still lies under the configured global dir.
-          // fs.promises.realpath is the native one, which expands them.
-          const installDir = await realpathJs(linkPath)
-          let groupPkg: unknown
-          try {
-            groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
-          } catch (err) {
-            if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-              return null
-            }
-            throw err
-          }
-          if (!manifestDeclaresNode(groupPkg)) return null
-          const nodePkgJson = path.join(installDir, 'node_modules', 'node', 'package.json')
-          const pkg = JSON.parse(await fs.promises.readFile(nodePkgJson, 'utf8'))
-          const version = pkg.version as string | undefined
-          return version ? { hash: entry.name, installDir, version } : null
-        } catch (err) {
-          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-            return null
-          }
-          throw err
-        }
-      })
+      .map(async (entry) => readGlobalNodeGroup(globalDir, entry.name))
   )
   return groups.find((group) => group != null) ?? null
+}
+
+async function readGlobalNodeGroup (globalDir: string, entryName: string): Promise<GlobalNodeGroup | null> {
+  const linkPath = path.join(globalDir, entryName)
+  try {
+    const installDir = await realpathJs(linkPath)
+    const groupPkg = await tryReadJsonFile(path.join(installDir, 'package.json'))
+    if (!manifestDeclaresNode(groupPkg)) return null
+    const nodePkg = await tryReadJsonFile(path.join(installDir, 'node_modules', 'node', 'package.json'))
+    const version = (nodePkg as { version?: string })?.version
+    return version ? { hash: entryName, installDir, version } : null
+  } catch (err) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
+}
+
+async function tryReadJsonFile (filePath: string): Promise<unknown> {
+  try {
+    return JSON.parse(await fs.promises.readFile(filePath, 'utf8'))
+  } catch (err) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
 }
 
 async function isDanglingSymlink (filePath: string): Promise<boolean> {
@@ -95,7 +102,7 @@ async function isDanglingSymlink (filePath: string): Promise<boolean> {
     await fs.promises.stat(filePath)
     return false
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return true
     }
     throw err
@@ -117,7 +124,7 @@ async function isCandidateShimRemoved (binFile: string, ext: string, removedName
       return Array.from(removedNames).some((name) => segments.includes(name))
     }
   } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
   }
@@ -135,99 +142,131 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
     throw new PnpmError('MISSING_NODE_VERSION', '"pnpm env remove --global <version>" requires a Node.js version to be specified')
   }
 
-  let removedSomething = false
   const removedNames = new Set<string>()
+  const removedGlobal = await removeGlobalNodePkg(opts, versions)
+  const removedVersions = await removeNodejsVersions(opts.pnpmHomeDir, versions, removedNames)
+  const removedShims = await removeBinShims(opts.bin, removedNames)
 
+  if (!removedGlobal && !removedVersions && !removedShims) {
+    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js version matching ${versions.join(', ')}`)
+  }
+}
+
+async function removeGlobalNodePkg (opts: NvmNodeCommandOptions, versions: string[]): Promise<boolean> {
   const globalPkgDir = opts.globalPkgDir ?? (opts.pnpmHomeDir ? path.join(opts.pnpmHomeDir, 'global', 'v11') : undefined)
   const globalNode = globalPkgDir ? await findGlobalNodeGroup(globalPkgDir) : null
-  if (globalPkgDir && globalNode && versions.some((v) => matchesNodeVersion(globalNode.version, v))) {
-    // In-process rather than through `pnpm remove --global`, which refuses to
-    // run when the global bin directory is not on PATH.
-    // The group may hold other packages, whose bins go with its install dir.
+  if (globalPkgDir && globalNode && versions.some((version) => matchesNodeVersion(globalNode.version, version))) {
     const group = scanGlobalPackages(globalPkgDir).find(({ hash }) => hash === globalNode.hash)
     await removeGlobalGroups({ globalPkgDir, bin: opts.bin }, [{
       hash: globalNode.hash,
       installDir: globalNode.installDir,
       dependencies: { ...group?.dependencies, node: globalNode.version },
     }])
+    return true
+  }
+  return false
+}
+
+async function removeNodejsVersions (
+  pnpmHomeDir: string | undefined,
+  versions: string[],
+  removedNames: Set<string>
+): Promise<boolean> {
+  if (!pnpmHomeDir) return false
+  let removedSomething = false
+  const nodejsDir = path.join(pnpmHomeDir, 'nodejs')
+  const entries = await tryReadDir(nodejsDir)
+  const entriesToRemove = entries.filter((entry) =>
+    versions.some((version) => matchesNodeVersion(entry, version))
+  )
+  if (entriesToRemove.length > 0) {
+    await Promise.all(
+      entriesToRemove.map(async (entry) => {
+        await fs.promises.rm(path.join(nodejsDir, entry), { recursive: true, force: true })
+        removedNames.add(entry)
+      })
+    )
     removedSomething = true
   }
 
-  if (opts.pnpmHomeDir) {
-    const nodejsDir = path.join(opts.pnpmHomeDir, 'nodejs')
-    let entries: string[] = []
-    try {
-      entries = await fs.promises.readdir(nodejsDir)
-    } catch (err) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-        throw err
-      }
-    }
+  const removedCurrentLink = await unlinkIfCurrentLinkMatches(pnpmHomeDir, removedNames)
+  return removedSomething || removedCurrentLink
+}
 
-    const entriesToRemove = entries.filter((entry) =>
-      versions.some((v) => matchesNodeVersion(entry, v))
-    )
-    if (entriesToRemove.length > 0) {
-      await Promise.all(
-        entriesToRemove.map(async (entry) => {
-          await fs.promises.rm(path.join(nodejsDir, entry), { recursive: true, force: true })
-          removedNames.add(entry)
-        })
-      )
-      removedSomething = true
+async function tryReadDir (dirPath: string): Promise<string[]> {
+  try {
+    return await fs.promises.readdir(dirPath)
+  } catch (err) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
     }
+    return []
+  }
+}
 
-    const nodeCurrentLink = path.join(opts.pnpmHomeDir, 'nodejs_current')
-    try {
-      const stat = await fs.promises.lstat(nodeCurrentLink)
-      if (stat.isSymbolicLink()) {
-        const target = await fs.promises.readlink(nodeCurrentLink)
-        const isDangling = await isDanglingSymlink(nodeCurrentLink)
-        const targetSegments = target.split(/[\\/]/)
-        const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
-        if (isDangling || pointsToRemoved) {
-          await fs.promises.unlink(nodeCurrentLink)
-          removedSomething = true
-        }
-      }
-    } catch (err) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-        throw err
-      }
+async function unlinkIfCurrentLinkMatches (pnpmHomeDir: string, removedNames: Set<string>): Promise<boolean> {
+  const nodeCurrentLink = path.join(pnpmHomeDir, 'nodejs_current')
+  try {
+    const stat = await fs.promises.lstat(nodeCurrentLink)
+    if (!stat.isSymbolicLink()) return false
+    const target = await fs.promises.readlink(nodeCurrentLink)
+    const isDangling = await isDanglingSymlink(nodeCurrentLink)
+    const targetSegments = target.split(/[\\/]/)
+    const pointsToRemoved = Array.from(removedNames).some((name) => targetSegments.includes(name))
+    if (isDangling || pointsToRemoved) {
+      await fs.promises.unlink(nodeCurrentLink)
+      return true
+    }
+  } catch (err) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
     }
   }
+  return false
+}
 
-  if (opts.bin) {
-    const extensions = process.platform === 'win32' ? ['', '.cmd', '.ps1', '.exe'] : ['']
-    await Promise.all(
-      ['node', 'npm', 'npx'].map(async (binBase) => {
-        const candidates = extensions.map((ext) => ({
-          ext,
-          file: path.join(opts.bin!, `${binBase}${ext}`),
-        }))
-        const results = await Promise.all(
-          candidates.map(async ({ file, ext }) => isCandidateShimRemoved(file, ext, removedNames))
-        )
-        if (results.some(Boolean)) {
-          await Promise.all(
-            candidates.map(async ({ file }) => {
-              try {
-                await fs.promises.lstat(file)
-                await fs.promises.unlink(file)
-                removedSomething = true
-              } catch (err) {
-                if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-                  throw err
-                }
-              }
-            })
-          )
-        }
-      })
+async function removeBinShims (binDir: string | undefined, removedNames: Set<string>): Promise<boolean> {
+  if (!binDir) return false
+  const extensions = process.platform === 'win32' ? ['', '.cmd', '.ps1', '.exe'] : ['']
+  const results = await Promise.all(
+    ['node', 'npm', 'npx'].map(async (binBase) =>
+      cleanBinBaseShims(binDir, binBase, extensions, removedNames)
     )
-  }
+  )
+  return results.some(Boolean)
+}
 
-  if (!removedSomething) {
-    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js version matching ${versions.join(', ')}`)
+async function cleanBinBaseShims (
+  binDir: string,
+  binBase: string,
+  extensions: string[],
+  removedNames: Set<string>
+): Promise<boolean> {
+  const candidates = extensions.map((ext) => ({
+    ext,
+    file: path.join(binDir, `${binBase}${ext}`),
+  }))
+  const checks = await Promise.all(
+    candidates.map(async ({ file, ext }) => isCandidateShimRemoved(file, ext, removedNames))
+  )
+  if (!checks.some(Boolean)) {
+    return false
+  }
+  const unlinks = await Promise.all(
+    candidates.map(async ({ file }) => tryUnlink(file))
+  )
+  return unlinks.some(Boolean)
+}
+
+async function tryUnlink (file: string): Promise<boolean> {
+  try {
+    await fs.promises.lstat(file)
+    await fs.promises.unlink(file)
+    return true
+  } catch (err) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
+    }
+    return false
   }
 }

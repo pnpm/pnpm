@@ -11,6 +11,8 @@ import {
 import type { ProjectManifest } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
+import { assignReportKeys } from './reportKeys.js'
+
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -84,12 +86,18 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
   }
 
   if (subcmd === 'get') {
-    const entries = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
+    const projects = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
       const manifest = await readProjectManifestOnly(pkg.rootDir) as Record<string, unknown>
-      const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
-      return [pkgName, selectFromManifest(manifest, args)] as const
+      return {
+        identity: {
+          name: manifest.name == null ? undefined : String(manifest.name),
+          dirKey: path.relative(workspaceDir, pkg.rootDir),
+        },
+        value: selectFromManifest(manifest, args),
+      }
     }))
-    return JSON.stringify(Object.fromEntries(entries), undefined, 2)
+    const keys = assignReportKeys(projects.map(({ identity }) => identity))
+    return JSON.stringify(Object.fromEntries(projects.map(({ value }, index) => [keys[index], value])), undefined, 2)
   }
 
   await Promise.all(selectedProjects.map(({ package: pkg }) =>
@@ -171,24 +179,24 @@ async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void
 
 async function pkgFix (opts: PkgCommandOptions): Promise<void> {
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
-  const m = manifest as ProjectManifest & Record<string, unknown>
+  const untypedManifest = manifest as ProjectManifest & Record<string, unknown>
 
-  if ('name' in m && typeof m.name !== 'string') {
-    delete m.name
+  if ('name' in untypedManifest && typeof untypedManifest.name !== 'string') {
+    delete untypedManifest.name
   }
 
-  if ('version' in m && typeof m.version !== 'string') {
-    delete m.version
+  if ('version' in untypedManifest && typeof untypedManifest.version !== 'string') {
+    delete untypedManifest.version
   }
 
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    if (field in m && !isPlainObject(m[field])) {
-      delete m[field]
+    if (field in untypedManifest && !isPlainObject(untypedManifest[field])) {
+      delete untypedManifest[field]
     }
   }
 
-  if ('bin' in m && typeof m.bin !== 'string' && !isPlainObject(m.bin)) {
-    delete m.bin
+  if ('bin' in untypedManifest && typeof untypedManifest.bin !== 'string' && !isPlainObject(untypedManifest.bin)) {
+    delete untypedManifest.bin
   }
 
   await writeProjectManifest(manifest)
@@ -198,56 +206,62 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const COMMANDS = {
+  title: 'Commands',
+  list: [
+    {
+      description: 'Retrieves a value from package.json',
+      name: 'get [<key> [<key> ...]]',
+    },
+    {
+      description: 'Sets a value in package.json',
+      name: 'set <key>=<value> [<key>=<value> ...]',
+    },
+    {
+      description: 'Deletes a key from package.json',
+      name: 'delete <key> [<key> ...]',
+    },
+    {
+      description: 'Auto corrects common errors in package.json',
+      name: 'fix',
+    },
+  ],
+}
+
+const OPTIONS = {
+  title: 'Options',
+  list: [
+    {
+      description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
+      name: '--json',
+    },
+    {
+      description: 'Run on every workspace project or every project selected by a filter',
+      name: '--recursive',
+      shortAlias: '-r',
+    },
+  ],
+}
+
+const USAGES = [
+  'pnpm pkg get [<key> [<key> ...]]',
+  'pnpm pkg set <key>=<value> [<key>=<value> ...]',
+  'pnpm pkg delete <key> [<key> ...]',
+  'pnpm pkg fix',
+  'pnpm pkg set <key>=<value> --json',
+  'pnpm -r pkg get name',
+  'pnpm --filter <selector> pkg get name',
+  'pnpm -r pkg set version=1.0.0',
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manages your package.json',
     descriptionLists: [
-      {
-        title: 'Commands',
-        list: [
-          {
-            description: 'Retrieves a value from package.json',
-            name: 'get [<key> [<key> ...]]',
-          },
-          {
-            description: 'Sets a value in package.json',
-            name: 'set <key>=<value> [<key>=<value> ...]',
-          },
-          {
-            description: 'Deletes a key from package.json',
-            name: 'delete <key> [<key> ...]',
-          },
-          {
-            description: 'Auto corrects common errors in package.json',
-            name: 'fix',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-        list: [
-          {
-            description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
-            name: '--json',
-          },
-          {
-            description: 'Run on every workspace project or every project selected by a filter',
-            name: '--recursive',
-            shortAlias: '-r',
-          },
-        ],
-      },
+      COMMANDS,
+      OPTIONS,
     ],
     url: docsUrl('pkg'),
-    usages: [
-      'pnpm pkg get [<key> [<key> ...]]',
-      'pnpm pkg set <key>=<value> [<key>=<value> ...]',
-      'pnpm pkg delete <key> [<key> ...]',
-      'pnpm pkg fix',
-      'pnpm pkg set <key>=<value> --json',
-      'pnpm -r pkg get name',
-      'pnpm --filter <selector> pkg get name',
-      'pnpm -r pkg set version=1.0.0',
-    ],
+    usages: USAGES,
   })
 }

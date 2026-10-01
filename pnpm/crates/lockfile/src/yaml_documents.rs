@@ -66,8 +66,12 @@ pub fn extract_main_document(content: &str) -> Cow<'_, str> {
 /// - The file must begin with `---\n`; otherwise it carries no env
 ///   document and this returns `None`.
 /// - Returns the slice between the leading `---\n` and the next
-///   `\n---\n` separator. A leading `---\n` with no following separator
-///   (an env-only file with no main document) also yields `None`.
+///   `\n---\n` separator.
+/// - A leading `---\n` with no following separator is an env-only file:
+///   a lockfile with no dependencies whose empty main document was
+///   trimmed off together with the separator. Its env document is
+///   everything after the leading marker, less a closing `---` line, as
+///   long as its root importer opens with `configDependencies`.
 #[must_use]
 pub fn extract_env_document(content: &str) -> Option<Cow<'_, str>> {
     match normalize_lockfile_content(content) {
@@ -99,9 +103,7 @@ fn read_first_yaml_document_in_chunks(
     loop {
         let read = read_chunk(&mut reader, &mut chunk)?;
         if read == 0 {
-            // A withheld carriage return is then the file's last byte,
-            // and no separator ends in one, so it cannot complete one.
-            return Ok(None);
+            return document_without_separator(content, withheld_carriage_return);
         }
         append_normalized(&mut content, &chunk[..read], &mut withheld_carriage_return);
         if !take_byte_order_mark(&mut content, &mut byte_order_mark_pending) {
@@ -120,6 +122,24 @@ fn read_first_yaml_document_in_chunks(
             .saturating_sub(YAML_DOCUMENT_SEPARATOR.len() - 1)
             .max(YAML_DOCUMENT_START.len());
     }
+}
+
+/// The env document of a file read to its end without finding a separator,
+/// when it opens with the start marker. A withheld carriage return is the
+/// file's last byte.
+fn document_without_separator(
+    mut content: Vec<u8>,
+    withheld_carriage_return: bool,
+) -> io::Result<Option<String>> {
+    if withheld_carriage_return {
+        content.push(b'\r');
+    }
+    if !content.starts_with(YAML_DOCUMENT_START.as_bytes()) {
+        return Ok(None);
+    }
+    let content = String::from_utf8(content)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    Ok(env_only_document(&content[YAML_DOCUMENT_START.len()..]).map(str::to_string))
 }
 
 /// The document body between the start marker and the separator that closes
@@ -221,9 +241,28 @@ fn main_document_of(content: &str) -> &str {
 
 fn env_document_of(content: &str) -> Option<&str> {
     let rest = content.strip_prefix(YAML_DOCUMENT_START)?;
-    rest.find(YAML_DOCUMENT_SEPARATOR)
-        .map(|idx| &rest[..idx])
+    match rest.find(YAML_DOCUMENT_SEPARATOR) {
+        Some(idx) => Some(&rest[..idx]),
+        None => env_only_document(rest),
+    }
 }
+
+/// The env document of a file that has no main document after it: `rest`
+/// up to where the separator would start, so a closing `---` line that has
+/// no newline after it is dropped too. Only a body whose root importer
+/// opens with the `configDependencies` key every env document writes
+/// qualifies, so a main lockfile that merely opens with `---` is not
+/// mistaken for one.
+fn env_only_document(rest: &str) -> Option<&str> {
+    let document = rest
+        .strip_suffix("\n---")
+        .or_else(|| rest.strip_suffix('\n'))
+        .unwrap_or(rest);
+    document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES).then_some(document)
+}
+
+/// How an env document lays out the start of its root importer.
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES: &str = "\n  .:\n    configDependencies:";
 
 #[cfg(test)]
 mod tests;

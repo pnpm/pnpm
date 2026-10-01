@@ -54,6 +54,7 @@ impl std::error::Error for BlockedRedirect {}
 /// Validate every redirect before either following it or returning it to a
 /// manual redirect loop. Rejected targets fail with [`BlockedRedirect`].
 /// Everything a client build shares across the per-registry variants.
+#[derive(Clone)]
 pub(super) struct ClientBuildInputs<'a> {
     pub(super) settings: &'a NetworkSettings,
     pub(super) https: Option<reqwest::Url>,
@@ -77,13 +78,10 @@ pub(super) fn build_client_with_root_fallback(
     let platform_supported = true;
 
     if platform_supported {
-        let platform =
-            match client_builder(inputs, effective_tls, TrustRoots::Platform, forbid_redirects)?
-                .build()
-            {
-                Ok(client) => return Ok(client),
-                Err(platform) => platform,
-            };
+        let platform = match build_platform_client(inputs, effective_tls, forbid_redirects)? {
+            Ok(client) => return Ok(client),
+            Err(platform) => platform,
+        };
         client_builder(inputs, effective_tls, TrustRoots::Bundled, forbid_redirects)?
             .build()
             .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled })
@@ -107,6 +105,26 @@ pub(super) fn build_client_with_root_fallback(
             }
         }
     }
+}
+
+/// Build one client on the platform trust store. Extra roots alone keep the
+/// platform verifier constructible, so an empty system trust store only fails
+/// a build that leaves them out.
+pub(super) fn build_platform_client(
+    inputs: &ClientBuildInputs<'_>,
+    effective_tls: &TlsConfig,
+    forbid_redirects: bool,
+) -> Result<reqwest::Result<Client>, ForInstallsError> {
+    if !inputs.extra_ca_certs.is_empty() {
+        let system_only = ClientBuildInputs { extra_ca_certs: Vec::new(), ..inputs.clone() };
+        if let Err(error) =
+            client_builder(&system_only, effective_tls, TrustRoots::Platform, forbid_redirects)?
+                .build()
+        {
+            return Ok(Err(error));
+        }
+    }
+    Ok(client_builder(inputs, effective_tls, TrustRoots::Platform, forbid_redirects)?.build())
 }
 
 /// The builder for one client: proxies, additive roots, TLS, and the redirect

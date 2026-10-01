@@ -97,6 +97,19 @@ export async function tryComposeFastUpdates (
   opts: ComposeFastUpdatesOptions
 ): Promise<boolean> {
   const edits: GraphEdits = { dropped: new Set(), optionalFlagsAreStale: false }
+  if (!applyGraphEdits(candidate, opts, edits)) return false
+  if (!finishGraphEdits(candidate, edits)) return false
+  if (!await applyRewrites(candidate, opts)) return false
+  return opts.patchedDependencies == null ||
+    everyConfiguredPatchIsApplied(candidate, opts.patchedDependencies)
+}
+
+/** Run the handlers that add or sever edges, recording what they did in `edits`. */
+function applyGraphEdits (
+  candidate: LockfileObject,
+  opts: ComposeFastUpdatesOptions,
+  edits: GraphEdits
+): boolean {
   if (opts.drift.importers && !tryFastUpdateImporters(candidate, {
     projects: opts.projects,
     pruneLockfileImporters: opts.pruneLockfileImporters ?? false,
@@ -105,12 +118,15 @@ export async function tryComposeFastUpdates (
   }, edits)) {
     return false
   }
-  if (opts.drift.ignoredOptionalDependencies) {
-    if (!tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies ?? [], edits)) {
-      return false
-    }
-  }
-  if (!finishGraphEdits(candidate, edits)) return false
+  return !opts.drift.ignoredOptionalDependencies ||
+    tryFastUpdateIgnoredOptionalDependencies(candidate, opts.ignoredOptionalDependencies ?? [], edits)
+}
+
+/** Run the handlers that rewrite keys and settings on the settled graph, in resolution order. */
+async function applyRewrites (
+  candidate: LockfileObject,
+  opts: ComposeFastUpdatesOptions
+): Promise<boolean> {
   if (opts.drift.patchedDependencies && !tryFastUpdatePatchedDependencies(candidate, opts.patchedDependencies!)) {
     return false
   }
@@ -120,14 +136,8 @@ export async function tryComposeFastUpdates (
   if (opts.drift.catalogs && !await applyCatalogsUpdate(candidate, opts.catalogs!)) {
     return false
   }
-  if (opts.drift.overrides && !await tryFastUpdateOverrides(candidate, opts.overrides!)) {
-    return false
-  }
-  if (opts.patchedDependencies != null &&
-    !everyConfiguredPatchIsApplied(candidate, opts.patchedDependencies)) {
-    return false
-  }
-  return true
+  if (!opts.drift.overrides) return true
+  return tryFastUpdateOverrides(candidate, opts.overrides!)
 }
 
 /**

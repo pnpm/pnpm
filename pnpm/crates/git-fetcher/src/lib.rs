@@ -21,7 +21,7 @@ pub use fetcher::{
     checkout_cached_bundles, checkout_commit, checkout_existing_revision, checkout_revision,
     checkout_submodules, checkout_submodules_offline, read_git_manifest,
 };
-pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
+pub use options::{GitSource, GitStoreContext, PrepareScriptOptions, RunningPnpm};
 pub use pnpm_fs_packlist::{PacklistError, packlist};
 pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
 pub use prepare_package::{

@@ -109,7 +109,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
 
     assert_eq!(tree.direct.len(), 1);
     assert_eq!(tree.direct[0].alias, "foo");
-    assert_eq!(tree.direct[0].id, "foo@1.2.0");
+    assert_eq!(&*tree.direct[0].id, "foo@1.2.0");
     assert_eq!(tree.packages.len(), 2);
     assert!(tree.packages.contains_key("foo@1.2.0"));
     let foo_node_id = &tree.direct[0].node_id;

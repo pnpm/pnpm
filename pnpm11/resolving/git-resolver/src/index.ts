@@ -1,7 +1,6 @@
 import assert from 'node:assert'
-import util from 'node:util'
 
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { DispatcherOptions } from '@pnpm/network.fetch'
 import type { GitResolution, LatestInfo, LatestQuery, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
@@ -30,84 +29,105 @@ export function createGitResolver (
 ): GitResolver {
   return async function resolveGit (wantedDependency, resolveOpts?): Promise<GitResolveResult | null> {
     const parsedSpecFunc = parseBareSpecifier(wantedDependency.bareSpecifier, opts)
-
     if (parsedSpecFunc == null) return null
 
-    // Skip resolution if we have currentPkg and not updating
-    if (resolveOpts?.currentPkg && !resolveOpts.update) {
-      const currentResolution = resolveOpts.currentPkg.resolution
-      // Return existing resolution for git packages
-      if ('type' in currentResolution && currentResolution.type === 'git') {
-        return {
-          id: resolveOpts.currentPkg.id,
-          resolution: currentResolution as GitResolution,
-          resolvedVia: 'git-repository',
-        }
-      }
-      // Also handle tarballs from git (e.g., GitHub hosted)
-      if ('tarball' in currentResolution && currentResolution.tarball) {
-        return {
-          id: resolveOpts.currentPkg.id,
-          resolution: currentResolution as TarballResolution,
-          resolvedVia: 'git-repository',
-        }
-      }
-    }
+    const existing = resolveExistingGitPkg(resolveOpts)
+    if (existing) return existing
 
     const parsedSpec = await parsedSpecFunc()
-    const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
-      ? 'HEAD'
-      : parsedSpec.gitCommittish
-    let commit: string
-    try {
-      commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
-    } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
-      throw gitResolveError(err, wantedDependency.bareSpecifier, parsedSpec.fetchSpec)
-    }
-    let resolution: GitResolution | TarballResolution | undefined
+    const commit = await resolveGitCommit(parsedSpec, wantedDependency.bareSpecifier)
+    return buildGitResolution(parsedSpec, commit)
+  }
+}
 
-    if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
-      // don't use tarball for ssh url, they are likely private repo
-      const hosted = parsedSpec.hosted
-      // use resolved committish
-      hosted.committish = commit
-      const tarball = hosted.tarball?.()
-
-      if (tarball) {
-        resolution = { tarball, gitHosted: true }
-      }
-    }
-
-    if (resolution == null) {
-      resolution = {
-        commit,
-        repo: parsedSpec.fetchSpec,
-        type: 'git',
-      }
-    }
-
-    if (parsedSpec.path) {
-      resolution.path = parsedSpec.path
-    }
-
-    let id: PkgResolutionId
-    if ('tarball' in resolution) {
-      id = resolution.tarball as PkgResolutionId
-      if (resolution.path) {
-        id = `${id}#path:${resolution.path}` as PkgResolutionId
-      }
-    } else {
-      id = createGitHostedPkgId(resolution)
-    }
-
+function resolveExistingGitPkg (
+  resolveOpts?: Pick<ResolveOptions, 'currentPkg' | 'update'>
+): GitResolveResult | null {
+  if (!resolveOpts?.currentPkg || resolveOpts.update) {
+    return null
+  }
+  const currentResolution = resolveOpts.currentPkg.resolution
+  if ('type' in currentResolution && currentResolution.type === 'git') {
     return {
-      id,
-      normalizedBareSpecifier: parsedSpec.normalizedBareSpecifier,
-      resolution,
+      id: resolveOpts.currentPkg.id,
+      resolution: currentResolution as GitResolution,
       resolvedVia: 'git-repository',
     }
   }
+  if ('tarball' in currentResolution && currentResolution.tarball) {
+    return {
+      id: resolveOpts.currentPkg.id,
+      resolution: currentResolution as TarballResolution,
+      resolvedVia: 'git-repository',
+    }
+  }
+  return null
+}
+
+async function resolveGitCommit (
+  parsedSpec: HostedPackageSpec,
+  bareSpecifierInput: string
+): Promise<string> {
+  const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
+    ? 'HEAD'
+    : parsedSpec.gitCommittish
+  try {
+    return await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
+  } catch (err: unknown) {
+    assert(isError(err))
+    throw gitResolveError(err, bareSpecifierInput, parsedSpec.fetchSpec)
+  }
+}
+
+function buildGitResolution (
+  parsedSpec: HostedPackageSpec,
+  commit: string
+): GitResolveResult {
+  const resolution = createResolutionObject(parsedSpec, commit)
+  const id = createResolutionPkgId(resolution)
+  return {
+    id,
+    normalizedBareSpecifier: parsedSpec.normalizedBareSpecifier,
+    resolution,
+    resolvedVia: 'git-repository',
+  }
+}
+
+function createResolutionObject (
+  parsedSpec: HostedPackageSpec,
+  commit: string
+): GitResolution | TarballResolution {
+  let resolution: GitResolution | TarballResolution | undefined
+  if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
+    const hosted = parsedSpec.hosted
+    hosted.committish = commit
+    const tarball = hosted.tarball?.()
+    if (tarball) {
+      resolution = { tarball, gitHosted: true }
+    }
+  }
+  if (resolution == null) {
+    resolution = {
+      commit,
+      repo: parsedSpec.fetchSpec,
+      type: 'git',
+    }
+  }
+  if (parsedSpec.path) {
+    resolution.path = parsedSpec.path
+  }
+  return resolution
+}
+
+function createResolutionPkgId (resolution: GitResolution | TarballResolution): PkgResolutionId {
+  if ('tarball' in resolution) {
+    let id = resolution.tarball as PkgResolutionId
+    if (resolution.path) {
+      id = `${id}#path:${resolution.path}` as PkgResolutionId
+    }
+    return id
+  }
+  return createGitHostedPkgId(resolution)
 }
 
 // Git deps have no concept of "latest" — we'd need to query the host's tag list
@@ -160,48 +180,46 @@ async function resolveRef (repo: string, ref: string, range?: string): Promise<s
 
 function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, committish: boolean, range?: string): string {
   if (!range) {
-    let commitId =
-      refs[ref] ||
-      refs[`refs/${ref}`] ||
-      refs[`refs/tags/${ref}^{}`] || // prefer annotated tags
-      refs[`refs/tags/${ref}`] ||
-      refs[`refs/heads/${ref}`]
+    return resolveExactRef(refs, repo, ref, committish)
+  }
+  return resolveRangeRef(refs, repo, range)
+}
 
-    if (!commitId) {
-      // check for a partial commit
-      // Use Set to deduplicate since multiple refs can point to the same commit
-      const commits = committish ? [...new Set(Object.values(refs).filter((value: string) => value.startsWith(ref)))] : []
-      if (commits.length === 1) {
-        commitId = commits[0]
-      } else {
-        throw new Error(`Could not resolve ${ref} to a commit of ${redactAndSanitize(repo)}.`)
-      }
-    }
+function resolveExactRef (refs: { [ref: string]: string }, repo: string, ref: string, committish: boolean): string {
+  const commitId =
+    refs[ref] ||
+    refs[`refs/${ref}`] ||
+    refs[`refs/tags/${ref}^{}`] || // prefer annotated tags
+    refs[`refs/tags/${ref}`] ||
+    refs[`refs/heads/${ref}`]
 
-    return commitId
-  } else {
-    const vTags = [...new Set(
-      Object.keys(refs)
-        // using the same semantics of version tags as https://github.com/zkat/pacote
-        .filter((key: string) => /^refs\/tags\/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$/.test(key))
-        .map((key: string) => {
-          return key
-            .replace(/^refs\/tags\//, '')
-            .replace(/\^\{\}$/, '') // accept annotated tags
-        })
-        .filter((key: string) => semver.valid(key, true))
-    )]
-    const refVTag = resolveVTags(vTags, range)
-    const commitId = refVTag &&
-      (refs[`refs/tags/${refVTag}^{}`] || // prefer annotated tags
-        refs[`refs/tags/${refVTag}`])
-
-    if (!commitId) {
-      throw new Error(`Could not resolve ${range} to a commit of ${redactAndSanitize(repo)}. Available versions are: ${vTags.join(', ')}`)
-    }
-
+  if (commitId) {
     return commitId
   }
+
+  // check for a partial commit
+  const commits = committish ? [...new Set(Object.values(refs).filter((value: string) => value.startsWith(ref)))] : []
+  if (commits.length === 1) {
+    return commits[0]
+  }
+  throw new Error(`Could not resolve ${ref} to a commit of ${redactAndSanitize(repo)}.`)
+}
+
+function resolveRangeRef (refs: { [ref: string]: string }, repo: string, range: string): string {
+  const vTags = [...new Set(
+    Object.keys(refs)
+      .filter((key: string) => /^refs\/tags\/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$/.test(key))
+      .map((key: string) => key.replace(/^refs\/tags\//, '').replace(/\^\{\}$/, ''))
+      .filter((key: string) => semver.valid(key, true))
+  )]
+  const refVTag = resolveVTags(vTags, range)
+  const commitId = refVTag &&
+    (refs[`refs/tags/${refVTag}^{}`] || refs[`refs/tags/${refVTag}`])
+
+  if (!commitId) {
+    throw new Error(`Could not resolve ${range} to a commit of ${redactAndSanitize(repo)}. Available versions are: ${vTags.join(', ')}`)
+  }
+  return commitId
 }
 
 /**
@@ -302,20 +320,28 @@ interface SshRemote {
 function parseSshRemote (repo: string): SshRemote | undefined {
   const sshUrl = repo.startsWith('git+') ? repo.slice('git+'.length) : repo
   if (sshUrl.startsWith('ssh://')) {
-    let url: URL
-    try {
-      url = new URL(sshUrl)
-    } catch {
-      return undefined
-    }
-    const hostname = redactAndSanitize(url.hostname)
-    if (!isShellSafeHost(hostname)) return undefined
-    const port = url.port === '' ? '' : `:${url.port}`
-    return {
-      hostname,
-      insteadOf: url.username === 'git' ? `ssh://git@${hostname}${port}/` : undefined,
-    }
+    return parseSshUrlRemote(sshUrl)
   }
+  return parseScpRemote(repo)
+}
+
+function parseSshUrlRemote (sshUrl: string): SshRemote | undefined {
+  let url: URL
+  try {
+    url = new URL(sshUrl)
+  } catch {
+    return undefined
+  }
+  const hostname = redactAndSanitize(url.hostname)
+  if (!isShellSafeHost(hostname)) return undefined
+  const port = url.port === '' ? '' : `:${url.port}`
+  return {
+    hostname,
+    insteadOf: url.username === 'git' ? `ssh://git@${hostname}${port}/` : undefined,
+  }
+}
+
+function parseScpRemote (repo: string): SshRemote | undefined {
   if (repo.includes('://')) return undefined
   const colonPos = repo.indexOf(':')
   if (colonPos === -1) return undefined
@@ -340,16 +366,14 @@ function isShellSafeHost (hostname: string): boolean {
   const bracketed = hostname.startsWith('[') && hostname.endsWith(']')
   const body = bracketed ? hostname.slice(1, -1) : hostname
   if (body === '' || body.startsWith('-') || body.startsWith('.') || body.endsWith('-') || body.endsWith('.')) return false
-  for (const char of body) {
-    const code = char.charCodeAt(0)
-    const digit = code >= 48 && code <= 57
-    const upper = code >= 65 && code <= 90
-    const lower = code >= 97 && code <= 122
-    if (digit || upper || lower || char === '.' || char === '-' || char === '_') continue
-    if (bracketed && char === ':') continue
-    return false
-  }
-  return true
+  return Array.from(body).every((char) => isSafeHostChar(char, bracketed))
+}
+
+function isSafeHostChar (char: string, bracketed: boolean): boolean {
+  const code = char.charCodeAt(0)
+  const isAlphanumeric = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
+  if (isAlphanumeric || char === '.' || char === '-' || char === '_') return true
+  return bracketed && char === ':'
 }
 
 function isSsh (gitSpec: string): boolean {

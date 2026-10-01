@@ -223,6 +223,24 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         Ok(false)
     }
 
+    async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        for hook in &self.hooks {
+            if hook.has_after_all_resolved().await? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        for hook in &self.hooks {
+            if hook.has_pre_resolution().await? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
         if self.checksum_skips == 0 {
             return Ok(None);

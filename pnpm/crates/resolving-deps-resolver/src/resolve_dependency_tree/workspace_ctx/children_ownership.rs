@@ -1,6 +1,6 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
-    PkgNameVerPeer, TreeCtx, UpdateReuseScope, lock_recoverable,
+    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId, PeerDep,
+    PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope, lock_recoverable,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8,7 +8,7 @@ pub(in super::super) struct ChildrenOwner {
     pub(super) update_active: bool,
     pub(super) depth: i32,
     pub(in super::super) importer_order: usize,
-    pub(super) parent_path: Vec<String>,
+    pub(super) parent_path: AncestorPkgIds,
     pub(in super::super) importer_id: String,
 }
 
@@ -58,7 +58,9 @@ pub(in super::super) struct RecordedChildrenContext {
     /// the walk drops from its children.
     pub(in super::super) peer_shadowed: Arc<HashSet<String>>,
     /// The prior-lockfile key whose snapshot pinned the children, if the
-    /// walk reused one.
+    /// walk reused one. `None` under an update that unpins every edge,
+    /// where the key pins nothing and an occurrence reached without one
+    /// produces the same children.
     pub(in super::super) prior_key: Option<PkgNameVerPeer>,
     /// Whether the resolving importer had an active update policy, which
     /// re-resolves what a keep-all importer reuses.
@@ -124,16 +126,16 @@ pub(in super::super) struct ChildrenOwnerClaim {
 /// losing occurrences of a concurrent claim all read back the winner's.
 pub(in super::super) fn claim_children_owner(
     ctx: &TreeCtx,
-    pkg_id: &str,
+    pkg_id: &Arc<str>,
     depth: i32,
-    ancestor_ids: &[String],
+    ancestor_ids: &AncestorPkgIds,
     peer_shadowed: HashSet<String>,
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
         update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         depth,
         importer_order: ctx.importer.order,
-        parent_path: ancestor_ids.to_vec(),
+        parent_path: Arc::clone(ancestor_ids),
         importer_id: ctx.importer.id.clone(),
     };
     let (owns_children, peer_shadowed, children_context_unchanged) = {
@@ -147,7 +149,7 @@ pub(in super::super) fn claim_children_owner(
                     existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
                 let peer_shadowed = Arc::new(peer_shadowed);
                 owners.insert(
-                    Arc::from(pkg_id),
+                    Arc::clone(pkg_id),
                     ChildrenOwnerEntry {
                         owner: owner.clone(),
                         peer_shadowed: Arc::clone(&peer_shadowed),
@@ -159,7 +161,7 @@ pub(in super::super) fn claim_children_owner(
     };
     if owns_children {
         let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
-        if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
+        if first_importer.map().get(&**pkg_id) != Some(&owner.importer_id) {
             first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
         }
     }
@@ -218,27 +220,14 @@ impl ChildrenRecording {
     pub(in super::super) fn into_children(
         self,
         realized: BTreeMap<String, NodeId>,
-        parent_ids: &Arc<Vec<String>>,
-    ) -> (crate::resolved_tree::TreeChildren, bool) {
+    ) -> (TreeChildren, bool) {
         match self {
-            ChildrenRecording::Declined => (lazy_children(parent_ids), false),
-            ChildrenRecording::Published => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), false)
-            }
+            ChildrenRecording::Declined => (TreeChildren::Lazy, false),
+            ChildrenRecording::Published => (TreeChildren::Realized(Arc::new(realized)), false),
             ChildrenRecording::PublishedOverStale => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), true)
+                (TreeChildren::Realized(Arc::new(realized)), true)
             }
         }
-    }
-}
-
-/// Children a node expands from the standing owner's recording, under
-/// its own `parent_ids` cycle break.
-pub(in super::super) fn lazy_children(
-    parent_ids: &Arc<Vec<String>>,
-) -> crate::resolved_tree::TreeChildren {
-    crate::resolved_tree::TreeChildren::Lazy {
-        parent_ids: AncestorIds::from(Arc::clone(parent_ids)),
     }
 }
 
@@ -251,7 +240,7 @@ pub(in super::super) fn lazy_children(
 /// older walk finishing afterwards would otherwise overwrite them.
 pub(in super::super) fn record_children(
     ctx: &TreeCtx,
-    pkg_id: &str,
+    pkg_id: &Arc<str>,
     owner: &ChildrenOwner,
     edges: Vec<crate::resolved_tree::ChildEdge>,
     context: RecordedChildrenContext,
@@ -294,7 +283,7 @@ pub(in super::super) fn record_children(
                 &edges,
             );
         }
-        children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
+        children.insert(Arc::clone(pkg_id), RecordedChildren { edges, context });
         recording
     };
     ctx.workspace.tree.record_children_by_id_write(pkg_id);
@@ -308,7 +297,7 @@ pub(in super::super) fn record_children(
 /// from the record no longer lists `pkg_id` as a parent.
 pub(super) fn update_parent_index(
     parents_by_id: &mut HashMap<Arc<str>, HashSet<Arc<str>>>,
-    pkg_id: &str,
+    pkg_id: &Arc<str>,
     previous: Option<&[crate::resolved_tree::ChildEdge]>,
     next: &[crate::resolved_tree::ChildEdge],
 ) {
@@ -334,7 +323,7 @@ pub(super) fn update_parent_index(
         parents_by_id
             .entry(Arc::clone(&edge.pkg_id))
             .or_default()
-            .insert(Arc::from(pkg_id));
+            .insert(Arc::clone(pkg_id));
     }
 }
 
@@ -362,22 +351,14 @@ pub(in super::super) fn is_current_children_owner(
         .is_some_and(|current| current.owner == *owner)
 }
 
-pub(in super::super) fn remember_node_parent_ids(
-    ctx: &TreeCtx,
-    node_id: &NodeId,
-    parent_ids: Arc<Vec<String>>,
-) {
-    lock_recoverable(&ctx.workspace.tree.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
-}
-
 /// Record an occurrence node in the shared tree (lowering the depth of
 /// a revisited leaf) and, on first insertion, in the per-package
 /// reverse index [`fn@make_non_owner_nodes_lazy`] flips through.
 pub(in super::super) fn insert_tree_node(
     ctx: &TreeCtx,
     node_id: NodeId,
-    pkg_id: &str,
-    children: crate::resolved_tree::TreeChildren,
+    pkg_id: &Arc<str>,
+    children: TreeChildren,
     depth: i32,
 ) {
     let mut written = true;
@@ -391,12 +372,7 @@ pub(in super::super) fn insert_tree_node(
                 false
             }
             std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(DependenciesTreeNode::new(
-                    Arc::from(pkg_id.to_string()),
-                    children,
-                    depth,
-                    true,
-                ));
+                entry.insert(DependenciesTreeNode::new(Arc::clone(pkg_id), children, depth, true));
                 true
             }
         };
@@ -405,7 +381,7 @@ pub(in super::super) fn insert_tree_node(
     }
     if inserted {
         lock_recoverable(&ctx.workspace.tree.nodes_by_pkg_id)
-            .entry(Arc::from(pkg_id.to_string()))
+            .entry(Arc::clone(pkg_id))
             .or_default()
             .push(node_id);
     }
@@ -420,32 +396,20 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
         Some(nodes) => nodes.clone(),
         None => return,
     };
-    // Collect the parent chains first so the two locks are never held
-    // together.
-    let parent_ids_by_node: Vec<(NodeId, Arc<Vec<String>>)> = {
-        let parent_ids = lock_recoverable(&ctx.workspace.tree.node_parent_ids_by_id);
-        pkg_nodes
-            .into_iter()
-            .filter(|node_id| node_id != owner_node_id)
-            .filter_map(|node_id| {
-                let ids = Arc::clone(parent_ids.get(&node_id)?);
-                Some((node_id, ids))
-            })
-            .collect()
-    };
     let mut tree = lock_recoverable(&ctx.workspace.tree.dependencies_tree);
     let mut rewritten = Vec::new();
-    for (node_id, parent_ids) in parent_ids_by_node {
+    for node_id in pkg_nodes {
+        if &node_id == owner_node_id {
+            continue;
+        }
         // An occurrence already reading the owner's children needs no
         // rewrite — and must not report one, since the signal makes the
         // discovery engine rebuild from scratch. In a peer-heavy graph
         // most occurrences of a package are already lazy.
         if let Some(node) = tree.get_mut(&node_id)
-            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy { .. })
+            && !matches!(node.children, TreeChildren::Lazy)
         {
-            node.children = crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: AncestorIds::from(parent_ids),
-            };
+            node.children = TreeChildren::Lazy;
             rewritten.push(node_id);
         }
     }

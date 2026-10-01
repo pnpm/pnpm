@@ -54,7 +54,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -106,6 +106,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -159,7 +160,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     config.workspace_dir = Some(workspace_root.clone());
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     let config = config.leak();
     let included = pnpm_modules_yaml::IncludedDependencies {
         dependencies: true,
@@ -172,6 +173,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         workspace_state::ProjectEntry {
             name: Some("workspace-root".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     projects.insert(
@@ -179,6 +181,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         workspace_state::ProjectEntry {
             name: Some("app".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let validated_at = 0;
@@ -285,7 +288,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let included = pnpm_modules_yaml::IncludedDependencies {
@@ -305,7 +308,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -319,6 +322,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
@@ -393,6 +397,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -438,7 +443,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     config.cache_dir = cache_dir.clone();
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.install_state_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -488,6 +493,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -522,7 +528,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     second_config.cache_dir = cache_dir;
     second_config.store_dir = store_dir.into();
     second_config.modules_dir = modules_dir;
-    second_config.virtual_store_dir = virtual_store_dir;
+    second_config.install_state_dir = virtual_store_dir;
     second_config.registry = "http://127.0.0.1:9/".to_string();
     second_config.optimistic_repeat_install = false;
     let second_config = second_config.leak();
@@ -573,6 +579,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -606,7 +613,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
 }
 /// A repeat install with `pnpm-lock.yaml` deleted but `node_modules`
 /// intact must short-circuit offline by treating the current lockfile
-/// (`<virtual_store_dir>/lock.yaml`) as the wanted one, and must
+/// (`<install_state_dir>/lock.yaml`) as the wanted one, and must
 /// restore `pnpm-lock.yaml` byte-identically. Guards the
 /// current-as-wanted fallback end-to-end: a regression into the full
 /// pipeline (resolution or the verification fan-out against an empty
@@ -684,6 +691,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()

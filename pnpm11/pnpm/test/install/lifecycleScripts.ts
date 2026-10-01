@@ -220,7 +220,7 @@ test('node-gyp is in the PATH', async () => {
       // it is removed here to test that pnpm adds it
       [PATH]: process.env[PATH]!
         .split(path.delimiter)
-        .filter((p: string) => !p.includes('node-gyp-bin'))
+        .filter((pathEntry: string) => !pathEntry.includes('node-gyp-bin'))
         .join(path.delimiter),
     },
   })

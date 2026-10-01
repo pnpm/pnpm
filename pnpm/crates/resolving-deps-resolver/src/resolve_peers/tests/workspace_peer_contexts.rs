@@ -18,12 +18,12 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
                 DirectDep {
                     alias: "consumer".to_string(),
                     node_id: consumer_v1.clone(),
-                    id: "consumer@1.0.0".to_string(),
+                    id: "consumer@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "peer".to_string(),
                     node_id: peer_v1.clone(),
-                    id: "peer@1.0.0".to_string(),
+                    id: "peer@1.0.0".into(),
                 },
             ],
             root_dir: std::path::PathBuf::from("/repo/project-a"),
@@ -35,12 +35,12 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
                 DirectDep {
                     alias: "consumer".to_string(),
                     node_id: consumer_v2.clone(),
-                    id: "consumer@1.0.0".to_string(),
+                    id: "consumer@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "peer".to_string(),
                     node_id: peer_v2.clone(),
-                    id: "peer@2.0.0".to_string(),
+                    id: "peer@2.0.0".into(),
                 },
             ],
             root_dir: std::path::PathBuf::from("/repo/project-b"),
@@ -103,17 +103,17 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
                 DirectDep {
                     alias: "plugin".to_string(),
                     node_id: plugin_v1.clone(),
-                    id: "plugin@1.0.0".to_string(),
+                    id: "plugin@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "parser".to_string(),
                     node_id: parser.clone(),
-                    id: "parser@1.0.0".to_string(),
+                    id: "parser@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "resolver".to_string(),
                     node_id: resolver_root.clone(),
-                    id: "resolver@1.0.0".to_string(),
+                    id: "resolver@1.0.0".into(),
                 },
             ],
             root_dir: std::path::PathBuf::from("/repo"),
@@ -125,12 +125,12 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
                 DirectDep {
                     alias: "plugin".to_string(),
                     node_id: plugin_v2.clone(),
-                    id: "plugin@2.0.0".to_string(),
+                    id: "plugin@2.0.0".into(),
                 },
                 DirectDep {
                     alias: "resolver".to_string(),
                     node_id: resolver_app.clone(),
-                    id: "resolver@1.0.0".to_string(),
+                    id: "resolver@1.0.0".into(),
                 },
             ],
             root_dir: std::path::PathBuf::from("/repo/app"),
@@ -240,12 +240,12 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
             DirectDep {
                 alias: "consumer".to_string(),
                 node_id: consumer.clone(),
-                id: "consumer@1.0.0".to_string(),
+                id: "consumer@1.0.0".into(),
             },
             DirectDep {
                 alias: "peer".to_string(),
                 node_id: peer.clone(),
-                id: "link:packages/peer".to_string(),
+                id: "link:packages/peer".into(),
             },
         ],
         root_dir: std::path::PathBuf::from("/repo/apps/nested/app"),
@@ -315,12 +315,12 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
             DirectDep {
                 alias: "consumer".to_string(),
                 node_id: consumer.clone(),
-                id: "consumer@1.0.0".to_string(),
+                id: "consumer@1.0.0".into(),
             },
             DirectDep {
                 alias: "peer".to_string(),
                 node_id: peer.clone(),
-                id: "link:packages/peer".to_string(),
+                id: "link:packages/peer".into(),
             },
         ],
         root_dir: std::path::PathBuf::from("/repo/apps/app"),
@@ -386,17 +386,17 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
             DirectDep {
                 alias: "consumer".to_string(),
                 node_id: consumer.clone(),
-                id: "consumer@1.0.0".to_string(),
+                id: "consumer@1.0.0".into(),
             },
             DirectDep {
                 alias: "lib-a".to_string(),
                 node_id: lib_a.clone(),
-                id: "lib-a@1.0.0".to_string(),
+                id: "lib-a@1.0.0".into(),
             },
             DirectDep {
                 alias: "lib-b".to_string(),
                 node_id: lib_b.clone(),
-                id: "lib-b@1.0.0".to_string(),
+                id: "lib-b@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -461,15 +461,11 @@ fn own_direct_dep_and_pruned_provider_with_mutual_peers_resolve() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep {
-                alias: "main".to_string(),
-                node_id: main.clone(),
-                id: "main@1.0.0".to_string(),
-            },
+            DirectDep { alias: "main".to_string(), node_id: main.clone(), id: "main@1.0.0".into() },
             DirectDep {
                 alias: "plugin".to_string(),
                 node_id: plugin.clone(),
-                id: "plugin@1.0.0".to_string(),
+                id: "plugin@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -523,20 +519,12 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep {
-                alias: "host".to_string(),
-                node_id: host.clone(),
-                id: "host@1.0.0".to_string(),
-            },
-            DirectDep {
-                alias: "main".to_string(),
-                node_id: main.clone(),
-                id: "main@1.0.0".to_string(),
-            },
+            DirectDep { alias: "host".to_string(), node_id: host.clone(), id: "host@1.0.0".into() },
+            DirectDep { alias: "main".to_string(), node_id: main.clone(), id: "main@1.0.0".into() },
             DirectDep {
                 alias: "plugin".to_string(),
                 node_id: plugin.clone(),
-                id: "plugin@1.0.0".to_string(),
+                id: "plugin@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([

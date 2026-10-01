@@ -1,5 +1,6 @@
 //! Running one package's build scripts.
 
+mod linked_copies;
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
@@ -13,12 +14,12 @@ use slot_to_build::slot_to_build;
 use std::sync::atomic::Ordering;
 
 use super::{
-    AllowBuildPolicy, BuildModulesError, HashMap, LogEvent, LogLevel, NEEDS_BUILD_MARKER,
-    PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
-    allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
-    run_postinstall_hooks, slot_carries_overlay,
+    AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
+    PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
+    apply_patch_to_dir, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
+    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -327,7 +328,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
 fn global_slot_carries_overlay(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> bool {
     context.directories.layout.enable_global_virtual_store()
         && context
@@ -367,11 +368,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !context.directories.layout.enable_global_virtual_store()
                 || (context.rebuild.is_none() && slot_lock.is_some())
             {
-                discard_skipped_optional_dependency(
-                    context.pkg_roots(),
-                    context.directories.lockfile_dir,
-                    snapshot_key,
-                )?;
+                linked_copies::discard_failed_optional(context, snapshot_key)?;
             }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
@@ -402,7 +399,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
             init_cwd: context.directories.lockfile_dir,
             node_execpath: None,
             npm_execpath: None,
-            node_gyp_path: None,
+            node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(context.scripts.user_agent),
             extra_env: context.scripts.extra_env,
         },

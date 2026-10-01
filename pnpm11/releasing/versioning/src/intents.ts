@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { humanId } from 'human-id'
 import * as yaml from 'yaml'
 
@@ -23,24 +22,40 @@ export interface ChangeIntent {
 
 export function parseChangeIntent (content: string, id: string, filePath: string): ChangeIntent {
   const lines = content.replace(/^\uFEFF/, '').split(/\r?\n/)
-  const closingIndex = lines[0]?.trim() === '---'
-    ? lines.findIndex((line, index) => index > 0 && line.trim() === '---')
-    : -1
+  const closingIndex = findFrontmatterEnd(lines)
   if (closingIndex === -1) {
     throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has no YAML frontmatter`)
   }
+  const frontmatter = parseFrontmatter(lines.slice(1, closingIndex).join('\n'), filePath)
+  return {
+    id,
+    filePath,
+    releases: readReleases(frontmatter, filePath),
+    summary: lines.slice(closingIndex + 1).join('\n').trim(),
+  }
+}
 
+/** The index of the line closing the frontmatter that opens `lines`, or -1 when there is none. */
+function findFrontmatterEnd (lines: string[]): number {
+  if (lines[0]?.trim() !== '---') return -1
+  return lines.findIndex((line, index) => index > 0 && line.trim() === '---')
+}
+
+function parseFrontmatter (source: string, filePath: string): object {
   let frontmatter: unknown
   try {
-    frontmatter = yaml.parse(lines.slice(1, closingIndex).join('\n')) ?? {}
+    frontmatter = yaml.parse(source) ?? {}
   } catch (err: unknown) {
-    throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has invalid YAML frontmatter: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+    throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} has invalid YAML frontmatter: ${isError(err) ? err.message : String(err)}`)
   }
 
   if (typeof frontmatter !== 'object' || frontmatter === null || Array.isArray(frontmatter)) {
     throw new PnpmError('INVALID_CHANGE_INTENT', `Change intent file ${filePath} frontmatter must be a mapping of package names to bump types`)
   }
+  return frontmatter
+}
 
+function readReleases (frontmatter: object, filePath: string): Record<string, IntentBumpType> {
   const releases: Record<string, IntentBumpType> = {}
   for (const [pkgName, bumpType] of Object.entries(frontmatter)) {
     if (typeof bumpType !== 'string' || !(BUMP_TYPES as readonly string[]).includes(bumpType)) {
@@ -48,13 +63,7 @@ export function parseChangeIntent (content: string, id: string, filePath: string
     }
     releases[pkgName] = bumpType as IntentBumpType
   }
-
-  return {
-    id,
-    filePath,
-    releases,
-    summary: lines.slice(closingIndex + 1).join('\n').trim(),
-  }
+  return releases
 }
 
 export async function readChangeIntents (workspaceDir: string): Promise<ChangeIntent[]> {
@@ -63,7 +72,7 @@ export async function readChangeIntents (workspaceDir: string): Promise<ChangeIn
   try {
     fileNames = await fs.readdir(changesDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err

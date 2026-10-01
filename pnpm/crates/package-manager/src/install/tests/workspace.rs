@@ -137,7 +137,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = mock_instance.url().to_string();
     config.minimum_release_age = Some(60 * 24 * 365 * 100);
     let config = config.leak();
@@ -188,6 +188,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run_with_prompt_eligibility::<SilentReporter>(false)
@@ -229,7 +230,7 @@ async fn install_writes_workspace_state() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -291,6 +292,7 @@ async fn install_writes_workspace_state() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -344,6 +346,7 @@ async fn install_writes_workspace_state() {
                     .to_string()
             ),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
 
@@ -562,7 +565,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -616,6 +619,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -699,6 +703,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -933,7 +938,7 @@ async fn install_succeeds_even_when_workspace_state_write_fails() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -988,6 +993,7 @@ async fn install_succeeds_even_when_workspace_state_write_fails() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

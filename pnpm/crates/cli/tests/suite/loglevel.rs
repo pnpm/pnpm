@@ -97,6 +97,7 @@ fn workspace_loglevel_suppresses_script_echo_and_cli_overrides_it() {
 fn warn_and_error_loglevels_suppress_script_echo_and_verify_deps_install_output() {
     for level in ["warn", "error"] {
         let fixture = script_fixture();
+        give_the_gate_something_to_install(&fixture.workspace);
         let flag = format!("--loglevel={level}");
         for _ in 0..2 {
             pnpm(&fixture.workspace)
@@ -108,6 +109,21 @@ fn warn_and_error_loglevels_suppress_script_echo_and_verify_deps_install_output(
         }
         assert!(fixture.workspace.join("node_modules").exists(), "the gate must have installed");
     }
+}
+
+/// Add a `link:` dependency on a local package, so a never-installed
+/// project has something for the verify-deps gate to install.
+fn give_the_gate_something_to_install(workspace: &std::path::Path) {
+    let linked = workspace.join("linked-dep");
+    fs::create_dir_all(&linked).expect("create the linked package");
+    fs::write(linked.join("package.json"), r#"{"name":"linked-dep"}"#)
+        .expect("write the linked package manifest");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read package.json"))
+            .expect("parse package.json");
+    manifest["dependencies"] = serde_json::json!({ "linked-dep": "link:./linked-dep" });
+    fs::write(&manifest_path, manifest.to_string()).expect("write package.json");
 }
 
 #[test]

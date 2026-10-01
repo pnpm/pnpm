@@ -62,8 +62,7 @@ test('rejects __proto__, constructor and prototype keys', () => {
         key: unsafe,
       } as Partial<UnsafePropertyPathKeyError>))
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  expect(({} as any).polluted).toBeUndefined()
+  expect(Reflect.get({}, 'polluted')).toBeUndefined()
 })
 
 test('throws on empty property path', () => {

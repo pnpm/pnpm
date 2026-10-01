@@ -117,7 +117,152 @@ fn build_graph(
         },
         task_name,
         tasks: task_settings,
+        is_selector_task: |_| false,
     })
+}
+
+/// [`build_graph`] with a `select_scripts` that reads `/pattern/` task names
+/// as `RegExp` selectors, the way the CLI's run command does.
+fn build_selector_graph(
+    projects: &[(&'static str, FakeProject)],
+    task_name: &str,
+    task_settings: Option<&IndexMap<String, TaskSettings>>,
+) -> TaskGraph {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
+        })
+        .collect();
+    let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
+        })
+        .collect();
+    build_task_graph(&BuildTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts: |project: &Path, task_name: &str| {
+            let scripts = &scripts_by_dir[project];
+            if scripts
+                .iter()
+                .any(|script| script == task_name)
+            {
+                return vec![task_name.to_string()];
+            }
+            let Some(pattern) = task_name
+                .strip_prefix('/')
+                .and_then(|body| body.strip_suffix('/'))
+            else {
+                return Vec::new();
+            };
+            let Ok(pattern) = regex::Regex::new(pattern) else {
+                return Vec::new();
+            };
+            scripts
+                .iter()
+                .filter(|script| pattern.is_match(script))
+                .cloned()
+                .collect()
+        },
+        task_name,
+        tasks: task_settings,
+        is_selector_task: |name| name.starts_with('/') && name.ends_with('/'),
+    })
+}
+
+#[test]
+fn regexp_selector_seeds_a_task_per_matched_script_with_its_own_depends_on() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
+
+    assert!(!graph.contains_key(&key("a", "/test/")));
+    let test_task = &graph[&key("a", "test")];
+    assert_eq!(test_task.scripts, vec!["test"]);
+    assert_eq!(test_task.dependencies, vec![key("a", "build")]);
+    assert!(test_task.requested);
+    assert!(!graph[&key("a", "build")].requested);
+    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+}
+
+#[test]
+fn regexp_selector_orders_matched_scripts_that_depend_on_each_other() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let mut graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/^(build|test)$/",
+        Some(&settings),
+    );
+
+    assert!(!graph.contains_key(&key("a", "/^(build|test)$/")));
+    assert!(graph[&key("a", "build")].requested);
+    assert!(graph[&key("a", "test")].requested);
+    assert_eq!(graph[&key("a", "test")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+    let order = sequence(&mut graph).expect("acyclic");
+    let position = |task: TaskKey| {
+        order
+            .iter()
+            .position(|found| *found == task)
+            .unwrap()
+    };
+    assert!(position(key("b", "build")) < position(key("a", "build")));
+    assert!(position(key("a", "build")) < position(key("a", "test")));
+}
+
+#[test]
+fn regexp_selector_with_no_matched_script_is_a_pass_through_that_depends_on_nothing() {
+    let settings = tasks(&[("lint", None)]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["lint"])), ("b", project(&[], &["lint", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
+
+    let pass_through = &graph[&key("a", "/test/")];
+    assert!(pass_through.requested);
+    assert!(pass_through.scripts.is_empty());
+    assert!(pass_through.dependencies.is_empty());
+    assert!(graph[&key("b", "test")].requested);
+    assert!(!graph.contains_key(&key("b", "/test/")));
+}
+
+#[test]
+fn regexp_selector_without_tasks_stays_one_task_per_project() {
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["test"])), ("b", project(&[], &["test", "test:unit"]))],
+        "/test/",
+        None,
+    );
+
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("b", "/test/")]);
+    assert_eq!(graph[&key("b", "/test/")].scripts, vec!["test", "test:unit"]);
+}
+
+#[test]
+fn an_exact_tasks_entry_under_the_selector_name_keeps_it_one_task() {
+    let settings = tasks(&[("/test/", Some(&["build"])), ("test", None)]);
+    let graph =
+        build_selector_graph(&[("a", project(&[], &["build", "test"]))], "/test/", Some(&settings));
+
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("a", "/test/")].scripts, vec!["test"]);
 }
 
 #[test]
@@ -339,6 +484,38 @@ fn resume_drops_exact_completed_tasks_when_state_is_available() {
     assert!(resumed.contains_key(&key("dependency", "build")));
     assert!(!resumed.contains_key(&key("completed", "build")));
     assert_eq!(resumed[&key("anchor", "build")].dependencies, vec![key("dependency", "build")]);
+}
+
+#[test]
+fn resume_anchors_every_task_an_expanded_selector_requested_in_the_project() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/^(build|test)$/",
+        Some(&settings),
+    );
+
+    let resumed = resume_task_graph_from(graph, &dir("a"), "/^(build|test)$/", None);
+
+    assert!(!resumed.contains_key(&key("b", "build")));
+    assert!(resumed.contains_key(&key("a", "build")));
+    assert!(resumed.contains_key(&key("a", "test")));
+    assert!(resumed.contains_key(&key("b", "test")));
+    assert!(resumed[&key("a", "build")].dependencies.is_empty());
+    assert_eq!(resumed[&key("a", "test")].dependencies, vec![key("a", "build")]);
+}
+
+#[test]
+fn a_script_named_like_the_selector_keeps_its_default_dependency() {
+    let settings = tasks(&[("lint", None)]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["/build/"])), ("b", project(&[], &["/build/"]))],
+        "/build/",
+        Some(&settings),
+    );
+
+    assert_eq!(graph[&key("a", "/build/")].scripts, vec!["/build/"]);
+    assert_eq!(graph[&key("a", "/build/")].dependencies, vec![key("b", "/build/")]);
 }
 
 #[test]

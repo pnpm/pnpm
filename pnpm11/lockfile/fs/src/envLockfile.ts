@@ -37,17 +37,7 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
   if (parsed == null || typeof parsed !== 'object') {
     return null
   }
-  const lockfile = parsed as Record<string, unknown>
-  if (typeof lockfile.lockfileVersion !== 'string') {
-    return null
-  }
-  if (lockfile.importers == null || typeof lockfile.importers !== 'object') {
-    return null
-  }
-  if (lockfile.packages == null || typeof lockfile.packages !== 'object') {
-    return null
-  }
-  if (lockfile.snapshots == null || typeof lockfile.snapshots !== 'object') {
+  if (!hasEnvLockfileShape(parsed as Record<string, unknown>)) {
     return null
   }
   const envLockfile = parsed as EnvLockfile
@@ -57,6 +47,17 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
     envLockfile.importers['.'].configDependencies = {}
   }
   return envLockfile
+}
+
+function hasEnvLockfileShape (lockfile: Record<string, unknown>): boolean {
+  return typeof lockfile.lockfileVersion === 'string' &&
+    isObject(lockfile.importers) &&
+    isObject(lockfile.packages) &&
+    isObject(lockfile.snapshots)
+}
+
+function isObject (value: unknown): boolean {
+  return value != null && typeof value === 'object'
 }
 
 /**

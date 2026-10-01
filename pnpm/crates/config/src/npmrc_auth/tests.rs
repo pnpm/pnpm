@@ -1,10 +1,10 @@
 use std::path::Path;
 
-use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting};
+use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, base64_encode};
 use pretty_assertions::assert_eq;
 
 use super::{
-    BasicAuth, DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, RegistryCreds, base64_encode,
+    BasicAuth, DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, RegistryCreds, base64_encode_bytes,
     credentials::base64_decode,
 };
 use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};

@@ -13,7 +13,7 @@ import { caretRangeForPatched, createMinimumReleaseAgeExcludes, createOverrides 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const collectedInfos: string[] = []
 
@@ -35,7 +35,7 @@ function collectInfos (msg: LogBase & { message?: string }): void {
 }
 
 test('overrides are added for vulnerable dependencies', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -64,7 +64,7 @@ test('overrides are added for vulnerable dependencies', async () => {
 })
 
 test('no minimumReleaseAgeExclude entries are added for patched versions published before the cutoff', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -104,7 +104,7 @@ test('no minimumReleaseAgeExclude entries are added for patched versions publish
 })
 
 test('no overrides or minimumReleaseAgeExclude entries are added when the inferred patched version was never published', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -143,7 +143,7 @@ test('no overrides or minimumReleaseAgeExclude entries are added when the inferr
 })
 
 test('minimumReleaseAgeExclude entries are added for patched versions published after the cutoff', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -183,7 +183,7 @@ test('minimumReleaseAgeExclude entries are added for patched versions published 
 })
 
 test('no overrides are added if no vulnerabilities are found', async () => {
-  const tmp = f.prepare('fixture')
+  const tmp = testFixtures.prepare('fixture')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -202,7 +202,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 })
 
 test('GHSAs in the ignore list are not added as overrides', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -229,7 +229,7 @@ test('GHSAs in the ignore list are not added as overrides', async () => {
 })
 
 test('audit --fix respects auditLevel and only fixes matching severities', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -261,7 +261,7 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
 })
 
 test('audit.ignorePrune removes ignored GHSAs that are no longer in the report', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -300,7 +300,7 @@ test('audit.ignorePrune removes ignored GHSAs that are no longer in the report',
 })
 
 test('audit.ignorePrune is disabled by default - no pruning', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -330,7 +330,7 @@ test('audit.ignorePrune is disabled by default - no pruning', async () => {
 
 // GHSA ids are case-insensitive; lowercase version should match uppercase in report
 test('audit.ignorePrune handles case normalization', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -360,7 +360,7 @@ test('audit.ignorePrune handles case normalization', async () => {
 })
 
 test('audit.ignorePrune persists the canonical form even when nothing is removed', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -392,7 +392,7 @@ test('audit.ignorePrune persists the canonical form even when nothing is removed
 })
 
 test('audit.ignorePrune removes all entries when none are relevant', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -421,7 +421,7 @@ test('audit.ignorePrune removes all entries when none are relevant', async () =>
 })
 
 test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
   fs.writeFileSync(
     path.join(tmp, 'pnpm-workspace.yaml'),
     'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\nauditConfig: { ignoreGhsas: [GHSA-42xw-2xvc-qx8m, GHSA-xxxx-xxxx-xxxx] }\n'
@@ -460,7 +460,7 @@ test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', asyn
 })
 
 test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
   fs.writeFileSync(
     path.join(tmp, 'pnpm-workspace.yaml'),
     'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-42xw-2xvc-qx8m\n    - GHSA-xxxx-xxxx-xxxx\n'
@@ -499,7 +499,7 @@ test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
 })
 
 test('audit.ignorePrune sanitizes the removed ids in the log message', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -532,7 +532,7 @@ test.each([
   ['a boolean from an rc file', true],
   ['the string form of that boolean', 'true'],
 ])('a --fix without a method applies the default fix method: %s', async (_label, fix) => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -555,7 +555,7 @@ test.each([
 })
 
 test('an invalid --fix value is rejected', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -571,7 +571,7 @@ test('an invalid --fix value is rejected', async () => {
 })
 
 test('saveExact saves the override as an exact version', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -593,7 +593,7 @@ test('saveExact saves the override as an exact version', async () => {
 })
 
 test('savePrefix ~ saves the override as a tilde range', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -615,7 +615,7 @@ test('savePrefix ~ saves the override as a tilde range', async () => {
 })
 
 test('savePrefix = saves the override as an exact = range', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -637,7 +637,7 @@ test('savePrefix = saves the override as an exact = range', async () => {
 })
 
 test('savePrefix "" saves the override as an exact version', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })

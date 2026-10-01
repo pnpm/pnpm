@@ -317,6 +317,37 @@ fn if_present_flag_rejects_non_script_commands() {
         .expect_err("install rejects --if-present at parse time");
 }
 
+/// <https://github.com/pnpm/pnpm/issues/16446>
+#[test]
+fn sequential_flag_parses_before_run_and_fallback_scripts() {
+    for argv in [
+        ["pacquet", "-s", "lint"].as_slice(),
+        ["pacquet", "--sequential", "lint"].as_slice(),
+        ["pacquet", "-r", "-s", "lint"].as_slice(),
+        ["pacquet", "-s", "run", "lint"].as_slice(),
+    ] {
+        let parsed = CliArgs::try_parse_from(argv).expect("parses top-level --sequential");
+        assert!(parsed.workspace.execution.sequential);
+        parsed.validate_command_scoped_global_options().expect("script command accepts flag");
+    }
+}
+
+#[test]
+fn sequential_flag_rejects_other_commands() {
+    for argv in [
+        ["pacquet", "--sequential", "install"].as_slice(),
+        ["pacquet", "--sequential", "exec", "ls"].as_slice(),
+        ["pacquet", "--sequential", "test"].as_slice(),
+    ] {
+        let parsed =
+            CliArgs::try_parse_from(argv).expect("global parser accepts compatibility flag");
+        let err = parsed
+            .validate_command_scoped_global_options()
+            .expect_err("non-run command rejects flag");
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+    }
+}
+
 #[test]
 fn report_summary_global_flag_parses_for_publish() {
     for argv in [

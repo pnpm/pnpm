@@ -255,4 +255,26 @@ test('symlinked package file in built package is reported as modified', async ()
   expect(err?.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
 })
 
+test('removes reporter listener on early return when lockfile is missing', async () => {
+  prepare()
+  const { logger } = await import('@pnpm/logger')
+  const reportedMessages: unknown[] = []
+  const reporter = (logObj: unknown) => {
+    reportedMessages.push((logObj as { message?: unknown }).message)
+  }
+
+  const { storeStatus } = await import('../../src/store/storeStatus/index.js')
+  await storeStatus({
+    reporter,
+    dir: process.cwd(),
+    storeDir: temporaryDirectory(),
+    virtualStoreDirMaxLength: 120,
+  })
+
+  logger.info({ message: 'logged after the store status', prefix: process.cwd() })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  expect(reportedMessages).not.toContain('logged after the store status')
+})
+
 

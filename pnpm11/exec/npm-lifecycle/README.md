@@ -28,7 +28,7 @@ passed to the child process. `[0, 1, 2]` by default.
 * `opts.extraBinPaths` - *string[]* - directories added to the `PATH` of the lifecycle script.
 * `opts.onSpawn` - *Function* - called with each spawned lifecycle child process.
 * `opts.scriptShell` - the shell the script runs in. `sh` by default, `cmd` on Windows.
-* `opts.shellEmulator` - *Boolean* - run the script in a JavaScript shell emulator instead of a system shell.
+* `opts.shellEmulator` - *Boolean* - when `scriptShell` is unset, run the script in a JavaScript shell emulator instead of a system shell. A configured `scriptShell` is used even when this is set.
 * `opts.scriptsPrependNodePath` - *Boolean | 'warn-only'* - put the directory of the running Node.js binary on the script's `PATH`.
 
 ### `makeEnv(pkg, opts): Record<string, string>`

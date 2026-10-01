@@ -1,6 +1,6 @@
 use super::{
     Arc, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, order_test_shape, package, peer_cycle_fixture,
+    ResolvePeersOptions, ResolvedTree, TreeChildren, order_test_shape, package, peer_cycle_fixture,
     peer_cycle_graph_keys, resolve_peers, resolve_peers_workspace,
 };
 
@@ -116,14 +116,12 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
                 node_id.clone(),
                 crate::resolved_tree::DependenciesTreeNode::new(
                     Arc::from(pkg_id),
-                    crate::resolved_tree::TreeChildren::Lazy {
-                        parent_ids: Arc::new(Vec::new()).into(),
-                    },
+                    TreeChildren::Lazy,
                     0,
                     true,
                 ),
             );
-            DirectDep { alias: alias.to_string(), node_id, id: pkg_id.to_string() }
+            DirectDep { alias: alias.to_string(), node_id, id: pkg_id.into() }
         };
         let importer = |id: &str, direct: Vec<DirectDep>| ImporterPeerInput {
             id: id.to_string(),

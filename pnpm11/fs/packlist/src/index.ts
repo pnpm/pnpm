@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
@@ -75,20 +75,13 @@ class PackWalker extends npmPacklist.Walker {
     const files = this.tree.package.files
     if (!Array.isArray(files)) return []
     const rules: string[] = []
-    for (let file of files as string[]) {
-      if (file.startsWith('!')) continue
-      if (file.startsWith('./')) file = file.slice(1)
-      let stat: fs.Stats
-      try {
-        stat = fs.lstatSync(path.join(this.path, file))
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) continue
-        throw err
-      }
-      if (stat.isSymbolicLink()) {
-        rules.push(`!${file}`)
-        this.requiredFiles.push(file.startsWith('/') ? file.slice(1) : file)
-      }
+    for (const entry of files as string[]) {
+      if (entry.startsWith('!')) continue
+      const file = entry.startsWith('./') ? entry.slice(1) : entry
+      const stat = lstatIfExists(path.join(this.path, file), ['ENOENT', 'ENOTDIR'])
+      if (!stat?.isSymbolicLink()) continue
+      rules.push(`!${file}`)
+      this.requiredFiles.push(file.startsWith('/') ? file.slice(1) : file)
     }
     return rules
   }
@@ -149,27 +142,31 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
   const hasWorkspaceContext = workspaceDir != null && workspaceDir !== resolvedPkgDir && isSubdir(workspaceDir, resolvedPkgDir)
   const boundary = hasWorkspaceContext ? workspaceDir : path.resolve(opts?.bundledDependenciesDir ?? resolvedPkgDir)
   const { tree, packedDirs } = buildRootTree(resolvedPkgDir, pkg, boundary)
-  let hasNpmIgnore = false
-  if (hasWorkspaceContext) {
-    try {
-      hasNpmIgnore = (await fs.promises.stat(path.join(resolvedPkgDir, '.npmignore'))).isFile()
-    } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    }
-  }
-  const packlistOpts = hasWorkspaceContext && !hasNpmIgnore
+  const packlistOpts = hasWorkspaceContext && !await hasNpmIgnoreFile(resolvedPkgDir)
     ? { prefix: workspaceDir, workspaces: [resolvedPkgDir] }
     : undefined
-  const walkedFiles = await new Promise<string[]>((resolve, reject) => {
+  const files = (await walkPackage(tree, packlistOpts))
+    .map((file) => file.replace(/^\.[/\\]/, ''))
+    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file))
+  return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
+}
+
+async function hasNpmIgnoreFile (pkgDir: string): Promise<boolean> {
+  try {
+    return (await fs.promises.stat(path.join(pkgDir, '.npmignore'))).isFile()
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    return false
+  }
+}
+
+async function walkPackage (tree: TreeNode, packlistOpts: Record<string, unknown> | undefined): Promise<string[]> {
+  return new Promise<string[]>((resolve, reject) => {
     new PackWalker(tree, { ...packlistOpts, isPackage: true })
       .on('done', resolve)
       .on('error', reject)
       .start()
   })
-  const files = walkedFiles
-    .map((file) => file.replace(/^\.[/\\]/, ''))
-    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file))
-  return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
 }
 
 function isEscapingRelativePath (rel: string): boolean {
@@ -178,27 +175,31 @@ function isEscapingRelativePath (rel: string): boolean {
 
 function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
   const absPath = path.join(pkgDir, relFile)
-  let lstat: fs.Stats
-  try {
-    lstat = fs.lstatSync(absPath)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
-    throw err
+  const lstat = lstatIfExists(absPath, ['ENOENT'])
+  if (lstat == null) {
+    return false
   }
   if (!lstat.isSymbolicLink()) {
     return true
   }
+  return isInternalSymlink(pkgDir, relFile, absPath)
+}
+
+function lstatIfExists (filePath: string, missingCodes: string[]): fs.Stats | undefined {
+  try {
+    return fs.lstatSync(filePath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && missingCodes.includes(err.code as string)) return undefined
+    throw err
+  }
+}
+
+function isInternalSymlink (pkgDir: string, relFile: string, absPath: string): boolean {
   let linkTarget = fs.readlinkSync(absPath)
   if (path.isAbsolute(linkTarget)) {
     linkTarget = path.relative(path.dirname(absPath), linkTarget)
   }
-  const relPosix = process.platform === 'win32' ? relFile.replace(/\\/g, '/') : relFile
-  const posixTarget = linkTarget.replace(/\\/g, '/')
-  if (path.posix.isAbsolute(posixTarget)) {
-    return false
-  }
-  const normalizedArchive = path.posix.normalize(path.posix.join(path.posix.dirname(relPosix), posixTarget))
-  if (normalizedArchive === '..' || normalizedArchive.startsWith('../')) {
+  if (archivedLinkEscapes(relFile, linkTarget)) {
     return false
   }
   const resolvedTarget = path.resolve(path.dirname(absPath), linkTarget)
@@ -206,19 +207,30 @@ function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
   if (isEscapingRelativePath(relToPkg)) {
     return false
   }
+  return !realTargetEscapes(pkgDir, absPath)
+}
+
+function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
+  const relPosix = process.platform === 'win32' ? relFile.replace(/\\/g, '/') : relFile
+  const posixTarget = linkTarget.replace(/\\/g, '/')
+  if (path.posix.isAbsolute(posixTarget)) {
+    return true
+  }
+  const normalizedArchive = path.posix.normalize(path.posix.join(path.posix.dirname(relPosix), posixTarget))
+  return normalizedArchive === '..' || normalizedArchive.startsWith('../')
+}
+
+function realTargetEscapes (pkgDir: string, absPath: string): boolean {
   try {
     const realTarget = fs.realpathSync(absPath)
     const realPkgDir = fs.realpathSync(pkgDir)
-    const relReal = path.relative(realPkgDir, realTarget)
-    if (isEscapingRelativePath(relReal)) {
-      return false
-    }
+    return isEscapingRelativePath(path.relative(realPkgDir, realTarget))
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
+    return false
   }
-  return true
 }
 
 function mapToPackedPaths (pkgDir: string, files: string[], packedDirs: Map<TreeNode, string[]>): Map<string, string> {
@@ -266,30 +278,45 @@ function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundary: 
     nodes: new Map(),
     packedDirs: new Map(),
   }
-  const queue = bundledDeps.map((name) => ({ name, parent: { packed: [], realDir: walk.realPkgDir, node: root } as PlacedPackage, depth: 0 }))
+  const queue: BundleTask[] = bundledDeps.map((name) => ({ name, parent: { packed: [], realDir: walk.realPkgDir, node: root }, depth: 0 }))
   while (queue.length > 0) {
     const task = queue.shift()!
     if (task.depth > MAX_BUNDLE_DEPTH) continue
-    const resolved = resolveDependency(task.name, task.parent.realDir, walk.boundary)
-    if (resolved == null) continue
-    const packed = packedLocation(walk, task.name, task.parent.packed, resolved.realDir)
-    if (packed == null) continue
-    let node = walk.nodes.get(resolved.realDir)
-    if (node == null) {
-      const dir = isSubdir(walk.realPkgDir, resolved.dir) ? path.join(pkgDir, path.relative(walk.realPkgDir, resolved.dir)) : resolved.dir
-      node = makeNode(dir, normalizePackage(readPackageJson(dir)), false)
-      walk.nodes.set(resolved.realDir, node)
-      walk.packedDirs.set(node, [])
-    }
-    task.parent.node.edgesOut.set(task.name, { to: node, peer: false, dev: false })
-    walk.packedDirs.get(node)!.push(packedDir(packed))
-    walk.slots.set(packed.join('\0'), resolved.realDir)
-    const placed = { packed, realDir: resolved.realDir, node }
-    for (const name of getNestedBundledDeps(node.package)) {
+    const placed = placeBundledDependency(walk, task)
+    if (placed == null) continue
+    for (const name of getNestedBundledDeps(placed.node.package)) {
       queue.push({ name, parent: placed, depth: task.depth + 1 })
     }
   }
   return { tree: root, packedDirs: walk.packedDirs }
+}
+
+interface BundleTask {
+  name: string
+  parent: PlacedPackage
+  depth: number
+}
+
+function placeBundledDependency (walk: BundleWalk, task: BundleTask): PlacedPackage | undefined {
+  const resolved = resolveDependency(task.name, task.parent.realDir, walk.boundary)
+  if (resolved == null) return undefined
+  const packed = packedLocation(walk, task.name, task.parent.packed, resolved.realDir)
+  if (packed == null) return undefined
+  const node = getOrCreateBundleNode(walk, resolved)
+  task.parent.node.edgesOut.set(task.name, { to: node, peer: false, dev: false })
+  walk.packedDirs.get(node)!.push(packedDir(packed))
+  walk.slots.set(packed.join('\0'), resolved.realDir)
+  return { packed, realDir: resolved.realDir, node }
+}
+
+function getOrCreateBundleNode (walk: BundleWalk, resolved: ResolvedDependency): TreeNode {
+  const existing = walk.nodes.get(resolved.realDir)
+  if (existing != null) return existing
+  const dir = isSubdir(walk.realPkgDir, resolved.dir) ? path.join(walk.pkgDir, path.relative(walk.realPkgDir, resolved.dir)) : resolved.dir
+  const node = makeNode(dir, normalizePackage(readPackageJson(dir)), false)
+  walk.nodes.set(resolved.realDir, node)
+  walk.packedDirs.set(node, [])
+  return node
 }
 
 const MAX_BUNDLE_DEPTH = 32
@@ -329,17 +356,19 @@ function packedNames (pkgDir: string, dir: string): string[] | undefined {
   const names: string[] = []
   while (segments.length > 0) {
     if (segments.shift() !== 'node_modules') return undefined
-    const name = segments.shift()
-    if (name == null || name.startsWith('.')) return undefined
-    if (name.startsWith('@')) {
-      const scopedName = segments.shift()
-      if (scopedName == null) return undefined
-      names.push(`${name}/${scopedName}`)
-    } else {
-      names.push(name)
-    }
+    const name = shiftPackageName(segments)
+    if (name == null) return undefined
+    names.push(name)
   }
   return names
+}
+
+function shiftPackageName (segments: string[]): string | undefined {
+  const name = segments.shift()
+  if (name == null || name.startsWith('.')) return undefined
+  if (!name.startsWith('@')) return name
+  const scopedName = segments.shift()
+  return scopedName == null ? undefined : `${name}/${scopedName}`
 }
 
 function makeNode (pkgDir: string, pkg: Record<string, unknown>, isProjectRoot: boolean): TreeNode {
@@ -369,29 +398,44 @@ function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
   return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)]
 }
 
-function resolveDependency (depName: string, fromDir: string, boundary: string): { dir: string, realDir: string } | undefined {
+interface ResolvedDependency {
+  dir: string
+  realDir: string
+}
+
+function resolveDependency (depName: string, fromDir: string, boundary: string): ResolvedDependency | undefined {
   if (!isSafeBundleName(depName)) return undefined
   let currentDir = fromDir
   while (true) {
-    if (path.basename(currentDir) !== 'node_modules') {
-      const candidate = path.join(currentDir, 'node_modules', depName)
-      try {
-        const stat = fs.statSync(path.join(candidate, 'package.json'))
-        if (stat.isFile()) {
-          const realDir = fs.realpathSync(candidate)
-          if (realDir !== boundary && !isSubdir(boundary, realDir)) return undefined
-          return { dir: candidate, realDir }
-        }
-      } catch (err: unknown) {
-        if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-          throw err
-        }
-      }
-    }
+    const found = findInNodeModulesOf(currentDir, depName)
+    if (found != null) return keepWithinBoundary(found, boundary)
     if (currentDir === boundary) return undefined
     const parent = path.dirname(currentDir)
     if (parent === currentDir) return undefined
     currentDir = parent
+  }
+}
+
+function keepWithinBoundary (resolved: ResolvedDependency, boundary: string): ResolvedDependency | undefined {
+  return resolved.realDir === boundary || isSubdir(boundary, resolved.realDir) ? resolved : undefined
+}
+
+function findInNodeModulesOf (dir: string, depName: string): ResolvedDependency | undefined {
+  if (path.basename(dir) === 'node_modules') return undefined
+  const candidate = path.join(dir, 'node_modules', depName)
+  const realDir = realpathOfPackageDir(candidate)
+  return realDir == null ? undefined : { dir: candidate, realDir }
+}
+
+function realpathOfPackageDir (dir: string): string | undefined {
+  try {
+    if (!fs.statSync(path.join(dir, 'package.json')).isFile()) return undefined
+    return fs.realpathSync(dir)
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
+    }
+    return undefined
   }
 }
 
@@ -407,7 +451,7 @@ function realpathOrUndefined (dir: string): string | undefined {
   try {
     return fs.realpathSync(dir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
 }
@@ -416,15 +460,15 @@ function readPackageJson (dir: string): Record<string, unknown> {
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return {}
     }
     throw err
   }
 }
 
-function stripDotSlash (p: string): string {
-  return p.replace(/^\.[/\\]/, '')
+function stripDotSlash (filePath: string): string {
+  return filePath.replace(/^\.[/\\]/, '')
 }
 
 function normalizePackage (pkg: Record<string, unknown>): Record<string, unknown> {

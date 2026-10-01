@@ -29,6 +29,10 @@ pub enum CacheCommand {
     Delete { packages: Vec<String> },
     /// Deletes registry metadata cache directories that this version of pnpm
     /// can no longer read.
+    ///
+    /// pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these
+    /// directories. Projects that use those versions refetch registry metadata
+    /// after a prune, and their offline installs fail until they do.
     Prune {
         /// Lists what would be deleted without removing anything.
         #[arg(long)]

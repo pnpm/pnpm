@@ -166,19 +166,7 @@ pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
     let groups = group_slots_by_dir(opts.slots, opts.link.layout);
     let link_work =
         || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
-    // Driving the link pass from inside an `async fn` means the
-    // `par_iter` blocks the calling tokio worker for the duration. On
-    // the production multi-thread runtime, `block_in_place` migrates
-    // other futures off this worker so async progress continues; it
-    // panics on the `current_thread` runtime that `#[tokio::test]`
-    // defaults to, so fall back to a plain call there.
-    let on_multi_thread = tokio::runtime::Handle::try_current()
-        .is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
-    if on_multi_thread {
-        tokio::task::block_in_place(link_work)?;
-    } else {
-        link_work()?;
-    }
+    crate::block_in_place_if_multi_thread(link_work)?;
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "link_slots",

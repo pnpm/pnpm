@@ -10,11 +10,8 @@ use crate::{
 use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_pnpr_client::{ArtifactCandidate, ArtifactSubject, OwnerScope, PackageIdentity};
-use pnpm_store_dir::SideEffectsDiff;
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::PathBuf,
-};
+use pnpm_store_dir::{SideEffectsDiff, SideEffectsOverlay};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub(super) struct CandidateGroup {
     pub(super) candidate: ArtifactCandidate,
@@ -80,7 +77,7 @@ pub(super) struct CandidatePlan<'a> {
 pub(super) async fn plan_candidate_groups(
     plan: &CandidatePlan<'_>,
     roots: Vec<PackageKey>,
-    mut persisted_remote: HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
+    mut persisted_remote: HashMap<(PackageKey, String), SideEffectsOverlay>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> BTreeMap<String, CandidateGroup> {
     let mut hasher = DepStateHasher::new(plan, &roots);
@@ -173,7 +170,7 @@ pub(super) async fn plan_root(
     plan: &CandidatePlan<'_>,
     hasher: &mut DepStateHasher,
     root: RootKeys<'_>,
-    persisted_remote: &mut HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
+    persisted_remote: &mut HashMap<(PackageKey, String), SideEffectsOverlay>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> Option<PlannedRoot> {
     let candidate =
@@ -233,7 +230,7 @@ pub(super) async fn reuse_persisted_overlay(
     candidate: &ArtifactCandidate,
     snapshot_key: &PackageKey,
     local_cache_key: &str,
-    persisted_remote: &mut HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
+    persisted_remote: &mut HashMap<(PackageKey, String), SideEffectsOverlay>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> bool {
     let Some(overlay) =
@@ -245,7 +242,7 @@ pub(super) async fn reuse_persisted_overlay(
     let Some(diff) = diff else {
         return false;
     };
-    match stored_remote_side_effects_blobs_are_valid(diff, &overlay).await {
+    match stored_remote_side_effects_blobs_are_valid(&plan.config.store_dir, diff, &overlay).await {
         Ok(true) => {
             insert_side_effects_map(
                 side_effects_maps_by_snapshot,

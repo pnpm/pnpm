@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { removeBinsOfDependency } from '@pnpm/bins.remover'
@@ -14,7 +13,9 @@ import type {
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
+import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
+import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
@@ -37,61 +38,43 @@ interface UnplannedDir {
   pkgName: string
 }
 
+interface LinkHoistedModulesOptions {
+  allowBuild?: AllowBuild
+  deferDependencyBuilds: boolean
+  depsStateCache: DepsStateCache
+  disableRelinkLocalDirDeps?: boolean
+  force: boolean
+  /**
+   * Hold back the missing-target bins of every `.bin` directory, since a
+   * dependency's scripts may run with them on PATH. See
+   * `holdBackMissingTargets` in `@pnpm/bins.linker`. The caller links the
+   * projects' `.bin` directories and the returned nested ones again after
+   * the builds.
+   */
+  holdBackMissingBins: boolean
+  ignoreScripts: boolean
+  lockfileDir: string
+  /**
+   * The root project's `engines.runtime` Node version, which keys the
+   * side-effects cache of every package that does not pin its own.
+   */
+  nodeVersion?: string
+  preferSymlinkedExecutables?: boolean
+  sideEffectsCacheRead: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
+  configByUri: Record<string, RegistryConfig>
+  supportedArchitectures?: SupportedArchitectures
+}
+
 export async function linkHoistedModules (
   storeController: StoreController,
   graph: DependenciesGraph,
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
-  opts: {
-    allowBuild?: AllowBuild
-    deferDependencyBuilds: boolean
-    depsStateCache: DepsStateCache
-    disableRelinkLocalDirDeps?: boolean
-    force: boolean
-    /**
-     * Hold back the missing-target bins of every `.bin` directory, since a
-     * dependency's scripts may run with them on PATH. See
-     * `holdBackMissingTargets` in `@pnpm/bins.linker`. The caller links the
-     * projects' `.bin` directories and the returned nested ones again after
-     * the builds.
-     */
-    holdBackMissingBins: boolean
-    ignoreScripts: boolean
-    lockfileDir: string
-    /**
-     * The root project's `engines.runtime` Node version, which keys the
-     * side-effects cache of every package that does not pin its own.
-     */
-    nodeVersion?: string
-    preferSymlinkedExecutables?: boolean
-    sideEffectsCacheRead: boolean
-    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
-    pnprServer?: string
-    configByUri: Record<string, RegistryConfig>
-    supportedArchitectures?: SupportedArchitectures
-  }
+  opts: LinkHoistedModulesOptions
 ): Promise<string[]> {
-  // TODO: remove nested node modules first
-  const dirsToRemove = difference(
-    Object.keys(prevGraph),
-    Object.keys(graph)
-  )
-  // A directory the previous install recorded is pnpm's to delete. One that only
-  // the on-disk scan found is not: pnpm has no record of putting it there, so it
-  // is quarantined instead, the way an alien package directory already is.
-  const recordedDirs = new Set(dirsToRemove)
-  const dirsToQuarantine = (await findUnplannedDirs(hierarchy))
-    .filter(({ dir }) => !recordedDirs.has(dir))
-  statsLogger.debug({
-    prefix: opts.lockfileDir,
-    removed: dirsToRemove.length + dirsToQuarantine.length,
-  })
-  // We should avoid removing unnecessary directories while simultaneously adding new ones.
-  // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
-  await Promise.all([
-    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
-    ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, opts.lockfileDir)),
-  ])
+  await removeDirsOutsidePlan(graph, prevGraph, hierarchy, opts.lockfileDir)
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
@@ -127,6 +110,35 @@ export async function linkHoistedModules (
       })
   )
   return Array.from(heldBackBinsDirs)
+}
+
+async function removeDirsOutsidePlan (
+  graph: DependenciesGraph,
+  prevGraph: DependenciesGraph,
+  hierarchy: DepHierarchy,
+  lockfileDir: string
+): Promise<void> {
+  // TODO: remove nested node modules first
+  const dirsToRemove = difference(
+    Object.keys(prevGraph),
+    Object.keys(graph)
+  )
+  // A directory the previous install recorded is pnpm's to delete. One that only
+  // the on-disk scan found is not: pnpm has no record of putting it there, so it
+  // is quarantined instead, the way an alien package directory already is.
+  const recordedDirs = new Set(dirsToRemove)
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy))
+    .filter(({ dir }) => !recordedDirs.has(dir))
+  statsLogger.debug({
+    prefix: lockfileDir,
+    removed: dirsToRemove.length + dirsToQuarantine.length,
+  })
+  // We should avoid removing unnecessary directories while simultaneously adding new ones.
+  // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
+  await Promise.all([
+    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
+    ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, lockfileDir)),
+  ])
 }
 
 /**
@@ -183,15 +195,15 @@ const MAX_QUARANTINE_ATTEMPTS = 100
 async function renameToFreeName (src: string, dest: string): Promise<string | null> {
   for (let attempt = 0; attempt < MAX_QUARANTINE_ATTEMPTS; attempt++) {
     const candidate = attempt === 0 ? dest : `${dest}_${attempt}`
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- candidate names are tried in order until one is free
     if (await pathExistsNoFollow(candidate)) continue
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- a successful rename ends the search, so it must finish before the next candidate
       await fs.promises.rename(src, candidate)
       return candidate
     } catch (err: unknown) {
       // Another process took the name between the check and the rename.
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- a taken name moves on to the next candidate, any other failure is rethrown
       if (await pathExistsNoFollow(candidate)) continue
       throw err
     }
@@ -199,12 +211,12 @@ async function renameToFreeName (src: string, dest: string): Promise<string | nu
   return null
 }
 
-async function pathExistsNoFollow (p: string): Promise<boolean> {
+async function pathExistsNoFollow (filePath: string): Promise<boolean> {
   try {
-    await fs.promises.lstat(p)
+    await fs.promises.lstat(filePath)
     return true
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -230,7 +242,7 @@ async function makeRealDir (parent: string, name: string): Promise<string | null
   try {
     await fs.promises.mkdir(dir)
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
     if (!await isRealDir(dir)) return null
   }
   return dir
@@ -262,7 +274,7 @@ export async function removeOrphanBins (pkgDir: string): Promise<void> {
   try {
     binsDirStats = await fs.promises.lstat(binsDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
   // Unlinking through a symlinked `.bin` would delete files outside the install root.
@@ -275,101 +287,48 @@ function getModulesDir (pkgDir: string): string {
   return path.basename(parentDir).startsWith('@') ? path.dirname(parentDir) : parentDir
 }
 
+interface LinkAllPkgsInOrderOptions {
+  allowBuild?: AllowBuild
+  deferDependencyBuilds: boolean
+  depsStateCache: DepsStateCache
+  disableRelinkLocalDirDeps?: boolean
+  force: boolean
+  holdBackMissingTargets?: boolean
+  /** Whether `parentDir` is a package directory rather than a project root. */
+  isNested?: boolean
+  /** Receives each nested `.bin` directory that held back a bin. */
+  nestedHeldBackBinsDirs: Set<string>
+  ignoreScripts: boolean
+  lockfileDir: string
+  preferSymlinkedExecutables?: boolean
+  sideEffectsCacheRead: boolean
+  restorer?: RemoteSideEffectsRestorer<string>
+  supportedArchitectures?: SupportedArchitectures
+  /**
+   * Resolved `engines.runtime` Node version, computed once by
+   * [`linkHoistedModules`] before the recursion. Threaded into
+   * each [`calcDepState`] call so the side-effects-cache key
+   * prefix tracks the script-runner Node rather than pnpm's own
+   * `process.version`.
+   */
+  nodeVersion?: string
+  warn: (message: string) => void
+}
+
 async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
   hierarchy: DepHierarchy,
   parentDir: string,
-  opts: {
-    allowBuild?: AllowBuild
-    deferDependencyBuilds: boolean
-    depsStateCache: DepsStateCache
-    disableRelinkLocalDirDeps?: boolean
-    force: boolean
-    holdBackMissingTargets?: boolean
-    /** Whether `parentDir` is a package directory rather than a project root. */
-    isNested?: boolean
-    /** Receives each nested `.bin` directory that held back a bin. */
-    nestedHeldBackBinsDirs: Set<string>
-    ignoreScripts: boolean
-    lockfileDir: string
-    preferSymlinkedExecutables?: boolean
-    sideEffectsCacheRead: boolean
-    restorer?: RemoteSideEffectsRestorer<string>
-    supportedArchitectures?: SupportedArchitectures
-    /**
-     * Resolved `engines.runtime` Node version, computed once by
-     * [`linkHoistedModules`] before the recursion. Threaded into
-     * each [`calcDepState`] call so the side-effects-cache key
-     * prefix tracks the script-runner Node rather than pnpm's own
-     * `process.version`.
-     */
-    nodeVersion?: string
-    warn: (message: string) => void
-  }
+  opts: LinkAllPkgsInOrderOptions
 ): Promise<void> {
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
-      if (depNode.fetching) {
-        let filesResponse!: PackageFilesResponse
-        try {
-          filesResponse = (await depNode.fetching()).files
-        } catch (err: any) { // eslint-disable-line
-          if (depNode.optional) return
-          throw err
-        }
-
-        depNode.requiresBuild = filesResponse.requiresBuild
-        let sideEffectsCacheKey = await opts.restorer?.restore({
-          graphKey: dir,
-          depPath: depNode.depPath,
-          files: filesResponse,
-          filesIndexFile: depNode.filesIndexFile,
-          name: depNode.name,
-          patchFileHash: depNode.patch?.hash,
-          resolution: depNode.resolution,
-          version: depNode.version,
-        })
-        if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
-          if (opts.allowBuild?.(depNode.depPath) === true) {
-            const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: shouldIncludeDepGraphHash({
-                ignoreScripts: opts.ignoreScripts,
-                deferDependencyBuilds: opts.deferDependencyBuilds,
-                requiresBuild: depNode.requiresBuild,
-              }),
-              patchFileHash: depNode.patch?.hash,
-              supportedArchitectures: opts.supportedArchitectures,
-              nodeVersion: opts.nodeVersion,
-            })
-            if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
-              sideEffectsCacheKey = localCacheKey
-            }
-          }
-        }
-        // Limiting the concurrency here fixes an out of memory error.
-        // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
-        // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
-        await limitLinking(async () => {
-          const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-            filesResponse,
-            force: true,
-            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-            keepModulesDir: true,
-            requiresBuild: depNode.patch != null || depNode.requiresBuild,
-            sideEffectsCacheKey,
-          })
-          if (importMethod) {
-            reportPackageImported({
-              method: importMethod,
-              requester: opts.lockfileDir,
-              to: depNode.dir,
-            })
-          }
-          depNode.isBuilt = isBuilt
-        })
-      }
+      if (depNode.fetching && !await importFetchedPkg({ storeController, graph, dir, opts })) return
+      await Promise.all(Object.entries(depNode.packageRootLinks ?? {}).map(([alias, target]) =>
+        symlinkDependency(path.join(depNode.dir, target), path.join(depNode.dir, 'node_modules'), alias)
+      ))
       return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, isNested: true })
     })
   )
@@ -382,6 +341,89 @@ async function linkAllPkgsInOrder (
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,
   })
+}
+
+interface ImportPkgContext {
+  storeController: StoreController
+  graph: DependenciesGraph
+  /** The graph key of the package, which is also its directory. */
+  dir: string
+  opts: LinkAllPkgsInOrderOptions
+}
+
+/**
+ * Wait for the package's files and import them into its directory.
+ * Returns `false` when an optional package failed to fetch, so it is left out.
+ */
+async function importFetchedPkg (ctx: ImportPkgContext): Promise<boolean> {
+  const { storeController, opts } = ctx
+  const depNode = ctx.graph[ctx.dir]
+  let filesResponse!: PackageFilesResponse
+  try {
+    filesResponse = (await depNode.fetching!()).files
+  } catch (err: any) { // eslint-disable-line
+    if (depNode.optional) return false
+    throw err
+  }
+
+  depNode.requiresBuild = filesResponse.requiresBuild
+  const sideEffectsCacheKey = await pickSideEffectsCacheKey(ctx, filesResponse)
+  // Limiting the concurrency here fixes an out of memory error.
+  // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
+  // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
+  await limitLinking(async () => {
+    const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+      filesResponse,
+      force: true,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      keepModulesDir: true,
+      requiresBuild: depNode.patch != null || depNode.requiresBuild,
+      sideEffectsCacheKey,
+    })
+    if (importMethod) {
+      reportPackageImported({
+        method: importMethod,
+        requester: opts.lockfileDir,
+        to: depNode.dir,
+      })
+    }
+    depNode.isBuilt = isBuilt
+  })
+  return true
+}
+
+/**
+ * The side-effects cache entry to import: pnpr's verified build when it has
+ * one, otherwise a locally built entry, but only for a package allowed to build.
+ */
+async function pickSideEffectsCacheKey (
+  { graph, dir, opts }: ImportPkgContext,
+  filesResponse: PackageFilesResponse
+): Promise<string | undefined> {
+  const depNode = graph[dir]
+  const remoteCacheKey = await opts.restorer?.restore({
+    graphKey: dir,
+    depPath: depNode.depPath,
+    files: filesResponse,
+    filesIndexFile: depNode.filesIndexFile,
+    name: depNode.name,
+    patchFileHash: depNode.patch?.hash,
+    resolution: depNode.resolution,
+    version: depNode.version,
+  })
+  const hasLocalSideEffects = opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)
+  if (remoteCacheKey != null || !hasLocalSideEffects || opts.allowBuild?.(depNode.depPath) !== true) return remoteCacheKey
+  const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
+    includeDepGraphHash: shouldIncludeDepGraphHash({
+      ignoreScripts: opts.ignoreScripts,
+      deferDependencyBuilds: opts.deferDependencyBuilds,
+      requiresBuild: depNode.requiresBuild,
+    }),
+    patchFileHash: depNode.patch?.hash,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: opts.nodeVersion,
+  })
+  return filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null ? localCacheKey : remoteCacheKey
 }
 
 /**
@@ -434,7 +476,7 @@ async function isRealDir (dir: string): Promise<boolean> {
   try {
     return (await fs.promises.lstat(dir)).isDirectory()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

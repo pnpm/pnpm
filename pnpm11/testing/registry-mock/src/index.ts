@@ -45,6 +45,14 @@ export function bravoDepMatureUpTo101MinimumReleaseAge (): number {
   return (Date.now() - new Date('2022-03-01T00:00:00.000Z').getTime()) / (60 * 1000)
 }
 
+/**
+ * A `minimumReleaseAge` (in minutes) under which `@pnpm.e2e/bravo@1.0.0`
+ * (2022-04-01) is mature and `@pnpm.e2e/bravo-dep@1.1.0` (2022-05-01) is not.
+ */
+export function bravoMatureBravoDep110ImmatureMinimumReleaseAge (): number {
+  return (Date.now() - new Date('2022-04-15T00:00:00.000Z').getTime()) / (60 * 1000)
+}
+
 export interface AddDistTagOptions {
   package: string
   version: string
@@ -155,21 +163,30 @@ function listPublicProxyNamespaces (publicCacheDir: string): string[] {
 // Re-throws any other read/parse error so genuine failures surface immediately.
 function readPackument (candidatePaths: string[]): Packument | undefined {
   for (const filePath of candidatePaths) {
-    let raw: string
-    try {
-      raw = fs.readFileSync(filePath, 'utf8')
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
-      throw err
-    }
-    try {
-      return JSON.parse(raw) as Packument
-    } catch (err: unknown) {
-      if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) {
-        return undefined
-      }
-      throw err
-    }
+    const raw = tryReadFile(filePath)
+    if (raw === undefined) continue
+    const packument = tryParsePackument(raw)
+    if (packument !== undefined) return packument
   }
   return undefined
+}
+
+function tryReadFile (filePath: string): string | undefined {
+  try {
+    return fs.readFileSync(filePath, 'utf8')
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+function tryParsePackument (raw: string): Packument | undefined {
+  try {
+    return JSON.parse(raw) as Packument
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) {
+      return undefined
+    }
+    throw err
+  }
 }

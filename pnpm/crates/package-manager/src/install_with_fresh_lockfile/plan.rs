@@ -1,7 +1,7 @@
 use super::{FreshInputs, errors::InstallWithFreshLockfileError};
 use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
@@ -94,6 +94,18 @@ impl FinalScope {
     pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
         self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
     }
+
+    pub(super) fn on_disk_projects<'l>(
+        &'l self,
+        built: &'l Lockfile,
+        importer_manifests: &'l BTreeMap<String, &'l PackageManifest>,
+    ) -> super::on_disk::OnDiskProjects<'l> {
+        super::on_disk::OnDiskProjects {
+            materialization_lockfile: self.lockfile(built),
+            importer_manifests,
+            project_anchor_importer_ids: &self.project_anchor_importer_ids,
+        }
+    }
 }
 /// The lockfiles the materialization plan reads: the one the selected
 /// importers materialize, and the full one the skip set's closure walks.
@@ -182,21 +194,15 @@ pub(super) fn lay_out_slots<'l>(
         Some(allow_build_policy),
         Some(install.projects.lockfile_dir),
     );
-    // `fresh_install_context` hands the hoisted linker `None`, so a cache
-    // built here would pay for the capability probe and never clone.
-    let dir_clone_cache = (install.execution.node_linker == NodeLinker::Isolated)
-        .then(|| {
-            pnpm_deps_restorer::DirCloneCache::build(
-                install.drivers.config,
-                install.execution.node_linker,
-                engine_name_source(deferred_engine_name, engine_name),
-                initial.snapshots.as_ref(),
-                initial.packages.as_ref(),
-                Some(allow_build_policy),
-                Some(install.projects.lockfile_dir),
-            )
-        })
-        .flatten();
+    let dir_clone_cache = pnpm_deps_restorer::DirCloneCache::build(
+        install.drivers.config,
+        install.execution.node_linker,
+        engine_name_source(deferred_engine_name, engine_name),
+        initial.snapshots.as_ref(),
+        initial.packages.as_ref(),
+        Some(allow_build_policy),
+        Some(install.projects.lockfile_dir),
+    );
     log_layout_phase(install.drivers.config, phase_start);
     (layout, dir_clone_cache)
 }
@@ -290,7 +296,8 @@ fn closure_importer_ids(
     is_hoisted: bool,
     built: &Lockfile,
 ) -> Option<HashSet<String>> {
-    materialization_importer_ids(install.projects.selected_ids, is_hoisted, built)
+    let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
+    materialization_importer_ids(install.projects.selected_ids, hoisted_prior, built)
         .or_else(|| {
             install
                 .resolve_widened_groups()
@@ -302,14 +309,15 @@ fn closure_importer_ids(
                 })
         })
 }
-/// The importers a selected install materializes.
+/// The importers a selected install materializes. See
+/// [`crate::selected_materialization_ids`] for `hoisted_prior`.
 pub(super) fn materialization_importer_ids(
     selected_importer_ids: Option<&HashSet<String>>,
-    _is_hoisted: bool,
-    _built_lockfile: &Lockfile,
+    hoisted_prior: Option<&Lockfile>,
+    built_lockfile: &Lockfile,
 ) -> Option<HashSet<String>> {
     let selected_importer_ids = selected_importer_ids?;
-    Some(selected_importer_ids.clone())
+    Some(crate::selected_materialization_ids(built_lockfile, selected_importer_ids, hoisted_prior))
 }
 /// The host the installability checks run against, resolved from the
 /// overlapped probe when one was started.

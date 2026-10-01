@@ -1,9 +1,8 @@
-import util from 'node:util'
 
 import { checkbox, input, Separator } from '@inquirer/prompts'
 import { interactivePromptPageSize } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import {
   assembleReleasePlan,
@@ -87,25 +86,33 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   if (!workspaceDir) {
     throw new PnpmError('WORKSPACE_ONLY', 'pnpm change is only supported in a workspace')
   }
-  // Only the exact no-option invocations are the diagnostic forms, so a package
-  // that happens to be named "status" or "check" stays recordable.
-  if (params.length === 1 && opts.bump == null && opts.summary == null) {
-    if (params[0] === 'status') {
-      return renderStatus(workspaceDir, opts)
-    }
-    if (params[0] === 'check') {
-      return renderCheck(workspaceDir, opts)
-    }
+  const renderDiagnostic = selectDiagnosticRenderer(opts, params)
+  if (renderDiagnostic) {
+    return renderDiagnostic(workspaceDir, opts)
   }
   try {
     return await recordChange(workspaceDir, opts, params)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Change canceled')
+      // eslint-disable-next-line n/no-process-exit -- a canceled prompt ends the command without an error, like the other interactive commands
       process.exit(0)
     }
     throw err
   }
+}
+
+type DiagnosticRenderer = (workspaceDir: string, opts: ChangeCommandOptions) => Promise<string>
+
+/**
+ * Only the exact no-option invocations are the diagnostic forms, so a package
+ * that happens to be named "status" or "check" stays recordable.
+ */
+function selectDiagnosticRenderer (opts: ChangeCommandOptions, params: string[]): DiagnosticRenderer | undefined {
+  if (params.length !== 1 || opts.bump != null || opts.summary != null) return undefined
+  if (params[0] === 'status') return renderStatus
+  if (params[0] === 'check') return renderCheck
+  return undefined
 }
 
 async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {
@@ -113,21 +120,7 @@ async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, p
   if (releasable.length === 0) {
     throw new PnpmError('VERSIONING_NO_PACKAGES', 'No releasable packages found in this workspace')
   }
-  const releasableDirs = new Set(releasable.map((project) => project.dir))
-  const refs = indexProjectRefs(opts.allProjects ?? [], workspaceDir)
-
-  for (const ref of params) {
-    const dirs = refs.refToDirs(ref)
-    if (dirs.length > 1) {
-      throw new PnpmError(
-        'VERSIONING_AMBIGUOUS_PACKAGE',
-        `${ref} matches multiple workspace projects: ${dirs.map((dir) => `./${dir}`).join(', ')}. Reference the project by directory instead.`
-      )
-    }
-    if (dirs.length === 0 || !releasableDirs.has(dirs[0])) {
-      throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `${ref} is not a releasable package of this workspace`)
-    }
-  }
+  assertReleasableRefs({ params, releasable, workspaceDir, allProjects: opts.allProjects ?? [] })
 
   if (opts.bump != null && !(BUMP_TYPES as readonly string[]).includes(opts.bump)) {
     throw new PnpmError('VERSIONING_INVALID_BUMP', `Invalid bump type: ${opts.bump}. Expected one of ${BUMP_TYPES.join(', ')}`)
@@ -146,6 +139,29 @@ async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, p
 
   const id = await writeChangeIntent(workspaceDir, { releases, summary })
   return `Recorded change intent .changeset/${id}.md`
+}
+
+function assertReleasableRefs ({ params, releasable, workspaceDir, allProjects }: {
+  params: string[]
+  releasable: ReleasableProject[]
+  workspaceDir: string
+  allProjects: Project[]
+}): void {
+  const releasableDirs = new Set(releasable.map((project) => project.dir))
+  const refs = indexProjectRefs(allProjects, workspaceDir)
+
+  for (const ref of params) {
+    const dirs = refs.refToDirs(ref)
+    if (dirs.length > 1) {
+      throw new PnpmError(
+        'VERSIONING_AMBIGUOUS_PACKAGE',
+        `${ref} matches multiple workspace projects: ${dirs.map((dir) => `./${dir}`).join(', ')}. Reference the project by directory instead.`
+      )
+    }
+    if (dirs.length === 0 || !releasableDirs.has(dirs[0])) {
+      throw new PnpmError('VERSIONING_UNKNOWN_PACKAGE', `${ref} is not a releasable package of this workspace`)
+    }
+  }
 }
 
 /**
@@ -222,7 +238,7 @@ async function detectChangedDirs (
 async function detectBaseCommit (cwd: string): Promise<string | undefined> {
   for (const branch of ['main', 'master']) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the first branch that exists wins
       const { stdout } = await execa('git', ['merge-base', 'HEAD', branch], { cwd })
       const commit = String(stdout).trim()
       if (commit !== '') return commit
@@ -244,7 +260,7 @@ async function promptBumpTypes (pkgRefs: string[]): Promise<Record<string, Inten
   let remaining = [...pkgRefs]
   for (const bumpType of ['major', 'minor'] as const) {
     if (remaining.length === 0) break
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- each prompt offers only the packages the previous one left
     const chosen = new Set(await checkbox<string>({
       message: `Which packages should have a ${bumpType} bump?`,
       choices: remaining.map((ref) => ({ value: ref })),

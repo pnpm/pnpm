@@ -10,7 +10,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { requirePnpmfile } from '../src/requirePnpmfile.js'
 
 const defaultHookContext: HookContext = { log () {} }
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('ignoring a pnpmfile that exports undefined', async () => {
   const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(path.join(import.meta.dirname, '__fixtures__/undefined.js'), import.meta.dirname))!
@@ -217,14 +217,14 @@ test.each(['cjs', 'mjs'])('requireHooks throws an error if a specified %s pnpmfi
 })
 
 test('requireHooks throws an error if there are two finders with the same name', async () => {
-  const findersDir = f.find('finders')
+  const findersDir = testFixtures.find('finders')
   const pnpmfile1 = path.join(findersDir, 'finderFoo1.js')
   const pnpmfile2 = path.join(findersDir, 'finderFoo2.js')
   await expect(requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })).rejects.toThrow('Finder "foo" defined in both')
 })
 
 test('requireHooks merges all the finders', async () => {
-  const findersDir = f.find('finders')
+  const findersDir = testFixtures.find('finders')
   const pnpmfile1 = path.join(findersDir, 'finderFoo1.js')
   const pnpmfile2 = path.join(findersDir, 'finderBar.js')
   const { finders } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })

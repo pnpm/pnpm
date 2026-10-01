@@ -7,6 +7,7 @@
 //! hash symlink and the global bins are pointed at it.
 
 pub use builds::approve_global_builds;
+pub use legacy::migrate_legacy_global_packages;
 pub use remove::{handle_global_remove, remove_global_groups};
 pub use selectors::{has_pnpm_cli_dependency, selects_pnpm_cli};
 
@@ -338,3 +339,5 @@ mod builds;
 mod cleanup;
 
 mod groups;
+
+mod legacy;

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { createManifestExclusionMatcher, normalizePatterns } from '@pnpm/workspace.package-patterns'
@@ -47,7 +47,7 @@ export async function findPackages (root: string, opts?: FindPackagesOptions): P
             ...await readExactProjectManifest(manifestPath),
           } as Project
         } catch (err: unknown) {
-          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+          if (isError(err) && 'code' in err && err.code === 'ENOENT') {
             return null!
           }
           throw err
@@ -81,7 +81,7 @@ export function findPackagesSync (root: string, opts?: FindPackagesOptions): Pro
         ...readExactProjectManifestSync(manifestPath),
       } as Project)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
         continue
       }
       throw err

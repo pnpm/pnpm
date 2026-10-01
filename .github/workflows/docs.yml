@@ -1,0 +1,58 @@
+name: Documentation
+
+on:
+  pull_request:
+    paths:
+      - 'pnpm/docs/**'
+      - 'pnpm11/docs/**'
+      - 'pnpr/docs/**'
+      - 'DOCUMENTATION.md'
+      - '.github/workflows/docs.yml'
+      - '.github/workflows/sync-docs.yml'
+      - '.github/scripts/prepare-docs-sync*.mjs'
+      - '.github/scripts/copy-docs-artifact*.mjs'
+  push:
+    branches: [main]
+    paths:
+      - 'pnpm/docs/**'
+      - 'pnpm11/docs/**'
+      - 'pnpr/docs/**'
+      - 'DOCUMENTATION.md'
+      - '.github/workflows/docs.yml'
+      - '.github/workflows/sync-docs.yml'
+      - '.github/scripts/prepare-docs-sync*.mjs'
+      - '.github/scripts/copy-docs-artifact*.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pnpm/pnpm.io
+          ref: 0e0816fcf8497addd287a46ffc700802ad026535 # pnpm.io documentation importer
+          path: website
+          persist-credentials: false
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          runtime: node@22
+          install: false
+      - name: Test release source validation
+        run: node --test .github/scripts/prepare-docs-sync.test.mjs .github/scripts/copy-docs-artifact.test.mjs
+      - name: Build the website with this PR's documentation
+        working-directory: website
+        run: |
+          pnpm install --frozen-lockfile
+          node scripts/sync-docs.mjs .. --preview
+          pnpm build
+          pnpm check-urls

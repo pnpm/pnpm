@@ -20,7 +20,7 @@ import { writeJsonFileSync } from 'write-json-file'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
@@ -191,7 +191,7 @@ test('relative link is uninstalled', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   symlinkDirSync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
   project.has('@pnpm.e2e/hello-world-js-bin')
   await mutateModulesInSingleProject({

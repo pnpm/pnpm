@@ -110,3 +110,45 @@ test('updateWorkspaceState() does not throw when cache file writing fails', asyn
     },
   })).resolves.toBeUndefined()
 })
+
+test('updateWorkspaceState() records which hoisted projects have their own modules directory', async () => {
+  preparePackages([
+    { location: './packages/nested', package: { name: 'nested' } },
+    { location: './packages/flat', package: { name: 'flat' } },
+  ])
+  fs.mkdirSync('packages/nested/node_modules')
+  const workspaceDir = process.cwd()
+  const allProjects = [
+    { rootDir: path.resolve('packages/nested') as ProjectRootDir, manifest: { name: 'nested' } },
+    { rootDir: path.resolve('packages/flat') as ProjectRootDir, manifest: { name: 'flat' } },
+  ]
+  const settings = {
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    preferWorkspacePackages: false,
+  }
+
+  await updateWorkspaceState({
+    pnpmfiles: [],
+    workspaceDir,
+    allProjects,
+    filteredInstall: false,
+    settings: { ...settings, nodeLinker: 'hoisted' },
+  })
+  expect(loadWorkspaceState(workspaceDir)?.projects).toStrictEqual({
+    [path.resolve('packages/nested')]: { name: 'nested', hasModulesDir: true },
+    [path.resolve('packages/flat')]: { name: 'flat' },
+  })
+
+  await updateWorkspaceState({
+    pnpmfiles: [],
+    workspaceDir,
+    allProjects,
+    filteredInstall: false,
+    settings: { ...settings, nodeLinker: 'isolated' },
+  })
+  expect(loadWorkspaceState(workspaceDir)?.projects).toStrictEqual({
+    [path.resolve('packages/nested')]: { name: 'nested' },
+    [path.resolve('packages/flat')]: { name: 'flat' },
+  })
+})

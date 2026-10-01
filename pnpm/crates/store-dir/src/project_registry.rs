@@ -1,6 +1,6 @@
 //! The project registry is a flat directory of symlinks at
 //! `<store_dir>/projects/<short-hash>` that point back to every project
-//! using the global virtual store. The prune sweep walks this directory
+//! installed from the store. The prune sweep walks this directory
 //! to learn which projects still reference the shared `<store_dir>/links`
 //! slots — without it, a `pacquet store prune` (tracked separately) could
 //! not distinguish abandoned packages from packages a project still uses.
@@ -65,7 +65,7 @@ pub enum RegisterProjectError {
     },
 }
 
-/// Register `project_dir` as a user of the global virtual store at
+/// Register `project_dir` as a user of the store at
 /// `store_dir` by writing a symlink at
 /// `<store_dir>/projects/<create_short_hash(project_dir)>` pointing
 /// back at `project_dir`.

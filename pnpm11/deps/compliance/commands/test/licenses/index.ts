@@ -13,11 +13,11 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('pnpm licenses', async () => {
   const workspaceDir = tempDir()
-  f.copy('complex-licenses', workspaceDir)
+  testFixtures.copy('complex-licenses', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -44,7 +44,7 @@ test('pnpm licenses', async () => {
 
 test('pnpm licenses: show details', async () => {
   const workspaceDir = tempDir()
-  f.copy('simple-licenses', workspaceDir)
+  testFixtures.copy('simple-licenses', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -71,7 +71,7 @@ test('pnpm licenses: show details', async () => {
 
 test('pnpm licenses: output as json', async () => {
   const workspaceDir = tempDir()
-  f.copy('simple-licenses', workspaceDir)
+  testFixtures.copy('simple-licenses', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -126,7 +126,7 @@ test('pnpm licenses: output as json', async () => {
 
 test('pnpm licenses: paths point at the packages placed by the hoisted linker', async () => {
   const workspaceDir = tempDir()
-  f.copy('simple-licenses', workspaceDir)
+  testFixtures.copy('simple-licenses', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -154,7 +154,7 @@ test('pnpm licenses: paths point at the packages placed by the hoisted linker', 
 
 test('pnpm licenses: path should be correct for workspaces', async () => {
   const workspaceDir = tempDir()
-  f.copy('workspace-licenses', workspaceDir)
+  testFixtures.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
@@ -173,7 +173,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
   })
 
   for (const packageDir of [path.join(workspaceDir, 'foo'), path.join(workspaceDir, 'bar')]) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- each project's report is asserted before the next one is generated
     const { output, exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
       dir: packageDir,
@@ -186,24 +186,19 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
 
     expect(exitCode).toBe(0)
 
-    const parsedOutput = JSON.parse(output)
-    for (const license in parsedOutput) {
-      const packages = parsedOutput[license]
-      for (const pkg of packages) {
-        const pkgRoots = pkg['paths']
-        expect(pkgRoots).not.toHaveLength(0)
-        for (const pkgRoot of pkgRoots) {
-          const packageJsonPath = path.join(pkgRoot, 'package.json')
-          expect(fs.existsSync(packageJsonPath)).toBeTruthy()
-        }
-      }
+    const packages = Object.values(JSON.parse(output) as Record<string, Array<{ paths: string[] }>>).flat()
+    for (const pkg of packages) {
+      expect(pkg.paths).not.toHaveLength(0)
+    }
+    for (const pkgRoot of packages.flatMap((pkg) => pkg.paths)) {
+      expect(fs.existsSync(path.join(pkgRoot, 'package.json'))).toBeTruthy()
     }
   }
 })
 
 test('pnpm licenses: filter outputs', async () => {
   const workspaceDir = tempDir()
-  f.copy('workspace-licenses', workspaceDir)
+  testFixtures.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
@@ -242,7 +237,7 @@ test('pnpm licenses: filter outputs', async () => {
 
 test('pnpm licenses: lists only the dependencies of the project in the current directory', async () => {
   const workspaceDir = tempDir()
-  f.copy('workspace-licenses', workspaceDir)
+  testFixtures.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
@@ -279,13 +274,13 @@ test('pnpm licenses: lists only the dependencies of the project in the current d
 
 test('pnpm licenses: reads the lockfile of each project in a workspace with dedicated lockfiles', async () => {
   const workspaceDir = tempDir()
-  f.copy('workspace-licenses', workspaceDir)
+  testFixtures.copy('workspace-licenses', workspaceDir)
 
   const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   for (const projectDir of [path.join(workspaceDir, 'foo'), path.join(workspaceDir, 'bar')]) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -332,7 +327,7 @@ test('pnpm licenses: keeps packages with the same name and version but different
     const projectDir = path.join(workspaceDir, name)
     fs.mkdirSync(projectDir)
     fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { local: `file:../${dependency}` } }))
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -409,7 +404,7 @@ test('pnpm licenses: lists a registry package and a same-named local package fro
     const projectDir = path.join(workspaceDir, name)
     fs.mkdirSync(projectDir)
     fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { 'is-positive': spec } }))
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -450,7 +445,7 @@ test('pnpm licenses: lists the installed path of every dedicated lockfile that i
   for (const projectDir of projectDirs) {
     fs.mkdirSync(projectDir)
     fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: path.basename(projectDir), dependencies: { 'is-positive': '3.1.0' } }))
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -498,7 +493,7 @@ test('pnpm licenses: fails when lockfile is missing', async () => {
 
 test('pnpm licenses: should correctly read LICENSE file with executable file mode', async () => {
   const workspaceDir = tempDir()
-  f.copy('file-mode-test', workspaceDir)
+  testFixtures.copy('file-mode-test', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -525,7 +520,7 @@ test('pnpm licenses: should correctly read LICENSE file with executable file mod
 
 test('pnpm licenses should work with file protocol dependency', async () => {
   const workspaceDir = tempDir()
-  f.copy('with-file-protocol', workspaceDir)
+  testFixtures.copy('with-file-protocol', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -549,7 +544,7 @@ test('pnpm licenses should work with file protocol dependency', async () => {
 
 test('pnpm licenses should work with git protocol dep that have patches', async () => {
   const workspaceDir = tempDir()
-  f.copy('with-git-protocol-patched-deps', workspaceDir)
+  testFixtures.copy('with-git-protocol-patched-deps', workspaceDir)
   const patchedDependencies = {
     'is-positive@3.1.0': 'patches/is-positive@3.1.0.patch',
   }
@@ -577,7 +572,7 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
 
 test('pnpm licenses should work with git protocol dep that have peerDependencies', async () => {
   const workspaceDir = tempDir()
-  f.copy('with-git-protocol-peer-deps', workspaceDir)
+  testFixtures.copy('with-git-protocol-peer-deps', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -604,7 +599,7 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
 
 test('pnpm licenses should work git repository name containing capital letters', async () => {
   const workspaceDir = tempDir()
-  f.copy('with-git-protocol-caps', workspaceDir)
+  testFixtures.copy('with-git-protocol-caps', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -627,7 +622,7 @@ test('pnpm licenses should work git repository name containing capital letters',
 
 test('pnpm licenses: reports a runtime downloaded through devEngines', async () => {
   const workspaceDir = tempDir()
-  f.copy('with-downloaded-runtime', workspaceDir)
+  testFixtures.copy('with-downloaded-runtime', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({

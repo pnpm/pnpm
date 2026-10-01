@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
-import util, { promisify } from 'node:util'
+import { promisify } from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs from 'graceful-fs'
 
 const FILE_LOCK_RETRY_BUDGET_MS = 60_000
@@ -30,28 +31,49 @@ export default { // eslint-disable-line
   writeFileSync: withEagainRetry(gfs.writeFileSync),
 }
 
-function withEagainRetry<T extends unknown[], R> (
-  fn: (...args: T) => R,
+function withEagainRetry<Args extends unknown[], Result> (
+  fn: (...args: Args) => Result,
   maxRetries: number = 15
-): (...args: T) => R {
-  return (...args: T): R => {
+): (...args: Args) => Result {
+  return (...args: Args): Result => {
     let attempts = 0
     while (attempts <= maxRetries) {
-      try {
-        return fn(...args)
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'EAGAIN' && attempts < maxRetries) {
-          attempts++
-          // Exponential backoff: wait 2^attempts milliseconds, max 300ms
-          const delay = Math.min(Math.pow(2, attempts), 300)
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
-          continue
-        }
-        throw err
-      }
+      const outcome = tryCallWithEagain(fn, args, attempts, maxRetries)
+      if (outcome.success) return outcome.value
+      attempts = outcome.attempts
     }
     throw new Error('Unreachable')
   }
+}
+
+type CallOutcome<Result> =
+  | { success: true, value: Result }
+  | { success: false, attempts: number }
+
+function tryCallWithEagain<Args extends unknown[], Result> (
+  fn: (...args: Args) => Result,
+  args: Args,
+  attempts: number,
+  maxRetries: number
+): CallOutcome<Result> {
+  try {
+    return { success: true, value: fn(...args) }
+  } catch (err: unknown) {
+    if (!isEagainError(err) || attempts >= maxRetries) throw err
+    const nextAttempts = attempts + 1
+    waitEagainBackoff(nextAttempts)
+    return { success: false, attempts: nextAttempts }
+  }
+}
+
+function isEagainError (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'EAGAIN'
+}
+
+function waitEagainBackoff (attempts: number): void {
+  // Exponential backoff: wait 2^attempts milliseconds, max 300ms
+  const delay = Math.min(Math.pow(2, attempts), 300)
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
 }
 
 /**
@@ -105,7 +127,7 @@ export function unlinkWithRetry (target: string): void {
  * Runs a filesystem operation with the retry policy of
  * {@link renameFileWithRetry}.
  */
-export function withFileLockRetry<T> (operation: () => T): T {
+export function withFileLockRetry<Result> (operation: () => Result): Result {
   const retry = createFileLockRetry()
   for (;;) {
     try {
@@ -122,21 +144,25 @@ export function withFileLockRetry<T> (operation: () => T): T {
  * Asynchronous {@link withFileLockRetry}, which waits between attempts
  * without blocking the event loop.
  */
-export async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
+export async function withFileLockRetryAsync<Result> (operation: () => Promise<Result>): Promise<Result> {
   const retry = createFileLockRetry()
   for (;;) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the next attempt runs only after this one fails
       return await operation()
     } catch (err) {
-      const delayMs = retry.delayBeforeNextAttempt(err)
-      if (delayMs > 0) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => setTimeout(resolve, delayMs))
-      }
-      retry.checkBudgetAfterDelay(err)
+      // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
+      await backOffWithFileLockRetryAsync(retry, err)
     }
   }
+}
+
+async function backOffWithFileLockRetryAsync (retry: FileLockRetry, err: unknown): Promise<void> {
+  const delayMs = retry.delayBeforeNextAttempt(err)
+  if (delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  retry.checkBudgetAfterDelay(err)
 }
 
 interface FileLockRetry {
@@ -166,7 +192,7 @@ function createFileLockRetry (): FileLockRetry {
 
 export function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
   return (process.platform === 'win32' || isWsl()) &&
-    util.types.isNativeError(err) &&
+    isError(err) &&
     'code' in err &&
     (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
 }

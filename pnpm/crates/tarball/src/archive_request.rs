@@ -48,8 +48,15 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     } else {
         http_client.acquire_for_url_with_priority(package_url, priority).await
     };
-    let sent =
-        send_archive_request(&client, package_url, package_id, auth_headers, if_none_match).await;
+    let sent = send_archive_request(
+        http_client,
+        &client,
+        package_url,
+        package_id,
+        auth_headers,
+        if_none_match,
+    )
+    .await;
     // Failed connects are attempts too; the reporter's counter starts at one.
     let size = sent
         .as_ref()
@@ -59,7 +66,8 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     let response =
         sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
     let meta = response_meta(&response);
-    let response = check_archive_status(response, package_url, if_none_match.is_some()).await?;
+    let response =
+        check_archive_status(http_client, response, package_url, if_none_match.is_some()).await?;
     Ok((client, response, meta))
 }
 
@@ -111,6 +119,7 @@ fn header_list(response: &reqwest::Response, name: reqwest::header::HeaderName) 
 }
 
 async fn check_archive_status(
+    http_client: &ThrottledClient,
     response: reqwest::Response,
     package_url: &str,
     conditional: bool,
@@ -125,8 +134,9 @@ async fn check_archive_status(
         if response
             .content_length()
             .is_some_and(|len| len <= DRAIN_CAP)
+            && let Err(error) = response.bytes().await
         {
-            let _ = response.bytes().await;
+            http_client.downscale_on_timeout(package_url, &error);
         }
         return Err(TarballError::HttpStatus(HttpStatusError {
             url: package_url.to_string(),
@@ -137,6 +147,7 @@ async fn check_archive_status(
 }
 
 async fn send_archive_request(
+    http_client: &ThrottledClient,
     client: &ThrottledClientGuard<'_>,
     package_url: &str,
     package_id: &str,
@@ -151,6 +162,7 @@ async fn send_archive_request(
             Ok(response) => return Ok(response),
             Err(error) => error,
         };
+        http_client.downscale_on_timeout(package_url, &error);
         let delay = retry_backoff_for_error(&error, attempt).ok_or(error)?;
         attempt += 1;
         if !delay.is_zero() {

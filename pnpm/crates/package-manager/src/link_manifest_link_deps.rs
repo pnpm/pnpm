@@ -219,11 +219,14 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
                 added: AddedRoot {
                     name: alias.to_string(),
                     real_name: alias.to_string(),
-                    version: Some(spec.to_string()),
+                    // The target travels in `linked_from`, so the
+                    // summary renders `<- <path>` and an embedder's
+                    // `hideLinkedPkgsDiff` matches it.
+                    version: None,
                     dependency_type: Some(dependency_type_of(group)),
                     id: None,
                     latest: None,
-                    linked_from: None,
+                    linked_from: Some(target_path.display().to_string()),
                 },
             },
         }));

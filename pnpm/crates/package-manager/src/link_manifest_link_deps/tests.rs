@@ -421,3 +421,66 @@ fn bins_of_manifest_linked_deps_are_linked() {
 
     drop(dir);
 }
+
+/// A manifest-linked dep reports its target in `linkedFrom`, so the
+/// summary renders `<- <path>` and an embedder's `hideLinkedPkgsDiff` can
+/// leave it out.
+#[test]
+fn reports_link_target_as_linked_from() {
+    use pnpm_reporter::{AddedRoot, LogEvent, Reporter, RootLog, RootMessage};
+    use std::sync::Mutex;
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let project_dir = dir.path().join("project");
+    let external = dir.path().join("external-pkg");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&external).unwrap();
+
+    let manifest = manifest_at(
+        &project_dir,
+        serde_json::json!({
+            "name": "project",
+            "dependencies": { "abs-linked": format!("link:{}", external.display()) },
+        }),
+    );
+
+    link_manifest_link_deps::<RecordingReporter>(
+        dir.path(),
+        &[(project_dir, &manifest)],
+        None,
+        None,
+        all_dependencies(),
+        std::ffi::OsStr::new("node_modules"),
+        &LinkBinsOptions::default(),
+    )
+    .expect("linking succeeds");
+
+    let captured = EVENTS.lock().unwrap();
+    let added: Vec<&AddedRoot> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Root(RootLog {
+                message: RootMessage::Added { added, .. },
+                ..
+            }) => Some(added),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(added.len(), 1);
+    assert_eq!(added[0].name, "abs-linked");
+    assert_eq!(added[0].version, None);
+    assert_eq!(added[0].linked_from.as_deref(), Some(external.display().to_string().as_str()));
+
+    drop(dir);
+}

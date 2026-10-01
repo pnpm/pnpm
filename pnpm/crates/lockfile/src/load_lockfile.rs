@@ -117,7 +117,7 @@ impl Lockfile {
     }
 
     /// Load the *current* lockfile from
-    /// `<virtual_store_dir>/lock.yaml`: the file records what pacquet
+    /// `<install_state_dir>/lock.yaml`: the file records what pacquet
     /// actually materialized on the previous install and is diffed
     /// against the wanted lockfile to decide which snapshots can be
     /// skipped.
@@ -127,10 +127,10 @@ impl Lockfile {
     /// Same parse / version-check path as the wanted lockfile, so a
     /// major-version mismatch surfaces as a parse error rather than
     /// silently dropping the file.
-    pub fn load_current_from_virtual_store_dir(
-        virtual_store_dir: &Path,
+    pub fn load_current_from_install_state_dir(
+        install_state_dir: &Path,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        let file_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let file_path = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
         Self::load_from_path(&file_path)
     }
 

@@ -10,9 +10,8 @@ exports[`batch script > shim files > bat.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -27,6 +26,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -37,13 +41,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -51,7 +55,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -168,9 +172,8 @@ exports[`custom node executable > shim files > env.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -185,6 +188,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -195,13 +203,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -209,7 +217,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -280,9 +288,8 @@ exports[`env shebang > shim files > env.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -297,6 +304,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -307,13 +319,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -321,7 +333,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -420,9 +432,8 @@ exports[`env shebang with NODE_PATH > shim files > env.shim (windows) 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -437,6 +448,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -447,13 +463,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -461,7 +477,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -527,9 +543,8 @@ exports[`env shebang with NODE_PATH > shim files > env.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -544,6 +559,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -554,13 +574,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -568,7 +588,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -690,9 +710,8 @@ exports[`env shebang with PATH extending > shim files > env.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -707,6 +726,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -717,13 +741,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -731,7 +755,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -842,9 +866,8 @@ exports[`env shebang with args > shim files > env.args.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -859,6 +882,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -869,13 +897,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -883,7 +911,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -982,9 +1010,8 @@ exports[`env shebang with default args > shim files > env.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -999,6 +1026,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1009,13 +1041,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1023,7 +1055,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1122,9 +1154,8 @@ exports[`env shebang with no NODE_PATH > shim files > env.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1139,6 +1170,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1149,13 +1185,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1163,7 +1199,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1262,9 +1298,8 @@ exports[`explicit shebang > shim files > sh.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1279,6 +1314,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1289,13 +1329,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1303,7 +1343,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1402,9 +1442,8 @@ exports[`explicit shebang with args > shim files > sh.args.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1419,6 +1458,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1429,13 +1473,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1443,7 +1487,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1542,9 +1586,8 @@ exports[`explicit shebang with args, linking to another drive on Windows > shim 
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1559,6 +1602,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1569,19 +1617,19 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1680,9 +1728,8 @@ exports[`explicit shebang with prog args > shim files > sh.args.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1697,6 +1744,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1707,13 +1759,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1721,7 +1773,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1820,9 +1872,8 @@ exports[`no cmd file > shim files > exe.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1837,6 +1888,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1847,13 +1903,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1861,7 +1917,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -1925,9 +1981,8 @@ exports[`no shebang > shim files > exe.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -1942,6 +1997,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1952,13 +2012,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -1966,7 +2026,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -2037,9 +2097,8 @@ exports[`shebang with -S > shim files > from.env.s.shim 1`] = `
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -2054,6 +2113,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -2064,13 +2128,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(run_helper printf '%s\\n' "$link" | run_helper sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
 basedir="$basedir_abs"
@@ -2078,7 +2142,7 @@ basedir_win="$basedir"
 exe=""
 msys=""
 
-case \`command -p uname -a\` in
+case \`run_helper uname -a\` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"

@@ -34,6 +34,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

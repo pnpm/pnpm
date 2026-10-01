@@ -313,6 +313,16 @@ fn needs_build_slots_ignore_the_configured_import_method() {
         reported_import_method(PackageImportMethod::Hardlink, true, true),
         WireImportMethod::Clone,
     );
+    // Under the default method, a `file:` package that nothing will build is
+    // hard-linked, so an in-place edit of its source reaches the slot.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Auto, true, false),
+        WireImportMethod::Hardlink,
+    );
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Auto, true, true),
+        WireImportMethod::Clone,
+    );
 }
 
 /// The write-through the issue reports: a build script that rewrites a

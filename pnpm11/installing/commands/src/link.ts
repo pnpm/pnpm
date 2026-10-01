@@ -12,7 +12,6 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import type {
   WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
-import { logger } from '@pnpm/logger'
 import { DEPENDENCIES_FIELDS, type Project, type ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import normalize from 'normalize-path'
@@ -22,8 +21,9 @@ import { renderHelp } from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter.js'
 import { getSaveType } from './getSaveType.js'
 import * as install from './install.js'
+import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
-// @ts-expect-error
+// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 
@@ -84,23 +84,7 @@ export function help (): string {
 
 async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
   const { manifest } = await tryReadProjectManifest(linkCwdDir, opts)
-
-  if (manifest?.peerDependencies && Object.keys(manifest.peerDependencies).length > 0) {
-    const packageName = manifest.name ?? path.basename(linkCwdDir) // Assuming the name property exists in newManifest
-    const peerDeps = Object.entries(manifest.peerDependencies)
-      .map(([key, value]) => `  - ${key}@${String(value)}`)
-      .join(', ')
-
-    logger.warn({
-      message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
-
-${peerDeps}
-
-The linked in dependency will not resolve the peer dependencies from the target node_modules.
-This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
-      prefix: opts.dir,
-    })
-  }
+  warnAboutLinkedPeerDependencies(manifest, { pkgDir: linkCwdDir, prefix: opts.dir })
 }
 
 export async function handler (

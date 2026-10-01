@@ -149,7 +149,7 @@ fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
     config.enable_global_virtual_store = true;
     config.store_dir = dir.join("store").into();
     config.global_virtual_store_dir = dir.join("store/links");
-    config.virtual_store_dir = dir.join("node_modules/.pacquet");
+    config.install_state_dir = dir.join("node_modules/.pacquet");
     let config = config.leak();
     Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None, None)))
 }
@@ -217,7 +217,7 @@ fn frozen_backstop_run(
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 

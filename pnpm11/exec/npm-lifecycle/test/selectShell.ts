@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 
 import { expect, test } from '@jest/globals'
 
-import { scriptBody, selectShell } from '../src/selectShell.js'
+import { commandParsedByCmd, scriptBody, selectShell, useShellEmulator } from '../src/selectShell.js'
 
 test('uses sh -c by default on POSIX', () => {
   expect(selectShell(undefined, 'linux', undefined)).toEqual({ sh: 'sh', shFlag: '-c', windowsVerbatimArguments: false })
@@ -33,6 +33,34 @@ test('passes -c to a non-cmd scriptShell on Windows', () => {
 
 test('passes -c to a scriptShell named cmd on POSIX', () => {
   expect(selectShell('/usr/local/bin/cmd', 'linux', undefined)).toEqual({ sh: '/usr/local/bin/cmd', shFlag: '-c', windowsVerbatimArguments: false })
+})
+
+const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe'
+
+test('a blank scriptShell falls back like an unset one', () => {
+  expect(selectShell('', 'linux', undefined)).toEqual(selectShell(undefined, 'linux', undefined))
+  expect(selectShell('', 'win32', 'C:\\Windows\\system32\\cmd.exe')).toEqual(
+    selectShell(undefined, 'win32', 'C:\\Windows\\system32\\cmd.exe')
+  )
+  expect(commandParsedByCmd('', 'win32', false)).toBe(true)
+  expect(commandParsedByCmd('', 'win32', true)).toBe(false)
+})
+
+test('shellEmulator applies only when scriptShell is unset', () => {
+  expect(useShellEmulator(true, undefined)).toBe(true)
+  expect(useShellEmulator(true, '')).toBe(true)
+  expect(useShellEmulator(true, gitBash)).toBe(false)
+  expect(useShellEmulator(false, gitBash)).toBe(false)
+  expect(useShellEmulator(false, undefined)).toBe(false)
+})
+
+test('extra arguments are quoted for cmd only when cmd will parse them', () => {
+  expect(commandParsedByCmd(gitBash, 'win32', true)).toBe(false)
+  expect(commandParsedByCmd(undefined, 'win32', false)).toBe(true)
+  expect(commandParsedByCmd(undefined, 'win32', true)).toBe(false)
+  expect(commandParsedByCmd('C:\\Windows\\System32\\cmd.exe', 'win32', false)).toBe(true)
+  expect(commandParsedByCmd('C:\\Windows\\System32\\cmd.exe', 'win32', true)).toBe(true)
+  expect(commandParsedByCmd(gitBash, 'linux', false)).toBe(false)
 })
 
 test('a Bourne shell runs the command behind the interrupt trap', () => {

@@ -145,27 +145,47 @@ interface OptionalPeerEntry {
   target: DepPath
 }
 
+interface NonListingContext {
+  directDepPathsByImporter: Array<Set<DepPath>>
+  rootDevDepPaths?: Set<DepPath>
+}
+
 function collectPeerSatisfactionEdges (lockfile: LockfileObject, resolvePeersFromWorkspaceRoot: boolean): PeerSatisfactionEdges {
   const edges = new Map<DepPath, Set<string>>()
   const entries = collectOptionalPeerEntries(lockfile)
   if (entries.length === 0) return edges
 
   const importers = Object.values(lockfile.importers)
-  const directDepPathsByImporter = importers.map((importer) => new Set(importerDirectDepPaths(importer)))
-  const rootImporter = resolvePeersFromWorkspaceRoot ? lockfile.importers['.' as ProjectId] : undefined
-  const rootDevDepPaths = rootImporter == null ? undefined : new Set(resolvedDepsToDepPaths(rootImporter.devDependencies))
-  // The walk depends only on which importers do not list the target, so the
-  // entries are grouped by that set and each group shares one walk. A group's
-  // reached set is dropped before the next walk starts, which keeps memory
-  // linear in the graph however many groups a lockfile produces.
+  const context: NonListingContext = {
+    directDepPathsByImporter: importers.map((importer) => new Set(importerDirectDepPaths(importer))),
+    rootDevDepPaths: getRootDevDepPaths(lockfile, resolvePeersFromWorkspaceRoot),
+  }
+  const groupedEntries = groupEntriesByNonListing(entries, context)
+  for (const { nonListing, entries: groupEntries } of groupedEntries) {
+    const reached = new Set<DepPath>()
+    const seedDepPaths = nonListing.flatMap((index) => importerDirectDepPaths(importers[index]))
+    walkAllEdges(lockfile, seedDepPaths, reached)
+    applyNonListingGroupEdges(edges, groupEntries, reached)
+  }
+  return edges
+}
+
+function getRootDevDepPaths (lockfile: LockfileObject, resolvePeersFromWorkspaceRoot: boolean): Set<DepPath> | undefined {
+  if (!resolvePeersFromWorkspaceRoot) return undefined
+  const rootImporter = lockfile.importers['.' as ProjectId]
+  return rootImporter == null ? undefined : new Set(resolvedDepsToDepPaths(rootImporter.devDependencies))
+}
+
+function groupEntriesByNonListing (
+  entries: OptionalPeerEntry[],
+  context: NonListingContext
+): Array<{ nonListing: number[], entries: OptionalPeerEntry[] }> {
   const nonListingByTarget = new Map<DepPath, number[]>()
   const entriesByNonListing = new Map<string, { nonListing: number[], entries: OptionalPeerEntry[] }>()
   for (const entry of entries) {
     let nonListing = nonListingByTarget.get(entry.target)
     if (nonListing == null) {
-      nonListing = rootDevDepPaths?.has(entry.target)
-        ? []
-        : directDepPathsByImporter.flatMap((direct, index) => direct.has(entry.target) ? [] : [index])
+      nonListing = findNonListingImporters(entry.target, context)
       nonListingByTarget.set(entry.target, nonListing)
     }
     const key = nonListing.join(',')
@@ -176,37 +196,62 @@ function collectPeerSatisfactionEdges (lockfile: LockfileObject, resolvePeersFro
     }
     group.entries.push(entry)
   }
-  for (const { nonListing, entries: groupEntries } of entriesByNonListing.values()) {
-    const reached = new Set<DepPath>()
-    walkAllEdges(lockfile, nonListing.flatMap((index) => importerDirectDepPaths(importers[index])), reached)
-    for (const { parent, alias } of groupEntries) {
-      if (reached.has(parent)) continue
-      let aliases = edges.get(parent)
-      if (aliases == null) {
-        aliases = new Set()
-        edges.set(parent, aliases)
-      }
-      aliases.add(alias)
+  return [...entriesByNonListing.values()]
+}
+
+function findNonListingImporters (target: DepPath, context: NonListingContext): number[] {
+  if (context.rootDevDepPaths?.has(target)) return []
+  return context.directDepPathsByImporter.flatMap((direct, index) => direct.has(target) ? [] : [index])
+}
+
+function applyNonListingGroupEdges (
+  edges: Map<DepPath, Set<string>>,
+  groupEntries: OptionalPeerEntry[],
+  reached: Set<DepPath>
+): void {
+  for (const { parent, alias } of groupEntries) {
+    if (reached.has(parent)) continue
+    let aliases = edges.get(parent)
+    if (aliases == null) {
+      aliases = new Set()
+      edges.set(parent, aliases)
     }
+    aliases.add(alias)
   }
-  return edges
 }
 
 function collectOptionalPeerEntries (lockfile: LockfileObject): OptionalPeerEntry[] {
   const entries: OptionalPeerEntry[] = []
   for (const [parent, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
-    if (snapshot.peerDependencies == null || snapshot.peerDependenciesMeta == null) continue
-    for (const deps of [snapshot.dependencies, snapshot.optionalDependencies]) {
-      if (deps == null) continue
-      for (const [alias, ref] of Object.entries(deps)) {
-        if (!isOptionalPeer(snapshot, alias)) continue
-        const target = dp.refToRelative(ref, alias)
-        if (target != null) entries.push({ parent, alias, target })
-      }
-    }
+    collectSnapshotOptionalPeerEntries(parent, snapshot, entries)
   }
   return entries
 }
+
+function collectSnapshotOptionalPeerEntries (
+  parent: DepPath,
+  snapshot: PackageSnapshot,
+  entries: OptionalPeerEntry[]
+): void {
+  if (snapshot.peerDependencies == null || snapshot.peerDependenciesMeta == null) return
+  collectDepsOptionalPeerEntries(parent, snapshot, snapshot.dependencies, entries)
+  collectDepsOptionalPeerEntries(parent, snapshot, snapshot.optionalDependencies, entries)
+}
+
+function collectDepsOptionalPeerEntries (
+  parent: DepPath,
+  snapshot: PackageSnapshot,
+  deps: ResolvedDependencies | undefined,
+  entries: OptionalPeerEntry[]
+): void {
+  if (deps == null) return
+  for (const [alias, ref] of Object.entries(deps)) {
+    if (!isOptionalPeer(snapshot, alias)) continue
+    const target = dp.refToRelative(ref, alias)
+    if (target != null) entries.push({ parent, alias, target })
+  }
+}
+
 
 // Own-property checks throughout: a lockfile is untrusted input, and `in` or a
 // plain lookup also matches inherited Object.prototype names (`constructor`,
@@ -236,11 +281,19 @@ function walkAllEdges (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<
     const depPath = stack.pop()!
     if (seen.has(depPath)) continue
     seen.add(depPath)
-    const snapshot = Object.hasOwn(packages, depPath) ? packages[depPath] : undefined
-    if (snapshot == null) continue
-    for (const child of resolvedDepsToDepPaths(snapshot.dependencies)) stack.push(child)
-    for (const child of resolvedDepsToDepPaths(snapshot.optionalDependencies)) stack.push(child)
+    pushSnapshotDependencies(packages, depPath, stack)
   }
+}
+
+function pushSnapshotDependencies (
+  packages: PackageSnapshots,
+  depPath: DepPath,
+  stack: DepPath[]
+): void {
+  const snapshot = Object.hasOwn(packages, depPath) ? packages[depPath] : undefined
+  if (snapshot == null) return
+  for (const child of resolvedDepsToDepPaths(snapshot.dependencies)) stack.push(child)
+  for (const child of resolvedDepsToDepPaths(snapshot.optionalDependencies)) stack.push(child)
 }
 
 function resolvedDepsToDepPaths (deps: ResolvedDependencies | undefined): DepPath[] {
@@ -252,3 +305,4 @@ function resolvedDepsToDepPaths (deps: ResolvedDependencies | undefined): DepPat
   }
   return depPaths
 }
+

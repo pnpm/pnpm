@@ -121,7 +121,7 @@ test('import converts the yarn patches of workspace projects and warns about a c
 
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -155,4 +155,23 @@ test('import keeps a configured patch when the yarn patch file is missing', asyn
   const lockfile = assertProject(process.cwd()).readLockfile()
   expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toMatch(/^1\.0\.0\(patch_hash=/)
   expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('importYarnPatches records a patch of a package named like an Object.prototype key', async () => {
+  prepareEmpty()
+  fs.writeFileSync('p.patch', '')
+  const { importYarnPatches } = await import('../src/import/yarnPatches.js')
+
+  const patchedDependencies = await importYarnPatches({
+    projects: [{
+      rootDir: process.cwd(),
+      manifest: { dependencies: { constructor: 'patch:constructor@npm%3A1.0.0#~/p.patch' } },
+      writeProjectManifest: async () => {},
+    }],
+    yarnRootDir: process.cwd(),
+    workspaceDir: process.cwd(),
+    patchedDependencies: {},
+  })
+
+  expect(patchedDependencies).toStrictEqual({ 'constructor@1.0.0': path.resolve('p.patch') })
 })

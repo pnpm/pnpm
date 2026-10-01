@@ -1,7 +1,7 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId,
-    ParentPkgInfo, ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain,
-    UndoRealize, Walker, pkg_name_version,
+    Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId, ParentPkgInfo,
+    ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain, UndoRealize,
+    Walker,
 };
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -111,15 +111,15 @@ impl ChildOutputs {
 /// Index, for every package id in the tree, which of its child edges can
 /// stand in as a peer-dependency provider. Entries carried over from an
 /// earlier walk are left alone.
-pub(super) fn index_peer_provider_children(
+pub(in super::super) fn index_peer_provider_children(
     tree: &ResolvedTree,
-    index: &mut HashMap<String, PeerProviderChildren>,
+    index: &mut HashMap<Arc<str>, PeerProviderChildren>,
 ) {
     // With no peer names in the tree, no edge can index as a
     // provider: every entry stays the empty default.
     let tree_declares_peers = !tree.all_peer_dep_names.is_empty();
     for (pkg_id, children) in &tree.children_by_id {
-        if index.contains_key(&**pkg_id) {
+        if index.contains_key(pkg_id) {
             continue;
         }
         let mut providers = PeerProviderChildren::default();
@@ -128,7 +128,7 @@ pub(super) fn index_peer_provider_children(
                 index_peer_provider_edge(tree, &mut providers, edge_index, edge);
             }
         }
-        index.insert(pkg_id.to_string(), providers);
+        index.insert(Arc::clone(pkg_id), providers);
     }
 }
 
@@ -141,9 +141,9 @@ pub(super) fn index_peer_provider_edge(
     edge: &ChildEdge,
 ) {
     let Some(pkg) = tree.packages.get(&edge.pkg_id) else { return };
-    let real_name = pkg_name_version(&pkg.result).0;
+    let real_name: &str = pkg.name();
     let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
-    let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);
+    let real_name_is_peer = tree.all_peer_dep_names.contains(real_name);
     if !alias_is_peer && !real_name_is_peer {
         return;
     }
@@ -156,7 +156,7 @@ pub(super) fn index_peer_provider_edge(
     }
     if real_name_is_peer && real_name != edge.alias {
         providers.edge_indices_by_name
-            .entry(real_name)
+            .entry(real_name.to_string())
             .or_default()
             .push(edge_index);
     }
@@ -175,9 +175,9 @@ pub(super) struct LockedPinContext<'a> {
 pub(in super::super) struct NodeWalkContext<'a> {
     pub(in super::super) parent_refs: &'a Arc<ParentRefs>,
     pub(in super::super) parent_dep_paths: &'a Arc<HashMap<String, ParentPkgInfo>>,
-    pub(in super::super) chain_names: &'a SharedChain<String>,
+    pub(in super::super) chain_names: &'a SharedChain<Arc<str>>,
     pub(in super::super) parent_node_ids: &'a SharedChain<NodeId>,
-    pub(in super::super) parent_pkg_ids: &'a SharedChain<String>,
+    pub(in super::super) parent_pkg_ids: &'a SharedChain<Arc<str>>,
 }
 
 /// The importer-level walk context: the direct deps' parents and the
@@ -185,9 +185,9 @@ pub(in super::super) struct NodeWalkContext<'a> {
 pub(in super::super) struct RootWalk {
     pub(in super::super) importer_parents: Arc<ParentRefs>,
     pub(in super::super) parent_dep_paths: Arc<HashMap<String, ParentPkgInfo>>,
-    pub(super) chain_names: SharedChain<String>,
+    pub(super) chain_names: SharedChain<Arc<str>>,
     pub(super) parent_node_ids: SharedChain<NodeId>,
-    pub(super) parent_pkg_ids: SharedChain<String>,
+    pub(super) parent_pkg_ids: SharedChain<Arc<str>>,
 }
 
 impl RootWalk {
@@ -217,7 +217,7 @@ impl RootWalk {
 /// The occurrence's package and tree-node facts, read once on entry.
 pub(super) struct NodeEntry {
     pub(super) pkg: Arc<ResolvedPackage>,
-    pub(super) pkg_name: String,
+    pub(super) pkg_name: Arc<str>,
     pub(super) depth: i32,
     pub(super) installable: bool,
     pub(super) provider_children: BTreeMap<String, NodeId>,
@@ -226,9 +226,9 @@ pub(super) struct NodeEntry {
 
 /// The ancestor chains the node's children walk under.
 pub(super) struct ChildChains {
-    pub(super) names: SharedChain<String>,
+    pub(super) names: SharedChain<Arc<str>>,
     pub(super) node_ids: SharedChain<NodeId>,
-    pub(super) pkg_ids: SharedChain<String>,
+    pub(super) pkg_ids: SharedChain<Arc<str>>,
 }
 
 impl ChildChains {
@@ -251,7 +251,7 @@ impl ChildChains {
 pub(super) struct ChildrenWalk {
     pub(super) outputs: ChildOutputs,
     pub(super) children_map: Arc<BTreeMap<String, NodeId>>,
-    pub(super) discovery_children: Option<(Arc<Vec<ChildEdge>>, AncestorIds)>,
+    pub(super) discovery_children: Option<Arc<Vec<ChildEdge>>>,
     pub(super) realize_undo: Option<UndoRealize>,
     pub(super) chains: ChildChains,
 }
@@ -272,7 +272,6 @@ pub(super) struct SettledPeers {
 pub(super) struct DeferredChildren<'a> {
     pub(super) pkg_id: &'a Arc<str>,
     pub(super) children: &'a [ChildEdge],
-    pub(super) parent_ids: &'a AncestorIds,
     pub(super) provider_children: &'a BTreeMap<String, NodeId>,
     /// The parent's own depth; the children sit one below it.
     pub(super) depth: i32,
@@ -320,8 +319,8 @@ pub(super) struct NodePeersContext<'a> {
     /// The augmented refs visible at this node, including its own
     /// peer-relevant children.
     pub(super) parent_refs: &'a ParentRefs,
-    pub(super) chain_names: &'a SharedChain<String>,
-    pub(super) ancestor_pkg_ids: &'a SharedChain<String>,
+    pub(super) chain_names: &'a SharedChain<Arc<str>>,
+    pub(super) ancestor_pkg_ids: &'a SharedChain<Arc<str>>,
     /// Taken by value: it is the base the combined resolved-peer map is
     /// built on, so folding into it costs no extra map.
     pub(super) external_from_children: HashMap<String, NodeId>,

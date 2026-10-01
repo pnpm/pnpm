@@ -87,25 +87,13 @@ interface LegacyStarActionArgs {
 }
 
 async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<void> {
-  const { packageName, escapedName, star, registryUrl, authHeader, fetchFromRegistry } = args
+  const { star, registryUrl, authHeader, fetchFromRegistry } = args
   const action = star ? 'star' : 'unstar'
 
   const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
-  const pkgUrl = new URL(`./${escapedName}`, registryUrl).href
+  const pkgUrl = new URL(`./${args.escapedName}`, registryUrl).href
 
-  const response = await fetchFromRegistry(pkgUrl, {
-    authHeaderValue: authHeader,
-    fullMetadata: true,
-  })
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
-    }
-    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${response.status} ${response.statusText}`)
-  }
-
-  const pkgData = await response.json() as PackumentWithStars
+  const pkgData = await fetchPackumentWithStars(args, pkgUrl)
   pkgData.users = pkgData.users || {}
   if (star) {
     pkgData.users[username] = true
@@ -127,6 +115,25 @@ async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<voi
     const errorBody = await updateResponse.text()
     throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package (legacy): ${updateResponse.status} ${updateResponse.statusText}. ${errorBody}`)
   }
+}
+
+async function fetchPackumentWithStars (
+  { packageName, authHeader, fetchFromRegistry }: LegacyStarActionArgs,
+  pkgUrl: string
+): Promise<PackumentWithStars> {
+  const response = await fetchFromRegistry(pkgUrl, {
+    authHeaderValue: authHeader,
+    fullMetadata: true,
+  })
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
+    }
+    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${response.status} ${response.statusText}`)
+  }
+
+  return await response.json() as PackumentWithStars
 }
 
 export function getAuthHeaderForRegistry (

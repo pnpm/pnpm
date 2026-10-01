@@ -36,9 +36,10 @@ async function main (): Promise<void> {
   await createArtifactTarball('linux-x64', 'pnpm')
   await createArtifactTarball('linux-x64-musl', 'pnpm')
   await createArtifactTarball('linux-arm64', 'pnpm')
-  await createArtifactTarball('linux-arm64-musl', 'pnpm')
-  // darwin-x64 is intentionally absent: Node.js SEA injection produces a
-  // binary that segfaults on Intel Mac (pnpm/pnpm#11423, nodejs/node#62893).
+  // darwin-x64 and linux-arm64-musl are intentionally absent: Node.js SEA
+  // injection produces a binary that segfaults at startup on Intel Mac
+  // (pnpm/pnpm#11423, nodejs/node#62893) and on arm64 musl Linux
+  // (pnpm/pnpm#10443).
   await createArtifactTarball('darwin-arm64', 'pnpm')
   await createArtifactTarball('win32-x64', 'pnpm.exe')
   await createArtifactTarball('win32-arm64', 'pnpm.exe')

@@ -64,25 +64,27 @@ impl AddPipeline {
             InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: add the packages to each
                 // selected project independently.
-                let workspace_packages = self.args.workspace_link_targets(self.cfg)?;
+                let workspace_packages = Arc::new(self.args.workspace_link_targets(self.cfg)?);
                 DedicatedProjectRuns {
                     config: self.cfg,
-                    projects,
+                    projects: *projects,
                     require_lockfile: false,
                     http_client: None,
                     prune_excludes: true,
                     sync_injected_deps: !self.args.install.lockfile_only,
+                    pipelined: false,
                 }
                 .run(|state| {
-                    Box::pin(
-                        self.args
-                            .clone()
-                            .run_with_link_targets::<Reporter>(
-                                state,
-                                None,
-                                workspace_packages.as_ref(),
-                            ),
-                    )
+                    let args = self.args.clone();
+                    let workspace_packages = Arc::clone(&workspace_packages);
+                    Box::pin(async move {
+                        args.run_with_link_targets::<Reporter>(
+                            state,
+                            None,
+                            workspace_packages.as_ref().as_ref(),
+                        )
+                        .await
+                    })
                 })
                 .await
             }
@@ -253,7 +255,7 @@ pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> 
         manifest_path.to_path_buf(),
         config.lockfile_dir_for(project_dir).join(config.wanted_lockfile_name()),
         // The current lockfile remains project-local even with a global virtual store.
-        config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+        config.install_state_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
         config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
     ];
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {
@@ -331,11 +333,12 @@ impl UpdatePipeline {
             InstallFamilyPlan::PerProject(projects) => {
                 DedicatedProjectRuns {
                     config: self.cfg,
-                    projects,
+                    projects: *projects,
                     require_lockfile: false,
                     http_client: None,
                     prune_excludes: !self.args.save.no_save,
                     sync_injected_deps: !self.args.install.lockfile_only,
+                    pipelined: false,
                 }
                 .run(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
                 .await?;
@@ -392,11 +395,12 @@ impl RemovePipeline {
                 // each selected project independently.
                 DedicatedProjectRuns {
                     config: cfg,
-                    projects,
+                    projects: *projects,
                     require_lockfile: false,
                     http_client: None,
                     prune_excludes: true,
                     sync_injected_deps: false,
+                    pipelined: false,
                 }
                 .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
                 .await

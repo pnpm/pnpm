@@ -163,3 +163,43 @@ fn installs_materialize_files_at_the_current_umask_even_from_a_stale_store() {
 
     drop(root);
 }
+
+/// A local-directory dependency is imported from its project's own files,
+/// not from the store, so those files keep the modes the project gave them
+/// whatever the umask.
+#[test]
+fn local_directory_dependency_files_keep_their_project_modes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let local_dep = root.path().join("local-dep");
+    fs::create_dir(&local_dep).expect("create the local dependency");
+    fs::write(
+        local_dep.join("package.json"),
+        serde_json::json!({ "name": "local-dep", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local dependency's package.json");
+    let run = local_dep.join("run");
+    fs::write(&run, "#!/bin/sh\n").expect("write the local dependency's script");
+    fs::set_permissions(&run, fs::Permissions::from_mode(0o755)).expect("chmod the script");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "local-dep": format!("file:{}", local_dep.display()) },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    install_with_umask(&workspace, 0o077, &[]);
+
+    assert_eq!(
+        file_mode(&workspace.join("node_modules/local-dep/run")),
+        0o755,
+        "the project's executable stays executable",
+    );
+
+    drop((root, mock_instance));
+}

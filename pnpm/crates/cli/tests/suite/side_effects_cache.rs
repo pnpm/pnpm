@@ -99,6 +99,86 @@ fn assert_side_effects_materialized(hoisted: bool) {
     drop((root, mock_instance));
 }
 
+/// The symlinks a build creates are restored as symlinks from the
+/// side-effects cache, not as copies of their targets.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/12859>.
+#[cfg(unix)]
+#[test]
+fn symlinks_created_by_a_build_are_restored_from_the_side_effects_cache() {
+    assert_symlinks_restored(false);
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinks_created_by_a_build_are_restored_from_the_side_effects_cache_with_hoisted_linker() {
+    assert_symlinks_restored(true);
+}
+
+#[cfg(unix)]
+fn assert_symlinks_restored(hoisted: bool) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/postinstall-creates-symlinks': true\n");
+    if hoisted {
+        yaml.push_str("nodeLinker: hoisted\n");
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/postinstall-creates-symlinks": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let pkg_dir = workspace.join("node_modules/@pnpm.e2e/postinstall-creates-symlinks");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    run_frozen_install(&workspace);
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    // The fixture's postinstall fails when this is set, so the install only
+    // succeeds if the build comes from the side-effects cache.
+    let output = frozen_install_command(&workspace)
+        .with_env("PNPM_E2E_FAIL_POSTINSTALL", "1")
+        .output()
+        .expect("run the install");
+    assert!(output.status.success(), "the build must come from the cache: {output:?}");
+
+    for (link, target) in
+        [("bin/tool-alias", "tool"), ("lib-link", "lib"), ("replaced.js", "lib/index.js")]
+    {
+        assert_eq!(
+            fs::read_link(pkg_dir.join(link)).ok(),
+            Some(Path::new(target).to_path_buf()),
+            "{link} must be restored as a symlink to {target}",
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(pkg_dir.join("lib-link/index.js")).expect("read through the link"),
+        "module.exports = true\n",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A build whose whole effect lands outside the package directory, such as
 /// a git-hook installer, leaves the side-effects cache nothing to restore.
 /// Such a row must not count as a cache hit: skipping the scripts would

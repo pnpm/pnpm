@@ -76,6 +76,7 @@ pub(crate) use local_file_deps::{
 pub(crate) use manifest_agreement::{
     ManifestStat, modified_manifests_match_lockfile, stat_manifests, unstatted_manifests,
 };
+pub(crate) use modules_dirs::hoisted_project_modules_dir;
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
@@ -88,12 +89,18 @@ pub(crate) use timestamps::{
 };
 
 mod current_lockfile;
+mod modules_dirs;
 mod relocation;
 mod settle;
+use modules_dirs::{
+    direct_dependency_link_dangling, first_project_missing_modules_dir,
+    first_selected_project_missing_from_current_lockfile,
+    first_selected_project_missing_modules_dir, modules_dirs_present,
+};
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    direct_dependency_link_dangling, early_repeat_verdict, first_project_missing_modules_dir,
-    modules_dirs_present, project_structure_matches, settle_repeat_install,
+    early_repeat_verdict, project_structure_matches, settle_repeat_install,
+    wanted_lockfile_file_has_content,
 };
 
 use std::{
@@ -177,7 +184,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// which is why it arrives lazily, so the common repeat-install
     /// run skips the YAML parse entirely. A separately bounded byte
     /// scan only runs when lockfile metadata changed. When absent and
-    /// `<virtual_store_dir>/lock.yaml` exists, the current lockfile
+    /// `<install_state_dir>/lock.yaml` exists, the current lockfile
     /// stands in as the wanted one — it records exactly what the
     /// previous install materialized — and `pnpm-lock.yaml` is
     /// regenerated from it before the check reports up-to-date.
@@ -446,7 +453,7 @@ fn settings_block_fast_path(
     if !project_structure_matches(state, project_manifests) {
         return Some("workspace project list changed");
     }
-    if !modules_dirs_present(check) {
+    if !modules_dirs_present(check, state) {
         return Some("project has dependencies but no node_modules directory");
     }
     if direct_dependency_link_dangling(check) {
@@ -476,7 +483,7 @@ fn lockfile_inputs_block_fast_path(
     // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
     // stat is absent, which resolves to not-up-to-date. Pacquet
     // additionally accepts the *current* lockfile
-    // (`<virtual_store_dir>/lock.yaml`) as a stand-in when
+    // (`<install_state_dir>/lock.yaml`) as a stand-in when
     // `pnpm-lock.yaml` is missing: it records exactly what the
     // previous install materialized, so the content checks can run
     // against it and `pnpm-lock.yaml` is regenerated from it on
@@ -498,7 +505,7 @@ fn lockfile_inputs_block_fast_path(
     }
     if !is_workspace_install
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+        && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some("wanted lockfile missing");
     }
@@ -525,7 +532,7 @@ fn lockfile_inputs_block_fast_path(
     None
 }
 
-fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
+pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     let value = manifest.value();
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
         .into_iter()

@@ -112,7 +112,7 @@ pub(super) fn pin_locked_version(
     }
 }
 
-/// Whether a transitive edge stays on the version the lockfile recorded
+/// Whether an edge stays on the version the lockfile recorded
 /// for it. A deduplication target and an edge a `pacquet update` reaches
 /// re-pick through the preferred versions instead.
 pub(super) fn keeps_locked_version(
@@ -211,7 +211,7 @@ pub(super) fn ensure_same_registry_revision(
     existing: &ResolvedPackage,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<(), ResolveDependencyTreeError> {
-    if registry_revisions_conflict(&existing.result.resolution, &result.resolution) {
+    if registry_revisions_conflict(&existing.result().resolution, &result.resolution) {
         let name_ver =
             result.package.name_ver.as_ref().expect("registry result has name and version");
         return Err(ResolveDependencyTreeError::RevisionConflict {

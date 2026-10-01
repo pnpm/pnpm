@@ -302,12 +302,10 @@ impl<'a> InstallFrozenLockfile<'a> {
             // planning — like the directory-clone cache above, only after
             // the offline lockfile checks — so its index reads run while a
             // pending host detection finishes its `node --version`.
-            let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
-                config,
+            let cas_prefetch = install.drivers.start_cas_prefetch(
                 install.entries(),
                 allow_build_policy,
                 install.platform.supported_architectures,
-                None,
             )
             .await;
             Ok(MaterializationPlan {
@@ -322,7 +320,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 layout,
                 dir_clone_cache,
                 cas_prefetch,
-                git_source_cache: pnpm_git_fetcher::GitSourceCache::default(),
+                git_source_cache: install.drivers.git_source_cache(),
             })
         }
     }

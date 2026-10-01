@@ -64,8 +64,8 @@ afterAll(() => {
   storeIndex.close()
 })
 
-const f = fixtures(import.meta.dirname)
-const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')
+const testFixtures = fixtures(import.meta.dirname)
+const tarballPath = testFixtures.find('babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com'
@@ -331,7 +331,7 @@ test('does not retry a failed registry replacement tarball request', async () =>
 })
 
 test('fail when integrity check fails two times in a row', async () => {
-  const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const wrongTarball = testFixtures.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const wrongTarballContent = fs.readFileSync(wrongTarball)
   const mockPool = mockAgent.get(registry)
 
@@ -368,7 +368,7 @@ test('fail when integrity check fails two times in a row', async () => {
 })
 
 test('retry when integrity check fails', async () => {
-  const wrongTarball = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const wrongTarball = testFixtures.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const wrongTarballContent = fs.readFileSync(wrongTarball)
   const tarballContent = fs.readFileSync(tarballPath)
   const mockPool = mockAgent.get(registry)
@@ -431,7 +431,7 @@ test('fail when integrity check of local file fails', async () => {
   const storeDir = temporaryDirectory()
   process.chdir(storeDir)
 
-  f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', 'tar.tgz')
+  testFixtures.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', 'tar.tgz')
   const resolution = {
     integrity: tarballIntegrity,
     tarball: 'file:tar.tgz',
@@ -458,7 +458,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
   process.chdir(temporaryDirectory())
 
   const localTarballLocation = path.resolve('tar.tgz')
-  f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', localTarballLocation)
+  testFixtures.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', localTarballLocation)
   const resolution = {
     integrity: await getFileIntegrity(localTarballLocation),
     tarball: 'file:tar.tgz',
@@ -476,7 +476,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
 test("don't fail when fetching a local tarball in offline mode", async () => {
   process.chdir(temporaryDirectory())
 
-  const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarballAbsoluteLocation = testFixtures.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
     tarball: `file:${tarballAbsoluteLocation}`,
@@ -503,7 +503,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
   process.chdir(temporaryDirectory())
 
-  const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarballAbsoluteLocation = testFixtures.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
     tarball: `${registry}/foo.tgz`,
@@ -908,7 +908,7 @@ test('fail when preparing a git-hosted package', async () => {
       lockfileDir: process.cwd(),
       pkg,
     })
-  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+  ).rejects.toThrow(/Failed to prepare git-hosted package fetched from "https:\/\/codeload\.github\.com\/pnpm-e2e\/prepare-script-fails\/tar\.gz\/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm\.e2e\/prepare-script-fails@1\.0\.0 (npm|pnpm)-install: `(npm|pnpm) install`/)
 })
 
 test('take only the files included in the package, when fetching a git-hosted package', async () => {
@@ -1014,7 +1014,7 @@ test.each([true, false])('do not prepare a git tarball when scripts are ignored 
 })
 
 test('when extracting files with the same name, pick the last ones', async () => {
-  const tar = f.find('tarball-with-duplicate-files/archive.tar')
+  const tar = testFixtures.find('tarball-with-duplicate-files/archive.tar')
   const resolution = {
     tarball: `file:${tar}`,
   }

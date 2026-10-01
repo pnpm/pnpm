@@ -12,17 +12,17 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
 
-const f = fixtures(import.meta.dirname)
-const hasOutdatedDepsFixture = f.find('has-outdated-deps')
-const has2OutdatedDepsFixture = f.find('has-2-outdated-deps')
-const hasOutdatedDepsFixtureAndExternalLockfile = path.join(f.find('has-outdated-deps-and-external-shrinkwrap'), 'pkg')
-const hasNotOutdatedDepsFixture = f.find('has-not-outdated-deps')
-const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
-const hasNoLockfileFixture = f.find('has-no-lockfile')
-const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
-const hasOutdatedDepsUsingCatalogProtocol = f.find('has-outdated-deps-using-catalog-protocol')
-const hasOutdatedDepsUsingNpmAlias = f.find('has-outdated-deps-using-npm-alias')
-const hasOnlyDeprecatedDepsFixture = f.find('has-only-deprecated-deps')
+const testFixtures = fixtures(import.meta.dirname)
+const hasOutdatedDepsFixture = testFixtures.find('has-outdated-deps')
+const has2OutdatedDepsFixture = testFixtures.find('has-2-outdated-deps')
+const hasOutdatedDepsFixtureAndExternalLockfile = path.join(testFixtures.find('has-outdated-deps-and-external-shrinkwrap'), 'pkg')
+const hasNotOutdatedDepsFixture = testFixtures.find('has-not-outdated-deps')
+const hasMajorOutdatedDepsFixture = testFixtures.find('has-major-outdated-deps')
+const hasNoLockfileFixture = testFixtures.find('has-no-lockfile')
+const withPnpmUpdateIgnore = testFixtures.find('with-pnpm-update-ignore')
+const hasOutdatedDepsUsingCatalogProtocol = testFixtures.find('has-outdated-deps-using-catalog-protocol')
+const hasOutdatedDepsUsingNpmAlias = testFixtures.find('has-outdated-deps-using-npm-alias')
+const hasOnlyDeprecatedDepsFixture = testFixtures.find('has-only-deprecated-deps')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

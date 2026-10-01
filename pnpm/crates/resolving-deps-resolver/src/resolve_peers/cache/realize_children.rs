@@ -35,12 +35,7 @@ impl Walker<'_> {
             DeferredChildResolution::Materialize(pkg_id) => {
                 self.tree.dependencies_tree.insert(
                     context.node_id.clone(),
-                    DependenciesTreeNode::new(
-                        pkg_id,
-                        TreeChildren::Lazy { parent_ids: context.parent_ids.clone() },
-                        context.depth,
-                        true,
-                    ),
+                    DependenciesTreeNode::new(pkg_id, TreeChildren::Lazy, context.depth, true),
                 );
                 let output = self.resolve_node(&context.node_id, context.walk);
                 if !self.caches.parent_pkgs_of_node.contains_key(&context.node_id)
@@ -62,13 +57,13 @@ impl Walker<'_> {
     pub(in super::super) fn previously_resolved_children(
         &mut self,
         parent_node_ids: &SharedChain<NodeId>,
-        parent_pkg_ids_chain: &SharedChain<String>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
         current_pkg_id: &str,
     ) -> BTreeMap<String, NodeId> {
         let mut children = BTreeMap::new();
         if !parent_pkg_ids_chain
             .iter()
-            .any(|pkg_id| pkg_id == current_pkg_id)
+            .any(|pkg_id| &**pkg_id == current_pkg_id)
         {
             return children;
         }
@@ -107,8 +102,7 @@ impl Walker<'_> {
         let node = &self.tree.dependencies_tree[node_id];
         match &node.children {
             TreeChildren::Realized(children) => (self.realized_provider_children(children), None),
-            TreeChildren::Lazy { parent_ids } => self.lazy_provider_children(LazyProviders {
-                parent_ids: parent_ids.clone(),
+            TreeChildren::Lazy => self.lazy_provider_children(&LazyProviders {
                 pkg_id: std::sync::Arc::<str>::clone(&node.resolved_package_id),
                 depth: node.depth,
             }),
@@ -136,17 +130,17 @@ impl Walker<'_> {
     /// the whole children map.
     pub(super) fn lazy_provider_children(
         &mut self,
-        lazy: LazyProviders,
+        lazy: &LazyProviders,
     ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
         let children = self.tree.children_by_id
             .get(&lazy.pkg_id)
             .cloned()
             .unwrap_or_default();
-        let provider_edge_indices = self.caches.peer_provider_children_by_pkg_id
+        let provider_edge_indices = self.caches.peer_providers
+            .children_by_pkg_id
             .get(&*lazy.pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
         let canonical_scc = self.canonical_scc();
-        let full_chain = lazy.parent_ids.pushed(lazy.pkg_id.to_string());
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
         for &edge_index in provider_edge_indices {
@@ -162,7 +156,7 @@ impl Walker<'_> {
                     child_node_id.clone(),
                     DependenciesTreeNode::new(
                         std::sync::Arc::<str>::clone(&edge.pkg_id),
-                        TreeChildren::Lazy { parent_ids: full_chain.clone() },
+                        TreeChildren::Lazy,
                         lazy.depth + 1,
                         true,
                     ),
@@ -171,7 +165,7 @@ impl Walker<'_> {
             }
             providers.insert(edge.alias.clone(), child_node_id);
         }
-        (providers, Some(UndoRealize { newly_inserted, prev_parent_ids: lazy.parent_ids }))
+        (providers, Some(UndoRealize { newly_inserted }))
     }
 
     /// Realize the `(alias → NodeId)` children of `node_id` if it's
@@ -181,14 +175,13 @@ impl Walker<'_> {
     ///
     /// 1. Walk [`crate::ResolvedTree::children_by_id`] for this node's
     ///    package id.
-    /// 2. Skip any child whose pkg id appears in `parent_ids` — that
-    ///    edge would form a cycle.
+    /// 2. Cut the edges the canonical cycle gate cuts
+    ///    ([`Walker::cuts_cycle_edge`]); a canonical back-edge is
+    ///    recorded against its target's shared occurrence instead.
     /// 3. For each surviving child, allocate a per-occurrence
     ///    `NodeId` (leaves reuse the deterministic `NodeId::leaf`
     ///    for the leaf-collapse the eager walker does too) and
-    ///    insert a fresh `dependencies_tree` entry with another
-    ///    `Lazy` children variant that carries `parent_ids +
-    ///    [self_pkg_id]` for cycle break on its own descendants.
+    ///    insert a fresh lazy `dependencies_tree` entry.
     /// 4. Flip this node's `children` field to `Realized` so a
     ///    later visitor reuses the map.
     pub(super) fn realize_children(
@@ -205,16 +198,14 @@ impl Walker<'_> {
     ) -> (Arc<BTreeMap<String, NodeId>>, Option<UndoRealize>) {
         // Snapshot the bits we need; we'll mutate `self.tree` below
         // and can't hold a borrow on the entry across the mutation.
-        let (parent_ids, pkg_id, depth) = {
+        let (pkg_id, depth) = {
             let node = &self.tree.dependencies_tree[node_id];
             match &node.children {
                 // Cheap: the realized map is shared, not copied per revisit.
                 TreeChildren::Realized(map) => {
                     return (Arc::clone(map), None);
                 }
-                TreeChildren::Lazy { parent_ids } => {
-                    (parent_ids.clone(), Arc::<str>::clone(&node.resolved_package_id), node.depth)
-                }
+                TreeChildren::Lazy => (Arc::<str>::clone(&node.resolved_package_id), node.depth),
             }
         };
         // No spec means the first walk never recorded children for this
@@ -225,7 +216,6 @@ impl Walker<'_> {
         let canonical_scc = self.canonical_scc();
         let context = EdgeRealization {
             canonical_scc: &canonical_scc,
-            full_chain: &parent_ids.pushed(pkg_id.to_string()),
             pkg_id: &pkg_id,
             child_depth: depth + 1,
             previewed,
@@ -245,7 +235,7 @@ impl Walker<'_> {
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
             node.children = TreeChildren::Realized(Arc::clone(&realized));
         }
-        (realized, Some(UndoRealize { newly_inserted, prev_parent_ids: parent_ids }))
+        (realized, Some(UndoRealize { newly_inserted }))
     }
 
     /// The `NodeId` `edge` gets in the realized map, or `None` when the edge
@@ -305,7 +295,7 @@ impl Walker<'_> {
                 child_node_id.clone(),
                 DependenciesTreeNode::new(
                     Arc::<str>::clone(&edge.pkg_id),
-                    TreeChildren::Lazy { parent_ids: context.full_chain.clone() },
+                    TreeChildren::Lazy,
                     child_depth,
                     true,
                 ),
@@ -339,7 +329,7 @@ impl Walker<'_> {
             self.traversal.visited_this_call.remove(child_id);
         }
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
-            node.children = TreeChildren::Lazy { parent_ids: undo.prev_parent_ids };
+            node.children = TreeChildren::Lazy;
         }
     }
 }

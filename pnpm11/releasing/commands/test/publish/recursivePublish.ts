@@ -413,13 +413,13 @@ test('recursive publish --json: writes per-package summary array to stdout', asy
   const summaries = JSON.parse(result!.output!) as Array<Record<string, unknown>>
   expect(Array.isArray(summaries)).toBe(true)
   expect(summaries).toHaveLength(2)
-  expect(summaries.map((s) => s.name).sort()).toEqual([pkg1.name, pkg2.name].sort())
-  for (const s of summaries) {
-    expect(s).toMatchObject({ version: '1.0.0', bundled: [] })
-    expect(s.id).toBe(`${s.name as string}@${s.version as string}`)
-    expect(s.size).toEqual(expect.any(Number))
-    expect(s.shasum).toMatch(/^[0-9a-f]{40}$/)
-    expect(s.integrity).toMatch(/^sha512-/)
+  expect(summaries.map((summary) => summary.name).sort()).toEqual([pkg1.name, pkg2.name].sort())
+  for (const summary of summaries) {
+    expect(summary).toMatchObject({ version: '1.0.0', bundled: [] })
+    expect(summary.id).toBe(`${summary.name as string}@${summary.version as string}`)
+    expect(summary.size).toEqual(expect.any(Number))
+    expect(summary.shasum).toMatch(/^[0-9a-f]{40}$/)
+    expect(summary.integrity).toMatch(/^sha512-/)
   }
 })
 

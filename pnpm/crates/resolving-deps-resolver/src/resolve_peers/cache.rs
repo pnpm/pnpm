@@ -14,7 +14,7 @@ use crate::{
         context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
         walker::{MissingPeerInfo, NodeOutput, NodeWalkContext, SubtreeMissingByPkg, Walker},
     },
-    resolved_tree::{AncestorIds, ChildEdge, DependenciesTreeNode, TreeChildren},
+    resolved_tree::{ChildEdge, DependenciesTreeNode, TreeChildren},
 };
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_resolver_base::get_peer_version_range;
@@ -95,7 +95,6 @@ enum DeferredChildResolution {
 /// is realized against.
 struct EdgeRealization<'a> {
     canonical_scc: &'a HashMap<Arc<str>, usize>,
-    full_chain: &'a AncestorIds,
     pkg_id: &'a Arc<str>,
     child_depth: i32,
     previewed: Option<&'a BTreeMap<String, NodeId>>,
@@ -104,15 +103,14 @@ struct EdgeRealization<'a> {
 pub(super) struct CacheHitContext<'a> {
     pub(super) node_id: &'a NodeId,
     pub(super) tree_node_depth: i32,
-    pub(super) parent_chain_names: &'a SharedChain<String>,
-    pub(super) parent_pkg_ids_chain: &'a SharedChain<String>,
+    pub(super) parent_chain_names: &'a SharedChain<Arc<str>>,
+    pub(super) parent_pkg_ids_chain: &'a SharedChain<Arc<str>>,
     pub(super) preview_undo: Option<UndoRealize>,
 }
 
 pub(super) struct DeferredChildContext<'a> {
     pub(super) edge: &'a ChildEdge,
     pub(super) node_id: NodeId,
-    pub(super) parent_ids: &'a AncestorIds,
     pub(super) walk: &'a NodeWalkContext<'a>,
     pub(super) depth: i32,
 }
@@ -147,14 +145,12 @@ pub(super) struct PeerProviderChildren {
 
 /// A lazy node whose provider children are previewed.
 struct LazyProviders {
-    parent_ids: AncestorIds,
     pkg_id: std::sync::Arc<str>,
     depth: i32,
 }
 
 pub(super) struct UndoRealize {
     newly_inserted: Vec<NodeId>,
-    prev_parent_ids: AncestorIds,
 }
 
 /// What compensates for the loss of single-occurrence guarantees on the
@@ -342,14 +338,14 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         output: &NodeOutput,
-        parent_chain_names: &SharedChain<String>,
-        parent_pkg_ids_chain: &SharedChain<String>,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
     ) {
         if output.missing_peers.is_empty() {
             return;
         }
         let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
-        let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id.to_string());
+        let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id);
         for (peer_name, info) in output.missing_peers.iter() {
             if self.missing_issue_suppressed(&chain_with_self, peer_name) {
                 continue;
@@ -397,8 +393,6 @@ impl Walker<'_> {
 }
 
 /// Combines preview and final-materialization undo logs for the same node.
-/// Both logs restore the same pre-realization ancestor chain; previewing
-/// does not change the node's lazy parent state.
 pub(super) fn merge_realize_undo(
     first: Option<UndoRealize>,
     second: Option<UndoRealize>,

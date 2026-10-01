@@ -34,7 +34,7 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
         && has_hoist_pattern
     {
         vec![
-            config.virtual_store_dir
+            config.install_state_dir
                 .join("node_modules")
                 .to_string_lossy()
                 .into_owned(),

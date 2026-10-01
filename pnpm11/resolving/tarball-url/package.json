@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.tarball-url",
-  "version": "1101.1.2",
+  "version": "1101.1.3",
   "description": "Build and recognize the canonical tarball URL of an npm package",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/crypto.integrity": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

@@ -21,7 +21,7 @@ import isWindows from 'is-windows'
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const testFixtures = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
 
 skipOnWindows('makeProjectNodePathOption() puts the custom modules directory of a project with symlinked executables first on NODE_PATH', async () => {
@@ -130,7 +130,7 @@ test('makeNodePackageMapOption() replaces an existing flag whose path contains a
 })
 
 test('runLifecycleHook()', async () => {
-  const pkgRoot = f.find('simple')
+  const pkgRoot = testFixtures.find('simple')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
@@ -145,7 +145,7 @@ test('runLifecycleHook()', async () => {
 })
 
 test('runLifecycleHook() escapes the args passed to the script', async () => {
-  const pkgRoot = f.find('escape-args')
+  const pkgRoot = testFixtures.find('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: '/escape-args/1.0.0',
@@ -158,8 +158,42 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+const argsThatCmdInterprets = [
+  'C:\\Program Files\\tool\\',
+  '%PATH%',
+  'a b',
+  'a"b',
+  'tab\there',
+  '^&|<>()!',
+  '',
+  'ends with a backslash\\',
+]
+
+test.each([
+  ['a node script', 'node echo.js'],
+  ['a node_modules/.bin shim', 'record-args'],
+])('runLifecycleHook() passes the args unchanged to %s', async (_, script) => {
+  const pkgRoot = testFixtures.prepare('escape-args')
+  const binDir = path.join(pkgRoot, 'node_modules', '.bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync(path.join(binDir, 'record-args'), '#!/bin/sh\nexec node "$(dirname "$0")/../../echo.js" "$@"\n', { mode: 0o755 })
+  fs.writeFileSync(path.join(binDir, 'record-args.cmd'), '@node "%~dp0\\..\\..\\echo.js" %*\r\n')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+
+  await runLifecycleHook('echo', { ...pkg, scripts: { echo: script } }, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+    args: argsThatCmdInterprets,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(argsThatCmdInterprets)
+})
+
 test('runLifecycleHook() preserves literal arguments with the shell emulator', async () => {
-  const pkgRoot = f.find('escape-args')
+  const pkgRoot = testFixtures.find('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await fs.promises.rm(path.join(pkgRoot, 'output.json'), { force: true })
   const args = [
@@ -189,7 +223,7 @@ test('runLifecycleHook() preserves literal arguments with the shell emulator', a
 })
 
 test('runLifecycleHook() passes newline correctly', async () => {
-  const pkgRoot = f.find('escape-newline')
+  const pkgRoot = testFixtures.find('escape-newline')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: 'escape-newline@1.0.0',
@@ -200,12 +234,12 @@ test('runLifecycleHook() passes newline correctly', async () => {
   })
 
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual([
-    process.platform === 'win32' ? 'a\\nb != \'A\\\\nB\'' : 'a\nb != \'A\\nB\'',
+    process.platform === 'win32' ? 'a\\nb != \'A\\nB\'' : 'a\nb != \'A\\nB\'',
   ])
 })
 
 test('runLifecycleHook() does not set npm_config env vars but preserves user-defined ones', async () => {
-  const pkgRoot = f.find('inspect-npm-config-env')
+  const pkgRoot = testFixtures.prepare('inspect-npm-config-env')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   const prevPlatformArch = process.env.npm_config_platform_arch
@@ -229,7 +263,7 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
 })
 
 test('runPostinstallHooks()', async () => {
-  const pkgRoot = f.find('with-many-scripts')
+  const pkgRoot = testFixtures.prepare('with-many-scripts')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
@@ -243,7 +277,7 @@ test('runPostinstallHooks()', async () => {
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
-  const pkgRoot = f.find('without-script-start-serverjs')
+  const pkgRoot = testFixtures.find('without-script-start-serverjs')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await expect(
     runLifecycleHook('start', pkg, {
@@ -260,7 +294,7 @@ test('gypfile: false does not trigger node-gyp rebuild', async () => {
   const ranAScript = await runPostinstallHooks({
     depPath: '/gyp-with-gypfile-false/1.0.0',
     optional: false,
-    pkgRoot: f.find('gyp-with-gypfile-false'),
+    pkgRoot: testFixtures.find('gyp-with-gypfile-false'),
     rootModulesDir,
     unsafePerm: true,
   })
@@ -269,7 +303,7 @@ test('gypfile: false does not trigger node-gyp rebuild', async () => {
 })
 
 test('preinstall script does not trigger node-gyp rebuild', async () => {
-  const pkgRoot = f.find('gyp-with-preinstall')
+  const pkgRoot = testFixtures.find('gyp-with-preinstall')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/gyp-with-preinstall/1.0.0',

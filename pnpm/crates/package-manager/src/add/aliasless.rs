@@ -24,6 +24,8 @@ use std::{collections::HashMap, sync::Arc};
 pub(super) struct AliaslessDependency {
     pub(super) package_name: String,
     pub(super) manifest_specifier: String,
+    /// The directory's own manifest, for a selector saved as `link:`.
+    pub(super) linked_manifest: Option<Arc<serde_json::Value>>,
 }
 /// Resolve an alias-less add selector, or `None` to leave it to
 /// [`split_name_spec`](crate::add::specifier::split_name_spec), which reads it as a registry `<name>[@<spec>]`.
@@ -92,7 +94,8 @@ pub(super) async fn resolve_aliasless_local(
     let manifest_specifier =
         resolved.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     let package_name = aliasless_package_name(resolved.manifest.as_deref(), specifier)?;
-    Ok(Some(AliaslessDependency { package_name, manifest_specifier }))
+    let linked_manifest = resolved.manifest.filter(|_| manifest_specifier.starts_with("link:"));
+    Ok(Some(AliaslessDependency { package_name, manifest_specifier, linked_manifest }))
 }
 /// Resolve a remote (non-registry) tarball URL by downloading and
 /// extracting it: a tarball's name lives in the `package.json` it bundles,
@@ -128,7 +131,7 @@ pub(super) async fn resolve_aliasless_tarball(
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     let package_name = aliasless_package_name(result.package.manifest.as_deref(), specifier)?;
-    Ok(AliaslessDependency { package_name, manifest_specifier })
+    Ok(AliaslessDependency { package_name, manifest_specifier, linked_manifest: None })
 }
 
 fn aliasless_tarball_resolver(
@@ -324,7 +327,7 @@ pub(super) async fn resolve_aliasless_git(
     }
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
-    Ok(AliaslessDependency { package_name, manifest_specifier })
+    Ok(AliaslessDependency { package_name, manifest_specifier, linked_manifest: None })
 }
 pub(super) fn aliasless_git_resolver(
     inputs: &AddResolveInputs<'_, '_>,

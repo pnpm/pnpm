@@ -20,7 +20,7 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
         "",
         |config| {
             config.modules_dir = config.modules_dir.with_file_name("vendor");
-            config.virtual_store_dir = config.modules_dir.join(".pnpm");
+            config.install_state_dir = config.modules_dir.join(".pnpm");
             configure(config);
         },
     );
@@ -41,11 +41,19 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -102,7 +110,7 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
         r#""dependencies":{"foo":"1.0.0"}"#,
         |config| {
             config.modules_dir = config.modules_dir.with_file_name("custom").join("vendor");
-            config.virtual_store_dir = config.modules_dir.join(".pnpm");
+            config.install_state_dir = config.modules_dir.join(".pnpm");
         },
     );
     fs::create_dir_all(&config.modules_dir).unwrap();
@@ -113,7 +121,11 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -205,11 +217,19 @@ fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
             dir.path()
                 .to_string_lossy()
                 .into_owned(),
-            ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+            ProjectEntry {
+                name: Some("root".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            },
         ),
         (
             sibling_dir.to_string_lossy().into_owned(),
-            ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+            ProjectEntry {
+                name: Some("pkg-a".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            },
         ),
     ]);
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);

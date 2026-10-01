@@ -54,6 +54,7 @@ export interface UploadPkgToStoreResult {
 export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
 
 export interface StoreController {
+  readonly hasCustomFetchers?: boolean
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction | FetchPackageToStoreFunctionAsync
   getFilesIndexFilePath: GetFilesIndexFilePath
@@ -161,6 +162,8 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  /** Release-age cutoff to try when the time-based cutoff has no match. */
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   downloadPriority: number
   ignoreScripts?: boolean
@@ -265,6 +268,8 @@ export interface ImportOptions {
   sourceExists?: boolean
   keepModulesDir?: boolean
   safeToSkip?: boolean
+  /** Symlinks to create in the package, keyed by their path relative to it, with their targets. */
+  symlinks?: Map<string, string>
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined

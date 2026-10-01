@@ -26,17 +26,20 @@ async function waitForStart (file: string, running: Promise<unknown>): Promise<v
   const deadline = Date.now() + START_DEADLINE_MS
   return new Promise<void>((resolve, reject) => {
     const timer = setInterval(() => {
-      const failure = fs.existsSync(file)
-        ? undefined
-        : exited
-          ? new Error(`the pnpm under test exited before it wrote ${file}`)
-          : Date.now() > deadline ? new Error(`the pnpm under test did not write ${file} in time`) : null
+      const failure = checkStart({ file, exited, deadline })
       if (failure === null) return
       clearInterval(timer)
       if (failure) reject(failure)
       else resolve()
     }, 20)
   })
+}
+
+// `undefined` once started, an error when it can no longer start, `null` while still waiting.
+function checkStart ({ file, exited, deadline }: { file: string, exited: boolean, deadline: number }): Error | undefined | null {
+  if (fs.existsSync(file)) return undefined
+  if (exited) return new Error(`the pnpm under test exited before it wrote ${file}`)
+  return Date.now() > deadline ? new Error(`the pnpm under test did not write ${file} in time`) : null
 }
 
 // A stand-in for the pnpm that pnpm switches to. It writes a file when it

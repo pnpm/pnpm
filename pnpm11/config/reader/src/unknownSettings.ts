@@ -48,7 +48,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
 type ProofTypedWorkspaceManifestKeysAreExhaustive =
   (_: Record<typeof TYPED_WORKSPACE_MANIFEST_KEYS[number], unknown>) => Record<keyof WorkspaceManifest, unknown>
 
-const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifestKeysAreExhaustive = (x) => x
+const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifestKeysAreExhaustive = (record) => record
 
 /**
  * The {@link ConfigWithDeprecatedSettings} fields that neither {@link types}
@@ -110,9 +110,9 @@ const UNTYPED_WORKSPACE_SETTING_KEYS = [
   'onlyBuiltDependenciesFile',
 ]
 
-type KebabToCamelCase<S extends string> = S extends `${infer A}-${infer B}`
-  ? `${A}${Capitalize<KebabToCamelCase<B>>}`
-  : S
+type KebabToCamelCase<Name extends string> = Name extends `${infer Head}-${infer Rest}`
+  ? `${Head}${Capitalize<KebabToCamelCase<Rest>>}`
+  : Name
 
 type KnownSettingKey =
   | KebabToCamelCase<keyof typeof types & string>
@@ -122,7 +122,7 @@ type KnownSettingKey =
 type ProofKnownSettingKeysCoverConfig =
   (_: Record<KnownSettingKey, unknown>) => Record<keyof ConfigWithDeprecatedSettings, unknown>
 
-const _proofKnownSettingKeysCoverConfig: ProofKnownSettingKeysCoverConfig = (x) => x
+const _proofKnownSettingKeysCoverConfig: ProofKnownSettingKeysCoverConfig = (record) => record
 
 const KNOWN_SETTING_KEYS: ReadonlySet<string> = new Set([
   ...TYPED_WORKSPACE_MANIFEST_KEYS,

@@ -185,7 +185,7 @@ pub(super) struct SynthesizeScope<'a> {
     prefer_frozen_lockfile: bool,
     freshness: LockfileFreshnessInputs<'a, 'a>,
 }
-/// Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml` when
+/// Synthesize the wanted lockfile from `<install_state_dir>/lock.yaml` when
 /// `pnpm-lock.yaml` is absent and the materialized snapshot still satisfies
 /// the manifest. The install then skips resolution and regenerates
 /// `pnpm-lock.yaml` from the synthesized object.

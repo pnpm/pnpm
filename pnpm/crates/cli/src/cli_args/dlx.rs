@@ -54,8 +54,12 @@ use std::{
 #[derive(Debug, Args)]
 pub struct DlxArgs {
     /// The command to run, followed by its arguments.
-    #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[clap(trailing_var_arg = true)]
     pub command: Vec<String>,
+
+    /// Print the pnpm version.
+    #[clap(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    pub version: Option<bool>,
 
     /// The package to install before running the command. May be
     /// repeated. When omitted, the command name is the package.

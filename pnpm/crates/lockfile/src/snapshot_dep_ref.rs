@@ -3,6 +3,39 @@ use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, str::FromStr};
 
+/// The start of a [`SnapshotDepRef::Link`] target that points inside the
+/// package declaring it, as in `link:<root>/typings/css-tree`. `<root>`
+/// stands for that package's own directory, which is only known where the
+/// package is placed on disk, so every linker resolves it there.
+pub const PACKAGE_ROOT_LINK_BASE: &str = "<root>/";
+
+/// The path inside the declaring package that a `link:` target written
+/// against [`PACKAGE_ROOT_LINK_BASE`] points to, or `None` for any other
+/// target.
+///
+/// The path comes from a lockfile or a published manifest, so it is
+/// accepted only when every `/`-separated segment is a plain name: no empty,
+/// `.` or `..` segment, and no `\` or `:`, which would let a platform path
+/// join re-anchor it outside the package.
+#[must_use]
+pub fn package_root_link_target(link_target: &str) -> Option<&str> {
+    let target = link_target.strip_prefix(PACKAGE_ROOT_LINK_BASE)?;
+    target
+        .split('/')
+        .all(|segment| !matches!(segment, "" | "." | "..") && !segment.contains(['\\', ':']))
+        .then_some(target)
+}
+
+/// Join a [`package_root_link_target`] path, written with `/`, onto the
+/// declaring package's directory one segment at a time, so the result uses
+/// the platform's separator.
+#[must_use]
+pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> std::path::PathBuf {
+    target
+        .split('/')
+        .fold(package_dir.to_path_buf(), |dir, segment| dir.join(segment))
+}
+
 /// Value of a single entry in [`SnapshotEntry::dependencies`](crate::SnapshotEntry::dependencies)
 /// (or `optional_dependencies`).
 ///
@@ -39,6 +72,9 @@ use std::{borrow::Cow, str::FromStr};
 ///     dependencies:
 ///       c: link:packages/c
 ///   ```
+///
+///   A `link:<root>/<path>` value is the exception: `<path>` is a directory
+///   inside the declaring package itself, see [`PACKAGE_ROOT_LINK_BASE`].
 ///
 /// Detection rules: a reference starting with `link:` short-circuits to the
 /// link variant; a reference is an alias when a package name appears before
@@ -86,6 +122,13 @@ impl SnapshotDepRef {
             SnapshotDepRef::Plain(_) | SnapshotDepRef::Alias(_) => None,
             SnapshotDepRef::Link(target) => Some(target.as_str()),
         }
+    }
+
+    /// The path inside the declaring package this reference points to, when
+    /// it is a `link:<root>/...` reference. See [`PACKAGE_ROOT_LINK_BASE`].
+    #[must_use]
+    pub fn package_root_link_target(&self) -> Option<&'_ str> {
+        self.as_link_target().and_then(package_root_link_target)
     }
 }
 

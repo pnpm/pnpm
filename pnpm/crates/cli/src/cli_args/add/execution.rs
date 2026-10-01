@@ -150,6 +150,7 @@ where
         manifest,
         lockfile,
         resolved_packages,
+        dedicated: _,
     } = &mut state;
     let lockfile = command_lockfile(lockfile, &lockfile_path)?;
 

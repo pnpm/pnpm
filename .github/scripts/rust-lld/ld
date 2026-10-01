@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+# rustc adds its bundled linker directory to PATH before invoking GCC.
+exec rust-lld -flavor gnu "$@"

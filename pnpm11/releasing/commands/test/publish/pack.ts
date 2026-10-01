@@ -1768,20 +1768,20 @@ test('pack: preserves internal symlinks in package tarball and excludes external
       },
     })
 
-    const fileLinkEntry = entries.find((e) => e.name === 'package/symlink-file.txt')
+    const fileLinkEntry = entries.find((entry) => entry.name === 'package/symlink-file.txt')
     expect(fileLinkEntry).toBeDefined()
     expect(fileLinkEntry?.type).toBe('SymbolicLink')
     expect(fileLinkEntry?.linkname).toBe('real-file.txt')
 
-    const dirLinkEntry = entries.find((e) => e.name === 'package/symlink-dir')
+    const dirLinkEntry = entries.find((entry) => entry.name === 'package/symlink-dir')
     expect(dirLinkEntry).toBeDefined()
     expect(dirLinkEntry?.type).toBe('SymbolicLink')
     expect(dirLinkEntry?.linkname).toBe('sub')
 
-    expect(entries.find((e) => e.name === 'package/sub/nested-link.txt')).toMatchObject({ type: 'SymbolicLink', linkname: 'nested.txt' })
-    expect(entries.find((e) => e.name === 'package/symlink-absolute')).toMatchObject({ type: 'SymbolicLink', linkname: 'real-file.txt' })
-    expect(entries.find((e) => e.name === 'package/symlink-outside')).toBeUndefined()
-    expect(entries.find((e) => e.name === 'package/symlink-reentering')).toBeUndefined()
+    expect(entries.find((entry) => entry.name === 'package/sub/nested-link.txt')).toMatchObject({ type: 'SymbolicLink', linkname: 'nested.txt' })
+    expect(entries.find((entry) => entry.name === 'package/symlink-absolute')).toMatchObject({ type: 'SymbolicLink', linkname: 'real-file.txt' })
+    expect(entries.find((entry) => entry.name === 'package/symlink-outside')).toBeUndefined()
+    expect(entries.find((entry) => entry.name === 'package/symlink-reentering')).toBeUndefined()
   } finally {
     fs.rmSync(outsideDir, { recursive: true, force: true })
   }

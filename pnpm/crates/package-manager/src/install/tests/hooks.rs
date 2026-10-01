@@ -398,3 +398,27 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
 
     drop((dir, registry));
 }
+
+// Each evaluation of the pnpmfile appends to `loads`. The long-lived worker
+// evaluates it once; a pnpmfile without `preResolution` must not be loaded
+// a second time by the one-shot `preResolution` process.
+#[tokio::test]
+async fn pnpmfile_without_pre_resolution_is_loaded_once() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        r"require('fs').appendFileSync(require('path').join(__dirname, 'loads'), 'x');
+module.exports = { hooks: { readPackage: (pkg) => pkg } }",
+    )
+    .await
+    .expect("install should succeed");
+
+    let loads = std::fs::read_to_string(dir.path().join("loads")).expect("read loads");
+    assert_eq!(loads, "x");
+
+    drop((dir, registry));
+}

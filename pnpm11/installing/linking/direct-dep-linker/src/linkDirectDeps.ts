@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { rootLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { rimraf } from '@zkochan/rimraf'
@@ -106,8 +106,8 @@ async function readLinkedDepsWithRealLocations (modulesDir: string) {
 async function resolveLinkTargetOrFile (filePath: string): Promise<string> {
   try {
     return await resolveLinkTarget(filePath)
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (err.code !== 'EINVAL' && err.code !== 'UNKNOWN') throw err
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || (err.code !== 'EINVAL' && err.code !== 'UNKNOWN')) throw err
     return filePath
   }
 }
@@ -159,29 +159,34 @@ async function removePublishModulesLink (project: ProjectToLink): Promise<void> 
   if (!project.publishDir) return
   const projectDir = path.resolve(project.dir)
   const publishDir = path.resolve(projectDir, project.publishDir)
-  const relative = path.relative(projectDir, publishDir)
-  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    return
-  }
+  if (!isSubdirectory(projectDir, publishDir)) return
   const link = path.join(publishDir, path.basename(project.modulesDir))
-  let stats: fs.Stats
-  try {
-    stats = await fs.promises.lstat(link)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return
-    throw err
-  }
-  if (!stats.isSymbolicLink()) return
+  const stats = await tryLstat(link)
+  if (!stats?.isSymbolicLink()) return
   const [linkTarget, modulesDir] = await Promise.all([safeRealpath(link), safeRealpath(project.modulesDir)])
   if (linkTarget == null || linkTarget !== modulesDir) return
   await rimraf(link)
+}
+
+function isSubdirectory (parent: string, child: string): boolean {
+  const relative = path.relative(parent, child)
+  return Boolean(relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+async function tryLstat (target: string): Promise<fs.Stats | undefined> {
+  try {
+    return await fs.promises.lstat(target)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return undefined
+    throw err
+  }
 }
 
 async function safeRealpath (target: string): Promise<string | null> {
   try {
     return await fs.promises.realpath(target)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

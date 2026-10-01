@@ -25,6 +25,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../deps/path"
+    },
+    {
       "path": "../../workspace/project-manifest-reader"
     },
     {

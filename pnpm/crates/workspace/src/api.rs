@@ -16,7 +16,7 @@ use std::ffi::OsString;
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Mirrors [`std::env::var_os`]. Used by
 /// [`crate::find_workspace_dir_from_env`] to resolve
-/// `NPM_CONFIG_WORKSPACE_DIR` without mutating the real process
+/// `PNPM_CONFIG_WORKSPACE_DIR` without mutating the real process
 /// environment in tests.
 pub trait EnvVarOs {
     /// Return the value of the named environment variable as an

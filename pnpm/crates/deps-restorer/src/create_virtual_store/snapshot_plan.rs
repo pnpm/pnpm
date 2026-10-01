@@ -221,7 +221,7 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     // A global-virtual-store slot path is content-addressed: the graph
     // hash covers the snapshot's wiring, integrity, and engine, so an
     // existing slot is current even when no current lockfile survives —
-    // a wiped `node_modules` takes `<virtual_store_dir>/lock.yaml` with
+    // a wiped `node_modules` takes `<install_state_dir>/lock.yaml` with
     // it, and without this probe such a restore re-links every slot the
     // store already holds (pnpm/pnpm#14510). Mirrors the GVS fast path
     // in pnpm's `lockfileToDepGraph`.

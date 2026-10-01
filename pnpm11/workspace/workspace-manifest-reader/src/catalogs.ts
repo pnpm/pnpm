@@ -42,22 +42,30 @@ export function assertValidWorkspaceManifestCatalogs (manifest: { packages?: rea
   }
 
   for (const [catalogName, catalog] of Object.entries(manifest.catalogs)) {
-    if (Array.isArray(catalog)) {
-      throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - array`)
-    }
+    assertValidNamedCatalog(catalogName, catalog)
+  }
+}
 
-    if (catalog === null) {
-      throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - null`)
-    }
+function assertValidNamedCatalog (catalogName: string, catalog: unknown): void {
+  if (Array.isArray(catalog)) {
+    throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - array`)
+  }
 
-    if (typeof catalog !== 'object') {
-      throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - ${typeof catalog}`)
-    }
+  if (catalog === null) {
+    throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - null`)
+  }
 
-    for (const [alias, specifier] of Object.entries(catalog)) {
-      if (typeof specifier !== 'string') {
-        throw new InvalidWorkspaceManifestError(`Catalog '${catalogName}' has invalid entry '${alias}'. Expected string specifier, but found: ${typeof specifier}`)
-      }
+  if (typeof catalog !== 'object') {
+    throw new InvalidWorkspaceManifestError(`Expected named catalog ${catalogName} to be an object, but found - ${typeof catalog}`)
+  }
+
+  assertValidCatalogEntries(catalogName, catalog as Record<string, unknown>)
+}
+
+function assertValidCatalogEntries (catalogName: string, catalog: Record<string, unknown>): void {
+  for (const [alias, specifier] of Object.entries(catalog)) {
+    if (typeof specifier !== 'string') {
+      throw new InvalidWorkspaceManifestError(`Catalog '${catalogName}' has invalid entry '${alias}'. Expected string specifier, but found: ${typeof specifier}`)
     }
   }
 }

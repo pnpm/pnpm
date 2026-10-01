@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
-import util from 'node:util'
 import { gunzipSync } from 'node:zlib'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import stripBom from 'strip-bom'
 import tar from 'tar-stream'
 
@@ -67,42 +66,72 @@ export async function readTarballManifest (tarballData: Buffer): Promise<Tarball
 }
 
 async function readTarballContents (tarballData: Buffer, includeSummary: boolean): Promise<TarballContents> {
-  const extract = tar.extract()
-  const files: Array<{ path: string }> = []
-  const bundled = new Set<string>()
-  let manifestText: Buffer | undefined
-  let entryCount = 0
-  let unpackedSize = 0
+  const { manifestText, ...summary } = await readTarballEntries(tarballData, includeSummary)
+  return {
+    ...summary,
+    manifest: parseTarballManifest(manifestText),
+  }
+}
 
+interface TarballEntries extends Omit<TarballContents, 'manifest'> {
+  manifestText?: Buffer
+}
+
+type EntryListener = (...args: tar.ExtractEvents['entry']) => void
+
+async function readTarballEntries (tarballData: Buffer, includeSummary: boolean): Promise<TarballEntries> {
+  const extract = tar.extract()
+  const entries: TarballEntries = {
+    bundled: new Set<string>(),
+    entryCount: 0,
+    files: [],
+    unpackedSize: 0,
+  }
   await new Promise<void>((resolve, reject) => {
-    extract.on('entry', (header, stream, next) => {
-      const chunks: Buffer[] = []
-      if (includeSummary && header.type === 'file') {
-        entryCount++
-        unpackedSize += header.size ?? 0
-        files.push({ path: header.name.replace(/^package\//, '') })
-        const bundledMatch = /^package\/node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(header.name)
-        if (bundledMatch?.[1]) {
-          bundled.add(bundledMatch[1])
-        }
-      }
-      if (header.name === 'package/package.json') {
-        stream.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
-      }
-      stream.on('error', reject)
-      stream.on('end', () => {
-        if (header.name === 'package/package.json') {
-          manifestText = Buffer.concat(chunks)
-        }
-        next()
-      })
-      stream.resume()
-    })
+    extract.on('entry', createEntryListener({ entries, includeSummary, reject }))
     extract.on('error', reject)
     extract.on('finish', resolve)
     extract.end(maybeGunzip(tarballData))
   })
+  return entries
+}
 
+function createEntryListener ({ entries, includeSummary, reject }: {
+  entries: TarballEntries
+  includeSummary: boolean
+  reject: (reason: unknown) => void
+}): EntryListener {
+  return (header, stream, next) => {
+    const chunks: Buffer[] = []
+    if (includeSummary && header.type === 'file') {
+      recordFileEntry(entries, header)
+    }
+    const isManifest = header.name === 'package/package.json'
+    if (isManifest) {
+      stream.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
+    }
+    stream.on('error', reject)
+    stream.on('end', () => {
+      if (isManifest) {
+        entries.manifestText = Buffer.concat(chunks)
+      }
+      next()
+    })
+    stream.resume()
+  }
+}
+
+function recordFileEntry (entries: TarballEntries, header: tar.Header): void {
+  entries.entryCount++
+  entries.unpackedSize += header.size ?? 0
+  entries.files.push({ path: header.name.replace(/^package\//, '') })
+  const bundledMatch = /^package\/node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(header.name)
+  if (bundledMatch?.[1]) {
+    entries.bundled.add(bundledMatch[1])
+  }
+}
+
+function parseTarballManifest (manifestText: Buffer | undefined): TarballManifest {
   let parsedManifest: unknown
   try {
     parsedManifest = JSON.parse(stripBom(manifestText?.toString() ?? ''))
@@ -118,21 +147,14 @@ async function readTarballContents (tarballData: Buffer, includeSummary: boolean
     throw new PnpmError('STAGE_TARBALL_MANIFEST_NOT_FOUND', 'Could not read package.json from tarball')
   }
   validatePackageIdentity({ name: manifest.name, version: manifest.version })
-
-  return {
-    bundled,
-    entryCount,
-    files,
-    manifest: manifest as TarballManifest,
-    unpackedSize,
-  }
+  return manifest as TarballManifest
 }
 
 function maybeGunzip (tarballData: Buffer): Buffer {
   try {
     return gunzipSync(tarballData, { maxOutputLength: MAX_TARBALL_BYTES })
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
       throw new PnpmError(
         'STAGE_REGISTRY_ERROR',
         `Failed to read the staged tarball: tarball exceeded ${MAX_TARBALL_BYTES} bytes when decompressed`

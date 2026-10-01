@@ -67,7 +67,7 @@ mod macos {
             enable_global_virtual_store: false,
             package_import_method: PackageImportMethod::Clone,
             global_virtual_store_dir: links_root.to_path_buf(),
-            virtual_store_dir: links_root.with_file_name("probe-virtual-store"),
+            install_state_dir: links_root.with_file_name("probe-virtual-store"),
             ..Config::default()
         };
         DirCloneCache::build(

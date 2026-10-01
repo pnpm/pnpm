@@ -1,5 +1,10 @@
+pub(super) use fast_path::register_workspace_in_store;
+
 mod fast_path;
-use fast_path::{UpToDateCheck, install_is_already_up_to_date};
+use fast_path::{
+    UpToDateCheck, install_is_already_up_to_date, pnpmfile_hook_override_changed,
+    report_already_up_to_date,
+};
 
 mod dispatch;
 use dispatch::{Dispatched, Settled, dispatch};
@@ -16,6 +21,8 @@ use lockfile_load::{Loaded, load_lockfiles};
 mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
+mod auto_dedupe;
+mod custom_fetcher_reuse;
 mod execution;
 mod mode;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
@@ -28,8 +35,8 @@ use std::fs;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
-    Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy, build_resolution_verifiers,
-    configured_or_discovered_workspace_dir, lockfile_root_dir,
+    Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
+    build_resolution_verifiers, configured_or_discovered_workspace_dir, lockfile_root_dir,
 };
 use pnpm_config::Config;
 
@@ -155,6 +162,7 @@ where
                     catalogs_override: self.projects.catalogs_override,
                     pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
                     workspace_projects_override: self.projects.workspace_projects_override,
+                    dedicated: self.projects.dedicated,
                 },
                 resolution: self.resolution,
             },
@@ -339,6 +347,12 @@ pub struct InstallExecution {
     pub dry_run: bool,
 }
 
+impl InstallOwned {
+    fn shared_caches(&self) -> Option<&super::SharedInstallCaches> {
+        self.projects.dedicated.as_ref().map(|dedicated| &dedicated.caches)
+    }
+}
+
 /// The install's owned inputs, each consumed by one phase.
 struct InstallOwned {
     tarball_mem_cache: Arc<super::MemCache>,
@@ -394,32 +408,40 @@ pub(super) struct Verification {
     pub(super) planned_canonical_fetches: pnpm_resolving_resolver_base::PlannedCanonicalFetches,
     pub(super) resolution_verifiers: Vec<Arc<dyn super::ResolutionVerifier>>,
     pub(super) derived_lockfile_path: Option<PathBuf>,
+    /// The record an `autoDedupe` `--lockfile-only` install that resolves the
+    /// whole workspace writes once it saves the lockfile, and that a later one
+    /// checks. `None` for every other install.
+    pub(super) auto_dedupe_baseline: Option<super::auto_dedupe_baseline::AutoDedupeBaseline>,
 }
 
 impl Verification {
-    fn set_up(execution: &RunExecution<'_>, has_lockfile: bool) -> Result<Self, InstallError> {
+    fn set_up(
+        execution: &RunExecution<'_>,
+        lockfiles: &Lockfiles<'_>,
+        (scope, project_manifests): (&InstallScope<'_>, &[(PathBuf, &PackageManifest)]),
+    ) -> Result<Self, InstallError> {
         let install = execution.install;
         let owned = &execution.owned;
-        let workspace_root = &execution.workspace.dirs.workspace_root;
-        let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+        let shared_caches = owned.shared_caches();
+        let meta_cache: Arc<InMemoryPackageMetaCache> =
+            shared_caches.map_or_else(Default::default, |caches| Arc::clone(&caches.packuments));
         let planned_canonical_fetches =
             pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
         let resolution_verifiers = install_resolution_verifiers(
             install.context.config,
             install.lockfile_policy.trust,
             (&owned.http_client_arc, &meta_cache, owned.resolution.auth_override.as_ref()),
-            &planned_canonical_fetches,
+            (&planned_canonical_fetches, shared_caches),
         )?;
         Ok(Self {
             meta_cache,
             planned_canonical_fetches,
             resolution_verifiers,
-            derived_lockfile_path: has_lockfile.then(|| {
-                install.context.lockfile_path.map_or_else(
-                    || workspace_root.join(install.context.config.wanted_lockfile_name()),
-                    Path::to_path_buf,
-                )
-            }),
+            derived_lockfile_path: lockfiles.wanted
+                .get()
+                .is_some()
+                .then(|| execution.wanted_lockfile_path()),
+            auto_dedupe_baseline: execution.auto_dedupe_baseline(scope, project_manifests),
         })
     }
 }
@@ -437,12 +459,16 @@ fn install_resolution_verifiers(
         &Arc<InMemoryPackageMetaCache>,
         Option<&Arc<super::AuthHeaders>>,
     ),
-    planned_canonical_fetches: &pnpm_resolving_resolver_base::PlannedCanonicalFetches,
+    shared: (
+        &pnpm_resolving_resolver_base::PlannedCanonicalFetches,
+        Option<&super::SharedInstallCaches>,
+    ),
 ) -> Result<Vec<Arc<dyn super::ResolutionVerifier>>, InstallError> {
     if trust_lockfile {
         return Ok(Vec::new());
     }
     let (http_client_arc, meta_cache, auth_override) = clients;
+    let (planned_canonical_fetches, shared_caches) = shared;
     build_resolution_verifiers(
         config,
         Arc::clone(http_client_arc),
@@ -450,6 +476,7 @@ fn install_resolution_verifiers(
         auth_override.cloned(),
         None,
         Some(std::sync::Arc::clone(planned_canonical_fetches)),
+        shared_caches.map(|caches| caches.verifier_lookups.clone()),
     )
     .map_err(InstallError::BuildVerifiers)
 }

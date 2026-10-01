@@ -1,8 +1,9 @@
 #[cfg(windows)]
 use super::workspace_directory::ensure_workspace_directory_windows;
 use super::{
-    ArchiveStoreProjection, Config, LockedCrate, add_cargo_checksum, discover_workspace_roots,
-    managed_config, parse_lockfile, update_managed_config, workspace_root,
+    ArchiveStoreProjection, Config, LockedCrate, PathBuf, add_cargo_checksum,
+    discover_workspace_roots, managed_config, parse_lockfile, update_managed_config,
+    workspace_root,
 };
 #[cfg(unix)]
 use super::{
@@ -466,6 +467,14 @@ async fn sparse_index_fetch_uses_configured_request_auth() {
     request.assert_async().await;
 }
 
+async fn discovered_roots(manifests: &[PathBuf]) -> Vec<PathBuf> {
+    discover_workspace_roots(manifests).await
+        .unwrap()
+        .into_iter()
+        .map(|workspace| workspace.root)
+        .collect()
+}
+
 #[tokio::test]
 async fn asks_cargo_for_the_workspace_root_of_a_member() {
     let repository = tempfile::tempdir().unwrap();
@@ -487,9 +496,7 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
     let canonical_root = dunce::canonicalize(&cargo_root).unwrap();
     assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), canonical_root);
     assert_eq!(
-        discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")])
-            .await
-            .unwrap(),
+        discovered_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")]).await,
         [canonical_root],
     );
 }
@@ -516,12 +523,8 @@ async fn discovers_independent_workspaces_nested_under_workspace_members() {
     }
 
     assert_eq!(
-        discover_workspace_roots(&[
-            root.join("member/Cargo.toml"),
-            root.join("member/nested/Cargo.toml"),
-        ])
-        .await
-        .unwrap(),
+        discovered_roots(&[root.join("member/Cargo.toml"), root.join("member/nested/Cargo.toml")])
+            .await,
         [
             dunce::canonicalize(root).unwrap(),
             dunce::canonicalize(root.join("member/nested")).unwrap()

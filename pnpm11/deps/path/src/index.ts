@@ -66,21 +66,21 @@ export function parseRegistryQualifiedVersion (version: string): RegistryQualifi
 export function indexOfDepPathSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
   if (!depPath.endsWith(')')) return { peersIndex: -1, patchHashIndex: -1 }
   let open = 1
-  for (let i = depPath.length - 2; i >= 0; i--) {
-    if (depPath[i] === '(') {
+  for (let charIndex = depPath.length - 2; charIndex >= 0; charIndex--) {
+    if (depPath[charIndex] === '(') {
       open--
-    } else if (depPath[i] === ')') {
+    } else if (depPath[charIndex] === ')') {
       open++
     } else if (!open) {
-      if (depPath.substring(i + 1).startsWith('(patch_hash=')) {
+      if (depPath.substring(charIndex + 1).startsWith('(patch_hash=')) {
         return {
-          patchHashIndex: i + 1,
-          peersIndex: depPath.indexOf('(', i + 2),
+          patchHashIndex: charIndex + 1,
+          peersIndex: depPath.indexOf('(', charIndex + 2),
         }
       }
       return {
         patchHashIndex: -1,
-        peersIndex: i + 1,
+        peersIndex: charIndex + 1,
       }
     }
   }
@@ -188,10 +188,8 @@ export interface DependencyPath {
 }
 
 export function parse (dependencyPath: string): DependencyPath {
-  // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
     throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
-      // eslint-disable-next-line: strict-type-predicates
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
@@ -200,50 +198,64 @@ export function parse (dependencyPath: string): DependencyPath {
     return {}
   }
   const name = dependencyPath.substring(0, sepIndex)
-  let version = dependencyPath.substring(sepIndex + 1)
-  if (version) {
-    let peerDepGraphHash: string | undefined
-    let patchHash: string | undefined
-    const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(version)
-    if (peersIndex !== -1 || patchHashIndex !== -1) {
-      if (peersIndex === -1) {
-        patchHash = version.substring(patchHashIndex)
-        version = version.substring(0, patchHashIndex)
-      } else if (patchHashIndex === -1) {
-        peerDepGraphHash = version.substring(peersIndex)
-        version = version.substring(0, peersIndex)
-      } else {
-        patchHash = version.substring(patchHashIndex, peersIndex)
-        peerDepGraphHash = version.substring(peersIndex)
-        version = version.substring(0, patchHashIndex)
-      }
-    }
-    if (semver.valid(version)) {
-      return {
-        name,
-        peerDepGraphHash,
-        version,
-        patchHash,
-      }
-    }
-    const registryQualified = parseRegistryQualifiedVersion(version)
-    if (registryQualified != null) {
-      return {
-        name,
-        peerDepGraphHash,
-        version: registryQualified.version,
-        patchHash,
-        registryName: registryQualified.registryName,
-      }
-    }
+  const rawVersion = dependencyPath.substring(sepIndex + 1)
+  if (!rawVersion) {
+    return {}
+  }
+  return buildParsedDependencyPath(name, rawVersion)
+}
+
+interface SplitSuffixResult {
+  version: string
+  peerDepGraphHash?: string
+  patchHash?: string
+}
+
+function splitDepPathSuffixes (rawVersion: string): SplitSuffixResult {
+  const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(rawVersion)
+  if (peersIndex === -1 && patchHashIndex === -1) {
+    return { version: rawVersion }
+  }
+  if (peersIndex === -1) {
     return {
-      name,
-      nonSemverVersion: version as PkgResolutionId,
-      peerDepGraphHash,
-      patchHash,
+      version: rawVersion.substring(0, patchHashIndex),
+      patchHash: rawVersion.substring(patchHashIndex),
     }
   }
-  return {}
+  if (patchHashIndex === -1) {
+    return {
+      version: rawVersion.substring(0, peersIndex),
+      peerDepGraphHash: rawVersion.substring(peersIndex),
+    }
+  }
+  return {
+    version: rawVersion.substring(0, patchHashIndex),
+    patchHash: rawVersion.substring(patchHashIndex, peersIndex),
+    peerDepGraphHash: rawVersion.substring(peersIndex),
+  }
+}
+
+function buildParsedDependencyPath (name: string, rawVersion: string): DependencyPath {
+  const { version, peerDepGraphHash, patchHash } = splitDepPathSuffixes(rawVersion)
+  if (semver.valid(version)) {
+    return { name, peerDepGraphHash, version, patchHash }
+  }
+  const registryQualified = parseRegistryQualifiedVersion(version)
+  if (registryQualified != null) {
+    return {
+      name,
+      peerDepGraphHash,
+      version: registryQualified.version,
+      patchHash,
+      registryName: registryQualified.registryName,
+    }
+  }
+  return {
+    name,
+    nonSemverVersion: version as PkgResolutionId,
+    peerDepGraphHash,
+    patchHash,
+  }
 }
 
 export function depPathToFilename (depPath: string, maxLengthWithoutHash: number): string {
@@ -305,4 +317,31 @@ const RUNTIME_DEP_PATH_RE = /^(?:node|bun|deno)@runtime:/
 
 export function isRuntimeDepPath (depPath: DepPath): boolean {
   return RUNTIME_DEP_PATH_RE.test(depPath)
+}
+
+/**
+ * The prefix of a lockfile reference to a directory inside the package that
+ * declares it, such as `link:<root>/typings/css-tree`. `<root>` stands for
+ * the declaring package's own directory, which is only known where that
+ * package is placed on disk.
+ */
+export const PACKAGE_ROOT_LINK_PREFIX = 'link:<root>/'
+
+/**
+ * The path, relative to the declaring package's directory, that a
+ * {@link PACKAGE_ROOT_LINK_PREFIX} reference points to, or `undefined` for
+ * any other reference.
+ *
+ * The path comes from a lockfile or a published manifest, so it is accepted
+ * only when every `/`-separated segment is a plain name: no empty, `.` or
+ * `..` segment, and no `\` or `:`, which would let a platform path join
+ * re-anchor it outside the package.
+ */
+export function packageRootLinkTarget (reference: string): string | undefined {
+  if (!reference.startsWith(PACKAGE_ROOT_LINK_PREFIX)) return undefined
+  const target = reference.slice(PACKAGE_ROOT_LINK_PREFIX.length)
+  const isPlainPath = target.split('/').every((segment) =>
+    segment !== '' && segment !== '.' && segment !== '..' && !segment.includes('\\') && !segment.includes(':')
+  )
+  return isPlainPath ? target : undefined
 }

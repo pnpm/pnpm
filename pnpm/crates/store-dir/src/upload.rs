@@ -40,7 +40,8 @@ pub const HASH_ALGORITHM: &str = "sha512";
 ///
 /// Behaviour at the writer side:
 ///
-/// - Build output contains symlinks → remove the matching cache entry and
+/// - Build output contains symlinks that cannot be recorded (see
+///   [`add_files_from_dir()`]) → remove the matching cache entry and
 ///   wait for persistence; read, write, or unavailable-writer errors propagate.
 /// - No base row at `files_index_file` → silent skip.
 /// - Existing row's `algo` differs from [`HASH_ALGORITHM`] → log
@@ -59,7 +60,7 @@ pub fn upload(
 ) -> Result<(), UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
-    if added.has_symlinks {
+    if added.has_unrecorded_symlinks {
         writer
             .queue_side_effects_invalidation(
                 files_index_file.to_string(),
@@ -85,7 +86,7 @@ pub fn upload_with_diff(
 ) -> Result<Option<SideEffectsDiff>, UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
-    if added.has_symlinks {
+    if added.has_unrecorded_symlinks {
         writer
             .queue_side_effects_invalidation(
                 files_index_file.to_string(),

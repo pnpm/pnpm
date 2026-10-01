@@ -10,18 +10,18 @@ import { depPathToFilename } from '@pnpm/deps.path'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
-const f = fixtures(import.meta.dirname)
-const generalFixture = f.find('general')
-const withPeerFixture = f.find('with-peer')
-const circularFixture = f.find('circular')
-const withFileDepFixture = f.find('with-file-dep')
-const withNonPackageDepFixture = f.find('with-non-package-dep')
-const withLinksOnlyFixture = f.find('fixtureWithLinks/with-links-only')
-const withUnsavedDepsFixture = f.find('with-unsaved-deps')
+const testFixtures = fixtures(import.meta.dirname)
+const generalFixture = testFixtures.find('general')
+const withPeerFixture = testFixtures.find('with-peer')
+const circularFixture = testFixtures.find('circular')
+const withFileDepFixture = testFixtures.find('with-file-dep')
+const withNonPackageDepFixture = testFixtures.find('with-non-package-dep')
+const withLinksOnlyFixture = testFixtures.find('fixtureWithLinks/with-links-only')
+const withUnsavedDepsFixture = testFixtures.find('with-unsaved-deps')
 const fixtureMonorepo = path.join(import.meta.dirname, '..', 'fixtureMonorepo')
-const withAliasedDepFixture = f.find('with-aliased-dep')
-const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
-const customModulesDirFixture = f.find('custom-modules-dir')
+const withAliasedDepFixture = testFixtures.find('with-aliased-dep')
+const workspaceWithNestedWorkspaceDeps = testFixtures.find('workspace-with-nested-workspace-deps')
+const customModulesDirFixture = testFixtures.find('custom-modules-dir')
 
 test('one package depth 0', async () => {
   const tree = await buildDependenciesTree([generalFixture], { depth: 0, lockfileDir: generalFixture, virtualStoreDirMaxLength })
@@ -325,19 +325,19 @@ test('circular dependency', async () => {
 })
 
 function resolvePaths (modulesDir: string, node: DependencyNode): DependencyNode {
-  const p = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
+  const resolvedPath = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
   if (node.dependencies == null) {
     return {
       ...node,
       alias: node.name,
-      path: p,
+      path: resolvedPath,
     }
   }
   return {
     ...node,
     alias: node.name,
     dependencies: node.dependencies.map((dep) => resolvePaths(modulesDir, dep)),
-    path: p,
+    path: resolvedPath,
   }
 }
 
@@ -395,7 +395,7 @@ test('on a package that has only links', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'general',
-          path: path.join(f.find('fixtureWithLinks'), 'general'),
+          path: path.join(testFixtures.find('fixtureWithLinks'), 'general'),
           version: 'link:../general',
         },
       ],
@@ -486,6 +486,32 @@ test('unsaved dependencies are listed', async () => {
         ],
       },
     })
+})
+
+test('an unsaved dependency named like an Object.prototype property is listed', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    fs.writeFileSync(path.join(projectDir, WANTED_LOCKFILE), 'lockfileVersion: \'9.0\'\n\nimporters:\n\n  .: {}\n')
+    const pkgDir = path.join(projectDir, 'node_modules/constructor')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'constructor', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([projectDir], { depth: 0, lockfileDir: projectDir, virtualStoreDirMaxLength })
+
+    expect(tree[projectDir].unsavedDependencies).toStrictEqual([
+      {
+        alias: 'constructor',
+        isMissing: false,
+        isPeer: false,
+        isSkipped: false,
+        name: 'constructor',
+        path: await fs.promises.realpath(pkgDir),
+        version: '1.0.0',
+      },
+    ])
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true })
+  }
 })
 
 test('unsaved dependencies are omitted when only projects are listed', async () => {

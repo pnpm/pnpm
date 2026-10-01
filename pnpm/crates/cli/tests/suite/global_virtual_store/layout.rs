@@ -388,6 +388,51 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     drop((root, mock_instance));
 }
 
+/// The ESM `NODE_PATH` loader flag is an `--import`, which makes Node.js
+/// run the main entry point through the ESM loader. An entry point that
+/// only a CJS require hook can load, like ts-node's `.ts` entry point,
+/// must still run. Mirrors the TS coverage in
+/// `pnpm11/exec/esm-node-path-loader/test/index.ts`.
+#[test]
+fn scripts_run_entry_points_loaded_by_commonjs_require_hooks() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    let manifest = serde_json::json!({
+        "name": "project-with-require-hook-entry-point",
+        "version": "1.0.0",
+        "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        "scripts": { "check": "node runner.js" },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    fs::write(
+        workspace.join("runner.js"),
+        "require.extensions['.custom'] = (module, filename) => module._compile(\"require('node:fs').writeFileSync('loaded.txt', 'custom')\", filename)\n\
+         process.argv[1] = require('node:path').join(__dirname, 'entry.custom')\n\
+         require('node:module').runMain()\n",
+    )
+    .expect("write runner.js");
+    fs::write(workspace.join("entry.custom"), "not JavaScript").expect("write entry.custom");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet(&workspace)
+        .with_args(["run", "check"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("loaded.txt")).expect("read loaded.txt"),
+        "custom",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Driven through a real install: the setting only means anything once
 /// something has been materialized somewhere.
 #[test]
@@ -478,6 +523,39 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
     assert!(
         !package_map.exists(),
         "a map describing the previous dependency set must not survive at {package_map:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `--virtual-store-dir` names the global virtual store's root, as the
+/// setting does, while the project's current lockfile stays in its own
+/// `node_modules/.pnpm`.
+#[test]
+fn the_virtual_store_dir_flag_moves_the_global_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+
+    pacquet(&workspace)
+        .with_args(["install", "--virtual-store-dir=../flag-links"])
+        .assert()
+        .success();
+
+    let store_root = root.path().join("flag-links");
+    assert!(
+        store_root.join("@pnpm.e2e/pkg-with-1-dep/100.0.0").is_dir(),
+        "the package must be materialized under the store root the flag names",
+    );
+    assert!(
+        workspace.join("node_modules/.pnpm/lock.yaml").is_file(),
+        "the current lockfile must be written to the project's node_modules/.pnpm",
+    );
+    assert!(
+        !store_root.join("lock.yaml").exists(),
+        "the store root must not hold the project's current lockfile",
     );
 
     drop((root, mock_instance));

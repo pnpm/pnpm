@@ -6,15 +6,20 @@ use std::{
 use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
+use pnpm_lockfile::{LockfileResolution, RegistryResolution};
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
-    DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersions, PreferredVersionsOverlay, ResolveOptions,
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
+    CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersions, PreferredVersionsOverlay,
+    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
-use super::{held_back_preferred, overlay_merged_selectors};
-use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
+use super::{held_back_preferred, overlay_merged_selectors, preferred_selectors};
+use crate::pick_package_from_meta::{
+    PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
+    apply_published_by_policy, pick_version_by_version_range,
+};
 
 fn parse_iso(input: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
@@ -382,4 +387,63 @@ fn overlay_duplicate_version_across_layers_retains_maximum_weight() {
             weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     );
+}
+
+#[test]
+fn current_version_preference_overrules_workspace_selectors_but_respects_the_range() {
+    let mut opts = current_version_opts("2.1.3");
+    let meta = make_package();
+    for (prefer_current, range, expected) in
+        [(false, "^2.1.3", "2.1.4"), (true, "^2.1.3", "2.1.3"), (true, "^2.1.4", "2.1.4")]
+    {
+        opts.refresh.prefer_current_version = prefer_current;
+        let selectors = preferred_selectors(&opts, "foo");
+        let picked = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+            meta: &meta,
+            version_range: range,
+            preferred_version_selectors: selectors.as_deref(),
+            published_by: None,
+        });
+        assert_eq!(picked.as_deref(), Some(expected));
+    }
+}
+
+#[test]
+fn current_version_preference_does_not_bypass_release_age() {
+    let opts = current_version_opts("2.1.4");
+    let meta = make_package();
+    let cutoff = parse_iso("2026-07-01T00:00:00.000Z");
+    let view = apply_published_by_policy(&meta, cutoff, None);
+    let selectors = preferred_selectors(&opts, "foo");
+    let picked = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+        meta: view.filtered.as_deref().unwrap_or(&meta),
+        version_range: "^2.1.3",
+        preferred_version_selectors: selectors.as_deref(),
+        published_by: Some(cutoff),
+    });
+    assert_eq!(picked.as_deref(), Some("2.1.3"));
+}
+
+fn current_version_opts(version: &str) -> ResolveOptions {
+    let mut opts = ResolveOptions::default();
+    opts.version.preferred_versions = Arc::new(PreferredVersions::from([(
+        "foo".to_string(),
+        VersionSelectors::from([(
+            "2.1.4".to_string(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )]),
+    )]));
+    opts.refresh.prefer_current_version = true;
+    opts.refresh.current_pkg = Some(CurrentPkg {
+        id: format!("foo@{version}").into(),
+        name: Some("foo".to_string()),
+        version: Some(version.to_string()),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: ssri::Integrity::from(b"locked version test"),
+            revision: None,
+        }),
+        published_at: None,
+        manifest: None,
+    });
+    opts
 }

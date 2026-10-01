@@ -1,6 +1,6 @@
 import fs from 'node:fs'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 
 import { getFilePath } from './filePath.js'
@@ -13,7 +13,7 @@ export function loadWorkspaceState (workspaceDir: string): WorkspaceState | unde
   try {
     cacheFileContent = fs.readFileSync(cacheFile, 'utf-8')
   } catch (error) {
-    if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+    if (isError(error) && 'code' in error && error.code === 'ENOENT') {
       return undefined
     }
     throw error
@@ -21,7 +21,7 @@ export function loadWorkspaceState (workspaceDir: string): WorkspaceState | unde
   try {
     return JSON.parse(cacheFileContent) as WorkspaceState
   } catch (error) {
-    if (util.types.isNativeError(error) && error.name === 'SyntaxError') {
+    if (isError(error) && error.name === 'SyntaxError') {
       return undefined
     }
     throw error

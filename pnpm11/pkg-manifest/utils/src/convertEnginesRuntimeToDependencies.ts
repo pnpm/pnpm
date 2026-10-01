@@ -12,11 +12,10 @@ export function convertEnginesRuntimeToDependencies (
   dependenciesFieldName: DependenciesField
 ): void {
   for (const runtimeName of RUNTIME_NAMES) {
-    const enginesFieldRuntime = manifest[enginesFieldName]?.runtime
-    if (enginesFieldRuntime == null || manifest[dependenciesFieldName]?.[runtimeName]) {
+    const runtimes = toRuntimeList(manifest[enginesFieldName]?.runtime)
+    if (runtimes == null || manifest[dependenciesFieldName]?.[runtimeName]) {
       continue
     }
-    const runtimes: EngineDependency[] = Array.isArray(enginesFieldRuntime) ? enginesFieldRuntime : [enginesFieldRuntime]
     const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
     if (runtime?.onFail !== 'download') {
       continue
@@ -25,23 +24,30 @@ export function convertEnginesRuntimeToDependencies (
       globalWarn(`Cannot download ${runtimeName} because no version is specified in ${enginesFieldName}.runtime`)
       continue
     }
-    const version = runtime.version.trim()
-    if ('webcontainer' in process.versions) {
-      globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
-    } else {
-      const deps = (manifest[dependenciesFieldName] ??= {})
-      // Use Object.defineProperty so a future RUNTIME_NAMES entry that
-      // happens to match an inherited property name (`__proto__`,
-      // `constructor`, `prototype`) becomes a regular own data property
-      // instead of altering Object.prototype.
-      Object.defineProperty(deps, runtimeName, {
-        value: `runtime:${version}`,
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      })
-    }
+    addRuntimeDependency(manifest, dependenciesFieldName, { runtimeName, version: runtime.version.trim() })
   }
+}
+
+function addRuntimeDependency (
+  manifest: ProjectManifest,
+  dependenciesFieldName: DependenciesField,
+  { runtimeName, version }: { runtimeName: string, version: string }
+): void {
+  if ('webcontainer' in process.versions) {
+    globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
+    return
+  }
+  const deps = (manifest[dependenciesFieldName] ??= {})
+  // Use Object.defineProperty so a future RUNTIME_NAMES entry that
+  // happens to match an inherited property name (`__proto__`,
+  // `constructor`, `prototype`) becomes a regular own data property
+  // instead of altering Object.prototype.
+  Object.defineProperty(deps, runtimeName, {
+    value: `runtime:${version}`,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  })
 }
 
 export function applyRuntimeOnFailOverride (
@@ -52,27 +58,33 @@ export function applyRuntimeOnFailOverride (
     ['devEngines', 'devDependencies'],
     ['engines', 'dependencies'],
   ] as const) {
-    const enginesFieldRuntime = manifest[enginesFieldName]?.runtime
-    if (enginesFieldRuntime == null) continue
-    const runtimes: EngineDependency[] = Array.isArray(enginesFieldRuntime) ? enginesFieldRuntime : [enginesFieldRuntime]
+    const runtimes = toRuntimeList(manifest[enginesFieldName]?.runtime)
+    if (runtimes == null) continue
     for (const runtime of runtimes) {
       runtime.onFail = onFailOverride
     }
     if (onFailOverride !== 'download') {
-      const deps = manifest[dependenciesFieldName]
-      if (deps) {
-        for (const runtimeName of RUNTIME_NAMES) {
-          if (
-            runtimes.some(runtime => runtime.name === runtimeName) &&
-            typeof deps[runtimeName] === 'string' &&
-            deps[runtimeName].startsWith('runtime:')
-          ) {
-            delete deps[runtimeName]
-          }
-        }
-      }
+      removeRuntimeDependencies(manifest[dependenciesFieldName], runtimes)
     } else {
       convertEnginesRuntimeToDependencies(manifest, enginesFieldName, dependenciesFieldName)
     }
   }
+}
+
+function removeRuntimeDependencies (deps: Record<string, string> | undefined, runtimes: EngineDependency[]): void {
+  if (!deps) return
+  for (const runtimeName of RUNTIME_NAMES) {
+    if (
+      runtimes.some(runtime => runtime.name === runtimeName) &&
+      typeof deps[runtimeName] === 'string' &&
+      deps[runtimeName].startsWith('runtime:')
+    ) {
+      delete deps[runtimeName]
+    }
+  }
+}
+
+function toRuntimeList (enginesFieldRuntime: EngineDependency | EngineDependency[] | undefined): EngineDependency[] | undefined {
+  if (enginesFieldRuntime == null) return undefined
+  return Array.isArray(enginesFieldRuntime) ? enginesFieldRuntime : [enginesFieldRuntime]
 }

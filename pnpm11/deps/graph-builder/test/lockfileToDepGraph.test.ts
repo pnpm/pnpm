@@ -6,6 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { depPathToFilename } from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { DepPath } from '@pnpm/types'
 
 import { lockfileToDepGraph, type LockfileToDepGraphOptions } from '../src/lockfileToDepGraph.js'
 
@@ -124,3 +125,47 @@ test('lockfileToDepGraph rejects a global-virtual-store slot whose version escap
     lockfileToDepGraph(lockfile, null, opts)
   ).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' }))
 })
+
+test.each(['skipped optional dependency', 'unresolved peer dependency'])(
+  'lockfileToDepGraph omits children with %s', async (scenario) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'graph-builder-'))
+    const isOptional = scenario === 'skipped optional dependency'
+    const lockfile = {
+      lockfileVersion: '9.0',
+      importers: {
+        '.': {
+          specifiers: { parent: '1.0.0', ...(isOptional ? { missing: '1.0.0' } : {}) },
+          dependencies: { parent: '1.0.0' },
+          ...(isOptional ? { optionalDependencies: { missing: '1.0.0' } } : {}),
+        },
+      },
+      packages: {
+        'parent@1.0.0': {
+          resolution: { tarball: 'https://example.com/parent.tgz' },
+          dependencies: { child: '1.0.0', ...(!isOptional ? { missing: '1.0.0' } : {}) },
+          ...(isOptional
+            ? { optionalDependencies: { missing: '1.0.0' } }
+            : { peerDependencies: { missing: '*' } }),
+        },
+        'child@1.0.0': { resolution: { tarball: 'https://example.com/child.tgz' } },
+      },
+    } as unknown as LockfileObject
+    const opts = {
+      ...graphOpts(dir),
+      includeUnchangedDeps: true,
+      skipped: new Set<DepPath>(isOptional ? ['missing@1.0.0' as DepPath] : []),
+    }
+    const parentDir = path.join(opts.virtualStoreDir, 'parent@1.0.0', 'node_modules', 'parent')
+    const childDir = path.join(opts.virtualStoreDir, 'child@1.0.0', 'node_modules', 'child')
+    fs.mkdirSync(parentDir, { recursive: true })
+    fs.mkdirSync(childDir, { recursive: true })
+    try {
+      const { graph, directDependenciesByImporterId } = await lockfileToDepGraph(lockfile, lockfile, opts)
+
+      expect(graph[parentDir].children).toStrictEqual({ child: childDir })
+      expect(directDependenciesByImporterId['.']).toStrictEqual({ parent: parentDir })
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }
+)

@@ -5,6 +5,7 @@ use super::{
     },
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
+    nothing_to_install::projects_have_nothing_to_install,
 };
 use std::borrow::Cow;
 
@@ -26,10 +27,16 @@ use std::borrow::Cow;
 /// as unverifiable ("Cannot check whether dependencies are outdated"),
 /// matching pnpm's catch-all: in the worst case the configured action
 /// runs a redundant install.
+///
+/// `selected_project_dirs` are the project directories the gated command
+/// selected: a state that records a filtered install exempts the projects
+/// that install did not select from the modules-directory requirement, but
+/// the selected ones are still held to it.
 #[must_use]
 pub fn check_deps_status_before_run_at(
     dir: &Path,
     config: &Config,
+    selected_project_dirs: &[&Path],
 ) -> Option<crate::RunDepsStatus> {
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
         return cannot_check_deps();
@@ -63,23 +70,57 @@ pub fn check_deps_status_before_run_at(
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
     let lockfile_root = lockfile_root_for(&config, workspace_dir_opt.as_deref(), manifest_dir);
-    // pnpm reports "cannot check" straight from the missing workspace
-    // state, before any project discovery — a fresh project (the common
-    // out-of-sync case) must not pay for the workspace-projects walk
-    // only to reach the same verdict inside the check.
-    let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&lockfile_root)
-    else {
-        return cannot_check_deps();
-    };
-    check_discovered_deps(
-        &config,
-        &manifest,
-        workspace_manifest.as_ref(),
-        &workspace_root,
-        &lockfile_root,
-        &workspace_state,
+    deps_status_from_state(
+        &GateInputs {
+            config: &config,
+            manifest: &manifest,
+            workspace_manifest: workspace_manifest.as_ref(),
+            workspace_root: &workspace_root,
+            lockfile_root: &lockfile_root,
+        },
+        selected_project_dirs,
     )
 }
+
+/// What the verify-deps gate read before it consults the workspace state.
+#[derive(Clone, Copy)]
+pub(super) struct GateInputs<'a> {
+    pub(super) config: &'a Config,
+    pub(super) manifest: &'a PackageManifest,
+    pub(super) workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
+    pub(super) workspace_root: &'a Path,
+    pub(super) lockfile_root: &'a Path,
+}
+
+/// pnpm reports "cannot check" straight from the missing workspace state,
+/// before any project discovery — a fresh project (the common out-of-sync
+/// case) must not pay for the workspace-projects walk only to reach the
+/// same verdict inside the check. Projects are walked only when the
+/// manifest itself gives an install nothing to do.
+fn deps_status_from_state(
+    inputs: &GateInputs<'_>,
+    selected_project_dirs: &[&Path],
+) -> Option<crate::RunDepsStatus> {
+    match pnpm_workspace_state::load_workspace_state(inputs.lockfile_root) {
+        Ok(Some(workspace_state)) => check_discovered_deps(
+            inputs.config,
+            inputs.manifest,
+            inputs.workspace_manifest,
+            inputs.workspace_root,
+            inputs.lockfile_root,
+            &workspace_state,
+            selected_project_dirs,
+        ),
+        // Nothing was installed here yet. Spawning an install for projects
+        // that give it nothing to do would only leave a lockfile and
+        // `node_modules` behind.
+        Ok(None) if projects_have_nothing_to_install(inputs) => {
+            Some(crate::RunDepsStatus::UpToDate)
+        }
+        _ => cannot_check_deps(),
+    }
+}
+
 /// The directory the verify-deps-before-run gate serializes its installs
 /// over: the workspace root, or `dir` outside a workspace. Every gate in one
 /// workspace shares it, whichever project it runs in.
@@ -120,6 +161,7 @@ pub(super) fn check_discovered_deps(
     workspace_root: &Path,
     lockfile_root: &Path,
     workspace_state: &pnpm_workspace_state::WorkspaceState,
+    selected_project_dirs: &[&Path],
 ) -> Option<crate::RunDepsStatus> {
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return cannot_check_deps();
@@ -160,6 +202,7 @@ pub(super) fn check_discovered_deps(
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         workspace_state,
+        selected_project_dirs,
     ))
 }
 /// The manifest the verify-deps gate compares against.

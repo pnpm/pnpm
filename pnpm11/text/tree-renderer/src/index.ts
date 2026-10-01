@@ -39,69 +39,112 @@ interface RenderContext {
   prefix: string
 }
 
+interface TreeItem {
+  node: TreeNode
+  group?: string
+}
+
 function render (
   opts: TreeRendererOptions,
   ctx: RenderContext
 ): string {
-  const { connector, prefix } = ctx
-  let { node } = ctx
-  if (typeof node === 'string') node = { label: node }
+  const treeNode = typeof ctx.node === 'string' ? { label: ctx.node } : ctx.node
+  const items = flattenItems(treeNode.nodes ?? [])
+  const labelOutput = renderLabelLines(treeNode.label || '', ctx, items.length > 0, opts)
+  const childrenOutput = renderItems(items, ctx.prefix, opts)
+  return labelOutput + childrenOutput
+}
 
-  const fmt = opts.treeChars ?? identity
-  const chr = opts.unicode === false ? asciiChar : unicodeChar
-  const nodes = node.nodes ?? []
-  const lines = (node.label || '').split('\n')
-
-  // First line: connector + label
-  let result = (connector ? fmt(connector) : '') + lines[0] + '\n'
-
-  // Flatten groups into items with group annotations
-  const items: Array<{ node: TreeNode, group?: string }> = []
+function flattenItems (nodes: Array<TreeNode | string | TreeNodeGroup>): TreeItem[] {
+  const items: TreeItem[] = []
   for (const child of nodes) {
     if (isGroup(child)) {
-      for (const gn of child.nodes) {
-        items.push({ node: typeof gn === 'string' ? { label: gn } : gn, group: child.group })
-      }
+      appendGroupItems(items, child)
     } else {
       items.push({ node: typeof child === 'string' ? { label: child } : child })
     }
   }
+  return items
+}
 
-  // Continuation lines for multiline labels
-  const continuationChars = items.length ? chr('│') + ' ' : '  '
-  for (let l = 1; l < lines.length; l++) {
-    result += fmt(prefix + continuationChars) + lines[l] + '\n'
-  }
-
-  // Render items, emitting group headers when the group changes
-  let currentGroup: string | undefined
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    const last = i === items.length - 1
-
-    if (item.group !== currentGroup) {
-      currentGroup = item.group
-      if (currentGroup != null) {
-        result += fmt(prefix + chr('│')) + '\n'
-        result += fmt(prefix + chr('│') + '   ') + currentGroup + '\n'
-      }
-    }
-
-    const more = hasRenderableChildren(item.node.nodes)
-    const childConnector = prefix +
-      (last ? chr('└') : chr('├')) + chr('─') +
-      (more ? chr('┬') : chr('─')) + ' '
-    const childPrefix = prefix + (last ? '  ' : chr('│') + ' ')
-
-    result += render(opts, {
-      node: item.node,
-      connector: childConnector,
-      prefix: childPrefix,
+function appendGroupItems (items: TreeItem[], group: TreeNodeGroup): void {
+  for (const groupNode of group.nodes) {
+    items.push({
+      node: typeof groupNode === 'string' ? { label: groupNode } : groupNode,
+      group: group.group,
     })
   }
+}
 
+function renderLabelLines (
+  label: string,
+  ctx: RenderContext,
+  hasChildren: boolean,
+  opts: TreeRendererOptions
+): string {
+  const fmt = opts.treeChars ?? identity
+  const chr = opts.unicode === false ? asciiChar : unicodeChar
+  const lines = label.split('\n')
+  let result = (ctx.connector ? fmt(ctx.connector) : '') + lines[0] + '\n'
+
+  const continuationChars = hasChildren ? chr('│') + ' ' : '  '
+  for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
+    result += fmt(ctx.prefix + continuationChars) + lines[lineIndex] + '\n'
+  }
   return result
 }
+
+function renderItems (
+  items: TreeItem[],
+  prefix: string,
+  opts: TreeRendererOptions
+): string {
+  let result = ''
+  let currentGroup: string | undefined
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+    const item = items[itemIndex]
+    const last = itemIndex === items.length - 1
+    if (item.group !== currentGroup) {
+      currentGroup = item.group
+      result += renderGroupHeader(currentGroup, prefix, opts)
+    }
+    result += renderChildItem(item.node, last, prefix, opts)
+  }
+  return result
+}
+
+function renderGroupHeader (
+  group: string | undefined,
+  prefix: string,
+  opts: TreeRendererOptions
+): string {
+  if (group == null) return ''
+  const fmt = opts.treeChars ?? identity
+  const chr = opts.unicode === false ? asciiChar : unicodeChar
+  return fmt(prefix + chr('│')) + '\n' +
+    fmt(prefix + chr('│') + '   ') + group + '\n'
+}
+
+function renderChildItem (
+  childNode: TreeNode,
+  last: boolean,
+  prefix: string,
+  opts: TreeRendererOptions
+): string {
+  const chr = opts.unicode === false ? asciiChar : unicodeChar
+  const more = hasRenderableChildren(childNode.nodes)
+  const childConnector = prefix +
+    (last ? chr('└') : chr('├')) + chr('─') +
+    (more ? chr('┬') : chr('─')) + ' '
+  const childPrefix = prefix + (last ? '  ' : chr('│') + ' ')
+
+  return render(opts, {
+    node: childNode,
+    connector: childConnector,
+    prefix: childPrefix,
+  })
+}
+
 
 function hasRenderableChildren (nodes: Array<TreeNode | string | TreeNodeGroup> | undefined): boolean {
   if (nodes == null) return false
@@ -119,15 +162,15 @@ function isGroup (node: TreeNode | string | TreeNodeGroup): node is TreeNodeGrou
   return typeof node !== 'string' && 'group' in node
 }
 
-function identity (s: string): string {
-  return s
+function identity (text: string): string {
+  return text
 }
 
-function unicodeChar (s: string): string {
-  return s
+function unicodeChar (char: string): string {
+  return char
 }
 
-function asciiChar (s: string): string {
+function asciiChar (char: string): string {
   const chars: Record<string, string> = {
     '│': '|',
     '└': '`',
@@ -135,5 +178,5 @@ function asciiChar (s: string): string {
     '─': '-',
     '┬': '-',
   }
-  return chars[s] ?? s
+  return chars[char] ?? char
 }

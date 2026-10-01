@@ -124,51 +124,65 @@ export async function getContext (
 ): Promise<PnpmContext> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const importersContext = await readProjectsContext(opts.allProjects, { lockfileDir: opts.lockfileDir, modulesDir })
-  const virtualStoreDir = opts.virtualStoreDir == null
-    ? path.join(importersContext.rootModulesDir, '.pnpm')
-    : await realpathMissing(pathAbsolute(opts.virtualStoreDir, opts.lockfileDir))
+  const virtualStoreDir = await resolveVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir, importersContext.rootModulesDir)
 
-  if (!opts.frozenStore) {
-    await fs.mkdir(opts.storeDir, { recursive: true })
+  await prepareStoreDir(opts.storeDir, opts.lockfileDir, opts.frozenStore)
+  logManifests(opts.allProjects)
+  await applyReadPackageHook(importersContext.projects, opts.readPackageHook)
 
-    // Register this project for store prune tracking
-    await registerProject(opts.storeDir, opts.lockfileDir)
-  }
+  const installStateDir = path.join(importersContext.rootModulesDir, '.pnpm')
+  const hoistedDirs = resolveHoistedDirs({
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+    installStateDir,
+    virtualStoreDir,
+    hoistPattern: opts.hoistPattern,
+    extraBinPaths: opts.extraBinPaths,
+  })
 
-  for (const project of opts.allProjects) {
-    packageManifestLogger.debug({
-      initial: project.manifest,
-      prefix: project.rootDir,
-    })
-  }
-  if (opts.readPackageHook != null) {
-    await Promise.all(importersContext.projects.map(async (project) => {
-      project.originalManifest = project.manifest
-      project.manifest = await opts.readPackageHook!(clone(project.manifest), project.rootDir)
-    }))
-  }
+  const lockfiles = await readLockfiles({
+    autoInstallPeers: opts.autoInstallPeers,
+    ci: opts.ci,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    peersSuffixMaxLength: opts.peersSuffixMaxLength,
+    force: opts.force,
+    frozenLockfile: opts.frozenLockfile === true,
+    lockfileDir: opts.lockfileDir,
+    projects: importersContext.projects,
+    registry: opts.registriesByScope.default,
+    useLockfile: opts.useLockfile,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    installStateDir,
+  })
 
-  const extraBinPaths = [
-    ...opts.extraBinPaths || [],
-  ]
-  const internalPnpmDir = path.join(importersContext.rootModulesDir, '.pnpm')
-  const hoistedModulesDir = path.join(
-    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
-    'node_modules'
-  )
-  if (opts.hoistPattern?.length) {
-    extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
-  }
-  const ctx: PnpmContext = {
-    extraBinPaths,
+  const ctx = buildPnpmContext({ opts, importersContext, hoistedDirs, virtualStoreDir, lockfiles })
+
+  contextLogger.debug({
+    currentLockfileExists: ctx.existsCurrentLockfile,
+    storeDir: opts.storeDir,
+    virtualStoreDir,
+  })
+  return ctx
+}
+
+function buildPnpmContext (params: {
+  opts: GetContextOptions
+  importersContext: Awaited<ReturnType<typeof readProjectsContext<ProjectOptions & HookOptions>>>
+  hoistedDirs: { extraBinPaths: string[], hoistedModulesDir: string }
+  virtualStoreDir: string
+  lockfiles: Awaited<ReturnType<typeof readLockfiles>>
+}): PnpmContext {
+  const { opts, importersContext, hoistedDirs, virtualStoreDir, lockfiles } = params
+  return {
+    extraBinPaths: hoistedDirs.extraBinPaths,
     extraNodePaths: getExtraNodePaths({
       extendNodePath: opts.extendNodePath,
       nodeLinker: opts.nodeLinker,
       hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
-      hoistedModulesDir,
+      hoistedModulesDir: hoistedDirs.hoistedModulesDir,
     }),
     hoistedDependencies: importersContext.hoistedDependencies,
-    hoistedModulesDir,
+    hoistedModulesDir: hoistedDirs.hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
     currentHoistPattern: importersContext.currentHoistPattern,
     include: opts.include ?? importersContext.include,
@@ -185,28 +199,8 @@ export async function getContext (
     virtualStoreDir,
     virtualStoreDirMaxLength: importersContext.virtualStoreDirMaxLength ?? opts.virtualStoreDirMaxLength,
     workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
-    ...await readLockfiles({
-      autoInstallPeers: opts.autoInstallPeers,
-      ci: opts.ci,
-      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-      peersSuffixMaxLength: opts.peersSuffixMaxLength,
-      force: opts.force,
-      frozenLockfile: opts.frozenLockfile === true,
-      lockfileDir: opts.lockfileDir,
-      projects: importersContext.projects,
-      registry: opts.registriesByScope.default,
-      useLockfile: opts.useLockfile,
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      internalPnpmDir,
-    }),
+    ...lockfiles,
   }
-  contextLogger.debug({
-    currentLockfileExists: ctx.existsCurrentLockfile,
-    storeDir: opts.storeDir,
-    virtualStoreDir,
-  })
-  return ctx
 }
 
 export interface PnpmSingleContext {
@@ -244,137 +238,177 @@ export interface PnpmSingleContext {
   wantedLockfileIsModified: boolean
 }
 
+export interface GetContextForSingleImporterOptions {
+  autoInstallPeers: boolean
+  ci?: boolean
+  enableGlobalVirtualStore?: boolean
+  excludeLinksFromLockfile: boolean
+  peersSuffixMaxLength: number
+  force: boolean
+  frozenStore?: boolean
+  confirmModulesPurge?: boolean
+  extraBinPaths: string[]
+  extendNodePath?: boolean
+  lockfileDir: string
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
+  modulesDir?: string
+  readPackageHook?: ReadPackageHook
+  include?: IncludedDependencies
+  dir: string
+  registriesByScope: RegistriesByScope
+  storeDir: string
+  useLockfile: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
+  virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
+  hoistPattern?: string[] | undefined
+  publicHoistPattern?: string[] | undefined
+}
+
 export async function getContextForSingleImporter (
   manifest: ProjectManifest,
-  opts: {
-    autoInstallPeers: boolean
-    ci?: boolean
-    enableGlobalVirtualStore?: boolean
-    excludeLinksFromLockfile: boolean
-    peersSuffixMaxLength: number
-    force: boolean
-    frozenStore?: boolean
-    confirmModulesPurge?: boolean
-    extraBinPaths: string[]
-    extendNodePath?: boolean
-    lockfileDir: string
-    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-    modulesDir?: string
-    readPackageHook?: ReadPackageHook
-    include?: IncludedDependencies
-    dir: string
-    registriesByScope: RegistriesByScope
-    storeDir: string
-    useLockfile: boolean
-    useGitBranchLockfile?: boolean
-    mergeGitBranchLockfiles?: boolean
-    virtualStoreDir?: string
-    virtualStoreDirMaxLength: number
-
-    hoistPattern?: string[] | undefined
-    publicHoistPattern?: string[] | undefined
-  }
+  opts: GetContextForSingleImporterOptions
 ): Promise<PnpmSingleContext> {
-  const {
-    currentHoistPattern,
-    hoistedDependencies,
-    projects,
-    include,
-    modules,
-    pendingBuilds,
-    skipped,
-    rootModulesDir,
-  } = await readProjectsContext(
-    [
-      {
-        rootDir: opts.dir as ProjectRootDir,
-      },
-    ],
-    {
-      lockfileDir: opts.lockfileDir,
-      modulesDir: opts.modulesDir,
-    }
+  const importerContext = await readProjectsContext(
+    [{ rootDir: opts.dir as ProjectRootDir }],
+    { lockfileDir: opts.lockfileDir, modulesDir: opts.modulesDir }
   )
+  const virtualStoreDir = await resolveVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir, importerContext.rootModulesDir)
+  await prepareStoreDir(opts.storeDir, opts.lockfileDir, opts.frozenStore)
 
-  const storeDir = opts.storeDir
-
-  const importer = projects[0]
-  const modulesDir = importer.modulesDir
-  const importerId = importer.id
-  const virtualStoreDir = opts.virtualStoreDir == null
-    ? path.join(rootModulesDir, '.pnpm')
-    : await realpathMissing(pathAbsolute(opts.virtualStoreDir, opts.lockfileDir))
-
-  if (!opts.frozenStore) {
-    await fs.mkdir(storeDir, { recursive: true })
-
-    // Register this project for store prune tracking
-    await registerProject(storeDir, opts.lockfileDir)
-  }
-  const extraBinPaths = [
-    ...opts.extraBinPaths || [],
-  ]
-  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
-  const hoistedModulesDir = path.join(
-    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
-    'node_modules'
-  )
-  if (opts.hoistPattern?.length) {
-    extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
-  }
-  const hookedManifest = await opts.readPackageHook?.(manifest, opts.dir) ?? manifest
-  const ctx: PnpmSingleContext = {
-    extraBinPaths,
-    extraNodePaths: getExtraNodePaths({
-      extendNodePath: opts.extendNodePath,
-      nodeLinker: opts.nodeLinker,
-      hoistPattern: currentHoistPattern ?? opts.hoistPattern,
-      hoistedModulesDir,
-    }),
-    hoistedDependencies,
-    hoistedModulesDir,
-    hoistPattern: opts.hoistPattern,
-    importerId,
-    include: opts.include ?? include,
-    lockfileDir: opts.lockfileDir,
-    manifest: hookedManifest,
-    modulesDir,
-    modulesFile: modules,
-    pendingBuilds,
-    prefix: opts.dir,
-    publicHoistPattern: opts.publicHoistPattern,
-    registriesByScope: opts.registriesByScope,
-    rootModulesDir,
-    skipped,
-    storeDir,
+  const installStateDir = path.join(importerContext.rootModulesDir, '.pnpm')
+  const hoistedDirs = resolveHoistedDirs({
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+    installStateDir,
     virtualStoreDir,
-    ...await readLockfiles({
-      autoInstallPeers: opts.autoInstallPeers,
-      ci: opts.ci,
-      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-      peersSuffixMaxLength: opts.peersSuffixMaxLength,
-      force: opts.force,
-      frozenLockfile: false,
-      lockfileDir: opts.lockfileDir,
-      projects: [{ id: importerId, manifest: hookedManifest, rootDir: opts.dir as ProjectRootDir }],
-      registry: opts.registriesByScope.default,
-      useLockfile: opts.useLockfile,
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      internalPnpmDir,
-    }),
-  }
-  packageManifestLogger.debug({
-    initial: manifest,
-    prefix: opts.dir,
+    hoistPattern: opts.hoistPattern,
+    extraBinPaths: opts.extraBinPaths,
   })
+
+  const hookedManifest = await opts.readPackageHook?.(manifest, opts.dir) ?? manifest
+  const importer = importerContext.projects[0]
+
+  const lockfiles = await readLockfiles({
+    autoInstallPeers: opts.autoInstallPeers,
+    ci: opts.ci,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    peersSuffixMaxLength: opts.peersSuffixMaxLength,
+    force: opts.force,
+    frozenLockfile: false,
+    lockfileDir: opts.lockfileDir,
+    projects: [{ id: importer.id, manifest: hookedManifest, rootDir: opts.dir as ProjectRootDir }],
+    registry: opts.registriesByScope.default,
+    useLockfile: opts.useLockfile,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    installStateDir,
+  })
+
+  const ctx = buildPnpmSingleContext({ opts, importerContext, hoistedDirs, hookedManifest, importer, virtualStoreDir, lockfiles })
+
+  packageManifestLogger.debug({ initial: manifest, prefix: opts.dir })
   contextLogger.debug({
     currentLockfileExists: ctx.existsCurrentLockfile,
     storeDir: opts.storeDir,
     virtualStoreDir,
   })
-
   return ctx
+}
+
+function buildPnpmSingleContext (params: {
+  opts: GetContextForSingleImporterOptions
+  importerContext: Awaited<ReturnType<typeof readProjectsContext>>
+  hoistedDirs: { extraBinPaths: string[], hoistedModulesDir: string }
+  hookedManifest: ProjectManifest
+  importer: Awaited<ReturnType<typeof readProjectsContext>>['projects'][0]
+  virtualStoreDir: string
+  lockfiles: Awaited<ReturnType<typeof readLockfiles>>
+}): PnpmSingleContext {
+  const { opts, importerContext, hoistedDirs, hookedManifest, importer, virtualStoreDir, lockfiles } = params
+  return {
+    extraBinPaths: hoistedDirs.extraBinPaths,
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern: importerContext.currentHoistPattern ?? opts.hoistPattern,
+      hoistedModulesDir: hoistedDirs.hoistedModulesDir,
+    }),
+    hoistedDependencies: importerContext.hoistedDependencies,
+    hoistedModulesDir: hoistedDirs.hoistedModulesDir,
+    hoistPattern: opts.hoistPattern,
+    importerId: importer.id,
+    include: opts.include ?? importerContext.include,
+    lockfileDir: opts.lockfileDir,
+    manifest: hookedManifest,
+    modulesDir: importer.modulesDir,
+    modulesFile: importerContext.modules,
+    pendingBuilds: importerContext.pendingBuilds,
+    prefix: opts.dir,
+    publicHoistPattern: opts.publicHoistPattern,
+    registriesByScope: opts.registriesByScope,
+    rootModulesDir: importerContext.rootModulesDir,
+    skipped: importerContext.skipped,
+    storeDir: opts.storeDir,
+    virtualStoreDir,
+    ...lockfiles,
+  }
+}
+
+async function resolveVirtualStoreDir (
+  virtualStoreDir: string | undefined,
+  lockfileDir: string,
+  rootModulesDir: string
+): Promise<string> {
+  if (virtualStoreDir == null) {
+    return path.join(rootModulesDir, '.pnpm')
+  }
+  return realpathMissing(pathAbsolute(virtualStoreDir, lockfileDir))
+}
+
+async function prepareStoreDir (storeDir: string, lockfileDir: string, frozenStore?: boolean): Promise<void> {
+  if (!frozenStore) {
+    await fs.mkdir(storeDir, { recursive: true })
+    await registerProject(storeDir, lockfileDir)
+  }
+}
+
+function logManifests (projects: Array<ProjectOptions & HookOptions>): void {
+  for (const project of projects) {
+    packageManifestLogger.debug({
+      initial: project.manifest,
+      prefix: project.rootDir,
+    })
+  }
+}
+
+async function applyReadPackageHook (
+  projects: Array<ProjectOptions & HookOptions>,
+  readPackageHook?: ReadPackageHook
+): Promise<void> {
+  if (!readPackageHook) return
+  await Promise.all(projects.map(async (project) => {
+    project.originalManifest = project.manifest
+    project.manifest = await readPackageHook(clone(project.manifest), project.rootDir)
+  }))
+}
+
+function resolveHoistedDirs (opts: {
+  enableGlobalVirtualStore?: boolean
+  installStateDir: string
+  virtualStoreDir: string
+  hoistPattern?: string[]
+  extraBinPaths?: string[]
+}): { extraBinPaths: string[], hoistedModulesDir: string } {
+  const extraBinPaths = [...opts.extraBinPaths || []]
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? opts.installStateDir : opts.virtualStoreDir,
+    'node_modules'
+  )
+  if (opts.hoistPattern?.length) {
+    extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
+  }
+  return { extraBinPaths, hoistedModulesDir }
 }
 
 function getExtraNodePaths (

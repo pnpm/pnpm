@@ -1,6 +1,7 @@
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
+import { promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -164,7 +165,27 @@ type ResolveFrame =
 export async function resolveViaPnprServer (
   opts: ResolveViaPnprServerOptions
 ): Promise<ResolveViaPnprServerResult> {
-  const projects = opts.projects ?? [{
+  const projects = opts.projects ?? [singleProjectOf(opts)]
+  const requestBody = serializeResolveRequest(opts, projects)
+
+  const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)
+
+  const terminal = parseTerminalFrame(body.toString('utf-8'))
+  assertResolutionSucceeded(terminal)
+
+  assertTransformMetadata(terminal.lockfile, opts)
+  assertPublishDirectories(terminal.lockfile, projects)
+
+  return {
+    // The server speaks the on-disk lockfile format; convert it to the
+    // in-memory `LockfileObject` the rest of pnpm consumes.
+    lockfile: convertToLockfileObject(terminal.lockfile),
+    stats: terminal.stats,
+  }
+}
+
+function singleProjectOf (opts: ResolveViaPnprServerOptions): PnprProject {
+  return {
     dir: '.',
     name: opts.name,
     version: opts.version,
@@ -173,9 +194,11 @@ export async function resolveViaPnprServer (
     devDependencies: opts.devDependencies,
     optionalDependencies: opts.optionalDependencies,
     peerDependencies: opts.peerDependencies,
-  }]
+  }
+}
 
-  const requestBody = JSON.stringify({
+function serializeResolveRequest (opts: ResolveViaPnprServerOptions, projects: PnprProject[]): string {
+  return JSON.stringify({
     projects,
     registry: opts.registry,
     registries: opts.registries,
@@ -206,11 +229,9 @@ export async function resolveViaPnprServer (
     // importer deps).
     lockfile: opts.lockfile,
   })
+}
 
-  const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)
-
-  const terminal = parseTerminalFrame(body.toString('utf-8'))
-
+function assertResolutionSucceeded (terminal: TerminalFrame): asserts terminal is DoneFrame {
   if (terminal.type === 'error') {
     throw new Error(terminal.message)
   }
@@ -219,16 +240,6 @@ export async function resolveViaPnprServer (
       .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
       .join('\n')
     throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
-  }
-
-  assertTransformMetadata(terminal.lockfile, opts)
-  assertPublishDirectories(terminal.lockfile, projects)
-
-  return {
-    // The server speaks the on-disk lockfile format; convert it to the
-    // in-memory `LockfileObject` the rest of pnpm consumes.
-    lockfile: convertToLockfileObject(terminal.lockfile),
-    stats: terminal.stats,
   }
 }
 
@@ -267,13 +278,19 @@ function assertPublishDirectories (lockfile: LockfileFile, projects: PnprProject
   for (const project of projects) {
     const expected = project.publishConfig?.directory
     if (expected == null) continue
-    const importer = lockfile.importers?.[project.dir]
+    const importer = returnedImporter(lockfile, project.dir)
     if (importer == null || importer.publishDirectory === expected) continue
     throw new PnpmError('PNPR_PUBLISH_DIRECTORY_MISMATCH', `pnpr server /-/pnpr/v0/resolve returned importer "${project.dir}" linked at ${JSON.stringify(importer.publishDirectory)} instead of its publishConfig.directory "${expected}"; the server may not forward project publishConfig`)
   }
 }
 
+function returnedImporter (lockfile: LockfileFile, dir: string): NonNullable<LockfileFile['importers']>[string] | undefined {
+  return lockfile.importers != null && Object.hasOwn(lockfile.importers, dir) ? lockfile.importers[dir] : undefined
+}
+
 type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>
+
+type DoneFrame = Extract<ResolveFrame, { type: 'done' }>
 
 /**
  * Parse the NDJSON `/-/pnpr/v0/resolve` body and return its single terminal
@@ -296,6 +313,8 @@ function parseTerminalFrame (body: string): TerminalFrame {
   throw new Error('pnpr server /-/pnpr/v0/resolve stream ended without a terminal frame')
 }
 
+const gunzipAsync = promisify(gunzip)
+
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
 
 /**
@@ -309,7 +328,29 @@ async function postResolve (registryUrl: string, body: string, authorization?: s
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
   const url = new URL('-/pnpr/v0/resolve', base)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
+  const headers = resolveRequestHeaders(body, authorization)
 
+  return new Promise<Buffer>((resolve, reject) => {
+    const req = requestFn(url, {
+      method: 'POST',
+      timeout: REQUEST_TIMEOUT,
+      headers,
+    }, (res) => {
+      readResolveResponse(res).then(resolve, reject)
+    })
+
+    req.on('timeout', () => {
+      req.destroy(new Error(`pnpr server request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
+    })
+    req.on('error', (err: NodeJS.ErrnoException) => {
+      reject(describeRequestError(err, registryUrl))
+    })
+    req.write(body)
+    req.end()
+  })
+}
+
+function resolveRequestHeaders (body: string, authorization: string | undefined): http.OutgoingHttpHeaders {
   const headers: http.OutgoingHttpHeaders = {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
@@ -320,52 +361,39 @@ async function postResolve (registryUrl: string, body: string, authorization?: s
   if (authorization != null) {
     headers.Authorization = authorization
   }
+  return headers
+}
 
+function describeRequestError (err: NodeJS.ErrnoException, registryUrl: string): Error {
+  if (err.code === 'ECONNREFUSED') {
+    return new Error(`Could not connect to pnpr server at ${registryUrl}. Is the server running?`)
+  }
+  return err
+}
+
+async function readResolveResponse (res: http.IncomingMessage): Promise<Buffer> {
+  const raw = await bufferResponse(res)
+  // The server gzips both the install body and its JSON error bodies
+  // (e.g. a 401/403 access denial), so decompress *before* branching
+  // on the status code — otherwise an error surfaces as binary
+  // garbage instead of the server's message. Skip it only when the
+  // HTTP stack already decompressed (no gzip magic bytes).
+  const body = res.headers['content-encoding'] === 'gzip' || (raw[0] === 0x1f && raw[1] === 0x8b)
+    ? await gunzipAsync(raw)
+    : raw
+  if (res.statusCode !== 200) {
+    throw new Error(`pnpr server responded with ${res.statusCode}: ${body.toString('utf-8')}`)
+  }
+  return body
+}
+
+async function bufferResponse (res: http.IncomingMessage): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
-    const req = requestFn(url, {
-      method: 'POST',
-      timeout: REQUEST_TIMEOUT,
-      headers,
-    }, (res) => {
-      const chunks: Buffer[] = []
-      res.on('data', (chunk: Buffer) => chunks.push(chunk))
-      res.on('end', () => {
-        const raw = Buffer.concat(chunks)
-        // The server gzips both the install body and its JSON error bodies
-        // (e.g. a 401/403 access denial), so decompress *before* branching
-        // on the status code — otherwise an error surfaces as binary
-        // garbage instead of the server's message. Skip it only when the
-        // HTTP stack already decompressed (no gzip magic bytes).
-        const finish = (body: Buffer): void => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`pnpr server responded with ${res.statusCode}: ${body.toString('utf-8')}`))
-          } else {
-            resolve(body)
-          }
-        }
-        if (res.headers['content-encoding'] === 'gzip' || (raw[0] === 0x1f && raw[1] === 0x8b)) {
-          gunzip(raw, (err, decompressed) => {
-            if (err) reject(err)
-            else finish(decompressed)
-          })
-        } else {
-          finish(raw)
-        }
-      })
-      res.on('error', reject)
+    const chunks: Buffer[] = []
+    res.on('data', (chunk: Buffer) => chunks.push(chunk))
+    res.on('end', () => {
+      resolve(Buffer.concat(chunks))
     })
-
-    req.on('timeout', () => {
-      req.destroy(new Error(`pnpr server request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
-    })
-    req.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'ECONNREFUSED') {
-        reject(new Error(`Could not connect to pnpr server at ${registryUrl}. Is the server running?`))
-      } else {
-        reject(err)
-      }
-    })
-    req.write(body)
-    req.end()
+    res.on('error', reject)
   })
 }

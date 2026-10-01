@@ -510,3 +510,29 @@ test('remove catalogs unused by dependencies and workspace overrides', async () 
     },
   })
 })
+
+test('catalog prune handles catalog entries named like Object.prototype members', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  prepare({
+    dependencies: {
+      constructor: 'catalog:',
+    },
+  }, { tempDir: dir })
+  writeYamlFileSync(filePath, {
+    catalog: {
+      constructor: '^1.0.0',
+      toString: '^1.0.0',
+    },
+  })
+  const allProjects = await findPackages(dir)
+  await updateWorkspaceManifest(dir, {
+    catalogPrune: true,
+    allProjects,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    catalog: {
+      constructor: '^1.0.0',
+    },
+  })
+})

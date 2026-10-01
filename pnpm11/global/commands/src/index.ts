@@ -5,6 +5,10 @@ export { type GlobalUpdateOptions, handleGlobalUpdate } from './globalUpdate.js'
 export { installGlobalPackages, type InstallGlobalPackagesOptions } from './installGlobalPackages.js'
 export { findGlobalInstallDirs, listGlobalPackages } from './listGlobalPackages.js'
 export {
+  migrateLegacyGlobalPackages,
+  type MigrateLegacyGlobalPackagesOptions,
+} from './migrateLegacyGlobalPackages.js'
+export {
   hasPnpmCliDependency,
   isPnpmCliDependency,
   isPnpmCliOnlyGroup,

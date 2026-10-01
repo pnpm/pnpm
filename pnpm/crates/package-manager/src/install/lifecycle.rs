@@ -107,13 +107,15 @@ pub(super) fn run_root_hook(
     workspace_root: &Path,
     run: fn(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
 ) -> Result<bool, InstallError> {
-    run_project_stages(
-        config,
-        workspace_root,
-        workspace_root,
-        config.extra_env_with_node_options(),
-        run,
-    )
+    pnpm_deps_restorer::block_in_place_if_multi_thread(|| {
+        run_project_stages(
+            config,
+            workspace_root,
+            workspace_root,
+            config.extra_env_with_node_options(),
+            run,
+        )
+    })
     .map_err(InstallError::PreResolutionLifecycleScript)
 }
 
@@ -146,19 +148,21 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
             }
         }
     };
-    schedule_graph(
-        &project_graph.dependencies,
-        &ScheduleGraphOptions {
-            concurrency: crate::script_thread_count(
-                config.child_concurrency,
-                project_graph.dependencies.len(),
-            ),
-            bail: true,
-            continue_on_failure: false,
-            run_node: &run_node,
-            on_node_skipped: &on_node_skipped,
-        },
-    )
+    pnpm_deps_restorer::block_in_place_if_multi_thread(|| {
+        schedule_graph(
+            &project_graph.dependencies,
+            &ScheduleGraphOptions {
+                concurrency: crate::script_thread_count(
+                    config.child_concurrency,
+                    project_graph.dependencies.len(),
+                ),
+                bail: true,
+                continue_on_failure: false,
+                run_node: &run_node,
+                on_node_skipped: &on_node_skipped,
+            },
+        )
+    })
     .map_err(InstallError::ProjectLifecycleThreadPool)?;
     first_error
         .into_inner()

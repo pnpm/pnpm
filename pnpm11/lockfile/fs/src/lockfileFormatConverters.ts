@@ -17,9 +17,28 @@ import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
 import { isEmpty, omit, pick, pickBy } from 'ramda'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
+  const newLockfile = {
+    ...lockfile,
+    ...splitPackageSnapshots(lockfile.packages ?? {}),
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
+  }
+  if (newLockfile.settings?.peersSuffixMaxLength === 1000) {
+    newLockfile.settings = omit(['peersSuffixMaxLength'], newLockfile.settings)
+  }
+  if (newLockfile.settings?.injectWorkspacePackages === false) {
+    newLockfile.settings = omit(['injectWorkspacePackages'], newLockfile.settings)
+  }
+  return normalizeLockfile(newLockfile)
+}
+
+function splitPackageSnapshots (packageSnapshots: PackageSnapshots): {
+  snapshots: Record<string, LockfilePackageSnapshot>
+  packages: Record<string, LockfilePackageInfo>
+} {
   const packages: Record<string, LockfilePackageInfo> = {}
   const snapshots: Record<string, LockfilePackageSnapshot> = {}
-  for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
+  for (const [depPath, pkg] of Object.entries(packageSnapshots)) {
     setOwnProperty(snapshots, depPath, pick([
       'dependencies',
       'optionalDependencies',
@@ -45,43 +64,13 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
       ], pkg))
     }
   }
-  const newLockfile = {
-    ...lockfile,
-    snapshots,
-    packages,
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
-  }
-  if (newLockfile.settings?.peersSuffixMaxLength === 1000) {
-    newLockfile.settings = omit(['peersSuffixMaxLength'], newLockfile.settings)
-  }
-  if (newLockfile.settings?.injectWorkspacePackages === false) {
-    newLockfile.settings = omit(['injectWorkspacePackages'], newLockfile.settings)
-  }
-  return normalizeLockfile(newLockfile)
+  return { snapshots, packages }
 }
 
 function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   const lockfileToSave = {
     ...lockfile,
-    importers: mapValues(lockfile.importers ?? {}, (importer) => {
-      const normalizedImporter: Partial<LockfileFileProjectSnapshot> = {}
-      if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
-        normalizedImporter.dependenciesMeta = importer.dependenciesMeta
-      }
-      for (const depType of DEPENDENCIES_FIELDS) {
-        if (!isEmpty(importer[depType] ?? {})) {
-          normalizedImporter[depType] = importer[depType]
-        }
-      }
-      if (importer.publishDirectory) {
-        normalizedImporter.publishDirectory = importer.publishDirectory
-      }
-      if (importer.linkDirectory === false) {
-        normalizedImporter.linkDirectory = false
-      }
-      return normalizedImporter as LockfileFileProjectSnapshot
-    }),
+    importers: mapValues(lockfile.importers ?? {}, normalizeImporter),
   }
   if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
     delete lockfileToSave.packages
@@ -92,6 +81,30 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   if (lockfileToSave.time) {
     lockfileToSave.time = pruneTimeInLockfile(lockfileToSave.time, lockfile.importers ?? {})
   }
+  omitEmptyLockfileSettings(lockfileToSave)
+  return lockfileToSave
+}
+
+function normalizeImporter (importer: LockfileFileProjectSnapshot): LockfileFileProjectSnapshot {
+  const normalizedImporter: Partial<LockfileFileProjectSnapshot> = {}
+  if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
+    normalizedImporter.dependenciesMeta = importer.dependenciesMeta
+  }
+  for (const depType of DEPENDENCIES_FIELDS) {
+    if (!isEmpty(importer[depType] ?? {})) {
+      normalizedImporter[depType] = importer[depType]
+    }
+  }
+  if (importer.publishDirectory) {
+    normalizedImporter.publishDirectory = importer.publishDirectory
+  }
+  if (importer.linkDirectory === false) {
+    normalizedImporter.linkDirectory = false
+  }
+  return normalizedImporter as LockfileFileProjectSnapshot
+}
+
+function omitEmptyLockfileSettings (lockfileToSave: LockfileFile): void {
   if ((lockfileToSave.catalogs != null) && isEmpty(lockfileToSave.catalogs)) {
     delete lockfileToSave.catalogs
   }
@@ -110,23 +123,26 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   if (!lockfileToSave.pnpmfileChecksum) {
     delete lockfileToSave.pnpmfileChecksum
   }
-  return lockfileToSave
 }
 
 function pruneTimeInLockfile (time: Record<string, string>, importers: Record<string, LockfileFileProjectSnapshot>): Record<string, string> {
   const rootDepPaths = new Set<string>()
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
-      for (const [depName, ref] of Object.entries(importer[depType] ?? {})) {
-        const suffixStart = ref.version.indexOf('(')
-        const refWithoutPeerDepGraphHash = suffixStart === -1 ? ref.version : ref.version.slice(0, suffixStart)
-        const depPath = refToRelative(refWithoutPeerDepGraphHash, depName)
-        if (!depPath) continue
-        rootDepPaths.add(depPath)
-      }
+      addDirectDepPaths(rootDepPaths, importer[depType] ?? {})
     }
   }
   return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
+}
+
+function addDirectDepPaths (rootDepPaths: Set<string>, deps: LockfileFileProjectResolvedDependencies): void {
+  for (const [depName, ref] of Object.entries(deps)) {
+    const suffixStart = ref.version.indexOf('(')
+    const refWithoutPeerDepGraphHash = suffixStart === -1 ? ref.version : ref.version.slice(0, suffixStart)
+    const depPath = refToRelative(refWithoutPeerDepGraphHash, depName)
+    if (!depPath) continue
+    rootDepPaths.add(depPath)
+  }
 }
 
 // Mirrors `isFilename` in `resolving/local-resolver/src/parseBareSpecifier.ts`
@@ -250,8 +266,8 @@ function revertProjectSnapshot (from: LockfileFileProjectSnapshot): ProjectSnaps
   }
 }
 
-function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) => U): Record<string, U> {
-  const result: Record<string, U> = {}
+function mapValues<Value, Mapped> (obj: Record<string, Value>, mapper: (val: Value, key: string) => Mapped): Record<string, Mapped> {
+  const result: Record<string, Mapped> = {}
   for (const [key, value] of Object.entries(obj)) {
     setOwnProperty(result, key, mapper(value, key))
   }
@@ -261,7 +277,7 @@ function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) 
 // Keys in these records come from the lockfile. A plain assignment of the key
 // `__proto__` would invoke the prototype setter, so that key is defined as an
 // own property instead.
-function setOwnProperty<K extends string, V> (obj: Record<K, V>, key: K, value: V): void {
+export function setOwnProperty<Key extends string, Value> (obj: Record<Key, Value>, key: Key, value: Value): void {
   if (key === '__proto__') {
     Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true })
   } else {

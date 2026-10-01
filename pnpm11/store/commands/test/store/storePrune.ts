@@ -436,6 +436,46 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
   )
 })
 
+test('prune reclaims the packages of an expired dlx cache entry', async () => {
+  prepareEmpty()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store', STORE_VERSION)
+  const { cafsHas, cafsHasNot } = assertStore(storeDir)
+  const env = {
+    pnpm_config_store_dir: storeDir,
+    pnpm_config_cache_dir: cacheDir,
+    pnpm_config_registry: REGISTRY,
+    pnpm_config_package_import_method: 'hardlink',
+  }
+  await execa('node', [pnpmBin, 'dlx', '--package=is-negative@2.1.0', 'node', '-e', '0'], { env })
+  await execa('node', [pnpmBin, 'dlx', '--package=is-positive@1.0.0', 'node', '-e', '0'], { env })
+
+  const dlxCacheDir = path.join(cacheDir, 'dlx')
+  const expiredEntry = fs.readdirSync(dlxCacheDir).find((name) =>
+    fs.readFileSync(path.join(dlxCacheDir, name, 'pkg', 'package.json'), 'utf8').includes('is-negative')
+  )!
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60_000)
+  fs.lutimesSync(path.join(dlxCacheDir, expiredEntry, 'pkg'), twoDaysAgo, twoDaysAgo)
+
+  cafsHas('is-negative', '2.1.0')
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: REGISTRY },
+    reporter () {},
+    storeDir,
+    dlxCacheMaxAge: 24 * 60,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['prune'])
+
+  expect(fs.existsSync(path.join(dlxCacheDir, expiredEntry))).toBe(false)
+  cafsHasNot('is-negative', '2.1.0')
+  cafsHas('is-positive', '1.0.0')
+})
+
 describe('global virtual store prune', () => {
   test('prune removes unreferenced packages from global virtual store', async () => {
     // Create project that installs a package with global virtual store enabled

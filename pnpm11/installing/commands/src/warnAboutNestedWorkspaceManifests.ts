@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { isError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import normalizePath from 'normalize-path'
@@ -35,7 +35,7 @@ async function isFile (filePath: string): Promise<boolean> {
   try {
     return (await fs.promises.stat(filePath)).isFile()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
       return false
     }
     logger.debug({ error: err, message: `Could not stat nested workspace manifest at "${filePath}"` })

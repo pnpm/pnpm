@@ -8,7 +8,7 @@ import type {
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { getWantedDependencies, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { ImporterToResolve } from './index.js'
 import type { ImporterToResolveGeneric } from './resolveDependencyTree.js'
 import { safeIsInnerLink } from './safeIsInnerLink.js'
@@ -21,19 +21,23 @@ export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGen
   }>
 }
 
+type WantedDependencyWithUpdateDepth = WantedDependency & { updateDepth: number }
+
+interface ToResolveImporterOptions {
+  autoInstallPeers?: boolean
+  defaultUpdateDepth: number
+  hideAlienModules: boolean
+  preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
+  virtualStoreDir: string
+  globalVirtualStoreDir: string
+  workspacePackages: WorkspacePackages
+  updateToLatest?: boolean
+  noDependencySelectors: boolean
+}
+
 export async function toResolveImporter (
-  opts: {
-    autoInstallPeers?: boolean
-    defaultUpdateDepth: number
-    hideAlienModules: boolean
-    preferredVersions?: PreferredVersions
-    preferredVersionsByImporterId?: Record<string, PreferredVersions>
-    virtualStoreDir: string
-    globalVirtualStoreDir: string
-    workspacePackages: WorkspacePackages
-    updateToLatest?: boolean
-    noDependencySelectors: boolean
-  },
+  opts: ToResolveImporterOptions,
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
   validatePeerDependencies(project)
@@ -47,7 +51,26 @@ export async function toResolveImporter (
     workspacePackages: opts.workspacePackages,
   })
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
-  const existingDeps = nonLinkedDependencies
+  const existingDeps = getExistingDependencies(project, nonLinkedDependencies)
+  if (opts.updateToLatest && opts.noDependencySelectors) {
+    for (const dep of existingDeps) {
+      dep.updateSpec = true
+    }
+  }
+  const wantedDependencies = assignUpdateDepths(project, { defaultUpdateDepth, existingDeps })
+  return {
+    ...project,
+    hasRemovedDependencies: Boolean(project.removePackages?.length),
+    preferredVersions: getProjectPreferredVersions(opts, project),
+    wantedDependencies,
+  }
+}
+
+function getExistingDependencies (
+  project: ImporterToResolve,
+  nonLinkedDependencies: ManifestWantedDependency[]
+): ManifestWantedDependency[] {
+  return nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
     .map((dependency) => project.hookOwnedAliases?.has(dependency.alias)
       ? {
@@ -56,14 +79,18 @@ export async function toResolveImporter (
         updateToLatestAllowed: false,
       }
       : dependency)
-  if (opts.updateToLatest && opts.noDependencySelectors) {
-    for (const dep of existingDeps) {
-      dep.updateSpec = true
-    }
+}
+
+function assignUpdateDepths (
+  project: ImporterToResolve,
+  opts: {
+    defaultUpdateDepth: number
+    existingDeps: WantedDependency[]
   }
-  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
+): WantedDependencyWithUpdateDepth[] {
+  const { defaultUpdateDepth, existingDeps } = opts
   if (!project.manifest) {
-    wantedDependencies = [
+    return [
       ...project.wantedDependencies,
       ...existingDeps,
     ]
@@ -71,37 +98,37 @@ export async function toResolveImporter (
         ...dep,
         updateDepth: defaultUpdateDepth,
       }))
-  } else {
-    // Direct local tarballs are always checked,
-    // so their update depth should be at least 0
-    const updateLocalTarballs = (dep: WantedDependency) => ({
-      ...dep,
-      updateDepth: project.updateMatching != null
-        ? defaultUpdateDepth
-        : (prefIsLocalTarball(dep.bareSpecifier) ? 0 : defaultUpdateDepth),
-    })
-    wantedDependencies = [
-      ...project.wantedDependencies.map(
-        defaultUpdateDepth < 0
-          ? updateLocalTarballs
-          : (dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
-      ...existingDeps.map(
-        project.updateMatching != null
-          ? updateLocalTarballs
-          : (dep) => ({ ...dep, updateDepth: -1 })
-      ),
-    ]
   }
+  // Direct local tarballs are always checked,
+  // so their update depth should be at least 0
+  const updateLocalTarballs = (dep: WantedDependency) => ({
+    ...dep,
+    updateDepth: project.updateMatching != null
+      ? defaultUpdateDepth
+      : (prefIsLocalTarball(dep.bareSpecifier) ? 0 : defaultUpdateDepth),
+  })
+  return [
+    ...project.wantedDependencies.map(
+      defaultUpdateDepth < 0
+        ? updateLocalTarballs
+        : (dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
+    ...existingDeps.map(
+      project.updateMatching != null
+        ? updateLocalTarballs
+        : (dep) => ({ ...dep, updateDepth: -1 })
+    ),
+  ]
+}
+
+function getProjectPreferredVersions (
+  opts: Pick<ToResolveImporterOptions, 'preferredVersions' | 'preferredVersionsByImporterId'>,
+  project: ImporterToResolve
+): PreferredVersions {
   const sharedPreferredVersions = opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {}
   const projectPins = opts.preferredVersionsByImporterId?.[project.id]
-  return {
-    ...project,
-    hasRemovedDependencies: Boolean(project.removePackages?.length),
-    preferredVersions: projectPins == null
-      ? sharedPreferredVersions
-      : overlayProjectVersionPins(sharedPreferredVersions, projectPins),
-    wantedDependencies,
-  }
+  return projectPins == null
+    ? sharedPreferredVersions
+    : overlayProjectVersionPins(sharedPreferredVersions, projectPins)
 }
 
 const LOCAL_TARBALL_PATTERN = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
@@ -110,8 +137,8 @@ function prefIsLocalTarball (bareSpecifier: string): boolean {
   return bareSpecifier.startsWith('file:') && LOCAL_TARBALL_PATTERN.test(bareSpecifier)
 }
 
-async function partitionLinkedPackages<T extends WantedDependency> (
-  dependencies: T[],
+async function partitionLinkedPackages<Dependency extends WantedDependency> (
+  dependencies: Dependency[],
   opts: {
     projectDir: string
     hideAlienModules: boolean
@@ -120,8 +147,8 @@ async function partitionLinkedPackages<T extends WantedDependency> (
     globalVirtualStoreDir: string
     workspacePackages?: WorkspacePackages
   }
-): Promise<T[]> {
-  const nonLinkedDependencies: T[] = []
+): Promise<Dependency[]> {
+  const nonLinkedDependencies: Dependency[] = []
   await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||
@@ -196,7 +223,9 @@ function getVersionSpecsByRealNames (deps: Dependencies): VersionSpecsByRealName
 
     const selector = getVerSelType(bareSpecifier)
     if (selector != null) {
-      acc[pkgName] = acc[pkgName] || {}
+      if (!Object.hasOwn(acc, pkgName)) {
+        acc[pkgName] = {}
+      }
       acc[pkgName][selector.normalized] = selector.type
     }
   }

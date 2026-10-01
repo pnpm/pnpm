@@ -54,6 +54,7 @@ packages:
   - pnpm/npm/napi
   - pnpm/npm/pnpm
   - pnpm/tasks/registry-mock
+  - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpr/npm/pnpr
   - '!**/example/**'
   - '!**/test/**'
@@ -166,7 +167,7 @@ versioning:
   #     same build and must carry the CLI's exact version.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
-    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linuxstatic-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
+    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
   # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
   # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
   # live in majors 1100-1199. Members move independently inside the band (patch,
@@ -282,6 +283,7 @@ catalog:
   '@types/zkochan__table': npm:@types/table@6.3.2
   '@typescript-eslint/utils': ^8.70.1
   '@typescript/native-preview': 7.0.0-dev.20260707.2
+  '@webcontainer/api': ^1.6.4
   '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
   '@yarnpkg/fslib': ^3.1.5
@@ -314,7 +316,7 @@ catalog:
   camelcase-keys: ^10.0.3
   can-link: ^3.0.0
   can-write-to-dir: ^2.0.0
-  chalk: ^6.0.0
+  chalk: ^6.0.1
   ci-info: ^4.4.0
   cli-truncate: ^6.1.1
   cmd-extension: ^2.0.0
@@ -337,7 +339,7 @@ catalog:
   eslint: ^10.11.0
   eslint-plugin-import-x: ^4.17.1
   eslint-plugin-jest: ^29.16.6
-  eslint-plugin-n: ^18.3.0
+  eslint-plugin-n: ^18.4.0
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.1
   eslint-plugin-simple-import-sort: ^14.0.0
@@ -355,8 +357,8 @@ catalog:
   graceful-fs: ^4.2.11
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
-  http-proxy-agent: ^7.0.2
-  https-proxy-agent: ^7.0.6
+  http-proxy-agent: ^9.1.0
+  https-proxy-agent: ^9.1.0
   https-proxy-server-express: 0.1.2
   husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
@@ -365,7 +367,7 @@ catalog:
   ini: 6.0.0
   is-gzip: 2.0.0
   is-inner-link: ^5.0.0
-  is-subdir: ^2.0.0
+  is-subdir: ^2.0.1
   is-windows: ^1.0.2
   isexe: 4.0.0
   jest: 30.4.2
@@ -407,7 +409,7 @@ catalog:
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
   open: ^11.0.4
-  openpgp: ^6.3.1
+  openpgp: ^6.3.2
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
@@ -421,8 +423,9 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^3.0.0
   pidtree: ^1.0.0
-  preferred-pm: ^5.0.0
-  pretty-bytes: ^7.1.3
+  playwright-core: ^1.63.0
+  preferred-pm: ^5.0.1
+  pretty-bytes: ^7.2.0
   pretty-ms: ^9.3.1
   promise-share: ^2.0.1
   proxy: ^4.1.0
@@ -452,7 +455,7 @@ catalog:
   shx: ^0.4.0
   signal-exit: ^4.1.0
   socks: ^2.8.10
-  socks-proxy-agent: ^8.0.5
+  socks-proxy-agent: ^10.1.0
   sort-keys: ^6.0.1
   spdx-expression-parse: 5.0.0
   split-cmd: ^1.1.0
@@ -462,7 +465,7 @@ catalog:
   ssri: 13.0.1
   stacktracey: ^2.2.0
   string-length: ^7.0.1
-  string-width: ^8.2.2
+  string-width: ^8.3.0
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.3
@@ -485,7 +488,7 @@ catalog:
   uid-number: 0.0.6
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
-  undici: ^7.29.0
+  undici: ^7.29.1
   unified: ^11.0.5
   # validate-npm-package-name 8.x requires Node.js ^22.22.2 || ^24.15.0 ||
   # >=26.0.0, above pnpm's supported floor of Node.js >=22.13.

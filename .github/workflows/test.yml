@@ -126,9 +126,10 @@ jobs:
         # The build jobs are named after their runner label, which says ubuntu.
         [ "$os" = linux ] && os=ubuntu
         while true; do
-          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
-            --jq "[.jobs[] | select(.name | startswith(\"TS CI / Build pnpr / \")) | select(.name | ascii_downcase | contains(\"$os\"))][0].conclusion // \"pending\"" \
-            || echo pending)
+          if ! conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq "[.jobs[] | select(.name | startswith(\"TS CI / Build pnpr / \")) | select(.name | ascii_downcase | contains(\"$os\"))][0].conclusion // \"pending\""); then
+            conclusion=pending
+          fi
           case "$conclusion" in
             success) exit 0 ;;
             pending|null|"") sleep 15 ;;

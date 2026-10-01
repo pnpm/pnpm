@@ -32,7 +32,7 @@ use pnpm_cmd_shim::{
     collect_packages_in_modules_dir, link_bins_of_packages_cached,
 };
 use pnpm_fs::{read_modules_dir, rename_to_free_name};
-use pnpm_lockfile::{LockfileResolution, PkgIdWithPatchHash};
+use pnpm_lockfile::PkgIdWithPatchHash;
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
@@ -65,12 +65,26 @@ pub struct HoistedPackageFiles {
     /// from the fetch's effective resolution. See
     /// [`crate::SlotImportSource::is_mutable`].
     pub source_is_mutable: bool,
+    /// Whether the mutable source was there to read from. See
+    /// [`crate::SlotImportSource::source_exists`].
+    pub source_exists: bool,
+}
+
+impl HoistedPackageFiles {
+    /// Whether a package already installed from these files has to be
+    /// imported again. A mutable source can change without the lockfile
+    /// changing. A missing one has only an empty file map to offer, which
+    /// would replace the installed copy with nothing.
+    #[must_use]
+    pub fn refreshes_installed_copy(&self) -> bool {
+        self.source_is_mutable && self.source_exists
+    }
 }
 
 impl From<Arc<HashMap<String, PathBuf>>> for HoistedPackageFiles {
     /// Content-addressed files, which are never mutable.
     fn from(cas_paths: Arc<HashMap<String, PathBuf>>) -> Self {
-        HoistedPackageFiles { cas_paths, source_is_mutable: false }
+        HoistedPackageFiles { cas_paths, source_is_mutable: false, source_exists: true }
     }
 }
 
@@ -569,16 +583,21 @@ fn import_node<Reporter: self::Reporter>(
     };
 
     let cas_paths = &*files.cas_paths;
-    let import_method = opts.import.method_for(files.source_is_mutable, false);
-    if !opts.dir_clone_cache.is_some_and(|cache| {
-        cache.try_import::<Reporter>(node, opts.import, cas_paths)
-    }) {
+    // A directory dependency with install scripts is built in place, so it
+    // must not be hard-linked to its source.
+    let needs_build = files.source_is_mutable && crate::requires_build_from_cas_paths(cas_paths);
+    let import_method = opts.import.method_for(files.source_is_mutable, needs_build);
+    if files.source_is_mutable
+        || !opts.dir_clone_cache.is_some_and(|cache| {
+            cache.try_import::<Reporter>(node, opts.import, cas_paths)
+        })
+    {
         import_indexed_dir::<Reporter>(
             opts.import.logged_methods,
             import_method,
             &node.dir,
             cas_paths,
-            hoisted_import_opts(node),
+            hoisted_import_opts(files),
         )
         .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
     }
@@ -602,12 +621,13 @@ fn import_node<Reporter: self::Reporter>(
 
 /// A hoisted package replaces whatever is at its directory but keeps the
 /// nested `node_modules` other nodes were hoisted into. A directory
-/// dependency keeps its own symlinks.
-fn hoisted_import_opts(node: &DependenciesGraphNode) -> ImportIndexedDirOpts {
+/// dependency keeps its own symlinks. A missing mutable source leaves an
+/// existing directory alone, as it does for a virtual-store slot.
+fn hoisted_import_opts(files: &HoistedPackageFiles) -> ImportIndexedDirOpts {
     ImportIndexedDirOpts {
-        force: true,
+        force: files.source_exists || !files.source_is_mutable,
         keep_modules_dir: true,
-        preserve_symlinks: matches!(node.package.resolution, LockfileResolution::Directory(_)),
+        preserve_symlinks: files.source_is_mutable,
         ..ImportIndexedDirOpts::default()
     }
 }

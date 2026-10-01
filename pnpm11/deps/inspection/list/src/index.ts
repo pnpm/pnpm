@@ -290,9 +290,9 @@ export async function whyForPackages (
   const manifests = await Promise.all(
     importerIds.map((importerId) => safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerId)))
   )
-  for (let i = 0; i < importerIds.length; i++) {
-    const importerId = importerIds[i]
-    const manifest = manifests[i]
+  for (let importerIndex = 0; importerIndex < importerIds.length; importerIndex++) {
+    const importerId = importerIds[importerIndex]
+    const manifest = manifests[importerIndex]
     importerInfoMap.set(importerId, {
       name: manifest?.name ?? (importerId === '.' ? 'the root project' : importerId),
       version: manifest?.version ?? '',

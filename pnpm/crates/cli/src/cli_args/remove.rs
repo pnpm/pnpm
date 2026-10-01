@@ -92,6 +92,7 @@ impl RemoveArgs {
             manifest,
             lockfile,
             resolved_packages,
+            dedicated: _,
         } = state;
         let lockfile = command_lockfile(lockfile, lockfile_path)?;
 

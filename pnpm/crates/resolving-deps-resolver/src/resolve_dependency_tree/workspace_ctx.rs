@@ -6,8 +6,7 @@
 pub(super) use children_ownership::{
     ChildrenOwner, ChildrenOwnerClaim, RecordedChildren, RecordedChildrenContext,
     claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-    lazy_children, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names, remember_node_parent_ids,
+    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
 };
 
 pub(super) use cache_keys::{
@@ -46,7 +45,8 @@ use crate::{
     node_id::NodeId,
     resolve_peers::MissingNames,
     resolved_tree::{
-        AncestorIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+        AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+        TreeChildren,
     },
 };
 
@@ -110,7 +110,6 @@ pub(crate) struct WorkspaceTreeStorage {
     pub(super) packages: Mutex<HashMap<Arc<str>, ResolvedPackage>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
-    node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     /// Reverse index over `dependencies_tree`: every occurrence node
     /// recorded for a `pkgIdWithPatchHash`. Keeps
     /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
@@ -150,6 +149,42 @@ pub(crate) struct WorkspaceChildrenState {
     first_walk_missing_by_pkg: Mutex<FirstWalkMissingCell>,
 }
 
+/// The completed per-wanted result, when another caller has already
+/// finished this edge.
+pub(in crate::resolve_dependency_tree) fn completed_resolved_wanted(
+    ctx: &TreeCtx,
+    cache_key: &WantedKey,
+) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>> {
+    lock_recoverable(&ctx.workspace.cache.resolved_by_wanted).get(cache_key).map(Arc::clone)
+}
+
+/// Acquire the wanted key's admission lock so concurrent first callers
+/// of `resolve_wanted_cached` run the resolver chain and manifest
+/// hooks once; the waiter re-checks the completed cache after the
+/// holder finishes. Never held across the cache map's own lock, and a
+/// cancelled holder releases it on drop so the next caller retries.
+pub(in crate::resolve_dependency_tree) async fn wanted_key_admission(
+    ctx: &TreeCtx,
+    cache_key: &WantedKey,
+) -> tokio::sync::OwnedMutexGuard<()> {
+    let key_lock = {
+        let mut in_flight = lock_recoverable(&ctx.workspace.cache.in_flight_by_wanted);
+        std::sync::Arc::clone(in_flight.entry(cache_key.clone()).or_default())
+    };
+    key_lock.lock_owned().await
+}
+
+/// The hook-processed workspace result for this canonical target and
+/// rendered link, when another importer already finished it.
+pub(in crate::resolve_dependency_tree) fn cached_workspace_final(
+    ctx: &TreeCtx,
+    workspace_final_key: Option<&WorkspaceFinalWantedKey>,
+) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>> {
+    lock_recoverable(&ctx.workspace.cache.resolved_workspace_final_by_wanted)
+        .get(workspace_final_key?)
+        .map(Arc::clone)
+}
+
 #[derive(Default)]
 pub(super) struct WorkspaceResolutionCache {
     pub(super) resolved_by_wanted:
@@ -165,6 +200,16 @@ pub(super) struct WorkspaceResolutionCache {
     /// these too — this map is what a *different* importer hits.
     pub(super) resolved_workspace_final_by_wanted:
         Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Per-key admission locks for concurrent first callers of
+    /// `resolve_wanted_cached` (the walk's wanted-edge cache). The
+    /// resolver's fetch locker already
+    /// coalesces the network work; without this map those callers also
+    /// each repeat the resolver chain's remaining work and the manifest
+    /// hook pipeline (including pnpmfile, a JS bridge) for the same
+    /// key. The guard is never held across the map's own lock, and a
+    /// cancelled first caller releases it on drop so the next caller
+    /// retries cleanly.
+    pub(super) in_flight_by_wanted: Mutex<HashMap<WantedKey, Arc<tokio::sync::Mutex<()>>>>,
     /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     pub(super) share_workspace_resolutions: bool,
     /// Memoises `reuse::subtree_fully_reusable` per update scope and snapshot

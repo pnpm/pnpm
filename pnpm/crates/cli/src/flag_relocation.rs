@@ -340,6 +340,14 @@ impl ArgTable {
         table
     }
 
+    /// The options a command line invoking `subcommand` of `root` accepts:
+    /// `root`'s own and `subcommand`'s.
+    pub(crate) fn for_subcommand(root: &Command, subcommand: &Command) -> Self {
+        let mut table = Self::top_level(root);
+        table.absorb(subcommand.get_arguments());
+        table
+    }
+
     /// Fold every subcommand's own options into this table, for callers
     /// that need one arity view over the whole CLI because the command is
     /// not known yet (the pre-clap passes, via

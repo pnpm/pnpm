@@ -56,10 +56,16 @@ pub struct CalcDepStateOptions<'a> {
     pub include_dep_graph_hash: bool,
 }
 
+/// The side-effects diff format [`calc_dep_state`] names in the cache key.
+/// Format 2 records the symlinks a build creates, which a pnpm version
+/// reading format 1 would restore as regular files, so the two formats are
+/// kept under separate keys.
+pub const SIDE_EFFECTS_FORMAT_KEY: &str = "format=2";
+
 /// Compute the side-effects cache key for a snapshot.
 ///
 /// Returns the cache key for the side-effects cache. Format:
-/// `<engine_name>[;deps=<hash>][;patch=<hash>]`. Byte-for-byte
+/// `<engine_name>;format=2[;deps=<hash>][;patch=<hash>]`. Byte-for-byte
 /// parity with pnpm is required — the key is persisted on disk and
 /// shared with pnpm.
 pub fn calc_dep_state<Key>(
@@ -71,7 +77,7 @@ pub fn calc_dep_state<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let mut result = opts.engine_name.to_string();
+    let mut result = format!("{};{SIDE_EFFECTS_FORMAT_KEY}", opts.engine_name);
     if opts.include_dep_graph_hash {
         let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
         result.push_str(";deps=");

@@ -4,8 +4,8 @@ import type { PkgRequestFetchResult } from '@pnpm/store.controller-types'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 import { filter } from 'ramda'
 
-export interface DependenciesGraphNode<T extends string> {
-  children: Record<string, T>
+export interface DependenciesGraphNode<NodeId extends string> {
+  children: Record<string, NodeId>
   depPath: DepPath
   pkgIdWithPatchHash: PkgIdWithPatchHash
   name: string
@@ -21,21 +21,21 @@ export interface DependenciesGraphNode<T extends string> {
   isBuilt?: boolean
   optional: boolean
   optionalDependencies: Set<string>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the graphs passed in by different installers do not agree on this field's type
   requiresBuild?: boolean | any // this is a dirty workaround added in https://github.com/pnpm/pnpm/pull/4898
   patch?: PatchInfo
   resolution?: LockfileResolution
 }
 
-export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
+export type DependenciesGraph<NodeId extends string> = Record<NodeId, DependenciesGraphNode<NodeId>>
 
-export function buildGraph<T extends string> (
-  depGraph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild'>>,
-  rootDepPaths: T[]
-): Map<T, T[]> {
-  const nodesToBuild = new Set<T>()
-  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<T>())
-  const onlyFromBuildGraph = filter((depPath: T) => nodesToBuild.has(depPath))
+export function buildGraph<NodeId extends string> (
+  depGraph: Record<string, Pick<DependenciesGraphNode<NodeId>, 'children' | 'requiresBuild'>>,
+  rootDepPaths: NodeId[]
+): Map<NodeId, NodeId[]> {
+  const nodesToBuild = new Set<NodeId>()
+  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<NodeId>())
+  const onlyFromBuildGraph = filter((depPath: NodeId) => nodesToBuild.has(depPath))
   const nodesToBuildArray = Array.from(nodesToBuild)
   return new Map(
     nodesToBuildArray
@@ -43,11 +43,11 @@ export function buildGraph<T extends string> (
   )
 }
 
-function getSubgraphToBuild<T extends string> (
-  graph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild' | 'patch'>>,
-  entryNodes: T[],
-  nodesToBuild: Set<T>,
-  walked: Set<T>
+function getSubgraphToBuild<NodeId extends string> (
+  graph: Record<string, Pick<DependenciesGraphNode<NodeId>, 'children' | 'requiresBuild' | 'patch'>>,
+  entryNodes: NodeId[],
+  nodesToBuild: Set<NodeId>,
+  walked: Set<NodeId>
 ): boolean {
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {

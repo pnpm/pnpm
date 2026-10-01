@@ -1,10 +1,14 @@
 use crate::{
     extend_path::extend_path,
     lifecycle::{StreamedScript, push_script_arg},
-    make_env::{EnvOptions, build_env, path_value},
+    make_env::{EnvOptions, build_env, is_path_key, path_value},
     process_tracker::{ProcessTracker, spawn_child},
+    script_args::{ArgQuoting, build_command},
     script_exit::ScriptExit,
-    shell::{ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell},
+    shell::{
+        ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
+        use_shell_emulator,
+    },
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
@@ -87,36 +91,42 @@ pub struct RunScript<'a> {
 /// Run a single user script in the foreground, sending its output where
 /// [`RunScript::output`] says.
 pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
-    let command = build_command(
-        opts.invocation.script,
-        opts.invocation.args,
-        parsed_by_windows_shell(cfg!(windows), opts.execution.shell_emulator),
-    );
-
-    // The `scriptShell` value is validated even when the emulator will
-    // run the script, matching pnpm's `runLifecycleHook`, which rejects a
-    // `.bat` / `.cmd` shell before it looks at `shellEmulator`.
+    // A configured `scriptShell` is spawned even when `shellEmulator` is
+    // set. The shell is still selected first so a `.bat` / `.cmd` shell
+    // is rejected before anything runs.
+    let emulate = use_shell_emulator(opts.execution.shell_emulator, opts.execution.shell);
     let shell =
         select_shell(opts.execution.shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
-
-    let child_env = child_env(opts, &command);
+    let mut child_env = child_env(opts);
+    let has_args = !opts.invocation.args.is_empty();
+    let quoting = if has_args && parsed_by_cmd(emulate, shell.windows_verbatim_args) {
+        let search_path = child_env.get("PATH").map_or_else(OsString::new, OsString::from);
+        ArgQuoting::cmd(opts.invocation.script, &search_path, opts.pkg_root)
+    } else {
+        ArgQuoting::Posix
+    };
+    let command = ScriptCommand {
+        run: build_command(opts.invocation.script, opts.invocation.args, quoting),
+        shown: build_command(opts.invocation.script, opts.invocation.args, ArgQuoting::Posix),
+    };
+    child_env.insert("npm_lifecycle_script".to_string(), command.run.clone());
 
     if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
         let streamed = StreamedScript { dep_path, stage: opts.invocation.stage, wd: &wd, emit };
-        return run_streamed(opts, &shell, &command, &child_env, streamed);
+        return run_streamed(opts, &shell, &command, &child_env, streamed, emulate);
     }
 
     if !opts.silent {
         // Echo `$ <script>` to stderr for an inherited-stdio run, the
         // same as `pnpm run`. The dim styling is omitted.
         let mut stderr = io::stderr();
-        let _ = writeln!(stderr, "$ {command}");
+        let _ = writeln!(stderr, "$ {}", command.shown);
     }
 
-    if opts.execution.shell_emulator {
+    if emulate {
         return execute_emulated(
-            &command,
+            &command.run,
             opts.pkg_root,
             &child_env,
             EmulatedOutput::Inherit,
@@ -131,19 +141,19 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
 
 /// The script's environment: the parent's, the `npm_*` lifecycle variables,
 /// and `PATH` extended with the bin directories.
-fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
+fn child_env(opts: &RunScript<'_>) -> HashMap<String, String> {
     let parent_env: HashMap<String, String> = env::vars().collect();
     let env_opts = EnvOptions {
         environment: crate::ScriptEnvironment {
             init_cwd: opts.environment.init_cwd,
             node_execpath: opts.environment.node_execpath,
             npm_execpath: opts.environment.npm_execpath,
-            node_gyp_path: None,
+            node_gyp_path: opts.environment.node_gyp_path,
             user_agent: opts.environment.user_agent,
             extra_env: opts.environment.extra_env,
         },
         stage: opts.invocation.stage,
-        script: command,
+        script: opts.invocation.script,
         pkg_root: opts.pkg_root,
 
         script_src_dir: opts.pkg_root,
@@ -166,23 +176,33 @@ fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
     );
 
     let mut child_env = built.env;
-    child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
+    child_env.retain(|key, _| !is_path_key(key));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
     child_env
+}
+
+/// A script with its extra arguments appended.
+struct ScriptCommand {
+    /// What the shell runs, quoted for that shell.
+    run: String,
+    /// What pnpm prints, with the arguments quoted the POSIX way on every
+    /// platform, so that `cmd`'s `^` escapes stay out of the output.
+    shown: String,
 }
 
 fn run_streamed(
     opts: &RunScript<'_>,
     shell: &SelectedShell,
-    command: &str,
+    command: &ScriptCommand,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
+    emulate: bool,
 ) -> Result<ScriptExit, RunScriptError> {
-    streamed.started(command);
-    let status = if opts.execution.shell_emulator {
+    streamed.started(&command.shown);
+    let status = if emulate {
         let emit_line = |stdio, line| streamed.emit_line(stdio, line);
         execute_emulated(
-            command,
+            &command.run,
             opts.pkg_root,
             child_env,
             EmulatedOutput::Lines(&emit_line),
@@ -204,12 +224,12 @@ fn run_streamed(
 fn run_in_shell(
     opts: &RunScript<'_>,
     shell: &SelectedShell,
-    command: &str,
+    command: &ScriptCommand,
     child_env: &HashMap<String, String>,
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, &script_body(shell, command), shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, &command.run), shell.windows_verbatim_args);
     cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env);
@@ -217,22 +237,22 @@ fn run_in_shell(
         .map_err(|source| spawn_error(opts, command, source))?;
     let status = child
         .wait()
-        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })?;
+        .map_err(|source| RunScriptError::Wait { script: command.shown.clone(), source })?;
     Ok(ScriptExit::Process(status))
 }
 
-/// Spawn `command` under `shell` with both output streams piped, and
+/// Spawn [`ScriptCommand::run`] under `shell` with both output streams piped, and
 /// republish each line through `streamed`.
 fn run_piped(
     opts: &RunScript<'_>,
     shell: &SelectedShell,
-    command: &str,
+    command: &ScriptCommand,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, &script_body(shell, command), shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, &command.run), shell.windows_verbatim_args);
     cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env)
@@ -244,54 +264,22 @@ fn run_piped(
     streamed
         .pump(&mut child)
         .map(ScriptExit::Process)
-        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
+        .map_err(|source| RunScriptError::Wait { script: command.shown.clone(), source })
 }
 
-fn spawn_error(opts: &RunScript<'_>, command: &str, source: io::Error) -> RunScriptError {
+fn spawn_error(opts: &RunScript<'_>, command: &ScriptCommand, source: io::Error) -> RunScriptError {
     match missing_script_shell(opts.execution.shell, source, opts.pkg_root) {
         Ok(error) => RunScriptError::ScriptShell(error),
-        Err(source) => RunScriptError::Spawn { script: command.to_string(), source },
+        Err(source) => RunScriptError::Spawn { script: command.shown.clone(), source },
     }
 }
 
-/// Whether `cmd` will parse the script. The shell emulator is a POSIX
-/// shell on every platform, so only a native Windows run reaches `cmd`.
-fn parsed_by_windows_shell(windows: bool, shell_emulator: bool) -> bool {
-    windows && !shell_emulator
-}
-
-/// Append shell-quoted `args` to `script`: per-argument JSON quoting when
-/// `cmd` will parse them, and `shlex`-style POSIX quoting otherwise.
-fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
-    if args.is_empty() {
-        return script.to_string();
-    }
-    let quoted = if windows_shell {
-        args.iter()
-            .map(|arg| Value::String(arg.clone()).to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
-    } else {
-        args.iter()
-            .map(|arg| posix_quote(arg))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    format!("{script} {quoted}")
-}
-
-/// Quote a single argument the way the `shlex` npm package's `quote`
-/// does: a string of only shell-safe characters is left as-is, anything
-/// else is wrapped in single quotes with embedded quotes escaped as
-/// `'"'"'`.
-fn posix_quote(arg: &str) -> String {
-    if arg.is_empty() {
-        return "''".to_string();
-    }
-    let safe = arg
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
-    if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', r#"'"'"'"#)) }
+/// Whether `cmd` will parse the script. `cmd` quoting is only for that
+/// case. The shell emulator and a non-cmd `scriptShell` both get POSIX
+/// quoting, so a Windows path such as `C:\Program Files\tool\` stays one
+/// argument.
+fn parsed_by_cmd(emulate: bool, windows_verbatim_args: bool) -> bool {
+    !emulate && windows_verbatim_args
 }
 
 #[cfg(test)]

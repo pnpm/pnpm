@@ -34,6 +34,16 @@ pub const MAX_FILE_SIZE: u64 = 64 * 1024 * 1024;
 pub const MAX_ARTIFACT_SIZE: u64 = 64 * 1024 * 1024;
 pub const MAX_ENCODED_FILE_SIZE: usize = (MAX_FILE_SIZE as usize).div_ceil(3) * 4;
 pub const MAX_SIGNED_PAYLOAD_SIZE: usize = 2 * 1024 * 1024;
+/// The file-type bits of an added entry that records a symlink. The entry's
+/// content is the link target, stored and transferred as a regular file, so
+/// a reader that does not know this type still verifies it like any other.
+pub const SYMLINK_MODE: u32 = 0o120_000;
+const FILE_TYPE_MASK: u32 = 0o170_000;
+
+#[must_use]
+pub fn is_symlink_mode(mode: u32) -> bool {
+    mode & FILE_TYPE_MASK == SYMLINK_MODE
+}
 /// A canonical DER-encoded P-256 signature is a SEQUENCE of two INTEGERs of at
 /// most 33 content bytes each, so it never exceeds 72 bytes.
 pub const MAX_SIGNATURE_SIZE: usize = 72;

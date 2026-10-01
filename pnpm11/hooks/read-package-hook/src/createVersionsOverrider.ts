@@ -240,25 +240,38 @@ function overrideDeps (
     const versionOverride = pickVersionOverride({ versionOverrides, genericVersionOverrides }, name, bareSpecifier)
     if (!versionOverride) {
       convergeDep(convergeOpts, { deps, peerDeps }, name, bareSpecifier)
-      continue
+    } else {
+      applyVersionOverride(versionOverride, { deps, peerDeps, dir, peerDependenciesMeta })
     }
+  }
+}
 
-    if (versionOverride.newBareSpecifier === '-') {
-      if (peerDeps) {
-        delete peerDeps[versionOverride.targetPkg.name]
-        delete peerDependenciesMeta?.[versionOverride.targetPkg.name]
-      } else {
-        delete deps[versionOverride.targetPkg.name]
-      }
-      continue
+function applyVersionOverride (
+  versionOverride: ReturnType<typeof pickVersionOverride>,
+  { deps, peerDeps, dir, peerDependenciesMeta }: {
+    deps: Dependencies
+    peerDeps: Dependencies | undefined
+    dir: string | undefined
+    peerDependenciesMeta: PackageManifest['peerDependenciesMeta']
+  }
+): void {
+  if (!versionOverride) return
+  const pkgName = versionOverride.targetPkg.name
+  if (versionOverride.newBareSpecifier === '-') {
+    if (peerDeps) {
+      delete peerDeps[pkgName]
+      delete peerDependenciesMeta?.[pkgName]
+    } else {
+      delete deps[pkgName]
     }
+    return
+  }
 
-    const newBareSpecifier = resolveOverriddenBareSpecifier(versionOverride, dir)
-    if (peerDeps == null || !isValidPeerRange(newBareSpecifier)) {
-      deps[versionOverride.targetPkg.name] = newBareSpecifier
-    } else if (isValidPeerRange(newBareSpecifier)) {
-      peerDeps[versionOverride.targetPkg.name] = newBareSpecifier
-    }
+  const newBareSpecifier = resolveOverriddenBareSpecifier(versionOverride, dir)
+  if (peerDeps == null || !isValidPeerRange(newBareSpecifier)) {
+    deps[pkgName] = newBareSpecifier
+  } else if (isValidPeerRange(newBareSpecifier)) {
+    peerDeps[pkgName] = newBareSpecifier
   }
 }
 

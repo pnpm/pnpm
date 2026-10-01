@@ -87,7 +87,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
                 prefer_offline: false,
                 ignore_missing_time_field: false,
             },
-            store_index: None,
+            store_view: None,
         };
         (resolver, cache_dir)
     };
@@ -234,4 +234,50 @@ async fn invalid_shasum_error_redacts_registry_metadata() {
         !error.chars().any(char::is_control),
         "control characters must not reach the message: {error:?}",
     );
+}
+
+#[tokio::test]
+async fn update_target_does_not_reuse_a_fresh_mirror_without_etag() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(super::PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, cache_dir) = build_resolver(&registry);
+    let packument: pnpm_registry::Package =
+        serde_json::from_str(super::PACKAGE_BODY).expect("parse packument");
+    let mirror = crate::mirror::get_pkg_mirror_path(
+        cache_dir.path(),
+        crate::mirror::ABBREVIATED_META_DIR,
+        &registry,
+        "acme",
+    )
+    .expect("mirror path");
+    crate::mirror::save_meta_indexed(&mirror, &packument, None, false).expect("warm mirror");
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .expect("resolve")
+        .expect("resolved");
+
+    mock.assert_async().await;
 }

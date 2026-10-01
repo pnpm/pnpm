@@ -23,6 +23,10 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
     pub cache_policy: crate::MetadataCachePolicy,
+    /// The install's store view, when the store is available. Offline picks
+    /// consult it so a version whose tarball the store already holds wins the
+    /// pick over a newer one the fetcher could only reject.
+    pub store_view: Option<&'a crate::OfflineStoreView>,
     pub metadata: MetadataRequestContext<'a, Cache>,
 }
 
@@ -92,10 +96,23 @@ pub struct PackagePickPolicy<'a> {
     /// `minimumReleaseAge` cutoff. `None` disables the maturity
     /// filter for this call.
     pub published_by: Option<DateTime<Utc>>,
+    /// Release-age cutoff to try before the unrestricted fallback.
+    /// Only used when later than `published_by`.
+    pub fallback_published_by: Option<DateTime<Utc>>,
     /// `minimumReleaseAgeExclude` policy. `None` skips exclusion.
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Trust-policy validation requires current registry metadata.
     pub trust_policy: Option<TrustPolicy>,
+}
+
+impl PackagePickPolicy<'_> {
+    /// Whether the `minimumReleaseAge` cutoff narrows the versions of
+    /// `name`. A package `minimumReleaseAgeExclude` lists without naming
+    /// versions is picked as if the cutoff were off.
+    pub(crate) fn release_age_applies_to(&self, name: &str) -> bool {
+        self.published_by.is_some()
+            && !self.published_by_exclude.is_some_and(|policy| policy.covers_every_version(name))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -104,6 +121,9 @@ pub struct MetadataPickRequest {
     /// the install is a pure dry-run (`--lockfile-only`, frozen
     /// lockfile, etc.).
     pub dry_run: bool,
+    /// `pnpm update` must see versions published since the mirror was
+    /// written, so it does not reuse an ETag-less mirror.
+    pub refresh_metadata: bool,
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific
     /// fields (`libc`, `cpu`, `os`) the abbreviated form drops

@@ -1,15 +1,15 @@
 use super::{
-    Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId, ParentPkgAliases,
-    PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext, ResolveDependencyTreeError,
-    Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeCtx, UpdateReuseScope,
-    WantedDependency, future, is_current_children_owner, lazy_children, record_children,
-    resolve_node,
+    AncestorPkgIds, Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId,
+    ParentPkgAliases, PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext,
+    ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeChildren,
+    TreeCtx, UpdateReuseScope, WantedDependency, future, is_current_children_owner,
+    record_children, resolve_node,
 };
 
 /// The per-node context [`reused_children`] walks one reused node's snapshot
 /// children against.
 pub(super) struct ReusedChildren<'a> {
-    pub(super) id: &'a str,
+    pub(super) id: &'a Arc<str>,
     pub(super) key: &'a PkgNameVerPeer,
     pub(super) snapshot: Option<&'a SnapshotEntry>,
     pub(super) child_refs: &'a [(String, PkgNameVerPeer)],
@@ -17,22 +17,24 @@ pub(super) struct ReusedChildren<'a> {
 }
 
 pub(super) struct ReusedNodeAncestry<'a> {
-    pub(super) ancestor_ids: &'a Arc<Vec<String>>,
-    pub(super) next_ancestors: Arc<Vec<String>>,
+    pub(super) next_ancestors: AncestorPkgIds,
     pub(super) depth: i32,
     pub(super) current_is_optional: bool,
     pub(super) parent_pkg_aliases: &'a Arc<ParentPkgAliases>,
 }
 
 impl<'a> ReusedNodeAncestry<'a> {
-    pub(super) fn new(edge: &super::ChildEdge<'a>, id: &str, current_is_optional: bool) -> Self {
+    pub(super) fn new(
+        edge: &super::ChildEdge<'a>,
+        id: &Arc<str>,
+        current_is_optional: bool,
+    ) -> Self {
         Self {
-            ancestor_ids: edge.ancestor_ids,
             next_ancestors: Arc::new(
                 edge.ancestor_ids
                     .iter()
                     .cloned()
-                    .chain(std::iter::once(id.to_owned()))
+                    .chain(std::iter::once(Arc::clone(id)))
                     .collect(),
             ),
             depth: edge.depth,
@@ -49,16 +51,16 @@ pub(super) async fn reused_children<Chain>(
     resolver: &Chain,
     claim: &ChildrenOwnerClaim,
     context: ReusedChildren<'_>,
-) -> Result<(crate::resolved_tree::TreeChildren, bool), ResolveDependencyTreeError>
+) -> Result<(TreeChildren, bool), ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     if !claim.owns_children {
-        return Ok((lazy_children(context.ancestry.ancestor_ids), false));
+        return Ok((TreeChildren::Lazy, false));
     }
     let child_results = resolve_snapshot_children(ctx, resolver, &context).await?;
     if !is_current_children_owner(ctx, context.id, &claim.owner) {
-        return Ok((lazy_children(context.ancestry.ancestor_ids), false));
+        return Ok((TreeChildren::Lazy, false));
     }
     Ok(record_reused_children(ctx, claim, &context, child_results))
 }
@@ -78,9 +80,8 @@ where
                 alias: Some(child_alias.clone()),
                 // The snapshot pins the exact version; carry it as
                 // the bare specifier so the per-wanted dedup cache
-                // key is stable and a fresh fallback (if reuse were
-                // ever disabled) would still target the right pin.
-                bare_specifier: Some(child_key.suffix.without_peer().to_string()),
+                // key is stable.
+                bare_specifier: Some(pinned_specifier(child_alias, child_key)),
                 ..WantedDependency::default()
             };
             let next_ancestors = Arc::clone(&context.ancestry.next_ancestors);
@@ -103,12 +104,30 @@ where
         .await
 }
 
+/// The specifier that resolves `alias` to exactly the locked `key`. An
+/// aliased child (an `npm:` alias, often written by an override) names its
+/// real package, so a child that falls through to a fresh resolve fetches
+/// that package rather than a same-numbered version of `alias`.
+pub(super) fn pinned_specifier(alias: &str, key: &PkgNameVerPeer) -> String {
+    let version = key.suffix.without_peer();
+    if key.name.to_string() == alias {
+        return version.to_string();
+    }
+    if let Some((registry_name, version)) = key.suffix.registry_qualified() {
+        return format!("{registry_name}:{}@{version}", key.name);
+    }
+    match key.suffix.version_semver() {
+        Some(version) => format!("npm:{}@{version}", key.name),
+        None => version.to_string(),
+    }
+}
+
 pub(super) fn record_reused_children(
     ctx: &TreeCtx,
     claim: &ChildrenOwnerClaim,
     context: &ReusedChildren<'_>,
     child_results: Vec<Option<DirectDep>>,
-) -> (crate::resolved_tree::TreeChildren, bool) {
+) -> (TreeChildren, bool) {
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     let optional_by_alias: HashMap<&str, bool> = context.child_refs
@@ -122,7 +141,7 @@ pub(super) fn record_reused_children(
             .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
-            pkg_id: Arc::from(dep.id),
+            pkg_id: dep.id,
             optional,
         });
         realized.insert(dep.alias, dep.node_id);
@@ -138,7 +157,7 @@ pub(super) fn record_reused_children(
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         },
     );
-    recording.into_children(realized, context.ancestry.ancestor_ids)
+    recording.into_children(realized)
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child

@@ -3,7 +3,8 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_deps_resolver::UpdateTargets;
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
+    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -15,7 +16,7 @@ fn automatic_dedupe_preserves_shared_seeds_and_stronger_importer_preferences() {
         .collect();
     let strong = VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
         selector_type: VersionSelectorType::Version,
-        weight: pnpm_resolving_resolver_base::EXISTING_VERSION_SELECTOR_WEIGHT + 1,
+        weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1,
     });
     importers.insert(
         "specific".into(),
@@ -73,4 +74,33 @@ snapshots:
     assert!(candidates.covers("bar", None));
     assert!(targets(&config, Some(&lockfile), false).covers("foo", None));
     assert!(!targets(&Config::default(), Some(&lockfile), false).covers("bar", None));
+}
+
+#[test]
+fn automatic_dedupe_keeps_the_direct_dependency_weight_of_a_candidate() {
+    let direct = VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+        selector_type: VersionSelectorType::Version,
+        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+    });
+    let mut preferred = Arc::new(BTreeMap::from_iter([(
+        "foo".into(),
+        BTreeMap::from_iter([("1.0.0".into(), direct)]),
+    )]));
+    let versions = BTreeMap::from_iter([(
+        "foo".into(),
+        ["1.0.0", "1.5.0"]
+            .map(|version| {
+                (version.into(), VersionSelectorEntry::Plain(VersionSelectorType::Version))
+            })
+            .into_iter()
+            .collect(),
+    )]);
+    let mut targets = UpdateTargets::default();
+    assert!(extend_preference_seeds(&versions, &mut preferred, &mut BTreeMap::new(), &mut targets));
+    let weight = |version: &str| match &preferred["foo"][version] {
+        VersionSelectorEntry::Weighted(entry) => entry.weight,
+        VersionSelectorEntry::Plain(_) => panic!("{version} is not weighted"),
+    };
+    assert_eq!(weight("1.0.0"), EXISTING_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT);
+    assert_eq!(weight("1.5.0"), EXISTING_VERSION_SELECTOR_WEIGHT);
 }

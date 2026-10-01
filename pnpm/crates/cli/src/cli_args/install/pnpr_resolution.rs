@@ -1,12 +1,12 @@
 use super::{
     Catalogs, Context, Diagnostic, Display, Error, InstallFamilySelection, LocalLockfileInstall,
     Lockfile, MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError,
-    PnprLink, PnprRequestInputs, Reporter, ResolveProject, ResolveProjectsOptions, State,
-    TarballPrefetcher, WantedLockfileSatisfactionCheck, full_workspace_importer_ids,
-    install_from_local_lockfile, link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
-    pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
-    resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
-    wanted_lockfile_satisfies_workspace,
+    PnprLink, PnprRequestInputs, PnprTarget, Reporter, ResolveProject, ResolveProjectsOptions,
+    State, TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
+    full_workspace_importer_ids, install_from_local_lockfile, link_pnpr_lockfile,
+    merge_and_save_pnpr_lockfile, pnpr_catalogs, pnpr_lockfile_dir, pnpr_request_inputs,
+    report_merged_lockfile_conflicts, resolve_projects_for_pnpr, resolve_projects_options,
+    selection_importer_ids, wanted_lockfile_satisfies_workspace,
 };
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
@@ -68,32 +68,33 @@ struct AutoDedupeWithPnpr;
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
-    pnpr_server: &str,
+    target: PnprTarget<'_>,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, None, link)).await
+    Box::pin(install_via_pnpr_inner::<Reporter>(state, target, None, link)).await
 }
 
 pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
-    pnpr_server: &str,
+    target: PnprTarget<'_>,
     selection: &InstallFamilySelection,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, Some(selection), link)).await
+    Box::pin(install_via_pnpr_inner::<Reporter>(state, target, Some(selection), link)).await
 }
 
 pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     state: &State,
-    pnpr_server: &str,
+    target: PnprTarget<'_>,
     selection: Option<&InstallFamilySelection>,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
     validate_pnpr_config(state.config, link.lockfile.frozen)?;
 
+    let pnpr_server = target.server;
     let lockfile_dir = pnpr_lockfile_dir(state, &link);
     let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
-    let inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
+    let inputs = pnpr_request_inputs(state, &link, lockfile_dir, target.pnpmfile_hook).await?;
 
     if (session.satisfied_without_server
         || (link.lockfile.frozen && (selection.is_some() || !link.lockfile.only)))
@@ -405,6 +406,11 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     mut session: PnprSession<'_>,
     mut inputs: PnprRequestInputs,
 ) -> miette::Result<()> {
+    if link.lockfile.frozen
+        && let Some(previous_wanted) = session.previous_wanted
+    {
+        check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
+    }
     let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
     let (mut outcome, prefetcher) = resolve_via_pnpr(
         state,

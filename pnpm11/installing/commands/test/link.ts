@@ -25,9 +25,9 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 const { logger } = await import('@pnpm/logger')
-const { install, link } = await import('@pnpm/installing.commands')
+const { add, install, link } = await import('@pnpm/installing.commands')
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('linking multiple packages', async () => {
   const project = prepare()
@@ -89,7 +89,7 @@ test('relative link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -127,7 +127,7 @@ test('absolute link', async () => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  f.copy(linkedPkgName, linkedPkgPath)
+  testFixtures.copy(linkedPkgName, linkedPkgPath)
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -265,6 +265,52 @@ test('logger should not warn about peer dependencies when it is an empty object'
   jest.mocked(logger.warn).mockRestore()
 })
 
+test('logger warns about peer dependencies when adding a directory as a link: dependency', async () => {
+  prepare()
+  writePackageSync('../local-with-peer-deps', {
+    name: 'local-with-peer-deps',
+    version: '1.0.0',
+    peerDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+  }, ['../local-with-peer-deps'])
+
+  expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('The package local-with-peer-deps, which you have just pnpm linked, has the following peerDependencies specified in its package.json:\n\n  - is-positive@1.0.0'),
+  }))
+
+  jest.mocked(logger.warn).mockRestore()
+})
+
+test('logger should not warn about peer dependencies when adding a directory through file:', async () => {
+  prepare()
+  writePackageSync('../local-with-peer-deps', {
+    name: 'local-with-peer-deps',
+    version: '1.0.0',
+    peerDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+  }, ['file:../local-with-peer-deps'])
+
+  expect(logger.warn).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
+  }))
+
+  jest.mocked(logger.warn).mockRestore()
+})
+
 test('relative link from workspace package', async () => {
   prepareEmpty()
 
@@ -279,7 +325,7 @@ test('relative link from workspace package', async () => {
   const workspaceDir = path.resolve('workspace')
   writeYamlFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
 
-  f.copy('hello-world-js-bin', 'hello-world-js-bin')
+  testFixtures.copy('hello-world-js-bin', 'hello-world-js-bin')
 
   const projectDir = path.resolve('workspace/packages/project')
   const helloWorldJsBinDir = path.resolve('hello-world-js-bin')

@@ -791,3 +791,39 @@ fn pack_json_keeps_the_dotenv_warning_out_of_its_output() {
 
     drop(root);
 }
+
+/// `pnpm pack` reports itself to the lifecycle scripts it runs. pnpm 11 and
+/// npm both export `npm_command`, so a `prepack` script that branches on the
+/// variable behaves alike.
+#[test]
+fn pack_exports_the_command_to_lifecycle_scripts() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack":
+                    r#"node -e "require('fs').writeFileSync('npm-command.txt', process.env.npm_command ?? 'unset')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let out = workspace.join("tarballs");
+    fs::create_dir_all(&out).expect("create out dir");
+
+    pacquet
+        .with_arg("pack")
+        .with_arg("--pack-destination")
+        .with_arg(out.to_str().expect("utf8 out dir"))
+        .assert()
+        .success();
+
+    let value =
+        fs::read_to_string(workspace.join("npm-command.txt")).expect("read npm-command.txt");
+    assert_eq!(value, "pack");
+
+    drop(root);
+}

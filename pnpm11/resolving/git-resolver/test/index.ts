@@ -87,8 +87,8 @@ test('resolveFromGit() with no commit', async () => {
   // to contain the commit hash on second call.
   // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
   // was mutated. A 'committish' field was added to it.
-  for (let i = 0; i < 2; i++) {
-    const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop -- the second call checks that the first one did not modify the parsed specifier
     expect(resolveResult).toStrictEqual({
       id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
       normalizedBareSpecifier: 'github:zkochan/is-negative',
@@ -240,7 +240,7 @@ test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
 test('resolveFromGit() with sub folder', async () => {
   const headCommit = '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
   mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) {
@@ -264,7 +264,7 @@ test('resolveFromGit() with sub folder', async () => {
 test('resolveFromGit() with both sub folder and branch', async () => {
   const betaCommit = '777e8a3e78cc89bbf41fb3fd9f6cf922d5463313'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
   mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) {
@@ -410,13 +410,13 @@ test('resolveFromGit() gitlab with colon in the URL', async () => {
   })
 })
 
-// Regression test for #11533: the tarball URL must not contain `%2F`,
+// Regression test for pnpm/pnpm#11533: the tarball URL must not contain `%2F`,
 // otherwise GitLab returns 406 and Node refuses to import the package
 // (the encoded slash ends up in the virtual store directory name).
 test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash', async () => {
   const headCommit = '988c61e11dc8d9ca0b5580cb15291951812549dc'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
   mockGit(async () => ({ stdout: `${headCommit}\tHEAD` }))
   const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pnpmjs/git-resolver' })
@@ -935,18 +935,18 @@ function mockGit (run: (args: string[]) => Promise<{ stdout: string }>): void {
     // otherwise a repository that needs credentials blocks the command.
     expect(opts?.env?.GIT_TERMINAL_PROMPT).toBe('0')
     return run(args ? [...args] : [])
-  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock stands in for the overloaded execa signature
 }
 
 function mockFetchAsPublic (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
 }
 
 function mockFetchAsPrivate (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
 }
 

@@ -16,14 +16,14 @@ import {
 } from '../src/index.js'
 import { createTarballParser } from '../src/parseTarball.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 describe('cafs', () => {
   it('unpack', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest)
     const { filesIndex } = cafs.addFilesFromTarball(
-      fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+      fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     )
     expect(filesIndex.size).toBe(121)
     const pkgFile = filesIndex.get('package.json')
@@ -48,7 +48,7 @@ describe('cafs', () => {
   it('addFilesFromTarball honors a per-call ignore predicate', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest)
-    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     const baseline = cafs.addFilesFromTarball(tarball)
     const filtered = cafs.addFilesFromTarball(tarball, false, (name) => name === 'package.json')
     expect(filtered.filesIndex.has('package.json')).toBe(false)
@@ -58,7 +58,7 @@ describe('cafs', () => {
   it('addFilesFromTarball combines cafs-level ignoreFile with per-call ignore', () => {
     const dest = temporaryDirectory()
     const cafs = createCafs(dest, { ignoreFile: (name) => name === 'package.json' })
-    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     const { filesIndex } = cafs.addFilesFromTarball(tarball, false, (name) => name === 'README.md')
     expect(filesIndex.has('package.json')).toBe(false)
     expect(filesIndex.has('README.md')).toBe(false)
@@ -83,7 +83,7 @@ describe('cafs', () => {
 
   it('ignores broken symlinks when traversing subdirectories', () => {
     const storeDir = temporaryDirectory()
-    const srcDir = f.prepare('broken-symlink')
+    const srcDir = testFixtures.prepare('broken-symlink')
     fs.symlinkSync('../dangling', path.join(srcDir, 'dangling'))
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
@@ -102,8 +102,8 @@ describe('cafs', () => {
     fs.writeFileSync(path.join(srcDir, 'lib/index.js'), '// comment 2', 'utf8')
     await symlinkDir(path.join(srcDir, 'lib'), path.join(srcDir, 'lib-symlink'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(true)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(true)
     expect(filesIndex.get('symlink.js')).toBeDefined()
     expect(filesIndex.get('symlink.js')).toStrictEqual(filesIndex.get('index.js'))
     expect(filesIndex.get('lib/index.js')).toBeDefined()
@@ -127,8 +127,8 @@ describe('cafs', () => {
     // Create a symlink pointing to the file outside the package
     fs.symlinkSync(secretFile, path.join(srcDir, 'leak.txt'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(true)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(true)
 
     // The legitimate file should be included
     expect(filesIndex.get('legit.txt')).toBeDefined()
@@ -152,8 +152,8 @@ describe('cafs', () => {
     // Create a symlink to the outside directory
     fs.symlinkSync(outsideDir, path.join(srcDir, 'leak-dir'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(true)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(true)
 
     // The legitimate file should be included
     expect(filesIndex.get('legit.txt')).toBeDefined()
@@ -178,8 +178,8 @@ describe('cafs', () => {
     // Create a symlinked node_modules directory at the root
     await symlinkDir(targetDir, path.join(srcDir, 'node_modules'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(false)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(false)
 
     // The legitimate file should be included
     expect(filesIndex.get('index.js')).toBeDefined()
@@ -267,7 +267,7 @@ test('file names are normalized when unpacking a tarball', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('colorize-semver-diff.tgz'))
+    fs.readFileSync(testFixtures.find('colorize-semver-diff.tgz'))
   )
   expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
     'LICENSE',
@@ -282,7 +282,7 @@ test('broken magic in tarball headers is handled gracefully', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('jquery.dirtyforms-2.0.0.tgz'))
+    fs.readFileSync(testFixtures.find('jquery.dirtyforms-2.0.0.tgz'))
   )
 })
 
@@ -290,7 +290,7 @@ test('unpack an older version of tar that prefixes with spaces', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('parsers-3.0.0-rc.48.1.tgz'))
+    fs.readFileSync(testFixtures.find('parsers-3.0.0-rc.48.1.tgz'))
   )
   expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
     'lib/grammars/resolution.d.ts',
@@ -318,7 +318,7 @@ test('unpack a tarball that contains hard links', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
+    fs.readFileSync(testFixtures.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)
 })
@@ -412,7 +412,7 @@ describe('addFilesFromTarballBounded', () => {
   }
 
   it('extracts a small gzip archive in memory', async () => {
-    const tarball = fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
     const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
     const actual = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(tarball, true)
     expect(digestsOf(actual.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
@@ -442,7 +442,7 @@ describe('addFilesFromTarballBounded', () => {
 
 function findTarballFixture (name: string): string {
   const localFixture = path.join(import.meta.dirname, 'fixtures', name)
-  return fs.existsSync(localFixture) ? localFixture : f.find(name)
+  return fs.existsSync(localFixture) ? localFixture : testFixtures.find(name)
 }
 
 function digestsOf (filesIndex: Map<string, { digest: string }>): Record<string, string> {
@@ -502,8 +502,8 @@ function createTarballWithEntry (
   // First, fill checksum field with spaces
   header.fill(' ', 148, 156)
   let checksum = 0
-  for (let i = 0; i < 512; i++) {
-    checksum += header[i]
+  for (const byte of header) {
+    checksum += byte
   }
   const checksumOctal = checksum.toString(8).padStart(6, '0')
   header.write(checksumOctal + '\0 ', 148, 8, 'utf8')
@@ -519,11 +519,84 @@ function createTarballWithEntry (
 }
 
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('files added to a group-writable store keep group write and a second add keeps the inode', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const first = createCafs(storeDir).addFilesFromDir(srcDir)
+  const info = first.filesIndex.get('foo.txt')!
+  const filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  const stat = fs.statSync(filePath)
+  expect(stat.mode & 0o020).not.toBe(0)
+  expect(stat.gid).toBe(fs.statSync(parent).gid)
+
+  const second = createCafs(storeDir).addFilesFromDir(srcDir)
+  const again = second.filesIndex.get('foo.txt')!
+  const after = fs.statSync(getFilePathByModeInCafs(storeDir, again.digest, again.mode))
+  expect(after.ino).toBe(stat.ino)
+  expect(after.uid).toBe(stat.uid)
+  expect(after.gid).toBe(stat.gid)
+  expect(after.mode & 0o777).toBe(stat.mode & 0o777)
+})
+
+testOnPosix('directories added to a group-writable store stay searchable by the group under a restrictive umask', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const previousUmask = process.umask(0o077)
+  let filePath: string
+  try {
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const info = filesIndex.get('foo.txt')!
+    filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  } finally {
+    process.umask(previousUmask)
+  }
+  expect(fs.statSync(filePath).mode & 0o060).toBe(0o060)
+  for (let dir = path.dirname(filePath); dir !== parent; dir = path.dirname(dir)) {
+    expect(fs.statSync(dir).mode & 0o2070).toBe(0o2070)
+  }
+})
+
+testOnPosix('files added to a world-writable sticky store are not world-writable', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o1777)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+  const info = filesIndex.get('foo.txt')!
+  const filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  expect(fs.statSync(filePath).mode & 0o002).toBe(0)
+})
+
+testOnPosix('directories added to a group-writable store get group access under a umask that removes owner read', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const previousUmask = process.umask(0o477)
+  let filePath: string
+  try {
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const info = filesIndex.get('foo.txt')!
+    filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  } finally {
+    process.umask(previousUmask)
+  }
+  for (let dir = path.dirname(filePath); dir !== parent; dir = path.dirname(dir)) {
+    expect(fs.statSync(dir).mode & 0o2070).toBe(0o2070)
+  }
+})
+
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(f.find('devextreme-17.1.6.tgz'))
+    fs.readFileSync(testFixtures.find('devextreme-17.1.6.tgz'))
   )
   expect(filesIndex.size).toBeGreaterThan(0)
 })

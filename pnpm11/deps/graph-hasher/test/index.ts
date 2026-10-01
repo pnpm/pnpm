@@ -34,7 +34,7 @@ const depsGraph = {
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: true,
-  })).toBe(`${ENGINE_NAME};deps=${hashObject({
+  })).toBe(`${ENGINE_NAME};format=2;deps=${hashObject({
     id: 'foo@1.0.0:000',
     deps: {
       bar: hashObject({
@@ -53,7 +53,7 @@ test('calcDepState()', () => {
 test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: false,
-  })).toBe(ENGINE_NAME)
+  })).toBe(`${ENGINE_NAME};format=2`)
 })
 
 test('calcDepStateInputKey() excludes the host engine and includes patches', () => {
@@ -158,7 +158,7 @@ test('calcDepState() uses the snapshot\'s own engines.runtime pin', () => {
   expect(calcDepState(graph, {}, 'pinned@1.0.0', {
     includeDepGraphHash: false,
     nodeVersion: '20.5.0', // install-wide fallback differs from own pin
-  })).toBe(`${process.platform};${process.arch};node22`)
+  })).toBe(`${process.platform};${process.arch};node22;format=2`)
 })
 
 describe('calcGraphNodeHash', () => {

@@ -145,7 +145,7 @@ pub fn compute_hoist_plan(
 fn needs_private_root_hoisting(config: &Config) -> bool {
     config.modules_dir
         .parent()
-        .is_some_and(|project_dir| !is_subdir(project_dir, &config.virtual_store_dir))
+        .is_some_and(|project_dir| !is_subdir(project_dir, &config.install_state_dir))
 }
 
 /// Build the `<alias → resolved-target-dir>` map for every publicly-

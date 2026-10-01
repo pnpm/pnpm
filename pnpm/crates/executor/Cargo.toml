@@ -22,15 +22,19 @@ miette = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
 tracing = { workspace = true }
+which = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
+  "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_SystemInformation",
+  "Win32_System_Threading",
 ] }
 
 [dev-dependencies]

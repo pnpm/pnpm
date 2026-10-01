@@ -3,7 +3,7 @@ use crate::_utils::write_executable;
 use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use serde_json::json;
 use std::{fs, time::Duration};
 
@@ -277,6 +277,103 @@ fn run_empty_start_script_hits_server_js_guard() {
     drop(root);
 }
 
+/// <https://github.com/pnpm/pnpm/issues/4655>
+#[test]
+fn run_missing_script_hints_at_filter_after_script_name() {
+    assert_filter_hint(&["--filter", "@local/b", "--watch"], "--filter");
+    assert_filter_hint(&["-F", "@local/b"], "--filter");
+    assert_filter_hint(&["-F@local/b"], "--filter");
+    assert_filter_hint(&["--filter-prod=@local/b"], "--filter-prod");
+}
+
+/// A script name that would need quoting is replaced in the suggested
+/// command, so pasting it cannot run shell syntax.
+#[test]
+fn run_missing_script_hint_does_not_echo_an_unsafe_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["run", "$(touch pwned)", "--filter", "@local/b"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "a missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, r#""pnpm --filter <selector> run <script>""#);
+
+    drop(root);
+}
+
+/// The shorthand falls back to `exec` when no script matches, so the hint
+/// belongs on `exec`'s error once no executable matches either.
+#[test]
+fn shorthand_missing_script_and_command_hints_at_filter_after_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["categories", "--filter", "sitemaps"])
+        .output()
+        .expect("spawn pacquet categories");
+    assert!(!output.status.success(), "a missing command must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL"),
+        "should keep the exec error code:\n{stderr}",
+    );
+    assert_diagnostic_contains(&stderr, r#""pnpm --filter <selector> run categories""#);
+
+    drop(root);
+}
+
+/// An executable that matches the name still runs and receives the filter
+/// option as an argument.
+#[test]
+fn shorthand_runs_a_matching_bin_despite_a_trailing_filter() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let echo_args = if cfg!(windows) { "bin-args %*" } else { r#"bin-args "$@""# };
+    write_fake_bin(&workspace.join("node_modules/.bin"), "categories", echo_args);
+
+    let output = pacquet
+        .with_args(["categories", "--filter", "sitemaps"])
+        .output()
+        .expect("spawn pacquet categories");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the bin must run:\n{output:?}");
+    assert!(
+        stdout.contains("bin-args --filter sitemaps"),
+        "the bin must receive the filter option:\n{stdout}",
+    );
+
+    drop(root);
+}
+
+fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["run", "build"])
+        .with_args(script_args)
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "a missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_NO_SCRIPT"), "should surface NO_SCRIPT:\n{stderr}");
+    assert_diagnostic_contains(&stderr, &format!(r#""pnpm {filter_option} <selector> run build""#));
+    assert!(
+        !stderr.contains("@local/b"),
+        "{script_args:?} should not echo the selector:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// With `enablePrePostScripts`, `pnpm run <name>` also runs `pre<name>`
 /// and `post<name>`. Driven here through the `PNPM_CONFIG_*` env overlay.
 #[cfg(unix)]
@@ -477,6 +574,36 @@ scripts:
         .assert()
         .success();
     assert_eq!(fs::read_to_string(&marker).expect("read marker"), "prepared");
+
+    drop(root);
+}
+
+/// `-s` ahead of a script name is `run`'s `--sequential`
+/// (<https://github.com/pnpm/pnpm/issues/16446>).
+#[test]
+fn top_level_fallback_accepts_short_sequential_before_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("linted.txt");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "scripts": {
+                "lint": r#"node -e "require('fs').writeFileSync(process.env.MARKER_PATH, 'linted')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("MARKER_PATH", marker.to_string_lossy().as_ref())
+        .with_arg("-s")
+        .with_arg("lint")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "linted");
 
     drop(root);
 }
@@ -770,35 +897,39 @@ fn assert_no_bail_lets_siblings_finish(workspace_concurrency: &str) {
     drop(root);
 }
 
-/// `shellEmulator` runs scripts in pacquet's own shell instead of the
-/// platform's, which is what makes a script written for `sh` portable to
-/// Windows. The tests prove the emulator took over by pointing
-/// `scriptShell` at a path that could never be spawned: the script still
-/// runs, and without the setting the same configuration fails.
+/// `shellEmulator` runs scripts in pacquet's own shell when `scriptShell`
+/// is unset, which is what makes a script written for `sh` portable to
+/// Windows. A configured `scriptShell` is spawned even when the emulator
+/// is also enabled.
 mod shell_emulator {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
     use pnpm_testing_utils::bin::CommandTempCwd;
     use serde_json::json;
-    use std::{fs, path::Path};
+    use std::{fmt::Write as _, fs, path::Path};
 
     fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
+        write_configured_project(workspace, scripts, None, shell_emulator);
+    }
+
+    fn write_configured_project(
+        workspace: &Path,
+        scripts: &serde_json::Value,
+        script_shell: Option<&Path>,
+        shell_emulator: bool,
+    ) {
         let manifest =
             json!({ "name": "test", "version": "0.0.0", "scripts": scripts }).to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-        let unspawnable_shell = workspace.join("no-such-shell");
-        fs::write(
-            workspace.join("pnpm-workspace.yaml"),
-            format!(
-                "scriptShell: {}\nshellEmulator: {shell_emulator}\n",
-                unspawnable_shell.display(),
-            ),
-        )
-        .expect("write pnpm-workspace.yaml");
+        let mut yaml = format!("shellEmulator: {shell_emulator}\n");
+        if let Some(script_shell) = script_shell {
+            let _ = writeln!(yaml, "scriptShell: '{}'", script_shell.display());
+        }
+        fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
     }
 
     #[test]
-    fn runs_the_script_without_the_configured_shell() {
+    fn runs_the_script_in_the_emulator() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), true);
 
@@ -860,7 +991,13 @@ mod shell_emulator {
     #[test]
     fn without_the_setting_the_same_project_cannot_spawn_its_shell() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), false);
+        let missing_shell = workspace.join("no-such-shell");
+        write_configured_project(
+            &workspace,
+            &json!({ "build": "echo emulated > marker.txt" }),
+            Some(&missing_shell),
+            false,
+        );
 
         pacquet
             .with_args(["run", "build"])
@@ -881,6 +1018,78 @@ mod shell_emulator {
             .output()
             .expect("spawn pacquet run");
         assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+
+        drop(root);
+    }
+
+    #[test]
+    fn a_missing_script_shell_fails_even_when_the_emulator_is_enabled() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let missing_shell = workspace.join("no-such-shell");
+        write_configured_project(
+            &workspace,
+            &json!({ "build": "echo emulated > marker.txt" }),
+            Some(&missing_shell),
+            true,
+        );
+
+        let output = pacquet
+            .with_args(["run", "build"])
+            .output()
+            .expect("spawn pacquet run");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // miette wraps long words too, so a path can be split anywhere.
+        let unwrap = |text: &str| -> String {
+            text.chars()
+                .filter(|&c| !c.is_whitespace() && c != '│')
+                .collect()
+        };
+        let unwrapped = unwrap(&stderr);
+        assert!(!output.status.success(), "got: {output:?}");
+        assert!(
+            unwrapped.contains(&unwrap("The configured scriptShell was not found"))
+                && unwrapped.contains(&unwrap(&missing_shell.display().to_string())),
+            "the error must name the configured scriptShell, got: {stderr}",
+        );
+        assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
+
+        drop(root);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn configured_script_shell_runs_when_the_emulator_is_enabled() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let shim = workspace.join("probe-shell.sh");
+        fs::write(
+            &shim,
+            "#!/bin/sh\n\
+             printf '%s\\n' \"$2\" >> \"$(dirname \"$0\")/shell-invocations.txt\"\n\
+             exec /bin/sh -c \"$2\"\n",
+        )
+        .expect("write the probe shell");
+        fs::set_permissions(&shim, fs::Permissions::from_mode(0o755))
+            .expect("make the probe shell executable");
+        write_configured_project(
+            &workspace,
+            &json!({ "build": "export FOO=from-bash" }),
+            Some(&shim),
+            true,
+        );
+
+        pacquet
+            .with_args(["run", "build"])
+            .assert()
+            .success();
+
+        let logged = fs::read_to_string(workspace.join("shell-invocations.txt"))
+            .expect("read the probe shell's log");
+        assert!(
+            logged.contains("export FOO=from-bash"),
+            "the configured shell must run the script, got {logged}",
+        );
 
         drop(root);
     }
@@ -954,6 +1163,36 @@ fn run_with_a_missing_script_shell_names_it() {
                 && unwrapped.contains(&missing_shell.display().to_string()),
             "streamed: {streamed}, the error must name the configured scriptShell, got: {stderr}",
         );
+
+        drop(root);
+    }
+}
+
+/// A command that runs a script reports `run-script`, the name npm and pnpm 11
+/// put in `npm_command`: `pnpm run <script>`, a shortcut like `pnpm test`, and
+/// the bare `pnpm <script>` fallback, and a built-in like `pnpm clean` that a
+/// same-named script replaces all run one.
+#[test]
+fn run_exports_the_command_to_scripts() {
+    let script = r#"node -e "require('fs').writeFileSync('npm-command.txt', process.env.npm_command ?? 'unset')""#;
+    for args in [&["run", "dev"][..], &["test"][..], &["dev"][..], &["clean"][..]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "dev": script, "test": script, "clean": script },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
+
+        let value =
+            fs::read_to_string(workspace.join("npm-command.txt")).expect("read npm-command.txt");
+        assert_eq!(value, "run-script", "{args:?}");
 
         drop(root);
     }

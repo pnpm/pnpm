@@ -17,6 +17,24 @@ pub(super) fn external_placeholder(dep: &str) -> Rc<HoisterTree> {
     })
 }
 
+/// A `link:<root>/...` dependency points inside the package that declares it,
+/// so it must stay next to that package. The hoister never moves a
+/// `Workspace` node, and keeping the node reserves its name there.
+fn package_root_link_node(
+    alias: &PkgName,
+    dep_ref: &pnpm_lockfile::SnapshotDepRef,
+) -> Rc<HoisterTree> {
+    Rc::new(HoisterTree {
+        name: alias.to_string(),
+        ident_name: alias.to_string(),
+        reference: dep_ref.to_string(),
+        peer_names: BTreeSet::new(),
+        dependency_kind: HoisterDependencyKind::Workspace,
+        hoist_priority: 0,
+        dependencies: RefCell::new(IndexSet::new()),
+    })
+}
+
 /// `HashMap` iteration order is non-deterministic; sort so the
 /// output tree is stable across runs (matters for snapshot
 /// tests).
@@ -254,6 +272,9 @@ fn collect_snapshot_deps(
         // hoist (the install layer materialises them as direct
         // directory symlinks), so we skip them here.
         let Some(dep_key) = dep_ref.resolve(alias) else {
+            if dep_ref.package_root_link_target().is_some() {
+                out.insert(RcByPtr(package_root_link_node(alias, dep_ref)));
+            }
             continue;
         };
         let Some(node) = build_dep_node(alias, &dep_key, optional, lockfile, opts, cache)? else {

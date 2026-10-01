@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { confirm, select } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
@@ -36,49 +36,51 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    let bareSpecifier: string
-    let applyToAll: boolean
-    try {
-      bareSpecifier = await select({
-        message: 'Choose which version to patch',
-        choices: preferredVersions.map(preferred => ({
-          name: preferred.version,
-          value: preferred.gitTarballUrl ?? preferred.version,
-          description: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
-        })),
-        theme: { keybindings: ['vim'] },
-      })
-      applyToAll = await confirm({
-        message: 'Apply this patch to all versions?',
-      })
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
-        throw new PnpmError('PATCH_CANCELED', 'Canceled')
-      }
-      throw err
-    }
+    const { bareSpecifier, applyToAll } = await promptForVersionToPatch(preferredVersions)
     return {
       ...dep,
       applyToAll,
       bareSpecifier,
       version: preferredVersions.find(preferred => (preferred.gitTarballUrl ?? preferred.version) === bareSpecifier)?.version,
     }
-  } else {
-    const preferred = preferredVersions[0]
-    if (preferred.gitTarballUrl) {
-      return {
-        ...dep,
-        applyToAll: false,
-        bareSpecifier: preferred.gitTarballUrl,
-        version: preferred.version,
-      }
-    }
+  }
+  const preferred = preferredVersions[0]
+  if (preferred.gitTarballUrl) {
     return {
       ...dep,
-      applyToAll: !dep.bareSpecifier,
-      bareSpecifier: preferred.version,
+      applyToAll: false,
+      bareSpecifier: preferred.gitTarballUrl,
       version: preferred.version,
     }
+  }
+  return {
+    ...dep,
+    applyToAll: !dep.bareSpecifier,
+    bareSpecifier: preferred.version,
+    version: preferred.version,
+  }
+}
+
+async function promptForVersionToPatch (preferredVersions: LockfileVersion[]): Promise<{ bareSpecifier: string, applyToAll: boolean }> {
+  try {
+    const bareSpecifier = await select({
+      message: 'Choose which version to patch',
+      choices: preferredVersions.map(preferred => ({
+        name: preferred.version,
+        value: preferred.gitTarballUrl ?? preferred.version,
+        description: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
+      })),
+      theme: { keybindings: ['vim'] },
+    })
+    const applyToAll = await confirm({
+      message: 'Apply this patch to all versions?',
+    })
+    return { bareSpecifier, applyToAll }
+  } catch (err: unknown) {
+    if (isError(err) && err.name === 'ExitPromptError') {
+      throw new PnpmError('PATCH_CANCELED', 'Canceled')
+    }
+    throw err
   }
 }
 

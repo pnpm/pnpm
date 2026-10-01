@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import type { MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
+import { logger } from '@pnpm/logger'
 import type { ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
@@ -226,6 +227,26 @@ test('pnpr skips the root pnpm:devPreinstall when devDependencies are excluded',
 
   expect(resolveViaPnprServer).toHaveBeenCalled()
   expect(fs.existsSync(marker)).toBe(false)
+})
+
+test('mutateModules detaches its reporter after a pnpr install', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const reportedMessages: unknown[] = []
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+    reporter: (logObj) => {
+      reportedMessages.push((logObj as { message?: unknown }).message)
+    },
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
+  logger.info({ message: 'logged after the install', prefix: rootDir })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+  expect(reportedMessages).not.toContain('logged after the install')
 })
 
 test('pnpr returns the resolution policy violations the install command reacts to', async () => {
@@ -479,4 +500,19 @@ test.each([false, true])('pnpr materialization keeps configured modules and bin 
   expect(fs.realpathSync(path.join(rootDir, modulesDir, 'tool'))).toBe(fs.realpathSync(path.join(rootDir, 'tool')))
   expect(fs.existsSync(path.join(binsDir, 'tool'))).toBe(true)
   expect(fs.existsSync(path.join(rootDir, 'node_modules/tool'))).toBe(false)
+})
+
+test('pnpr does not freeze an empty lockfile under frozenLockfileIfExists', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n")
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfileIfExists: true,
+    hooks: { calculatePnpmfileChecksum: async () => 'pnpmfile-checksum' },
+  })
+
+  await install({ name: 'app', version: '1.0.0' }, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: false }))
+  expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('pnpmfileChecksum: pnpmfile-checksum')
 })

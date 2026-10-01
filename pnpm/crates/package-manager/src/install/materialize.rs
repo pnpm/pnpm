@@ -5,8 +5,8 @@ mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
     frozen_project_anchor_ids, importer_manifests_by_id, lockfile_specifier_manifests_by_id,
-    previously_skipped, prior_unbuilt_builds, record_fresh_lockfile_verified,
-    settle_frozen_verification,
+    previously_skipped, prior_unbuilt_builds, record_auto_dedupe_baseline,
+    record_fresh_lockfile_verified, settle_frozen_verification,
 };
 
 use super::{
@@ -70,6 +70,7 @@ pub(super) struct MaterializationExecution<'a> {
 pub(super) struct MaterializationDownloads {
     pub(super) tarball_mem_cache: Arc<MemCache>,
     pub(super) http_client_arc: Arc<ThrottledClient>,
+    pub(super) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
 
 pub(super) struct MaterializationLockfiles<'a, 'install> {
@@ -150,6 +151,14 @@ impl FrozenScope<'_> {
 }
 
 impl<'a> MaterializationInputs<'a, '_> {
+    /// The current lockfile when the layout is hoisted. See
+    /// [`crate::selected_materialization_ids`].
+    fn hoisted_prior(&self) -> Option<&'a Lockfile> {
+        self.lockfiles.current.filter(|_| {
+            self.install.execution.node_linker == super::NodeLinker::Hoisted
+        })
+    }
+
     fn fresh_prior<'b>(
         &self,
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
@@ -246,6 +255,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
                 http_client_arc: self.downloads.http_client_arc,
                 meta_cache: self.lockfiles.verification.meta_cache,
+                fetch_caches: self.downloads.fetch_caches,
             },
             projects: crate::install_with_fresh_lockfile::FreshProjectInputs {
                 lockfile_specifier_manifests: self.workspace
@@ -306,6 +316,9 @@ impl<'a> MaterializationInputs<'a, '_> {
         let derived_lockfile_path = self.lockfiles.verification
             .derived_lockfile_path
             .take();
+        let auto_dedupe_baseline = self.lockfiles.verification
+            .auto_dedupe_baseline
+            .take();
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
@@ -331,6 +344,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             site,
             &resolution_verifiers,
         );
+        record_auto_dedupe_baseline(&fresh_result, auto_dedupe_baseline.as_ref());
         Ok(fresh_materialization_output(fresh_result))
     }
 }
@@ -356,7 +370,7 @@ impl<'a> MaterializationWorkspace<'a> {
     fn frozen_scope(
         &self,
         lockfile: &Lockfile,
-        node_linker: super::NodeLinker,
+        hoisted_prior: Option<&Lockfile>,
         groups: crate::GroupSelection,
         ignore_manifest_check: bool,
     ) -> FrozenScope<'a> {
@@ -367,14 +381,13 @@ impl<'a> MaterializationWorkspace<'a> {
         let closure = crate::materialization_closure(
             lockfile,
             self.workspace_root,
-            &initial_materialization_ids(lockfile, importer_ids, node_linker),
+            &initial_materialization_ids(lockfile, importer_ids, hoisted_prior),
             &groups,
             &empty_skipped,
         );
         let project_anchor_ids = frozen_project_anchor_ids(
             self.requested_importer_ids,
             self.real_importer_ids,
-            node_linker,
             &closure,
         );
         FrozenScope {

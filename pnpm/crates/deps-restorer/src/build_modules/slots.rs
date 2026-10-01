@@ -4,6 +4,8 @@ use super::{
     BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageImportMethod,
     PackageKey, Path, PathBuf, Reporter, import_indexed_dir,
 };
+use pnpm_store_dir::SideEffectsOverlay;
+use std::{fs, io};
 
 /// Compute the package directory inside the virtual store for a snapshot key.
 ///
@@ -53,12 +55,19 @@ pub(crate) fn virtual_store_dir_for_key(
 ///
 /// Only reached for packages that both pass the build-allow policy and
 /// have a cache entry — a handful per install, not the whole tree.
-pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
+pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &SideEffectsOverlay) -> bool {
     !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
         && pkg_dir.is_dir()
-        && overlay
+        && overlay.files
             .keys()
             .all(|relative| pkg_dir.join(relative).exists())
+        && overlay.symlinks
+            .iter()
+            .all(|(relative, target)| symlink_points_to(&pkg_dir.join(relative), target))
+}
+
+fn symlink_points_to(link: &Path, target: &str) -> bool {
+    fs::read_link(link).is_ok_and(|actual| actual == Path::new(target))
 }
 
 /// The `.pnpm-needs-build` content of a slot whose build has started and
@@ -289,20 +298,53 @@ pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
     logged_methods: &std::sync::atomic::AtomicU8,
     import_method: PackageImportMethod,
     pkg_dir: &Path,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &SideEffectsOverlay,
 ) -> Result<(), BuildModulesError> {
     import_indexed_dir::<Reporter>(
         logged_methods,
         import_method,
         pkg_dir,
-        overlay,
+        &overlay.files,
         ImportIndexedDirOpts {
             force: true,
             keep_modules_dir: true,
             ..ImportIndexedDirOpts::default()
         },
     )
-    .map_err(BuildModulesError::MaterializeSideEffects)
+    .map_err(BuildModulesError::MaterializeSideEffects)?;
+    for (relative, target) in &overlay.symlinks {
+        let link = pkg_dir.join(relative);
+        create_overlay_symlink(&link, target)
+            .map_err(|source| BuildModulesError::MaterializeSideEffectsSymlink {
+                path: link,
+                source,
+            })?;
+    }
+    Ok(())
+}
+
+/// Replace whatever is at `link` with a symlink to `target`. The overlay
+/// holds no symlinks off Unix (see [`pnpm_store_dir::SideEffectsOverlay`]).
+fn create_overlay_symlink(link: &Path, target: &str) -> io::Result<()> {
+    if symlink_points_to(link, target) {
+        return Ok(());
+    }
+    if let Some(parent) = link.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::symlink_metadata(link) {
+        Ok(meta) if meta.is_dir() => fs::remove_dir_all(link)?,
+        Ok(_) => fs::remove_file(link)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, link);
+    #[cfg(not(unix))]
+    return Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        format!("cannot restore the symlink to {target} on this platform"),
+    ));
 }
 
 /// Walk every ancestor `node_modules/.bin` from `pkg_root` up to

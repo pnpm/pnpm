@@ -200,9 +200,8 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # the shim before it reaches its target. Directories come from `${link%/*}`,
 # which needs no helper at all.
 #
-# Where no default path is compiled in, as on Nix, `command -p` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=${PATH+set}
 caller_path=${PATH-}
 helper_path=
@@ -217,6 +216,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers `command -p -v` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -227,13 +231,13 @@ esac
 hops=0
 while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops+1))
-  target=$(command -p readlink "$link")
+  target=$(run_helper readlink "$link")
   case "$target" in
     /*) link="$target" ;;
     *)  link="${link%/*}/$target" ;;
   esac
 done
-basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')
+basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')
 basedir="${basedir%/*}"
 "#;
 
@@ -244,7 +248,7 @@ const SH_SHIM_PLATFORM: &str = r#"basedir_win="$basedir"
 exe=""
 msys=""
 
-case `command -p uname -a` in
+case `run_helper uname -a` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -338,12 +342,12 @@ pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &P
 /// [`SH_SHIM_HEADER`], which
 /// `generate_sh_shim_header_carries_the_hardened_helper_line` pins, so the
 /// header cannot drift away from what [`is_sh_shim_hardened`] looks for.
-pub(super) const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p readlink "$link")"#;
+pub(super) const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(run_helper readlink "$link")"#;
 
 /// The line the header prints `$link` through before converting backslashes.
 /// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
-    r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#;
+    r#"basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')"#;
 
 /// The line the header converts `$basedir` through on Cygwin, MinGW, and MSYS.
 /// Taken verbatim from [`SH_SHIM_PLATFORM`] and pinned the same way as

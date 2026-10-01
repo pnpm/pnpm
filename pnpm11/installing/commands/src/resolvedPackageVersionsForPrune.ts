@@ -39,21 +39,28 @@ export async function resolvedPackageVersionsOfProjectLockfiles (
   if (opts.lockfile === false || projectDirs.length === 0) return undefined
   const resolved = new Map<string, Set<string>>()
   for (const projectDir of projectDirs) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the first project without a lockfile ends the pass, so later lockfiles need not be read
     const lockfile = await readWantedLockfile(projectDir, {
       ignoreIncompatible: true,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     })
     if (lockfile == null) return undefined
-    for (const [name, versions] of resolvedPackageVersionsFromLockfile(lockfile)) {
-      const merged = resolved.get(name)
-      if (merged == null) {
-        resolved.set(name, versions)
-      } else {
-        for (const version of versions) merged.add(version)
-      }
-    }
+    mergeResolvedPackageVersions(resolved, resolvedPackageVersionsFromLockfile(lockfile))
   }
   return resolved
+}
+
+function mergeResolvedPackageVersions (
+  resolved: Map<string, Set<string>>,
+  lockfileVersions: Map<string, Set<string>>
+): void {
+  for (const [name, versions] of lockfileVersions) {
+    const merged = resolved.get(name)
+    if (merged == null) {
+      resolved.set(name, versions)
+      continue
+    }
+    for (const version of versions) merged.add(version)
+  }
 }

@@ -6,7 +6,7 @@ use super::{
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
-        pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+        pre_command::input::{PinFlags, SwitchPaths, UnparsedArgv, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
@@ -141,6 +141,162 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             "spelling: {spelling}",
         );
     }
+}
+
+#[test]
+fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
+    let argv = [
+        "pnpm",
+        "--store-dir",
+        "/tmp/store",
+        "install",
+        "--auto-dedupe",
+        "--dir",
+        "/tmp/project",
+        "--frozen-lockfile",
+        "--lockfile-dir=/tmp/lockfile",
+        "--offline",
+        "-g",
+    ]
+    .map(OsString::from);
+    let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
+    assert_eq!(input.command.as_deref(), Some("install"));
+    assert_eq!(input.paths.dir, PathBuf::from("/tmp/project"));
+    assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
+    assert_eq!(input.frozen_lockfile, Some(true));
+    assert_eq!(
+        input.pin_flags,
+        PinFlags {
+            lockfile_dir: Some(PathBuf::from("/tmp/lockfile")),
+            offline: Some(true),
+            prefer_offline: None,
+        },
+    );
+    assert!(UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
+
+    let version_input = SwitchInput::from_version_argv(&argv);
+    assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
+
+    let argv = ["pnpm", "exec", "--", "tool", "-g"].map(OsString::from);
+    assert!(!UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
+}
+
+#[test]
+fn unparsed_argv_names_no_command_after_an_undeclared_option() {
+    for command in ["config", "get", "set", "install"] {
+        let argv =
+            ["pnpm", "--undeclared", "value", command, "--also-undeclared"].map(OsString::from);
+        assert!(unparsed_switch_input(&argv).is_none(), "{command}");
+    }
+
+    let argv = ["pnpm", "--no-color", "--filter", "pkg", "install", "--undeclared", "value"].map(
+        OsString::from,
+    );
+    let input = unparsed_switch_input(&argv).expect("every option before it is declared");
+    assert_eq!(input.command.as_deref(), Some("install"));
+}
+
+#[test]
+fn unparsed_ci_is_a_frozen_install() {
+    for argv in [
+        &["pnpm", "ci", "--undeclared"][..],
+        &["pnpm", "ci", "--no-frozen-lockfile", "--undeclared"],
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
+        assert_eq!(input.frozen_lockfile, Some(true), "{argv:?}");
+    }
+}
+
+#[test]
+fn unparsed_argv_steps_over_short_option_values() {
+    for (argv, dir) in [
+        (&["pnpm", "-C/tmp/attached", "install", "--undeclared"][..], "/tmp/attached"),
+        (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], "/tmp/separate"),
+        (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], "/tmp/clustered"),
+        (&["pnpm", "-rC/tmp/attached-cluster", "install", "--undeclared"], "/tmp/attached-cluster"),
+        (&["pnpm", r"-rCC:\project", "install", "--undeclared"], r"C:\project"),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
+        assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
+        assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
+    }
+}
+
+#[test]
+fn unparsed_argv_names_a_command_by_its_own_name() {
+    for (alias, command) in
+        [("c", "config"), ("ic", "ci"), ("clean-install", "ci"), ("rt", "runtime")]
+    {
+        let input = unparsed_switch_input(&["pnpm", alias, "--undeclared"].map(OsString::from))
+            .expect("the command name is unambiguous");
+        assert_eq!(input.command.as_deref(), Some(command), "{alias}");
+    }
+    let input =
+        unparsed_switch_input(&["pnpm", "install-clean", "--undeclared"].map(OsString::from))
+            .expect("the command name is unambiguous");
+    assert_eq!(input.frozen_lockfile, Some(true));
+}
+
+#[test]
+fn unparsed_argv_reads_global_in_a_short_cluster() {
+    for (argv, expected) in [
+        (&["pnpm", "add", "-gE", "pkg", "--undeclared"][..], true),
+        (&["pnpm", "add", "-Eg", "pkg", "--undeclared"], true),
+        (&["pnpm", "-Cg", "add", "pkg", "--undeclared"], false),
+        (&["pnpm", "add", "pkg", "--undeclared"], false),
+        (&["pnpm", "add", "--filter", "-g", "pkg", "--undeclared"], false),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
+        assert_eq!(scan.global, expected, "{argv:?}");
+    }
+
+    // `--init-type` takes a value for `init` only, so after `install` it is
+    // undeclared and `--global` may be its value.
+    let argv = ["pnpm", "install", "--init-type", "--global", "--undeclared"].map(OsString::from);
+    assert!(UnparsedArgv::scan(&argv).is_none());
+
+    // `-gE` may be the undeclared option's value.
+    let argv = ["pnpm", "add", "pkg", "--undeclared", "-gE"].map(OsString::from);
+    assert!(UnparsedArgv::scan(&argv).is_none());
+}
+
+#[test]
+fn unparsed_argv_reads_the_project_location() {
+    for (argv, expected) in [
+        (&["pnpm", "config", "set", "key", "value", "--location", "project"][..], true),
+        (&["pnpm", "config", "--location=project", "set", "key", "value"][..], true),
+        (&["pnpm", "config", "--location", "global", "set", "key", "value"][..], false),
+        (&["pnpm", "config", "set", "key", "value", "--", "--location=project"][..], false),
+        (&["pnpm", "config", "list", "--undeclared=value", "--location", "project"][..], true),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
+        assert_eq!(scan.project_location, expected, "{argv:?}");
+    }
+
+    // `--location` may be the value of an undeclared option without `=`.
+    let argv =
+        ["pnpm", "config", "list", "--undeclared", "--location", "project"].map(OsString::from);
+    assert!(UnparsedArgv::scan(&argv).is_none());
 }
 
 #[test]
@@ -346,6 +502,7 @@ fn pre_command_plan_records_a_pin_the_running_pnpm_already_satisfies() {
         PackageManagerToSync {
             specifier: PNPM_VERSION.to_string(),
             version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: false,
         },
     );
 }
@@ -479,6 +636,86 @@ fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
     assert_eq!(version, "99.0.0");
 }
 
+/// A range pin the lockfile already resolved keeps that version, even while
+/// the running pnpm is another one the range allows. Recording the running
+/// pnpm instead would pin everyone to a release nobody checked against the
+/// project's `minimumReleaseAge` (pnpm/pnpm#16431).
+#[test]
+fn pre_command_plan_keeps_the_locked_version_of_a_range_pin() {
+    let (range, locked) = range_around_the_running_pnpm();
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), &range);
+    write_lockfile(root.path(), &locked_package_manager(&range, &locked));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
+fn pre_command_plan_rerecords_the_locked_version_under_a_changed_range() {
+    let (range, locked) = range_around_the_running_pnpm();
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), &range);
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", &locked));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync { specifier: range, version: locked, running_pnpm_for_range: false },
+    );
+}
+
+#[test]
+fn pre_command_plan_flags_the_running_pnpm_recorded_for_a_range_pin() {
+    let (range, _) = range_around_the_running_pnpm();
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), &range);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: range,
+            version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: true,
+        },
+    );
+}
+
+/// A caret range over the running pnpm's major, which the source checkout's
+/// pnpm (a different major) cannot satisfy, and another version inside it.
+fn range_around_the_running_pnpm() -> (String, String) {
+    let running = node_semver::Version::parse(PNPM_VERSION).expect("parse the running version");
+    let range = format!("^{}.0.0", running.major);
+    let other = format!("{}.999.0", running.major);
+    assert_ne!(other, PNPM_VERSION);
+    (range, other)
+}
+
 /// The install family records the pin from its own pipeline whether or not
 /// version switching is on, so every other command has to record it there
 /// too — otherwise the two rewrite each other forever (pnpm/pnpm#14575).
@@ -502,6 +739,7 @@ fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
         PackageManagerToSync {
             specifier: PNPM_VERSION.to_string(),
             version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: false,
         },
     );
 }
@@ -1088,3 +1326,7 @@ snapshots:
 ";
 
 mod switch_target;
+
+fn unparsed_switch_input(argv: &[OsString]) -> Option<SwitchInput> {
+    UnparsedArgv::scan(argv).map(|scan| scan.switch)
+}

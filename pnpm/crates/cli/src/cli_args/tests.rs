@@ -729,6 +729,31 @@ fn tasks_status_help_describes_concurrency_groups() {
     assert!(help.contains("[GROUPS]"));
 }
 
+/// `--force` keeps skipping optional dependencies built for other
+/// platforms, so its help must not claim otherwise
+/// ([pnpm/pnpm#16435](https://github.com/pnpm/pnpm/issues/16435)).
+#[test]
+fn force_help_says_platform_mismatched_optionals_stay_skipped() {
+    let command = <CliArgs as clap::CommandFactory>::command();
+    for subcommand in ["install", "add"] {
+        let force = command
+            .find_subcommand(subcommand)
+            .and_then(|sub| {
+                sub.get_arguments()
+                    .find(|arg| arg.get_id() == "force")
+            })
+            .unwrap_or_else(|| panic!("`{subcommand}` has a `--force` flag"));
+        let help = force
+            .get_long_help()
+            .or_else(|| force.get_help())
+            .expect("has help")
+            .to_string();
+        eprintln!("{subcommand}: {help}");
+        assert!(help.contains("stay skipped unless `forceIgnoresPlatform` is set"));
+        assert!(help.contains("`--os` / `--cpu` / `--libc`"));
+    }
+}
+
 /// `--production` is the setting name behind `--prod`, and pnpm accepts
 /// it wherever `--prod` selects dependency groups — in a command line
 /// typed by hand as much as in the install the verify-deps-before-run
@@ -763,6 +788,31 @@ fn production_is_an_alias_of_prod() {
 
 fn command(argv: &[&str]) -> CliCommand {
     CliArgs::try_parse_from(argv).expect("parses").command
+}
+
+/// The names npm reports in `npm_command`. pnpm 11 mirrors them, so scripts
+/// that branch on the variable behave alike on both CLIs: a command that runs
+/// a script reports `run-script`, and the variants that spell an alias report
+/// the name their command is registered under.
+#[test]
+fn npm_command_name_reports_the_command_the_way_pnpm_11_does() {
+    for (argv, expected) in [
+        (&["pacquet", "run", "dev"][..], "run-script"),
+        (&["pacquet", "run-script", "dev"][..], "run-script"),
+        (&["pacquet", "test"][..], "run-script"),
+        (&["pacquet", "start"][..], "run-script"),
+        (&["pacquet", "stop"][..], "run-script"),
+        (&["pacquet", "dev"][..], "run-script"),
+        (&["pacquet", "install"][..], "install"),
+        (&["pacquet", "i"][..], "install"),
+        (&["pacquet", "pack"][..], "pack"),
+        (&["pacquet", "list"][..], "list"),
+        (&["pacquet", "ll"][..], "list"),
+        (&["pacquet", "rb"][..], "rebuild"),
+        (&["pacquet", "purge"][..], "clean"),
+    ] {
+        assert_eq!(command(argv).npm_command_name(), expected, "argv: {argv:?}");
+    }
 }
 
 mod global_options;

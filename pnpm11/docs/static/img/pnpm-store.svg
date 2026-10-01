@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="110.5 121 659.2944 272.83594" width="659.2944" height="272.83594">
+  <defs>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -4 10 8" markerWidth="10" markerHeight="8" color="#7f8080">
+      <g>
+        <path d="M 8 0 L 0 -3 L 0 3 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+  </defs>
+  <g id="Canvas_1" stroke-dasharray="none" fill="none" stroke-opacity="1" fill-opacity="1" stroke="none">
+    <title>Canvas 1</title>
+    <rect fill="white" x="110.5" y="121" width="659.2944" height="272.83594"/>
+    <g id="Canvas_1_Layer_1">
+      <title>Layer 1</title>
+      <g id="Graphic_63">
+        <rect x="387.3972" y="157.33594" width="105.5" height="38.5" fill="white"/>
+        <rect x="387.3972" y="157.33594" width="105.5" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(392.3972 165.91797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="4.542969" y="16">000000001</tspan>
+        </text>
+      </g>
+      <g id="Graphic_62">
+        <rect x="387.3972" y="195.83594" width="105.5" height="38.5" fill="#c0ffff"/>
+        <rect x="387.3972" y="195.83594" width="105.5" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(392.3972 204.41797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="4.542969" y="16">000000002</tspan>
+        </text>
+      </g>
+      <g id="Graphic_61">
+        <rect x="387.3972" y="234.33594" width="105.5" height="38.5" fill="white"/>
+        <rect x="387.3972" y="234.33594" width="105.5" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(392.3972 242.91797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="4.542969" y="16">000000004</tspan>
+        </text>
+      </g>
+      <g id="Graphic_60">
+        <rect x="387.3972" y="272.83594" width="105.5" height="38.5" fill="white"/>
+        <rect x="387.3972" y="272.83594" width="105.5" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(392.3972 281.41797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="4.542969" y="16">000000005</tspan>
+        </text>
+      </g>
+      <g id="Graphic_59">
+        <rect x="387.3972" y="311.33594" width="105.5" height="38.5" fill="#ffffc0"/>
+        <rect x="387.3972" y="311.33594" width="105.5" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(392.3972 319.91797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="4.542969" y="16">000000006</tspan>
+        </text>
+      </g>
+      <g id="Graphic_58">
+        <rect x="387.3972" y="349.83594" width="105.5" height="38.5" fill="#c0ffc0"/>
+        <rect x="387.3972" y="349.83594" width="105.5" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(392.3972 358.41797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="4.542969" y="16">000000007</tspan>
+        </text>
+      </g>
+      <g id="Graphic_57">
+        <rect x="133.83719" y="195.83594" width="184.56" height="38.5" fill="#c0ffff"/>
+        <rect x="133.83719" y="195.83594" width="184.56" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(138.83719 204.41797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">is-odd/index.js</tspan>
+        </text>
+      </g>
+      <g id="Graphic_56">
+        <rect x="133.83719" y="234.33594" width="184.56" height="38.5" fill="#c0ffc0"/>
+        <rect x="133.83719" y="234.33594" width="184.56" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(138.83719 242.91797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">is-odd/LICENSE.md</tspan>
+        </text>
+      </g>
+      <g id="Graphic_55">
+        <rect x="561.8972" y="195.83594" width="184.56" height="38.5" fill="#ffffc0"/>
+        <rect x="561.8972" y="195.83594" width="184.56" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(566.8972 204.41797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">is-even/index.js</tspan>
+        </text>
+      </g>
+      <g id="Graphic_54">
+        <rect x="561.8972" y="234.33594" width="184.56" height="38.5" fill="#c0ffc0"/>
+        <rect x="561.8972" y="234.33594" width="184.56" height="38.5" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(566.8972 242.91797)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">is-even/LICENSE.md</tspan>
+        </text>
+      </g>
+      <g id="Graphic_53">
+        <text transform="translate(320.12766 131)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">Content-addressable store</tspan>
+        </text>
+      </g>
+      <g id="Graphic_52">
+        <text transform="translate(120.5 169.5)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">project_1/node_modules</tspan>
+        </text>
+      </g>
+      <g id="Graphic_47">
+        <text transform="translate(548.56 172.38794)" fill="black">
+          <tspan font-family="Monaco" font-size="16" fill="black" x="0" y="16">project_2/node_modules</tspan>
+        </text>
+      </g>
+      <g id="Line_64">
+        <line x1="318.3972" y1="215.08594" x2="377.4972" y2="215.08594" marker-end="url(#FilledArrow_Marker)" stroke="#7f8080" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_71">
+        <path d="M 561.8972 215.08594 L 551.8972 215.08594 L 531.51775 215.2434 L 518.00994 215.2434 L 518.00994 330.58594 L 502.7972 330.58594" marker-end="url(#FilledArrow_Marker)" stroke="#7f8080" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_72">
+        <path d="M 318.3972 253.58594 L 328.3972 253.58594 L 354.45134 253.1067 L 354.5412 349.83594 L 354.5412 369.08594 L 377.4972 369.08594" marker-end="url(#FilledArrow_Marker)" stroke="#7f8080" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_74">
+        <path d="M 561.8972 253.58594 L 551.8972 253.58594 L 540.7232 253.88794 L 540.7232 369.08594 L 502.7972 369.08594" marker-end="url(#FilledArrow_Marker)" stroke="#7f8080" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+    </g>
+  </g>
+</svg>

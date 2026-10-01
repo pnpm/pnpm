@@ -12,7 +12,7 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 
 use lockfile::{
     LockedCrate, discover_workspace_roots, parse_lockfile, read_or_resolve_lockfile,
-    validate_package_field,
+    validate_package_field, verify_existing_lockfile,
 };
 use materialize::{DownloadOptions, add_cargo_checksum, download_crates};
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -80,8 +80,15 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<InstallTask<'static>> {
-    let roots =
+    let workspaces =
         discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
+    if context.frozen_lockfile {
+        workspaces.iter().try_for_each(verify_existing_lockfile)?;
+    }
+    let roots = workspaces
+        .into_iter()
+        .map(|workspace| workspace.root)
+        .collect::<Vec<_>>();
     let metadata = roots
         .iter()
         .flat_map(|root| metadata_paths(root))

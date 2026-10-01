@@ -17,6 +17,7 @@ use tempfile::tempdir;
 /// Parses `DlxArgs` as a flattened leaf so the architecture flags can be
 /// exercised against the trailing `command` positional.
 #[derive(Parser)]
+#[command(version = "0.0.0", disable_version_flag = true)]
 struct DlxArgsWrapper {
     #[command(flatten)]
     dlx: DlxArgs,
@@ -52,6 +53,32 @@ fn architecture_flags_accumulate_and_default_empty() {
     assert!(parsed.dlx.os.is_empty());
     assert!(parsed.dlx.libc.is_empty());
     assert_eq!(parsed.dlx.command, ["tool"]);
+}
+
+#[test]
+fn flags_after_the_command_belong_to_the_command() {
+    let parsed = DlxArgsWrapper::try_parse_from(["dlx", "node", "-e", "1", "--version"])
+        .expect("parse dlx args");
+
+    assert_eq!(parsed.dlx.command, ["node", "-e", "1", "--version"]);
+}
+
+#[test]
+fn a_version_flag_before_the_command_prints_the_version() {
+    for flag in ["--version", "-v"] {
+        let error = DlxArgsWrapper::try_parse_from(["dlx", flag])
+            .err()
+            .unwrap_or_else(|| panic!("`dlx {flag}` must not parse {flag} as the command"));
+        assert_eq!(error.kind(), clap::error::ErrorKind::DisplayVersion, "{flag}");
+    }
+}
+
+#[test]
+fn an_unknown_flag_before_the_command_is_rejected() {
+    let error = DlxArgsWrapper::try_parse_from(["dlx", "--bogus"])
+        .err()
+        .expect("`dlx --bogus` must not parse --bogus as the command");
+    assert_eq!(error.kind(), clap::error::ErrorKind::UnknownArgument);
 }
 
 fn regs(default: &str) -> BTreeMap<String, String> {

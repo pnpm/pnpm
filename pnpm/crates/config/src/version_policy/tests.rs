@@ -101,6 +101,17 @@ fn create_policy_wildcard_name_matches_via_matcher() {
 }
 
 #[test]
+fn covers_every_version_only_for_a_bare_name_or_wildcard_match() {
+    let policy =
+        create_package_version_policy(["axios@1.12.2", "is-*", "lodash@4.17.21", "lodash"])
+            .unwrap();
+    assert!(!policy.covers_every_version("axios"));
+    assert!(policy.covers_every_version("is-odd"));
+    assert!(policy.covers_every_version("lodash"));
+    assert!(!policy.covers_every_version("react"));
+}
+
+#[test]
 fn create_policy_scoped_name_at_exact_version() {
     let policy = create_package_version_policy(["@babel/core@7.20.0"]).unwrap();
     assert_eq!(

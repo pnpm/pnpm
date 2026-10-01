@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 import { CHANGES_DIR } from './intents.js'
 
@@ -46,7 +47,7 @@ export async function listPendingChangelogs (workspaceDir: string): Promise<Pend
   try {
     fileNames = await fs.readdir(dir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err
@@ -72,7 +73,7 @@ export async function readPendingChangelog (workspaceDir: string, pkgName: strin
   try {
     return await fs.readFile(pendingChangelogPath(workspaceDir, pkgName, version), 'utf8')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -84,7 +85,7 @@ export async function removePendingChangelog (workspaceDir: string, pkgName: str
   try {
     await fs.rm(pendingChangelogPath(workspaceDir, pkgName, version))
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
   }

@@ -11,6 +11,7 @@ use pnpm_testing_utils::{
 };
 use pnpm_workspace_state::ConfigDependency;
 use std::{
+    fmt::Write as _,
     fs,
     path::Path,
     process::{Command, Stdio},
@@ -136,6 +137,108 @@ fn second_install_keeps_config_dependency() {
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
         "config dep must remain linked after a repeat install",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn offline_config_dependency_reuses_regular_dependency_store_entry() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let version = "100.0.0";
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "regular-store-seed",
+            "version": "1.0.0",
+            "dependencies": { name: version },
+        })
+        .to_string(),
+    )
+    .expect("write seed package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "config-dep-consumer", "version": "1.0.0" }).to_string(),
+    )
+    .expect("replace package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    write!(yaml, "\nconfigDependencies:\n  '{name}': {version}\n").expect(
+        "append configDependencies",
+    );
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--offline"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join("node_modules/.pnpm-config/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json")
+            .exists(),
+        "offline config dependency must reuse the store entry from the regular dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn offline_config_dependency_reuses_prior_config_dependency_store_entry() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let version = "100.0.0";
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "config-dep-consumer", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    write!(yaml, "\nconfigDependencies:\n  '{name}': {version}\n").expect(
+        "append configDependencies",
+    );
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    let links_dir = store_dir.links();
+    if links_dir.exists() {
+        fs::remove_dir_all(&links_dir).expect("remove global virtual store links");
+    }
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--offline"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join("node_modules/.pnpm-config/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json")
+            .exists(),
+        "offline config dependency must reuse the row written by the prior config-dependency install",
     );
 
     drop((root, mock_instance));

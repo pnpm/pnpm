@@ -1,7 +1,7 @@
 use super::{
     Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, ResolvePeersOptions, ResolvedTree,
-    assert_cyclic_alias_peer_graph_is_closed, cyclic_alias_peer_tree, named_registry_peer_tree,
-    package, package_with_peer_dependencies, resolve_peers, tree_node,
+    TreeChildren, assert_cyclic_alias_peer_graph_is_closed, cyclic_alias_peer_tree,
+    named_registry_peer_tree, package, package_with_peer_dependencies, resolve_peers, tree_node,
 };
 
 #[test]
@@ -16,7 +16,7 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
         direct: vec![DirectDep {
             alias: "consumer".to_string(),
             node_id: consumer.clone(),
-            id: "consumer@1.0.0".to_string(),
+            id: "consumer@1.0.0".into(),
         }],
         packages: HashMap::from_iter([
             ("types@1.0.0".into(), package("types", "1.0.0", &[], true)),
@@ -74,12 +74,12 @@ fn reports_a_conflict_for_an_optional_peer_with_an_incompatible_provider() {
             DirectDep {
                 alias: "consumer".to_string(),
                 node_id: consumer.clone(),
-                id: "consumer@1.0.0".to_string(),
+                id: "consumer@1.0.0".into(),
             },
             DirectDep {
                 alias: "peer".to_string(),
                 node_id: provider.clone(),
-                id: "peer@2.0.0".to_string(),
+                id: "peer@2.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -124,7 +124,7 @@ fn alias_child_resolves_peer_by_real_package_name() {
         direct: vec![DirectDep {
             alias: "consumer".to_string(),
             node_id: consumer.clone(),
-            id: "consumer@1.0.0".to_string(),
+            id: "consumer@1.0.0".into(),
         }],
         packages: HashMap::from_iter([
             ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[], false)),
@@ -170,16 +170,8 @@ fn transitive_pending_peer_uses_provider_final_suffix() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep {
-                alias: "a".to_string(),
-                node_id: a_node_id.clone(),
-                id: "a@1.0.0".to_string(),
-            },
-            DirectDep {
-                alias: "c".to_string(),
-                node_id: c_node_id.clone(),
-                id: "c@1.0.0".to_string(),
-            },
+            DirectDep { alias: "a".to_string(), node_id: a_node_id.clone(), id: "a@1.0.0".into() },
+            DirectDep { alias: "c".to_string(), node_id: c_node_id.clone(), id: "c@1.0.0".into() },
         ],
         packages: HashMap::from_iter([
             ("a@1.0.0".into(), package("a", "1.0.0", &[("c", "*")], false)),
@@ -233,12 +225,12 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
             DirectDep {
                 alias: "first".to_string(),
                 node_id: first.clone(),
-                id: "first@1.0.0".to_string(),
+                id: "first@1.0.0".into(),
             },
             DirectDep {
                 alias: "second".to_string(),
                 node_id: second.clone(),
-                id: "second@1.0.0".to_string(),
+                id: "second@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -275,17 +267,17 @@ fn peer_name_cycle_collapses_provider_suffixes() {
             DirectDep {
                 alias: "source-map-loader".to_string(),
                 node_id: loader.clone(),
-                id: "source-map-loader@1.0.0".to_string(),
+                id: "source-map-loader@1.0.0".into(),
             },
             DirectDep {
                 alias: "webpack-cli".to_string(),
                 node_id: webpack_cli.clone(),
-                id: "webpack-cli@6.0.0".to_string(),
+                id: "webpack-cli@6.0.0".into(),
             },
             DirectDep {
                 alias: "webpack".to_string(),
                 node_id: webpack.clone(),
-                id: "webpack@5.0.0".to_string(),
+                id: "webpack@5.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -360,7 +352,7 @@ fn missing_names_by_pkg_records_only_children_context_missing_peers() {
         direct: vec![DirectDep {
             alias: "parent".to_string(),
             node_id: parent.clone(),
-            id: "parent@1.0.0".to_string(),
+            id: "parent@1.0.0".into(),
         }],
         packages: HashMap::from_iter([
             (
@@ -413,7 +405,7 @@ fn own_peer_is_resolved_from_aliased_sibling_real_name() {
         direct: vec![DirectDep {
             alias: "parent".to_string(),
             node_id: parent.clone(),
-            id: "parent@1.0.0".to_string(),
+            id: "parent@1.0.0".into(),
         }],
         packages: HashMap::from_iter([
             ("peer-c@2.0.0".into(), package("peer-c", "2.0.0", &[], true)),
@@ -471,16 +463,8 @@ fn cached_optional_peer_resolution_does_not_match_later_parent_without_provider(
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep {
-                alias: "core".to_string(),
-                node_id: core.clone(),
-                id: "core@1.0.0".to_string(),
-            },
-            DirectDep {
-                alias: "cli".to_string(),
-                node_id: cli.clone(),
-                id: "cli@1.0.0".to_string(),
-            },
+            DirectDep { alias: "core".to_string(), node_id: core.clone(), id: "core@1.0.0".into() },
+            DirectDep { alias: "cli".to_string(), node_id: cli.clone(), id: "cli@1.0.0".into() },
         ],
         packages: HashMap::from_iter([
             ("types@1.0.0".into(), package("types", "1.0.0", &[], true)),
@@ -536,16 +520,16 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".into() },
             DirectDep {
                 alias: "parser".to_string(),
                 node_id: parser_root.clone(),
-                id: "parser@1.0.0".to_string(),
+                id: "parser@1.0.0".into(),
             },
             DirectDep {
                 alias: "bundle".to_string(),
                 node_id: bundle.clone(),
-                id: "bundle@1.0.0".to_string(),
+                id: "bundle@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -612,16 +596,16 @@ fn same_package_child_replaces_inherited_parent_when_descendant_closes_peer_diam
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".into() },
             DirectDep {
                 alias: "parser".to_string(),
                 node_id: parser_root.clone(),
-                id: "parser@1.0.0".to_string(),
+                id: "parser@1.0.0".into(),
             },
             DirectDep {
                 alias: "shadow".to_string(),
                 node_id: shadow.clone(),
-                id: "shadow@1.0.0".to_string(),
+                id: "shadow@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -701,16 +685,16 @@ fn descendant_walk_does_not_skip_a_package_seen_first_with_its_own_provider() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".into() },
             DirectDep {
                 alias: "parser".to_string(),
                 node_id: parser_root.clone(),
-                id: "parser@1.0.0".to_string(),
+                id: "parser@1.0.0".into(),
             },
             DirectDep {
                 alias: "shadow".to_string(),
                 node_id: shadow.clone(),
-                id: "shadow@1.0.0".to_string(),
+                id: "shadow@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -787,16 +771,16 @@ fn descendant_walk_stops_at_an_aliased_copy_of_the_provider() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".into() },
             DirectDep {
                 alias: "parser".to_string(),
                 node_id: parser_root.clone(),
-                id: "parser@1.0.0".to_string(),
+                id: "parser@1.0.0".into(),
             },
             DirectDep {
                 alias: "shadow".to_string(),
                 node_id: shadow.clone(),
-                id: "shadow@1.0.0".to_string(),
+                id: "shadow@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -894,10 +878,7 @@ fn assert_descendant_walk_skips_cut_cycle_edge(realized_zed: bool) {
     } else {
         crate::resolved_tree::DependenciesTreeNode::new(
             Arc::from("zed@1.0.0"),
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: Arc::new(vec!["app@1.0.0".to_string(), "shadow@1.0.0".to_string()])
-                    .into(),
-            },
+            TreeChildren::Lazy,
             2,
             true,
         )
@@ -905,17 +886,13 @@ fn assert_descendant_walk_skips_cut_cycle_edge(realized_zed: bool) {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".into() },
             DirectDep {
                 alias: "parser".to_string(),
                 node_id: parser_root.clone(),
-                id: "parser@1.0.0".to_string(),
+                id: "parser@1.0.0".into(),
             },
-            DirectDep {
-                alias: "app".to_string(),
-                node_id: app.clone(),
-                id: "app@1.0.0".to_string(),
-            },
+            DirectDep { alias: "app".to_string(), node_id: app.clone(), id: "app@1.0.0".into() },
         ],
         packages: HashMap::from_iter([
             ("ts@1.0.0".into(), package("ts", "1.0.0", &[], true)),
@@ -1009,12 +986,12 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
                 DirectDep {
                     alias: "app".to_string(),
                     node_id: app.clone(),
-                    id: "app@1.0.0".to_string(),
+                    id: "app@1.0.0".into(),
                 },
                 DirectDep {
                     alias: "mid".to_string(),
                     node_id: mid.clone(),
-                    id: "mid@1.0.0".to_string(),
+                    id: "mid@1.0.0".into(),
                 },
             ],
             packages: HashMap::from_iter([

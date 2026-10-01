@@ -17,8 +17,41 @@ use super::{
     pick_stable_cached_range_version, pick_version_by_version_range,
 };
 
+mod stable_cached_range;
+
 fn parse_iso(input: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
+}
+
+#[test]
+fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
+    use super::semver_range::{max_satisfying, max_version, min_satisfying};
+
+    for versions in [["v1.2.3", "1.2.3"], ["1.2.3", "v1.2.3"]] {
+        let expected = Some(versions[0].to_string());
+        assert_eq!(max_version(&versions), expected);
+        assert_eq!(max_satisfying(&versions, "^1"), expected);
+        assert_eq!(min_satisfying(&versions, "^1"), expected);
+    }
+}
+
+#[test]
+fn range_scans_keep_prerelease_and_build_spelling() {
+    use super::semver_range::{max_satisfying, max_version, min_satisfying};
+
+    let versions = ["invalid", "1.2.3-beta.1+build.7", "1.2.3-beta.2+build.9"];
+    assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));
+    assert_eq!(
+        max_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        Some("1.2.3-beta.2+build.9"),
+    );
+    assert_eq!(
+        min_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        Some("1.2.3-beta.1+build.7"),
+    );
+    assert_eq!(max_satisfying(&versions, "*"), None);
+    assert_eq!(min_satisfying(&versions, "*"), None);
+    assert_eq!(max_version(&["invalid"]), None);
 }
 
 fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> PackageVersion {
@@ -832,6 +865,65 @@ fn filter_latest_fallback_does_not_exceed_original_tag_target() {
     let filtered = filter_pkg_metadata_by_publish_date(&pkg_without_safe_fallback, cutoff, None);
 
     assert_eq!(filtered.dist_tag("latest"), None);
+}
+
+#[test]
+fn filter_latest_fallback_prefers_prerelease_of_new_major_over_lower_major() {
+    let mut pkg = make_package(
+        "acme",
+        &[("0.0.1", None), ("1.0.0-beta.3", None), ("1.0.0-beta.4", None), ("1.0.0", None)],
+        &[("latest", "1.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.1", "2026-01-01T00:00:00.000Z"),
+        ("1.0.0-beta.3", "2026-03-01T00:00:00.000Z"),
+        ("1.0.0-beta.4", "2026-04-01T00:00:00.000Z"),
+        ("1.0.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("1.0.0-beta.4"));
+}
+
+#[test]
+fn filter_latest_fallback_prefers_stable_of_same_major_over_prerelease() {
+    let mut pkg = make_package(
+        "acme",
+        &[("1.4.0", None), ("1.5.0-rc.1", None), ("1.5.0", None), ("2.0.0-alpha.1", None)],
+        &[("latest", "1.5.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("1.4.0", "2026-01-01T00:00:00.000Z"),
+        ("1.5.0-rc.1", "2026-03-01T00:00:00.000Z"),
+        ("2.0.0-alpha.1", "2026-03-02T00:00:00.000Z"),
+        ("1.5.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("1.4.0"));
+}
+
+#[test]
+fn filter_latest_fallback_prefers_non_deprecated_lower_major_over_deprecated_prerelease() {
+    let mut pkg = make_package(
+        "acme",
+        &[("0.0.1", None), ("1.0.0-beta.1", Some("broken")), ("1.0.0", None)],
+        &[("latest", "1.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.1", "2026-01-01T00:00:00.000Z"),
+        ("1.0.0-beta.1", "2026-03-01T00:00:00.000Z"),
+        ("1.0.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("0.0.1"));
 }
 
 #[test]

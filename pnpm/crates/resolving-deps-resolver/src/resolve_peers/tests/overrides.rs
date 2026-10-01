@@ -14,17 +14,17 @@ fn importer_parent_refs_skip_direct_deps_irrelevant_by_alias_and_real_name() {
             DirectDep {
                 alias: "alias-peer".to_string(),
                 node_id: alias_relevant.clone(),
-                id: "alias-real@1.0.0".to_string(),
+                id: "alias-real@1.0.0".into(),
             },
             DirectDep {
                 alias: "peer-c1".to_string(),
                 node_id: real_name_relevant.clone(),
-                id: "peer-c@2.0.0".to_string(),
+                id: "peer-c@2.0.0".into(),
             },
             DirectDep {
                 alias: "unused".to_string(),
                 node_id: irrelevant.clone(),
-                id: "unused@1.0.0".to_string(),
+                id: "unused@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -65,7 +65,7 @@ fn same_leaf_node_under_multiple_aliases_preserves_every_edge() {
         direct: vec![DirectDep {
             alias: "parent".to_string(),
             node_id: parent.clone(),
-            id: "parent@1.0.0".to_string(),
+            id: "parent@1.0.0".into(),
         }],
         packages: HashMap::from_iter([
             ("shared@1.0.0".into(), package("shared", "1.0.0", &[], true)),

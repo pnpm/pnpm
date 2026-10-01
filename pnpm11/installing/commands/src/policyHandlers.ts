@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { promptLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { isCI } from 'ci-info'
@@ -107,35 +107,41 @@ export function setupPolicyHandlers (opts: PolicyHandlersOptions): PolicyHandler
   if (handlers.length === 0) return undefined
 
   return {
-    handleResolutionPolicyViolations: async (violations) => {
-      // Sequential, not parallel: a TTY prompt from handler N would
-      // race with a different prompt from N+1, and we want a clean
-      // throw to short-circuit before later handlers ask for input.
-      for (const handler of handlers) {
-        if (handler.handleResolutionPolicyViolations) {
-          // eslint-disable-next-line no-await-in-loop
-          await handler.handleResolutionPolicyViolations(violations)
-        }
-      }
-    },
-    pickManifestUpdates: (violations) => {
-      const merged: WorkspaceManifestPolicyUpdates = {}
-      let any = false
-      for (const handler of handlers) {
-        if (!handler.pickManifestUpdates) continue
-        const patch = handler.pickManifestUpdates(violations)
-        if (patch == null) continue
-        // Shallow merge — handlers own disjoint fields by convention,
-        // so there's no collision policy to encode here yet.
-        for (const [key, value] of Object.entries(patch)) {
-          if (value == null) continue
-          ;(merged as Record<string, unknown>)[key] = value
-          any = true
-        }
-      }
-      return any ? merged : undefined
-    },
+    handleResolutionPolicyViolations: async (violations) => runHandlersInSequence(handlers, violations),
+    pickManifestUpdates: (violations) => mergeManifestUpdates(handlers, violations),
   }
+}
+
+async function runHandlersInSequence (handlers: readonly PolicyHandler[], violations: readonly PolicyViolation[]): Promise<void> {
+  // Sequential, not parallel: a TTY prompt from handler N would
+  // race with a different prompt from N+1, and we want a clean
+  // throw to short-circuit before later handlers ask for input.
+  for (const handler of handlers) {
+    if (handler.handleResolutionPolicyViolations) {
+      // eslint-disable-next-line no-await-in-loop -- handlers prompt in turn, so each must finish before the next starts
+      await handler.handleResolutionPolicyViolations(violations)
+    }
+  }
+}
+
+function mergeManifestUpdates (
+  handlers: readonly PolicyHandler[],
+  violations: readonly PolicyViolation[]
+): WorkspaceManifestPolicyUpdates | undefined {
+  const merged: WorkspaceManifestPolicyUpdates = {}
+  let any = false
+  for (const handler of handlers) {
+    const patch = handler.pickManifestUpdates?.(violations)
+    if (patch == null) continue
+    // Shallow merge — handlers own disjoint fields by convention,
+    // so there's no collision policy to encode here yet.
+    for (const [key, value] of Object.entries(patch)) {
+      if (value == null) continue
+      ;(merged as Record<string, unknown>)[key] = value
+      any = true
+    }
+  }
+  return any ? merged : undefined
 }
 
 /**
@@ -147,7 +153,7 @@ export function setupPolicyHandlers (opts: PolicyHandlersOptions): PolicyHandler
  * surfaces the full set of immature picks (direct AND transitive) at
  * once via a confirm prompt — the install proceeds if the user
  * approves, otherwise it aborts before touching the lockfile or
- * package.json (#10488). Strict mode in CI or any other non-TTY
+ * package.json (pnpm/pnpm#10488). Strict mode in CI or any other non-TTY
  * context aborts hard with the same violation list so the failure
  * pinpoints every offending entry, not just the first one the
  * resolver picked.
@@ -170,26 +176,7 @@ function createMinimumReleaseAgeHandler (opts: PolicyHandlersOptions): PolicyHan
   return {
     handleResolutionPolicyViolations: async (violations) => {
       if (!strictMode) return
-      const immature = filterImmatureViolations(violations)
-      if (immature.length === 0) return
-      if (!persistenceEnabled) {
-        throw new PnpmError(
-          'STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE',
-          'minimumReleaseAgeStrict cannot be combined with --no-save: ' +
-          'approval would require writing to minimumReleaseAgeExclude in pnpm-workspace.yaml, ' +
-          'which --no-save prevents.',
-          {
-            hint: 'Drop --no-save so the exclude list can be persisted, or set ' +
-              'minimumReleaseAgeStrict: false to let the install proceed without prompting ' +
-              '(the lockfile would still trigger the auto-collect on the next normal install).',
-          }
-        )
-      }
-      if (canPrompt) {
-        await promptForApproval(immature)
-      } else {
-        throw failOnImmature(immature)
-      }
+      await handleStrictImmatureViolations(violations, { persistenceEnabled, canPrompt })
     },
     pickManifestUpdates: (violations) => {
       const entries = pickImmatureEntries(violations, strictMode)
@@ -198,11 +185,34 @@ function createMinimumReleaseAgeHandler (opts: PolicyHandlersOptions): PolicyHan
   }
 }
 
+async function handleStrictImmatureViolations (
+  violations: readonly PolicyViolation[],
+  { persistenceEnabled, canPrompt }: { persistenceEnabled: boolean, canPrompt: boolean }
+): Promise<void> {
+  const immature = filterImmatureViolations(violations)
+  if (immature.length === 0) return
+  if (!persistenceEnabled) {
+    throw new PnpmError(
+      'STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE',
+      'minimumReleaseAgeStrict cannot be combined with --no-save: ' +
+      'approval would require writing to minimumReleaseAgeExclude in pnpm-workspace.yaml, ' +
+      'which --no-save prevents.',
+      {
+        hint: 'Drop --no-save so the exclude list can be persisted, or set ' +
+          'minimumReleaseAgeStrict: false to let the install proceed without prompting ' +
+          '(the lockfile would still trigger the auto-collect on the next normal install).',
+      }
+    )
+  }
+  if (!canPrompt) throw failOnImmature(immature)
+  await promptForApproval(immature)
+}
+
 function filterImmatureViolations (violations: readonly PolicyViolation[]): PolicyViolation[] {
   const seen = new Set<string>()
-  return violations.filter((v) => {
-    if (v.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return false
-    const key = `${v.name}@${v.version}`
+  return violations.filter((violation) => {
+    if (violation.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return false
+    const key = `${violation.name}@${violation.version}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -220,7 +230,7 @@ function pickImmatureEntries (
   // entries that actually land in pnpm-workspace.yaml even when multiple
   // immature versions belong to the same package. The pre-sort keeps the
   // cross-package order stable regardless of resolution order.
-  const entries = mergePackageVersionSpecs(immature.map((v) => `${v.name}@${v.version}`).sort())
+  const entries = mergePackageVersionSpecs(immature.map((violation) => `${violation.name}@${violation.version}`).sort())
   // Strict-mode picks already passed through the approval prompt, so
   // the log here only confirms what was persisted. Loose-mode picks
   // haven't been announced anywhere else, so the same log doubles as
@@ -237,7 +247,7 @@ function pickImmatureEntries (
 
 function failOnImmature (immature: readonly PolicyViolation[]): PnpmError {
   const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
-  const list = sorted.map((v) => `  ${v.name}@${v.version} ${v.reason}`).join('\n')
+  const list = sorted.map((violation) => `  ${violation.name}@${violation.version} ${violation.reason}`).join('\n')
   return new PnpmError(
     'NO_MATURE_MATCHING_VERSION',
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n${list}`,
@@ -253,7 +263,7 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
   const sorted = [...immature].sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
   const message =
     `${sorted.length} ${sorted.length === 1 ? 'version does' : 'versions do'} not meet the minimumReleaseAge constraint:\n` +
-    sorted.map((v) => `  ${v.name}@${v.version}`).join('\n') + '\n' +
+    sorted.map((violation) => `  ${violation.name}@${violation.version}`).join('\n') + '\n' +
     'Add to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?'
   let confirmed: boolean
   // Pause the default reporter's redraws while the prompt is open (see promptLogger).
@@ -261,7 +271,7 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
   try {
     confirmed = await confirm({ message, default: false })
   } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       confirmed = false
     } else {
       throw err

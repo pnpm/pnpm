@@ -101,9 +101,7 @@ test('recursive test: pass the args to the command that is specified in the buil
 
   const result = execPnpmSync(['--config.verify-deps-before-run=false', '-r', 'test', 'arg', '--flag=true'])
 
-  expect((result.stdout as Buffer).toString('utf8')).toMatch(
-    process.platform === 'win32' ? /ts-node test "arg" "--flag=true"/ : /ts-node test arg --flag=true/
-  )
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test arg --flag=true/)
 })
 
 test('start: run "node server.js" by default', async () => {
@@ -600,7 +598,7 @@ setInterval(() => {}, 1000)
   }
 })
 
-async function withDeadline<T> (promise: Promise<T>, timeout: number): Promise<T> {
+async function withDeadline<Result> (promise: Promise<Result>, timeout: number): Promise<Result> {
   let timer: NodeJS.Timeout | undefined
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`pnpm did not exit within ${timeout}ms`)), timeout)
@@ -616,7 +614,7 @@ async function waitForFile (file: string, timeout: number): Promise<void> {
   const deadline = Date.now() + timeout
   while (!fs.existsSync(file)) {
     if (Date.now() > deadline) throw new Error(`${file} did not appear within ${timeout}ms`)
-    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polls until the file appears
   }
 }
 
@@ -820,4 +818,37 @@ testOnPosix('run and recursive run execute lifecycle hooks from the package-spec
     expect(result.status).toBe(0)
     expect(result.stdout.toString()).toContain('custom-hook')
   }
+})
+
+test('run in a dependency-free project the workspace leaves out writes nothing', async () => {
+  prepare({ name: 'root', private: true })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['pkgs/*'] })
+  fs.mkdirSync('pkgs/a', { recursive: true })
+  fs.writeFileSync('pkgs/a/package.json', JSON.stringify({ name: 'a', version: '1.0.0' }))
+  fs.mkdirSync('scripts')
+  fs.writeFileSync('scripts/package.json', JSON.stringify({
+    scripts: {
+      hi: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\',\'ok\')"',
+    },
+  }))
+
+  await execPnpm(['install'])
+
+  execPnpmSync(['run', 'hi'], { cwd: path.resolve('scripts'), expectSuccess: true })
+  expect(fs.readFileSync('scripts/ran.txt', 'utf8')).toBe('ok')
+  expect(fs.existsSync('scripts/node_modules')).toBe(false)
+  expect(fs.existsSync('scripts/pnpm-lock.yaml')).toBe(false)
+})
+
+test('run in a project with nothing to install writes nothing', async () => {
+  prepare({
+    scripts: {
+      hi: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\',\'ok\')"',
+    },
+  })
+
+  execPnpmSync(['run', 'hi'], { expectSuccess: true })
+  expect(fs.readFileSync('ran.txt', 'utf8')).toBe('ok')
+  expect(fs.existsSync('node_modules')).toBe(false)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
 })

@@ -8,7 +8,7 @@
 
 use crate::{
     error::PreparePackageError,
-    pm_shims::{shim_names, write_pm_shims},
+    pm_shims::{provide_running_pnpm, shim_names, write_pm_shims},
     preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
 };
 use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
@@ -120,12 +120,12 @@ pub fn prepare_package<Reporter: self::Reporter>(
     // Kept alive until the prepare is over: dropping it takes the shims
     // with it.
     let shims_dir =
-        provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.scripts.pnpm_execpath)?;
+        provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.scripts.running_pnpm)?;
     if let Some(dir) = shims_dir.as_ref() {
         extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
 
-    let extra_env = prepare_env(opts.extra_env);
+    let extra_env = prepare_env(opts.extra_env, opts.scripts.running_pnpm.pm_on_fail);
     let run_opts = opts.lifecycle_options(&dep_path, &pkg_dir, &extra_bin_paths, &extra_env);
 
     run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
@@ -147,7 +147,7 @@ impl PreparePackageOptions<'_> {
                 init_cwd: pkg_dir,
                 node_execpath: self.scripts.node_execpath,
                 npm_execpath: self.scripts.npm_execpath,
-                node_gyp_path: None,
+                node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
                 user_agent: self.scripts.user_agent,
                 extra_env,
             },
@@ -171,18 +171,29 @@ impl PreparePackageOptions<'_> {
 }
 
 /// The environment the prepare scripts run with: the caller's `extra_env`
-/// with `strictDepBuilds` turned off.
+/// with `strictDepBuilds` turned off and the install's `pmOnFail` passed on.
 ///
 /// The install that prepares the package runs in a temporary checkout,
 /// where nobody can approve the build scripts of the package's own
 /// dependencies. Those builds are skipped there, as they are without
 /// `strictDepBuilds`, rather than failing the outer install.
-fn prepare_env(extra_env: &HashMap<String, String>) -> HashMap<String, String> {
+///
+/// That install also reads the package manager the dependency pins, and a
+/// `pmOnFail` given on the command line would not otherwise reach it.
+fn prepare_env(
+    extra_env: &HashMap<String, String>,
+    pm_on_fail: Option<&str>,
+) -> HashMap<String, String> {
     let mut env = extra_env.clone();
     // Both spellings: pnpm reads either, and a user's own variable in the
     // other one must not win.
     for key in ["pnpm_config_strict_dep_builds", "PNPM_CONFIG_STRICT_DEP_BUILDS"] {
         env.insert(key.to_string(), "false".to_string());
+    }
+    if let Some(pm_on_fail) = pm_on_fail {
+        for key in ["pnpm_config_pm_on_fail", "PNPM_CONFIG_PM_ON_FAIL"] {
+            env.insert(key.to_string(), pm_on_fail.to_string());
+        }
     }
     env
 }
@@ -294,11 +305,20 @@ fn prepublish_invocation(
 /// satisfy what the dependency ships. Otherwise the host's own install is
 /// left to do the job it has always done, which is also what happens when
 /// the shims cannot be written for an unpinned one.
+///
+/// A `pmOnFail` other than `download` leaves pnpm itself to the running
+/// pnpm, whatever version the dependency pins.
 fn provide_wanted_pm<Reporter: self::Reporter>(
     wanted_pm: &WantedPm,
     dep_path: &str,
-    pnpm_execpath: Option<&Path>,
+    running_pnpm: crate::RunningPnpm<'_>,
 ) -> Result<Option<tempfile::TempDir>, PreparePackageError> {
+    let pnpm_execpath = running_pnpm.execpath;
+    if wanted_pm.pm == PreferredPm::Pnpm
+        && running_pnpm.pm_on_fail.is_some_and(|on_fail| on_fail != "download")
+    {
+        return Ok(provide_running_pnpm(pnpm_execpath));
+    }
     if !wanted_pm.pinned && host_can_prepare(wanted_pm) {
         return Ok(None);
     }

@@ -71,23 +71,15 @@ export async function pollForWebAuthToken ({
   fetchOptions,
   timeoutMs = 5 * 60 * 1000,
 }: PollForWebAuthTokenParams): Promise<string> {
-  const startTime = Date.now()
-  const pollIntervalMs = 1000
+  const deadline: PollDeadline = { startTime: Date.now(), timeoutMs }
 
   while (true) {
-    const now = Date.now()
-    if (now - startTime > timeoutMs) {
-      throw new WebAuthTimeoutError(now, startTime, timeoutMs)
-    }
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs))
-    let response: WebAuthFetchResponse
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      response = await fetch(doneUrl, fetchOptions)
-    } catch {
-      continue
-    }
+    throwIfPastDeadline(deadline, Date.now())
+    // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
+    await sleep(setTimeout, POLL_INTERVAL_MS)
+    // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
+    const response = await fetchIgnoringErrors({ doneUrl, fetch, fetchOptions })
+    if (response == null) continue
 
     if (!response.ok) {
       discardBody(response)
@@ -97,32 +89,73 @@ export async function pollForWebAuthToken ({
     if (response.status === 202) {
       discardBody(response)
       // Registry is still waiting for authentication.
-      // Respect Retry-After header if present by waiting the additional time
-      // beyond the default poll interval already elapsed above, but do not
-      // exceed the overall timeout.
-      const retryAfterSeconds = Number(response.headers.get('retry-after'))
-      if (Number.isFinite(retryAfterSeconds)) {
-        const additionalMs = retryAfterSeconds * 1000 - pollIntervalMs
-        if (additionalMs > 0) {
-          const nowAfterPoll = Date.now()
-          const remainingMs = timeoutMs - (nowAfterPoll - startTime)
-          if (remainingMs <= 0) {
-            throw new WebAuthTimeoutError(nowAfterPoll, startTime, timeoutMs)
-          }
-          const sleepMs = Math.min(additionalMs, remainingMs)
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise<void>(resolve => setTimeout(resolve, sleepMs))
-        }
-      }
+      // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
+      await waitForRetryAfter({ Date, deadline, response, setTimeout })
       continue
     }
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the body decides whether polling continues
     const body = await readTokenBody(response) as { token?: string } | undefined
     if (body?.token) {
       return body.token
     }
   }
+}
+
+const POLL_INTERVAL_MS = 1000
+
+interface PollDeadline {
+  startTime: number
+  timeoutMs: number
+}
+
+function throwIfPastDeadline ({ startTime, timeoutMs }: PollDeadline, now: number): void {
+  if (now - startTime > timeoutMs) {
+    throw new WebAuthTimeoutError(now, startTime, timeoutMs)
+  }
+}
+
+async function sleep (setTimeout: WebAuthContext['setTimeout'], ms: number): Promise<void> {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
+interface FetchDoneUrlOptions {
+  doneUrl: string
+  fetch: WebAuthContext['fetch']
+  fetchOptions: WebAuthFetchOptions
+}
+
+async function fetchIgnoringErrors ({ doneUrl, fetch, fetchOptions }: FetchDoneUrlOptions): Promise<WebAuthFetchResponse | undefined> {
+  try {
+    return await fetch(doneUrl, fetchOptions)
+  } catch {
+    return undefined
+  }
+}
+
+interface WaitForRetryAfterOptions {
+  Date: WebAuthContext['Date']
+  deadline: PollDeadline
+  response: WebAuthFetchResponse
+  setTimeout: WebAuthContext['setTimeout']
+}
+
+/**
+ * Respects the Retry-After header, if present, by waiting the additional time
+ * beyond the default poll interval already elapsed, but does not exceed the
+ * overall timeout.
+ */
+async function waitForRetryAfter ({ Date, deadline, response, setTimeout }: WaitForRetryAfterOptions): Promise<void> {
+  const retryAfterSeconds = Number(response.headers.get('retry-after'))
+  if (!Number.isFinite(retryAfterSeconds)) return
+  const additionalMs = retryAfterSeconds * 1000 - POLL_INTERVAL_MS
+  if (additionalMs <= 0) return
+  const nowAfterPoll = Date.now()
+  const remainingMs = deadline.timeoutMs - (nowAfterPoll - deadline.startTime)
+  if (remainingMs <= 0) {
+    throw new WebAuthTimeoutError(nowAfterPoll, deadline.startTime, deadline.timeoutMs)
+  }
+  await sleep(setTimeout, Math.min(additionalMs, remainingMs))
 }
 
 /**
@@ -138,11 +171,7 @@ async function readTokenBody (response: WebAuthFetchResponse): Promise<unknown> 
   // only by stream-less WebAuthFetch stand-ins (the json()-based test mocks);
   // every real transport goes through the capped stream read below.
   if (response.body === undefined) {
-    try {
-      return await response.json()
-    } catch {
-      return undefined
-    }
+    return readJsonIgnoringErrors(response)
   }
   const contentLength = Number(response.headers.get('content-length'))
   if (Number.isFinite(contentLength) && contentLength > TOKEN_BODY_LIMIT) {
@@ -150,30 +179,51 @@ async function readTokenBody (response: WebAuthFetchResponse): Promise<unknown> 
     return undefined
   }
   if (response.body === null) return undefined
+  const chunks = await readCappedBody(response.body)
+  if (chunks == null) return undefined
+  return parseJsonChunks(chunks)
+}
+
+async function readJsonIgnoringErrors (response: WebAuthFetchResponse): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch {
+    return undefined
+  }
+}
+
+async function readCappedBody (body: WebAuthFetchResponseBody): Promise<Uint8Array[] | undefined> {
   let reader: WebAuthFetchResponseBodyReader
   try {
-    reader = response.body.getReader()
+    reader = body.getReader()
   } catch {
     return undefined
   }
+  try {
+    return await readChunksWithinLimit(reader)
+  } catch {
+    return undefined
+  }
+}
+
+async function readChunksWithinLimit (reader: WebAuthFetchResponseBodyReader): Promise<Uint8Array[] | undefined> {
   const chunks: Uint8Array[] = []
   let total = 0
-  try {
-    while (true) {
-      // eslint-disable-next-line no-await-in-loop
-      const { done, value } = await reader.read()
-      if (done) break
-      if (value == null) continue
-      total += value.length
-      if (total > TOKEN_BODY_LIMIT) {
-        reader.cancel().catch(() => {})
-        return undefined
-      }
-      chunks.push(value)
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop -- stream chunks must be read one after another
+    const { done, value } = await reader.read()
+    if (done) return chunks
+    if (value == null) continue
+    total += value.length
+    if (total > TOKEN_BODY_LIMIT) {
+      reader.cancel().catch(() => {})
+      return undefined
     }
-  } catch {
-    return undefined
+    chunks.push(value)
   }
+}
+
+function parseJsonChunks (chunks: Uint8Array[]): unknown {
   try {
     return JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)))
   } catch {

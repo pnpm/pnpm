@@ -13,14 +13,14 @@ import yaml from 'js-yaml'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 
-import isExecutable from './isExecutable.js'
+import { isExecutable } from './isExecutable.js'
 
 const require = createRequire(import.meta.url)
 
 export { isExecutable, type Modules }
 
 export interface Project {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a required module can export any shape and tests read arbitrary members from it
   requireModule: (moduleName: string) => any
   dir: () => string
   has: (pkgName: string, modulesDir?: string) => void
@@ -50,48 +50,11 @@ export interface Project {
 }
 
 export function assertProject (projectPath: string, encodedRegistryName?: string): Project {
-  const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
+  const getStoreInstance = createStoreInstanceGetter(modules, encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`)
 
-  interface StoreInstance {
-    storePath: string
-    getPkgIndexFilePath: (pkgName: string, version: string) => string
-    cafsHas: (pkgName: string, version: string) => void
-    cafsHasNot: (pkgName: string, version: string) => void
-    storeHas: (pkgName: string, version?: string) => void
-    storeHasNot: (pkgName: string, version?: string) => void
-    resolve: (pkgName: string, version?: string, relativePath?: string) => string
-  }
-  let cachedStore: StoreInstance
-  function getStoreInstance (): StoreInstance {
-    if (!cachedStore) {
-      const modulesYaml = readModulesManifest(modules)
-      if (modulesYaml == null) {
-        throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
-      }
-      const storePath = modulesYaml.storeDir
-      cachedStore = {
-        storePath,
-        ...assertStore(storePath, ern),
-      }
-    }
-    return cachedStore
-  }
-  function getVirtualStoreDir (): string {
-    const modulesYaml = readModulesManifest(modules)
-    if (modulesYaml == null) {
-      return path.join(modules, '.pnpm')
-    }
-    if (path.isAbsolute(modulesYaml.virtualStoreDir)) {
-      return modulesYaml.virtualStoreDir
-    }
-    return path.join(modules, modulesYaml.virtualStoreDir)
-  }
-
-  // eslint-disable-next-line
-  const ok = (value: any) => expect(value).toBeTruthy()
-  // eslint-disable-next-line
-  const notOk = (value: any) => expect(value).toBeFalsy()
+  const ok = (value: unknown): void => expect(value).toBeTruthy()
+  const notOk = (value: unknown): void => expect(value).toBeFalsy()
   return {
     dir: () => projectPath,
     requireModule (pkgName: string) {
@@ -105,73 +68,106 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
       notOk(fs.existsSync(path.join(md, pkgName)))
     },
-    getStorePath () {
-      const store = getStoreInstance()
-      return store.storePath
-    },
-    resolve (pkgName: string, version?: string, relativePath?: string) {
-      const store = getStoreInstance()
-      return store.resolve(pkgName, version, relativePath)
-    },
-    getPkgIndexFilePath (pkgName: string, version: string): string {
-      const store = getStoreInstance()
-      return store.getPkgIndexFilePath(pkgName, version)
-    },
+    getStorePath: () => getStoreInstance().storePath,
+    resolve: (pkgName: string, version?: string, relativePath?: string) => getStoreInstance().resolve(pkgName, version, relativePath),
+    getPkgIndexFilePath: (pkgName: string, version: string): string => getStoreInstance().getPkgIndexFilePath(pkgName, version),
     cafsHas (pkgName: string, version: string) {
-      const store = getStoreInstance()
-      store.cafsHas(pkgName, version)
+      getStoreInstance().cafsHas(pkgName, version)
     },
     cafsHasNot (pkgName: string, version: string) {
-      const store = getStoreInstance()
-      store.cafsHasNot(pkgName, version)
+      getStoreInstance().cafsHasNot(pkgName, version)
     },
-    storeHas (pkgName: string, version?: string) {
-      const store = getStoreInstance()
-      return store.resolve(pkgName, version)
-    },
+    storeHas: (pkgName: string, version?: string) => getStoreInstance().resolve(pkgName, version),
     storeHasNot (pkgName: string, version?: string) {
-      try {
-        const store = getStoreInstance()
-        store.storeHasNot(pkgName, version)
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && err.message.startsWith('Cannot find module store')) {
-          return
-        }
-        throw err
-      }
+      assertStoreHasNot(getStoreInstance, pkgName, version)
     },
     isExecutable (pathToExe: string) {
       isExecutable(ok, path.join(modules, pathToExe))
     },
-    readCurrentLockfile () {
-      try {
-        return readYamlFileSync(path.join(getVirtualStoreDir(), 'lock.yaml'))
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
-        throw err
-      }
-    },
+    readCurrentLockfile: () => readCurrentLockfile(modules),
     readModulesManifest: () => readModulesManifest(modules),
-    readLockfile (lockfileName: string = WANTED_LOCKFILE) {
-      try {
-        const raw = fs.readFileSync(path.join(projectPath, lockfileName), 'utf8')
-        // Skip the env lockfile document if present (first document in combined format).
-        // Cannot import from @pnpm/lockfile.fs here due to circular dependency.
-        let content = raw
-        if (raw.startsWith('---\n')) {
-          const sep = raw.indexOf('\n---\n')
-          content = sep !== -1 ? raw.slice(sep + '\n---\n'.length) : ''
-        }
-        if (!content.trim()) return null!
-        return yaml.load(content) as Required<LockfileFile>
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
-        throw err
-      }
-    },
+    readLockfile: (lockfileName: string = WANTED_LOCKFILE) => readLockfile(path.join(projectPath, lockfileName)),
     writePackageJson (pkgJson: object) {
       writePackageSync(projectPath, pkgJson as any) // eslint-disable-line
     },
+  }
+}
+
+interface StoreInstance {
+  storePath: string
+  getPkgIndexFilePath: (pkgName: string, version: string) => string
+  cafsHas: (pkgName: string, version: string) => void
+  cafsHasNot: (pkgName: string, version: string) => void
+  storeHas: (pkgName: string, version?: string) => void
+  storeHasNot: (pkgName: string, version?: string) => void
+  resolve: (pkgName: string, version?: string, relativePath?: string) => string
+}
+
+function createStoreInstanceGetter (modules: string, encodedRegistryName: string): () => StoreInstance {
+  let cachedStore: StoreInstance | undefined
+  return () => {
+    if (!cachedStore) {
+      const modulesYaml = readModulesManifest(modules)
+      if (modulesYaml == null) {
+        throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
+      }
+      const storePath = modulesYaml.storeDir
+      cachedStore = {
+        storePath,
+        ...assertStore(storePath, encodedRegistryName),
+      }
+    }
+    return cachedStore
+  }
+}
+
+function assertStoreHasNot (getStoreInstance: () => StoreInstance, pkgName: string, version?: string): void {
+  try {
+    const store = getStoreInstance()
+    store.storeHasNot(pkgName, version)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.message.startsWith('Cannot find module store')) {
+      return
+    }
+    throw err
+  }
+}
+
+function getVirtualStoreDir (modules: string): string {
+  const modulesYaml = readModulesManifest(modules)
+  if (modulesYaml == null) {
+    return path.join(modules, '.pnpm')
+  }
+  if (path.isAbsolute(modulesYaml.virtualStoreDir)) {
+    return modulesYaml.virtualStoreDir
+  }
+  return path.join(modules, modulesYaml.virtualStoreDir)
+}
+
+function readCurrentLockfile (modules: string): Required<LockfileFile> {
+  try {
+    return readYamlFileSync(path.join(getVirtualStoreDir(modules), 'lock.yaml'))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
+    throw err
+  }
+}
+
+function readLockfile (lockfilePath: string): Required<LockfileFile> {
+  try {
+    const raw = fs.readFileSync(lockfilePath, 'utf8')
+    // Skip the env lockfile document if present (first document in combined format).
+    // Cannot import from @pnpm/lockfile.fs here due to circular dependency.
+    let content = raw
+    if (raw.startsWith('---\n')) {
+      const sep = raw.indexOf('\n---\n')
+      content = sep !== -1 ? raw.slice(sep + '\n---\n'.length) : ''
+    }
+    if (!content.trim()) return null!
+    return yaml.load(content) as Required<LockfileFile>
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
+    throw err
   }
 }
 

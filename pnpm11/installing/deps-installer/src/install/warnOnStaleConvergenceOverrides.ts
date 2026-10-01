@@ -37,32 +37,42 @@ export async function warnOnStaleConvergenceOverrides (opts: WarnOnStaleConverge
   const convergeOverrides = opts.parsedOverrides.filter(({ converge }) => converge)
   if (convergeOverrides.length === 0) return
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
-  await Promise.all(convergeOverrides.map(async (override) => {
-    const name = override.targetPkg.name
-    const ranges = opts.convergeDeclaredRanges.get(name)
-    if (ranges == null || ranges.size === 0) return
-    const candidates = await Promise.all([...ranges].map(async (range) => {
-      try {
-        const response = await opts.requestPackage({ alias: name, bareSpecifier: range }, {
-          downloadPriority: 0,
-          lockfileDir: opts.lockfileDir,
-          projectDir: opts.lockfileDir,
-          preferredVersions: {},
-          skipFetch: true,
-          publishedBy,
-          publishedByExclude,
-        })
-        if (response.body.policyViolation != null) return undefined
-        return response.body.manifest?.version
-      } catch {
-        return undefined
-      }
-    }))
-    const best = candidates
-      .filter((version): version is string => version != null && semver.gt(version, override.newBareSpecifier))
-      .sort(semver.rcompare)
-      .find((version) => [...ranges].every((range) => semver.satisfies(version, range, true)))
-    if (best == null) return
-    globalWarn(`The convergence override "${name}@": "${override.newBareSpecifier}" is stale: every declared range of ${name} also admits ${best}. Change the override's value to ${best} in pnpm-workspace.yaml, or remove the override and run "pnpm dedupe".`)
-  }))
+  const context: StaleCheckContext = { ...opts, publishedBy, publishedByExclude }
+  await Promise.all(convergeOverrides.map(async (override) => warnIfOverrideIsStale(context, override)))
+}
+
+type StaleCheckContext = WarnOnStaleConvergenceOverridesOptions & ReturnType<typeof getPublishedByPolicy>
+
+async function warnIfOverrideIsStale (context: StaleCheckContext, override: VersionOverride): Promise<void> {
+  const name = override.targetPkg.name
+  const ranges = context.convergeDeclaredRanges.get(name)
+  if (ranges == null || ranges.size === 0) return
+  const candidates = await Promise.all([...ranges].map(async (range) => resolveBestVersionOfRange(context, { name, range })))
+  const best = candidates
+    .filter((version): version is string => version != null && semver.gt(version, override.newBareSpecifier))
+    .sort(semver.rcompare)
+    .find((version) => [...ranges].every((range) => semver.satisfies(version, range, true)))
+  if (best == null) return
+  globalWarn(`The convergence override "${name}@": "${override.newBareSpecifier}" is stale: every declared range of ${name} also admits ${best}. Change the override's value to ${best} in pnpm-workspace.yaml, or remove the override and run "pnpm dedupe".`)
+}
+
+async function resolveBestVersionOfRange (
+  context: StaleCheckContext,
+  { name, range }: { name: string, range: string }
+): Promise<string | undefined> {
+  try {
+    const response = await context.requestPackage({ alias: name, bareSpecifier: range }, {
+      downloadPriority: 0,
+      lockfileDir: context.lockfileDir,
+      projectDir: context.lockfileDir,
+      preferredVersions: {},
+      skipFetch: true,
+      publishedBy: context.publishedBy,
+      publishedByExclude: context.publishedByExclude,
+    })
+    if (response.body.policyViolation != null) return undefined
+    return response.body.manifest?.version
+  } catch {
+    return undefined
+  }
 }

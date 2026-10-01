@@ -1,9 +1,8 @@
 import type { IncomingMessage } from 'node:http'
 import { isIP } from 'node:net'
-import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError, FetchTimeoutError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
+import { FetchError, FetchTimeoutError, isError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -60,7 +59,7 @@ export function createDownloader (
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: CreateDownloaderOptions
 ): DownloadFunction {
-  const retryOpts = {
+  const defaultRetryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
     minTimeout: 1e4, // 10 seconds
@@ -76,167 +75,280 @@ export function createDownloader (
       opts.appendManifest?.name
     )
 
-    const downloadRetryOpts = { ...retryOpts, ...opts.retry }
+    const downloadRetryOpts = { ...defaultRetryOpts, ...opts.retry }
     const op = retry.operation(downloadRetryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
-      op.attempt(async (attempt) => {
-        try {
-          resolve(await fetch(attempt))
-        } catch (error: any) { // eslint-disable-line
-          if (
-            (opts.redirect === 'manual' && error.response?.status >= 300 && error.response.status < 400) ||
-            error.response?.status === 401 ||
-            error.response?.status === 403 ||
-            error.response?.status === 404 ||
-            error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
-            isNonRetryableError(error)
-          ) {
-            reject(error)
-            return
-          }
-          const timeout = op.retry(error)
-          if (timeout === false) {
-            reject(op.mainError())
-            return
-          }
-          // Extract error properties into a plain object because Error properties
-          // are non-enumerable and don't serialize well through the logging system
-          const errorInfo = {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            errno: error.errno,
-            // For HTTP errors from our ResponseError class
-            status: error.status,
-            statusCode: error.statusCode,
-            // undici wraps the actual network error in a cause property
-            cause: error.cause ? {
-              code: error.cause.code,
-              errno: error.cause.errno,
-            } : undefined,
-          }
-          requestRetryLogger.debug({
-            attempt,
-            error: errorInfo,
-            maxRetries: downloadRetryOpts.retries,
-            method: 'GET',
-            timeout,
-            url: redactUrlForDisplay(url),
-          })
-        }
+      op.attempt((attempt) => {
+        void executeDownloadAttempt({
+          attempt,
+          authHeaderValue,
+          downloadRetryOpts,
+          fetchFromRegistry,
+          fetchMinSpeedKiBps,
+          gotOpts,
+          op,
+          opts,
+          reject,
+          resolve,
+          url,
+        })
       })
     })
-
-    async function fetch (currentAttempt: number): Promise<FetchResult> {
-      let data: Buffer
-      try {
-        const res = await fetchFromRegistry(url, {
-          authHeaderValue,
-          // Tarballs are already compressed; ask the server not to apply an additional
-          // Content-Encoding so Content-Length matches the body we receive and we don't
-          // waste CPU on round-trip re-compression. See https://github.com/pnpm/pnpm/issues/11506
-          headers: { 'accept-encoding': 'identity' },
-          // The fetch library can retry requests on bad HTTP responses.
-          // However, it is not enough to retry on bad HTTP responses only.
-          // Requests should also be retried when the tarball's integrity check fails.
-          // Hence, we tell fetch to not retry,
-          // and we perform the retries from this function instead.
-          retry: { retries: 0 },
-          redirect: opts.redirect,
-          timeout: gotOpts.timeout,
-        })
-
-        if (res.status !== 200) {
-          throw new FetchError({ url, authHeaderValue }, res)
-        }
-
-        // When Content-Encoding is present, Content-Length refers to the encoded form
-        // of the data, not the decoded bytes that the fetch implementation yields.
-        // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
-        const isEncoded = isContentEncoded(res.headers.get('content-encoding'))
-        const contentLength = !isEncoded && res.headers.has('content-length') && res.headers.get('content-length')
-        const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
-        const size = Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
-        if (opts.onStart != null) {
-          opts.onStart(size, currentAttempt)
-        }
-        // In order to reduce the amount of logs, we only report the download progress of big tarballs
-        const onProgress = (size != null && size >= BIG_TARBALL_SIZE && opts.onProgress)
-          ? throttle(opts.onProgress, 500)
-          : undefined
-        const startTime = Date.now()
-        let downloaded = 0
-        if (size !== null) {
-          // Known size: pre-allocate and copy directly (avoids intermediate array + second copy pass)
-          data = Buffer.from(new SharedArrayBuffer(size))
-          for await (const chunk of res.body!) {
-            const c = chunk as Uint8Array
-            const nextDownloaded = downloaded + c.byteLength
-            if (nextDownloaded > size) {
-              throw new BadTarballError({
-                expectedSize: size,
-                receivedSize: nextDownloaded,
-                tarballUrl: url,
-              })
-            }
-            data.set(c, downloaded)
-            downloaded = nextDownloaded
-            onProgress?.(downloaded)
-          }
-          if (size !== downloaded) {
-            throw new BadTarballError({
-              expectedSize: size,
-              receivedSize: downloaded,
-              tarballUrl: url,
-            })
-          }
-        } else {
-          const chunks: Uint8Array[] = []
-          for await (const chunk of res.body!) {
-            const c = chunk as Uint8Array
-            chunks.push(c)
-            downloaded += c.byteLength
-            onProgress?.(downloaded)
-          }
-          data = Buffer.from(new SharedArrayBuffer(downloaded))
-          let offset = 0
-          for (const chunk of chunks) {
-            data.set(chunk, offset)
-            offset += chunk.byteLength
-          }
-        }
-        const elapsedSec = (Date.now() - startTime) / 1000
-        const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
-        if (downloaded > 0 && elapsedSec > 1 && avgKiBps < fetchMinSpeedKiBps) {
-          const sizeKb = Math.floor(downloaded / 1024)
-          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${redactUrlForDisplay(url)} (GET)`)
-        }
-      } catch (err: unknown) {
-        const error = isFetchTimeoutError(err)
-          ? new FetchTimeoutError('FETCH_TIMEOUT', url, gotOpts.timeout, { cause: err })
-          : util.types.isNativeError(err) ? err : new Error(String(err), { cause: err })
-        Object.assign(error, {
-          attempts: currentAttempt,
-          resource: url,
-        })
-        throw error
-      }
-      return addFilesFromTarball({
-        buffer: data,
-        storeDir: opts.cafs.storeDir,
-        storeIndex: opts.storeIndex,
-        readManifest: opts.readManifest,
-        integrity: opts.integrity,
-        filesIndexFile: opts.filesIndexFile,
-        pkgId: opts.pkgId,
-        url,
-        pkg: opts.pkg,
-        appendManifest: opts.appendManifest,
-        ignoreFilePattern: opts.ignoreFilePattern,
-      })
-    }
   }
+}
+
+interface DownloadAttemptContext {
+  attempt: number
+  authHeaderValue: string | undefined
+  downloadRetryOpts: { retries?: number }
+  fetchFromRegistry: FetchFromRegistry
+  fetchMinSpeedKiBps: number
+  gotOpts: CreateDownloaderOptions
+  op: ReturnType<typeof retry.operation>
+  opts: DownloadOptions
+  reject: (err: any) => void // eslint-disable-line
+  resolve: (res: FetchResult) => void
+  url: string
+}
+
+async function executeDownloadAttempt (ctx: DownloadAttemptContext): Promise<void> {
+  try {
+    const result = await fetchTarball({
+      attempt: ctx.attempt,
+      authHeaderValue: ctx.authHeaderValue,
+      fetchFromRegistry: ctx.fetchFromRegistry,
+      fetchMinSpeedKiBps: ctx.fetchMinSpeedKiBps,
+      gotOpts: ctx.gotOpts,
+      opts: ctx.opts,
+      url: ctx.url,
+    })
+    ctx.resolve(result)
+  } catch (error: any) { // eslint-disable-line
+    handleDownloadRetry({
+      attempt: ctx.attempt,
+      downloadRetryOpts: ctx.downloadRetryOpts,
+      error,
+      op: ctx.op,
+      opts: ctx.opts,
+      reject: ctx.reject,
+      url: ctx.url,
+    })
+  }
+}
+
+interface FetchTarballContext {
+  attempt: number
+  authHeaderValue: string | undefined
+  fetchFromRegistry: FetchFromRegistry
+  fetchMinSpeedKiBps: number
+  gotOpts: CreateDownloaderOptions
+  opts: DownloadOptions
+  url: string
+}
+
+async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
+  let data: Buffer
+  try {
+    const res = await ctx.fetchFromRegistry(ctx.url, {
+      authHeaderValue: ctx.authHeaderValue,
+      headers: { 'accept-encoding': 'identity' },
+      retry: { retries: 0 },
+      redirect: ctx.opts.redirect,
+      timeout: ctx.gotOpts.timeout,
+    })
+
+    if (res.status !== 200) {
+      throw new FetchError({ url: ctx.url, authHeaderValue: ctx.authHeaderValue }, res)
+    }
+
+    const size = parseTarballContentLength(res)
+    ctx.opts.onStart?.(size, ctx.attempt)
+    const onProgress = (size != null && size >= BIG_TARBALL_SIZE && ctx.opts.onProgress)
+      ? throttle(ctx.opts.onProgress, 500)
+      : undefined
+
+    data = await readResponseBody({
+      body: res.body!,
+      fetchMinSpeedKiBps: ctx.fetchMinSpeedKiBps,
+      onProgress,
+      size,
+      url: ctx.url,
+    })
+  } catch (err: unknown) {
+    throw wrapFetchError(err, ctx.url, ctx.attempt, ctx.gotOpts.timeout)
+  }
+
+  return addFilesFromTarball({
+    buffer: data,
+    storeDir: ctx.opts.cafs.storeDir,
+    storeIndex: ctx.opts.storeIndex,
+    readManifest: ctx.opts.readManifest,
+    integrity: ctx.opts.integrity,
+    filesIndexFile: ctx.opts.filesIndexFile,
+    pkgId: ctx.opts.pkgId,
+    url: ctx.url,
+    pkg: ctx.opts.pkg,
+    appendManifest: ctx.opts.appendManifest,
+    ignoreFilePattern: ctx.opts.ignoreFilePattern,
+  })
+}
+
+function parseTarballContentLength (res: { headers: { get: (name: string) => string | null, has: (name: string) => boolean } }): number | null {
+  const isEncoded = isContentEncoded(res.headers.get('content-encoding'))
+  const contentLength = !isEncoded && res.headers.has('content-length') && res.headers.get('content-length')
+  const parsedLength = typeof contentLength === 'string' ? parseInt(contentLength, 10) : NaN
+  return Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
+}
+
+async function readResponseBody (opts: {
+  body: AsyncIterable<unknown>
+  fetchMinSpeedKiBps: number
+  onProgress: ((downloaded: number) => void) | undefined
+  size: number | null
+  url: string
+}): Promise<Buffer> {
+  const startTime = Date.now()
+  let downloaded = 0
+  let data: Buffer
+
+  if (opts.size !== null) {
+    data = await readKnownSizeBody(opts.body, opts.size, opts.url, opts.onProgress)
+    downloaded = opts.size
+  } else {
+    const result = await readChunkedBody(opts.body, opts.onProgress)
+    data = result.data
+    downloaded = result.downloaded
+  }
+
+  checkDownloadSpeed(downloaded, startTime, opts.fetchMinSpeedKiBps, opts.url)
+  return data
+}
+
+async function readKnownSizeBody (
+  body: AsyncIterable<unknown>,
+  size: number,
+  url: string,
+  onProgress?: (downloaded: number) => void
+): Promise<Buffer> {
+  const data = Buffer.from(new SharedArrayBuffer(size))
+  let downloaded = 0
+  for await (const chunk of body) {
+    const bytes = chunk as Uint8Array
+    const nextDownloaded = downloaded + bytes.byteLength
+    if (nextDownloaded > size) {
+      throw new BadTarballError({ expectedSize: size, receivedSize: nextDownloaded, tarballUrl: url })
+    }
+    data.set(bytes, downloaded)
+    downloaded = nextDownloaded
+    onProgress?.(downloaded)
+  }
+  if (size !== downloaded) {
+    throw new BadTarballError({ expectedSize: size, receivedSize: downloaded, tarballUrl: url })
+  }
+  return data
+}
+
+async function readChunkedBody (
+  body: AsyncIterable<unknown>,
+  onProgress?: (downloaded: number) => void
+): Promise<{ data: Buffer, downloaded: number }> {
+  const chunks: Uint8Array[] = []
+  let downloaded = 0
+  for await (const chunk of body) {
+    const bytes = chunk as Uint8Array
+    chunks.push(bytes)
+    downloaded += bytes.byteLength
+    onProgress?.(downloaded)
+  }
+  const data = Buffer.from(new SharedArrayBuffer(downloaded))
+  let offset = 0
+  for (const chunk of chunks) {
+    data.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return { data, downloaded }
+}
+
+function checkDownloadSpeed (downloaded: number, startTime: number, fetchMinSpeedKiBps: number, url: string): void {
+  const elapsedSec = (Date.now() - startTime) / 1000
+  const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
+  if (downloaded > 0 && elapsedSec > 1 && avgKiBps < fetchMinSpeedKiBps) {
+    const sizeKb = Math.floor(downloaded / 1024)
+    globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${redactUrlForDisplay(url)} (GET)`)
+  }
+}
+
+function wrapFetchError (err: unknown, url: string, attempt: number, timeout?: number): Error {
+  const error = isFetchTimeoutError(err)
+    ? new FetchTimeoutError('FETCH_TIMEOUT', url, timeout, { cause: err })
+    : isError(err) ? err : new Error(String(err), { cause: err })
+  Object.assign(error, {
+    attempts: attempt,
+    resource: url,
+  })
+  return error
+}
+
+function handleDownloadRetry (opts: {
+  attempt: number
+  downloadRetryOpts: { retries?: number }
+  error: any // eslint-disable-line
+  op: ReturnType<typeof retry.operation>
+  opts: DownloadOptions
+  reject: (err: any) => void // eslint-disable-line
+  url: string
+}): void {
+  const status = opts.error.response?.status
+  const isManualRedirect = opts.opts.redirect === 'manual' && status >= 300 && status < 400
+  const isFatal = isManualRedirect ||
+    status === 401 ||
+    status === 403 ||
+    status === 404 ||
+    opts.error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
+    isNonRetryableError(opts.error)
+
+  if (isFatal) {
+    opts.reject(opts.error)
+    return
+  }
+
+  const timeout = opts.op.retry(opts.error)
+  if (timeout === false) {
+    opts.reject(opts.op.mainError())
+    return
+  }
+
+  logRetryAttempt(opts.attempt, opts.error, opts.downloadRetryOpts.retries ?? 0, timeout, opts.url)
+}
+
+function logRetryAttempt (
+  attempt: number,
+  error: any, // eslint-disable-line
+  maxRetries: number,
+  timeout: number,
+  url: string
+): void {
+  const errorInfo = {
+    name: error.name,
+    message: error.message,
+    code: error.code,
+    errno: error.errno,
+    status: error.status,
+    statusCode: error.statusCode,
+    cause: error.cause ? {
+      code: error.cause.code,
+      errno: error.cause.errno,
+    } : undefined,
+  }
+  requestRetryLogger.debug({
+    attempt,
+    error: errorInfo,
+    maxRetries,
+    method: 'GET',
+    timeout,
+    url: redactUrlForDisplay(url),
+  })
 }
 
 function getSecureNodeMirrorAuthHeader (

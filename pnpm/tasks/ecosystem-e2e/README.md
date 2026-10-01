@@ -63,9 +63,28 @@ Append a `Stack` to `STACKS` in `src/stacks.rs`. Pin the generator to a major
 version — an unpinned `@latest` turns an upstream framework release into a red
 cell that looks like a pnpm/pacquet regression. Bump pins deliberately.
 
+## WebContainers
+
+`webcontainer/` installs a small project with the pnpm CLI bundle inside a
+StackBlitz WebContainer, booted in headless Chromium. WebContainers run
+Node.js in the browser with their own `fs` and `node:sqlite`, which differ from
+Node.js in ways no local test reproduces. pacquet is a native executable and
+does not run there, so only the pnpm CLI is tested. Each step must exit 0:
+install without a lockfile, repeat install, offline reinstall from the
+store, `add`, `remove`, and `list`.
+
+From the repo root, with the bundle built (`pnpm --filter pnpm run compile`):
+
+```sh
+pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --only-shell chromium
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs
+```
+
 ## CI
 
 `.github/workflows/ecosystem-e2e.yml` runs the grid on a daily cron (one job
 per stack) against this repo's built pnpm bundle and a freshly built pacquet.
 A red cell is something to investigate, not a merge blocker — hence cron, not
 per-PR.
+The `webcontainer` job in the same workflow runs the WebContainer test
+against the same bundle.

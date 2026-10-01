@@ -51,6 +51,22 @@ pub(super) struct StoreCaches {
     pub git_source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
 }
 
+impl StoreCaches {
+    /// The install's own progress keys, with the verified-files and
+    /// git-source caches of `shared` when it shares them.
+    pub(super) fn new(
+        progress_reported: Option<SharedReportedProgressKeys>,
+        shared: Option<&pnpm_deps_restorer::SharedFetchCaches>,
+    ) -> Self {
+        let shared = shared.cloned().unwrap_or_default();
+        Self {
+            verified_files: shared.verified_files,
+            progress_reported: progress_reported.unwrap_or_default(),
+            git_source_cache: shared.git_sources,
+        }
+    }
+}
+
 /// Open the read-only index and spawn the batched writer *before* the
 /// resolver chain is built: the [`TarballResolver`] (which fetches a
 /// remote tarball direct dep during resolution to learn its
@@ -65,14 +81,10 @@ pub(super) struct StoreCaches {
 pub(super) async fn open_store_index_handles(
     config: &Config,
     store_dir: &'static StoreDir,
-    progress_reported: Option<SharedReportedProgressKeys>,
+    caches: StoreCaches,
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
     let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
-    let caches = StoreCaches {
-        progress_reported: progress_reported.unwrap_or_default(),
-        ..StoreCaches::default()
-    };
     StoreIndexHandles { index, writer, writer_task, caches }
 }
 
@@ -284,7 +296,9 @@ impl ResolverChainInputs<'_> {
                 prefer_offline: self.config.prefer_offline,
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
-            store_index: self.store.index.cloned(),
+            store_view: self.store.index
+                .cloned()
+                .map(pnpm_resolving_npm_resolver::OfflineStoreView::new),
         })
     }
 
@@ -385,6 +399,9 @@ impl ResolverChainInputs<'_> {
                 prefer_offline: self.config.prefer_offline,
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
+            store_view: self.store.index
+                .cloned()
+                .map(pnpm_resolving_npm_resolver::OfflineStoreView::new),
         }
     }
 

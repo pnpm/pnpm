@@ -164,6 +164,42 @@ fn alias_scripts_run_the_pnpm_beside_them() {
     }
 }
 
+/// The default path `command -p` searches can lack `readlink`, as inside a Nix
+/// build sandbox. No test host is set up that way, so each alias's `command -p`
+/// is rewritten to a `command` that searches a directory that does not exist.
+#[cfg(unix)]
+#[test]
+fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let bin_dir = dir.path().join("bin");
+    create_alias_scripts(&bin_dir).expect("write alias scripts");
+    let sibling = bin_dir.join("pnpm");
+    std::fs::write(&sibling, "#!/bin/sh\necho \"sibling: $*\"\n").expect("write stub");
+    std::fs::set_permissions(&sibling, std::fs::Permissions::from_mode(0o755))
+        .expect("make stub executable");
+    let link_dir = dir.path().join("links");
+    std::fs::create_dir_all(&link_dir).expect("create link dir");
+
+    for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
+        let alias = bin_dir.join(name);
+        let script = std::fs::read_to_string(&alias).expect("read alias script");
+        std::fs::write(&alias, script.replace("command -p ", "PATH=/nonexistent command "))
+            .expect("rewrite alias script");
+        std::os::unix::fs::symlink(&alias, link_dir.join(name)).expect("link the alias");
+
+        let output = std::process::Command::new(link_dir.join(name))
+            .args(["add", "foo"])
+            .env("PATH", "/usr/bin:/bin")
+            .output()
+            .expect("run the alias script");
+
+        let stdout = String::from_utf8(output.stdout).expect("alias stdout is UTF-8");
+        assert_eq!(stdout, format!("sibling: {subcommand}add foo\n"), "{name} ran the wrong pnpm");
+    }
+}
+
 /// The Windows counterpart of [`alias_scripts_run_the_pnpm_beside_them`]. The
 /// stand-in sibling is named for the `pnpm.cmd` shim that `pnpm add -g` links
 /// next to the aliases, which is what fixes the shape these wrappers have to

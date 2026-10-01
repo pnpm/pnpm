@@ -1,8 +1,8 @@
 use super::{
-    Config, Context, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION, PackageManager,
-    PackageManagerCheck, Path, PreCommandPlan, SilentReporter, SwitchPlan, SwitchSource,
-    SwitchTarget, assert_release_is_installable, config_deps, install_engine_from_env,
-    install_engine_to_store, slice, spawn_pnpm,
+    Config, Context, DefaultReporter, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION,
+    PackageManager, PackageManagerCheck, Path, PreCommandPlan, Reporter, SilentReporter,
+    SwitchPlan, SwitchSource, SwitchTarget, assert_release_is_installable, config_deps,
+    error_causes, global_warn, install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
 };
 use crate::cli_args::dlx::exit_unless_success;
 
@@ -15,24 +15,42 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            let EnvLockfileSync {
-                config,
-                env_root,
-                package_manager,
-                frozen_lockfile,
-            } = sync;
-            config_deps::sync_package_manager_dependencies(
-                &config,
-                &env_root,
-                &package_manager.specifier,
-                &package_manager.version,
-                frozen_lockfile,
-                false,
-            )
-            .await?;
+            sync_env_lockfile(sync).await?;
             Ok(false)
         }
     }
+}
+
+/// A frozen lockfile records nothing new, so the maturity lookup is skipped
+/// there: the sync only checks the entry it already has.
+async fn sync_env_lockfile(sync: EnvLockfileSync) -> miette::Result<()> {
+    let EnvLockfileSync {
+        config,
+        env_root,
+        package_manager,
+        frozen_lockfile,
+    } = sync;
+    let version = if package_manager.running_pnpm_for_range && !frozen_lockfile {
+        let Some(version) =
+            mature_version_to_record(&config, &package_manager.specifier, &package_manager.version)
+                .await
+        else {
+            return Ok(());
+        };
+        version
+    } else {
+        package_manager.version
+    };
+    config_deps::sync_package_manager_dependencies(
+        &config,
+        &env_root,
+        &package_manager.specifier,
+        &version,
+        frozen_lockfile,
+        false,
+    )
+    .await?;
+    Ok(())
 }
 
 async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {
@@ -54,6 +72,26 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
     // signal when a signal killed it.
     exit_unless_success(status);
     Ok(true)
+}
+
+/// `None` when the lookup fails: nothing is recorded, and the command keeps
+/// running on the current pnpm. Recording the running pnpm unchecked could
+/// pin a release every other contributor's switch refuses, and the next
+/// command retries the lookup.
+async fn mature_version_to_record(config: &Config, range: &str, running: &str) -> Option<String> {
+    match config_deps::mature_pnpm_version_for_range(config, range, running).await {
+        Ok(version) => Some(version),
+        Err(error) => {
+            global_warn(
+                DefaultReporter::emit,
+                &format!(
+                    "Skipped recording pnpm v{running} in pnpm-lock.yaml because it could not be checked against minimumReleaseAge: {}",
+                    error_causes(&error),
+                ),
+            );
+            None
+        }
+    }
 }
 
 /// Install the pinned pnpm and return it. `None` when the running pnpm
@@ -158,3 +196,6 @@ async fn install_resolved_switch_target(
     .await?;
     Ok(Some((version, engine)))
 }
+
+#[cfg(test)]
+mod tests;

@@ -35,12 +35,17 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
     lockfile_dir: &Path,
     wanted_lockfile: Option<&Lockfile>,
 ) {
+    // A pnpmfile that fails to load still takes the one-shot run, which
+    // reports the failure.
+    if matches!(hook.has_pre_resolution().await, Ok(false)) {
+        return;
+    }
     let wanted_lockfile_json = wanted_lockfile.map_or_else(
         || serde_json::json!({}),
         |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
     );
     let current_lockfile =
-        Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir).ok().flatten();
+        Lockfile::load_current_from_install_state_dir(&config.install_state_dir).ok().flatten();
     let exists_current_lockfile = current_lockfile.is_some();
     let current_lockfile_json = current_lockfile.map_or_else(
         || serde_json::json!({}),
@@ -106,6 +111,7 @@ impl SharedResolveOptions<'_> {
                 ..Default::default()
             },
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                fallback_published_by: None,
                 published_by: self.policy.published_by,
                 published_by_exclude: self.policy.published_by_exclude.clone(),
                 trust_policy: self.policy.trust_policy,

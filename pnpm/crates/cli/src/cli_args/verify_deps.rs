@@ -4,7 +4,11 @@
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
-use super::reporter::{ReporterType, quiet_loglevel_arg};
+use super::{
+    legacy_pnpm_field::ignored_lockfile_pnpm_field_keys,
+    package_manager::read_root_manifest,
+    reporter::{ReporterType, quiet_loglevel_arg},
+};
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
@@ -43,23 +47,40 @@ enum VerifyDepsError {
         )
     )]
     CannotPrompt { issue: String },
+
+    #[display(
+        "Your node_modules are out of sync with your lockfile, and installing would drop {keys} from the lockfile, because the \"pnpm\" field in package.json is no longer read by pnpm"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_VERIFY_DEPS_BEFORE_RUN),
+        help(
+            r#"Move these settings to pnpm-workspace.yaml (see https://pnpm.io/settings), then run "pnpm install"."#
+        )
+    )]
+    IgnoredLockfileSettings { keys: String },
 }
 
 /// Run the configured verify-deps-before-run action for the project at
 /// `dir`. `Ok(())` means the script may proceed — including after a
 /// spawned install, a declined prompt, or a warning.
+///
+/// `selected_project_dirs` are the project directories the gated command
+/// selected: a state that records a filtered install exempts the projects
+/// that install did not select from the modules-directory requirement, but
+/// the selected ones are still held to it.
 pub(crate) fn verify_deps_before_run(
     dir: &Path,
+    selected_project_dirs: &[&Path],
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(());
     }
-    let Some(status) = check_deps_status_before_run_at(dir, config) else {
+    let Some(status) = check_deps_status_before_run_at(dir, config, selected_project_dirs) else {
         return Ok(());
     };
-    let (issue, install_args) = match status {
+    let (issue, mut install_args) = match status {
         RunDepsStatus::UpToDate => return Ok(()),
         RunDepsStatus::SkippedPnp => {
             warn(
@@ -70,9 +91,16 @@ pub(crate) fn verify_deps_before_run(
         }
         RunDepsStatus::Outdated { issue, install_args } => (issue, install_args),
     };
+    // A filtered `run` or `exec` only selected some of the workspace's
+    // projects, so its install has to select the same ones.
+    install_args.extend(install_selection_args(config));
     match config.verify_deps_before_run {
-        VerifyDepsBeforeRun::Install => locked_install(dir, config, &install_args, reporter),
-        VerifyDepsBeforeRun::Prompt => prompt_install(dir, config, &install_args, reporter, issue),
+        VerifyDepsBeforeRun::Install => {
+            locked_install(dir, selected_project_dirs, config, &install_args, reporter)
+        }
+        VerifyDepsBeforeRun::Prompt => {
+            prompt_install(dir, selected_project_dirs, config, &install_args, reporter, issue)
+        }
         VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync { issue }.into()),
         VerifyDepsBeforeRun::Warn => {
             warn(
@@ -114,13 +142,36 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
         return Ok(());
     }
     if config.shares_one_lockfile() {
-        verify_deps_before_run(workspace_root, config, reporter)
+        let selected: Vec<&Path> = project_dirs
+            .iter()
+            .map(AsRef::as_ref)
+            .collect();
+        verify_deps_before_run(workspace_root, &selected, config, reporter)
     } else {
-        for project_dir in project_dirs {
-            verify_deps_before_run(project_dir.as_ref(), config, reporter)?;
+        for project_dir in &project_dirs {
+            let project_dir = project_dir.as_ref();
+            verify_deps_before_run(project_dir, &[project_dir], config, reporter)?;
         }
         Ok(())
     }
+}
+
+/// Refuse an install that would ignore the settings the root manifest still
+/// keeps in its `pnpm` field and rewrite the lockfile without the ones the
+/// lockfile records. That drops them silently, so the gate leaves the
+/// decision to an explicit `pnpm install` after the settings have moved.
+fn refuse_install_dropping_ignored_settings(dir: &Path, config: &Config) -> miette::Result<()> {
+    let manifest = read_root_manifest(config.root_project_manifest_dir(dir));
+    let keys = ignored_lockfile_pnpm_field_keys(manifest.as_ref());
+    if keys.is_empty() {
+        return Ok(());
+    }
+    let keys = keys
+        .iter()
+        .map(|key| format!(r#""pnpm.{key}""#))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(VerifyDepsError::IgnoredLockfileSettings { keys }.into())
 }
 
 /// Install while holding the workspace's gate lock, so concurrent `run` and
@@ -130,10 +181,12 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
 /// its predecessor's install left them out of date.
 fn locked_install(
     dir: &Path,
+    selected_project_dirs: &[&Path],
     config: &Config,
     install_args: &[String],
     reporter: ReporterType,
 ) -> miette::Result<()> {
+    refuse_install_dropping_ignored_settings(dir, config)?;
     let root = deps_install_root(dir, config);
     let (_lock, waited) = acquire_install_lock(&root).unwrap_or_else(|error| {
         warn(
@@ -148,8 +201,9 @@ fn locked_install(
     if !waited {
         return spawn_install(dir, install_args, reporter);
     }
-    match check_deps_status_before_run_at(dir, config) {
-        Some(RunDepsStatus::Outdated { install_args, .. }) => {
+    match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
+        Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
+            install_args.extend(install_selection_args(config));
             spawn_install(dir, &install_args, reporter)
         }
         _ => Ok(()),
@@ -178,7 +232,11 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 /// The spawned install never re-enters this gate: only `run` / `exec` consult
 /// it. Its up-to-date shortcuts are bypassed because the pre-run check has
 /// already decided that an install is required.
-#[expect(clippy::exit, reason = "a failed spawned install must preserve the child exit code")]
+///
+/// An install that exits with an error only warns, so a sandbox with a
+/// read-only store or no network can still run its scripts. An interrupted
+/// install aborts the command.
+#[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
     install_args: &[String],
@@ -206,13 +264,33 @@ fn spawn_install(
         command.arg(loglevel);
     }
     let status = command.status().into_diagnostic()?;
-    if !status.success() {
-        // The child already reported its own failure; propagate its exit
-        // code without a second error dump (`exitCode ?? 1`, like the
-        // exec path).
-        exit(status.code().unwrap_or(1));
+    if status.success() {
+        return Ok(());
     }
+    // The child already reported its own failure.
+    if is_interrupted(status) {
+        exit(1);
+    }
+    warn(matches!(reporter, ReporterType::Silent), FAILED_INSTALL_WARNING);
     Ok(())
+}
+
+const FAILED_INSTALL_WARNING: &str = r#"The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install."#;
+
+/// The exit code Windows reports for a process ended by `Ctrl+C`.
+#[cfg(windows)]
+const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
+
+/// Whether the install ended by a signal, or by `Ctrl+C` on Windows,
+/// rather than by exiting with an error of its own.
+fn is_interrupted(status: std::process::ExitStatus) -> bool {
+    match status.code() {
+        None => true,
+        #[cfg(windows)]
+        Some(code) => code.cast_unsigned() == STATUS_CONTROL_C_EXIT,
+        #[cfg(not(windows))]
+        Some(_) => false,
+    }
 }
 
 /// Print a `globalWarn`-shaped line to stderr. The gate runs before any
@@ -230,12 +308,14 @@ fn warn(silent: bool, message: &str) {
 #[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
 fn prompt_install(
     dir: &Path,
+    selected_project_dirs: &[&Path],
     config: &Config,
     install_args: &[String],
     reporter: ReporterType,
     issue: String,
 ) -> miette::Result<()> {
     if !std::io::stdin().is_terminal() {
+        refuse_install_dropping_ignored_settings(dir, config)?;
         return Err(VerifyDepsError::CannotPrompt { issue }.into());
     }
     let command = std::iter::once("install")
@@ -250,10 +330,51 @@ fn prompt_install(
         .default(true)
         .interact()
     {
-        Ok(true) => locked_install(dir, config, install_args, reporter),
+        Ok(true) => locked_install(dir, selected_project_dirs, config, install_args, reporter),
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like
         // pnpm's ExitPromptError handler.
         Err(_) => exit(1),
     }
 }
+
+/// The `--filter` arguments that make the install the gate spawns select the
+/// same projects as the gated command.
+///
+/// The gate installs in the directory the command was given, so the selectors
+/// resolve there the way they did for the command. Under dedicated
+/// per-project lockfiles the gate installs inside each selected project
+/// directory instead, where the command's selectors need not select the
+/// project, and such an install already covers the project.
+fn install_selection_args(config: &Config) -> Vec<String> {
+    if config.shares_one_lockfile() {
+        filter_selector_args(&config.filter, &config.filter_prod)
+    } else {
+        Vec::new()
+    }
+}
+
+/// The `--filter` / `--filter-prod` arguments that reproduce the gated
+/// command's project selection in the install the gate spawns. Each selector
+/// also selects its dependencies, because a selected project needs the
+/// workspace projects it depends on installed too.
+fn filter_selector_args(filters: &[String], filter_prod: &[String]) -> Vec<String> {
+    let filters = filters
+        .iter()
+        .map(|selector| format!("--filter={}", with_dependencies(selector)));
+    let filter_prod = filter_prod
+        .iter()
+        .map(|selector| format!("--filter-prod={}", with_dependencies(selector)));
+    filters.chain(filter_prod).collect()
+}
+
+pub(crate) fn with_dependencies(selector: &str) -> String {
+    if selector.starts_with('!') || selector.ends_with("...") {
+        selector.to_string()
+    } else {
+        format!("{selector}...")
+    }
+}
+
+#[cfg(test)]
+mod tests;

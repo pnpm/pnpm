@@ -15,6 +15,7 @@ use super::{
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
 
 /// Everything the run has settled before it dispatches.
@@ -94,7 +95,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         frozen_lockfile: install.lockfile_policy.frozen,
         lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
         update_checksums: install.lockfile_policy.update_checksums,
-        prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
+        prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
         lockfile: lockfiles.wanted.get(),
         lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
         freshness: settled.freshness_inputs(),
@@ -239,7 +240,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         current_lockfile_exists: loaded.current.is_some(),
         store_dir: install.context.config.store_dir.display().to_string(),
         virtual_store_dir: install.context.config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
     }));
@@ -308,34 +309,7 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         return Ok(false);
     }
     if dispatch.frozen_lockfile {
-        let Some(lockfile) = dispatch.lockfile else {
-            return Err(InstallError::NoLockfile);
-        };
-        // Run the freshness gates; on failure surface a fatal InstallError via
-        // `FreshnessCheckError`'s `From` impl. The check is run for its side
-        // effect (the typed outcome) — the borrowed lockfile / manifests are
-        // consumed again inside the frozen branch below.
-        //
-        // pnpm's importer-set gate sits in the auto-frozen branch of
-        // `isFrozenInstallPossible`, which an explicit `--frozen-lockfile`
-        // short-circuits past, so a project removed from the workspace
-        // patterns does not fail the install there. One whose manifest is
-        // gone does.
-        let freshness = LockfileFreshnessInputs {
-            scope: FreshnessScope {
-                allow_unresolved_optional_dependencies: true,
-                prune_stale_importers: false,
-                ..dispatch.freshness.scope
-            },
-            ..dispatch.freshness
-        };
-        let skipped =
-            check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
-        if dispatch.freshness.scope.prune_stale_importers {
-            check_importer_manifests_exist(lockfile, &freshness).map_err(InstallError::from)?;
-        }
-        report_unresolved_optional_dependencies::<Reporter>(&skipped);
-        return Ok(true);
+        return frozen_path::<Reporter>(dispatch).await;
     }
     // The wanted lockfile was only usable because its Git conflict markers
     // were merged away in memory; `pnpm-lock.yaml` still holds them. Only
@@ -354,6 +328,59 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         return Ok(false);
     }
     auto_frozen_path(dispatch, lockfile).await
+}
+/// The `--frozen-lockfile` dispatch: a stale lockfile fails the install, and
+/// so does a missing one while any project has dependencies.
+async fn frozen_path<Reporter: self::Reporter>(
+    dispatch: &FrozenDispatch<'_>,
+) -> Result<bool, InstallError> {
+    let Some(lockfile) = dispatch.lockfile else {
+        if no_project_has_dependencies(dispatch.freshness.manifests) {
+            return Ok(false);
+        }
+        return Err(InstallError::NoLockfile);
+    };
+    // Run the freshness gates; on failure surface a fatal InstallError via
+    // `FreshnessCheckError`'s `From` impl. The check is run for its side
+    // effect (the typed outcome) — the borrowed lockfile / manifests are
+    // consumed again inside the frozen branch below.
+    //
+    // pnpm's importer-set gate sits in the auto-frozen branch of
+    // `isFrozenInstallPossible`, which an explicit `--frozen-lockfile`
+    // short-circuits past, so a project removed from the workspace
+    // patterns does not fail the install there. One whose directory
+    // remains without a manifest does.
+    let freshness = LockfileFreshnessInputs {
+        scope: FreshnessScope {
+            allow_unresolved_optional_dependencies: true,
+            prune_stale_importers: false,
+            ..dispatch.freshness.scope
+        },
+        ..dispatch.freshness
+    };
+    let skipped = check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+    if dispatch.freshness.scope.prune_stale_importers {
+        check_importer_manifests_exist(lockfile, &freshness).map_err(InstallError::from)?;
+    }
+    report_unresolved_optional_dependencies::<Reporter>(&skipped);
+    Ok(true)
+}
+/// A missing lockfile has nothing to be out of date with while no project
+/// declares a dependency, so `--frozen-lockfile` lets the install resolve
+/// and write one.
+fn no_project_has_dependencies(manifests: &[(String, &PackageManifest)]) -> bool {
+    manifests
+        .iter()
+        .all(|(_, manifest)| {
+            manifest
+                .dependencies([
+                    DependencyGroup::Prod,
+                    DependencyGroup::Dev,
+                    DependencyGroup::Optional,
+                ])
+                .next()
+                .is_none()
+        })
 }
 fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
     skipped: &[UnresolvedOptionalDependency],

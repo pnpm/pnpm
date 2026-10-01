@@ -1083,9 +1083,9 @@ describe('locked peer provider preferences', () => {
         ['retainer', retainerNodeId],
         ['wrapper', wrapperNodeId],
       ]))
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- each child order variant is checked in turn
       const initial = await resolvePeers(resolutionOpts)
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the second run needs the first run's paths
       const preferred = await resolvePeers({
         ...resolutionOpts,
         resolvedPeerProviderPaths: initial.pathsByNodeId,

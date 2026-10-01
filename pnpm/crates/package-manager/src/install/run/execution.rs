@@ -1,12 +1,13 @@
 use super::{
     super::{
-        ApplyMaterializationInputs, Arc, AtomicU8, IncludedDependencies, InstallError, LogEvent,
-        LogLevel, MaterializationInputs, PackageManifest, PathBuf, RebuildOptions, Reporter,
-        SummaryLog, apply_materialization_result, materialize, prior_hoisted_dependencies,
+        ApplyMaterializationInputs, Arc, AtomicU8, IncludedDependencies, InstallError,
+        MaterializationInputs, PackageManifest, PathBuf, RebuildOptions, Reporter,
+        apply_materialization_result, materialize, prior_hoisted_dependencies,
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
-    Verification, dispatch, load_lockfiles, settle_wanted_lockfile,
+    Verification, dispatch, load_lockfiles, pnpmfile_hook_override_changed,
+    report_already_up_to_date, settle_wanted_lockfile,
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
@@ -28,17 +29,12 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        if scope.is_already_up_to_date::<Reporter>(
-            self.install,
-            &self.owned,
-            &self.mode,
-            &self.workspace,
-        )? {
-            Reporter::emit(&LogEvent::Summary(SummaryLog {
-                level: LogLevel::Debug,
-                prefix: self.workspace.prefix,
-            }));
-            return Ok(InstallRunOutcome::AlreadyUpToDate);
+        let embedder_hooks = self.owned.projects.pnpmfile_hook_override.clone();
+        self.check_custom_fetcher_reuse().await?;
+        if scope.is_already_up_to_date(self.install, &self.owned, &self.mode, &self.workspace)?
+            && !pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
+        {
+            return Ok(report_already_up_to_date::<Reporter>(self.workspace.prefix));
         }
         let mut loaded = load_lockfiles::<Reporter>(
             self.install,
@@ -78,7 +74,7 @@ impl<'a> RunExecution<'a> {
         project_manifests: &[(PathBuf, &PackageManifest)],
         lockfiles: &Lockfiles<'_>,
     ) -> Result<InstallRunOutcome, InstallError> {
-        let verification = Verification::set_up(self, lockfiles.wanted.get().is_some())?;
+        let verification = Verification::set_up(self, lockfiles, (scope, project_manifests))?;
         if let Some(message) = self.install.context.config.bypassed_home_store_warning() {
             pnpm_reporter::emit_global_warning::<Reporter>(&message);
         }
@@ -128,6 +124,17 @@ impl<'a> RunExecution<'a> {
         dispatched: Dispatched<'a>,
         materialized: super::super::materialize::MaterializationOutput,
     ) -> Result<InstallRunOutcome, InstallError> {
+        let dependencies_installed = self.owned.projects.dedicated
+            .as_ref()
+            .and_then(|dedicated| dedicated.dependencies_installed.clone());
+        if let Err(error) = wait_for_workspace_dependencies(dependencies_installed).await {
+            pnpm_store_dir::StoreIndexWriter::drain(
+                materialized.store_index_teardown,
+                "; some rows may not be persisted",
+            )
+            .await;
+            return Err(error);
+        }
         let workspace_manifest_dir = self.workspace.dirs.workspace_manifest_dir.clone();
         apply_materialization_result::<Reporter>(self.apply_inputs(
             projects,
@@ -281,6 +288,13 @@ impl<'a> RunExecution<'a> {
         }
     }
 }
+async fn wait_for_workspace_dependencies(
+    dependencies_installed: Option<crate::WorkspaceDependenciesInstalled>,
+) -> Result<(), InstallError> {
+    let Some(dependencies_installed) = dependencies_installed else { return Ok(()) };
+    if dependencies_installed.await { Ok(()) } else { Err(InstallError::WorkspaceDependencyFailed) }
+}
+
 /// The install's borrowed and `Copy` inputs, as one value every phase reads.
 pub(super) fn materialization_lockfiles<'r, 'install>(
     loaded: &'r mut Loaded<'_>,
@@ -372,6 +386,7 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
         Self {
             tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
             http_client_arc: Arc::clone(&owned.http_client_arc),
+            fetch_caches: owned.shared_caches().map(|caches| caches.fetch.clone()),
         }
     }
 }

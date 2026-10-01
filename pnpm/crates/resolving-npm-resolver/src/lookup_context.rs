@@ -105,6 +105,25 @@ impl PublishedAtLookupContext {
     }
 }
 
+/// The lookups [`crate::NpmResolutionVerifier`] deduplicates, shared by the
+/// verifiers of several installs of one command. Only what the registry
+/// answered is shared, and each verifier still applies its own policy to it,
+/// so the verifiers sharing one must reach the registries with the same
+/// credentials.
+#[derive(Debug, Default, Clone)]
+pub struct VerifierLookups(Arc<PublishedAtLookupContext>);
+
+impl VerifierLookups {
+    /// The context a verifier looks up through: the one `lookups` shares, or
+    /// one of its own.
+    pub(crate) fn context_or_new(lookups: Option<&Self>) -> Arc<PublishedAtLookupContext> {
+        lookups.map_or_else(
+            || Arc::new(PublishedAtLookupContext::new()),
+            |lookups| Arc::clone(&lookups.0),
+        )
+    }
+}
+
 /// `\x00`-joined cache key for `(registry, name)` package-scoped
 /// lookups, of the form `${registry}\x00${name}`.
 pub(crate) fn package_key(registry: &str, name: &str) -> String {

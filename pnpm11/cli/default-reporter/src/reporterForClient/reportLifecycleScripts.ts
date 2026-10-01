@@ -41,63 +41,101 @@ export function reportLifecycleScripts (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
-    let lifecycle$ = log$.lifecycle
-    if (opts.aggregateOutput) {
-      lifecycle$ = lifecycle$.pipe(aggregateOutput(opts.logLevel))
-    }
-
-    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix, opts.annotateOptionalFailure)
-    return lifecycle$.pipe(
-      map((log: LifecycleLog) => Rx.of({
-        msg: streamLifecycleOutput(log),
-      }))
-    )
+    return streamLifecycleScripts(log$.lifecycle, opts)
   }
-  const lifecycleMessages: {
-    [depPath: string]: {
-      collapsed: boolean
-      output: string[]
-      script: string
-      startTime: [number, number]
-      status: string
-    }
-  } = {}
-  const lifecycleStreamByDepPath: {
-    [depPath: string]: Rx.Subject<{ msg: string }>
-  } = {}
-  const lifecyclePushStream = new Rx.Subject<Rx.Observable<{ msg: string }>>()
+  return renderLifecycleScripts(log$.lifecycle, opts)
+}
 
-  // TODO: handle promise of .forEach?!
-  log$.lifecycle
+function streamLifecycleScripts (
+  lifecycle$: Rx.Observable<LifecycleLog>,
+  opts: {
+    aggregateOutput?: boolean
+    hideLifecyclePrefix?: boolean
+    logLevel?: LogLevel
+    annotateOptionalFailure?: boolean
+    cwd: string
+  }
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
+  if (opts.aggregateOutput) {
+    lifecycle$ = lifecycle$.pipe(aggregateOutput(opts.logLevel))
+  }
+
+  const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix, opts.annotateOptionalFailure)
+  return lifecycle$.pipe(
+    map((log: LifecycleLog) => Rx.of({
+      msg: streamLifecycleOutput(log),
+    }))
+  )
+}
+
+interface LifecycleMessageCache {
+  collapsed: boolean
+  output: string[]
+  script: string
+  startTime: [number, number]
+  status: string
+}
+
+interface LifecycleOutputStreams {
+  lifecycleStreamByDepPath: Record<string, Rx.Subject<{ msg: string }>>
+  lifecyclePushStream: Rx.Subject<Rx.Observable<{ msg: string }>>
+}
+
+function renderLifecycleScripts (
+  lifecycle$: Rx.Observable<LifecycleLog>,
+  opts: { cwd: string, width: number }
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
+  const lifecycleMessages: Record<string, LifecycleMessageCache> = {}
+  const streams: LifecycleOutputStreams = {
+    lifecycleStreamByDepPath: {},
+    lifecyclePushStream: new Rx.Subject<Rx.Observable<{ msg: string }>>(),
+  }
+
+  void lifecycle$
     .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
-      lifecycleMessages[key] = lifecycleMessages[key] || {
-        collapsed: log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
-        output: [],
-        startTime: process.hrtime(),
-        status: formatIndentedStatus(chalk.magentaBright('Running...')),
-      }
       const exit = typeof log['exitCode'] === 'number'
-      let msg: string
-      if (lifecycleMessages[key].collapsed) {
-        msg = renderCollapsedScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
-      } else {
-        msg = renderScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
-      }
-      if (exit) {
-        delete lifecycleMessages[key]
-      }
-      if (!lifecycleStreamByDepPath[key]) {
-        lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
-        lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
-      }
-      lifecycleStreamByDepPath[key].next({ msg })
-      if (exit) {
-        lifecycleStreamByDepPath[key].complete()
-      }
+      const msg = renderLifecycleMessage(lifecycleMessages, key, log, { cwd: opts.cwd, exit, maxWidth: opts.width })
+      pushLifecycleMessage(streams, key, { msg, exit })
     })
 
-  return Rx.from(lifecyclePushStream)
+  return Rx.from(streams.lifecyclePushStream)
+}
+
+function renderLifecycleMessage (
+  lifecycleMessages: Record<string, LifecycleMessageCache>,
+  key: string,
+  log: LifecycleLog,
+  opts: { cwd: string, exit: boolean, maxWidth: number }
+): string {
+  lifecycleMessages[key] = lifecycleMessages[key] || {
+    collapsed: log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
+    output: [],
+    startTime: process.hrtime(),
+    status: formatIndentedStatus(chalk.magentaBright('Running...')),
+  }
+  const msg = lifecycleMessages[key].collapsed
+    ? renderCollapsedScriptOutput(log, lifecycleMessages[key], opts)
+    : renderScriptOutput(log, lifecycleMessages[key], opts)
+  if (opts.exit) {
+    delete lifecycleMessages[key]
+  }
+  return msg
+}
+
+function pushLifecycleMessage (
+  { lifecycleStreamByDepPath, lifecyclePushStream }: LifecycleOutputStreams,
+  key: string,
+  { msg, exit }: { msg: string, exit: boolean }
+): void {
+  if (!lifecycleStreamByDepPath[key]) {
+    lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
+    lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
+  }
+  lifecycleStreamByDepPath[key].next({ msg })
+  if (exit) {
+    lifecycleStreamByDepPath[key].complete()
+  }
 }
 
 function toNano (time: [number, number]): number {
@@ -214,9 +252,9 @@ function formatIndentedStatus (status: string): string {
   return `${chalk.magentaBright('└─')} ${status}`
 }
 
-function highlightLastFolder (p: string): string {
-  const lastSlash = p.lastIndexOf('/') + 1
-  return `${chalk.gray(p.slice(0, lastSlash))}${p.slice(lastSlash)}`
+function highlightLastFolder (dir: string): string {
+  const lastSlash = dir.lastIndexOf('/') + 1
+  return `${chalk.gray(dir.slice(0, lastSlash))}${dir.slice(lastSlash)}`
 }
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
@@ -294,12 +332,14 @@ function aggregateOutput (logLevel: LogLevel | undefined): (source: Rx.Observabl
     groupBy((data) => `${data.depPath}\0${data.stage}\0${data.wd}`),
     mergeMap(group => group.pipe(
       buffer(group.pipe(filter(msg => 'exitCode' in msg))),
-      filter((messages) => {
-        if (logLevel == null || logLevel === 'info' || logLevel === 'debug') return true
-        const exit = messages.at(-1)
-        return exit != null && 'exitCode' in exit && exit.exitCode !== 0 && !(exit.optional === true && logLevel === 'error')
-      }),
+      filter((messages) => shouldPrintAggregatedOutput(messages, logLevel)),
       mergeMap((messages) => Rx.from(messages))
     ))
   )
+}
+
+function shouldPrintAggregatedOutput (messages: LifecycleLog[], logLevel: LogLevel | undefined): boolean {
+  if (logLevel == null || logLevel === 'info' || logLevel === 'debug') return true
+  const exit = messages.at(-1)
+  return exit != null && 'exitCode' in exit && exit.exitCode !== 0 && !(exit.optional === true && logLevel === 'error')
 }

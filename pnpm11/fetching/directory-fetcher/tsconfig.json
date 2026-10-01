@@ -16,6 +16,9 @@
       "path": "../../building/pkg-requires-build"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/logger"
     },
     {

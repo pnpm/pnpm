@@ -8,7 +8,7 @@ import { cmdShim } from '@pnpm/bins.cmd-shim'
 import { familySync } from 'detect-libc'
 
 // @ts-expect-error — JS helper without type declarations
-import { exePlatformPkgName } from '../platform-pkg-name.js'
+import { exePlatformPkgName, missingPlatformPkgMessage } from '../platform-pkg-name.js'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
 const platform = process.platform
@@ -57,6 +57,27 @@ describe('exePlatformPkgName', () => {
   test('normalizes ia32 to x86 on win32 only', () => {
     expect(exePlatformPkgName('win32', 'ia32', null)).toBe('@pnpm/win-x86')
     expect(exePlatformPkgName('linux', 'ia32', null)).toBe('@pnpm/linux-ia32')
+  })
+})
+
+describe('missingPlatformPkgMessage', () => {
+  test('points arm64 musl Linux at the JavaScript pnpm and pnpm 12', () => {
+    const message = missingPlatformPkgMessage('linux', 'arm64', 'musl')
+    expect(message).toContain('arm64 musl Linux')
+    expect(message).toContain('https://github.com/pnpm/pnpm/issues/10443')
+    expect(message).toContain('npm install -g pnpm')
+    expect(message).toContain('pnpm 12')
+  })
+
+  test('points Intel macOS at the upstream Node.js SEA bug', () => {
+    expect(missingPlatformPkgMessage('darwin', 'x64', null)).toContain('https://github.com/nodejs/node/issues/62893')
+  })
+
+  test('names the missing platform package on any other host', () => {
+    expect(missingPlatformPkgMessage('linux', 'x64', 'musl')).toBe(
+      'Could not find platform package "@pnpm/linuxstatic-x64" — @pnpm/exe does not ship a binary for linux-x64.'
+    )
+    expect(missingPlatformPkgMessage('linux', 'arm64', 'glibc')).toContain('"@pnpm/linux-arm64"')
   })
 })
 
@@ -468,6 +489,21 @@ describe('alias bins', () => {
       const binDir = path.join(sandbox, 'global-bin')
       writeStub(path.join(binDir, 'pnpm'), 'decoy')
       fs.symlinkSync(path.join(sandbox, name), path.join(binDir, name))
+
+      const result = runAlias(path.join(binDir, name), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // The default path command -p searches can lack readlink, as inside a Nix
+    // build sandbox. No test host is set up that way, so the alias's command -p
+    // is rewritten to a command that searches a directory that does not exist.
+    aliasTest(`${name} resolves a symlink with a readlink from PATH when the default path lacks one`, () => {
+      const sandbox = buildAliasSandbox()
+      const alias = path.join(sandbox, name)
+      fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
+      const binDir = path.join(sandbox, 'global-bin')
+      writeStub(path.join(binDir, 'pnpm'), 'decoy')
+      fs.symlinkSync(alias, path.join(binDir, name))
 
       const result = runAlias(path.join(binDir, name), BARE_PATH)
       expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })

@@ -26,6 +26,8 @@ mod in_memory_manifests;
 
 mod overrides;
 
+mod injected;
+
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
@@ -154,7 +156,7 @@ fn write_local_tarball_lockfile(
         .expect("load local tarball lockfile")
         .expect("local tarball lockfile on disk");
     lockfile
-        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .save_current_to_install_state_dir(virtual_store_dir)
         .expect("write current local tarball lockfile");
     lockfile
 }
@@ -179,7 +181,7 @@ fn write_bare_tarball_lockfile(
         .expect("load bare tarball lockfile")
         .expect("bare tarball lockfile on disk");
     lockfile
-        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .save_current_to_install_state_dir(virtual_store_dir)
         .expect("write current bare tarball lockfile");
     lockfile
 }
@@ -204,7 +206,7 @@ fn write_registry_lockfile(
         .expect("load registry lockfile")
         .expect("registry lockfile on disk");
     lockfile
-        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .save_current_to_install_state_dir(virtual_store_dir)
         .expect("write current registry lockfile");
     lockfile
 }
@@ -308,7 +310,7 @@ fn setup_fresh_install_with_config(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard
@@ -319,7 +321,11 @@ fn setup_fresh_install_with_config(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some(project_name.into()), version: Some(project_version.into()) },
+        ProjectEntry {
+            name: Some(project_name.into()),
+            version: Some(project_version.into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
@@ -373,9 +379,9 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
-    fs::create_dir_all(&config.virtual_store_dir).unwrap();
-    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
     let settings =
@@ -383,7 +389,11 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
@@ -454,14 +464,18 @@ fn collide_mtimes_with_recorded_state(
     for path in [
         workspace_root.join("package.json"),
         workspace_root.join(Lockfile::FILE_NAME),
-        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
     ] {
         set_mtime(&path, modified);
     }
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(
         workspace_root,
@@ -514,6 +528,15 @@ fn workspace_deps_status(
     config: &'static Config,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> RunDepsStatus {
+    workspace_deps_status_for_selected(dir, config, project_manifests, &[])
+}
+
+fn workspace_deps_status_for_selected(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    selected_project_dirs: &[&std::path::Path],
+) -> RunDepsStatus {
     let state = load_workspace_state(dir.path())
         .expect("read the workspace state")
         .expect("a workspace state to have been written");
@@ -534,7 +557,293 @@ fn workspace_deps_status(
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
+        selected_project_dirs,
     )
+}
+
+fn set_filtered_install(workspace_root: &std::path::Path, filtered_install: bool) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    state.filtered_install = filtered_install;
+    update_workspace_state(workspace_root, &state).expect("write the workspace state");
+}
+
+/// A workspace whose state records a filtered install: the root project was
+/// materialized, `packages/a` was not.
+fn setup_filtered_install_workspace()
+-> (tempfile::TempDir, &'static Config, PackageManifest, PackageManifest) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let project_dir = workspace_root.join("packages/a");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::write(
+        project_dir.join("package.json"),
+        r#"{"name":"a","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let lockfile = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  foo@1.0.0:\n    resolution: {integrity: sha512-aaa}\n\nsnapshots:\n\n  foo@1.0.0: {}\n";
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), lockfile).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile).unwrap();
+    let config = config.leak();
+
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    projects.insert(
+        project_dir.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    set_filtered_install(workspace_root, true);
+
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let project_manifest = PackageManifest::from_path(project_dir.join("package.json")).unwrap();
+    (dir, config, root_manifest, project_manifest)
+}
+
+/// A filtered install leaves the projects it did not select without a
+/// modules directory, so the state it records exempts them. The projects
+/// the gated command selected are still held to that requirement:
+/// otherwise a filtered `run` or `exec` could select a project the
+/// filtered install never materialized and run it without its
+/// dependencies (<https://github.com/pnpm/pnpm/issues/11865>).
+#[test]
+fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        RunDepsStatus::UpToDate,
+        "a filtered install that materialized the selected project is current",
+    );
+
+    fs::remove_dir_all(project_dir.join("node_modules")).unwrap();
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue.contains("does not have a modules directory")
+        ),
+        "a selected project the filtered install did not materialize is outdated",
+    );
+
+    assert_eq!(
+        workspace_deps_status(&dir, config, &project_manifests),
+        RunDepsStatus::UpToDate,
+        "an empty selection keeps the exemption a filtered install records",
+    );
+
+    set_filtered_install(dir.path(), false);
+    assert!(
+        matches!(
+            workspace_deps_status(&dir, config, &project_manifests),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue.contains("does not have a modules directory")
+        ),
+        "without a filtered install every project with dependencies needs a modules directory",
+    );
+}
+
+/// A modules directory does not prove that the filtered install materialized
+/// a selected project. It must also be an importer of the current lockfile.
+#[test]
+fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    fs::write(
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
+    )
+    .unwrap();
+
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "Workspace package a has dependencies but was not installed"
+        ),
+        "a selected project the current lockfile does not list is outdated",
+    );
+
+    let root_only = [dir.path()];
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &root_only),
+        RunDepsStatus::UpToDate,
+        "a selected project without dependencies needs no importer",
+    );
+}
+
+const FILTERED_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+  packages/b:
+    dependencies:
+      bar:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  bar@1.0.0:
+    resolution: {integrity: sha512-bbb}
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  bar@1.0.0: {}
+
+  foo@1.0.0: {}
+";
+
+/// What `pnpm install --filter a` records as the current lockfile for
+/// [`FILTERED_WANTED_LOCKFILE`].
+const FILTERED_CURRENT_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  foo@1.0.0: {}
+";
+
+/// A lockfile that is newer than the last validation after a filtered
+/// install is compared against what that install materialized, not the
+/// whole workspace (<https://github.com/pnpm/pnpm/issues/16322>).
+#[test]
+fn a_filtered_state_accepts_a_newer_lockfile_that_did_not_change_the_selected_projects() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let mut project_dirs = Vec::new();
+    for (name, dependency) in [("a", "foo"), ("b", "bar")] {
+        let project_dir = workspace_root.join("packages").join(name);
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(
+            project_dir.join("package.json"),
+            format!(
+                r#"{{"name":"{name}","version":"1.0.0","dependencies":{{"{dependency}":"^1.0.0"}}}}"#,
+            ),
+        )
+        .unwrap();
+        project_dirs.push(project_dir);
+    }
+    fs::create_dir_all(project_dirs[0].join("node_modules")).unwrap();
+    let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+    fs::write(&lockfile_path, FILTERED_WANTED_LOCKFILE).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+        FILTERED_CURRENT_LOCKFILE,
+    )
+    .unwrap();
+    let config = config.leak();
+
+    let projects = [(workspace_root, "root"), (&project_dirs[0], "a"), (&project_dirs[1], "b")]
+        .into_iter()
+        .map(|(project_dir, name)| {
+            let entry = ProjectEntry {
+                name: Some(name.into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            };
+            (project_dir.to_string_lossy().into_owned(), entry)
+        })
+        .collect();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    set_filtered_install(workspace_root, true);
+
+    let manifests = [workspace_root, &project_dirs[0], &project_dirs[1]].map(|project_dir| {
+        PackageManifest::from_path(project_dir.join("package.json")).unwrap()
+    });
+    let project_manifests = [
+        (workspace_root.to_path_buf(), &manifests[0]),
+        (project_dirs[0].clone(), &manifests[1]),
+        (project_dirs[1].clone(), &manifests[2]),
+    ];
+    let selected = [project_dirs[0].as_path()];
+
+    set_mtime_ms(&lockfile_path, recorded_timestamp(workspace_root) + MTIME_STEP_MS);
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        RunDepsStatus::UpToDate,
+        "a touched lockfile with the same contents is current",
+    );
+
+    fs::write(
+        &lockfile_path,
+        FILTERED_WANTED_LOCKFILE.replace(
+            "  foo@1.0.0: {}",
+            "  foo@1.0.0:\n    dependencies:\n      bar: 1.0.0",
+        ),
+    )
+    .unwrap();
+    set_mtime_ms(&lockfile_path, recorded_timestamp(workspace_root) + MTIME_STEP_MS);
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "the installed dependencies are not up to date with the lockfile"
+        ),
+        "a lockfile change that reaches a materialized project is outdated",
+    );
 }
 
 fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
@@ -612,7 +921,7 @@ fn linked_sibling_decision_for_spec(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
     config.link_workspace_packages = link_workspace_packages;
     config.exclude_links_from_lockfile = exclude_links_from_lockfile;
     fs::create_dir_all(&config.modules_dir).unwrap();
@@ -626,11 +935,19 @@ fn linked_sibling_decision_for_spec(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some(sibling_version.into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 

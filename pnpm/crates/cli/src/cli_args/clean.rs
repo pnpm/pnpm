@@ -1,7 +1,7 @@
 use super::{dispatch::RunCtx, recursive::discover_workspace_projects};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, relative_path, remove_dirent};
+use pnpm_fs::{is_subdir, lexical_normalize, relative_path, remove_dirent};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -86,27 +86,55 @@ fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> 
 /// A virtual store dir configured outside `node_modules` (e.g. a custom
 /// `virtual-store-dir`) is removed separately; the default
 /// `node_modules/.pnpm` is cleaned along with the modules dir's
-/// contents.
+/// contents. Under a global virtual store, `virtualStoreDir` or
+/// `globalVirtualStoreDir` names the shared store's root, which is removed
+/// as well; the default store under `storeDir` is kept.
 fn remove_external_virtual_store(
     cwd: &Path,
     config: &Config,
     root_dir: &Path,
     modules_leaf: &Path,
 ) -> miette::Result<()> {
-    let resolved_virtual_store_dir: PathBuf = if config.virtual_store_dir.is_absolute() {
-        config.virtual_store_dir.clone()
+    let virtual_store_dir = if ["virtualStoreDir", "globalVirtualStoreDir"]
+        .iter()
+        .any(|setting| config.explicit_settings.contains_key(*setting))
+    {
+        config.virtual_store_dir()
     } else {
-        root_dir.join(&config.virtual_store_dir)
+        &config.install_state_dir
+    };
+    let resolved_virtual_store_dir: PathBuf = if virtual_store_dir.is_absolute() {
+        virtual_store_dir.to_path_buf()
+    } else {
+        root_dir.join(virtual_store_dir)
     };
     let root_modules_dir = root_dir.join(modules_leaf);
-    if !is_subdir(&root_modules_dir, &resolved_virtual_store_dir)
-        && is_subdir(root_dir, &resolved_virtual_store_dir)
-        && resolved_virtual_store_dir.exists()
-    {
-        print_removing(cwd, &resolved_virtual_store_dir);
-        remove_path(&resolved_virtual_store_dir)?;
+    if is_subdir(&root_modules_dir, &resolved_virtual_store_dir) {
+        return Ok(());
+    }
+    let Some(virtual_store_in_project) = resolve_inside(root_dir, &resolved_virtual_store_dir)
+    else {
+        return Ok(());
+    };
+    if virtual_store_in_project.exists() {
+        print_removing(cwd, &virtual_store_in_project);
+        remove_path(&virtual_store_in_project)?;
     }
     Ok(())
+}
+
+/// `path` with its parent resolved through symlinks, when it names an entry
+/// strictly inside `root`. A symlinked ancestor cannot carry the removal out
+/// of the project, and the last component stays unresolved so a symlinked
+/// store is unlinked rather than followed. `None` when either path cannot be
+/// resolved.
+fn resolve_inside(root: &Path, path: &Path) -> Option<PathBuf> {
+    let root = dunce::canonicalize(root).ok()?;
+    let path = lexical_normalize(path);
+    let resolved = dunce::canonicalize(path.parent()?)
+        .ok()?
+        .join(path.file_name()?);
+    (resolved.starts_with(&root) && resolved != root).then_some(resolved)
 }
 
 /// Whether `modules_dir` holds anything `clean` removes: a regular

@@ -73,7 +73,7 @@ test('a full document served for an abbreviated request is normalized before cac
   expect(res!.id).toBe('foo@1.0.0')
 
   const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/foo.jsonl`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   const saved = await retryLoadJsonFile<any>(cachePath)
   const savedVersion = saved.versions['1.0.0']
 

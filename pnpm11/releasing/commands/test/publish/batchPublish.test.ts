@@ -40,22 +40,8 @@ async function createRegistryStub (): Promise<RegistryStub> {
     const chunks: Buffer[] = []
     req.on('data', (chunk) => chunks.push(chunk))
     req.on('end', () => {
-      const rawBody = Buffer.concat(chunks)
-      received.push({
-        method: req.method!,
-        url: req.url!,
-        headers: req.headers,
-        body: rawBody.length > 0 ? JSON.parse(rawBody.toString()) : undefined,
-      })
-      if (req.method === 'PUT') {
-        res.statusCode = req.url === '/-/pnpm/v1/publish' ? stub.multiPublishStatusCode : 200
-        res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ ok: true, success: true }))
-        return
-      }
-      res.statusCode = 404
-      res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ error: 'not found' }))
+      received.push(toReceivedRequest(req, Buffer.concat(chunks)))
+      respondToStubRequest(req, res, stub.multiPublishStatusCode)
     })
   })
   await new Promise<void>((resolve) => {
@@ -64,12 +50,36 @@ async function createRegistryStub (): Promise<RegistryStub> {
   const { port } = server.address() as AddressInfo
   return Object.assign(stub, {
     url: `http://127.0.0.1:${port}/`,
-    close: () => new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    }),
+    close: () => closeServer(server),
+  })
+}
+
+function toReceivedRequest (req: http.IncomingMessage, rawBody: Buffer): ReceivedRequest {
+  return {
+    method: req.method!,
+    url: req.url!,
+    headers: req.headers,
+    body: rawBody.length > 0 ? JSON.parse(rawBody.toString()) : undefined,
+  }
+}
+
+function respondToStubRequest (req: http.IncomingMessage, res: http.ServerResponse, multiPublishStatusCode: number): void {
+  res.setHeader('content-type', 'application/json')
+  if (req.method === 'PUT') {
+    res.statusCode = req.url === '/-/pnpm/v1/publish' ? multiPublishStatusCode : 200
+    res.end(JSON.stringify({ ok: true, success: true }))
+    return
+  }
+  res.statusCode = 404
+  res.end(JSON.stringify({ error: 'not found' }))
+}
+
+function closeServer (server: http.Server): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    server.close((err) => {
+      if (err) reject(err)
+      else resolve()
+    })
   })
 }
 

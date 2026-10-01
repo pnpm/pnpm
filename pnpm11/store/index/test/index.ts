@@ -1,10 +1,68 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { DatabaseSync } from 'node:sqlite'
 import util from 'node:util'
 
 import { expect, test } from '@jest/globals'
-import { ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { ImmutableStoreIndex, packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
+
+test.each([false, true])('ReadOnlyStoreIndex sees WAL commits and refuses writes (missing exec: %s)', (missingExec) => {
+  const storeDir = temporaryDirectory()
+  const writer = new StoreIndex(storeDir)
+  let reader: ReadOnlyStoreIndex | undefined
+  try {
+    writer.set('present', { value: 1 })
+    writer.checkpoint()
+    reader = missingExec ? new MissingExecReadOnlyStoreIndex(storeDir) : new ReadOnlyStoreIndex(storeDir)
+    expect(reader.get('present')).toEqual({ value: 1 })
+
+    writer.set('present', { value: 2 })
+    writer.set('added', { value: 3 })
+    expect(reader.get('present')).toEqual({ value: 2 })
+    expect(reader.get('added')).toEqual({ value: 3 })
+    expect(reader.has('added')).toBe(true)
+    expect([...reader.entries()]).toHaveLength(2)
+    writer.delete('present')
+    expect(reader.get('present')).toBeUndefined()
+
+    const readOnlyReader = reader
+    expect(() => readOnlyReader.set('added', {})).toThrow(expect.objectContaining({ code: 'ERR_PNPM_STORE_READ_ONLY' }))
+    expect(() => readOnlyReader.delete('added')).toThrow(expect.objectContaining({ code: 'ERR_PNPM_STORE_READ_ONLY' }))
+    expect(writer.get('added')).toEqual({ value: 3 })
+  } finally {
+    reader?.close()
+    writer.close()
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
+test('ReadOnlyStoreIndex reads database growth after another connection runs a checkpoint', () => {
+  const storeDir = temporaryDirectory()
+  const writer = new StoreIndex(storeDir)
+  let reader: ReadOnlyStoreIndex | undefined
+  try {
+    const initial = { value: 'x'.repeat(1000) }
+    for (let packageIndex = 0; packageIndex < 1000; packageIndex++) {
+      writer.set(`pkg-${String(packageIndex).padStart(6, '0')}`, initial)
+    }
+    writer.checkpoint()
+    reader = new ReadOnlyStoreIndex(storeDir)
+    expect(reader.get('pkg-000000')).toEqual(initial)
+
+    const added = { value: 'y'.repeat(4096) }
+    for (let packageIndex = 1000; packageIndex < 1100; packageIndex++) {
+      writer.set(`pkg-${String(packageIndex).padStart(6, '0')}`, added)
+    }
+    writer.checkpoint()
+    expect(reader.get('pkg-001099')).toEqual(added)
+    expect(reader.get('pkg-000000')).toEqual(initial)
+  } finally {
+    reader?.close()
+    writer.close()
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
 
 test('StoreIndex round-trips data via SQLite key', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
@@ -113,29 +171,9 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
   // SQLite cannot create any -shm / -wal sidecar.
   fs.chmodSync(storeDir, 0o555)
   try {
-    const idx = new ReadOnlyStoreIndex(storeDir)
+    const idx = new ImmutableStoreIndex(storeDir)
     try {
-      const result = idx.get(key) as typeof data
-      expect(result).toBeDefined()
-      expect(result.algo).toBe('sha512')
-      expect(result.files.get('index.js')?.digest).toBe('abc')
-      expect(idx.has(key)).toBe(true)
-
-      expect(() => {
-        idx.set(key, data)
-      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
-      expect(() => {
-        idx.delete(key)
-      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
-      expect(() => {
-        idx.update(key, value => value)
-      }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
-
-      // The immutable open must not create any sidecar under the
-      // read-only directory.
-      for (const sidecar of ['index.db-shm', 'index.db-wal', 'index.db-journal']) {
-        expect(fs.existsSync(path.join(storeDir, sidecar))).toBe(false)
-      }
+      assertReadOnlyBehavior(idx, key, data, storeDir)
     } finally {
       idx.close()
     }
@@ -144,6 +182,30 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
     fs.chmodSync(storeDir, 0o755)
   }
 })
+
+function assertReadOnlyBehavior (idx: ReadOnlyStoreIndex, key: string, data: { algo: string, files: Map<string, { digest: string, size: number, mode: number }> }, storeDir: string): void {
+  const result = idx.get(key) as typeof data
+  expect(result).toBeDefined()
+  expect(result.algo).toBe('sha512')
+  expect(result.files.get('index.js')?.digest).toBe('abc')
+  expect(idx.has(key)).toBe(true)
+
+  expect(() => {
+    idx.set(key, data)
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+  expect(() => {
+    idx.delete(key)
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+  expect(() => {
+    idx.update(key, value => value)
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' }))
+
+  // The immutable open must not create any sidecar under the
+  // read-only directory.
+  for (const sidecar of ['index.db-shm', 'index.db-wal', 'index.db-journal']) {
+    expect(fs.existsSync(path.join(storeDir, sidecar))).toBe(false)
+  }
+}
 
 // `?` is a legal filename character on POSIX but a SQLite URI delimiter, so a
 // raw `file:${path}?immutable=1` would truncate the path here. (`?` is illegal
@@ -157,7 +219,7 @@ testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"
   seed.set(key, data)
   seed.close()
 
-  const idx = new ReadOnlyStoreIndex(storeDir)
+  const idx = new ImmutableStoreIndex(storeDir)
   try {
     expect(idx.has(key)).toBe(true)
     expect((idx.get(key) as typeof data).algo).toBe('sha512')
@@ -172,9 +234,53 @@ testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"
 // platform-independent), so it runs on Windows too when the runtime is old.
 const testUnsupportedNode = supportsImmutableUri ? test.skip : test
 
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('StoreIndex keeps group write on a new index.db and does not chmod an existing one', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const created = new StoreIndex(storeDir)
+  created.close()
+
+  const dbPath = path.join(storeDir, 'index.db')
+  const fresh = fs.statSync(dbPath)
+  expect(fresh.mode & 0o020).not.toBe(0)
+  expect(fresh.gid).toBe(fs.statSync(parent).gid)
+  expect(fs.statSync(storeDir).mode & (0o020 | 0o2000)).toBe(0o020 | 0o2000)
+
+  fs.chmodSync(dbPath, 0o600)
+  const before = fs.statSync(dbPath)
+  const reopened = new StoreIndex(storeDir)
+  try {
+    const after = fs.statSync(dbPath)
+    expect(after.uid).toBe(before.uid)
+    expect(after.gid).toBe(before.gid)
+    expect(after.ino).toBe(before.ino)
+    expect(after.mode & 0o777).toBe(0o600)
+  } finally {
+    reopened.close()
+  }
+})
+
+testOnPosix('StoreIndex does not make a new index.db world-writable in a world-writable store', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o1777)
+  const storeDir = path.join(parent, 'store')
+  fs.mkdirSync(storeDir)
+  fs.chmodSync(storeDir, 0o1777)
+  const previousUmask = process.umask(0)
+  try {
+    new StoreIndex(storeDir).close()
+  } finally {
+    process.umask(previousUmask)
+  }
+  expect(fs.statSync(path.join(storeDir, 'index.db')).mode & 0o002).toBe(0)
+})
+
 testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
-  expect(() => new ReadOnlyStoreIndex(storeDir))
+  expect(() => new ImmutableStoreIndex(storeDir))
     .toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE' }))
 })
 
@@ -188,4 +294,223 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   if (major === 22) return minor >= 15
   if (major === 23) return minor >= 11
   return true
+}
+
+test('StoreIndex keeps using DatabaseSync.exec when the host provides it', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new TracingPrepareStoreIndex(storeDir)
+  try {
+    const preparedSql = preparedSqlOf(idx)
+    expect(preparedSql.some(sql => /^\s*(?:pragma|create table)/i.test(sql))).toBe(false)
+    expect(preparedSql).toHaveLength(6)
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(false)
+  } finally {
+    idx.close()
+  }
+})
+
+test('StoreIndex runs SQL through prepared statements when DatabaseSync.exec is missing', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new MissingExecStoreIndex(storeDir)
+  try {
+    const preparedSql = preparedSqlOf(idx)
+    expect(preparedSql.some(sql => /^\s*pragma/i.test(sql))).toBe(true)
+    expect(preparedSql.some(sql => /create table/i.test(sql))).toBe(true)
+    const key = storeIndexKey('sha512-abc', 'pkg@1.0.0')
+    idx.set(key, { n: 1 })
+    idx.setRawMany([
+      { key, buffer: packForStorage({ n: 2 }) },
+      { key: 'other', buffer: packForStorage({ n: 3 }) },
+    ])
+    expect(idx.get(key)).toEqual({ n: 2 })
+    expect(idx.update('other', (value) => ({ n: (value as { n: number }).n + 1 }))).toBe(true)
+    expect(idx.get('other')).toEqual({ n: 4 })
+    idx.deleteMany([key, 'other'])
+    expect(idx.has(key)).toBe(false)
+    idx.checkpoint()
+    expect(fs.existsSync(path.join(storeDir, 'index.db'))).toBe(true)
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(false)
+  } finally {
+    idx.close()
+  }
+})
+
+test('StoreIndex falls back to a file when node:sqlite cannot prepare statements', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const key = storeIndexKey('sha512-file', 'pkg@1.0.0')
+  const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'abc', size: 100, mode: 0o644 }]]) }
+  const writer = new IncompleteSqliteStoreIndex(storeDir)
+  const reader = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    writer.set(key, data)
+    expect(reader.get(key)).toEqual(data)
+    writer.setRawMany([
+      { key: 'a', buffer: packForStorage({ a: 1 }) },
+      { key: 'b', buffer: packForStorage({ b: 2 }) },
+    ])
+    expect(reader.get('a')).toEqual({ a: 1 })
+    expect([...reader.keys()]).toEqual(expect.arrayContaining([key, 'a', 'b']))
+    expect([...reader.entries()].map(([entryKey]) => entryKey)).toEqual(expect.arrayContaining([key, 'a', 'b']))
+    expect(writer.update('missing', () => ({ created: true }))).toBe(false)
+    expect(writer.update('a', (value) => ({ a: (value as { a: number }).a + 1 }))).toBe(true)
+    expect(reader.get('a')).toEqual({ a: 2 })
+    expect(() => {
+      writer.update('a', () => {
+        throw new Error('boom')
+      })
+    }).toThrow('boom')
+    expect(reader.get('a')).toEqual({ a: 2 })
+    expect(writer.delete(key)).toBe(true)
+    expect(reader.has(key)).toBe(false)
+    expect(writer.delete('missing')).toBe(false)
+    writer.deleteMany(['a', 'b'])
+    expect(reader.has('a')).toBe(false)
+    writer.checkpoint()
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(true)
+  } finally {
+    writer.close()
+    reader.close()
+  }
+})
+
+test('StoreIndex fallback file writers notice a snapshot written from the same base', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const fallbackPath = path.join(storeDir, 'index.fallback')
+  const first = new IncompleteSqliteStoreIndex(storeDir)
+  const second = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    first.set('base', { n: 0 })
+    expect(second.has('base')).toBe(true)
+    const base = fs.readFileSync(fallbackPath)
+    first.set('first', { n: 1 })
+    // Replay the race in which the second process read the same base snapshot
+    // before the first process's write landed.
+    fs.writeFileSync(fallbackPath, base)
+    second.set('second', { n: 2 })
+    first.set('third', { n: 3 })
+    expect(second.get('second')).toEqual({ n: 2 })
+    expect(second.get('third')).toEqual({ n: 3 })
+  } finally {
+    first.close()
+    second.close()
+  }
+})
+
+test('StoreIndex fallback file reports a corrupt snapshot instead of reading it as empty', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const writer = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    writer.set('k', { n: 1 })
+  } finally {
+    writer.close()
+  }
+  const fallbackPath = path.join(storeDir, 'index.fallback')
+  const corrupt = fs.readFileSync(fallbackPath).subarray(0, 6)
+  fs.writeFileSync(fallbackPath, corrupt)
+  const reader = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    expect(() => reader.get('k')).toThrow(expect.objectContaining({ code: 'ERR_PNPM_STORE_INDEX_FALLBACK_CORRUPT' }))
+  } finally {
+    reader.close()
+  }
+})
+
+test('StoreIndex fallback file reports a zeroed generation header instead of reading it as empty', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const writer = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    writer.set('k', { n: 1 })
+  } finally {
+    writer.close()
+  }
+  const fallbackPath = path.join(storeDir, 'index.fallback')
+  const zeroed = fs.readFileSync(fallbackPath)
+  zeroed.writeUInt32BE(0, 0)
+  fs.writeFileSync(fallbackPath, zeroed)
+  const reader = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    expect(() => reader.get('k')).toThrow(expect.objectContaining({ code: 'ERR_PNPM_STORE_INDEX_FALLBACK_CORRUPT' }))
+  } finally {
+    reader.close()
+  }
+})
+
+test('StoreIndex falls back to a file when prepared statements cannot run', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const idx = new StatementRunMissingStoreIndex(storeDir)
+  try {
+    idx.set('k', { n: 1 })
+    expect(idx.get('k')).toEqual({ n: 1 })
+    expect(fs.existsSync(path.join(storeDir, 'index.fallback'))).toBe(true)
+  } finally {
+    idx.close()
+  }
+})
+
+// openConnection runs inside the base constructor, before subclass fields exist.
+const preparedSqlByIndex = new WeakMap<StoreIndex, string[]>()
+
+function preparedSqlOf (idx: StoreIndex): string[] {
+  const preparedSql = preparedSqlByIndex.get(idx)
+  if (preparedSql == null) {
+    throw new Error('Missing prepared SQL trace')
+  }
+  return preparedSql
+}
+
+class TracingPrepareStoreIndex extends StoreIndex {
+  protected override openConnection (storeDir: string): DatabaseSync {
+    return tracePrepare(this, super.openConnection(storeDir))
+  }
+}
+
+class MissingExecStoreIndex extends StoreIndex {
+  protected override openConnection (storeDir: string): DatabaseSync {
+    const db = tracePrepare(this, super.openConnection(storeDir))
+    ;(db as { exec?: unknown }).exec = undefined
+    return db
+  }
+}
+
+class MissingExecReadOnlyStoreIndex extends ReadOnlyStoreIndex {
+  protected override openConnection (storeDir: string): DatabaseSync {
+    const db = super.openConnection(storeDir)
+    ;(db as { exec?: unknown }).exec = undefined
+    return db
+  }
+}
+
+function tracePrepare (idx: StoreIndex, db: DatabaseSync): DatabaseSync {
+  const preparedSql: string[] = []
+  preparedSqlByIndex.set(idx, preparedSql)
+  // Keep the native receiver check: the adapter must call prepare on db.
+  const prepare = db.prepare
+  db.prepare = function (this: DatabaseSync, sql: string) {
+    preparedSql.push(sql)
+    return prepare.call(this, sql)
+  }
+  return db
+}
+
+class IncompleteSqliteStoreIndex extends StoreIndex {
+  protected override openConnection (_storeDir: string): DatabaseSync {
+    return {
+      close () {},
+    } as unknown as DatabaseSync
+  }
+}
+
+class StatementRunMissingStoreIndex extends StoreIndex {
+  protected override openConnection (_storeDir: string): DatabaseSync {
+    return {
+      prepare () {
+        return {
+          run () {
+            throw new TypeError('stmt.run is not a function')
+          },
+        }
+      },
+      close () {},
+    } as unknown as DatabaseSync
+  }
 }

@@ -68,7 +68,7 @@ fn workspace_internal_link_is_not_remapped() {
     for directory in ["../lib", "/ws/packages/lib"] {
         let dep = linked_package("lib", "link:packages/lib", directory);
         assert_eq!(
-            remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+            remap_link_node_id(&exclude_links_opts(), "lib", dep.result()),
             None,
             "unexpected remap of internal link target {directory:?}",
         );
@@ -80,7 +80,7 @@ fn external_link_is_remapped_to_the_importers_modules_dir() {
     for directory in ["../../../outside/lib", "/outside/lib"] {
         let dep = linked_package("lib", "link:../../../outside/lib", directory);
         assert_eq!(
-            remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+            remap_link_node_id(&exclude_links_opts(), "lib", dep.result()),
             Some(NodeId::leaf("link:packages/app/node_modules/lib")),
             "unexpected remap of external link target {directory:?}",
         );
@@ -93,7 +93,7 @@ fn external_link_is_remapped_to_the_importers_modules_dir() {
 #[test]
 fn injected_workspace_dep_is_not_remapped() {
     let dep = linked_package("lib", "file:../outside/lib", "../outside/lib");
-    assert_eq!(remap_link_node_id(&exclude_links_opts(), "lib", &dep.result), None);
+    assert_eq!(remap_link_node_id(&exclude_links_opts(), "lib", dep.result()), None);
 }
 
 fn exclude_links_opts() -> ResolvePeersOptions {

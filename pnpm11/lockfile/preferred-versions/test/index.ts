@@ -68,12 +68,12 @@ test('a dependency named __proto__ cannot pollute Object.prototype', () => {
 
   const preferredVersions = getPreferredVersionsFromLockfileAndManifests(snapshots, [manifest])
 
-  // The crafted names land as plain own keys with the usual weights…
+  // The crafted names land as plain own keys with the usual weights...
   expect(Object.getOwnPropertyDescriptor(preferredVersions, '__proto__')?.value)
     .toEqual({ '1.0.0': { selectorType: 'version', weight: 1_001_000 } })
   expect(Object.getOwnPropertyDescriptor(preferredVersions, 'constructor')?.value)
     .toEqual({ '^2.0.0': { selectorType: 'range', weight: 1000 } })
-  // …and Object.prototype is untouched.
+  // ...and Object.prototype is untouched.
   expect(({} as Record<string, unknown>)['1.0.0']).toBeUndefined()
   expect(Object.prototype).not.toHaveProperty('1.0.0')
 })

@@ -630,27 +630,29 @@ test('do not override the direct dependency with an auto installed peer dependen
       // This hook may be removed and the test will still be valid.
       // The only reason the hook was added to remove the packages that aren't needed for the tests and make the test faster.
       readPackage: [
-        (pkg: PackageManifest) => {
-          for (const depType of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'] as const) {
-            if (pkg[depType]) {
-              for (const depName of Object.keys(pkg[depType] ?? {})) {
-                if (!includedDeps.has(depName)) {
-                  delete pkg[depType]![depName]
-                }
-              }
-            }
-          }
-          if (pkg.name === '@angular-devkit/build-angular' && pkg.dependencies) {
-            delete pkg.dependencies.rxjs
-          }
-          return pkg
-        },
+        (pkg: PackageManifest) => keepOnlyIncludedDeps(pkg, includedDeps),
       ],
     },
   }))
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.rxjs.version).toBe('6.6.7')
 })
+
+function keepOnlyIncludedDeps (pkg: PackageManifest, includedDeps: Set<string>): PackageManifest {
+  for (const depType of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'] as const) {
+    const deps = pkg[depType]
+    if (!deps) continue
+    for (const depName of Object.keys(deps)) {
+      if (!includedDeps.has(depName)) {
+        delete deps[depName]
+      }
+    }
+  }
+  if (pkg.name === '@angular-devkit/build-angular' && pkg.dependencies) {
+    delete pkg.dependencies.rxjs
+  }
+  return pkg
+}
 
 test('auto install hoisted peer dependency', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })

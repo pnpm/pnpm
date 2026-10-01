@@ -41,13 +41,27 @@ afterEach(async () => {
   await once(server, 'close')
 })
 
-test('publish sends the readme to the registry as metadata (embed-readme off)', async () => {
-  prepare({ name: 'publish-readme-off', version: '1.0.0' })
-  fs.writeFileSync('README.md', '# Hello\n')
+test.each(['README.md', 'README', 'readme.markdown'])(
+  'publish sends %s to the registry as metadata (embed-readme off)',
+  async (readmeFileName) => {
+    prepare({ name: 'publish-readme-off', version: '1.0.0' })
+    fs.writeFileSync(readmeFileName, '# Hello\n')
+
+    await runPublish(process.cwd(), false)
+
+    expect(publishedVersionManifest().readme).toBe('# Hello\n')
+  }
+)
+
+test('publish prefers README.md over other accepted README names', async () => {
+  prepare({ name: 'publish-readme-priority', version: '1.0.0' })
+  fs.writeFileSync('README', '# Bare\n')
+  fs.writeFileSync('readme.markdown', '# Markdown\n')
+  fs.writeFileSync('README.md', '# Preferred\n')
 
   await runPublish(process.cwd(), false)
 
-  expect(publishedVersionManifest().readme).toBe('# Hello\n')
+  expect(publishedVersionManifest().readme).toBe('# Preferred\n')
 })
 
 test('publish embeds the readme in the version manifest when embed-readme is on', async () => {

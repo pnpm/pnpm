@@ -7,6 +7,9 @@
 # killed from outside, with no output from the offender. With it, the
 # test is SIGTERM'd (then SIGKILL'd after the grace period), reported as
 # TIMEOUT with its captured output, and the rest of the run completes.
+#
+# `pnpm/scripts/nextest-backstop.test.mjs` checks that every profile keeps a
+# `terminate-after`, whichever profile a run selects.
 slow-timeout = { period = "60s", terminate-after = 5 }
 
 # One end-to-end test per area of CLI behavior, for a run that finishes in

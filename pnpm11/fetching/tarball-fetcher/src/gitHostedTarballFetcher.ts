@@ -1,6 +1,6 @@
 import assert from 'node:assert'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
@@ -52,7 +52,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         integrity,
       }
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
     }
@@ -80,6 +80,85 @@ async function prepareGitHostedPkg (
   fetcherOpts: FetchOptions,
   resolution: Resolution
 ): Promise<PrepareGitHostedPkgResult> {
+  const { shouldBeBuilt, pkgDir, ignoredBuild } = await unpackAndPreparePackage(
+    cafs,
+    filesMap,
+    opts,
+    fetcherOpts,
+    resolution
+  )
+
+  filesIndexFile = resolveGitHostedIndexFile({
+    filesIndexFile,
+    ignoredBuild,
+    ignoreScripts: opts.ignoreScripts,
+    pkgResolutionId: fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution),
+    shouldBeBuilt,
+  })
+
+  const files = await packlist(pkgDir)
+  const isUnchanged = !resolution.path && files.length === filesMap.size && (!shouldBeBuilt || ignoredBuild)
+  if (isUnchanged) {
+    return handleUnchangedGitPkg({
+      filesIndexFile,
+      filesMap,
+      ignoredBuild,
+      ignoreScripts: opts.ignoreScripts,
+      rawFilesIndexFile,
+      shouldBeBuilt,
+      storeIndex: opts.storeIndex,
+    })
+  }
+
+  return reindexAndAddGitPkgFiles({
+    cafs,
+    fetcherOpts,
+    files,
+    filesIndexFile,
+    ignoredBuild,
+    opts,
+    pkgDir,
+    rawFilesIndexFile,
+    shouldBeBuilt,
+  })
+}
+
+async function reindexAndAddGitPkgFiles (opts: {
+  cafs: Cafs
+  fetcherOpts: FetchOptions
+  files: string[]
+  filesIndexFile: string
+  ignoredBuild: boolean
+  opts: CreateGitHostedTarballFetcher
+  pkgDir: string
+  rawFilesIndexFile: string
+  shouldBeBuilt: boolean
+}): Promise<PrepareGitHostedPkgResult> {
+  opts.opts.storeIndex.delete(opts.rawFilesIndexFile)
+  return {
+    filesIndexFile: opts.filesIndexFile,
+    ...await addFilesFromDir({
+      storeDir: opts.cafs.storeDir,
+      storeIndex: opts.opts.storeIndex,
+      dir: opts.pkgDir,
+      files: opts.files,
+      filesIndexFile: opts.filesIndexFile,
+      pkg: opts.fetcherOpts.pkg,
+      readManifest: opts.fetcherOpts.readManifest,
+      requiresPrepare: opts.shouldBeBuilt,
+    }),
+    ignoredBuild: opts.ignoredBuild,
+    requiresPrepare: opts.shouldBeBuilt,
+  }
+}
+
+async function unpackAndPreparePackage (
+  cafs: Cafs,
+  filesMap: FilesMap,
+  opts: CreateGitHostedTarballFetcher,
+  fetcherOpts: FetchOptions,
+  resolution: Resolution
+): Promise<{ shouldBeBuilt: boolean, pkgDir: string, ignoredBuild: boolean }> {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -94,47 +173,47 @@ async function prepareGitHostedPkg (
     allowBuild: fetcherOpts.allowBuild,
     pkgResolutionId: fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution),
   }, tempLocation, resolution.path ?? '')
-  if (shouldBeBuilt && ((ignoredBuild && !opts.ignoreScripts) || (!ignoredBuild && filesIndexFile.endsWith('\tnot-built')))) {
-    filesIndexFile = gitHostedStoreIndexKey(fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution), { built: !ignoredBuild })
+  return { shouldBeBuilt, pkgDir, ignoredBuild }
+}
+
+
+function resolveGitHostedIndexFile (opts: {
+  filesIndexFile: string
+  ignoredBuild: boolean
+  ignoreScripts?: boolean
+  pkgResolutionId: string
+  shouldBeBuilt: boolean
+}): string {
+  const shouldReindex = opts.shouldBeBuilt &&
+    ((opts.ignoredBuild && !opts.ignoreScripts) || (!opts.ignoredBuild && opts.filesIndexFile.endsWith('\tnot-built')))
+  if (shouldReindex) {
+    return gitHostedStoreIndexKey(opts.pkgResolutionId, { built: !opts.ignoredBuild })
   }
-  const files = await packlist(pkgDir)
-  const { storeIndex } = opts
-  if (!resolution.path && files.length === filesMap.size) {
-    if (!shouldBeBuilt || ignoredBuild) {
-      if (!ignoredBuild || !opts.ignoreScripts) {
-        const data = storeIndex.get(rawFilesIndexFile) as { requiresPrepare?: boolean } | undefined
-        if (data) {
-          data.requiresPrepare = shouldBeBuilt
-          storeIndex.set(filesIndexFile, data)
-        }
-      }
-      storeIndex.delete(rawFilesIndexFile)
-      return {
-        filesIndexFile,
-        filesMap,
-        ignoredBuild,
-        requiresPrepare: shouldBeBuilt,
-      }
+  return opts.filesIndexFile
+}
+
+function handleUnchangedGitPkg (opts: {
+  filesIndexFile: string
+  filesMap: FilesMap
+  ignoredBuild: boolean
+  ignoreScripts?: boolean
+  rawFilesIndexFile: string
+  shouldBeBuilt: boolean
+  storeIndex: StoreIndex
+}): PrepareGitHostedPkgResult {
+  if (!opts.ignoredBuild || !opts.ignoreScripts) {
+    const data = opts.storeIndex.get(opts.rawFilesIndexFile) as { requiresPrepare?: boolean } | undefined
+    if (data) {
+      data.requiresPrepare = opts.shouldBeBuilt
+      opts.storeIndex.set(opts.filesIndexFile, data)
     }
   }
-  storeIndex.delete(rawFilesIndexFile)
-  // Important! We cannot remove the temp location at this stage.
-  // Even though we have the index of the package,
-  // the linking of files to the store is in progress.
+  opts.storeIndex.delete(opts.rawFilesIndexFile)
   return {
-    filesIndexFile,
-    ...await addFilesFromDir({
-      storeDir: cafs.storeDir,
-      storeIndex: opts.storeIndex,
-      dir: pkgDir,
-      files,
-      filesIndexFile,
-      pkg: fetcherOpts.pkg,
-      readManifest: fetcherOpts.readManifest,
-      requiresPrepare: shouldBeBuilt,
-    }),
-    ignoredBuild,
-    requiresPrepare: shouldBeBuilt,
+    filesIndexFile: opts.filesIndexFile,
+    filesMap: opts.filesMap,
+    ignoredBuild: opts.ignoredBuild,
+    requiresPrepare: opts.shouldBeBuilt,
   }
 }
 

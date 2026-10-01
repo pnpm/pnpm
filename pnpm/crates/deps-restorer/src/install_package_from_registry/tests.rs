@@ -79,7 +79,8 @@ fn create_config(
         node_experimental_package_map: false,
         node_package_map_type: Default::default(),
         symlink: false,
-        virtual_store_dir: virtual_store_dir.to_path_buf(),
+        install_state_dir: virtual_store_dir.to_path_buf(),
+        configured_virtual_store_dir: None,
         enable_global_virtual_store: false,
         global_shims: Default::default(),
         virtual_store_only: false,
@@ -258,6 +259,7 @@ fn create_config(
         package_manager_bootstrap: Default::default(),
         explicit_settings: Default::default(),
         cli_settings: Default::default(),
+        cli_setting_values: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
     }
@@ -294,7 +296,7 @@ async fn resolve_via_mock(
             prefer_offline: false,
             ignore_missing_time_field: true,
         },
-        store_index: None,
+        store_view: None,
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

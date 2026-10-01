@@ -330,8 +330,13 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         None,
     )
     .await?;
-    let buffer =
-        download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes).await?;
+    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes)
+        .await
+        .inspect_err(|error| {
+            if error.is_fetch_timeout() {
+                http_client.downscale_while_peers_active(package_url);
+            }
+        })?;
     drop(client);
 
     let result = ZipExtraction {

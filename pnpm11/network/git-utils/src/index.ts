@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { safeExeca as execa } from 'execa'
 
-// git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
+// git checks logic is from https://github.com/sindresorhus/np/blob/d63feed61b1d/source/git-tasks.js
 
 export interface GitCwdOptions {
   cwd?: string

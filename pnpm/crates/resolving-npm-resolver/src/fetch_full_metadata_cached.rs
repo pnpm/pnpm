@@ -159,6 +159,7 @@ impl FetchAttempt<'_> {
         let raw_body = response
             .text()
             .await
+            .inspect_err(|error| opts.http.http_client.downscale_on_timeout(self.url, error))
             .map_err(|error| FetchMetadataError::BodyRead {
                 url: redact_url_credentials(self.url),
                 error: error.without_url(),

@@ -1,7 +1,7 @@
 use super::{
     Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
     PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
-    PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta, load_meta,
+    PickPackageOptions, RegistryPackageSpec, Semaphore, clear_meta, load_meta,
     parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
 };
 use crate::fetch_full_metadata::fetch_metadata_document;
@@ -152,13 +152,8 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     let Some(cutoff) = opts.policy.published_by else { return false };
     if meta.time.is_some()
         || ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, meta)
+        || !opts.policy.release_age_applies_to(&spec.name)
     {
-        return false;
-    }
-    let fully_excluded = opts.policy.published_by_exclude.is_some_and(|policy| {
-        matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion)
-    });
-    if fully_excluded {
         return false;
     }
     // Inclusive `<=` at the boundary: matches the per-version `<=` filter in

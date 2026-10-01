@@ -141,7 +141,7 @@ impl WorkspaceSettings {
             config.modules_dir = resolve(base_dir, &v);
         }
         if let Some(v) = self.virtual_store_dir.take() {
-            config.virtual_store_dir = resolve(base_dir, &v);
+            config.set_virtual_store_dir(resolve(base_dir, &v));
         }
         if let Some(v) = self.global_virtual_store_dir.take() {
             config.global_virtual_store_dir = resolve(base_dir, &v);

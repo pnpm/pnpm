@@ -352,3 +352,32 @@ mod is_update_target {
         assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), None, i32::MAX));
     }
 }
+
+mod pinned_specifier {
+    use super::super::snapshot_children::pinned_specifier;
+    use pnpm_lockfile::PkgNameVerPeer;
+
+    fn pinned(alias: &str, key: &str) -> String {
+        pinned_specifier(alias, &key.parse::<PkgNameVerPeer>().expect("parse snapshot key"))
+    }
+
+    #[test]
+    fn an_unaliased_child_pins_the_version_alone() {
+        assert_eq!(pinned("foo", "foo@1.0.0(peer@2.0.0)"), "1.0.0");
+    }
+
+    #[test]
+    fn an_aliased_child_names_its_real_package() {
+        assert_eq!(pinned("vite", "@scope/core@0.3.3(peer@2.0.0)"), "npm:@scope/core@0.3.3");
+    }
+
+    #[test]
+    fn an_unaliased_named_registry_child_keeps_its_registry() {
+        assert_eq!(pinned("foo", "foo@work:1.0.0(peer@2.0.0)"), "work:1.0.0");
+    }
+
+    #[test]
+    fn an_aliased_named_registry_child_names_its_real_package() {
+        assert_eq!(pinned("foo", "@scope/bar@work:1.0.0(peer@2.0.0)"), "work:@scope/bar@1.0.0");
+    }
+}

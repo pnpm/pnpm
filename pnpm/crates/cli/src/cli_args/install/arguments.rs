@@ -102,10 +102,11 @@ pub struct InstallMaterializationArgs {
     /// Show what an install would change without writing anything to disk.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
+    /// Reinstall every package the lockfile names, relinking packages an
+    /// earlier install already materialized. Optional dependencies whose
+    /// `cpu` / `os` / `libc` don't match the host stay skipped unless
+    /// `forceIgnoresPlatform` is set. To install them for other
+    /// platforms, use `--os` / `--cpu` / `--libc`.
     #[clap(long)]
     pub force: bool,
     /// Run the install already requested by `verifyDepsBeforeRun` without

@@ -4,7 +4,9 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_lockfile::PackageKey;
 use pnpm_pnpr_client::{ArtifactCandidate, ArtifactManifest, RejectedArtifact, blob_id};
 use pnpm_shared_artifact_protocol::compatibility_rank;
-use pnpm_store_dir::{SideEffectsDiff, StoreIndexWriter};
+use pnpm_store_dir::{
+    CafsFileInfo, SideEffectsDiff, SideEffectsOverlay, StoreDir, StoreIndexWriter,
+};
 use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -15,7 +17,7 @@ use std::{
 pub(super) fn take_persisted_remote_side_effects(
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
     side_effects_by_snapshot: &SideEffectsBySnapshot,
-) -> HashMap<(PackageKey, String), HashMap<String, PathBuf>> {
+) -> HashMap<(PackageKey, String), SideEffectsOverlay> {
     let mut persisted = HashMap::new();
     for (snapshot_key, diffs) in side_effects_by_snapshot {
         let remote_keys: Vec<&String> = diffs
@@ -39,10 +41,10 @@ pub(super) fn take_persisted_remote_side_effects(
 /// Move one snapshot's remote overlays out of its live map and into the
 /// persisted set, keyed by (snapshot, cache key).
 pub(super) fn take_snapshot_overlays(
-    maps: &mut HashMap<String, HashMap<String, PathBuf>>,
+    maps: &mut HashMap<String, SideEffectsOverlay>,
     remote_keys: Vec<&String>,
     snapshot_key: &PackageKey,
-    persisted: &mut HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
+    persisted: &mut HashMap<(PackageKey, String), SideEffectsOverlay>,
 ) {
     for cache_key in remote_keys {
         if let Some(overlay) = maps.remove(cache_key) {
@@ -54,7 +56,7 @@ pub(super) fn insert_side_effects_map(
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
     snapshot_key: PackageKey,
     cache_key: String,
-    overlay: HashMap<String, PathBuf>,
+    overlay: SideEffectsOverlay,
 ) {
     let mut maps = side_effects_maps_by_snapshot
         .get(&snapshot_key)
@@ -117,21 +119,41 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
             .all(|path| manifest.deleted.contains(path))
 }
 pub(super) async fn stored_remote_side_effects_blobs_are_valid(
+    store_dir: &StoreDir,
     diff: &SideEffectsDiff,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &SideEffectsOverlay,
 ) -> Result<bool, String> {
     for (file_path, info) in diff.added.iter().flatten() {
-        let Some(path) = overlay.get(file_path) else { return Ok(false) };
-        if !store_holds(path, &info.digest).await? {
+        let Some(path) = overlay_blob_path(store_dir, overlay, file_path, info) else {
+            return Ok(false);
+        };
+        if !store_holds(&path, &info.digest).await? {
             return Ok(false);
         }
-        let metadata = tokio::fs::metadata(path).await
+        let metadata = tokio::fs::metadata(&path).await
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
         if metadata.len() != info.size {
             return Ok(false);
         }
     }
     Ok(true)
+}
+/// The store file behind one added entry that `overlay` restores: the
+/// file itself, or the blob holding a symlink's target.
+fn overlay_blob_path(
+    store_dir: &StoreDir,
+    overlay: &SideEffectsOverlay,
+    file_path: &str,
+    info: &CafsFileInfo,
+) -> Option<PathBuf> {
+    if info.is_symlink() {
+        overlay.symlinks
+            .contains_key(file_path)
+            .then(|| store_dir.cas_file_path_by_mode(&info.digest, info.mode))
+            .flatten()
+    } else {
+        overlay.files.get(file_path).cloned()
+    }
 }
 pub(super) fn quarantine_remote_side_effects(
     rejected: &RejectedArtifact,

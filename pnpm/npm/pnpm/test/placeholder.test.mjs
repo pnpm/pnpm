@@ -136,12 +136,13 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
-  // Where no default path is compiled in, as on Nix, `command -p` searches the
-  // caller's PATH. No test host behaves that way, so the placeholder's
-  // `command -p` is rewritten to the plain `command` such a shell amounts to.
-  it('does not use a readlink from a node_modules or relative PATH entry when command -p searches PATH', { skip: HAS_A_SHELL }, async () => {
+  // The default path `command -p` searches can lack readlink, as inside a Nix
+  // build sandbox. No test host is set up that way, so the placeholder's
+  // `command -p` is rewritten to a `command` that searches a directory that does
+  // not exist.
+  it('does not use a readlink from a node_modules or relative PATH entry when the default path lacks one', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture()
-    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'command '))
+    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const hijackDir = path.join(fixture.dir, 'hijack')
     fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
     fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
@@ -172,7 +173,7 @@ describe('placeholder bin', () => {
   // holds no entry point of ours. `command -p` is rewritten as above.
   it('refuses to run when no readlink resolves its symlink', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture()
-    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'command '))
+    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const link = path.join(fixture.dir, 'pnpm-link')
     fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
     const nodeOnly = path.join(fixture.dir, 'node-only')

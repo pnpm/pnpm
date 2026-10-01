@@ -1,7 +1,6 @@
-import util from 'node:util'
 
 import { checkbox } from '@inquirer/prompts'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { sanitizeInline } from '@pnpm/text.sanitize'
 import chalk from 'chalk'
@@ -135,7 +134,7 @@ async function promptForStagedPackages (stagedPackages: ApprovalItem[]): Promise
       },
     })
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') return []
+    if (isError(err) && err.name === 'ExitPromptError') return []
     throw err
   }
 }
@@ -187,7 +186,7 @@ async function approveStagedPackages (
       continue
     }
     try {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- stages are approved in dependency order, and a failure skips its dependents
       await approveStagedPackage(context, item, session)
       approvedCount++
       globalInfo(`Approved ${label}`)
@@ -218,7 +217,7 @@ async function approveStagedPackage (context: StageContext, item: ApprovalItem, 
 }
 
 function isStageRegistryError (err: unknown): err is Error {
-  return util.types.isNativeError(err) && (err as PnpmError).code === 'ERR_PNPM_STAGE_REGISTRY_ERROR'
+  return isError(err) && (err as PnpmError).code === 'ERR_PNPM_STAGE_REGISTRY_ERROR'
 }
 
 function isMissingStageError (err: unknown): boolean {

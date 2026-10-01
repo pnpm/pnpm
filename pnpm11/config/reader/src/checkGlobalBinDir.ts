@@ -1,8 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { canWriteToDirSync } from 'can-write-to-dir'
 import PATH from 'path-name'
 
@@ -65,7 +64,7 @@ function canWriteToDirAndExists (dir: string): boolean {
   try {
     return canWriteToDirSync(dir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

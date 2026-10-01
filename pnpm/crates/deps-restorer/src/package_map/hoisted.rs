@@ -1,5 +1,5 @@
 use super::{
-    HoistedPackageMapOptions, LinkReference, LinkTarget, PackageMap, PackageMapPackage,
+    HoistedPackageMapOptions, LinkBase, LinkReference, LinkTarget, PackageMap, PackageMapPackage,
     PhysicalPackageIndex, add_external_link_package, add_loose_dependencies, add_package,
     get_node_modules_path, graph_package_id, importer_names, resolve_link_target,
 };
@@ -96,7 +96,7 @@ impl<'b> HoistedMapBuilder<'b> {
                 &mut self.loose_index,
                 self.opts,
                 deps,
-                Some(importer_id),
+                LinkBase::Importer(Some(importer_id)),
                 importer_modules_dir.as_deref(),
             );
         }
@@ -142,7 +142,7 @@ impl<'b> HoistedMapBuilder<'b> {
                     &mut self.loose_index,
                     self.opts,
                     deps,
-                    None,
+                    LinkBase::Package(&node.dir),
                     package_modules_dir.as_deref(),
                 );
             }
@@ -231,7 +231,7 @@ pub(super) fn add_hoisted_linked_dependencies<Reference>(
     loose_index: &mut Option<PhysicalPackageIndex>,
     opts: &HoistedPackageMapOptions<'_>,
     deps: Option<&HashMap<pnpm_lockfile::PkgName, Reference>>,
-    importer_id: Option<&str>,
+    base: LinkBase<'_>,
     modules_dir: Option<&Path>,
 ) where
     Reference: LinkReference,
@@ -239,7 +239,7 @@ pub(super) fn add_hoisted_linked_dependencies<Reference>(
     let Some(deps) = deps else { return };
     for (alias, reference) in deps {
         let Some(target_ref) = reference.as_link_target() else { continue };
-        let target = resolve_link_target(opts.lockfile_dir, importer_id, target_ref);
+        let target = resolve_link_target(opts.lockfile_dir, base, target_ref);
         let id = graph_package_id(&target.dir, opts.modules_dir);
         add_external_link_package(
             packages,

@@ -403,7 +403,7 @@ test('--ignore-pnpmfile installs an up-to-date lockfile as it is', async () => {
     ['install', '--frozen-lockfile', '--ignore-pnpmfile'],
     ['install', '--ignore-pnpmfile'],
   ]) {
-    await execPnpm(args) // eslint-disable-line no-await-in-loop
+    await execPnpm(args) // eslint-disable-line no-await-in-loop -- each step works on the lockfile the previous one left
     expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
   }
 
@@ -429,10 +429,10 @@ test('--ignore-pnpmfile records no pnpmfileChecksum when it resolves', async () 
   // always do.
   for (const [command, specifier] of [['update', '100.0.0'], ['dedupe', '100.0.0'], ['install', '^100.0.0']]) {
     writeManifest('100.0.0')
-    await installWithThePnpmfile() // eslint-disable-line no-await-in-loop
+    await installWithThePnpmfile() // eslint-disable-line no-await-in-loop -- each step works on the lockfile the previous one left
     writeManifest(specifier)
 
-    await execPnpm([command, '--lockfile-only', '--ignore-pnpmfile']) // eslint-disable-line no-await-in-loop
+    await execPnpm([command, '--lockfile-only', '--ignore-pnpmfile']) // eslint-disable-line no-await-in-loop -- each step works on the lockfile the previous one left
     expect(readYamlFileSync<LockfileFile>('pnpm-lock.yaml').pnpmfileChecksum).toBeUndefined()
     expect(readPackageHookApplied()).toBe(false)
 
@@ -440,7 +440,7 @@ test('--ignore-pnpmfile records no pnpmfileChecksum when it resolves', async () 
     expect(frozenInstall.status).toBe(1)
     expect(frozenInstall.stdout.toString()).toContain('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
 
-    await installWithThePnpmfile() // eslint-disable-line no-await-in-loop
+    await installWithThePnpmfile() // eslint-disable-line no-await-in-loop -- each step works on the lockfile the previous one left
   }
 })
 

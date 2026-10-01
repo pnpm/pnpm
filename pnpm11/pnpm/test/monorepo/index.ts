@@ -1184,6 +1184,49 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   }
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/16453
+test('frozen-lockfile: a workspace project whose directory is absent is skipped until it reappears', async () => {
+  preparePackages([
+    {
+      name: 'package-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'package-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['install', '--store-dir', 'store'])
+
+  const package2Manifest = fs.readFileSync('package-2/package.json', 'utf8')
+  rimrafSync('node_modules')
+  rimrafSync('package-1/node_modules')
+  rimrafSync('package-2')
+
+  await execPnpm(['install', '--store-dir', 'store', '--frozen-lockfile'])
+
+  expect(fs.existsSync('package-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('package-2')).toBe(false)
+
+  fs.mkdirSync('package-2')
+  fs.writeFileSync('package-2/package.json', package2Manifest)
+
+  await execPnpm(['install', '--store-dir', 'store', '--frozen-lockfile'])
+
+  expect(fs.existsSync('package-2/node_modules/is-negative')).toBe(true)
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/1482
 test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is found', async () => {
   const project = prepare({
@@ -2533,6 +2576,41 @@ test('pnpm install --frozen-lockfile fails when an injected workspace package ve
   const pkgBManifest = JSON.parse(fs.readFileSync('pkg-b/package.json', 'utf8'))
   pkgBManifest.version = '2.0.0'
   fs.writeFileSync('pkg-b/package.json', JSON.stringify(pkgBManifest, null, 2))
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('pnpm install --frozen-lockfile accepts dependenciesMeta on a project whose dependencies are all workspace links', async () => {
+  preparePackages([
+    {
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        'pkg-b': 'workspace:*',
+      },
+      dependenciesMeta: {
+        'pkg-b': {
+          injected: true,
+        },
+      },
+    },
+    {
+      name: 'pkg-b',
+      version: '1.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  await execPnpm(['install'])
+
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  const pkgAManifest = JSON.parse(fs.readFileSync('pkg-a/package.json', 'utf8'))
+  delete pkgAManifest.dependenciesMeta
+  fs.writeFileSync('pkg-a/package.json', JSON.stringify(pkgAManifest, null, 2))
 
   await expect(
     execPnpm(['install', '--frozen-lockfile'])

@@ -1,12 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
 import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
@@ -78,62 +77,95 @@ export async function installConfigDepsAndLoadHooks (
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
   if (config.configDependencies) {
-    const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
-    try {
-      await resolveAndInstallConfigDeps(config.configDependencies, {
-        ...config,
-        ...context,
-        store: store.ctrl,
-        storeDir: store.dir,
-        rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
-        frozenLockfile: config.frozenLockfile,
-      })
-    } catch (err: unknown) {
-      if (!opts?.tolerateConfigDependenciesErrors) {
-        throw err
-      }
-      const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
-      logger.debug({
-        message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
-        err,
-      })
-    } finally {
-      await store.ctrl.close()
-    }
-  }
-  if (!config.ignorePnpmfile) {
-    config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !opts?.forSelfUpdate
-    const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
-    if (config.configDependencies) {
-      const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
-      pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
-    }
-    const { hooks, finders, resolvedPnpmfilePaths } = await requireHooks(config.lockfileDir ?? config.dir, {
-      globalPnpmfile: config.globalPnpmfile,
-      pnpmfiles,
-      tryLoadDefaultPnpmfile: config.tryLoadDefaultPnpmfile,
+    await installConfigDeps(config, context, {
+      configDependencies: config.configDependencies,
+      tolerateErrors: opts?.tolerateConfigDependenciesErrors,
     })
-    context.hooks = hooks
-    context.finders = finders
-    config.pnpmfile = resolvedPnpmfilePaths
-    if (context.hooks?.updateConfig?.length) {
-      const routingBeforeHooks = {
-        registry: config.registry,
-        registriesByScope: { ...config.registriesByScope },
-      }
-      const cliSettings = pickCliSettings(config, context.cliOptions)
-      for (const updateConfig of context.hooks.updateConfig) {
-        const updateConfigResult = updateConfig(config)
-        config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
-      }
-      applyRegistryRoutingChanges(config, routingBeforeHooks)
-      restoreCliSettings(config, cliSettings)
-      if (DERIVED_CONFIG_INPUTS.some((setting) => cliSettings.settings.has(setting))) {
-        applyDerivedConfig(config)
-      }
-    }
   }
-  return { config, context }
+  if (config.ignorePnpmfile) {
+    return { config, context }
+  }
+  return {
+    config: await loadPnpmfileHooks(config, context, opts?.forSelfUpdate),
+    context,
+  }
+}
+
+async function installConfigDeps (
+  config: Config,
+  context: ConfigContext,
+  opts: { configDependencies: ConfigDependencies, tolerateErrors?: boolean }
+): Promise<void> {
+  const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
+  try {
+    await resolveAndInstallConfigDeps(opts.configDependencies, {
+      ...config,
+      ...context,
+      store: store.ctrl,
+      storeDir: store.dir,
+      rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
+      frozenLockfile: config.frozenLockfile,
+    })
+  } catch (err: unknown) {
+    if (!opts.tolerateErrors) {
+      throw err
+    }
+    const errorMessage = isError(err) ? err.message : String(err)
+    logger.debug({
+      message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+      err,
+    })
+  } finally {
+    await store.ctrl.close()
+  }
+}
+
+/**
+ * Loads the pnpmfiles into `context` and runs their `updateConfig` hooks.
+ * Returns the config the last hook produced.
+ */
+async function loadPnpmfileHooks (config: Config, context: ConfigContext, forSelfUpdate: boolean | undefined): Promise<Config> {
+  config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !forSelfUpdate
+  const pnpmfiles = listConfiguredPnpmfiles(config, context)
+  const { hooks, finders, resolvedPnpmfilePaths } = await requireHooks(config.lockfileDir ?? config.dir, {
+    globalPnpmfile: config.globalPnpmfile,
+    pnpmfiles,
+    tryLoadDefaultPnpmfile: config.tryLoadDefaultPnpmfile,
+  })
+  context.hooks = hooks
+  context.finders = finders
+  config.pnpmfile = resolvedPnpmfilePaths
+  if (!context.hooks?.updateConfig?.length) {
+    return config
+  }
+  return applyUpdateConfigHooks(config, context)
+}
+
+function listConfiguredPnpmfiles (config: Config, context: ConfigContext): string[] {
+  const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
+  if (config.configDependencies) {
+    const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
+    pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
+  }
+  return pnpmfiles
+}
+
+async function applyUpdateConfigHooks (config: Config, context: ConfigContext): Promise<Config> {
+  const routingBeforeHooks = {
+    registry: config.registry,
+    registriesByScope: { ...config.registriesByScope },
+  }
+  const cliSettings = pickCliSettings(config, context.cliOptions)
+  for (const updateConfig of context.hooks?.updateConfig ?? []) {
+    const updateConfigResult = updateConfig(config)
+    config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop -- each hook receives the config the previous one returned
+  }
+  applyRegistryRoutingChanges(config, routingBeforeHooks)
+  restoreCliSettings(config, cliSettings)
+  if (DERIVED_CONFIG_INPUTS.some((setting) => cliSettings.settings.has(setting))) {
+    applyDerivedConfig(config)
+  }
+  return config
 }
 
 /**
@@ -148,7 +180,7 @@ interface CliSettings {
   registriesByScope: Map<string, string>
 }
 
-function cloneCliSetting<T> (value: T): T {
+function cloneCliSetting<Setting> (value: Setting): Setting {
   if (value === null || typeof value !== 'object') {
     return value
   }
@@ -156,7 +188,7 @@ function cloneCliSetting<T> (value: T): T {
     return structuredClone(value)
   } catch {
     if (Array.isArray(value)) {
-      return value.slice() as unknown as T
+      return value.slice() as unknown as Setting
     }
     return { ...value }
   }
@@ -246,21 +278,19 @@ function applyRegistryRoutingChanges (config: Config, before: RegistryRouting): 
       registry = routes.default ?? registry
     }
   }
-  const hookRegistry: unknown = config.registry
-  if (hookRegistry !== before.registry && hookRegistry !== undefined) {
-    if (hookRegistry === null) {
-      registry = DEFAULT_REGISTRIES_BY_SCOPE.default
-    } else if (typeof hookRegistry === 'string') {
-      registry = hookRegistry
-    } else {
-      throw invalidHookResult('registry')
-    }
-  }
+  registry = applyHookRegistry(config.registry, { before: before.registry, current: registry })
   config.registriesByScope = normalizeRegistriesByScope({
     ...routes,
     ...(registry != null ? { default: registry } : {}),
   })
   config.registry = registry === before.registry ? before.registry : config.registriesByScope.default
+}
+
+function applyHookRegistry (hookRegistry: unknown, registries: { before: string | undefined, current: string | undefined }): string | undefined {
+  if (hookRegistry === registries.before || hookRegistry === undefined) return registries.current
+  if (hookRegistry === null) return DEFAULT_REGISTRIES_BY_SCOPE.default
+  if (typeof hookRegistry === 'string') return hookRegistry
+  throw invalidHookResult('registry')
 }
 
 /** An `undefined` route is one the hook removed, as it would be once serialized. */

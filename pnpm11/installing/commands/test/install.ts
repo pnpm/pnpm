@@ -14,6 +14,42 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
+test.each([false, true])('optimistic hoisted reinstall refreshes a directory supplied by a custom fetcher (frozen: %s)', async (frozenLockfile) => {
+  prepare({ dependencies: { 'delegated-pkg': '1.0.0' } })
+  const source = path.resolve('source')
+  fs.mkdirSync(source)
+  fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'delegated-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(source, 'index.js'), 'first')
+  const options: Parameters<typeof install.handler>[0] = {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+    rootProjectManifest: { dependencies: { 'delegated-pkg': '1.0.0' } },
+    nodeLinker: 'hoisted',
+    packageImportMethod: 'copy',
+    localDirPackageImportMethod: 'clone-or-copy',
+    optimisticRepeatInstall: true,
+    pnpmfile: [],
+    hooks: {
+      customResolvers: [{
+        canResolve: (descriptor) => descriptor.alias === 'delegated-pkg',
+        resolve: async () => ({ id: 'delegated-pkg@1.0.0', resolution: { type: 'custom:directory' } }),
+      }],
+      customFetchers: [{
+        canFetch: (pkgId) => pkgId === 'delegated-pkg@1.0.0',
+        fetch: () => ({ delegate: { type: 'directory', directory: source } }),
+      }],
+    },
+  }
+  await install.handler(options)
+  const installedFile = path.resolve('node_modules/delegated-pkg/index.js')
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe('first')
+
+  fs.writeFileSync(path.join(source, 'index.js'), 'second')
+  await install.handler({ ...options, frozenLockfile })
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe('second')
+})
+
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
 

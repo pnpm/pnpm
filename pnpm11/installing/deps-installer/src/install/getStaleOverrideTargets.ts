@@ -1,6 +1,6 @@
-import util from 'node:util'
 
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
+import { isError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { DepPath } from '@pnpm/types'
@@ -37,7 +37,7 @@ function tryParseSelector (selector: string): ReturnType<typeof parsePkgAndParen
   try {
     return parsePkgAndParentSelector(selector)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_SELECTOR') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_SELECTOR') {
       return undefined
     }
     throw err
