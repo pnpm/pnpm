@@ -1,15 +1,17 @@
-//! Literal-star matching and ordered include/ignore pattern lists.
+//! Glob matching and ordered include/ignore pattern lists.
 //!
-//! The pattern syntax is intentionally tiny: `*` is the only wildcard
-//! (matching any sequence of characters, including empty), every other
-//! character is matched literally. Pattern lists also interpret a leading
-//! `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
+//! The pattern syntax is intentionally tiny: `*` matches any sequence of
+//! characters (including empty), `?` matches one character, and every other
+//! character is matched literally. Pattern lists also interpret a leading `!`
+//! as an ignore rule; [`WildcardMatcher`] treats it literally.
 //!
-//! The glob matcher is hand-rolled rather than backed by a regex engine:
-//! the only wildcard is `*`, so a literal "starts with", "ends with", and
-//! "contains in order" walk is enough.
+//! The glob matcher is hand-rolled rather than backed by a regex engine.
+//! Patterns without `?` use a literal-segment walk; the character-aware
+//! fallback handles `?` patterns.
 
 use std::sync::Arc;
+
+use regex::Regex;
 
 /// Compile a list of patterns into a matcher returning the index of the
 /// first matching include, or `None` when nothing matches.
@@ -198,8 +200,8 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
     }
 }
 
-/// A compiled glob pattern. The only wildcard is `*` (matches any
-/// sequence including empty); every other character is literal. The
+/// A compiled glob pattern. `*` matches any sequence including empty,
+/// `?` matches one character, and every other character is literal. The
 /// match is anchored — pattern must consume the whole input.
 
 #[derive(Clone)]
@@ -209,6 +211,7 @@ pub struct WildcardMatcher {
     /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
     segments: Arc<[String]>,
     had_wildcard: bool,
+    question_pattern: Option<Regex>,
 }
 
 impl WildcardMatcher {
@@ -220,12 +223,30 @@ impl WildcardMatcher {
             .map(str::to_owned)
             .collect();
         let had_wildcard = segments.len() > 1;
-        WildcardMatcher { segments: segments.into(), had_wildcard }
+        let question_pattern = pattern
+            .contains('?')
+            .then(|| {
+                let mut regex_pattern = String::from(r"\A");
+                for character in pattern.chars() {
+                    match character {
+                        '*' => regex_pattern.push_str("(?s:.*)"),
+                        '?' => regex_pattern.push_str("(?s:.)"),
+                        literal => regex_pattern.push_str(&regex::escape(&literal.to_string())),
+                    }
+                }
+                regex_pattern.push_str(r"\z");
+                Regex::new(&regex_pattern)
+                    .expect("escaped wildcard patterns are valid regular expressions")
+            });
+        WildcardMatcher { segments: segments.into(), had_wildcard, question_pattern }
     }
 
     /// Returns whether the pattern consumes the whole input.
     #[must_use]
     pub fn matches(&self, input: &str) -> bool {
+        if let Some(pattern) = &self.question_pattern {
+            return pattern.is_match(input);
+        }
         if !self.had_wildcard {
             return self.segments[0] == input;
         }

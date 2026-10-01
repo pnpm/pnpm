@@ -34,6 +34,13 @@ fn recursive_json_combines_projects_with_separate_lockfiles() {
     assert_eq!(projects[1]["dependencies"][HELLO]["version"], "1.0.0");
 
     let output =
+        run_ok(&workspace, &["-r", "--filter", "project-?", "list", "--json", "--depth", "-1"]);
+    let projects: Vec<Value> = serde_json::from_str(&output).unwrap();
+    assert_eq!(projects.len(), 2, "? must match one character in package-name filters");
+    assert_eq!(projects[0]["name"], "project-1");
+    assert_eq!(projects[1]["name"], "project-2");
+
+    let output =
         run_ok(&workspace, &["-r", "--filter", "project-*", "list", "--json", "--depth", "-1"]);
     let projects: Vec<Value> = serde_json::from_str(&output).unwrap();
     dbg!(&projects);
