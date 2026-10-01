@@ -1705,9 +1705,10 @@ describe('linkExePlatformBinary', () => {
 
     linkExePlatformBinary(dir, wrapperPkgName)
 
+    const nativeBytes = fs.readFileSync(nativeBinary)
     for (const alias of ['pnpm', 'pn', 'pnpx', 'pnx']) {
       const bin = path.join(wrapperDir, platform === 'win32' ? `${alias}.exe` : alias)
-      expect(fs.readFileSync(bin)).toEqual(fs.readFileSync(nativeBinary))
+      expect(fs.readFileSync(bin).equals(nativeBytes)).toBe(true)
       const result = spawn.sync(bin, ['--version'], {
         encoding: 'utf8', env: { ...process.env, PATH: path.join(dir, 'no-node-on-path') },
       })
