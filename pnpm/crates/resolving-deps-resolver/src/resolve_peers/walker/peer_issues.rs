@@ -1,7 +1,7 @@
 use super::{
     Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId, ParentChain,
-    ParentPkgInfo, ParentRefs, PeerDep, PeerDependencyIssue, PeerId, ResolvedPackage, SharedChain,
-    Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
+    ParentPkgInfo, ParentRefs, PeerDep, PeerDependencyIssue, PeerId, PeerWalkMode, ResolvedPackage,
+    SharedChain, Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
 };
 
 impl Walker<'_> {}
@@ -32,7 +32,7 @@ impl Walker<'_> {
             .entry(peer_name.to_string())
             .or_default()
             .push(issue);
-        if self.traversal.discovery {
+        if self.traversal.mode == PeerWalkMode::Discovery {
             self.output.missing_ancestor_pkg_ids
                 .entry(peer_name.to_string())
                 .or_default()
@@ -41,7 +41,11 @@ impl Walker<'_> {
     }
 
     pub(in super::super) fn issue_parents(&self, chain: &SharedChain<Arc<str>>) -> ParentChain {
-        if self.traversal.discovery { ParentChain::default() } else { ParentChain(chain.clone()) }
+        if self.traversal.mode == PeerWalkMode::Discovery {
+            ParentChain::default()
+        } else {
+            ParentChain(chain.clone())
+        }
     }
 
     #[expect(
@@ -212,7 +216,7 @@ impl Walker<'_> {
         node_id: &NodeId,
         dep_path: &DepPath,
     ) {
-        let retain = !self.traversal.discovery
+        let retain = self.traversal.mode == PeerWalkMode::Final
             || self.caches.parent_pkgs_of_node.contains_key(node_id)
             || self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id);
         if !retain {

@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeMap, CacheHitContext, ChildChains, ChildEdge, ChildOutputs, ChildParentRefs,
     ChildrenWalk, DeferredChildren, DepPath, HashMap, MissingSummary, NodeEntry, NodeId,
-    NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs, PeersCacheItem,
-    SettledPeers, SharedChain, WalkResult, WalkedNode, Walker, chain_with_pkg_id,
+    NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs, PeerWalkMode,
+    PeersCacheItem, SettledPeers, SharedChain, WalkResult, WalkedNode, Walker, chain_with_pkg_id,
     merge_realize_undo,
 };
 
@@ -57,7 +57,7 @@ impl Walker<'_> {
         self.record_node(node_id, &entry, walk, &mut walked, &settled);
 
         let output = settled.node_output(&mut walked);
-        if self.traversal.discovery {
+        if self.traversal.mode == PeerWalkMode::Discovery {
             self.undo_realize(node_id, walked.realize_undo, Some(&output));
         }
         output
@@ -219,7 +219,7 @@ impl Walker<'_> {
                 is_pure: settled.is_pure,
             },
         );
-        if !self.traversal.discovery {
+        if self.traversal.mode == PeerWalkMode::Final {
             self.record_walked_node(WalkedNode {
                 node_id,
                 pkg: &entry.pkg,
@@ -318,7 +318,7 @@ impl Walker<'_> {
             .peer_dependencies
             .is_empty();
         if own_peers_bind
-            || (!self.traversal.discovery
+            || (self.traversal.mode == PeerWalkMode::Final
                 && self.output.graph
                     .get(dep_path)
                     .is_none_or(|graph_node| graph_node.depth > tree_node.depth))

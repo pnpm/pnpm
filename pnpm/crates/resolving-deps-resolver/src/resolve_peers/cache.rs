@@ -12,7 +12,9 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
-        walker::{MissingPeerInfo, NodeOutput, NodeWalkContext, SubtreeMissingByPkg, Walker},
+        walker::{
+            MissingPeerInfo, NodeOutput, NodeWalkContext, PeerWalkMode, SubtreeMissingByPkg, Walker,
+        },
     },
     resolved_tree::{ChildEdge, DependenciesTreeNode, TreeChildren},
 };
@@ -372,7 +374,7 @@ impl Walker<'_> {
         output: &NodeOutput,
         missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     ) {
-        if self.traversal.discovery {
+        if self.traversal.mode == PeerWalkMode::Discovery {
             return;
         }
         if &owner_node_id != node_id {

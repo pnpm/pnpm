@@ -1,7 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildAliases, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
-    DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs, PeersCacheItem,
-    ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker, insert_parent_ref,
+    DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs, PeerWalkMode,
+    PeersCacheItem, ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker,
+    insert_parent_ref,
 };
 
 impl Walker<'_> {}
@@ -15,7 +16,7 @@ impl Walker<'_> {
         node_id: &NodeId,
         pkg_id: &Arc<str>,
     ) -> Option<Arc<Vec<ChildEdge>>> {
-        if !self.traversal.discovery
+        if self.traversal.mode == PeerWalkMode::Final
             || !matches!(self.tree.dependencies_tree[node_id].children, TreeChildren::Lazy)
         {
             return None;
@@ -105,7 +106,12 @@ impl Walker<'_> {
                     continue;
                 }
                 let child_output = self.resolve_node(child_node_id, walk);
-                child_outputs.push(alias, child_output, &child_aliases, !self.traversal.discovery);
+                child_outputs.push(
+                    alias,
+                    child_output,
+                    &child_aliases,
+                    self.traversal.mode == PeerWalkMode::Final,
+                );
             }
         }
         child_outputs
@@ -124,7 +130,7 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
     ) {
-        if !self.traversal.discovery {
+        if self.traversal.mode == PeerWalkMode::Final {
             self.nodes.external_peers.insert(
                 node_id.clone(),
                 Arc::clone(result.all_resolved_peers),

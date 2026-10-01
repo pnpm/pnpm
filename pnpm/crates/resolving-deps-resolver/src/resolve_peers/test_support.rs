@@ -2,7 +2,11 @@
 
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
+    resolve_peers::{
+        ResolvePeersOptions,
+        discovery::PeerDiscoveryCaches,
+        walker::{PeerWalkMode, Walker},
+    },
     resolved_tree::{
         ChildEdge, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput,
         ResolvedTree, TreeChildren,
@@ -56,7 +60,7 @@ pub(super) fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
         HashMap::default(),
         Vec::new(),
         PeerDiscoveryCaches::default(),
-        false,
+        PeerWalkMode::Final,
     )
 }
 

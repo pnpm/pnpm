@@ -11,7 +11,7 @@ use crate::{
         cache::{PeerProviderChildren, PeersCacheItem},
         context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
         walker::{
-            MissingSummary, NodeOutput, RootWalk, Walker, children_scc_ids,
+            MissingSummary, NodeOutput, PeerWalkMode, RootWalk, Walker, children_scc_ids,
             index_peer_provider_children,
         },
     },
@@ -242,8 +242,14 @@ fn discover_peers(
     opts: ResolvePeersOptions,
 ) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
     let current_provider_sources = discovery_provider_sources(parents_direct, &opts);
-    let mut walker =
-        Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
+    let mut walker = Walker::new(
+        tree,
+        opts,
+        HashMap::default(),
+        current_provider_sources,
+        caches,
+        PeerWalkMode::Discovery,
+    );
     let root = RootWalk::of(&walker, parents_direct);
     let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = walk_direct
         .iter()

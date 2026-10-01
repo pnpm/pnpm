@@ -121,11 +121,7 @@ pub(super) struct PeerWalkTraversal {
     /// is a cycle — the recursion bottoms out with a `name@version`
     /// peer-id and the original visit drives the actual graph insert.
     pub(super) in_progress: HashSet<NodeId>,
-    /// `true` for a peer-hoist discovery pass: the walk records no
-    /// graph entries, node records, or pending edges, and the caller
-    /// runs none of the final depPath/graph passes. Everything that
-    /// decides *what* resolves or goes missing is unchanged.
-    pub(super) discovery: bool,
+    pub(super) mode: PeerWalkMode,
     /// Nodes this call resolved (any return path except the cycle
     /// re-entry). Distinguishes them from nodes only known through the
     /// persistent [`PeerDiscoveryCaches`], so the pruned-provider
@@ -140,6 +136,17 @@ pub(super) struct PeerWalkTraversal {
     /// and an importer-context miss there would demand an auto-install
     /// the positions do not need.
     in_canonical_drain: bool,
+}
+
+/// Which of the two peer walks a [`Walker`] runs. Both decide the same
+/// resolved and missing peers; they differ in what they record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PeerWalkMode {
+    /// A peer-hoist discovery pass: no graph entries, node records or
+    /// pending edges are recorded, and no final depPath or graph pass runs.
+    Discovery,
+    /// The final pass that records the graph.
+    Final,
 }
 
 pub(super) struct PeerWalkProviders {
@@ -165,7 +172,7 @@ impl<'tree> Walker<'tree> {
         node_ids_by_previous_dep_path: HashMap<DepPath, NodeId>,
         current_provider_sources: Vec<CurrentProviderSource>,
         mut caches: PeerDiscoveryCaches,
-        discovery: bool,
+        mode: PeerWalkMode,
     ) -> Self {
         caches.peer_providers.refresh(tree);
         Walker {
@@ -192,7 +199,7 @@ impl<'tree> Walker<'tree> {
             },
             traversal: PeerWalkTraversal {
                 in_progress: HashSet::default(),
-                discovery,
+                mode,
                 visited_this_call: HashSet::default(),
                 pending_canonical_nodes: Vec::new(),
                 in_canonical_drain: false,

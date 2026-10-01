@@ -64,7 +64,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use walker::{NodeWalkContext, Walker};
+use walker::{NodeWalkContext, PeerWalkMode, Walker};
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]
@@ -311,7 +311,7 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         node_ids_by_previous_dep_path,
         current_provider_sources,
         PeerDiscoveryCaches::default(),
-        false,
+        PeerWalkMode::Final,
     );
     walker.walk()
 }
@@ -345,7 +345,7 @@ pub fn resolve_peers_workspace(
         node_ids_by_previous_dep_path,
         Vec::new(),
         PeerDiscoveryCaches::default(),
-        false,
+        PeerWalkMode::Final,
     );
     let importers = sorted_importer_inputs(importers);
     let peer_dependency_issues_by_importer =
