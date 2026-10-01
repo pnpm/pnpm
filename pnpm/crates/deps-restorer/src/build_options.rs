@@ -2,9 +2,9 @@ use pnpm_config::PackageImportMethod;
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{Mutex, atomic::AtomicBool},
+    sync::Mutex,
 };
 
 #[derive(Clone, Copy)]
@@ -142,6 +142,8 @@ pub struct BuildCacheContext<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildLayout<'a> {
+    /// Bin-link settings retained when completed dependency builds change executables.
+    pub link_options: &'a pnpm_cmd_shim::LinkBinsOptions,
     /// Install-scoped slot-directory mapping (GVS-aware). The layout
     /// knows the per-snapshot subdirectory shape (legacy flat-name vs
     /// GVS `<scope>/<name>/<version>/<hash>`). See
@@ -226,6 +228,7 @@ pub struct BuildGraphInputs<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildSnapshotInputs<'a> {
+    pub(crate) skipped: &'a crate::SkippedSnapshots,
     pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     pub(crate) packages: Option<&'a HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     pub(crate) patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
@@ -239,9 +242,18 @@ pub struct BuildProgress<'a> {
         Option<&'a HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
     pub(crate) deps_state_cache: &'a Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
     pub(crate) ignored_builds: &'a Mutex<BTreeSet<String>>,
-    /// Raised before any write that can change a linked slot's contents
+    /// Recorded before any write that can change a linked slot's contents
     /// (side-effects overlay, patch, lifecycle script) — set pre-attempt, so a
     /// half-applied write still counts. See
     /// [`crate::BuildModulesOutput::mutated_slots`].
-    pub(crate) slot_mutations: &'a AtomicBool,
+    pub(crate) slot_mutations: &'a Mutex<HashSet<PackageKey>>,
+}
+
+impl BuildProgress<'_> {
+    pub(crate) fn record_slot_mutation(&self, key: &PackageKey) {
+        self.slot_mutations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key.clone());
+    }
 }

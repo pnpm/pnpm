@@ -87,7 +87,7 @@ export async function relinkBins (state: RebuildState, getPkgModulesDir: (depPat
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshots[depPath])
         const modules = getPkgModulesDir(depPath, state)
         const binPath = path.join(safeJoinModulesDir(modules, pkgInfo.name), 'node_modules', '.bin')
-        return linkBins(modules, binPath, { warn })
+        return linkBins(modules, binPath, { warn, force: true })
       }))
   )
   await Promise.all(Object.values(state.ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
@@ -95,6 +95,7 @@ export async function relinkBins (state: RebuildState, getPkgModulesDir: (depPat
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {
       allowExoticManifests: true,
+      force: true,
       warn,
     })
   })))

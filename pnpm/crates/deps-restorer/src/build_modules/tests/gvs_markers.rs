@@ -103,6 +103,7 @@ new file mode 100644
                 frozen_store: false,
             },
             directories: crate::BuildLayout {
+                link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
                 layout: self.layout,
                 pkg_roots_by_key: None,
                 gather_ancestor_bin_paths: false,

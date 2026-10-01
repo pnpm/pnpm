@@ -206,6 +206,7 @@ new file mode 100644
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -345,6 +346,7 @@ new file mode 100644
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -453,6 +455,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,

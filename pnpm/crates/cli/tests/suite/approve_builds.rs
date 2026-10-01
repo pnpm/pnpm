@@ -13,6 +13,104 @@ use std::{fmt::Write as _, fs, path::Path, process::Command};
 const INSTALL_MARKER: &str = "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0\
      /node_modules/@pnpm.e2e/install-script-example/generated-by-install.js";
 
+#[cfg(unix)]
+#[test]
+fn rebuild_refreshes_the_interpreter_of_a_replaced_bin() {
+    assert_rebuild_refreshes_replaced_bin("isolated", false);
+}
+
+#[cfg(unix)]
+#[test]
+fn rebuild_refreshes_the_interpreter_of_a_replaced_bin_with_hoisted_linker() {
+    assert_rebuild_refreshes_replaced_bin("hoisted", false);
+}
+
+#[cfg(unix)]
+#[test]
+fn rebuild_refreshes_nested_hoisted_bins_before_a_dependent_build() {
+    assert_rebuild_refreshes_replaced_bin("hoisted", true);
+}
+
+#[cfg(unix)]
+fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
+    let harness = CommandTempCwd::init();
+    let package = harness.root.path().join("package");
+    fs::create_dir(&package).expect("create dependency");
+    fs::write(package.join("tool"), "#!/usr/bin/env node\nconsole.log('placeholder')\n")
+        .expect("write placeholder");
+    fs::write(
+        package.join("build.cjs"),
+        r#"require('fs').writeFileSync('tool', '#!/bin/sh\nprintf \"built binary\\n\"\n')"#,
+    )
+    .expect("write lifecycle script");
+    let manifest = serde_json::json!({
+        "name": "replaced-bin", "version": "1.0.0", "bin": { "tool": "tool" },
+        "scripts": { "postinstall": "node build.cjs" }
+    });
+    fs::write(package.join("package.json"), manifest.to_string())
+        .expect("write dependency manifest");
+    let parent = harness.root.path().join("parent");
+    fs::create_dir(&parent).expect("create parent dependency");
+    fs::write(
+        parent.join("package.json"),
+        r#"{"name":"parent","version":"1.0.0","dependencies":{"replaced-bin":"file:../package"},"scripts":{"postinstall":"tool > parent-built"}}"#,
+    )
+    .expect("write parent manifest");
+    fs::write(
+        harness.workspace.join("package.json"),
+        if nested {
+            r#"{"dependencies":{"parent":"file:../parent"}}"#
+        } else {
+            r#"{"dependencies":{"replaced-bin":"file:../package","parent":"file:../parent"}}"#
+        },
+    )
+    .expect("write project manifest");
+    fs::write(
+        harness.workspace.join("pnpm-workspace.yaml"),
+        format!("nodeLinker: {linker}\n{}enableGlobalVirtualStore: false\nextendNodePath: false\npreferSymlinkedExecutables: false\nallowBuilds:\n  'replaced-bin@file:../package': true\n  'parent@file:../parent': true\n", if nested { "hoistingLimits: dependencies\n" } else { "" }),
+    )
+    .expect("write build policy");
+    pacquet(&harness.workspace)
+        .args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let initial_bin = harness.workspace.join(if nested {
+        "node_modules/parent/node_modules/.bin/tool"
+    } else {
+        "node_modules/.bin/tool"
+    });
+    assert!(fs::symlink_metadata(&initial_bin).expect("inspect initial bin").is_file());
+    if nested {
+        assert!(harness.workspace.join("node_modules/parent/node_modules/replaced-bin").is_dir());
+        assert!(!harness.workspace.join("node_modules/replaced-bin").exists());
+        Command::new(harness.workspace.join("node_modules/parent/node_modules/.bin/tool"))
+            .assert()
+            .success()
+            .stdout("placeholder\n");
+    }
+    pacquet(&harness.workspace)
+        .args(["rebuild"])
+        .assert()
+        .success();
+    if !nested {
+        pacquet(&harness.workspace)
+            .args(["exec", "tool"])
+            .assert()
+            .success()
+            .stdout("built binary\n");
+    }
+    assert_eq!(
+        fs::read_to_string(harness.workspace.join("node_modules/parent/parent-built")).unwrap(),
+        "built binary\n",
+    );
+    if linker == "isolated" || nested {
+        Command::new(harness.workspace.join("node_modules/parent/node_modules/.bin/tool"))
+            .assert()
+            .success()
+            .stdout("built binary\n");
+    }
+}
+
 /// Append `strictDepBuilds: false` so an install that intentionally leaves
 /// a build ignored completes instead of failing with
 /// `ERR_PNPM_IGNORED_BUILDS`.

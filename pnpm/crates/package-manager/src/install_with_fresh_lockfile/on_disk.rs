@@ -331,6 +331,7 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         ignored_builds,
         deferred_builds,
         mutated_slots: _,
+        mutated_snapshot_keys: _,
     } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
 
     let injected_deps = crate::collect_injected_deps(

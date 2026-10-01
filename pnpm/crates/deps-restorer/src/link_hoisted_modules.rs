@@ -405,7 +405,8 @@ fn find_unplanned_dirs(
     Ok(unplanned)
 }
 
-fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
+/// The modules directory physically containing a scoped or unscoped package.
+pub(crate) fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
     let parent = pkg_dir.parent()?;
     let is_scope = parent
         .file_name()

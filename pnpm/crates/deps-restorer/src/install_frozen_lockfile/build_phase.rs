@@ -8,6 +8,8 @@ use super::{
     importer_root_dir, link_top_level_bins,
 };
 
+mod post_build_bins;
+
 #[cfg(test)]
 mod tests;
 
@@ -45,6 +47,9 @@ pub enum BuildPhaseError {
     /// `<importer>/node_modules/.bin`.
     #[diagnostic(transparent)]
     TopLevelBinLink(#[error(source)] LinkBinsError),
+    /// A dependency's local bin directory could not be refreshed after a build.
+    #[diagnostic(transparent)]
+    DependencyBinLink(#[error(source)] crate::LinkVirtualStoreBinsError),
 }
 
 /// Resolve `pnpm-workspace.yaml`'s `patchedDependencies` into a
@@ -161,6 +166,9 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     }
 
     link_held_back_bins(inputs)?;
+    if build_output.mutated_slots {
+        post_build_bins::relink_dependency_bins(inputs, &build_output.mutated_snapshot_keys)?;
+    }
 
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
@@ -206,6 +214,7 @@ fn build_or_defer<Reporter: self::Reporter>(
             ignored_builds: Vec::new(),
             deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
             mutated_slots: false,
+            mutated_snapshot_keys: std::collections::HashSet::default(),
         }
     } else {
         build_modules(inputs, patches, shared_side_effects_publisher)
@@ -237,6 +246,7 @@ fn build_modules<'a>(
             frozen_store: config.frozen_store,
         },
         directories: crate::BuildLayout {
+            link_options: inputs.directories.link_options,
             layout: inputs.directories.layout,
             pkg_roots_by_key: inputs.directories.hoisted_pkg_roots_by_key,
             gather_ancestor_bin_paths: inputs.directories.is_hoisted,
@@ -326,7 +336,7 @@ fn link_importer_top_level_bins(
         &direct_names,
         hoisted_names,
         &peer_locations,
-        inputs.directories.link_options,
+        &post_build_bins::link_options(inputs.directories.link_options, mutated_slots),
     )
     .map_err(BuildPhaseError::TopLevelBinLink)
 }

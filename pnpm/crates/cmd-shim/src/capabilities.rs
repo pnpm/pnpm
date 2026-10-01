@@ -13,6 +13,8 @@
 
 #[cfg(any(unix, target_os = "wasi"))]
 mod executable;
+#[cfg(all(test, unix))]
+mod tests;
 
 use pipe_trait::Pipe;
 use std::{
@@ -167,8 +169,8 @@ pub trait FsWrite {
 
     /// Atomically replace whatever occupies `path` with a regular file
     /// holding `bytes`: written to a sibling temp file and renamed into
-    /// place. No reader observes a torn file, concurrent equivalent
-    /// writers converge on last-writer-wins, and a symlink at `path` is
+    /// place with executable permissions. No reader observes a torn file;
+    /// concurrent equivalent writers converge on last-writer-wins, and a symlink at `path` is
     /// replaced as a dirent rather than followed. The default impl opts
     /// a fake out (the shim writer then falls back to
     /// remove-then-[`write`]) rather than forcing fakes to model the
@@ -318,7 +320,7 @@ impl FsWrite for Host {
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error),
             };
-            let written = tmp.write_all(bytes);
+            let written = tmp.write_all(bytes).and_then(|()| set_file_executable(&tmp));
             drop(tmp);
             let result = written.and_then(|()| pnpm_fs::rename_with_retry(&tmp_path, path));
             if result.is_err() {
@@ -327,6 +329,23 @@ impl FsWrite for Host {
             return result;
         }
         Err(io::Error::from(io::ErrorKind::AlreadyExists))
+    }
+}
+
+fn set_file_executable(file: &std::fs::File) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        pnpm_fs::set_file_permissions(file, &std::fs::Permissions::from_mode(0o755))
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        pnpm_fs::set_file_permissions(file, &0o755)
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
+    {
+        let _ = file;
+        Ok(())
     }
 }
 
