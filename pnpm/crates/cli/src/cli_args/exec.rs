@@ -1,8 +1,11 @@
 mod recursive;
 
 use super::reporter::ReporterType;
-use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
-use crate::process::{Command, ExitStatus, Stdio};
+use crate::{
+    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    process::{Command, ExitStatus, Stdio},
+};
+
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;

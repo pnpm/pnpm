@@ -1,5 +1,4 @@
-use crate::async_process::Command;
-use crate::{HookError, worker::NodeWorker};
+use crate::{HookError, async_process::Command, worker::NodeWorker};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};

@@ -6,6 +6,7 @@ pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
 use crate::{
     cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
     ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
+    process::Command,
 };
 use cargo_util_schemas::index::RegistryConfig;
 use futures_util::{StreamExt, TryStreamExt, stream};
@@ -30,7 +31,6 @@ use pnpm_store_dir::{
 use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
 use serde::{Deserialize, Serialize};
 
-use crate::process::Command;
 use sparse_registry::{fetch_sparse_index, registry_download_config};
 use ssri::{Algorithm, Integrity};
 use std::{

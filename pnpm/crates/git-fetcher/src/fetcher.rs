@@ -22,14 +22,15 @@ mod revision;
 
 use remote::download_commit;
 
-use crate::process::Command;
 use crate::{
     GitSource, GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
     prepare_package::{AllowBuildRef, PreparePackageOptions, prepare_package, safe_join_path},
+    process::Command,
     protocols::{read_protocol_policies, submodule_protocols},
 };
+
 use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_package_manifest::{safe_read_package_json_from_dir, safe_read_project_manifest_from_dir};

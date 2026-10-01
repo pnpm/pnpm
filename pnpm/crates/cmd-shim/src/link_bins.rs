@@ -2,11 +2,6 @@ pub use discovery::collect_packages_in_modules_dir;
 pub use relocatable::bin_dir_is_relocatable;
 pub use shim_writer::remove_bin;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::shim::generate_sh_shim;
-#[cfg(target_family = "wasm")]
-use crate::shim::generate_wasm_shim as generate_sh_shim;
-
 use crate::{
     bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
     capabilities::{

@@ -1,9 +1,9 @@
 pub use output::StreamedScript;
 
-use crate::process::{Command, ExitStatus, Stdio};
 use crate::{
     extend_path::extend_path,
     make_env::{EnvBuild, EnvOptions, build_env, is_path_key, path_value},
+    process::{Command, ExitStatus, Stdio},
     process_tracker::{SpawnedChild, spawn_child},
     script_exit::ScriptExit,
     script_working_dir::{
@@ -15,6 +15,7 @@ use crate::{
     },
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::{

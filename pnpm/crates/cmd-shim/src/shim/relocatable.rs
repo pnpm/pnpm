@@ -106,21 +106,8 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
                 .is_ok_and(|target| is_subdir(&root, &target))
     };
     #[cfg(any(test, target_family = "wasm"))]
-    if let Some(config) = shim_content
-        .lines()
-        .find_map(|line| line.strip_prefix("// pnpm-wasm-shim="))
-    {
-        let Ok(config) = serde_json::from_str::<serde_json::Value>(config) else {
-            return false;
-        };
-        return config["target"].as_str().is_some_and(resolves_in_root)
-            && config["nodePath"]
-                .as_array()
-                .is_some_and(|paths| {
-                    paths
-                        .iter()
-                        .all(|entry| entry.as_str().is_some_and(resolves_in_root))
-                });
+    if let Some(result) = wasm_shim_resolves_in_root(shim_content, resolves_in_root) {
+        return result;
     }
     let entries_resolve_in_root = |value: &str| {
         value
@@ -160,4 +147,27 @@ fn unescape_sh_double_quoted(text: &str) -> Option<String> {
         }
     }
     Some(unescaped)
+}
+
+#[cfg(any(test, target_family = "wasm"))]
+fn wasm_shim_resolves_in_root(
+    shim_content: &str,
+    resolves_in_root: impl Fn(&str) -> bool,
+) -> Option<bool> {
+    let config = shim_content
+        .lines()
+        .find_map(|line| line.strip_prefix("// pnpm-wasm-shim="))?;
+    let Ok(config) = serde_json::from_str::<serde_json::Value>(config) else {
+        return Some(false);
+    };
+    Some(
+        config["target"].as_str().is_some_and(&resolves_in_root)
+            && config["nodePath"]
+                .as_array()
+                .is_some_and(|paths| {
+                    paths
+                        .iter()
+                        .all(|entry| entry.as_str().is_some_and(&resolves_in_root))
+                }),
+    )
 }

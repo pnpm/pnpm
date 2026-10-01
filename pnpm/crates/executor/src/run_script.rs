@@ -1,8 +1,8 @@
-use crate::process::{Command, Stdio};
 use crate::{
     extend_path::extend_path,
     lifecycle::{StreamedScript, push_script_arg},
     make_env::{EnvOptions, build_env, is_path_key, path_value},
+    process::{Command, Stdio},
     process_tracker::{ProcessTracker, spawn_child},
     script_args::{ArgQuoting, build_command},
     script_exit::ScriptExit,
@@ -12,6 +12,7 @@ use crate::{
     },
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_reporter::LogEvent;

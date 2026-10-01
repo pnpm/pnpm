@@ -14,9 +14,12 @@
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
-use crate::async_process::{Child, ChildStdin, ChildStdout, Command};
-use crate::process::Stdio;
-use crate::{FetcherCallback, FetcherCallbackSender, HookError};
+use crate::{
+    FetcherCallback, FetcherCallbackSender, HookError,
+    async_process::{Child, ChildStdin, ChildStdout, Command},
+    process::Stdio,
+};
+
 use serde_json::Value;
 use std::{
     collections::HashMap,

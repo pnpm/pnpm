@@ -1,3 +1,5 @@
+pub use crate::shell_emulator_types::{EmulatedOutput, ShellEmulatorError};
+
 use deno_task_shell::{
     KillSignal, ShellPipeReader, ShellPipeWriter, ShellState, SignalKind, execute_with_pipes,
     parser, parser::SequentialList, pipe,
@@ -13,8 +15,6 @@ use std::{
 use tokio::{runtime::Builder, task::LocalSet};
 
 use crate::process_tracker::{EmulatedCancellation, ProcessTracker};
-
-pub use crate::shell_emulator_types::{EmulatedOutput, ShellEmulatorError};
 
 /// Run `script` through the built-in shell instead of the platform's
 /// own (`shellEmulator`), so a script written for `sh` behaves the same

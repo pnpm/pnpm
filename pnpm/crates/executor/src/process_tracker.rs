@@ -1,12 +1,13 @@
-use crate::process::{Child, Command};
 use std::{collections::HashMap, io, sync::Mutex};
-#[cfg(not(target_family = "wasm"))]
-use tokio::sync::watch;
-
 #[cfg(unix)]
 use std::{
     io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
 };
+
+#[cfg(not(target_family = "wasm"))]
+use tokio::sync::watch;
+
+use crate::process::{Child, Command};
 
 /// Tracks the processes started by one command so a bailing task can stop
 /// other work that is still in flight.
@@ -413,8 +414,9 @@ fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
 
 #[cfg(windows)]
 fn terminate_process(pid: u32, _separate_process_group: bool) {
-    use crate::process::Stdio;
     use std::os::windows::process::CommandExt;
+
+    use crate::process::Stdio;
 
     let Some(taskkill) = taskkill_path() else { return };
     let _ = Command::new(taskkill)
@@ -436,6 +438,7 @@ fn terminate_process(pid: u32, _separate_process_group: bool) {
 #[cfg(windows)]
 fn taskkill_path() -> Option<std::path::PathBuf> {
     use std::{ffi::OsString, os::windows::ffi::OsStringExt, ptr};
+
     use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
 
     // SAFETY: the first call requests the required UTF-16 buffer length.

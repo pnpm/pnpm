@@ -73,11 +73,6 @@ pub fn home_dir() -> Option<std::path::PathBuf> {
 
 #[cfg(target_family = "wasm")]
 pub use pnpm_wasm_host::process_id;
-#[cfg(not(target_family = "wasm"))]
-pub use std::process::id as process_id;
-
-#[cfg(not(target_family = "wasm"))]
-pub use std::env::temp_dir;
 
 /// Returns the supervising host's temporary directory.
 #[cfg(target_family = "wasm")]
@@ -91,4 +86,7 @@ mod path_list;
 #[cfg(target_family = "wasm")]
 pub use path_list::{JoinPathsError, join_paths, split_paths};
 #[cfg(not(target_family = "wasm"))]
-pub use std::env::{JoinPathsError, join_paths, split_paths};
+pub use std::{
+    env::{JoinPathsError, join_paths, split_paths, temp_dir},
+    process::id as process_id,
+};

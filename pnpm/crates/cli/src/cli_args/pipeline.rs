@@ -21,7 +21,7 @@ use super::{
     reporter::{ReporterType, reporter_emit},
     run::{RunContext, ScriptSelector, run_stages},
 };
-use crate::cli_args::recursive::filtered_projects_dependencies;
+use crate::{cli_args::recursive::filtered_projects_dependencies, process::Command};
 
 use cache::{CacheDisposition, TaskCache};
 use derive_more::{Display, Error};
@@ -54,7 +54,6 @@ use selection::{
     workspace_identity,
 };
 
-use crate::process::Command;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},

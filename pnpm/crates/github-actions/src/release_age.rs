@@ -8,8 +8,11 @@
 //! check them, so a backdated tag passes. Unlike a registry's publish time,
 //! they hold back only releases that carry their real date.
 
-use crate::process::{Command, Stdio};
-use crate::{ActionReference, GIT_CONCURRENCY, RepoVersion, find_current, global_warn};
+use crate::{
+    ActionReference, GIT_CONCURRENCY, RepoVersion, find_current, global_warn,
+    process::{Command, Stdio},
+};
+
 use chrono::{DateTime, Utc};
 use futures_util::{StreamExt, stream};
 use node_semver::Version;

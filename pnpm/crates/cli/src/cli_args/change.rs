@@ -1,8 +1,11 @@
 pub use report::render_release_plan;
 
-use crate::cli_args::{changelog::published_names, recursive::discover_workspace_projects};
 #[cfg(target_family = "wasm")]
 use crate::dialoguer_wasm::{Input, MultiSelect};
+use crate::{
+    cli_args::{changelog::published_names, recursive::discover_workspace_projects},
+    process::Command,
+};
 use clap::Args;
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
@@ -20,7 +23,6 @@ use pnpm_versioning::{
 use pnpm_workspace::Project;
 use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
 
-use crate::process::Command;
 use report::{render_status, run_check};
 use std::{
     collections::{HashMap, HashSet},

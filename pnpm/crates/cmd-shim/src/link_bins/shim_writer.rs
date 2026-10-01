@@ -1,10 +1,15 @@
+#[cfg(not(target_family = "wasm"))]
+use crate::shim::generate_sh_shim;
+#[cfg(target_family = "wasm")]
+use crate::shim::generate_wasm_shim as generate_sh_shim;
+
 use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
     LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
-    chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
-    is_node_bin_name, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
-    link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
-    symlink_already_points_at, target_requires_shim, windows_shim_policy::WindowsShimPolicy,
+    chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, io, is_node_bin_name,
+    is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at, link_node_bin,
+    link_symlinked_executable, linking_paths::LinkingPaths, symlink_already_points_at,
+    target_requires_shim, windows_shim_policy::WindowsShimPolicy,
 };
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,

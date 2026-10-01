@@ -1,4 +1,4 @@
-use crate::process::Command;
+use crate::{filter::FilterError, process::Command};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -6,8 +6,6 @@ use std::{
 
 use indexmap::IndexMap;
 use wax::{Glob, Program};
-
-use crate::filter::FilterError;
 
 mod catalogs;
 

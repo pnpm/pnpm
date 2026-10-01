@@ -301,7 +301,7 @@ fn chmod_through_path_handle_reaches_unreadable_dir_and_refuses_symlink() {
     let dir = tmp.path().join("ab");
     fs::create_dir(&dir).unwrap();
     fs::set_permissions(&dir, fs::Permissions::from_mode(0o300)).unwrap();
-    super::chmod_through_path_handle(&dir, 0o2070).unwrap();
+    super::directory::chmod_through_path_handle(&dir, 0o2070).unwrap();
     let mode = fs::metadata(&dir)
         .unwrap()
         .permissions()
@@ -314,7 +314,7 @@ fn chmod_through_path_handle_reaches_unreadable_dir_and_refuses_symlink() {
     fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
     let link = tmp.path().join("cd");
     std::os::unix::fs::symlink(&outside, &link).unwrap();
-    super::chmod_through_path_handle(&link, 0o2070).unwrap_err();
+    super::directory::chmod_through_path_handle(&link, 0o2070).unwrap_err();
     let mode = fs::metadata(&outside)
         .unwrap()
         .permissions()

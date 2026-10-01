@@ -1,6 +1,5 @@
 pub(crate) use clean::clean_expired_dlx_cache;
 
-use crate::process::Command;
 use crate::{
     State,
     cli_args::{
@@ -9,8 +8,10 @@ use crate::{
     },
     engine_pm::{channel::PackageManager, provision::provision},
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    process::Command,
     shim_dispatch::materialize_runtime,
 };
+
 use cache::{read_json, resolve_catalog_specs};
 use clap::Args;
 use derive_more::{Display, Error};

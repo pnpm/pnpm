@@ -1,7 +1,7 @@
 use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
     IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
-    WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
+    WORKSPACE_MANIFEST_FILENAME, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
     is_ancestor_path, is_child_path, lexical_normalize, path_compare::has_path_prefix,
     remove_dirent, same_path, warn,
 };
@@ -379,22 +379,5 @@ pub(super) fn write_deploy_files(
     Ok(())
 }
 
-fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
-    let dir = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
-    tmp.write_all(contents)?;
-    tmp.as_file().sync_all()?;
-    #[cfg(not(target_os = "wasi"))]
-    if let Ok(metadata) = fs::metadata(path) {
-        tmp.as_file().set_permissions(metadata.permissions())?;
-    }
-    #[cfg(target_os = "wasi")]
-    if let Ok(permissions) = pnpm_fs::copy_permissions(path) {
-        pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;
-    }
-    tmp.persist(path).map_err(|error| error.error)?;
-    Ok(())
-}
+mod atomic_write;
+use atomic_write::write_atomic;

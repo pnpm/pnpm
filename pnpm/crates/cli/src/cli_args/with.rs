@@ -13,7 +13,6 @@
 //! version / range / dist-tag spec, which it resolves, installs into the
 //! global virtual store, and spawns.
 
-use crate::process::Command;
 use crate::{
     cli_args::{dlx::exit_unless_success, package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS},
     engine_pm::{
@@ -22,7 +21,9 @@ use crate::{
         provision::{engine_bin, provision},
     },
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    process::Command,
 };
+
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};

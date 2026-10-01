@@ -12,10 +12,11 @@ pub(super) use native_binary::{
 };
 
 use super::SelfUpdateError;
-use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
+use crate::{
+    State, cli_args::add::add_package, executable_link::replace_executable, process::Command,
+};
 use miette::{Context, IntoDiagnostic};
 
-use crate::process::Command;
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
 use pnpm_global::{

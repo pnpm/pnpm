@@ -1,6 +1,4 @@
-use crate::process::Command;
-
-use crate::Implementation;
+use crate::{Implementation, process::Command};
 
 /// Run `getconf GNU_LIBC_VERSION`, falling back to `ldd --version`.
 ///

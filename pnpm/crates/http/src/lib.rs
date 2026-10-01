@@ -1,4 +1,9 @@
 #[cfg(target_family = "wasm")]
+pub mod dns;
+#[cfg(target_family = "wasm")]
+pub mod redirect;
+
+#[cfg(target_family = "wasm")]
 pub use client::{Client, ClientBuilder};
 #[cfg(target_family = "wasm")]
 pub use error::Error;
@@ -18,11 +23,7 @@ pub use url::Url;
 #[cfg(target_family = "wasm")]
 mod client;
 #[cfg(target_family = "wasm")]
-pub mod dns;
-#[cfg(target_family = "wasm")]
 mod error;
-#[cfg(target_family = "wasm")]
-pub mod redirect;
 #[cfg(target_family = "wasm")]
 mod request;
 #[cfg(target_family = "wasm")]

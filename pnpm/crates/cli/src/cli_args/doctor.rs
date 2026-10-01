@@ -7,8 +7,8 @@
 //! pipeline runs this same command against a freshly published version before
 //! moving its dist-tags, so what gates a release is what ships to users.
 
-use crate::cli_args::ping::PingArgs;
-use crate::process::Command;
+use crate::{cli_args::ping::PingArgs, process::Command};
+
 use clap::Args;
 use pnpm_config::{Config, PNPM_VERSION};
 use serde::Serialize;
