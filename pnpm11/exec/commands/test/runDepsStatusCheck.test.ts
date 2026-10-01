@@ -475,7 +475,7 @@ test('warns and lets the command run when the install exits with an error', asyn
     verifyDepsBeforeRun: 'install',
   })
 
-  expect(globalWarn).toHaveBeenCalledWith('"pnpm install" failed, so your node_modules may be out of sync with your lockfile.')
+  expect(globalWarn).toHaveBeenCalledWith('"pnpm install" failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install before running scripts.')
 })
 
 test('aborts when the install is killed by a signal', async () => {

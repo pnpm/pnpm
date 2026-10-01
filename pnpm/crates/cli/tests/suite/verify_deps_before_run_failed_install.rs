@@ -34,7 +34,7 @@ fn failed_install_warns_and_runs_the_script() {
     assert!(output.status.success(), "a failed install must not block the script:\n{stderr}");
     assert!(
         stderr.contains(
-            r#""pnpm install" failed, so your node_modules may be out of sync with your lockfile."#
+            r#""pnpm install" failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install before running scripts."#
         ),
         "expected the failed-install warning:\n{stderr}",
     );

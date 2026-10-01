@@ -265,7 +265,7 @@ function runInstall (opts: RunDepsStatusCheckOptions, command: string[]): void {
     runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
   } catch (err: unknown) {
     if (!hasExitCode(err)) throw err
-    globalWarn(`"pnpm ${command.join(' ')}" failed, so your node_modules may be out of sync with your lockfile.`)
+    globalWarn(`"pnpm ${command.join(' ')}" failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install before running scripts.`)
   }
 }
 

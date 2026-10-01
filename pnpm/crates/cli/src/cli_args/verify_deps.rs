@@ -274,7 +274,7 @@ fn spawn_install(
     warn(
         matches!(reporter, ReporterType::Silent),
         &format!(
-            r#""pnpm {}" failed, so your node_modules may be out of sync with your lockfile."#,
+            r#""pnpm {}" failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install before running scripts."#,
             install_command(install_args),
         ),
     );
