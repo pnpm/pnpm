@@ -20,11 +20,6 @@ export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir'
  * broken link: skipped optional and excluded dependencies have none, and a
  * healthy entry costs one `stat`. The hoisted linker places a project's
  * dependencies in the root modules directory too, so both are probed there.
- *
- * Optional dependencies are not probed. A failed optional build removes the
- * package directory and keeps its links, and a no-op install has no reason
- * to retry that build
- * (https://github.com/pnpm/pnpm/issues/16468).
  */
 export async function findDanglingDirectDependencyLink (opts: FindDanglingDirectDependencyLinkOptions): Promise<string | undefined> {
   const entries = listDirectDependencyEntries(opts)
@@ -39,16 +34,13 @@ function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOpti
   }
   const modulesDirOf = createProjectModulesDirResolver(opts)
   const rootModulesDir = path.resolve(opts.rootProjectManifestDir, modulesDirOf(opts.rootProjectManifest?.name) ?? 'node_modules')
-  const fields = DEPENDENCIES_FIELDS.filter((field) => field !== 'optionalDependencies' && opts.include?.[field] !== false)
+  const fields = DEPENDENCIES_FIELDS.filter((field) => opts.include?.[field] !== false)
   return projects.flatMap(({ rootDir, manifest }) => {
     const modulesDirs = [path.resolve(rootDir, modulesDirOf(manifest.name) ?? 'node_modules')]
     if (opts.nodeLinker === 'hoisted' && modulesDirs[0] !== rootModulesDir) {
       modulesDirs.push(rootModulesDir)
     }
-    const optional = new Set(Object.keys(manifest.optionalDependencies ?? {}))
-    const aliases = fields
-      .flatMap((field) => Object.keys(manifest[field] ?? {}))
-      .filter((alias) => !optional.has(alias))
+    const aliases = fields.flatMap((field) => Object.keys(manifest[field] ?? {}))
     return aliases.flatMap((alias) => modulesDirs.map((modulesDir) => path.join(modulesDir, alias)))
   })
 }

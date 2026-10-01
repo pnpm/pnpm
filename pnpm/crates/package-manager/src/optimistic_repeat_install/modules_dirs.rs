@@ -192,29 +192,16 @@ fn first_project_without_modules_dir(
 /// excluded dependencies have none, and a healthy entry costs one `stat`.
 /// The hoisted linker places a sibling's dependencies in the root modules
 /// directory too, so both are probed there.
-///
-/// Optional dependencies are not probed. A failed optional build removes the
-/// package directory and keeps its links, and a no-op install has no reason
-/// to retry that build
-/// ([#16468](https://github.com/pnpm/pnpm/issues/16468)).
 pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-    let groups: Vec<DependencyGroup> = included_groups(check.layout.included)
-        .into_iter()
-        .filter(|group| *group != DependencyGroup::Optional)
-        .collect();
+    let groups = included_groups(check.layout.included);
     check.project_manifests
         .iter()
         .any(|(root_dir, manifest)| {
-            let optional: HashSet<&str> = manifest
-                .dependencies([DependencyGroup::Optional])
-                .map(|(alias, _)| alias)
-                .collect();
             project_modules_dirs(check, root_dir, manifest)
                 .iter()
                 .any(|modules_dir| {
                     manifest
                         .dependencies(groups.iter().copied())
-                        .filter(|(alias, _)| !optional.contains(alias))
                         .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
                 })
         })

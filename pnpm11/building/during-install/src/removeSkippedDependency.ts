@@ -117,7 +117,9 @@ function containedNodeModulesLink (modulesDir: string, alias: string): string | 
 /**
  * Remove every installed copy of an optional dependency whose build failed,
  * so a consumer that probes for it finds it absent rather than half-built.
- * The next install finds the directory missing and retries the build.
+ * The links to it in `linkedModulesDirs` are removed too, so the package is
+ * absent rather than linked to nothing. The next install that has work to do
+ * retries the build.
  * Under the global virtual store this removes the package directory of the
  * shared slot, whose lock the caller holds. The slot keeps its lock and its
  * dependency links, and every project that links it finds the package absent.
@@ -126,13 +128,17 @@ function containedNodeModulesLink (modulesDir: string, alias: string): string | 
  */
 export async function removeSkippedOptionalDependency<NodeId extends string> (
   depNode: DependenciesGraphNode<NodeId>,
-  opts: { hoistedLocations?: Record<string, string[]>, lockfileDir: string }
+  opts: { hoistedLocations?: Record<string, string[]>, linkedModulesDirs?: string[], lockfileDir: string }
 ): Promise<void> {
+  // Links are matched by their resolved target, so they are found before
+  // the directory they point to is removed.
+  const links = await linksTo(depNode.dir, opts.linkedModulesDirs ?? [])
   const dirs = new Set([
     depNode.dir,
     ...(opts.hoistedLocations?.[depNode.depPath] ?? [])
       .map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
       .filter((dir) => isStrictSubdir(opts.lockfileDir, dir)),
   ])
+  await removeAll(links)
   await Promise.all(Array.from(dirs, (dir) => fs.rm(dir, { recursive: true, force: true })))
 }

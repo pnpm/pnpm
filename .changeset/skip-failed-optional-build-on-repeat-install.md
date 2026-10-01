@@ -1,7 +1,7 @@
 ---
-"@pnpm/deps.status": patch
+"@pnpm/building.during-install": patch
 "pnpm": patch
 "pacquet": patch
 ---
 
-A repeat `pnpm install` no longer reruns the failed build of an optional dependency. It reports "Already up to date" when nothing else changed [#16468](https://github.com/pnpm/pnpm/issues/16468).
+When an optional dependency fails to build, pnpm now removes its link from `node_modules`. A repeat `pnpm install` then reports "Already up to date" and no longer reruns the failing build [#16468](https://github.com/pnpm/pnpm/issues/16468).
