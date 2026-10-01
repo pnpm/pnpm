@@ -289,18 +289,36 @@ fn rebase_local_specifier(
     deploy_dir: &Path,
 ) -> Option<String> {
     let local = LocalSpec::parse_filesystem(specifier, project_dir)?;
-    let Some(copy) = deployed_copy(local.absolute_path(), project_dir, deploy_dir) else {
+    let Some(inside_project) =
+        copied_path_inside_project(local.absolute_path(), project_dir, deploy_dir)
+    else {
         return Some(local.render(Some(deploy_dir)));
     };
+    let copy = deploy_dir.join(&inside_project);
     let names_the_copy_as_declared = LocalSpec::parse_filesystem(specifier, deploy_dir)
         .is_some_and(|declared| same_path(declared.absolute_path(), &copy));
-    (!names_the_copy_as_declared).then(|| local.render(Some(project_dir)))
+    // On Windows the specifier can spell the project directory in another
+    // case, and `LocalSpec::render` diffs paths case-sensitively.
+    let spelled_project_dir = local
+        .absolute_path()
+        .ancestors()
+        .nth(inside_project.components().count())?;
+    (!names_the_copy_as_declared).then(|| local.render(Some(spelled_project_dir)))
 }
 
-fn deployed_copy(path: &Path, project_dir: &Path, deploy_dir: &Path) -> Option<PathBuf> {
-    let inside_project = relative_components_from_child(project_dir, path).ok()?;
-    let copy = deploy_dir.join(inside_project.iter().collect::<PathBuf>());
-    copy.exists().then_some(copy)
+fn copied_path_inside_project(
+    path: &Path,
+    project_dir: &Path,
+    deploy_dir: &Path,
+) -> Option<PathBuf> {
+    let inside_project: PathBuf = relative_components_from_child(project_dir, path)
+        .ok()?
+        .iter()
+        .collect();
+    deploy_dir
+        .join(&inside_project)
+        .exists()
+        .then_some(inside_project)
 }
 
 pub(super) fn same_path(left: &Path, right: &Path) -> bool {
