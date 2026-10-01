@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-A repeat `pnpm install` reports "Already up to date" again when an optional dependency failed to build. Before, every install reran the failing build, which made a no-op install take minutes on Windows [#16468](https://github.com/pnpm/pnpm/issues/16468).
+A repeat `pnpm install` no longer reruns the failed build of an optional dependency. It reports "Already up to date" when nothing else changed [#16468](https://github.com/pnpm/pnpm/issues/16468).

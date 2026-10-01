@@ -21,10 +21,9 @@ export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir'
  * healthy entry costs one `stat`. The hoisted linker places a project's
  * dependencies in the root modules directory too, so both are probed there.
  *
- * Optional dependencies are not probed. An optional dependency whose build
- * failed has its package directory removed while its links stay, and the
- * full install would only rerun that failing build, so probing them made
- * every repeat install a full one
+ * Optional dependencies are not probed. A failed optional build removes the
+ * package directory and keeps its links, and a no-op install has no reason
+ * to retry that build
  * (https://github.com/pnpm/pnpm/issues/16468).
  */
 export async function findDanglingDirectDependencyLink (opts: FindDanglingDirectDependencyLinkOptions): Promise<string | undefined> {

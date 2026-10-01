@@ -193,10 +193,9 @@ fn first_project_without_modules_dir(
 /// The hoisted linker places a sibling's dependencies in the root modules
 /// directory too, so both are probed there.
 ///
-/// Optional dependencies are not probed. An optional dependency whose build
-/// failed has its package directory removed while its links stay, and the
-/// full install would only rerun that failing build, so probing them made
-/// every repeat install a full one
+/// Optional dependencies are not probed. A failed optional build removes the
+/// package directory and keeps its links, and a no-op install has no reason
+/// to retry that build
 /// ([#16468](https://github.com/pnpm/pnpm/issues/16468)).
 pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
     let groups: Vec<DependencyGroup> = included_groups(check.layout.included)
