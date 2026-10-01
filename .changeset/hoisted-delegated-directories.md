@@ -6,4 +6,4 @@
 "@pnpm/store.controller": patch
 ---
 
-Refresh directories supplied by custom fetchers when reinstalling with `nodeLinker: hoisted`.
+`pnpm install` with `nodeLinker: hoisted` now refreshes directories supplied by custom fetchers when reinstalling.

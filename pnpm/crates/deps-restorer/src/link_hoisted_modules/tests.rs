@@ -216,7 +216,6 @@ fn isolated_mutable_source_is_not_hard_linked() {
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
     let installed_link = dir.join("link.js");
-    eprintln!("installed link: {installed_link:?}");
     assert!(fs::symlink_metadata(&installed_link).unwrap().is_symlink());
     fs::write(&source, b"2").expect("edit the source in place");
 

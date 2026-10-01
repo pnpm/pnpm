@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Preserve symlinks in directories supplied by custom fetchers and refresh those directories when reinstalling with `nodeLinker: hoisted`.
+`pnpm install` with `nodeLinker: hoisted` now refreshes directories supplied by custom fetchers when reinstalling. pnpm also keeps the symlinks inside those directories.

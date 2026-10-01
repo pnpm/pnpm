@@ -66,34 +66,6 @@ impl<'a> RunExecution<'a> {
         self.install_settled::<Reporter>(&scope, &mut loaded, &project_manifests, &lockfiles).await
     }
 
-    async fn check_custom_fetcher_reuse(&mut self) -> Result<(), InstallError> {
-        if self.install.execution.node_linker != pnpm_config::NodeLinker::Hoisted
-            || self.install.lockfile_policy.disable_optimistic_repeat
-        {
-            return Ok(());
-        }
-        let hook = super::resolve_pnpmfile_hook(
-            self.install.context.config,
-            &self.workspace.dirs.workspace_root,
-            self.owned.projects.pnpmfile_hook_override.take(),
-        )?;
-        if let Some(hook) = &hook {
-            let fetchers = hook
-                .get_custom_fetchers()
-                .await
-                .map_err(|error| {
-                    super::super::map_frozen_lockfile_error(
-                        pnpm_deps_restorer::InstallFrozenLockfileError::CustomFetcherHook(error),
-                    )
-                })?;
-            // A hook may return a mutable directory without changing the lockfile.
-            // Both repeat-install shortcuts must let materialization inspect its files.
-            self.install.lockfile_policy.disable_optimistic_repeat = !fetchers.is_empty();
-        }
-        self.owned.projects.pnpmfile_hook_override = hook;
-        Ok(())
-    }
-
     fn take_settled_outcome(&mut self) -> InstallRunOutcome {
         InstallRunOutcome::LockfileSettled {
             workspace_manifest_dir: std::mem::take(&mut self.workspace.dirs.workspace_manifest_dir),
