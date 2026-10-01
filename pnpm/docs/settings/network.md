@@ -98,6 +98,8 @@ As of v10.24.0, pnpm automatically selects a value between 16 and 64 based on th
 
 If a request times out while other requests to the same host are still in flight, pnpm lowers the limit for that host to one request for the rest of the command. Requests that are already running finish first. Requests to other hosts keep the full limit. Requests sent through the same proxy count as one host.
 
+To limit requests to one registry, set [`networkConcurrency`](../registries.md#networkconcurrency) on its entry in the `registries` setting.
+
 ### fetchRetries
 
 * Default: **2**

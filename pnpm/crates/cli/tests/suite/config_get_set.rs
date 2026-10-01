@@ -252,3 +252,27 @@ fn config_set_refuses_a_machine_level_key_in_the_project_manifest() {
 
     drop(root);
 }
+
+/// `pnpm config get registries` prints a registry's `networkConcurrency` as
+/// the `registries` entry in `pnpm-workspace.yaml` wrote it.
+#[test]
+fn config_get_registries_shows_a_registry_network_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "registries:\n  https://npm.corp.example/:\n    scopes: ['@acme']\n    networkConcurrency: 4\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["config", "get", "registries", "--json"])
+        .output()
+        .expect("run pacquet config get registries");
+    eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    let registries: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("registries print as JSON");
+    assert_eq!(registries["https://npm.corp.example/"]["networkConcurrency"], 4);
+
+    drop(root);
+}

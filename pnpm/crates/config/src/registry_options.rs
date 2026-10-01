@@ -26,6 +26,9 @@ impl Config {
             fetch_warn_timeout: std::time::Duration::from_millis(self.fetch_warn_timeout_ms),
             fetch_min_speed_ki_bps: self.fetch_min_speed_ki_bps,
             user_agent: self.user_agent.clone(),
+            network_concurrency_by_registry: self
+                .network_concurrency_by_registry
+                .clone(),
         }
     }
 
@@ -120,6 +123,9 @@ impl Config {
             registries_by_prefix: self.registries_by_prefix.clone(),
             registry_options_by_url: self.registry_options_by_url.clone(),
             indexes_by_ecosystem: self.indexes_by_ecosystem.clone(),
+            network_concurrency_by_registry: self
+                .network_concurrency_by_registry
+                .clone(),
         }
     }
 

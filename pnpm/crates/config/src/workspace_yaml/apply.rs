@@ -203,6 +203,7 @@ impl WorkspaceSettings {
         config.registries_by_prefix.extend(lookups.registries_by_prefix);
         config.registry_options_by_url.extend(lookups.registry_options_by_url);
         config.indexes_by_ecosystem.extend(lookups.indexes_by_ecosystem);
+        config.network_concurrency_by_registry.extend(lookups.network_concurrency_by_registry);
         declared_prefixes
     }
 

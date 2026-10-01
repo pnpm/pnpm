@@ -652,6 +652,10 @@ pub struct Config {
     /// Read through `python_indexes` and `cargo_index_url`.
     pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<crate::EcosystemIndex>>,
 
+    /// The `networkConcurrency` of each `registries` entry that sets one,
+    /// keyed by registry URL with a trailing slash.
+    pub network_concurrency_by_registry: BTreeMap<String, std::num::NonZeroUsize>,
+
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
     /// all from `.npmrc` and the process environment. The type lives
