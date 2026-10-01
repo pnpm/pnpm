@@ -331,6 +331,10 @@ pub struct WorkspaceExecutionArgs {
     /// Don't fail when the named script is undefined.
     #[clap(long = "if-present", hide = true)]
     pub if_present: bool,
+    /// Run the specified scripts one by one. Spelled ahead of a script
+    /// name (`pnpm -s lint`), where `run`'s own `-s` cannot reach it.
+    #[clap(long, short = 's', hide = true)]
+    pub sequential: bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
