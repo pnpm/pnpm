@@ -108,6 +108,26 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     );
 }
 
+/// A relink of an up-to-date link must not attempt a create: on macOS a
+/// `symlink()` that fails with `EEXIST` is the slow path of a relink.
+#[test]
+fn force_symlink_reuses_an_up_to_date_link_without_a_create_attempt() {
+    fn refuse_to_create(_: &std::path::Path, _: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::other("create attempted"))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target dir");
+    force_symlink_dir(&target, &link).expect("create the link");
+
+    let outcome = super::force_symlink(&target, &link, refuse_to_create)
+        .expect("an up-to-date link is reused without a create");
+
+    assert_eq!(outcome, ForceSymlinkOutcome { reused: true, warning: None });
+}
+
 #[test]
 fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
     fn create_then_warn(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
