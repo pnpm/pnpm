@@ -49,12 +49,12 @@ describe('streamReadFirstYamlDocument', () => {
     expect(result).toBeNull()
   })
 
-  test('returns null when file starts with --- but has no second separator', async () => {
+  test('reads a file that starts with --- but has no second separator as env-only', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')
     fs.writeFileSync(filePath, '---\nfoo: bar\n')
     const result = await streamReadFirstYamlDocument(filePath)
-    expect(result).toBeNull()
+    expect(result).toBe('foo: bar')
   })
 
   test('handles file with BOM prefix', async () => {
@@ -151,8 +151,23 @@ describe('extractEnvDocument', () => {
     expect(extractEnvDocument('lockfileVersion: 9.0\npackages: {}\n')).toBeNull()
   })
 
-  test('returns null when content starts with --- but has no separator', () => {
-    expect(extractEnvDocument('---\nfoo: bar\n')).toBeNull()
+  test('reads a file that starts with --- but has no separator as env-only', () => {
+    expect(extractEnvDocument('---\nfoo: bar\n')).toBe('foo: bar')
+    expect(extractEnvDocument('---\r\nfoo: bar\r\n')).toBe('foo: bar')
+    expect(extractEnvDocument('---\nfoo: bar\n---')).toBe('foo: bar')
+    expect(extractEnvDocument('---\nfoo: bar---')).toBe('foo: bar---')
+    expect(extractEnvDocument('---\n---\n')).toBe('')
+    expect(extractEnvDocument('---')).toBeNull()
+  })
+
+  test('agrees with streamReadFirstYamlDocument on an env-only file', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    for (const content of ['---\nfoo: bar\n', '---\nfoo: bar\n---', '---\n---\n', '---']) {
+      fs.writeFileSync(filePath, content)
+      // eslint-disable-next-line no-await-in-loop -- each case rewrites the same file
+      expect(await streamReadFirstYamlDocument(filePath, 2)).toBe(extractEnvDocument(content))
+    }
   })
 
   test('returns the first document from a combined file', () => {

@@ -11,9 +11,10 @@ fn returns_entire_content_when_it_does_not_start_with_separator() {
 }
 
 #[test]
-fn returns_empty_string_when_content_starts_with_separator_but_has_no_second_separator() {
+fn reads_a_file_with_no_second_separator_as_env_only() {
     let content = "---\nfoo: bar\n";
     assert_eq!(extract_main_document(content), "");
+    assert_eq!(extract_env_document(content).as_deref(), Some("foo: bar"));
 }
 
 #[test]
@@ -98,8 +99,28 @@ fn streams_no_env_document_when_the_file_does_not_start_with_a_marker() {
 }
 
 #[test]
-fn streams_no_env_document_when_the_separator_is_missing() {
-    assert_streams("---\nfoo: bar\n", None);
+fn streams_an_env_only_file() {
+    assert_streams("---\nfoo: bar\n", Some("foo: bar"));
+    assert_streams("---\nfoo: bar", Some("foo: bar"));
+    assert_streams("\u{feff}---\r\nfoo: bar\r\n", Some("foo: bar"));
+    assert_streams("---\nfoo: b\r", Some("foo: b\r"));
+}
+
+#[test]
+fn streams_an_env_only_file_closed_by_a_marker_without_a_newline() {
+    assert_streams("---\nfoo: bar\n---", Some("foo: bar"));
+    assert_streams("---\nfoo: bar---", Some("foo: bar---"));
+}
+
+#[test]
+fn streams_an_empty_env_only_document() {
+    assert_streams("---\n", Some(""));
+    assert_streams("---\n---\n", Some(""));
+}
+
+#[test]
+fn streams_no_env_document_from_a_truncated_start_marker() {
+    assert_streams("---", None);
 }
 
 #[test]

@@ -11,6 +11,7 @@ import {
   type PatchedDepPathsStatus,
   type ProjectSnapshot,
   readCurrentLockfile,
+  readEnvLockfile,
   readWantedLockfileWithMergeInfo,
 } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
@@ -189,7 +190,9 @@ async function loadWantedLockfile (
     ? await readWantedFrozen(opts.lockfileDir, lockfileOpts)
     : await readWantedNonFrozen(opts.lockfileDir, lockfileOpts)
 
-  if (opts.frozenLockfile && wantedFileExists && result.lockfile == null) {
+  // A lockfile that records only the env document has no main document yet,
+  // which is what pnpm writes for a project before its first install.
+  if (opts.frozenLockfile && wantedFileExists && result.lockfile == null && await readEnvLockfile(opts.lockfileDir) == null) {
     throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${path.join(opts.lockfileDir, WANTED_LOCKFILE)}" is broken: it is empty`)
   }
   return result
