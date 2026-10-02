@@ -1,9 +1,23 @@
 use super::{
     API_VERSION_HEADER, Body, CHALLENGE, DOCKER_CONTENT_DIGEST, DOCKER_UPLOAD_UUID, Digest,
-    ErrorBody, ErrorCode, HeaderValue, ManifestEntry, RegistryError, Response, Serialize,
+    ErrorBody, ErrorCode, HeaderValue, ManifestEntry, Method, RegistryError, Response, Serialize,
     StatusCode, header,
 };
 use axum::response::IntoResponse;
+
+/// Whether a response carries its body. A `HEAD` reply advertises the
+/// length it would have sent and sends nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ResponseBody {
+    Sent,
+    Omitted,
+}
+
+impl ResponseBody {
+    pub(super) fn for_method(method: &Method) -> Self {
+        if method == Method::HEAD { ResponseBody::Omitted } else { ResponseBody::Sent }
+    }
+}
 
 pub(super) fn insert_header(response: &mut Response, name: &'static str, value: &str) {
     let value = HeaderValue::from_str(value).expect("generated OCI response header is valid");
@@ -188,14 +202,16 @@ pub(super) fn created(location: &str, digest: &Digest) -> Response {
         .unwrap_or_else(|_| server_error())
 }
 
-/// HEAD advertises the manifest's full length while sending no body.
 pub(super) fn hosted_manifest_response(
     bytes: Vec<u8>,
     entry: ManifestEntry,
-    head: bool,
+    body: ResponseBody,
 ) -> Response {
     let length = bytes.len();
-    let body = if head { Body::empty() } else { Body::from(bytes) };
+    let body = match body {
+        ResponseBody::Omitted => Body::empty(),
+        ResponseBody::Sent => Body::from(bytes),
+    };
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, entry.media_type)
