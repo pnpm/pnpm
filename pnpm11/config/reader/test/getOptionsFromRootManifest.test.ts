@@ -958,3 +958,25 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['updateConfig', 'auto', 'The "updateConfig" setting should be an object, but got string'],
+  ['updateConfig', ['react'], 'The "updateConfig" setting should be an object, but got array'],
+  ['updateConfig', null, 'The "updateConfig" setting should be an object, but got null'],
+  ['updateConfig', { ignoreDependencies: 'react' }, 'The "updateConfig.ignoreDependencies" setting should be an array of strings, but got string'],
+  ['updateConfig', { ignoreDependencies: ['react', 123] }, 'The "updateConfig.ignoreDependencies" setting should be an array of strings, but got array'],
+  ['updateConfig', { ignoreDependencies: null }, 'The "updateConfig.ignoreDependencies" setting should be an array of strings, but got null'],
+  ['updateConfig', { changeset: 'yes' }, 'The "updateConfig.changeset" setting should be a boolean, but got string'],
+  ['updateConfig', { changeset: null }, 'The "updateConfig.changeset" setting should be a boolean, but got null'],
+  ['updateConfig', { githubActions: 'true' }, 'The "updateConfig.githubActions" setting should be a boolean, but got string'],
+  ['updateConfig', { githubActions: null }, 'The "updateConfig.githubActions" setting should be a boolean, but got null'],
+  ['updateConfig', { githubActionsServer: 123 }, 'The "updateConfig.githubActionsServer" setting should be a string, but got number'],
+  ['updateConfig', { githubActionsServer: null }, 'The "updateConfig.githubActionsServer" setting should be a string, but got null'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
