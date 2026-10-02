@@ -347,7 +347,7 @@ fn grant_inherited_dir_mode_rejects_unrelated_template_without_changes() {
                 .permissions()
                 .mode()
                 & 0o7777,
-            0o700
+            0o700,
         );
     }
 }
@@ -380,7 +380,7 @@ fn grant_inherited_dir_mode_rejects_symlink_parent_escape() {
             .permissions()
             .mode()
             & 0o7777,
-        0o700
+        0o700,
     );
 }
 
@@ -415,6 +415,6 @@ fn grant_inherited_dir_mode_accepts_relative_dot_template() {
             .unwrap()
             .permissions()
             .mode(),
-        template_mode
+        template_mode,
     );
 }
