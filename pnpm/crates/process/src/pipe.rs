@@ -198,7 +198,9 @@ impl AsyncWrite for WritePipe {
         let request = pipe.closing.as_mut().expect("stdin shutdown started");
         let result = std::task::ready!(Pin::new(request).poll(context));
         pipe.closing = None;
-        pipe.closed = true;
+        if result.is_ok() {
+            pipe.closed = true;
+        }
         Poll::Ready(result.map(|_| ()).map_err(host::error))
     }
 }
