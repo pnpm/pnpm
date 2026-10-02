@@ -1,13 +1,13 @@
 use super::{
     CreateVirtualDirBySnapshot, SlotForceInputs, optimistic_wire_method, remove_obsolete_child,
-    slot_import_opts,
+    slot_import_opts, unlink_fetch_failed_children,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::force_symlink_dir;
 use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pnpm_reporter::{LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::Path,
     sync::{
         Condvar, Mutex,
@@ -761,4 +761,66 @@ fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import(
         },
     );
     assert!(!force_import.force, "force_import must not force a reimport of a missing source");
+}
+
+/// A parent slot links its children before every download settles, so the
+/// link to an optional child whose fetch failed is removed afterwards
+/// (<https://github.com/pnpm/pnpm/issues/16514>).
+#[test]
+fn unlink_fetch_failed_children_removes_only_links_to_failed_snapshots() {
+    let dir = tempdir().expect("tempdir");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let snapshots: HashMap<PackageKey, SnapshotEntry> = serde_saphyr::from_str(
+        "parent@1.0.0:\n  dependencies:\n    kept: 1.0.0\n  optionalDependencies:\n    failed: 1.0.0\n",
+    )
+    .expect("parse snapshots");
+    let parent: PackageKey = "parent@1.0.0".parse().unwrap();
+    let node_modules = layout.slot_dir(&parent).join("node_modules");
+    for child in ["kept", "failed"] {
+        let target = dir
+            .path()
+            .join(format!("{child}-target"));
+        std::fs::create_dir_all(&target).expect("create child target");
+        force_symlink_dir(&target, &node_modules.join(child)).expect("link child");
+    }
+    let fetch_failed = HashSet::from(["failed@1.0.0".parse::<PackageKey>().unwrap()]);
+
+    unlink_fetch_failed_children(&snapshots, &fetch_failed, &layout).expect("unlink children");
+
+    assert!(node_modules.join("kept").exists(), "a link to a fetched child must stay");
+    assert!(
+        node_modules
+            .join("failed")
+            .symlink_metadata()
+            .is_err(),
+        "the link to the child whose fetch failed must be removed",
+    );
+}
+
+/// An alias that names the parent itself resolves to the parent's own
+/// package directory, which must survive the cleanup even when the alias
+/// points at a failed snapshot.
+#[test]
+fn unlink_fetch_failed_children_keeps_the_parent_package_directory() {
+    let dir = tempdir().expect("tempdir");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let snapshots: HashMap<PackageKey, SnapshotEntry> = serde_saphyr::from_str(
+        "parent@1.0.0:\n  optionalDependencies:\n    parent: failed@1.0.0\n",
+    )
+    .expect("parse snapshots");
+    let parent: PackageKey = "parent@1.0.0".parse().unwrap();
+    let own_dir = layout.slot_dir(&parent).join("node_modules/parent");
+    std::fs::create_dir_all(&own_dir).expect("create the parent package directory");
+    std::fs::write(own_dir.join("package.json"), "{}").expect("write package.json");
+    let fetch_failed = HashSet::from(["failed@1.0.0".parse::<PackageKey>().unwrap()]);
+
+    unlink_fetch_failed_children(&snapshots, &fetch_failed, &layout).expect("unlink children");
+
+    assert!(own_dir.join("package.json").exists(), "the parent's own files must stay");
 }

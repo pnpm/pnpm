@@ -7,8 +7,12 @@ use super::{
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError};
 use futures_util::{StreamExt, stream::FuturesUnordered};
+use miette::Diagnostic;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{
+    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalReason,
+};
 use pnpm_store_dir::store_index_key;
 use pnpm_tarball::{PrefetchResult, pending_progress_key};
 use std::{
@@ -55,33 +59,57 @@ pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<
     }
 }
 /// An optional snapshot whose fetch fails is dropped rather than aborting the
-/// install.
-///
-/// Silent swallow. `tracing::warn!` gives operator visibility without
-/// polluting the reporter wire: the frozen path emits nothing here; only the
-/// resolver-side emit site fires `pnpm:skipped-optional-dependency
-/// reason=resolution_failure`.
+/// install, and reported as a `pnpm:skipped-optional-dependency` with
+/// `reason=fetch_failure` so the user learns the package is missing.
 ///
 /// Scoped via [`is_fetch_side_failure`] to the tarball-fetch / git-fetch /
 /// CAS-write variants — the fetch-side surface an optional snapshot is allowed
 /// to swallow. Local materialization (`CreateVirtualDir`) and config-shape
 /// errors (`MissingTarballIntegrity`, `UnsupportedResolution`) abort even for
 /// optional snapshots — they sit outside the swallowed fetch surface.
-pub(super) fn swallow_optional_fetch_failure<Captured>(
+pub(super) fn swallow_optional_fetch_failure<Reporter: self::Reporter, Captured>(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
     err: InstallPackageBySnapshotError,
+    prefix: &str,
 ) -> Result<(Option<PackageKey>, Option<Captured>), CreateVirtualStoreError> {
     if !snapshot.optional || !is_fetch_side_failure(&err) {
         return Err(CreateVirtualStoreError::InstallPackageBySnapshot(err));
     }
-    tracing::warn!(
-        target: "pacquet::install",
-        snapshot = %snapshot_key,
-        error = %err,
-        "optional snapshot fetch/extract failed; dropping from install",
-    );
+    let details = match err.code() {
+        Some(code) => format!("{code}: {err}"),
+        None => err.to_string(),
+    };
+    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+        level: LogLevel::Debug,
+        details: Some(details),
+        package: SkippedOptionalPackage::Installed {
+            id: snapshot_key.without_peer().to_string(),
+            name: snapshot_key.name.to_string(),
+            version: snapshot_key.suffix.version().to_string(),
+        },
+        parents: None,
+        prefix: prefix.to_string(),
+        reason: SkippedOptionalReason::FetchFailure,
+    }));
     Ok((Some(snapshot_key.clone()), None))
+}
+/// See [`crate::unlink_fetch_failed_children`]. The hoisted linker has no
+/// slots, and a `frozenStore` store is read-only.
+pub(super) fn unlink_fetch_failed_children(
+    ctx: &crate::InstallContext<'_>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    fetch_failed: &HashSet<PackageKey>,
+) -> Result<(), CreateVirtualStoreError> {
+    if fetch_failed.is_empty() || ctx.is_hoisted() || ctx.config.frozen_store {
+        return Ok(());
+    }
+    crate::unlink_fetch_failed_children(snapshots, fetch_failed, ctx.linker.layout)
+        .map_err(|error| {
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::CreateVirtualDir(error),
+            )
+        })
 }
 /// The invariant inputs of one cold-batch drain.
 /// The cold batch: snapshots whose tarball was not already in the store.
@@ -150,16 +178,13 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
     let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
         Ok(installed) => installed,
         Err(err) => {
-            let failure = swallow_optional_fetch_failure(snapshot_key, snapshot, err);
-            if failure.is_ok()
-                && let Some(integrity) = metadata.resolution.integrity()
-            {
-                let key = store_index_key(&integrity.to_string(), &metadata_key.pkg_id());
-                if batch.link_template.progress_reported.contains(&pending_progress_key(&key)) {
-                    batch.link_template.progress_reported.insert(key);
-                }
-            }
-            return failure;
+            return drop_failed_download::<Reporter, _>(
+                batch,
+                snapshot_key,
+                snapshot,
+                metadata,
+                err,
+            );
         }
     };
     let crate::InstalledPackage {
@@ -179,6 +204,31 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
+}
+/// A failed download that [`swallow_optional_fetch_failure`] keeps from
+/// failing the batch still settles the progress row its fetch announced.
+fn drop_failed_download<Reporter: self::Reporter, Captured>(
+    batch: &ColdBatch<'_>,
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    metadata: &PackageMetadata,
+    err: InstallPackageBySnapshotError,
+) -> Result<(Option<PackageKey>, Option<Captured>), CreateVirtualStoreError> {
+    let failure = swallow_optional_fetch_failure::<Reporter, _>(
+        snapshot_key,
+        snapshot,
+        err,
+        batch.installer.ctx.requester,
+    );
+    if failure.is_ok()
+        && let Some(integrity) = metadata.resolution.integrity()
+    {
+        let key = store_index_key(&integrity.to_string(), &snapshot_key.without_peer().pkg_id());
+        if batch.link_template.progress_reported.contains(&pending_progress_key(&key)) {
+            batch.link_template.progress_reported.insert(key);
+        }
+    }
+    failure
 }
 pub(super) struct ColdDrain<'a> {
     packages: &'a HashMap<PackageKey, PackageMetadata>,

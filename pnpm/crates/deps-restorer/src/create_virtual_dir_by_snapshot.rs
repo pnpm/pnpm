@@ -10,14 +10,14 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{is_subdir, remove_symlink_dir};
-use pnpm_lockfile::{PackageKey, PkgName};
+use pnpm_fs::{is_subdir, is_symlink_or_junction, remove_symlink_dir};
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, ProgressLog, ProgressMessage,
     Reporter,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -450,6 +450,43 @@ pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
         PackageImportMethod::Hardlink => WireImportMethod::Hardlink,
         PackageImportMethod::Copy => WireImportMethod::Copy,
     }
+}
+
+/// Removes the links that point at optional snapshots whose fetch failed.
+///
+/// A parent's slot links its children while the downloads are still
+/// running, so a link to a child that later fails to download would
+/// otherwise be left dangling. Only links are removed: an alias that
+/// names the parent itself, or any real directory, is left alone.
+pub(crate) fn unlink_fetch_failed_children(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    fetch_failed: &HashSet<PackageKey>,
+    layout: &VirtualStoreLayout,
+) -> Result<(), CreateVirtualDirError> {
+    for (key, snapshot) in snapshots {
+        let children = snapshot.dependencies
+            .iter()
+            .chain(snapshot.optional_dependencies.iter())
+            .flatten();
+        let mut node_modules = None;
+        for (alias, dep_ref) in children {
+            if alias == &key.name
+                || !dep_ref
+                    .resolve(alias)
+                    .is_some_and(|child| fetch_failed.contains(&child))
+            {
+                continue;
+            }
+            let node_modules =
+                node_modules.get_or_insert_with(|| layout.slot_dir(key).join("node_modules"));
+            let is_link = safe_join_modules_dir(node_modules, &alias.to_string())
+                .is_ok_and(|child| is_symlink_or_junction(&child).unwrap_or(false));
+            if is_link {
+                remove_obsolete_child(node_modules, alias)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Unlink one obsolete child from a slot's `node_modules`.

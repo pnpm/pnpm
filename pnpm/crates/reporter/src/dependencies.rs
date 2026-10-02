@@ -90,8 +90,9 @@ pub enum DependencyType {
 /// `pnpm:skipped-optional-dependency` payload.
 ///
 /// The wire shape is a discriminated union over `reason` with two
-/// distinct `package` shapes: `build_failure` / `unsupported_engine`
-/// / `unsupported_platform` all carry `package: { id, name, version }`;
+/// distinct `package` shapes: `build_failure` / `fetch_failure` /
+/// `unsupported_engine` / `unsupported_platform` all carry
+/// `package: { id, name, version }`;
 /// `resolution_failure` carries `package: { name?, version?,
 /// bareSpecifier }` with no `id`.
 ///
@@ -132,7 +133,7 @@ pub struct SkippedOptionalParent {
 /// Two shapes, depending on `reason`:
 ///
 /// - [`SkippedOptionalPackage::Installed`] — `{ id, name, version }`
-///   for `build_failure` / `unsupported_engine` /
+///   for `build_failure` / `fetch_failure` / `unsupported_engine` /
 ///   `unsupported_platform`.
 /// - [`SkippedOptionalPackage::ResolutionFailure`] —
 ///   `{ name?, version?, bareSpecifier }` for `resolution_failure`.
@@ -167,6 +168,10 @@ pub enum SkippedOptionalPackage {
 #[serde(rename_all = "snake_case")]
 pub enum SkippedOptionalReason {
     BuildFailure,
+    /// The package's files could not be fetched: a failed download,
+    /// an integrity mismatch, or a failed git clone. `details` carries
+    /// the error code and message.
+    FetchFailure,
     UnsupportedEngine,
     UnsupportedPlatform,
     ResolutionFailure,

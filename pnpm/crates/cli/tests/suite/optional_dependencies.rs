@@ -272,6 +272,67 @@ fn skip_non_existing_optional_dependency() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// Regression test for [pnpm/pnpm#16514](https://github.com/pnpm/pnpm/issues/16514).
+/// An optional dependency whose locked integrity no longer matches its
+/// tarball is skipped with a warning naming the error, and is not counted as
+/// added.
+#[test]
+fn frozen_install_warns_about_an_optional_dependency_that_cannot_be_fetched() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "is-negative": "1.0.0" },
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+    );
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join(Lockfile::FILE_NAME);
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let (before, after) = lockfile.split_once("  is-positive@1.0.0:\n").expect("is-positive entry");
+    let integrity_start = after.find("sha512-").expect("is-positive integrity");
+    let integrity_end =
+        integrity_start + after[integrity_start..].find('}').expect("integrity end");
+    let corrupted = format!(
+        "{before}  is-positive@1.0.0:\n{}sha512-{}=={}",
+        &after[..integrity_start],
+        "A".repeat(86),
+        &after[integrity_end..],
+    );
+    fs::write(&lockfile_path, corrupted).expect("write the corrupted lockfile");
+
+    let assert = pacquet_in(&workspace)
+        .args(["install", "--frozen-lockfile", "--config.fetch-retries=0"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+
+    assert!(
+        stdout.contains(
+            "is-positive@1.0.0 is an optional dependency that could not be fetched. Excluding it from installation."
+        ),
+        "the install must warn about the skipped package; got:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("ERR_PNPM_TARBALL_INTEGRITY"),
+        "the warning must name the error; got:\n{stdout}",
+    );
+    assert!(stdout.contains("Packages: +1"), "only is-negative is added; got:\n{stdout}");
+    assert!(workspace.join("node_modules/is-negative/package.json").exists());
+    assert!(is_absent(&workspace.join("node_modules/is-positive")));
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// Regression test for [pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960).
 #[test]
 fn frozen_install_skips_the_optional_dependency_the_lockfile_left_out() {

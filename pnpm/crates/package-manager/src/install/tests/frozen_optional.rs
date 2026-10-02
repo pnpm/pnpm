@@ -11,7 +11,11 @@ use pnpm_modules_yaml::{
     read_modules_manifest, write_modules_manifest,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::SilentReporter;
+use pnpm_reporter::{
+    LogEvent, Reporter, SilentReporter, SkippedOptionalPackage, SkippedOptionalReason, StatsLog,
+    StatsMessage,
+};
+use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -370,8 +374,8 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
 }
 /// Scenario: skipping an optional dependency if it cannot be fetched.
 /// An `optional: true` snapshot whose tarball URL is unreachable must
-/// not abort the install — the failure is silently swallowed at
-/// the per-snapshot fetch dispatch in `CreateVirtualStore`.
+/// not abort the install — the failure is swallowed at the
+/// per-snapshot fetch dispatch in `CreateVirtualStore`.
 ///
 /// Asserts:
 /// 1. The install resolves `Ok` (no abort).
@@ -380,8 +384,24 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
 ///    broken snapshot — fetch failures are transient (the catch site
 ///    never updates `opts.skipped`), so a subsequent install retries
 ///    the fetch.
+/// 4. The skip is reported as `pnpm:skipped-optional-dependency` with
+///    `reason=fetch_failure`, and `pnpm:stats` does not count the
+///    package as added (<https://github.com/pnpm/pnpm/issues/16514>).
 #[tokio::test]
-async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
+async fn frozen_install_swallows_and_reports_unreachable_optional_tarball() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
     // Lockfile with one `optional: true` snapshot whose `tarball` URL
     // dials `0.0.0.0:1`, whose connect fails at once on every OS, so
     // the fetch reliably fails without a network round-trip. The
@@ -487,7 +507,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
             dedicated: None,
         },
     }
-    .run::<SilentReporter>()
+    .run::<RecordingReporter>()
     .await
     .expect("install must NOT abort when an optional snapshot fails to fetch");
 
@@ -512,6 +532,47 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         "fetch-failure entries must not land in .modules.yaml.skipped, got {:?}",
         written.skipped,
     );
+
+    let events = EVENTS.lock().unwrap();
+    let skipped: Vec<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::SkippedOptionalDependency(log) => Some(log),
+            _ => None,
+        })
+        .collect();
+    let [log] = skipped.as_slice() else {
+        panic!("expected one skipped-optional-dependency event, got {skipped:?}");
+    };
+    assert_eq!(log.reason, SkippedOptionalReason::FetchFailure);
+    assert!(
+        matches!(
+            &log.package,
+            SkippedOptionalPackage::Installed { id, name, version }
+                if id == "broken-pkg@1.0.0" && name == "broken-pkg" && version == "1.0.0",
+        ),
+        "unexpected package: {:?}",
+        log.package,
+    );
+    assert!(
+        log.details
+            .as_deref()
+            .is_some_and(|details| details.contains("broken.tgz")),
+        "details must name the failed fetch, got {:?}",
+        log.details,
+    );
+    let added: Vec<u64> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Stats(StatsLog {
+                message: StatsMessage::Added { added, .. },
+                ..
+            }) => Some(*added),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(added, [0], "a skipped optional package must not be counted as added");
+    drop(events);
 
     drop(dirs.dir);
 }
