@@ -70,7 +70,8 @@ export async function linkBinsOfPkgsByAliases (
   return _linkBins(await getCommandsByAliases(depsAliases, binsDir, opts), binsDir, opts)
 }
 
-/** Cache directory candidates; reread completed packages before selecting their winning commands. */
+/** Return a function that refreshes launchers for completed package roots,
+ * including removing commands those packages no longer provide. */
 export async function createBinRefreshPlan (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
   const candidates = await readBinCandidates(modulesDir, binsDir, opts)
   return async pkgRoots => {
@@ -101,7 +102,7 @@ async function readBinCandidates (modulesDir: string, binsDir: string, opts: { w
 async function getCommandsByAliases (
   depsAliases: string[],
   binsDir: string,
-  opts: Parameters<typeof linkBinsOfPkgsByAliases>[2]
+  opts: Parameters<typeof linkBinsOfPkgsByAliases>[2],
 ): Promise<CommandInfo[]> {
   const pkgBinOpts = {
     allowExoticManifests: false,
