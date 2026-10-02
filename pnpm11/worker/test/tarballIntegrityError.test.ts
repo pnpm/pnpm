@@ -38,3 +38,16 @@ test('the integrity error message hides the query of a tarball URL with one slas
 
   expect(error.message).not.toContain('signed')
 })
+
+test('the integrity error message strips control characters from a local tarball path', () => {
+  const error = new TarballIntegrityError({
+    algorithm: 'sha512',
+    expected: 'sha512-expected',
+    found: 'sha512-found',
+    sri: 'sha512-expected',
+    url: '/project/evil\n\u001b[2J/tarball.tgz',
+  })
+
+  expect(error.message).not.toContain('\n')
+  expect(error.message).not.toContain('\u001b')
+})

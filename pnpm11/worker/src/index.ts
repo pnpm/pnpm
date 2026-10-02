@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
-import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
+import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
 import type { FilesMap, PackageFilesResponse, SideEffectsDiff } from '@pnpm/store.cafs-types'
@@ -206,10 +206,13 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
 
 /**
  * A remote tarball URL with its credentials, query, and fragment removed. A
- * local tarball is identified by its absolute file path, which is shown as is.
+ * local tarball is identified by its absolute file path, which is shown with
+ * only its control characters removed.
  */
 function displayTarballLocation (location: string): string {
-  return path.isAbsolute(location) || path.win32.isAbsolute(location) ? location : redactUrlForDisplay(location)
+  return path.isAbsolute(location) || path.win32.isAbsolute(location)
+    ? redactAndSanitize(location)
+    : redactUrlForDisplay(location)
 }
 
 export class TarballIntegrityError extends PnpmError {

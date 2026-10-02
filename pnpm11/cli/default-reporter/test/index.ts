@@ -1190,6 +1190,36 @@ test('logLevel=warn', async () => {
 ${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
 })
 
+// https://github.com/pnpm/pnpm/issues/16514
+test('prints the warning about an optional dependency that could not be fetched with logLevel=warn', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  skippedOptionalDependencyLogger.debug({
+    package: {
+      id: 'foo@1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+    },
+    prefix,
+    reason: 'fetch_failure',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(formatWarn('foo@1.0.0 is an optional dependency that could not be fetched. Excluding it from installation.'))
+})
+
 test('logLevel=error', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
