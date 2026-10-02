@@ -91,7 +91,7 @@ pub(crate) fn install_native_shim(
     name: &str,
     target: &ShimTarget,
 ) -> io::Result<()> {
-    install_native_shim_from(&std::env::current_exe()?, bin_dir, name, target)
+    install_native_shim_from(&pnpm_executor::current_executable()?, bin_dir, name, target)
 }
 
 /// Publish `source` as the shim `name`, recording `target` beside it. The
@@ -115,14 +115,17 @@ pub(crate) fn install_native_shim_from(
     let target_file = target_file_path(bin_dir, name);
     let executable = executable_path(bin_dir, name);
     pnpm_fs::write_atomic(&target_file, &target.encode())?;
-    crate::executable_link::replace_executable(source, &executable)
-        .inspect_err(|_| {
-            // A sidecar without an executable would list as a shim; a sidecar
-            // beside an older executable is a live shim with its new target.
-            if !executable.exists() {
-                let _ = fs::remove_file(&target_file);
-            }
-        })
+    #[cfg(not(target_os = "wasi"))]
+    let published = crate::executable_link::replace_executable(source, &executable);
+    #[cfg(target_os = "wasi")]
+    let published = wasm_shim::publish(source, &executable);
+    published.inspect_err(|_| {
+        // A sidecar without an executable would list as a shim; a sidecar
+        // beside an older executable is a live shim with its new target.
+        if !executable.exists() {
+            let _ = fs::remove_file(&target_file);
+        }
+    })
 }
 
 /// Remove the shim `name` and its sidecar. A missing shim is not an error.
@@ -196,7 +199,7 @@ pub(crate) fn refresh_native_shims(source: &Path, bin_dir: &Path) -> io::Result<
 }
 
 pub(crate) fn migrate_legacy_shims(bin_dir: &Path) -> io::Result<()> {
-    migrate_legacy_shims_from(&std::env::current_exe()?, bin_dir)
+    migrate_legacy_shims_from(&pnpm_executor::current_executable()?, bin_dir)
 }
 
 /// Turn every legacy shim into a native shim, then drop the
@@ -294,7 +297,7 @@ fn executing_dispatcher_bin_dir(shim: &Path) -> Option<PathBuf> {
     let supplied_bin_dir = shim
         .parent()
         .filter(|dir| !dir.as_os_str().is_empty())?;
-    let dispatcher = std::env::current_exe().ok()?;
+    let dispatcher = pnpm_executor::current_executable().ok()?;
     let dispatcher_name = format!("{LEGACY_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX);
     if dispatcher.file_name() != Some(OsStr::new(&dispatcher_name)) {
         return None;
@@ -347,7 +350,7 @@ fn parse_legacy_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, ShimTarget,
 /// Intercept a launch under a shim name. `None` means this is pnpm
 /// itself and the regular CLI should proceed.
 pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
-    let executable = std::env::current_exe().ok()?;
+    let executable = pnpm_executor::current_executable().ok()?;
     let name = shim_name(executable.file_name()?)?;
     let bin_dir = executable.parent()?;
     let target = match native_shim_target(bin_dir, &name) {
@@ -398,15 +401,21 @@ fn shim_name(file_name: &OsStr) -> Option<String> {
     Some(file_name.to_str()?.to_string())
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn encode_os(value: &OsStr) -> Vec<u8> {
+    #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt as _;
+    #[cfg(target_os = "wasi")]
+    use std::os::wasi::ffi::OsStrExt as _;
     value.as_bytes().to_vec()
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn decode_os(bytes: &[u8]) -> Option<OsString> {
+    #[cfg(unix)]
     use std::os::unix::ffi::OsStringExt as _;
+    #[cfg(target_os = "wasi")]
+    use std::os::wasi::ffi::OsStringExt as _;
     Some(OsString::from_vec(bytes.to_vec()))
 }
 
@@ -434,3 +443,6 @@ fn decode_os(bytes: &[u8]) -> Option<OsString> {
         .is_empty()
         .then_some(value)
 }
+
+#[cfg(target_os = "wasi")]
+mod wasm_shim;

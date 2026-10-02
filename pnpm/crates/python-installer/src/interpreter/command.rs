@@ -6,6 +6,7 @@
 //! the workspace's own `bin` directories on its PATH, where a dependency
 //! can leave an executable named like an interpreter.
 
+use crate::async_process::Command;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
@@ -14,7 +15,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tokio::process::Command;
 
 /// How to run one interpreter: the program, and any arguments of its own
 /// that come before the ones the host helper needs.
@@ -143,7 +143,7 @@ pub(super) fn path_outside(workspace: Option<&Path>) -> OsString {
             .iter()
             .any(|workspace| directory.starts_with(workspace))
     };
-    let outside = env::split_paths(&path)
+    let outside = pnpm_fs::split_paths(&path)
         .filter(|directory| {
             // An empty entry names the directory pnpm runs in, which for an
             // install is the workspace itself.
@@ -151,7 +151,7 @@ pub(super) fn path_outside(workspace: Option<&Path>) -> OsString {
                 && !inside(directory)
                 && !dunce::canonicalize(directory).is_ok_and(|directory| inside(&directory))
         });
-    env::join_paths(outside).expect("a PATH this process was given joins back together")
+    pnpm_fs::join_paths(outside).expect("a PATH this process was given joins back together")
 }
 
 /// Each `python3.<minor>` on the PATH by the path it resolves to, so
@@ -161,7 +161,7 @@ pub(super) fn path_outside(workspace: Option<&Path>) -> OsString {
 pub(super) fn versioned_interpreters_on_path(path: &OsString) -> Vec<InterpreterCommand> {
     let mut by_minor: BTreeMap<Reverse<u64>, Vec<InterpreterCommand>> = BTreeMap::new();
     let mut seen = BTreeSet::new();
-    for directory in env::split_paths(path) {
+    for directory in pnpm_fs::split_paths(path) {
         for (minor, interpreter) in interpreters_in(&directory) {
             // One interpreter reached through several directories is one
             // interpreter; two of the same minor version are two.

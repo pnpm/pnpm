@@ -4,6 +4,9 @@
 //! Publish a package to an npm registry — pnpm's `publish` command,
 //! implemented in Rust.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use batch_publish::{
     BatchPublishError, batch_publish_packed_pkgs, validate_batch_publish_options,
 };

@@ -180,7 +180,7 @@ fn local_protocol(bare: &str, kind: LocalSpecKind, injected: bool) -> &'static s
 /// recorded verbatim; a relative one is recorded relative to the project.
 fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (PathBuf, String) {
     if let Some(rest) = strip_tilde_prefix(spec) {
-        let home = home::home_dir().unwrap_or_default();
+        let home = crate::home_dir().unwrap_or_default();
         return (resolve_path(&home, rest), format!("{protocol}{spec}"));
     }
     let fetched = resolve_path(project_dir, spec);

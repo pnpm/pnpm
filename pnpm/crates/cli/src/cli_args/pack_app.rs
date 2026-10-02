@@ -13,11 +13,12 @@
 //!   always fetches a host-arch Node.js of the embedded runtime version to
 //!   run `--build-sea`.
 //! - **The runtime install spawns the pacquet binary.** pacquet
-//!   re-invokes itself (`std::env::current_exe()`) running
+//!   re-invokes itself (`pnpm_executor::current_executable()`) running
 //!   `add node@runtime:<version>` with the target `--os` / `--cpu` /
 //!   `--libc` flags into an isolated install directory under the pnpm
 //!   home.
 
+use crate::process::Command;
 use build::{
     EmbeddedRuntime, SeaBuild, ad_hoc_sign_mac_binary, ensure_node_runtime, pnpm_home_dir,
     print_built, reject_non_regular_output_file, reject_non_regular_outputs,
@@ -41,7 +42,6 @@ use serde_json::Value;
 use std::{
     fs,
     path::{Component, Path, PathBuf},
-    process::Command,
 };
 
 /// Minimum Node.js version that supports `node --build-sea`.
@@ -271,6 +271,12 @@ pub enum PackAppError {
 
 impl PackAppArgs {
     pub async fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
+        if cfg!(target_family = "wasm") {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_UNSUPPORTED_RUNTIME",
+                "pnpm pack-app requires a native Node.js executable with single-executable application support. WebContainers cannot run that builder."
+            ));
+        }
         // `pnpm.app` in package.json supplies defaults for every flag. CLI
         // flags win, but `--target` entirely replaces the config list
         // (additive merging would prevent narrowing from the CLI).
@@ -308,7 +314,7 @@ impl PackAppArgs {
         };
         let build = SeaBuild {
             builder_bin: resolve_builder_binary(&runtime)?,
-            pacquet_bin: std::env::current_exe()
+            pacquet_bin: pnpm_executor::current_executable()
                 .into_diagnostic()
                 .wrap_err("resolving the pnpm executable path")?,
             runtime,

@@ -40,6 +40,7 @@ fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
 #[test]
 fn add_accepts_multiple_local_package_selectors() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
     let fixtures_dir = workspace.join("fixtures");
     for package_name in ["local-a", "local-b"] {
         let package_dir = fixtures_dir.join(package_name);
@@ -89,6 +90,7 @@ fn add_accepts_multiple_local_package_selectors() {
 #[test]
 fn add_installs_a_local_package_reached_through_a_symlinked_directory() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
     let real_dir = workspace.join("fixtures/real-local");
     std::fs::create_dir_all(&real_dir).expect("create local package directory");
     std::fs::write(

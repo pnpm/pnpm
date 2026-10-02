@@ -2,13 +2,18 @@ pub use direct::{
     PrefetchedBinLookup, PrefetchedDepBin, link_direct_dep_bins,
     link_direct_dep_bins_before_builds, link_direct_dep_bins_from_locations,
     link_direct_dep_bins_prefetched, link_direct_dep_bins_resolved, link_new_bins_from_locations,
-    link_project_bins, link_top_level_bins, resolve_hoisted_bin_deps, shim_link_options,
+    link_project_bins, resolve_hoisted_bin_deps, shim_link_options,
 };
+
+pub(crate) use direct::link_named_dep_bins_with_sources;
+pub use top_level::link_top_level_bins;
+pub(crate) use top_level::link_top_level_bins_cached;
 
 mod scan;
 use scan::{existing_commands, read_location_bin_sources, read_package, run_with_readdir};
 
 mod direct;
+mod top_level;
 
 use crate::{PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
@@ -289,17 +294,19 @@ where
     // `<slot>/node_modules/<alias>` (returning `None` harmlessly but
     // wasting work) or — worse — create a `<slot>/.../node_modules/.bin`
     // directory under a slot that doesn't exist on disk.
-    let selected_snapshots: Option<HashSet<&PackageKey>> =
-        selected_snapshots.map(|keys| keys.iter().collect());
-    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = snapshots
-        .iter()
-        .filter(|(slot_key, _)| {
-            !skipped.contains(slot_key)
-                && selected_snapshots
-                    .as_ref()
-                    .is_none_or(|keys| keys.contains(slot_key))
-        })
-        .collect();
+    let mut seen = HashSet::new();
+    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = match selected_snapshots {
+        Some(keys) => keys
+            .iter()
+            .filter(|key| seen.insert(*key))
+            .filter_map(|key| snapshots.get_key_value(key))
+            .filter(|(key, _)| !skipped.contains(key))
+            .collect(),
+        None => snapshots
+            .iter()
+            .filter(|(key, _)| !skipped.contains(key))
+            .collect(),
+    };
     slot_entries
         .par_iter()
         .try_for_each(|(slot_key, snapshot)| {

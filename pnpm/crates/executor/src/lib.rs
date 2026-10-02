@@ -1,3 +1,15 @@
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(target_family = "wasm")]
+extern crate pnpm_which as which;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process::asynchronous as async_process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use tokio::process as async_process;
+
 pub use bundled_node_gyp::{bundled_node_gyp_bin, bundled_node_gyp_entry};
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use interrupt::exit_like;
@@ -14,7 +26,7 @@ pub use lifecycle::{
 pub use make_env::{
     EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, package_manager_env,
 };
-pub use pnpm_executable::{current_pnpm_exe, is_pnpx_alias};
+pub use pnpm_executable::{current_executable, current_pnpm_exe, is_pnpx_alias};
 pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
 pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
 pub use script_exit::ScriptExit;
@@ -36,14 +48,14 @@ mod script_exit;
 mod script_options;
 mod script_working_dir;
 mod shell;
+#[cfg_attr(target_family = "wasm", path = "shell_emulator_wasm.rs")]
 mod shell_emulator;
+mod shell_emulator_types;
 
+use crate::process::{Command, ExitStatus};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::{
-    path::Path,
-    process::{Command, ExitStatus},
-};
+use std::path::Path;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

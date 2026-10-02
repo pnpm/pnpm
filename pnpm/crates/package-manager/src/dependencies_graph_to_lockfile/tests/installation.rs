@@ -507,7 +507,6 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
             },
         }),
         depth: 0,
-        installable: true,
         is_pure: false,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {

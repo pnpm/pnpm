@@ -30,7 +30,7 @@ import { familySync } from 'detect-libc'
 import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
-import { linkExePlatformBinary } from './linkExePlatformBinary.js'
+import { linkPnpmBins } from './linkPnpmBins.js'
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
 export { exePlatformPkgDirName, exePlatformPkgDirNameNext, linkExePlatformBinary, nativeTargetName } from './linkExePlatformBinary.js'
@@ -207,8 +207,7 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    linkExePlatformBinary(pnpmGvsPath, pkgName)
-    await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+    await linkPnpmBins(pnpmGvsPath, binDir, pkgName)
 
     return { binDir }
   } finally {
@@ -274,8 +273,7 @@ async function installPnpmToGlobalDir (
   try {
     await installPnpmPackage(installDir, binDir, { opts, pkgName, version, wantedLockfile })
 
-    linkExePlatformBinary(installDir, pkgName)
-    await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
+    await linkPnpmBins(installDir, binDir, pkgName)
 
     // Before the caller points PNPM_HOME here, so a broken release is discarded
     // rather than swapped in.

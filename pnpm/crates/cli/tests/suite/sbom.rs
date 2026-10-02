@@ -231,10 +231,11 @@ fn sbom_dependencies_present() {
     assert!(
         depends_on
             .iter()
-            .any(|dep| dep
-                .as_str()
-                .unwrap()
-                .contains("is-positive")),
+            .any(|dep| {
+                dep.as_str()
+                    .unwrap()
+                    .contains("is-positive")
+            }),
     );
 }
 

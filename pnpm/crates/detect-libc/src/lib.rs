@@ -1,3 +1,8 @@
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 mod command;
 mod elf;
 mod filesystem;
@@ -66,6 +71,14 @@ fn detect_implementation() -> Option<Implementation> {
 /// Only `macos`, `windows`, and `solaris` differ.
 #[must_use]
 pub fn host_platform() -> &'static str {
+    #[cfg(target_family = "wasm")]
+    {
+        static PLATFORM: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+            std::env::var("PNPM_WASM_PLATFORM").expect("WASI host must supply PNPM_WASM_PLATFORM")
+        });
+        &PLATFORM
+    }
+    #[cfg(not(target_family = "wasm"))]
     match std::env::consts::OS {
         "macos" => "darwin",
         "windows" => "win32",
@@ -80,6 +93,14 @@ pub fn host_platform() -> &'static str {
 /// already matches between the two naming schemes.
 #[must_use]
 pub fn host_arch() -> &'static str {
+    #[cfg(target_family = "wasm")]
+    {
+        static ARCH: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+            std::env::var("PNPM_WASM_ARCH").expect("WASI host must supply PNPM_WASM_ARCH")
+        });
+        &ARCH
+    }
+    #[cfg(not(target_family = "wasm"))]
     match std::env::consts::ARCH {
         "x86_64" => "x64",
         "aarch64" => "arm64",
@@ -101,7 +122,25 @@ pub fn host_arch() -> &'static str {
 /// install runs on needs the two told apart, so that reads this instead.
 #[must_use]
 pub fn host_target_arch() -> &'static str {
-    std::env::consts::ARCH
+    #[cfg(target_family = "wasm")]
+    {
+        match host_arch() {
+            "x64" => "x86_64",
+            "arm64" => "aarch64",
+            "ia32" => "x86",
+            "ppc64" => match std::env::var("PNPM_WASM_ENDIANNESS").as_deref() {
+                Ok("BE") => "powerpc64",
+                Ok("LE") => "powerpc64le",
+                _ => panic!("WASI host must supply PNPM_WASM_ENDIANNESS for ppc64"),
+            },
+            "loong64" => "loongarch64",
+            other => other,
+        }
+    }
+    #[cfg(not(target_family = "wasm"))]
+    {
+        std::env::consts::ARCH
+    }
 }
 
 #[cfg(test)]

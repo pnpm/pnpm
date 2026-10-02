@@ -140,10 +140,11 @@ impl OidcFetch for Host {
 
 impl ConfirmPrompt for Host {
     fn confirm(message: &str) -> bool {
-        dialoguer::Confirm::new()
-            .with_prompt(message)
-            .interact()
-            .unwrap_or(false)
+        #[cfg(not(target_family = "wasm"))]
+        let result = dialoguer::Confirm::new().with_prompt(message).interact();
+        #[cfg(target_family = "wasm")]
+        let result = pnpm_wasm_host::confirm(message, None);
+        result.unwrap_or(false)
     }
 }
 

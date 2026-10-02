@@ -85,5 +85,11 @@ same-file = { workspace = true }
 sysinfo = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
+
 [lints]
 workspace = true

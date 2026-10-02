@@ -53,6 +53,9 @@ use std::{
 /// Error from the build-modules step.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum BuildModulesError {
+    /// A completed dependency build's executable could not be relinked before its consumer ran.
+    #[diagnostic(transparent)]
+    BinLink(#[error(source)] crate::LinkVirtualStoreBinsError),
     #[diagnostic(transparent)]
     LifecycleScript(#[error(source)] LifecycleScriptError),
 
@@ -267,12 +270,21 @@ pub struct BuildModulesOutput {
     /// importers whose manifests provably match what the link phase
     /// already shimmed.
     pub mutated_slots: bool,
+    /// Snapshot keys whose contents may have changed, for targeted bin relinking.
+    pub mutated_snapshot_keys: HashSet<PackageKey>,
 }
 
 impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
     pub fn run<Reporter: self::Reporter>(self) -> Result<BuildModulesOutput, BuildModulesError> {
+        self.run_with_bin_state::<Reporter>(&crate::build_options::BuildBinState::default())
+    }
+
+    pub(crate) fn run_with_bin_state<Reporter: self::Reporter>(
+        self,
+        bin_state: &crate::build_options::BuildBinState,
+    ) -> Result<BuildModulesOutput, BuildModulesError> {
         let Some(snapshots) = self.graph.snapshots else {
             return Ok(BuildModulesOutput::default());
         };
@@ -292,7 +304,6 @@ impl BuildModules<'_> {
         // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
-        let slot_mutations = std::sync::atomic::AtomicBool::new(false);
         let project_bin_dirs = self.project_bin_dirs(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
@@ -301,7 +312,7 @@ impl BuildModules<'_> {
                 &requires_build_map,
                 &dep_states,
                 &ignored_builds,
-                &slot_mutations,
+                bin_state,
                 &project_bin_dirs,
             ),
             self.child_concurrency,
@@ -316,10 +327,16 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mutated_snapshot_keys = std::mem::take(
+            &mut *bin_state.slot_mutations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
             deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
-            mutated_slots: slot_mutations.into_inner(),
+            mutated_slots: !mutated_snapshot_keys.is_empty(),
+            mutated_snapshot_keys,
         })
     }
 
@@ -387,13 +404,14 @@ impl BuildModules<'_> {
         requires_build_map: &'a HashMap<PackageKey, bool>,
         dep_states: &'a DepStates,
         ignored_builds: &'a Mutex<BTreeSet<String>>,
-        slot_mutations: &'a std::sync::atomic::AtomicBool,
+        bin_state: &'a crate::build_options::BuildBinState,
         project_bin_dirs: &'a [PathBuf],
     ) -> build_one_snapshot::BuildOneSnapshot<'a> {
         build_one_snapshot::BuildOneSnapshot {
             cache: self.cache,
             directories: self.directories,
             graph: crate::BuildSnapshotInputs {
+                skipped: self.skipped,
                 snapshots,
                 packages: self.graph.packages,
                 patches: self.graph.patches,
@@ -404,7 +422,8 @@ impl BuildModules<'_> {
                 dep_graph: dep_states.graph.as_ref(),
                 deps_state_cache: &dep_states.cache,
                 ignored_builds,
-                slot_mutations,
+                slot_mutations: &bin_state.slot_mutations,
+                refreshed_hoisted_bins: &bin_state.refreshed_hoisted_bins,
             },
             scripts: self.scripts,
             project_bin_dirs,

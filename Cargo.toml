@@ -75,6 +75,8 @@ pnpm-detect-libc = { path = "pnpm/crates/detect-libc" }
 pnpm-diagnostics = { path = "pnpm/crates/diagnostics" }
 pnpm-graph-hasher = { path = "pnpm/crates/graph-hasher" }
 pnpm-hooks = { path = "pnpm/crates/hooks" }
+pnpm-http = { path = "pnpm/crates/http" }
+pnpm-which = { path = "pnpm/crates/which" }
 pnpm-injected-deps-syncer = { path = "pnpm/crates/injected-deps-syncer" }
 pnpm-install-coordinator = { path = "pnpm/crates/install-coordinator" }
 pnpm-store-dir = { path = "pnpm/crates/store-dir" }
@@ -155,6 +157,7 @@ dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
+http = { version = "1.4.0" }
 httpdate = { version = "1.0.3" }
 # Orders packed paths the way JavaScript's `localeCompare(b, 'en')` does, so
 # pnpm 12 and pnpm 11 write a tarball's entries in the same order. ICU4X 2.2
@@ -232,7 +235,9 @@ tower = { version = "0.5.3" }
 tower-http = { version = "0.7.0", features = ["compression-gzip", "cors", "trace"] }
 tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+# Native IO features live in consumers' target dependencies so Cargo's feature
+# unification does not pull OS networking or process drivers into WASI builds.
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "sync"] }
 toml = { version = "1.1.5" }
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }

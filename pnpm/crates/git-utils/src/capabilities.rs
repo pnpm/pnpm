@@ -4,7 +4,9 @@
 //! See the "Dependency injection for tests" section of
 //! `pnpm/CODE_STYLE_GUIDE.md` for the convention.
 
-use std::{io, path::Path, process::Command};
+use crate::process::Command;
+
+use std::{io, path::Path};
 
 /// Captured output of a spawned subprocess: the `stdout`, `stderr`, and
 /// exit-status fields the callers read.
@@ -21,7 +23,7 @@ pub trait RunCommand {
 }
 
 /// Production implementation of [`RunCommand`], spawning the real
-/// process through [`std::process::Command`].
+/// process through [`crate::process::Command`].
 pub struct Host;
 
 impl RunCommand for Host {

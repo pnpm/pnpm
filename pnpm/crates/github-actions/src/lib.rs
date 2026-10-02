@@ -1,11 +1,17 @@
 //! Inspect GitHub Actions dependencies and update their commit pins while preserving workflow formatting.
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use release_age::ReleaseAge;
+pub use selectors::{is_selector, normalize_selector, selector_matcher};
 
 use edits::{apply_workflow_edits, planned_edits};
 use futures_util::{StreamExt, stream};
 use node_semver::{Range as SemverRange, Version};
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::Matcher;
 use pnpm_network::{redact_and_sanitize, redact_url_for_display};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
@@ -27,36 +33,6 @@ pub struct OutdatedGitHubAction {
     pub latest: Version,
     pub name: String,
     pub wanted: Version,
-}
-
-#[must_use]
-pub fn is_selector(selector: &str) -> bool {
-    let pattern = selector.strip_prefix('!').unwrap_or(selector);
-    !pattern.starts_with('@') && pattern.contains('/')
-}
-
-#[must_use]
-pub fn normalize_selector(selector: &str) -> String {
-    if !is_selector(selector) {
-        return selector.to_string();
-    }
-    selector
-        .rsplit_once('@')
-        .map_or(selector, |(name, _)| name)
-        .to_string()
-}
-
-#[must_use]
-pub fn selector_matcher(selectors: &[String]) -> Option<Matcher> {
-    if selectors.is_empty() {
-        return None;
-    }
-    Some(create_matcher(
-        &selectors
-            .iter()
-            .map(|selector| normalize_selector(selector))
-            .collect::<Vec<_>>(),
-    ))
 }
 
 #[derive(Clone)]
@@ -444,4 +420,5 @@ mod tests;
 
 mod edits;
 mod release_age;
+mod selectors;
 mod workflow;

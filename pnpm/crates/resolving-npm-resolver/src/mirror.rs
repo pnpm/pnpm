@@ -576,7 +576,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn temp_sibling_path(target: &Path) -> PathBuf {
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
+    let pid = crate::process_id();
     let mut name = match target.file_name().and_then(|n| n.to_str()) {
         Some(name) => name.to_string(),
         None => "tmp".to_string(),

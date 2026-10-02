@@ -2,6 +2,18 @@
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_which as which;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process::asynchronous as async_process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use tokio::process as async_process;
+
 pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;

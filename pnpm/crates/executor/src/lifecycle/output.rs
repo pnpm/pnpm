@@ -89,7 +89,10 @@ impl StreamedScript<'_> {
 
     /// Asynchronously drain a tokio child's piped stdout and stderr into
     /// lifecycle events, then wait for it.
-    pub async fn pump_async(&self, child: &mut tokio::process::Child) -> io::Result<ExitStatus> {
+    pub async fn pump_async(
+        &self,
+        child: &mut crate::async_process::Child,
+    ) -> io::Result<ExitStatus> {
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         let stdout_pump = async {

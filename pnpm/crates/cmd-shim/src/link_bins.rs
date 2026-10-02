@@ -1,28 +1,29 @@
 pub use discovery::collect_packages_in_modules_dir;
+pub use options::LinkBinsOptions;
+pub use prepared::{PreparedPackageBins, link_bins_of_packages_precomputed};
+pub use refresh::DirectoryBinPlan;
 pub use relocatable::bin_dir_is_relocatable;
+pub use selection::choose_bins;
 pub use shim_writer::remove_bin;
 
 use crate::{
-    bin_resolver::{Command, get_bins_from_package_manifest, pkg_owns_bin},
+    bin_resolver::{Command, get_bins_from_package_manifest},
     capabilities::{
         DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
-        search_script_runtime,
+        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, is_sh_shim_basedir_anchor_current,
+        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Version;
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsString,
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -293,36 +294,6 @@ impl ShimTargetCache {
     }
 }
 
-/// Options shared by every bin one linking call writes — pnpm's
-/// `LinkBinOptions`.
-#[derive(Debug, Default, Clone)]
-pub struct LinkBinsOptions {
-    /// pnpm's `extraNodePaths` — see [`link_bins_of_packages`].
-    pub extra_node_paths: Vec<String>,
-    /// pnpm's `preferSymlinkedExecutables`: on Unix, materialize each
-    /// bin as a relative symlink to the target file instead of a shell
-    /// shim. Inert on Windows, where bins always get shims. The node
-    /// runtime binary is symlinked regardless of this setting.
-    pub prefer_symlinked_executables: bool,
-    /// Bins written inside this directory name the paths inside it relative
-    /// to themselves: the shim target marker, the shim `NODE_PATH` entries,
-    /// and the node runtime symlink. `None` writes absolute paths. Inert on
-    /// Windows.
-    pub relocatable_root: Option<PathBuf>,
-    /// The name of the project modules directory when it is not
-    /// `node_modules` and `extendNodePath` is on. Bins linked into the `.bin`
-    /// of a directory with this name get that directory first on `NODE_PATH`:
-    /// Node only looks for packages in `node_modules` directories, so a tool
-    /// installed there could not otherwise load the project's other packages,
-    /// such as its plugins, ahead of its own.
-    pub project_modules_dir_name: Option<OsString>,
-    /// A modules directory pnpm installs packages into although it is not
-    /// named `node_modules`: the root's custom `modulesDir` under the
-    /// hoisted linker. Bin targets inside it get their executable bits the
-    /// way targets under `node_modules` do.
-    pub installed_modules_dir: Option<PathBuf>,
-}
-
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
 /// its bins into `bins_dir`. See [`link_bins_of_packages`] for the
 /// `extra_node_paths` contract.
@@ -435,6 +406,23 @@ where
         + FsEnsureExecutableBits,
 {
     let chosen = choose_bins::<Sys>(packages, exclude_bins);
+    link_chosen_bins::<Sys>(chosen, bins_dir, options, cache)
+}
+
+fn link_chosen_bins<Sys>(
+    chosen: Vec<(Command, &PackageBinSource)>,
+    bins_dir: &Path,
+    options: &LinkBinsOptions,
+    cache: &ShimTargetCache,
+) -> Result<bool, LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
     if chosen.is_empty() {
         return Ok(false);
     }
@@ -457,11 +445,12 @@ where
             // On Unix the symlink branch never writes a shim, so no bin
             // needs a NODE_PATH — skip `shim_node_path`'s per-package
             // canonicalize entirely.
-            let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
-                Vec::new()
-            } else {
-                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
-            };
+            let node_path =
+                if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {
+                    Vec::new()
+                } else {
+                    shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
+                };
             let pkg_name = package_name(pkg);
             write_shim::<Sys>(
                 ShimSpec {
@@ -470,7 +459,7 @@ where
                     shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
                     options,
-                    make_powershell_shim: wants_powershell_shim(pkg_name),
+                    windows: WindowsShimPolicy::for_package(pkg_name),
                     paths: &paths,
                     bin_dir,
                 },
@@ -479,81 +468,6 @@ where
         })?;
 
     Ok(to_link.len() < chosen_count)
-}
-
-/// The bins `packages` provide, minus `exclude_bins`, each paired with the
-/// package providing it. A name several packages provide goes to the one
-/// that owns it, else to the first by name and highest version.
-#[must_use]
-pub fn choose_bins<'packages, Sys: FsWalkFiles>(
-    packages: &'packages [PackageBinSource],
-    exclude_bins: &std::collections::HashSet<String>,
-) -> Vec<(Command, &'packages PackageBinSource)> {
-    let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
-    for pkg in packages {
-        for command in get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location) {
-            let wins = chosen
-                .get(&command.name)
-                .is_none_or(|(_, existing)| pick_winner(&command.name, existing, pkg));
-            if wins {
-                chosen.insert(command.name.clone(), (command, pkg));
-            }
-        }
-    }
-    let excluded = ExcludedBins::new(exclude_bins);
-    chosen.retain(|name, _| !excluded.contains(name));
-    chosen.into_values().collect()
-}
-
-/// Whether the bins of `pkg_name` get a PowerShell shim next to the `.cmd`
-/// one. The pnpm CLI opts out, because PowerShell resolves `pnpm.ps1` ahead of
-/// `pnpm.cmd`: a shim written for one installation of the CLI would keep
-/// shadowing every later one, including an upgrade that ships a different
-/// executable. `@pnpm/exe` is that same CLI under the name earlier
-/// installs used, so it opts out too.
-fn wants_powershell_shim(pkg_name: &str) -> bool {
-    !matches!(pkg_name, "pnpm" | "@pnpm/exe")
-}
-
-/// Return `true` when `candidate` should replace `existing` for `bin_name`.
-fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageBinSource) -> bool {
-    match (existing.origin, candidate.origin) {
-        (BinOrigin::Direct, BinOrigin::Hoisted | BinOrigin::Peer)
-        | (BinOrigin::Hoisted, BinOrigin::Peer) => return false,
-        (BinOrigin::Hoisted | BinOrigin::Peer, BinOrigin::Direct)
-        | (BinOrigin::Peer, BinOrigin::Hoisted) => return true,
-        _ => {}
-    }
-    let existing_name = package_name(existing);
-    let candidate_name = package_name(candidate);
-    let existing_owns = pkg_owns_bin(bin_name, existing_name);
-    let candidate_owns = pkg_owns_bin(bin_name, candidate_name);
-    match (existing_owns, candidate_owns) {
-        (true, false) => return false,
-        (false, true) => return true,
-        _ => {}
-    }
-    if candidate_name != existing_name {
-        return candidate_name < existing_name;
-    }
-    match (package_version(existing), package_version(candidate)) {
-        (Some(existing_version), Some(candidate_version)) => candidate_version > existing_version,
-        _ => false,
-    }
-}
-
-fn package_name(pkg: &PackageBinSource) -> &str {
-    pkg.manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-}
-
-fn package_version(pkg: &PackageBinSource) -> Option<Version> {
-    pkg.manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .and_then(|version| Version::parse(version).ok())
 }
 
 #[cfg(test)]
@@ -568,7 +482,15 @@ use executable::{
     link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
 };
 
+mod conflicts;
+use conflicts::{package_name, pick_winner};
+
 mod discovery;
+mod options;
+mod prepared;
+mod selection;
+use selection::choose_bins_with;
+mod refresh;
 
 mod exclusions;
 use exclusions::ExcludedBins;
@@ -577,3 +499,6 @@ mod linking_paths;
 use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;
+
+mod windows_shim_policy;
+use windows_shim_policy::WindowsShimPolicy;

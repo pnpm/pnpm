@@ -1,11 +1,11 @@
 //! Build the `PATH` a spawned child sees.
 
+use crate::process::Command;
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::Diagnostic;
 use std::{
     ffi::{OsStr, OsString},
     path::PathBuf,
-    process::Command,
 };
 
 /// A directory that cannot be expressed as a single `PATH` entry, because

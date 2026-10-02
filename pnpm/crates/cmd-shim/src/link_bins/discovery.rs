@@ -74,7 +74,7 @@ where
     Ok(())
 }
 
-fn read_package<Sys: FsReadFile>(
+pub(super) fn read_package<Sys: FsReadFile>(
     location: &Path,
 ) -> Result<Option<PackageBinSource>, LinkBinsError> {
     let manifest_path = location.join("package.json");

@@ -1,3 +1,5 @@
+#![cfg_attr(target_family = "wasm", recursion_limit = "256")]
+
 pub use add::*;
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;

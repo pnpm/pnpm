@@ -219,7 +219,6 @@ pub(super) struct NodeEntry {
     pub(super) pkg: Arc<ResolvedPackage>,
     pub(super) pkg_name: Arc<str>,
     pub(super) depth: i32,
-    pub(super) installable: bool,
     pub(super) provider_children: BTreeMap<String, NodeId>,
     pub(super) preview_undo: Option<UndoRealize>,
 }

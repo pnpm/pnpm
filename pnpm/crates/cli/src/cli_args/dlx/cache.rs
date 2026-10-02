@@ -18,7 +18,8 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<PathBuf> {
-    let prepare_dir = get_prepare_dir(dlx_command_cache_dir, SystemTime::now(), std::process::id());
+    let prepare_dir =
+        get_prepare_dir(dlx_command_cache_dir, SystemTime::now(), pnpm_fs::process_id());
     if let Err(error) = install_into_cache::<Reporter>(
         &prepare_dir,
         pkgs,

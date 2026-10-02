@@ -64,7 +64,7 @@ fn staging_path(dest: &Path) -> std::path::PathBuf {
         .into_owned();
     dest.with_file_name(format!(
         ".{file_name}.{}.{}.pacquet-tmp",
-        std::process::id(),
+        pnpm_fs::process_id(),
         STAGED_SEQ.fetch_add(1, Ordering::Relaxed),
     ))
 }
@@ -85,3 +85,24 @@ fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
 
 #[cfg(all(test, unix))]
 mod tests;
+
+#[cfg(target_os = "wasi")]
+pub(crate) fn replace_script(contents: &[u8], destination: &Path) -> io::Result<()> {
+    let staged = staging_path(destination);
+    let publish = || {
+        use std::io::Write;
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staged)?;
+        output.write_all(contents)?;
+        pnpm_fs::file_mode::make_file_executable(&output)?;
+        output.sync_all()?;
+        drop(output);
+        swap_into_place(&staged, destination)
+    };
+    publish()
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&staged);
+        })
+}

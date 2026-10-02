@@ -10,6 +10,9 @@
 //!    emits one [`PlatformAssetResolution`](pnpm_lockfile::PlatformAssetResolution)
 //!    per `(os, cpu)` triple.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use deno_resolver::{DenoResolver, DenoResolverError};
 pub use read_deno_assets::ReadDenoAssetsError;
 

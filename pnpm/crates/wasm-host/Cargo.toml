@@ -1,0 +1,19 @@
+[package]
+name = "pnpm-wasm-host"
+description = "Asynchronous WebContainer host bindings for pnpm"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+futures-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

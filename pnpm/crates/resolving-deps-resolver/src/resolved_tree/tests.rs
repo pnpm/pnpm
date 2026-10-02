@@ -15,7 +15,6 @@ fn locked_resolution_is_unallocated_until_written() {
         Arc::from("a@1.0.0".to_string()),
         super::TreeChildren::Realized(Arc::new(std::collections::BTreeMap::new())),
         0,
-        true,
     );
 
     assert!(node.locked.is_none(), "a fresh resolution carries no wanted-lockfile state");

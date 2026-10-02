@@ -144,6 +144,7 @@ async fn frozen_store_skips_side_effects_upload() {
             frozen_store: true,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,

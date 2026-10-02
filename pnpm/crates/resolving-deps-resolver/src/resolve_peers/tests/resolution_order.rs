@@ -118,7 +118,6 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
                     Arc::from(pkg_id),
                     TreeChildren::Lazy,
                     0,
-                    true,
                 ),
             );
             DirectDep { alias: alias.to_string(), node_id, id: pkg_id.into() }

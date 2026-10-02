@@ -1,10 +1,9 @@
-use crate::{HookError, worker::NodeWorker};
+use crate::{HookError, async_process::Command, worker::NodeWorker};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
-    process::Command,
     sync::OnceCell,
     time::{Duration, timeout},
 };
@@ -57,9 +56,9 @@ impl NodeJsHooks {
             .arg("-e")
             .arg(&wrapper)
             .kill_on_drop(true)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .stdin(crate::process::Stdio::piped())
+            .stdout(crate::process::Stdio::piped())
+            .stderr(crate::process::Stdio::piped())
             .spawn()
         else {
             (logger.warn)("pnpmfile hook failed to start".to_string());
@@ -102,10 +101,10 @@ fn hook_wrapper(file_path: &str, func: &str) -> Option<String> {
 
 /// Feed the hook its context and collect its stderr tail and exit status.
 async fn drive_hook(
-    child: &mut tokio::process::Child,
+    child: &mut crate::async_process::Child,
     ctx_payload: &str,
     logger: &crate::PreResolutionHookLogger,
-) -> Result<(Vec<u8>, std::io::Result<std::process::ExitStatus>), tokio::time::error::Elapsed> {
+) -> Result<(Vec<u8>, std::io::Result<crate::process::ExitStatus>), tokio::time::error::Elapsed> {
     let stdin = child.stdin.take();
     let stdout = child.stdout.take().expect("stdout is piped");
     let stderr = child.stderr.take().expect("stderr is piped");

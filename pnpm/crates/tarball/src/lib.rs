@@ -1,3 +1,6 @@
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use archive_options::*;
 pub use archive_request::CacheHeaders;
 pub use download::*;

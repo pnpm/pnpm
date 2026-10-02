@@ -1,10 +1,13 @@
+#[cfg(target_family = "wasm")]
+use crate::dialoguer_wasm::Select;
 use crate::{
     State,
     cli_args::patch_state::{EditDirState, StateFileError, write_edit_dir_state},
 };
 use clap::Args;
 use derive_more::{Display, Error};
-use dialoguer::{Confirm, Select};
+#[cfg(not(target_family = "wasm"))]
+use dialoguer::Select;
 use miette::{Diagnostic, IntoDiagnostic, miette};
 use owo_colors::OwoColorize;
 use paths::{
@@ -232,9 +235,7 @@ impl PatchPrompt for DialoguerPatchPrompt {
     }
 
     fn confirm_apply_to_all(&self) -> Result<bool, PatchError> {
-        Confirm::new()
-            .with_prompt("Apply this patch to all versions?")
-            .interact()
+        crate::confirm_prompt::confirm("Apply this patch to all versions?", None)
             .into_diagnostic()
             .map_err(|err| miette!("patch apply-to-all confirmation failed: {err}"))
             .map_err(|_| PatchError::Canceled)

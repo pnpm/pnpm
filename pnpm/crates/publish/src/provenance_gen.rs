@@ -13,10 +13,12 @@
 use std::time::Duration;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
+#[cfg(not(target_family = "wasm"))]
 use pnpm_network::{RetryOpts, redact_url_credentials};
 use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
+#[cfg(not(target_family = "wasm"))]
 use sigstore_sign::{SigningContext, oidc::IdentityToken};
 
 use crate::{
@@ -107,6 +109,7 @@ pub struct SignedProvenance {
     pub data: String,
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl SignProvenance for Host {
     async fn sign_statement(
         jwt: &str,
@@ -132,6 +135,17 @@ impl SignProvenance for Host {
     }
 }
 
+#[cfg(target_family = "wasm")]
+impl SignProvenance for Host {
+    async fn sign_statement(
+        _jwt: &str,
+        _statement: &[u8],
+        _timeout: Option<Duration>,
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
+        Err(ProvenanceGenError::UnsupportedRuntime)
+    }
+}
+
 /// The TypeScript CLI signs through sigstore-js, which wraps every Fulcio /
 /// TSA / Rekor request in `make-fetch-happen` with its default retry policy
 /// (2 retries, factor 2, 1 s floor), so a transient sigstore outage does not
@@ -140,6 +154,7 @@ impl SignProvenance for Host {
 /// signing exchange. Every step is idempotent (a fresh ephemeral key,
 /// certificate, timestamp, and transparency-log entry per attempt), so
 /// re-running it is safe.
+#[cfg(not(target_family = "wasm"))]
 const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
     retries: 2,
     factor: 2,
@@ -151,8 +166,10 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
 /// `fetch-timeout` — the sigstore-rust clients set no request timeout of
 /// their own, so without a deadline a hung connection stalls the publish
 /// until the OS gives up on the socket.
+#[cfg(not(target_family = "wasm"))]
 const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[cfg(not(target_family = "wasm"))]
 async fn with_sign_deadline<Fut>(
     deadline: Duration,
     attempt: Fut,
@@ -171,6 +188,7 @@ where
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 async fn sign_with_retry<Fut>(
     retry_opts: RetryOpts,
     mut attempt_fn: impl FnMut() -> Fut,
@@ -375,6 +393,11 @@ impl From<GitHubRequestTokenError> for ProvenanceGenError {
 /// Failure surface of [`generate_provenance`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum ProvenanceGenError {
+    #[cfg(target_family = "wasm")]
+    #[display("Automatic provenance signing is not supported in WebContainers")]
+    #[diagnostic(code(ERR_PNPM_PROVENANCE_UNSUPPORTED_RUNTIME))]
+    UnsupportedRuntime,
+
     #[display("Automatic provenance generation is not supported for this CI provider")]
     #[diagnostic(code(ERR_PNPM_PROVENANCE_UNSUPPORTED_PROVIDER))]
     UnsupportedProvider,

@@ -31,11 +31,9 @@ httpdate = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait = { workspace = true }
-reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-sigstore-sign = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
@@ -49,6 +47,15 @@ mockito = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "test-util"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+sigstore-sign = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

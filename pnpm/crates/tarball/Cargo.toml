@@ -27,7 +27,6 @@ miette = { workspace = true }
 num_cpus = { workspace = true }
 pipe-trait = { workspace = true }
 rayon = { workspace = true }
-reqwest = { workspace = true }
 rustls = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -48,6 +47,13 @@ mockito = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

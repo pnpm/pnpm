@@ -39,7 +39,7 @@ impl MetadataMutation {
         let lock = pnpm_fs::open_secure_lock_file(&lock_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("open metadata transaction lock {}", lock_path.display()))?;
-        lock.lock()
+        pnpm_fs::lock_file(&lock, true)
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!("acquire metadata transaction lock {}", lock_path.display())

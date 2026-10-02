@@ -1,7 +1,7 @@
 //! Probe the runtimes installed on the system, mirroring
 //! `@pnpm/engine.runtime.system-version`.
 
-use std::process::Command;
+use crate::process::Command;
 
 /// The version of `runtime` as installed on the system, without a leading
 /// `v`, or `None` when the runtime is not on `PATH` or prints something

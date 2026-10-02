@@ -25,17 +25,50 @@ window.writeFile = async (path, content) => {
   await webcontainer.fs.writeFile(path, content)
 }
 
-window.run = async (command, args, cwd) => {
-  const proc = await webcontainer.spawn(command, args, { cwd, terminal: { cols: 200, rows: 50 } })
+window.run = async (command, args, cwd, env, input = []) => {
+  const proc = await webcontainer.spawn(command, args, { cwd, env, terminal: { cols: 200, rows: 50 } })
+  const writer = proc.input.getWriter()
+  const drainController = new AbortController()
+  let inputIndex = 0
   let output = ''
+  let exited = false
+  let writing = false
+  let idleTimer
+  let drainError
+  function resetDrainDeadline () {
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => drainController.abort(), 1000)
+  }
   const drained = proc.output.pipeTo(new WritableStream({
-    write (chunk) {
+    async write (chunk) {
+      writing = true
+      clearTimeout(idleTimer)
       output += chunk
+      await window.onOutput?.(chunk)
+      while (inputIndex < input.length && output.includes(input[inputIndex].after)) {
+        await writer.write(input[inputIndex++].text)
+      }
+      writing = false
+      if (exited) resetDrainDeadline()
     },
-  }))
-  const exitCode = await proc.exit
-  await drained
-  return { exitCode, output }
+  }), { signal: drainController.signal }).catch(error => {
+    if (!drainController.signal.aborted || error.name !== 'AbortError') drainError = error
+  })
+  try {
+    const exitCode = await proc.exit
+    exited = true
+    // A killed descendant can retain WebContainer PTY EOF after the command exits.
+    // Preserve its final output until the stream has been idle for one second.
+    if (!writing) resetDrainDeadline()
+    await drained
+    if (drainError) throw drainError
+    return { exitCode, output }
+  } finally {
+    clearTimeout(idleTimer)
+    drainController.abort()
+    await drained
+    writer.releaseLock()
+  }
 }
 
 window.ready = true

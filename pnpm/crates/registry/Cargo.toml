@@ -16,7 +16,6 @@ pnpm-network = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
-reqwest = { workspace = true }
 node-semver = { workspace = true }
 pipe-trait = { workspace = true }
 serde = { workspace = true }
@@ -30,6 +29,13 @@ miette = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

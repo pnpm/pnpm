@@ -1,10 +1,10 @@
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 use super::is_shim_pointing_at;
 #[cfg(windows)]
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
 use crate::shim::is_within_root;
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 use crate::{FsReadHead, read_head_filled};
 
 /// Add missing executable bits to installed targets without modifying
@@ -21,12 +21,17 @@ where
     })
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn target_requires_shim<Sys: FsReadHead>(target_path: &Path) -> bool {
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-    if std::fs::metadata(target_path)
-        .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0o111)
-    {
+    #[cfg(unix)]
+    let needs_executable_bits = std::fs::metadata(target_path)
+        .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0o111);
+    #[cfg(target_os = "wasi")]
+    let needs_executable_bits =
+        pnpm_fs::copy_permissions(target_path).is_ok_and(|mode| mode & 0o111 != 0o111);
+    if needs_executable_bits {
         return true;
     }
     let mut head = [0; 2048];
@@ -40,7 +45,7 @@ pub(super) fn target_requires_shim<Sys: FsReadHead>(target_path: &Path) -> bool 
             .is_some_and(|line| line.ends_with(b"\r"))
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 #[expect(
     clippy::extra_unused_type_parameters,
     reason = "The Windows stub shares the Unix call site."
@@ -144,12 +149,13 @@ pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
 /// regular file hardlinked to the source binary, truncating through
 /// the hardlink would corrupt the binary itself. Removing the dirent
 /// leaves the hardlinked content intact.
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn link_node_bin(
     target_path: &Path,
     shim_path: &Path,
     relocatable_root: Option<&Path>,
 ) -> Result<bool, LinkBinsError> {
+    #[cfg(unix)]
     use std::os::unix::fs::symlink;
     let link_target = match shim_path.parent() {
         Some(bins_dir) if is_within_root(relocatable_root, bins_dir, target_path) => {
@@ -211,7 +217,7 @@ pub(super) fn link_node_bin(
 /// Returns `Ok(true)` when the symlink path handled the bin, `Ok(false)`
 /// when the caller must fall through to the shim path (Windows, where
 /// the setting is inert — pnpm gates on `!isWindows()` the same way).
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn link_symlinked_executable<Sys>(
     target_path: &Path,
     shim_path: &Path,
@@ -219,6 +225,7 @@ pub(super) fn link_symlinked_executable<Sys>(
 where
     Sys: FsReadToString,
 {
+    #[cfg(unix)]
     use std::os::unix::fs::symlink;
     // pnpm's warm-install short-circuit also accepts an existing shim
     // that points at the target, so enabling the setting rewrites no
@@ -370,4 +377,9 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
         }
     }
     Ok(filled)
+}
+
+#[cfg(target_os = "wasi")]
+fn symlink(target: impl AsRef<Path>, link: &Path) -> io::Result<()> {
+    pnpm_fs::create_symlink(target.as_ref(), link, false)
 }

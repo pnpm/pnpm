@@ -19,7 +19,7 @@ const REAL_ENDIANNESS = Object.getOwnPropertyDescriptor(os, 'endianness')
 
 const wrapperDir = path.resolve(fileURLToPath(import.meta.url), '../..')
 const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'package.json'), 'utf8'))
-const HAS_A_SHELL = process.platform === 'win32' && 'Windows has no sh'
+const HAS_A_SHELL = process.platform === 'win32' && 'Windows requires a command shim'
 
 test('npm installs a shim that runs the native pnpm binary', (t) => {
   assert.equal(wrapperManifest.bin.pnpm, 'pnpm')
@@ -35,7 +35,7 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
     assert.match(fs.readFileSync(powershellShim, 'utf8'), /pnpm\.exe/)
     assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
   } else {
-    assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+    assertNativeAliases(path.join(prefix, 'bin'))
   }
 })
 
@@ -55,10 +55,7 @@ test('npm installs local Windows shims that name the native executable', (t) => 
     assert.match(fs.readFileSync(powershellShim, 'utf8'), /pnpm\.exe/)
     assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
   } else {
-    assert.equal(
-      execFileSync(path.join(prefix, 'node_modules', '.bin', 'pnpm'), ['works'], { encoding: 'utf8' }),
-      'fixture:works\n'
-    )
+    assertNativeAliases(path.join(prefix, 'node_modules', '.bin'))
   }
 })
 
@@ -76,9 +73,7 @@ test('npm installs global Windows shims that name the native executable with --l
   }
 })
 
-// npm's bin points straight at the placeholder rather than naming an
-// interpreter for it, which is what keeps it working once the native binary
-// takes the same path. Windows has no shell that could run it instead.
+// The published Node launcher remains executable when lifecycle scripts are blocked.
 test('the shim runs pnpm through Node.js when npm skipped the install scripts', {
   skip: HAS_A_SHELL,
 }, (t) => {
@@ -87,7 +82,7 @@ test('the shim runs pnpm through Node.js when npm skipped the install scripts', 
   const installedPlaceholder = path.join(prefix, 'lib', 'node_modules', 'pnpm-install-fixture', 'pnpm')
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 
-  assert.equal(runThroughShell(path.join(prefix, 'bin', 'pnpm'), ['works']), 'fixture:works\n')
+  assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
   // The binary never arrived, so the placeholder is still what the shim runs.
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 })
@@ -115,7 +110,23 @@ test('pnpm links a symlink that runs the placeholder when executables are symlin
   const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
   assert.equal(fs.lstatSync(bin).isSymbolicLink(), true)
 
-  assert.equal(runThroughShell(bin, ['works']), 'fixture:works\n')
+  assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+})
+
+test('pnpm links native aliases after an approved fresh install', { skip: HAS_A_SHELL }, t => {
+  const { projectDir } = installFixtureWithPnpm(t, [], { ignoreScripts: false })
+  assertPnpmNativeAliases(projectDir)
+})
+
+test('pnpm replaces Node shims after rebuilding a previously blocked install', { skip: HAS_A_SHELL }, t => {
+  const { projectDir, tempDir } = installFixtureWithPnpm(t, [])
+  const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
+  assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  execFileSync('pnpm', [
+    'rebuild', 'pnpm-install-fixture', '--ignore-workspace',
+    '--store-dir', path.join(tempDir, 'store'), '--config.dangerously-allow-all-builds=true',
+  ], { cwd: projectDir, stdio: 'pipe' })
+  assertPnpmNativeAliases(projectDir)
 })
 
 test('linux riscv64 resolves the glibc package, and nothing under musl', async (t) => {
@@ -230,15 +241,16 @@ function installFixtureWithNpm (t, npmFlags, options = {}) {
 /**
  * Install the wrapper fixture into a project of its own with the `pnpm` on
  * PATH, from a tarball so it is unpacked rather than linked, and with its build
- * scripts skipped. Throws when pnpm fails; the temp tree is removed when `t`
+ * scripts skipped unless requested. Throws when pnpm fails; the temp tree is removed when `t`
  * ends.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
  * @param {string[]} pnpmFlags Extra `pnpm add` flags, e.g. a node linker.
- * @returns {{ projectDir: string, fixtureDir: string }} The project the bin was
+ * @param {{ignoreScripts?: boolean}} [options] Whether to skip dependency build scripts.
+ * @returns {{ projectDir: string, fixtureDir: string, tempDir: string }} The project the bin was
  *   linked into, and the fixture wrapper it was installed from.
  */
-function installFixtureWithPnpm (t, pnpmFlags) {
+function installFixtureWithPnpm (t, pnpmFlags, { ignoreScripts = true } = {}) {
   const { tempDir, fixtureDir } = writeFixture(t)
   runNpm(['pack', fixtureDir, '--pack-destination', tempDir], tempDir)
   const tarball = path.join(tempDir, 'pnpm-install-fixture-1.0.0.tgz')
@@ -254,10 +266,10 @@ function installFixtureWithPnpm (t, pnpmFlags) {
     '--ignore-workspace',
     '--store-dir',
     path.join(tempDir, 'store'),
-    '--ignore-scripts',
+    ...(ignoreScripts ? ['--ignore-scripts'] : ['--config.dangerously-allow-all-builds=true']),
     ...pnpmFlags,
   ], { cwd: projectDir, stdio: 'pipe' })
-  return { projectDir, fixtureDir }
+  return { projectDir, fixtureDir, tempDir }
 }
 
 /**
@@ -287,14 +299,14 @@ function writeFixture (t) {
 
   const fixtureDir = path.join(tempDir, 'wrapper')
   fs.mkdirSync(path.join(fixtureDir, 'bin'), { recursive: true })
-  for (const file of ['install.js', 'native-binary.mjs', 'bin/pnpm.mjs', wrapperManifest.bin.pnpm]) {
+  for (const file of ['install.js', 'native-binary.mjs', 'bin/pnpm.mjs', 'bin/pnpx.mjs', ...Object.values(wrapperManifest.bin)]) {
     fs.copyFileSync(path.join(wrapperDir, file), path.join(fixtureDir, file))
   }
   fs.writeFileSync(path.join(fixtureDir, 'package.json'), JSON.stringify({
     name: 'pnpm-install-fixture',
     version: '1.0.0',
     type: 'module',
-    bin: { pnpm: wrapperManifest.bin.pnpm },
+    bin: wrapperManifest.bin,
     scripts: {
       preinstall: 'node install.js',
       postinstall: 'node install.js',
@@ -305,17 +317,29 @@ function writeFixture (t) {
   return { tempDir, fixtureDir }
 }
 
-/**
- * Run `bin` from a shell, as a user's `pnpm` is run. A shebang-less bin is
- * reached only that way outside Linux, whose libc retries ENOEXEC under `/bin/sh`
- * itself. Throws when it exits non-zero.
- *
- * @param {string} bin Absolute path to the bin to run.
- * @param {string[]} args Arguments to pass to it.
- * @returns {string} Its stdout, decoded as UTF-8.
- */
-function runThroughShell (bin, args) {
-  return execFileSync('sh', [bin, ...args], { encoding: 'utf8' })
+function assertPnpmNativeAliases (projectDir) {
+  const decoys = path.join(projectDir, 'no-node')
+  fs.mkdirSync(decoys)
+  fs.writeFileSync(path.join(decoys, 'node'), '#!/bin/sh\nexit 99\n', { mode: 0o755 })
+  for (const name of Object.keys(wrapperManifest.bin)) {
+    const installed = path.join(projectDir, 'node_modules', 'pnpm-install-fixture', name)
+    assert.match(fs.readFileSync(installed, 'utf8'), /^#!\/bin\/sh\nprintf/)
+    const bin = path.join(projectDir, 'node_modules', '.bin', name)
+    assert.equal(execFileSync(bin, ['works'], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${decoys}${path.delimiter}${process.env.PATH}` },
+    }), 'fixture:works\n')
+  }
+}
+
+function assertNativeAliases (binDirectory) {
+  for (const name of Object.keys(wrapperManifest.bin)) {
+    const bin = path.join(binDirectory, name)
+    assert.match(fs.readFileSync(bin, 'utf8'), /^#!\/bin\/sh\nprintf/)
+    assert.equal(execFileSync(bin, ['works'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: path.join(binDirectory, 'no-node-on-path') },
+    }), 'fixture:works\n')
+  }
 }
 
 function runNpm (args, cwd) {

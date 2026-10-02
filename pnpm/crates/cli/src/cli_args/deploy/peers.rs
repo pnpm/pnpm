@@ -242,7 +242,9 @@ pub(super) fn prune_deploy_lockfile_graph(
     peer_edges: &PeerSatisfactionEdges,
 ) {
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
-    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else { return };
+    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else {
+        return;
+    };
 
     let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
     let reachable = reachable_deploy_snapshots(importer, snapshots, include_optional, peer_edges);

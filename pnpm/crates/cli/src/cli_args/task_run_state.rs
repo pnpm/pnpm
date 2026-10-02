@@ -405,7 +405,7 @@ fn is_state_unavailable_error(error: &io::Error) -> bool {
 
 fn run_id(generation: u64) -> String {
     let sequence = RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    format!("{generation:012x}-{}-{sequence}", std::process::id())
+    format!("{generation:012x}-{}-{sequence}", pnpm_fs::process_id())
 }
 
 #[cfg(test)]

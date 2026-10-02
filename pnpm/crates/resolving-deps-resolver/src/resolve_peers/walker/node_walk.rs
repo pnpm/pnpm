@@ -79,18 +79,14 @@ impl Walker<'_> {
     }
 
     pub(super) fn enter_package(&mut self, node_id: &NodeId) -> NodeEntry {
-        let (pkg_id, depth, installable) = {
+        let (pkg_id, depth) = {
             let tree_node = &self.tree.dependencies_tree[node_id];
-            (
-                Arc::<str>::clone(&tree_node.resolved_package_id),
-                tree_node.depth,
-                tree_node.installable,
-            )
+            (Arc::<str>::clone(&tree_node.resolved_package_id), tree_node.depth)
         };
         let pkg = self.owned_package(&pkg_id);
         let (provider_children, preview_undo) = self.preview_peer_provider_children(node_id);
         let pkg_name = Arc::clone(pkg.name());
-        NodeEntry { pkg, pkg_name, depth, installable, provider_children, preview_undo }
+        NodeEntry { pkg, pkg_name, depth, provider_children, preview_undo }
     }
 
     /// Recurse into children first (post-order). Discovery walks lazy
@@ -226,7 +222,6 @@ impl Walker<'_> {
                 dep_path: &settled.dep_path,
                 children: &walked.children_map,
                 child_dep_paths: std::mem::take(&mut walked.outputs.dep_paths),
-                installable: entry.installable,
                 ancestry: crate::resolve_peers::finalize::WalkedNodeAncestry {
                     parent_node_ids: walk.parent_node_ids,
                     parent_pkg_ids_chain: walk.parent_pkg_ids,

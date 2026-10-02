@@ -1,4 +1,6 @@
-use super::{link_engine_bins, package_dir, package_manager_engine_config, resolve_slot};
+use super::{
+    link_engine_bins, linked_bins, package_dir, package_manager_engine_config, resolve_slot,
+};
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_store_dir::StoreDir;
@@ -20,11 +22,29 @@ fn cache_hit_relinks_missing_pnpm_bin() {
     let bin_dir = slot.join("bin");
     fs::create_dir_all(&bin_dir).expect("create stale bin dir");
 
+    assert!(!linked_bins::are_current(&bin_dir), "nothing has linked these bins yet");
+
     let linked = link_engine_bins(&slot, "pnpm", false).expect("link bins");
 
     assert_eq!(linked, bin_dir);
     let pnpm_bin = bin_dir.join("pnpm");
     assert!(pnpm_bin.exists(), "expected pnpm bin at {}", pnpm_bin.display());
+    assert!(linked_bins::are_current(&bin_dir), "linking must mark the bins as linked");
+}
+
+/// Bins another pnpm linked may be linked differently, so they do not count
+/// as linked: the engine install relinks them under the slot lock.
+#[test]
+fn bins_linked_by_another_pnpm_are_not_current() {
+    let root = tempfile::TempDir::new().expect("tmp dir");
+    let bin_dir = root.path().join("bin");
+    fs::create_dir_all(&bin_dir).expect("create bin dir");
+    linked_bins::mark_current(&bin_dir).expect("mark the bins as linked");
+    assert!(linked_bins::are_current(&bin_dir));
+
+    fs::write(bin_dir.join(".pnpm-engine-linked"), "0.0.0-another").expect("write marker");
+
+    assert!(!linked_bins::are_current(&bin_dir));
 }
 
 #[test]
@@ -79,6 +99,34 @@ fn package_manager_engine_config_uses_global_store() {
         "engine store must not use project store at {}",
         project_store_root.display(),
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn native_engine_replaces_the_placeholder_interpreter_in_existing_shims() {
+    let root = tempfile::TempDir::new().expect("tmp dir");
+    let slot = root.path().join("slot");
+    let pkg_dir = package_dir(&slot, "pnpm");
+    fs::create_dir_all(&pkg_dir).expect("create wrapper");
+    fs::write(
+        pkg_dir.join("package.json"),
+        r#"{"name":"pnpm","version":"12.99.0","bin":{"pnpm":"pnpm"}}"#,
+    )
+    .expect("write manifest");
+    fs::write(pkg_dir.join("pnpm"), "#!/usr/bin/env node\nthrow Error('placeholder')\n")
+        .expect("write placeholder");
+    link_engine_bins(&slot, "pnpm", false).expect("link placeholder");
+    write_host_native_binaries(&slot);
+    for platform in platform_package_dir_names() {
+        let binary = package_dir(&slot, &format!("@pnpm/{platform}")).join("pnpm");
+        fs::write(&binary, "#!/bin/sh\nprintf 'native engine'\n").expect("write native stand-in");
+        let file = fs::File::open(&binary).expect("open native stand-in");
+        pnpm_fs::file_mode::make_file_executable(&file).expect("make executable");
+    }
+    let bins = link_engine_bins(&slot, "pnpm", true).expect("replace native engine");
+    let output = std::process::Command::new(bins.join("pnpm")).output().expect("run linked engine");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.stdout, b"native engine");
 }
 
 #[test]

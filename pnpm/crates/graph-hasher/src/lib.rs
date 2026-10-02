@@ -11,6 +11,11 @@
 //! Reference (object-hash@3.0.0):
 //! - <https://github.com/puleos/object-hash/blob/v3.0.0/index.js>
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use dep_state::{
     CalcDepStateOptions, DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, DepsGraphNode, DepsStateCache,
     SIDE_EFFECTS_FORMAT_KEY, build_required_dep_paths, calc_dep_state, calc_dep_state_input_key,

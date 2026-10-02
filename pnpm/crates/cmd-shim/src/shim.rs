@@ -4,6 +4,10 @@ pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
 pub use sh::{
     generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
 };
+#[cfg(target_family = "wasm")]
+pub(crate) use wasm::generate_wasm_shim;
+#[cfg(any(all(test, unix), target_family = "wasm"))]
+mod wasm;
 
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
 use std::{
@@ -212,6 +216,7 @@ pub fn generate_cmd_shim(
     shim_path: &Path,
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
+    batch: CmdShimBatch,
 ) -> String {
     let cmd_target_rel = cmd_escape(&relative_target_windows(target_path, shim_path));
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
@@ -219,6 +224,12 @@ pub fn generate_cmd_shim(
     } else {
         format!(r#""%~dp0\{cmd_target_rel}""#)
     };
+
+    let runs_target_directly = runtime.is_none_or(|runtime| runtime.prog.is_none());
+    if batch == CmdShimBatch::EndedBeforeTarget && runs_target_directly {
+        let args = runtime.map_or(String::new(), |runtime| cmd_escape(&runtime.args));
+        return generate_batchless_cmd_shim(&quoted_target, &args);
+    }
 
     let mut cmd = String::from("@SETLOCAL\r\n");
 
@@ -251,15 +262,66 @@ pub fn generate_cmd_shim(
     with_utf8_codepage(cmd)
 }
 
+/// Whether a `.cmd` shim's batch context is still active while its target
+/// runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CmdShimBatch {
+    /// The target runs as a command of the batch file, as in cmd-shim.
+    Kept,
+    /// The shim ends its batch context before the target starts, so when
+    /// Ctrl+C stops the target, cmd.exe has no batch job left to ask
+    /// `Terminate batch job (Y/N)?` about.
+    ///
+    /// The `SETLOCAL` scope ends with the batch context, so such a shim sets no
+    /// `NODE_PATH`. A target run through an interpreter keeps
+    /// [`Kept`](Self::Kept), because its interpreter lookup sets `PATHEXT`,
+    /// which would then leak into an interactive cmd.exe session.
+    EndedBeforeTarget,
+}
+
+/// The [`CmdShimBatch::EndedBeforeTarget`] form of a shim that runs
+/// `quoted_target` directly.
+///
+/// A `GOTO` to a missing label ends the batch context, yet cmd.exe still runs
+/// the rest of the line it has already parsed, in command-line context. Percent
+/// expansion happened during that parse, so the target path and `%*` are in
+/// place.
+///
+/// An interactive cmd.exe adds the batch command to the window title and
+/// restores the title when the batch ends. This exit skips the restore, so the
+/// title would grow with every call. The shim resets it to `%COMSPEC%` when
+/// cmd.exe is interactive, that is, when its command line has no `/c`. Under
+/// `/c`, as when PowerShell runs a `.cmd`, cmd.exe leaves the title alone, and
+/// so does the shim. `=` ends an `IF` operand, so the substitution goes through
+/// a variable before the comparison.
+///
+/// A non-ASCII target needs the UTF-8 code page while cmd.exe reads the line,
+/// and the line restores the caller's code page itself, since nothing after it
+/// runs.
+fn generate_batchless_cmd_shim(quoted_target: &str, args: &str) -> String {
+    let target_command = format!("{quoted_target} {args} %*");
+    let restore_codepage = if target_command.is_ascii() {
+        ""
+    } else {
+        r#"(IF NOT "%_PNPM_CODEPAGE%"=="" "%SystemRoot%\System32\chcp.com" %_PNPM_CODEPAGE% >NUL) & "#
+    };
+    let mut cmd = format!(
+        "@SETLOCAL\r\n\
+         @SET \"_PNPM_RESTORE_TITLE=\"\r\n\
+         @SETLOCAL EnableDelayedExpansion\r\n\
+         @SET \"_PNPM_CMDLINE=!CMDCMDLINE:/c=!\"\r\n\
+         @IF \"!_PNPM_CMDLINE!\"==\"!CMDCMDLINE!\" (ENDLOCAL & SET \"_PNPM_RESTORE_TITLE=1\") ELSE ENDLOCAL\r\n\
+         @GOTO #_undefined_# 2>NUL || (IF \"%_PNPM_RESTORE_TITLE%\"==\"1\" TITLE %COMSPEC%) & {restore_codepage}{target_command}\r\n",
+    );
+    if !cmd.is_ascii() {
+        insert_utf8_codepage_switch(&mut cmd);
+    }
+    cmd
+}
+
 fn with_utf8_codepage(mut cmd: String) -> String {
     if !cmd.is_ascii() {
-        cmd.insert_str(
-            "@SETLOCAL\r\n".len(),
-            "@SET \"_PNPM_CODEPAGE=\"\r\n\
-             @FOR /F \"tokens=2 delims=:\" %%a IN ('\"%SystemRoot%\\System32\\chcp.com\"') DO @SET \"_PNPM_CODEPAGE=%%a\"\r\n\
-             @\"%SystemRoot%\\System32\\chcp.com\" 65001 >NUL\r\n\
-             @SET \"ERRORLEVEL=\"\r\n",
-        );
+        insert_utf8_codepage_switch(&mut cmd);
         cmd.push_str(
             "@SET \"_PNPM_EXIT_CODE=%ERRORLEVEL%\"\r\n\
              @IF DEFINED _PNPM_CODEPAGE @\"%SystemRoot%\\System32\\chcp.com\" %_PNPM_CODEPAGE% >NUL\r\n\
@@ -267,6 +329,19 @@ fn with_utf8_codepage(mut cmd: String) -> String {
         );
     }
     cmd
+}
+
+/// Save the caller's code page and switch to UTF-8, right after the shim's
+/// leading `@SETLOCAL`, so cmd.exe reads the non-ASCII lines that follow
+/// correctly.
+fn insert_utf8_codepage_switch(cmd: &mut String) {
+    cmd.insert_str(
+        "@SETLOCAL\r\n".len(),
+        "@SET \"_PNPM_CODEPAGE=\"\r\n\
+         @FOR /F \"tokens=2 delims=:\" %%a IN ('\"%SystemRoot%\\System32\\chcp.com\"') DO @SET \"_PNPM_CODEPAGE=%%a\"\r\n\
+         @\"%SystemRoot%\\System32\\chcp.com\" 65001 >NUL\r\n\
+         @SET \"ERRORLEVEL=\"\r\n",
+    );
 }
 
 /// Compute the Windows-style relative path from `shim_path`'s parent

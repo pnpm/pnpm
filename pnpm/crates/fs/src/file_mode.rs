@@ -1,7 +1,14 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
+#[cfg(any(unix, target_os = "wasi"))]
+pub use directory::grant_inherited_dir_mode;
+pub use directory::{
+    create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
 };
+
+mod directory;
+#[cfg(unix)]
+use directory::is_unchangeable;
+
+use std::{io, path::Path};
 
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;
@@ -56,13 +63,22 @@ fn widen_mode(mode: impl Into<u32>) -> u32 {
 }
 
 /// The narrowing counterpart of [`widen_mode`], generic for the same reason.
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "linux")))]
 fn narrow_mode<Mode: TryFrom<u32>>(mode: u32) -> io::Result<Mode> {
     Mode::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
 
-/// [`current_umask`] on platforms without mode bits: nothing to mask.
-#[cfg(not(unix))]
+/// Cache the host process mask for WASI permission calculations.
+#[cfg(target_os = "wasi")]
+#[must_use]
+pub fn current_umask() -> u32 {
+    static UMASK: std::sync::LazyLock<u32> =
+        std::sync::LazyLock::new(crate::wasi_fs::current_umask);
+    *UMASK
+}
+
+/// Platforms without permission bits have no mode bits to mask.
+#[cfg(not(any(unix, target_os = "wasi")))]
 #[must_use]
 pub fn current_umask() -> u32 {
     0
@@ -134,17 +150,6 @@ fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
         .open(path)
 }
 
-/// [`open_without_following`] restricted to a directory. See
-/// [`add_dir_mode_bits`].
-#[cfg(unix)]
-fn open_directory_without_following(path: &Path) -> io::Result<std::fs::File> {
-    use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
-        .open(path)
-}
-
 /// Re-add executable bits to `target` when the CAS source path carries the
 /// `-exec` suffix. The CAS encodes executability purely in that suffix (see
 /// [`cas_path_is_executable`]), so it is the source of truth: a `copy` or
@@ -169,7 +174,13 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
         let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(target))?;
         make_file_executable(&file)?;
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "wasi")]
+    if cas_path_is_executable(cas_path) {
+        let file =
+            crate::ensure_file::retry_on_fd_pressure(|| crate::wasi_fs::open_nofollow(target))?;
+        make_file_executable(&file)?;
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
     let _ = (cas_path, target);
     Ok(())
 }
@@ -184,7 +195,15 @@ pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
             file.set_permissions(Permissions::from_mode(mode))?;
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(target_os = "wasi")]
+    {
+        let file =
+            crate::ensure_file::retry_on_fd_pressure(|| crate::wasi_fs::open_nofollow(path))?;
+        if crate::wasi_fs::file_mode(&file)? & 0o7777 != mode {
+            crate::wasi_fs::set_file_mode(&file, mode)?;
+        }
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
     let _ = (path, mode);
     Ok(())
 }
@@ -209,6 +228,14 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
         file.set_permissions(Permissions::from_mode(mode | EXEC_MASK))
     };
 
+    #[cfg(target_os = "wasi")]
+    {
+        let mode = crate::wasi_fs::file_mode(file)?;
+        if mode & EXEC_MASK != EXEC_MASK {
+            crate::wasi_fs::set_file_mode(file, mode | EXEC_MASK)?;
+        }
+        Ok(())
+    }
     #[cfg(windows)]
     return Ok(());
 }
@@ -314,208 +341,6 @@ pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<()> {
         Err(error) if is_unchangeable(&error) => Ok(()),
         other => other,
     }
-}
-
-/// `create_dir_all` that, on Unix, gives each directory it creates the
-/// group permission and setgid bits of the nearest ancestor that already
-/// existed. Directories that were already present are not modified.
-pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
-    #[cfg(unix)]
-    let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir) };
-    std::fs::create_dir_all(dir)?;
-    #[cfg(unix)]
-    if let Some(template) = template.as_deref() {
-        grant_inherited_dir_mode(dir, template)?;
-    }
-    Ok(())
-}
-
-/// Closest existing directory at `dir` or above it.
-///
-/// A relative path whose parents are all missing resolves to `.` when the
-/// working directory exists. Returns `None` when nothing on the path is a
-/// directory.
-#[must_use]
-pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
-    let mut current = dir.to_path_buf();
-    loop {
-        if current.as_os_str().is_empty() {
-            let dot = PathBuf::from(".");
-            return dot.is_dir().then_some(dot);
-        }
-        if current.is_dir() {
-            return Some(current);
-        }
-        if !current.pop() {
-            return None;
-        }
-    }
-}
-
-/// After a missing directory tree is created, OR `template`'s group
-/// permission and setgid bits onto each new directory, stopping before
-/// `template`. Nothing is added when `template` is neither group-writable
-/// nor setgid. The group read and search bits come along with group-write,
-/// so a restrictive umask cannot leave a new directory group-writable but
-/// not searchable.
-///
-/// Directories that already existed are not passed in. `EPERM`, `EACCES`,
-/// and `EROFS` are ignored. The root directory is never changed.
-#[cfg(unix)]
-pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
-    let Some(template_mode) = reachable_mode(template)? else {
-        return Ok(());
-    };
-    let extra = inherited_dir_bits(template_mode);
-    if extra == 0 {
-        return Ok(());
-    }
-    let mut current = dir.to_path_buf();
-    // Never chmod `/` when `template` is not a lexical prefix of `dir`.
-    while current != template && !current.as_os_str().is_empty() && current.parent().is_some() {
-        add_dir_mode_bits(&current, extra)?;
-        current.pop();
-    }
-    Ok(())
-}
-
-/// Mode of `path`, or `None` when it is missing or cannot be stated.
-#[cfg(unix)]
-fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
-    use std::os::unix::fs::PermissionsExt;
-    match std::fs::metadata(path) {
-        Ok(meta) => Ok(Some(meta.permissions().mode())),
-        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
-            Ok(None)
-        }
-        Err(error) => Err(error),
-    }
-}
-
-/// OR `extra` onto the mode of the directory at `path`.
-///
-/// The chmod goes through a descriptor opened without following a symlink,
-/// so a directory entry swapped for a symlink after it was created is
-/// refused rather than followed to a directory outside the store.
-/// `O_DIRECTORY` refuses any other non-directory before the open can block
-/// on it, as it would on a FIFO.
-#[cfg(unix)]
-fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    let opened =
-        crate::ensure_file::retry_on_fd_pressure(|| open_directory_without_following(path));
-    let dir = match opened {
-        Ok(dir) => dir,
-        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
-            return add_unreadable_dir_mode_bits(path, extra);
-        }
-        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
-    let mode = dir.metadata()?.permissions().mode() & 0o7777;
-    let merged = mode | extra;
-    if merged == mode {
-        return Ok(());
-    }
-    match dir.set_permissions(std::fs::Permissions::from_mode(merged)) {
-        Err(error) if is_unchangeable(&error) => Ok(()),
-        other => other,
-    }
-}
-
-/// [`add_dir_mode_bits`] for a new directory its owner cannot open, which a
-/// umask that removes owner read (such as `0o477`) produces. `fchmodat` with
-/// `AT_SYMLINK_NOFOLLOW` needs no read access and still refuses a symlink.
-/// Only a directory this process owns is changed.
-#[cfg(unix)]
-fn add_unreadable_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
-    use std::os::unix::fs::MetadataExt;
-    let meta = match std::fs::symlink_metadata(path) {
-        Ok(meta) => meta,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } {
-        return Ok(());
-    }
-    let mode = meta.mode() & 0o7777;
-    let merged = mode | extra;
-    if merged == mode {
-        return Ok(());
-    }
-    match chmod_without_following(path, merged) {
-        // A C library without no-follow `fchmodat` (glibc before 2.32).
-        #[cfg(target_os = "linux")]
-        Err(error) if error.raw_os_error() == Some(libc::EOPNOTSUPP) => {
-            ignore_unchangeable(chmod_through_path_handle(path, extra))
-        }
-        result => ignore_unchangeable(result),
-    }
-}
-
-/// Change the mode of the directory at `path` through an `O_PATH` handle,
-/// which needs no read access, via its `/proc/self/fd` entry. The entry
-/// resolves to the opened inode, so a symlink swapped in after the open is
-/// not followed. This is how glibc 2.32 and later implement no-follow
-/// `fchmodat`. Only a directory this process owns is changed.
-#[cfg(target_os = "linux")]
-fn chmod_through_path_handle(path: &Path, extra: u32) -> io::Result<()> {
-    use std::os::unix::{
-        fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
-        io::AsRawFd,
-    };
-    let dir = std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_PATH | libc::O_NOFOLLOW | libc::O_DIRECTORY)
-        .open(path)?;
-    let meta = dir.metadata()?;
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    if meta.uid() != unsafe { libc::geteuid() } {
-        return Ok(());
-    }
-    let mode = meta.mode() & 0o7777;
-    let proc_entry = format!("/proc/self/fd/{}", dir.as_raw_fd());
-    std::fs::set_permissions(proc_entry, std::fs::Permissions::from_mode(mode | extra))
-}
-
-/// `fchmodat` with `AT_SYMLINK_NOFOLLOW`: changes `path`'s mode without
-/// opening it and without following a symlink there.
-#[cfg(unix)]
-fn chmod_without_following(path: &Path, mode: u32) -> io::Result<()> {
-    use std::os::unix::ffi::OsStrExt;
-    let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let mode = narrow_mode::<libc::mode_t>(mode)?;
-    // SAFETY: `c_path` is a valid NUL-terminated path that outlives the call.
-    let status =
-        unsafe { libc::fchmodat(libc::AT_FDCWD, c_path.as_ptr(), mode, libc::AT_SYMLINK_NOFOLLOW) };
-    if status == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
-}
-
-#[cfg(unix)]
-fn ignore_unchangeable(result: io::Result<()>) -> io::Result<()> {
-    match result {
-        Err(error) if is_unchangeable(&error) => Ok(()),
-        other => other,
-    }
-}
-
-/// The group permission and setgid bits a new directory inherits from an
-/// ancestor with `template_mode`.
-#[must_use]
-pub fn inherited_dir_bits(template_mode: u32) -> u32 {
-    if template_mode & (0o020 | 0o2000) == 0 {
-        return 0;
-    }
-    template_mode & (0o070 | 0o2000)
-}
-
-#[cfg(unix)]
-fn is_unchangeable(error: &io::Error) -> bool {
-    matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem)
 }
 
 #[cfg(test)]

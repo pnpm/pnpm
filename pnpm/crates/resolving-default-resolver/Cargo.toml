@@ -32,5 +32,8 @@ pnpm-lockfile = { workspace = true }
 ssri = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
 [lints]
 workspace = true

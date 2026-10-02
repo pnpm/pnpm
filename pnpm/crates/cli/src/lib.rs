@@ -1,17 +1,34 @@
+#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 // A command's install future carries the engine's whole resolve-and-fetch
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_which as which;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 mod boolean_negations;
 mod boolean_values;
 mod cargo_deps;
 mod cargo_manifest;
 mod checkbox_prompt;
+#[cfg(target_family = "wasm")]
+mod checkbox_terminal_wasm;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod confirm_prompt;
+#[cfg(target_family = "wasm")]
+mod dialoguer_wasm;
 mod ecosystem_add;
 mod ecosystem_install;
 mod engine_pm;
@@ -43,6 +60,11 @@ use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
 pub fn main() -> ExitCode {
+    #[cfg(target_family = "wasm")]
+    if let Err(error) = initialize_wasm_paths() {
+        eprintln!("Failed to initialize pnpm host paths: {error}");
+        return ExitCode::FAILURE;
+    }
     // Runs before anything can print, so the first styled byte already
     // reaches a console that understands it; see `virtual_terminal`.
     virtual_terminal::enable();
@@ -56,6 +78,19 @@ pub fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+#[cfg(target_family = "wasm")]
+fn initialize_wasm_paths() -> std::io::Result<()> {
+    let directory = std::env::var_os("PNPM_WASM_CWD")
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "PNPM_WASM_CWD is not set")
+        })?;
+    std::env::set_current_dir(directory)?;
+    tempfile::env::override_temp_dir(&pnpm_fs::temp_dir())
+        .map_err(|path| {
+            std::io::Error::other(format!("Temporary directory already set to {}", path.display()))
+        })
 }
 
 fn report_fatal_error(error: &miette::Report) {
@@ -317,7 +352,7 @@ where
 /// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
 /// themselves — and there `current_exe` is the only signal of the launch name.
 fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
-    let exe = std::env::current_exe().ok();
+    let exe = pnpm_executor::current_executable().ok();
     let exe_name = exe
         .as_deref()
         .and_then(Path::file_stem)

@@ -140,6 +140,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -230,6 +231,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -407,6 +409,7 @@ async fn write_path_populates_side_effects_row() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,

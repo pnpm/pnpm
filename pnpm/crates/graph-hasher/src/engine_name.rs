@@ -90,7 +90,7 @@ impl ProbeOnce {
 }
 
 fn spawn_node_version_probe() -> Option<String> {
-    let output = std::process::Command::new("node")
+    let output = crate::process::Command::new("node")
         .arg("--version")
         .output()
         .ok()?;

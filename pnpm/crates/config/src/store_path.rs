@@ -195,7 +195,7 @@ pub(crate) fn host_can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool
 /// reading, which is sufficient because each callsite uses the path
 /// once and removes it.
 fn path_temp_in(folder: &Path) -> PathBuf {
-    let pid = std::process::id();
+    let pid = pnpm_fs::process_id();
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
     folder.join(format!("_tmp_{pid}_{nanos:08x}"))
 }

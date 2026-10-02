@@ -45,7 +45,6 @@ pub(super) struct NodeRecord {
     pub(super) optional_child_aliases: HashSet<String>,
     pub(super) transitive_peer_dependencies: HashSet<String>,
     pub(super) depth: i32,
-    pub(super) installable: bool,
     pub(super) is_pure: bool,
     pub(super) order: u64,
 }
@@ -62,7 +61,6 @@ pub(super) struct WalkedNode<'a> {
     pub(super) children: &'a BTreeMap<String, NodeId>,
     /// The depPaths those same children resolved to.
     pub(super) child_dep_paths: BTreeMap<String, DepPath>,
-    pub(super) installable: bool,
     pub(super) ancestry: WalkedNodeAncestry<'a>,
     pub(super) peers: WalkedNodePeers<'a>,
 }
@@ -138,7 +136,6 @@ impl Walker<'_> {
                 optional_child_aliases: optional_child_aliases.clone(),
                 transitive_peer_dependencies: transitive_peer_dependencies.clone(),
                 depth: node.ancestry.depth,
-                installable: node.installable,
                 is_pure: node.peers.is_pure,
                 order: record_order,
             },
@@ -172,7 +169,6 @@ impl Walker<'_> {
                 resolved_package_id: node.pkg.id.to_string(),
                 resolve_result: Arc::clone(node.pkg.result()),
                 depth: node.ancestry.depth,
-                installable: node.installable,
                 is_pure: node.peers.is_pure,
                 optional: node.pkg.optional,
                 edges: crate::ResolvedDependencyEdges {
@@ -408,7 +404,6 @@ impl Walker<'_> {
             resolved_package_id: pkg_id.to_string(),
             resolve_result: Arc::clone(pkg.result()),
             depth,
-            installable: record.installable,
             is_pure: record.is_pure,
             optional: pkg.optional,
             edges: crate::ResolvedDependencyEdges {

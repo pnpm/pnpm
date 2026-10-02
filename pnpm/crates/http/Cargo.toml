@@ -1,0 +1,29 @@
+[package]
+name = "pnpm-http"
+description = "Native and WebContainer HTTP transports for pnpm"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+base64 = { workspace = true }
+bytes = { workspace = true }
+futures-util = { workspace = true }
+http = { workspace = true }
+percent-encoding = { workspace = true }
+pnpm-wasm-host = { path = "../wasm-host" }
+rustls = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true

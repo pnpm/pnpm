@@ -9,6 +9,9 @@
 //! [`VariationsResolution`](pnpm_lockfile::VariationsResolution)
 //! variant per `(os, cpu, libc?)` triple.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use get_node_artifact_address::{
     GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address,
 };

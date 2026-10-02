@@ -130,7 +130,7 @@ impl SlotPool {
 
     fn try_lock_slot(&self, index: u32, command: &str) -> io::Result<Option<File>> {
         let file = self.open_slot(index)?;
-        match file.try_lock() {
+        match pnpm_fs::try_lock_file(&file, true) {
             Ok(()) => {
                 if self.write_holder(index, command).is_err() {
                     let _ = fs::remove_file(self.holder_path(index));
@@ -203,7 +203,7 @@ impl SlotPool {
 
     fn holder_line_if_busy(&self, index: u32) -> Option<HolderLine> {
         let file = self.open_slot(index).ok()?;
-        match file.try_lock() {
+        match pnpm_fs::try_lock_file(&file, true) {
             Err(std::fs::TryLockError::WouldBlock) => {}
             Ok(()) | Err(std::fs::TryLockError::Error(_)) => return None,
         }
@@ -260,7 +260,7 @@ impl SlotPool {
 
     fn lock_seq(&self) -> io::Result<File> {
         let file = open_lock_file(&self.dir.join("seq"))?;
-        file.lock()?;
+        pnpm_fs::lock_file(&file, true)?;
         Ok(file)
     }
 
@@ -285,7 +285,7 @@ impl SlotPool {
     ) -> io::Result<Option<Waiter>> {
         let lock_path = self.waiter_lock_path(ticket);
         let file = open_lock_file(&lock_path)?;
-        match file.try_lock() {
+        match pnpm_fs::try_lock_file(&file, true) {
             Ok(()) => {}
             // A live waiter already owns this ticket. Blocking here would
             // keep the seq lock that waiter needs to take a slot.
@@ -362,7 +362,7 @@ impl SlotPool {
             Err(error) => return Err(error),
             Ok(file) => file,
         };
-        match file.try_lock() {
+        match pnpm_fs::try_lock_file(&file, true) {
             Err(std::fs::TryLockError::WouldBlock) => Ok(false),
             Ok(()) => {
                 drop(file);

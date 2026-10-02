@@ -33,7 +33,7 @@ fn resolve_local_spec_path(base_dir: &Path, raw_path: &str) -> PathBuf {
         .strip_prefix("~/")
         .or_else(|| clean.strip_prefix(r"~\"))
     {
-        let home = home::home_dir().unwrap_or_default();
+        let home = pnpm_config::home_dir().unwrap_or_default();
         pnpm_fs::lexical_normalize(&home.join(rest))
     } else {
         pnpm_fs::lexical_normalize(&base_dir.join(clean))

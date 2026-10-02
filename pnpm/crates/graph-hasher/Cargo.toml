@@ -21,5 +21,8 @@ sha2 = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
+
 [lints]
 workspace = true

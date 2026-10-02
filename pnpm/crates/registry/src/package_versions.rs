@@ -158,6 +158,11 @@ pub fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Resul
     std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
 }
 
+#[cfg(target_os = "wasi")]
+pub fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
+    std::os::wasi::fs::FileExt::read_exact_at(file, buf, offset)
+}
+
 /// See the unix sibling for the shared contract.
 #[cfg(windows)]
 pub fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {

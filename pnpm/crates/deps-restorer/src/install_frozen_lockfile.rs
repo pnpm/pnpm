@@ -24,10 +24,9 @@ use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStoreError,
     CreateVirtualStoreOutput, HoistedDepGraphError, LinkHoistedModulesError,
     LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBinsError,
-    LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, SymlinkPackageError, VersionPolicyError,
-    build_direct_deps_by_importer, direct_dep_names_for_importer, get_hoisted_dependencies,
-    link_hoisted_modules, link_top_level_bins, lockfile_to_hoisted_dep_graph,
+    LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependenciesError,
+    SymlinkPackageError, VersionPolicyError, build_direct_deps_by_importer,
+    direct_dep_names_for_importer, get_hoisted_dependencies, lockfile_to_hoisted_dep_graph,
     symlink_direct_dependencies::importer_root_dir,
 };
 

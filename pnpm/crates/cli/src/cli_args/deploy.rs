@@ -46,7 +46,6 @@ use serde_json::{Map, Value};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fs, io,
-    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };

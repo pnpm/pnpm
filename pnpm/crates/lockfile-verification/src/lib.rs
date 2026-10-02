@@ -32,3 +32,8 @@ mod errors;
 mod hash_lockfile;
 mod record_lockfile_verified;
 mod verify_lockfile_resolutions;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_wasm_host::process_id;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process::id as process_id;

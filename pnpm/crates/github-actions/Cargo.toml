@@ -29,5 +29,11 @@ url = { workspace = true }
 yaml_serde = { workspace = true }
 yamlpath = { workspace = true }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
+
 [lints]
 workspace = true

@@ -4,6 +4,9 @@
 //! This is the Rust port of the TypeScript `@pnpm/network.web-auth`
 //! package.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use capabilities::{
     Clock, EnterKeyListener, Host, OpenUrl, OpenUrlAndWait, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchError,

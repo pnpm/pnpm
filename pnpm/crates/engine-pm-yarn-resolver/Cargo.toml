@@ -19,7 +19,6 @@ pnpm-resolving-resolver-base = { workspace = true }
 derive_more = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
-reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ssri = { workspace = true }
@@ -28,6 +27,13 @@ tokio = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

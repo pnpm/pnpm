@@ -561,7 +561,7 @@ fn scrub_directory_at_cafs_path(path: &Path) {
     let mut scrub_path = path.as_os_str().to_owned();
     scrub_path.push(format!(
         ".pacquet-scrub-{}-{}",
-        std::process::id(),
+        pnpm_fs::process_id(),
         SCRUB_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
     ));
     let scrub_path = Path::new(&scrub_path);

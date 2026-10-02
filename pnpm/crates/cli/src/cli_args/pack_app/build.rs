@@ -65,8 +65,9 @@ pub(super) fn resolve_builder_binary(runtime: &EmbeddedRuntime) -> miette::Resul
         }
         .into());
     }
-    let pacquet_bin =
-        std::env::current_exe().into_diagnostic().wrap_err("resolving the pnpm executable path")?;
+    let pacquet_bin = pnpm_executor::current_executable()
+        .into_diagnostic()
+        .wrap_err("resolving the pnpm executable path")?;
     ensure_node_runtime(
         &pacquet_bin,
         runtime,

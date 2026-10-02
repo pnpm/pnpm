@@ -571,6 +571,7 @@ describe('login', () => {
           return createMockResponse({ ok: false, status: 404, text: 'Not Found' })
         }
         if (url === 'https://example.org/-/user/org.couchdb.user:john') {
+          expect(init?.redirect).toBe('manual')
           if (init?.headers?.authorization !== `Basic ${Buffer.from('john:secret', 'utf8').toString('base64')}`) {
             return createMockResponse({ ok: false, status: 409, text: '{"error":"username is already registered"}' })
           }
@@ -587,6 +588,30 @@ describe('login', () => {
       '//example.org/:_authToken': 'existing-user-token',
     })
     expect(globalInfo.mock.calls).toEqual([['Logged in as john']])
+  })
+
+  it.each([307, 308])('does not forward classic login credentials after HTTP %s redirect', async status => {
+    const fetchedUrls: string[] = []
+    const context = createMockContext({
+      fetch: async (url, init) => {
+        fetchedUrls.push(url)
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({ ok: false, status: 404, text: 'Not Found' })
+        }
+        expect(url).toBe('https://example.org/-/user/org.couchdb.user:john')
+        expect(init?.redirect).toBe('manual')
+        return createMockResponse({ ok: false, status, text: 'Redirected' })
+      },
+      enquirer: createCredentialsEnquirer({ username: 'john', email: 'john@example.com', password: 'secret' }),
+    })
+    await expect(login({
+      context,
+      opts: { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' },
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_LOGIN_FAILED', httpStatus: status })
+    expect(fetchedUrls).toStrictEqual([
+      'https://example.org/-/v1/login',
+      'https://example.org/-/user/org.couchdb.user:john',
+    ])
   })
 
   it('should handle classic OTP challenge during login', async () => {

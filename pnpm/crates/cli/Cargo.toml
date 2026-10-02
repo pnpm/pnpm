@@ -95,7 +95,6 @@ dunce = { workspace = true }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
-home = { workspace = true }
 indexmap = { workspace = true }
 node-semver = { workspace = true }
 miette = { workspace = true }
@@ -110,7 +109,6 @@ rayon = { workspace = true }
 rustc-hash = { workspace = true }
 reflink-copy = { workspace = true }
 regex = { workspace = true }
-reqwest = { workspace = true }
 rmp-serde = { workspace = true }
 same-file = { workspace = true }
 serde = { workspace = true }
@@ -125,10 +123,9 @@ tabled = { workspace = true }
 tar = { workspace = true }
 tempfile = { workspace = true }
 toml = { workspace = true }
-tokio = { workspace = true, features = ["process"] }
+tokio = { workspace = true }
 tracing = { workspace = true }
 url = { workspace = true }
-which = { workspace = true }
 base64 = { workspace = true }
 wax = { workspace = true }
 
@@ -163,6 +160,19 @@ tar = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir = { workspace = true }
 zip = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+which = { workspace = true }
+home = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "process", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-which = { workspace = true }
+pnpm-wasm-host = { path = "../wasm-host" }
+libc = { workspace = true }
+pnpm-process = { path = "../process" }
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

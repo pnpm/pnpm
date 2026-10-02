@@ -22,6 +22,9 @@
 //! manifest, warming the shared mem cache so the install pass reuses
 //! the extraction without re-downloading.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
 
 mod http_cache;

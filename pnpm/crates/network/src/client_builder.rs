@@ -1,5 +1,7 @@
+#[cfg(not(target_family = "wasm"))]
+use super::Addrs;
 use super::{
-    Addrs, AppliedTls, Arc, Client, DEFAULT_USER_AGENT, Duration, ForInstallsError, HeaderMap,
+    AppliedTls, Arc, Client, DEFAULT_USER_AGENT, Duration, ForInstallsError, HeaderMap,
     HeaderValue, LazyLock, Name, NetworkSettings, NoProxyMatcher, NonZeroUsize, Proxy, Resolve,
     Resolving, Semaphore, TlsConfig, TrustRoots, USER_AGENT, apply_tls, bundled_root_certs,
     parse_proxy_url, strip_userinfo,
@@ -255,6 +257,7 @@ pub(super) struct CappedDnsResolver<Inner> {
 struct NativeDnsResolver;
 
 impl Resolve for NativeDnsResolver {
+    #[cfg(not(target_family = "wasm"))]
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_owned();
         Box::pin(async move {
@@ -262,6 +265,21 @@ impl Resolve for NativeDnsResolver {
                 .map(|addrs| Box::new(addrs) as Addrs)
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error + Send + Sync>)
         })
+    }
+
+    #[cfg(target_family = "wasm")]
+    fn resolve(&self, _name: Name) -> Resolving {
+        Box::pin(async {
+            Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Direct DNS resolution is unavailable in WebContainers",
+            )) as Box<dyn std::error::Error + Send + Sync>)
+        })
+    }
+
+    #[cfg(target_family = "wasm")]
+    fn uses_host_resolution(&self) -> bool {
+        true
     }
 }
 

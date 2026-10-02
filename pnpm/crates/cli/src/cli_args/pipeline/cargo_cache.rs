@@ -2,6 +2,7 @@ mod restore;
 use restore::{clone_file, invalidate_fingerprints};
 
 use super::paths::{check_ancestors, validate_relative_path};
+use crate::process::Command;
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -10,7 +11,6 @@ use std::{
     fs::{File, OpenOptions},
     io,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 const INPUT_RECORD: &str = ".pnpm-cargo-inputs-v1";
@@ -273,7 +273,7 @@ fn add_config_inputs(
     let cargo_home = environment
         .get("CARGO_HOME")
         .map(PathBuf::from)
-        .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
+        .or_else(|| pnpm_config::home_dir().map(|home| home.join(".cargo")));
     if let Some(cargo_home) = cargo_home {
         for name in ["config", "config.toml"] {
             add_config(&cargo_home.join(name), project, inputs)?;

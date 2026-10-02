@@ -83,7 +83,9 @@ pub fn extend_path(
             .iter()
             .map(|entry| entry.as_os_str().to_os_string())
             .collect();
-        path_arr.extend(env::split_paths(orig).filter(|entry| !added.contains(entry.as_os_str())));
+        path_arr.extend(
+            pnpm_fs::split_paths(orig).filter(|entry| !added.contains(entry.as_os_str())),
+        );
     }
 
     join_paths_lossy(&path_arr)

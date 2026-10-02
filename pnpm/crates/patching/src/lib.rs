@@ -22,6 +22,11 @@
 //! accordingly takes a workspace dir and a pre-parsed
 //! [`IndexMap`][indexmap::IndexMap].
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use apply::{
     MANIFEST_FILE_NAME, PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch,
 };

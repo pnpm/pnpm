@@ -1,0 +1,23 @@
+{
+  "name": "@pnpm-private/wasm-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.mjs host/*.test.mjs"
+  },
+  "dependencies": {
+    "@emnapi/wasi-threads": "catalog:",
+    "@tybys/wasm-util": "catalog:",
+    "@yarnpkg/parsers": "catalog:",
+    "@yarnpkg/shell": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm-private/wasm-runtime": "workspace:*"
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/wasm"
+}

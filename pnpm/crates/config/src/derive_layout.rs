@@ -47,7 +47,7 @@ impl Config {
         // `lockfileDir ?? dir` to the same effect
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
         // `true` fires.
-        if cfg!(unix) && self.prefer_symlinked_executables == Some(true) {
+        if cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true) {
             let hidden_modules_dir =
                 pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
             self.extra_env.insert(

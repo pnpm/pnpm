@@ -1,24 +1,7 @@
 #!/usr/bin/env node
-// Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
-// `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
-// binary so `pnpm` runs directly, no Node startup per call. The placeholder must
-// stay shebang-less because pnpm 11 records its interpreter before installing
-// the native binary at the same path. npm's global Windows shims still target
-// the extensionless path after the `bin` rewrite, so postinstall asks npm to
-// regenerate them against `pnpm.exe`. A global install uses `npm rebuild
-// --global`. A project install passes the project prefix, because the
-// script's working directory is the installed package. Any other install,
-// such as `npm exec`, keeps its shims. When lifecycle scripts are blocked
-// (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and runs pnpm
-// through Node.js wherever a shell reaches it (see the `pnpm` file).
-//
-// `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
-// relinked); on Windows the native binary is hardlinked onto each and
-// self-detects its launch name to inject `dlx` (see `argv_with_alias_subcommand`
-// in the cli crate).
-//
-// Corepack runs no lifecycle scripts, so it never gets here; it enters through
-// `bin/pnpm.mjs` instead.
+// Native installs replace the Node entry points with the host binary. npm's
+// Windows shims must then be regenerated against pnpm.exe; Corepack and
+// installations that block lifecycle scripts keep the Node entry points.
 import console from 'node:console'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -49,6 +32,11 @@ function setup () {
     return
   }
 
+  if ('webcontainer' in process.versions) {
+    validateWebContainerRuntime()
+    return
+  }
+
   const candidates = getBinCandidates()
   if (candidates.length === 0) {
     fail(`pnpm does not ship a prebuilt binary for ${hostTarget()}.`)
@@ -75,7 +63,16 @@ function setup () {
     }
     rewriteBin(newBin)
   } else {
-    placeBinary(nativeBinary, path.join(wrapperDir, 'pnpm'), 0o755)
+    for (const name of BIN_NAMES) {
+      placeBinary(nativeBinary, path.join(wrapperDir, name), 0o755)
+    }
+  }
+}
+
+function validateWebContainerRuntime () {
+  const runtime = path.join(wrapperDir, 'dist', 'wasm', 'pnpm.wasm')
+  if (!fs.statSync(runtime, { throwIfNoEntry: false })?.isFile()) {
+    fail('The pnpm package is missing its bundled WebContainer runtime. Reinstall pnpm.')
   }
 }
 

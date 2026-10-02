@@ -116,10 +116,15 @@ impl ApprovalPrompt for DialoguerPrompt {
                 message.rsplit_once('\n').expect("approval question follows the version list");
             // Dialoguer only clears the last line when it renders the answer.
             writeln!(std::io::stderr(), "{list}")?;
-            dialoguer::Confirm::new()
+            #[cfg(not(target_family = "wasm"))]
+            let result = dialoguer::Confirm::new()
                 .with_prompt(question)
                 .default(false)
-                .interact()
+                .interact();
+            #[cfg(target_family = "wasm")]
+            let result =
+                pnpm_wasm_host::confirm(question, Some(false)).map_err(dialoguer::Error::IO);
+            result
         })
         .await
         .map_err(|error| dialoguer::Error::IO(std::io::Error::other(error)))?

@@ -33,7 +33,6 @@ fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
                         BTreeMap::from([("child".to_string(), child.clone())]).into(),
                     ),
                     0,
-                    true,
                 ),
             ),
             (
@@ -42,7 +41,6 @@ fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
                     Arc::from("child@1.0.0".to_string()),
                     TreeChildren::empty(),
                     1,
-                    true,
                 ),
             ),
             (
@@ -51,7 +49,6 @@ fn importer_snapshot_excludes_other_importers_occurrence_nodes() {
                     Arc::from("unrelated@1.0.0".to_string()),
                     TreeChildren::empty(),
                     0,
-                    true,
                 ),
             ),
         ]);
@@ -79,12 +76,7 @@ fn importer_snapshot_follows_lazy_edges_for_the_package_closure() {
     lock_recoverable(&workspace.tree.dependencies_tree)
         .insert(
             root.clone(),
-            DependenciesTreeNode::new(
-                Arc::from("root@1.0.0".to_string()),
-                TreeChildren::Lazy,
-                0,
-                true,
-            ),
+            DependenciesTreeNode::new(Arc::from("root@1.0.0".to_string()), TreeChildren::Lazy, 0),
         );
     for pkg_id in ["root@1.0.0", "lazy-child@1.0.0", "foreign@1.0.0"] {
         lock_recoverable(&workspace.tree.packages)
@@ -513,7 +505,6 @@ fn record_tree_node(workspace: &WorkspaceTreeCtx, node_id: &NodeId, pkg_id: &str
                 Arc::from(pkg_id.to_string()),
                 TreeChildren::empty(),
                 depth,
-                true,
             ));
         }
     }

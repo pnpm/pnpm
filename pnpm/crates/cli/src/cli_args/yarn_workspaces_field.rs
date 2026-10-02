@@ -219,7 +219,10 @@ fn publish_new_workspace_manifest(path: &Path, text: &str) -> std::io::Result<()
         use std::os::unix::fs::PermissionsExt as _;
         builder.permissions(std::fs::Permissions::from_mode(0o666));
     }
+    #[cfg(not(target_os = "wasi"))]
     let mut tmp = builder.tempfile_in(dir)?;
+    #[cfg(target_os = "wasi")]
+    let mut tmp = builder.make_in(dir, |path| pnpm_fs::create_new_with_mode(path, 0o666))?;
     tmp.write_all(text.as_bytes())?;
     tmp.flush()?;
     tmp.persist_noclobber(path)

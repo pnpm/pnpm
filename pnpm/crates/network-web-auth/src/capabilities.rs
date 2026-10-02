@@ -12,16 +12,22 @@
 use std::{
     future::Future,
     io::{self, IsTerminal},
+    sync::LazyLock,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+#[cfg(not(target_family = "wasm"))]
+use std::{
     pin::Pin,
     sync::{
-        Arc, LazyLock,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     task::{Context, Poll},
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(not(target_family = "wasm"))]
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use pnpm_network::{LimitedBody, read_limited_body};
 
@@ -215,6 +221,7 @@ impl StdoutIsTty for Host {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl OpenUrl for Host {
     fn open_url(url: &str) -> io::Result<()> {
         // Detached so the call returns as soon as the browser is launched
@@ -223,6 +230,7 @@ impl OpenUrl for Host {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl OpenUrlAndWait for Host {
     fn open_url_and_wait(url: &str) -> io::Result<()> {
         open::that(url)
@@ -231,6 +239,7 @@ impl OpenUrlAndWait for Host {
 
 /// How often the listener thread wakes to re-check the cancel flag. Bounds
 /// how long the detached thread outlives a dropped handle.
+#[cfg(not(target_family = "wasm"))]
 const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Production [`EnterKeyListener::Handle`]. Resolves once the background
@@ -243,6 +252,7 @@ const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Meant to be raced and dropped when another branch wins (e.g. inside a
 /// `tokio::select!`): on a stdin read error it deliberately never resolves,
 /// so awaiting it on its own would hang.
+#[cfg(not(target_family = "wasm"))]
 pub struct HostEnterHandle {
     enter: tokio::sync::oneshot::Receiver<()>,
     state: EnterListenerState,
@@ -254,6 +264,7 @@ pub struct HostEnterHandle {
 /// again — but they resolve differently: a completed handle re-polls as
 /// `Ready` while a disabled one (stdin read error) stays `Pending` forever
 /// so the browser is not opened spuriously.
+#[cfg(not(target_family = "wasm"))]
 #[derive(Clone, Copy)]
 enum EnterListenerState {
     Waiting,
@@ -261,6 +272,7 @@ enum EnterListenerState {
     Disabled,
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl Future for HostEnterHandle {
     type Output = ();
 
@@ -287,12 +299,14 @@ impl Future for HostEnterHandle {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl Drop for HostEnterHandle {
     fn drop(&mut self) {
         self.cancel.store(true, Ordering::Relaxed);
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl EnterKeyListener for Host {
     type Handle = HostEnterHandle;
 
@@ -324,6 +338,7 @@ impl EnterKeyListener for Host {
 }
 
 /// What one poll of the terminal told the Enter listener.
+#[cfg(not(target_family = "wasm"))]
 enum EnterPoll {
     /// Enter was pressed.
     Pressed,
@@ -341,6 +356,7 @@ enum EnterPoll {
 /// between it and `read()` can still lose one keystroke. That residual window
 /// is a few instructions wide and accepted; crossterm offers no way to close
 /// it short of not reading stdin at all.
+#[cfg(not(target_family = "wasm"))]
 fn next_enter_poll(reader_cancel: &AtomicBool) -> EnterPoll {
     match event::poll(ENTER_POLL_INTERVAL) {
         // Timed out: loop back to re-check the cancel flag.
@@ -366,6 +382,7 @@ fn next_enter_poll(reader_cancel: &AtomicBool) -> EnterPoll {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl PromptOtp for Host {
     async fn input(message: &str) -> Result<Option<String>, PromptError> {
         let message = message.to_owned();
@@ -383,6 +400,7 @@ impl PromptOtp for Host {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn map_dialoguer_error(error: dialoguer::Error) -> PromptError {
     match error {
         dialoguer::Error::IO(io) if io.kind() == io::ErrorKind::Interrupted => {
@@ -394,3 +412,6 @@ fn map_dialoguer_error(error: dialoguer::Error) -> PromptError {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_family = "wasm")]
+mod wasm;

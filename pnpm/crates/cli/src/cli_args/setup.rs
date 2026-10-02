@@ -8,6 +8,7 @@
 mod gh_actions_env;
 mod path_extender;
 
+use crate::process::Command;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use path_extender::{
@@ -16,7 +17,7 @@ use path_extender::{
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
 use pnpm_fs::write_atomic;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {
@@ -40,6 +41,12 @@ impl SetupArgs {
 }
 
 fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+    if cfg!(target_family = "wasm") {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_UNSUPPORTED_RUNTIME",
+            "pnpm setup requires an installable pnpm distribution. This WebContainer runtime cannot install itself globally."
+        ));
+    }
     ensure_windows_home_dir_env::<Host>()?;
     let pnpm_home_dir = default_pnpm_home_dir::<Host>().ok_or_else(|| {
         miette::miette!(
@@ -52,7 +59,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     let bin_dir = pnpm_home_dir.join("bin");
     gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
 
-    let exec_path = std::env::current_exe()
+    let exec_path = pnpm_executor::current_executable()
         .into_diagnostic()
         .wrap_err("determine the path to the pnpm executable")?;
     // pacquet is always a native executable (never a `.js` entrypoint), so
@@ -197,6 +204,8 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
     // Replaced by a rename, never truncated: the name can already be a hardlink
     // of the running pnpm executable, and Linux refuses that open with ETXTBSY.
     write_atomic(&script_path, posix_alias_script(name, subcommand).as_bytes())?;
+    #[cfg(target_os = "wasi")]
+    pnpm_fs::file_mode::set_path_permissions(&script_path, 0o755)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -309,6 +318,11 @@ fn write_windows_alias_wrapper(
     // theirs. Through `call` the forwarded arguments would take a second round of
     // `%`-expansion, and the exit code is the shim's either way, since this is the
     // last command this script runs. `%~dp0` already ends in a backslash.
+    //
+    // Run without `call`, `pnpm.cmd` also takes over this script's batch context
+    // and ends it before pnpm starts (see `CmdShimBatch::EndedBeforeTarget`), so
+    // Ctrl+C leaves no batch job behind to ask about. Ending the context here
+    // instead would keep this script's `echo off` in an interactive cmd.exe.
     write_atomic(
         &target_dir.join(format!("{name}.cmd")),
         format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n").as_bytes(),

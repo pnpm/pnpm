@@ -1,6 +1,38 @@
 use pnpm_reporter::SilentReporter;
 
-use super::{AddUserError, ClassicLoginOpError, add_user_error_to_op};
+use super::{AddUserError, ClassicLoginOpError, Credentials, add_user, add_user_error_to_op};
+
+#[tokio::test]
+async fn classic_login_does_not_forward_credentials_on_body_preserving_redirects() {
+    let mut registry = mockito::Server::new_async().await;
+    let mut destination = mockito::Server::new_async().await;
+    let credentials =
+        Credentials { username: "john", password: "secret", email: "john@example.com" };
+    let redirected_request = destination
+        .mock("PUT", "/stolen")
+        .expect(0)
+        .create_async()
+        .await;
+
+    for status in [307, 308] {
+        let redirect = registry
+            .mock("PUT", "/-/user/org.couchdb.user:john")
+            .with_status(status)
+            .with_header("location", &format!("{}/stolen", destination.url()))
+            .create_async()
+            .await;
+
+        let error = add_user(&crate::login::support::client(), &registry.url(), credentials, None)
+            .await
+            .expect_err("login redirect must fail");
+        assert!(
+            matches!(error, AddUserError::Http { status: actual, .. } if usize::from(actual) == status),
+        );
+        redirect.assert_async().await;
+        redirect.remove_async().await;
+    }
+    redirected_request.assert_async().await;
+}
 
 /// A transport failure of the classic `PUT` rewraps into
 /// `ClassicLoginOpError::Transport`. Unlike the other arms, this one is not
