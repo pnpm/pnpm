@@ -1,7 +1,5 @@
 //! Running one package's build scripts.
 
-pub(super) use dependency_bins::record_completion;
-
 mod dependency_bins;
 mod linked_copies;
 mod patched_engines;

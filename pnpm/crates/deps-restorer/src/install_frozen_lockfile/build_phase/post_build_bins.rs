@@ -140,7 +140,7 @@ pub(super) fn importer_sources(
     directory: &Path,
     direct: &[String],
     hoisted: &[String],
-) -> Option<HashMap<PathBuf, pnpm_cmd_shim::PackageBinSource>> {
+) -> Option<HashMap<PathBuf, pnpm_cmd_shim::PreparedPackageBins>> {
     let entry = plans.existing_directory(directory)?;
     let entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let plan = entry.plan.as_ref()?;
@@ -150,8 +150,8 @@ pub(super) fn importer_sources(
             .chain(hoisted)
             .filter_map(|name| {
                 let location = directory.join(name);
-                plan.package_source(&location)
-                    .map(|source| (location, source.with_build_pending(false)))
+                plan.package_bins(&location)
+                    .map(|prepared| (location, prepared.with_build_pending(false)))
             })
             .collect(),
     )

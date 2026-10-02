@@ -1,5 +1,6 @@
 use super::{
-    HashMap, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, fs, link_top_level_bins_cached,
+    HashMap, Host, LinkBinsOptions, Path, PathBuf, PreparedPackageBins, fs,
+    link_top_level_bins_cached,
 };
 use pnpm_cmd_shim::DirectoryBinPlan;
 use std::collections::HashSet;
@@ -87,11 +88,14 @@ fn cached_importer_sources_preserve_direct_hoisted_and_peer_precedence() {
     assert!(fs::read_to_string(modules.join(".bin/tool")).unwrap().contains("peer-slot"));
 }
 
-fn snapshots(plan: &DirectoryBinPlan, locations: &[PathBuf]) -> HashMap<PathBuf, PackageBinSource> {
+fn snapshots(
+    plan: &DirectoryBinPlan,
+    locations: &[PathBuf],
+) -> HashMap<PathBuf, PreparedPackageBins> {
     locations
         .iter()
         .filter_map(|location| {
-            plan.package_source(location)
+            plan.package_bins(location)
                 .map(|source| (location.clone(), source))
         })
         .collect()

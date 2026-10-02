@@ -1,6 +1,7 @@
 use super::read_location_bin_sources;
 use pnpm_cmd_shim::{
-    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
+    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, PreparedPackageBins,
+    link_bins_of_packages, link_bins_of_packages_precomputed,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
@@ -50,7 +51,7 @@ pub(crate) fn link_top_level_bins_cached(
     hoisted_dep_names: &[String],
     peer_locations: &[PathBuf],
     link_options: &LinkBinsOptions,
-    cached: Option<&HashMap<PathBuf, PackageBinSource>>,
+    cached: Option<&HashMap<PathBuf, PreparedPackageBins>>,
 ) -> Result<(), LinkBinsError> {
     let mut bin_sources: Vec<PackageBinSource> = Vec::new();
     // Tag direct deps as `Direct` and hoisted as `Hoisted` so the
@@ -83,7 +84,17 @@ pub(crate) fn link_top_level_bins_cached(
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+    match cached {
+        Some(cached) => link_bins_of_packages_precomputed::<Host>(
+            &bin_sources,
+            cached,
+            &modules_dir.join(".bin"),
+            link_options,
+        ),
+        None => {
+            link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+        }
+    }
 }
 /// Read each `<modules_dir>/<name>/package.json` and assemble the
 /// list of [`PackageBinSource`]s. Same `NotFound`-tolerant /
@@ -93,7 +104,7 @@ pub(crate) fn link_top_level_bins_cached(
 fn read_bin_sources(
     modules_dir: &Path,
     dep_names: &[String],
-    cached: Option<&HashMap<PathBuf, PackageBinSource>>,
+    cached: Option<&HashMap<PathBuf, PreparedPackageBins>>,
 ) -> Result<Vec<PackageBinSource>, LinkBinsError> {
     let locations: Vec<PathBuf> = dep_names
         .iter()
@@ -103,7 +114,7 @@ fn read_bin_sources(
         .par_iter()
         .filter_map(|location| {
             if let Some(source) = cached.and_then(|sources| sources.get(location)) {
-                return Some(Ok(source.clone()));
+                return Some(Ok(source.source().clone()));
             }
             let manifest_path = location.join("package.json");
             let bytes = match fs::read(&manifest_path) {

@@ -1,7 +1,9 @@
 pub use discovery::collect_packages_in_modules_dir;
 pub use options::LinkBinsOptions;
+pub use prepared::{PreparedPackageBins, link_bins_of_packages_precomputed};
 pub use refresh::DirectoryBinPlan;
 pub use relocatable::bin_dir_is_relocatable;
+pub use selection::choose_bins;
 pub use shim_writer::remove_bin;
 
 use crate::{
@@ -514,6 +516,9 @@ use conflicts::{package_name, pick_winner};
 
 mod discovery;
 mod options;
+mod prepared;
+mod selection;
+use selection::choose_bins_with;
 mod refresh;
 
 mod exclusions;

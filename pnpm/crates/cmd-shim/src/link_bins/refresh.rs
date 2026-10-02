@@ -7,6 +7,7 @@ use super::{
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 mod removal;
@@ -21,14 +22,14 @@ mod tests;
 pub struct DirectoryBinPlan {
     package_indices: HashMap<PathBuf, usize>,
     packages: Vec<Provider>,
-    candidates: HashMap<String, Vec<(Command, usize)>>,
+    candidates: HashMap<String, Vec<(usize, usize)>>,
     pending: HashSet<String>,
 }
 
 #[derive(Default)]
 struct Provider {
     source: Option<PackageBinSource>,
-    bins: Vec<String>,
+    commands: Arc<[Command]>,
 }
 
 impl DirectoryBinPlan {
@@ -39,6 +40,16 @@ impl DirectoryBinPlan {
             .get(*self.package_indices.get(location)?)?
             .source
             .clone()
+    }
+
+    /// Snapshot one provider's manifest and validated commands without re-parsing its bins.
+    #[must_use]
+    pub fn package_bins(&self, location: &Path) -> Option<super::PreparedPackageBins> {
+        let provider = self.packages.get(*self.package_indices.get(location)?)?;
+        Some(super::PreparedPackageBins {
+            source: provider.source.clone()?,
+            commands: Arc::clone(&provider.commands),
+        })
     }
 
     pub fn discover<Sys>(directory: &Path) -> Result<Self, LinkBinsError>
@@ -109,7 +120,12 @@ impl DirectoryBinPlan {
         let package = read_package::<Sys>(location)?;
         let old_names = self.package_indices
             .get(location)
-            .map(|index| self.packages[*index].bins.clone())
+            .map(|index| {
+                self.packages[*index].commands
+                    .iter()
+                    .map(|command| command.name.clone())
+                    .collect::<Vec<_>>()
+            })
             .unwrap_or_default();
         let new_names: Vec<_> = package
             .as_ref()
@@ -147,10 +163,6 @@ impl DirectoryBinPlan {
     }
 
     fn insert_commands(&mut self, package: &PackageBinSource, commands: Vec<Command>) {
-        let names = commands
-            .iter()
-            .map(|command| command.name.clone())
-            .collect();
         let index = *self.package_indices
             .entry(package.location.clone())
             .or_insert_with(|| {
@@ -158,12 +170,13 @@ impl DirectoryBinPlan {
                 self.packages.push(Provider::default());
                 index
             });
-        self.packages[index] = Provider { source: Some(package.clone()), bins: names };
-        for command in commands {
+        for (command_index, command) in commands.iter().enumerate() {
             let candidates = self.candidates.entry(command.name.clone()).or_default();
             let position = candidates.partition_point(|(_, candidate)| *candidate <= index);
-            candidates.insert(position, (command, index));
+            candidates.insert(position, (command_index, index));
         }
+        self.packages[index] =
+            Provider { source: Some(package.clone()), commands: commands.into() };
     }
 
     fn remove_package(&mut self, location: &Path, names: &[String]) {
@@ -178,10 +191,12 @@ impl DirectoryBinPlan {
 
     fn winner(&self, name: &str) -> Option<(&Command, &PackageBinSource)> {
         self.winner_candidate(name)
-            .map(|(command, index)| (command, self.provider_source(*index)))
+            .map(|(command, index)| {
+                (&self.packages[*index].commands[*command], self.provider_source(*index))
+            })
     }
 
-    fn winner_candidate(&self, name: &str) -> Option<&(Command, usize)> {
+    fn winner_candidate(&self, name: &str) -> Option<&(usize, usize)> {
         self.candidates
             .get(name)?
             .iter()

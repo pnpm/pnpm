@@ -525,10 +525,7 @@ fn schedule_builds<Reporter: self::Reporter>(
     let on_node_skipped: fn(&PackageKey) = |_| {};
     let run_node =
         |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(&snapshot_key, context) {
-            Ok(()) => {
-                build_one_snapshot::record_completion(context, &snapshot_key);
-                TaskCompletion::Passed
-            }
+            Ok(()) => TaskCompletion::Passed,
             Err(error) => {
                 first_error
                     .lock()

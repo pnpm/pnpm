@@ -89,20 +89,17 @@ fn refresh_directory(
 ) -> Result<(), BuildModulesError> {
     let entry = refreshed.directory(directory);
     let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let pending: HashSet<_> = completed
-        .union(&entry.ready)
-        .filter(|key| !entry.completed.contains(*key))
-        .cloned()
-        .collect();
-    if pending.is_empty() {
+    if completed.is_subset(&entry.completed) {
         return Ok(());
     }
+    let pending = completed
+        .difference(&entry.completed)
+        .cloned()
+        .collect();
     let plan = entry.plan.as_mut().expect("hoisted bin plan seeded before mutation");
     scan(plan, &pending)?;
-    for key in pending {
-        entry.ready.remove(&key);
-        entry.completed.insert(key);
-    }
+    // Other packages may still be building; only this consumer's dependencies are complete.
+    entry.completed.extend(completed.iter().cloned());
     Ok(())
 }
 
@@ -139,26 +136,4 @@ fn completed_locations(
         .filter(|root| crate::link_hoisted_modules::containing_modules_dir(root) == Some(directory))
         .cloned()
         .collect()
-}
-
-/// Publish mutations only after the scheduler's entire snapshot task completed successfully.
-pub(crate) fn record_completion(context: &BuildOneSnapshot<'_>, key: &PackageKey) {
-    if !context.directories.gather_ancestor_bin_paths
-        || !context.progress.slot_mutations
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .contains(key)
-    {
-        return;
-    }
-    for root in context.pkg_roots().all(key) {
-        let Some(directory) = crate::link_hoisted_modules::containing_modules_dir(&root) else {
-            continue;
-        };
-        let entry = context.progress.refreshed_hoisted_bins.directory(directory);
-        let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if !entry.completed.contains(key) {
-            entry.ready.insert(key.clone());
-        }
-    }
 }

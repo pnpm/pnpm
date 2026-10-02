@@ -113,7 +113,7 @@ fn final_importer_sources_clear_pending_without_changing_pre_consumer_candidates
         .initialize(modules)
         .unwrap();
     let sources = super::importer_sources(&plans, modules, &["tool".into()], &[]).unwrap();
-    assert!(!sources[&location].build_pending);
+    assert!(!sources[&location].source().build_pending);
     assert!(
         plans
             .directory(modules)

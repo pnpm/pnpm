@@ -15,7 +15,6 @@ pub(crate) struct HoistedBinPlans {
 pub(crate) struct HoistedBinDirectory {
     pub(crate) plan: Option<DirectoryBinPlan>,
     pub(crate) completed: HashSet<PackageKey>,
-    pub(crate) ready: HashSet<PackageKey>,
     sources: Option<Arc<[PackageBinSource]>>,
 }
 
