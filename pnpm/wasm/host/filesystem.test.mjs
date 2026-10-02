@@ -90,6 +90,39 @@ test('directory open rejects an intermediate symlink below its template', contex
   assert.equal(wasi.fd_close(descriptor), 0)
 })
 
+test('Linux directory grant stays bound to the opened template after a rename', { skip: process.platform !== 'linux' || 'webcontainer' in process.versions }, context => {
+  const { directory, memory, imports, guestPath } = fixture(context)
+  const template = path.join(directory, 'template')
+  const moved = path.join(directory, 'moved')
+  const outside = path.join(directory, 'outside')
+  fs.mkdirSync(path.join(template, 'child'), { recursive: true })
+  fs.mkdirSync(path.join(outside, 'child'), { recursive: true })
+  fs.chmodSync(path.join(template, 'child'), 0o300)
+  fs.chmodSync(path.join(outside, 'child'), 0o300)
+  const templateBytes = new TextEncoder().encode(template)
+  new Uint8Array(memory.buffer, 1024, templateBytes.length).set(templateBytes)
+  const originalOpen = fs.openSync
+  let movedTemplate = false
+  fs.openSync = (file, ...args) => {
+    const descriptor = originalOpen(file, ...args)
+    if (file === template && !movedTemplate) {
+      movedTemplate = true
+      fs.renameSync(template, moved)
+      fs.symlinkSync(outside, template)
+    }
+    return descriptor
+  }
+  try {
+    assert.equal(imports.grant_directory_mode_beneath(...guestPath(path.join(template, 'child')), 1024, templateBytes.length, 0o2070), 0)
+  } finally {
+    fs.openSync = originalOpen
+  }
+  assert.equal(fs.statSync(path.join(moved, 'child')).mode & 0o7777, 0o2370)
+  assert.equal(fs.statSync(path.join(outside, 'child')).mode & 0o7777, 0o300)
+  fs.chmodSync(path.join(moved, 'child'), 0o700)
+  fs.chmodSync(path.join(outside, 'child'), 0o700)
+})
+
 test('ordinary WASI opens join the same descriptor mapping and follow relative symlinks', context => {
   const { directory, memory, wasi, imports, guestPath } = fixture(context)
   const target = path.join(directory, 'target')

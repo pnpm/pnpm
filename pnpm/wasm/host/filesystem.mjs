@@ -13,6 +13,8 @@ import { errno } from './wasi-errno.mjs'
 
 const readRights = 2n | 4n | 16n | 32n | 2097152n
 const writeRights = readRights | 1n | 64n | 4194304n
+// Node does not expose Linux O_PATH through fs.constants.
+const linuxOPath = 0o10000000
 
 export function createWasiFilesystem (options, memory) {
   const locks = createFileLocks()
@@ -179,22 +181,54 @@ function createFilesystemImports ({ memory, resolveDescriptor, open, rootDescrip
     if (root !== '/') throw Object.assign(new Error('Filesystem extensions require the host root preopen'), { code: 'EACCES' })
     return path.resolve(root, `.${value}`)
   }
+  function descendantComponents (directory, template) {
+    const suffix = path.relative(template, directory)
+    if (!suffix || suffix === '..' || suffix.startsWith(`..${path.sep}`) || path.isAbsolute(suffix)) {
+      throw Object.assign(new Error('Permission target is not below its template'), { code: 'EINVAL' })
+    }
+    return suffix.split(path.sep)
+  }
   return {
     ...createOpenImports({ options, rootDescriptor, open }),
     open_directory_nofollow_beneath (pointer, length, templatePointer, templateLength, output) {
       try {
         const directory = guestPath(pointer, length)
         const template = guestPath(templatePointer, templateLength)
-        const suffix = path.relative(template, directory)
-        if (!suffix || suffix === '..' || suffix.startsWith(`..${path.sep}`) || path.isAbsolute(suffix)) return errno.EINVAL
         let current = template
-        for (const component of suffix.split(path.sep)) {
+        for (const component of descendantComponents(directory, template)) {
           current = path.join(current, component)
           const metadata = fs.lstatSync(current)
           if (metadata.isSymbolicLink()) return errno.ELOOP
           if (!metadata.isDirectory()) return errno.ENOTDIR
         }
         return open([rootDescriptor, 0, pointer, length, 0, readRights, 0n, 4, output])
+      } catch (error) {
+        return errorNumber(error)
+      }
+    },
+    grant_directory_mode_beneath (pointer, length, templatePointer, templateLength, extra) {
+      if ('webcontainer' in process.versions) return errno.ENOTSUP
+      if (process.platform !== 'linux' || !fs.existsSync('/proc/self/fd')) return errno.EACCES
+      if (extra < 0 || extra > 0o7777) return errno.EINVAL
+      try {
+        const directory = guestPath(pointer, length)
+        const template = guestPath(templatePointer, templateLength)
+        const components = descendantComponents(directory, template)
+        let descriptor = fs.openSync(template, linuxOPath | fs.constants.O_DIRECTORY)
+        try {
+          for (const component of components) {
+            const child = fs.openSync(`/proc/self/fd/${descriptor}/${component}`, linuxOPath | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
+            fs.closeSync(descriptor)
+            descriptor = child
+          }
+          const metadata = fs.fstatSync(descriptor)
+          if (metadata.uid !== process.getuid()) return errno.EACCES
+          const current = metadata.mode & 0o7777
+          if ((current | extra) !== current) fs.chmodSync(`/proc/self/fd/${descriptor}`, current | extra)
+          return 0
+        } finally {
+          fs.closeSync(descriptor)
+        }
       } catch (error) {
         return errorNumber(error)
       }

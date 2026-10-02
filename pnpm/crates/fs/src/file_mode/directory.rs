@@ -305,6 +305,14 @@ fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
 
 #[cfg(target_os = "wasi")]
 fn add_dir_mode_bits(path: &Path, template: &Path, extra: u32) -> io::Result<()> {
+    match crate::wasi_fs::grant_directory_mode_beneath(path, template, extra) {
+        Ok(()) => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::Unsupported => {}
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    }
     let file = match crate::wasi_fs::open_directory_nofollow_beneath(path, template) {
         Ok(file) => file,
         Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {

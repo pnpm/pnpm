@@ -117,6 +117,27 @@ pub fn open_directory_nofollow_beneath(path: &Path, template: &Path) -> io::Resu
     })
 }
 
+/// Grant inherited bits through Linux directory handles when the host can
+/// resolve `/proc/self/fd`. Other hosts return `Unsupported` for the caller's
+/// WASI descriptor fallback.
+pub fn grant_directory_mode_beneath(path: &Path, template: &Path, extra: u32) -> io::Result<()> {
+    with_absolute_path(path, |path| {
+        with_absolute_path(template, |template| {
+            // SAFETY: both path slices stay live until the synchronous host
+            // call returns; it retains neither pointer.
+            check(unsafe {
+                host::grant_directory_mode_beneath(
+                    path.as_ptr(),
+                    path.len(),
+                    template.as_ptr(),
+                    template.len(),
+                    extra,
+                )
+            })
+        })
+    })
+}
+
 fn owned_file(descriptor: u32) -> io::Result<std::fs::File> {
     use std::os::fd::FromRawFd;
     let descriptor = descriptor.try_into().map_err(|_| io::ErrorKind::InvalidData)?;
@@ -217,6 +238,13 @@ mod host {
             template: *const u8,
             template_length: usize,
             output: *mut u32,
+        ) -> i32;
+        pub(super) fn grant_directory_mode_beneath(
+            path: *const u8,
+            length: usize,
+            template: *const u8,
+            template_length: usize,
+            extra: u32,
         ) -> i32;
         pub(super) fn open_lock(path: *const u8, length: usize, output: *mut u32) -> i32;
         pub(super) fn try_lock(descriptor: i32, exclusive: u32) -> i32;
