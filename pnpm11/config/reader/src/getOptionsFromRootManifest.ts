@@ -42,6 +42,8 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
+  httpProxy?: string
+  httpsProxy?: string
   /** The lookups the `registries` setting is split into. */
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
@@ -91,6 +93,12 @@ export function getOptionsFromPnpmSettings (
   }
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
+  }
+  if (Object.hasOwn(settings, 'httpProxy')) {
+    assertString(settings.httpProxy, 'httpProxy')
+  }
+  if (Object.hasOwn(settings, 'httpsProxy')) {
+    assertString(settings.httpsProxy, 'httpsProxy')
   }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
