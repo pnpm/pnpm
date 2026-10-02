@@ -111,7 +111,6 @@ pub(crate) mod yarn_workspaces_field;
 pub(crate) use cli_command::CliArgs;
 pub(crate) use pnpm_deps_inspection as deps_tree;
 
-/// The dependency-inspection crate, aliased as `cli_args::deps_tree`.
 mod dispatch;
 mod dispatch_install;
 mod dispatch_query;
