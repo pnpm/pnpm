@@ -71,8 +71,11 @@ export function getOptionsFromPnpmSettings (
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
-  if (manifestDir != null && settings.scriptShell != null) {
-    settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
+  if (settings.scriptShell != null) {
+    assertString(settings.scriptShell, 'scriptShell')
+    if (manifestDir != null) {
+      settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
+    }
   }
   normalizeOverrides(settings, opts.manifest)
   if (settings.packageExtensions != null) {
@@ -91,6 +94,9 @@ export function getOptionsFromPnpmSettings (
   }
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
+  }
+  if (settings.pnprServer != null) {
+    assertString(settings.pnprServer, 'pnprServer')
   }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
