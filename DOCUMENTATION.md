@@ -37,7 +37,9 @@ adopting website tooling changes. Release publication uses the website's current
 
 ## Publication
 
-When a maintainer publishes a draft GitHub release, Sync documentation verifies the
+When a maintainer publishes a draft GitHub release, Sync documentation
+dispatches itself from `main` for that tag, so every sync runs the workflow,
+scripts, and trusted keys on `main`. The sync verifies the
 signed tag and npm publication, then imports only that version's documentation
 from the tagged commit. Stable v11 and v12 releases update their
 respective CLI documentation. Pnpr releases, including alpha releases, update
@@ -114,7 +116,9 @@ GitHub alerts render only on GitHub. Docusaurus admonitions render only on pnpm.
    with permission to push content to pnpm/pnpm.io's `main` branch. Configure
    branch rules to allow that identity. Use a GitHub App token or fine-grained
    personal access token; the source repository's `GITHUB_TOKEN` cannot perform
-   this cross-repository push and trigger the website deployment.
+   this cross-repository push and trigger the website deployment. Limit the
+   environment's deployment branches to `main`, so a workflow on another branch
+   or a tag cannot read the token.
 4. Keep Crowdin uploads in pnpm/pnpm.io. Its existing paths and translation
    identifiers remain unchanged. Run `pnpm crowdin-upload` there after a sync
    when updating translation sources, as before.

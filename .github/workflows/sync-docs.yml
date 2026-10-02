@@ -2,7 +2,9 @@ name: Sync documentation
 
 on:
   # A maintainer publishes the draft GitHub release after approving the staged
-  # npm packages. The token is limited to the push step.
+  # npm packages. A release event runs the workflow file from the tag, so it
+  # only dispatches the sync from the default branch. The token is limited to
+  # the push step.
   release:
     types: [published]
   workflow_dispatch:
@@ -19,8 +21,25 @@ permissions:
   contents: read
 
 jobs:
+  dispatch:
+    if: >-
+      github.event_name == 'release' &&
+      (startsWith(github.event.release.tag_name, 'v11.') ||
+       startsWith(github.event.release.tag_name, 'v12.') ||
+       startsWith(github.event.release.tag_name, 'pnpr@'))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the sync from the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh workflow run sync-docs.yml -R "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f release_tag="$RELEASE_TAG"
+
   sync:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       publish: ${{ steps.source.outputs.publish }}
@@ -37,7 +56,7 @@ jobs:
       - name: Select the main or released documentation snapshot
         id: source
         env:
-          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
           DOCS_COMMIT: ${{ inputs.docs_commit }}
         run: |
           export GNUPGHOME="$(mktemp -d)"
