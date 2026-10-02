@@ -11,7 +11,7 @@ use crate::cli_args::{
 use console::measure_text_width;
 use node_semver::Version;
 use pnpm_package_manifest::DependencyGroup;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 /// One line of a [`ChoiceGroup`].
 #[derive(Debug, PartialEq, Eq)]
@@ -269,13 +269,12 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
         colorize_target(package),
     ];
     if workspaces_enabled {
-        row.push(
-            choice.workspaces
+        row.push(workspaces_cell(
+            &choice.workspaces
                 .iter()
                 .map(|workspace| sanitize_inline(workspace))
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
+                .collect::<Vec<_>>(),
+        ));
     }
     row.push(
         package.metadata.homepage
@@ -285,4 +284,29 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
             .into_owned(),
     );
     row
+}
+
+/// A dependency shared by every project of a large workspace names all of
+/// them in one `Workspace` cell, which would push its row, and through the
+/// column padding every row of its group, past any terminal. Past this
+/// many columns the cell names the projects that fit and counts the rest.
+const WORKSPACE_COLUMN_WIDTH: usize = 30;
+
+fn workspaces_cell(workspaces: &[Cow<'_, str>]) -> String {
+    let all = workspaces.join(", ");
+    if workspaces.len() < 2 || measure_text_width(&all) <= WORKSPACE_COLUMN_WIDTH {
+        return all;
+    }
+    let mut named = 1;
+    while named + 1 < workspaces.len()
+        && measure_text_width(&abbreviate_workspaces(workspaces, named + 1))
+            <= WORKSPACE_COLUMN_WIDTH
+    {
+        named += 1;
+    }
+    abbreviate_workspaces(workspaces, named)
+}
+
+fn abbreviate_workspaces(workspaces: &[Cow<'_, str>], named: usize) -> String {
+    format!("{}, +{} more", workspaces[..named].join(", "), workspaces.len() - named)
 }

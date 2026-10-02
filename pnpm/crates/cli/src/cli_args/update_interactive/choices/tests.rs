@@ -383,6 +383,55 @@ fn a_collapsed_row_names_every_project_it_covers() {
     assert!(groups[0].rows[1].label.contains("web, tooling"), "{}", groups[0].rows[1].label);
 }
 
+/// A dependency shared by every project of a large workspace would name
+/// all of them, so past a bound the cell names the projects that fit and
+/// counts the rest, keeping the row inside the terminal.
+#[test]
+fn a_row_shared_by_many_projects_counts_the_projects_that_do_not_fit() {
+    let packages: Vec<OutdatedPackage> = (1..=12)
+        .map(|index| {
+            let mut package = pkg("is-odd", "is-odd", "3.0.0", "3.0.1", DependencyGroup::Prod);
+            package.metadata.workspace = Some(format!("example-workspace-package-{index:02}"));
+            package
+        })
+        .collect();
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+
+    let row = &groups[0].rows[1].label;
+    assert!(row.ends_with("example-workspace-package-01, +11 more"), "{row}");
+}
+
+/// Short project names that fit the bound together are all named.
+#[test]
+fn projects_that_fit_are_named_before_the_rest_are_counted() {
+    let packages: Vec<OutdatedPackage> = ["app", "web", "lib", "docs", "e2e", "tooling", "website"]
+        .into_iter()
+        .map(|workspace| {
+            let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+            package.metadata.workspace = Some(workspace.to_string());
+            package
+        })
+        .collect();
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+
+    let row = &groups[0].rows[1].label;
+    assert!(row.ends_with("app, web, lib, docs, +3 more"), "{row}");
+}
+
+/// A lone project is named in full however long its name is.
+#[test]
+fn a_lone_project_with_a_long_name_is_named_in_full() {
+    let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    package.metadata.workspace = Some("a-project-name-longer-than-the-column".to_string());
+
+    let groups = update_choices(&[&package], true);
+
+    let row = &groups[0].rows[1].label;
+    assert!(row.ends_with("a-project-name-longer-than-the-column"), "{row}");
+}
+
 /// A project appearing twice for one dependency is named once.
 #[test]
 fn a_repeated_project_is_named_once() {
