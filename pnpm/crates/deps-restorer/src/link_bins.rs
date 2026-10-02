@@ -303,11 +303,11 @@ where
             .iter()
             .filter(|key| seen.insert(*key))
             .filter_map(|key| snapshots.get_key_value(key))
-            .filter(|(key, _)| !skipped.contains(*key))
+            .filter(|(key, _)| !skipped.contains(key))
             .collect(),
         None => snapshots
             .iter()
-            .filter(|(key, _)| !skipped.contains(*key))
+            .filter(|(key, _)| !skipped.contains(key))
             .collect(),
     };
     slot_entries
