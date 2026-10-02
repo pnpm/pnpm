@@ -409,11 +409,16 @@ export function toAuditSettings ({ auditConfig, auditLevel, auditIgnorePrune }: 
 function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { virtualStoreType?: unknown }).virtualStoreType
   const virtualStoreType = pnpmSettings.virtualStoreType
-  if (virtualStoreType == null) return
-  if (!VIRTUAL_STORE_TYPES.has(virtualStoreType)) {
-    throw new PnpmError('INVALID_SETTING', `The "virtualStoreType" setting should be one of ${Array.from(VIRTUAL_STORE_TYPES).join(', ')}, but got ${JSON.stringify(virtualStoreType)}`)
+  if (virtualStoreType != null) {
+    if (!VIRTUAL_STORE_TYPES.has(virtualStoreType)) {
+      throw new PnpmError('INVALID_SETTING', `The "virtualStoreType" setting should be one of ${Array.from(VIRTUAL_STORE_TYPES).join(', ')}, but got ${JSON.stringify(virtualStoreType)}`)
+    }
+    ;(settings as { enableGlobalVirtualStore?: boolean }).enableGlobalVirtualStore = virtualStoreType === 'global'
+    return
   }
-  ;(settings as { enableGlobalVirtualStore?: boolean }).enableGlobalVirtualStore = virtualStoreType === 'global'
+  if (Object.hasOwn(pnpmSettings, 'enableGlobalVirtualStore')) {
+    assertBoolean(pnpmSettings.enableGlobalVirtualStore, 'enableGlobalVirtualStore')
+  }
 }
 
 function isGetOptionsFromPnpmSettingsOptions (

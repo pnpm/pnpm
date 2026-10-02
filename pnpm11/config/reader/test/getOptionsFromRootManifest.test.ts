@@ -958,3 +958,25 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['enableGlobalVirtualStore', 'true', 'The "enableGlobalVirtualStore" setting should be a boolean, but got string'],
+  ['enableGlobalVirtualStore', 1, 'The "enableGlobalVirtualStore" setting should be a boolean, but got number'],
+  ['enableGlobalVirtualStore', null, 'The "enableGlobalVirtualStore" setting should be a boolean, but got null'],
+  ['enableGlobalVirtualStore', ['true'], 'The "enableGlobalVirtualStore" setting should be a boolean, but got array'],
+  ['enableGlobalVirtualStore', {}, 'The "enableGlobalVirtualStore" setting should be a boolean, but got object'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test.each([true, false])('getOptionsFromPnpmSettings() accepts valid enableGlobalVirtualStore: %s', (value) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    enableGlobalVirtualStore: value,
+  })
+  expect(options.enableGlobalVirtualStore).toBe(value)
+})
