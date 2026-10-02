@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
 import type { FilesMap, PackageFilesResponse, SideEffectsDiff } from '@pnpm/store.cafs-types'
@@ -220,7 +220,7 @@ export class TarballIntegrityError extends PnpmError {
     url: string
   }) {
     super('TARBALL_INTEGRITY',
-      `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
+      `Got unexpected checksum for "${redactUrlForDisplay(opts.url)}". Wanted "${opts.expected}". Got "${opts.found}".`,
       {
         attempts: opts.attempts,
         hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.

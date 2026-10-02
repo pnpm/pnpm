@@ -2,9 +2,11 @@ import { promises as fs } from 'node:fs'
 
 import { stageLogger } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { logger } from '@pnpm/logger'
 import type { DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
 import { equals } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
@@ -81,18 +83,25 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])
-  dropFetchFailedPackages(depGraph, fetchFailedDirs)
+  await dropFetchFailedPackages(depGraph, fetchFailedDirs)
 }
 
 /**
  * Removes the optional packages that could not be fetched from the graph, so
  * they are not hoisted, built, or linked into the projects that depend on them.
+ * The links their dependents received while the fetches were still running
+ * are removed as well.
  */
-function dropFetchFailedPackages (depGraph: HeadlessDepGraph, fetchFailedDirs: Set<string>): void {
+async function dropFetchFailedPackages (depGraph: HeadlessDepGraph, fetchFailedDirs: Set<string>): Promise<void> {
   if (fetchFailedDirs.size === 0) return
   for (const dir of fetchFailedDirs) {
     delete depGraph.graph[dir]
   }
+  await Promise.all(depGraph.depNodes.flatMap((depNode) =>
+    Object.entries(depNode.children)
+      .filter(([, childDir]) => fetchFailedDirs.has(childDir))
+      .map(async ([alias]) => rimraf(safeJoinModulesDir(depNode.modules, alias)))
+  ))
   for (const directDependencies of Object.values(depGraph.directDependenciesByImporterId)) {
     for (const [alias, dir] of Object.entries(directDependencies)) {
       if (fetchFailedDirs.has(dir)) {

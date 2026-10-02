@@ -2,7 +2,7 @@ use super::{
     CasIndexes, CasPrefetch, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     CreateVirtualStoreStoreContext, LinkPlan, WantedEntries,
     cache_keys::{SlotReuse, SnapshotCacheKey},
-    cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch},
+    cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch, unlink_fetch_failed_children},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
     publish_planned_canonical_fetches, removed_aliases_by_key,
     slot_linking::LinkSlotsParallel,
@@ -406,6 +406,7 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await?;
         indexes.add_cold(cold_cas_paths);
+        unlink_fetch_failed_children(self.ctx, inputs.wanted.snapshots, &fetch_failed)?;
         Ok(fetch_failed)
     }
 

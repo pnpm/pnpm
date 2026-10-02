@@ -11,13 +11,13 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{is_subdir, remove_symlink_dir};
-use pnpm_lockfile::{PackageKey, PkgName};
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, ProgressLog, ProgressMessage,
     Reporter,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -460,6 +460,37 @@ pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
 /// unlinks the symlink itself, never its target package.
 ///
 /// Invalid npm dependency names are ignored.
+/// Removes the links that point at optional snapshots whose fetch failed.
+///
+/// A parent's slot links its children while the downloads are still
+/// running, so a link to a child that later fails to download would
+/// otherwise be left dangling.
+pub(crate) fn unlink_fetch_failed_children(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    fetch_failed: &HashSet<PackageKey>,
+    layout: &VirtualStoreLayout,
+) -> Result<(), CreateVirtualDirError> {
+    for (key, snapshot) in snapshots {
+        let children = snapshot.dependencies
+            .iter()
+            .chain(snapshot.optional_dependencies.iter())
+            .flatten();
+        let mut node_modules = None;
+        for (alias, dep_ref) in children {
+            if !dep_ref
+                .resolve(alias)
+                .is_some_and(|child| fetch_failed.contains(&child))
+            {
+                continue;
+            }
+            let node_modules =
+                node_modules.get_or_insert_with(|| layout.slot_dir(key).join("node_modules"));
+            remove_obsolete_child(node_modules, alias)?;
+        }
+    }
+    Ok(())
+}
+
 fn remove_obsolete_child(
     virtual_node_modules_dir: &Path,
     alias: &PkgName,

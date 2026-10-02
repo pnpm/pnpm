@@ -94,6 +94,23 @@ pub(super) fn swallow_optional_fetch_failure<Reporter: self::Reporter, Captured>
     }));
     Ok((Some(snapshot_key.clone()), None))
 }
+/// See [`crate::unlink_fetch_failed_children`]. The hoisted linker has no
+/// slots, and a `frozenStore` store is read-only.
+pub(super) fn unlink_fetch_failed_children(
+    ctx: &crate::InstallContext<'_>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    fetch_failed: &HashSet<PackageKey>,
+) -> Result<(), CreateVirtualStoreError> {
+    if fetch_failed.is_empty() || ctx.is_hoisted() || ctx.config.frozen_store {
+        return Ok(());
+    }
+    crate::unlink_fetch_failed_children(snapshots, fetch_failed, ctx.linker.layout)
+        .map_err(|error| {
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::CreateVirtualDir(error),
+            )
+        })
+}
 /// The invariant inputs of one cold-batch drain.
 /// The cold batch: snapshots whose tarball was not already in the store.
 pub(super) struct ColdBatch<'a> {
