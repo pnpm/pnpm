@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.28.0",
+  "version": "11.28.3",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -151,6 +151,7 @@
     "@types/semver": "catalog:",
     "@zkochan/retry": "catalog:",
     "@zkochan/rimraf": "catalog:",
+    "camelcase": "catalog:",
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "cross-spawn": "catalog:",
@@ -200,8 +201,7 @@
         "darwin-arm64",
         "linux-arm64",
         "win32-arm64",
-        "linux-x64-musl",
-        "linux-arm64-musl"
+        "linux-x64-musl"
       ]
     }
   },

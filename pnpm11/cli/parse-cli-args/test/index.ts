@@ -187,7 +187,7 @@ test('no command', async () => {
   expect(cmd).toBeNull()
 })
 
-// Regression for #11487 — --pm-on-fail must reach the consumer even when
+// Regression for pnpm/pnpm#11487 — --pm-on-fail must reach the consumer even when
 // short-circuited by --help, otherwise users can't bypass the
 // packageManager check just to read help text for a stale-pinned project.
 test('universal options typed in the exploratory parse survive the --help short-circuit', async () => {
@@ -377,7 +377,7 @@ test.each([
     // shouldn't affect its arg parsing. Test both scenarios for good measure.
     const input = [...(testWithCommandFallback ? [] : ['run']), ...testInput.split(' ')]
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- two variants, asserted one after the other
     const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
       ...DEFAULT_OPTS,
       fallbackCommand: 'run',
@@ -434,7 +434,7 @@ test('--workspace-root fails if used outside of a workspace', async () => {
   expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
 })
 
-// Regression for #11535. The renamed option (`--prefix` → `dir`) must be
+// Regression for pnpm/pnpm#11535. The renamed option (`--prefix` → `dir`) must be
 // considered when locating the workspace root; otherwise running pnpm from
 // a directory outside the project (e.g. `pnpm --prefix=child install` from
 // the parent dir) misses the workspace manifest in the prefix dir, and
@@ -524,7 +524,7 @@ test('`pnpm install ""` is going to be just `pnpm install`', async () => {
     ...DEFAULT_OPTS,
   }, ['install', ''])
   expect(cmd).toBe('add')
-  // empty string in params will be filtered at: https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation/src/installDeps.ts#L196
+  // empty string in params will be filtered at: https://github.com/pnpm/pnpm/blob/32679f0ad4/pkg-manager/plugin-commands-installation/src/installDeps.ts#L196
   expect(params).toStrictEqual([''])
 })
 

@@ -76,7 +76,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
     config.registries_by_scope.insert("@private".to_string(), scoped_registry_url);
     config.minimum_release_age = None;
@@ -183,7 +183,7 @@ async fn add_resolves_package_selectors_concurrently() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.catalog_mode = pnpm_config::CatalogMode::Manual;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
@@ -309,7 +309,7 @@ async fn add_reports_catalog_warnings_in_selector_order() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.catalog_mode = pnpm_config::CatalogMode::Prefer;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
@@ -418,7 +418,7 @@ async fn add_reports_resolution_errors_in_selector_order() {
     config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.minimum_release_age = None;
     let mut servers = Vec::new();
     let mut mocks = Vec::new();

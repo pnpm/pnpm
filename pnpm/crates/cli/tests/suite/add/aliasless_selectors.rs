@@ -71,6 +71,73 @@ fn the_file_protocol_on_a_directory_is_kept() {
     drop((root, npmrc_info));
 }
 
+/// A `link:` dependency is a symlink, so its peers never resolve from the
+/// project that adds it. `pnpm add <dir>` warns the way `pnpm link` does.
+#[test]
+fn adding_a_directory_with_peer_dependencies_as_a_link_warns() {
+    let warnings = add_local_package_with_a_peer("./localpkg");
+
+    assert_eq!(warnings.len(), 1, "expected exactly one warning, got: {warnings:?}");
+    assert!(
+        warnings[0].contains("has the following peerDependencies specified in its package.json:\n\n  - is-positive@1.0.0"),
+        "the warning must list the peer dependencies: {}",
+        warnings[0],
+    );
+    assert!(
+        warnings[0].contains(r#"To resolve this, you may use the "file:" protocol to reference the local dependency."#),
+        "the warning must suggest the file: protocol: {}",
+        warnings[0],
+    );
+}
+
+/// A `file:` directory is injected, so its peers resolve from the project
+/// and there is nothing to warn about.
+#[test]
+fn adding_a_directory_with_peer_dependencies_through_file_does_not_warn() {
+    let warnings = add_local_package_with_a_peer("file:./localpkg");
+
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
+/// Add `selector`, pointing at a `localpkg` that declares a peer, and return
+/// the messages of the warnings the command reported.
+fn add_local_package_with_a_peer(selector: &str) -> Vec<String> {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let package_dir = workspace.join("localpkg");
+    fs::create_dir_all(&package_dir).expect("create local package dir");
+    write_json(
+        &package_dir.join("package.json"),
+        &serde_json::json!({
+            "name": "localpkg",
+            "version": "1.0.0",
+            "peerDependencies": { "is-positive": "1.0.0" },
+        }),
+    );
+
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "add", selector])
+        .output()
+        .expect("spawn pacquet add");
+    assert!(output.status.success(), "add should succeed: {output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let warnings = stderr
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|event| event["name"] == "pnpm" && event["level"] == "warn")
+        .filter_map(|event| event["message"].as_str().map(str::to_string))
+        .collect();
+
+    drop((root, npmrc_info));
+    warnings
+}
+
 /// A local tarball's name lives in the `package.json` it bundles, so
 /// the archive has to be read before the manifest entry can be
 /// written.

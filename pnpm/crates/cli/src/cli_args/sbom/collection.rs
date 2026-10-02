@@ -99,7 +99,7 @@ pub(super) fn collect_components(
     let peer_edges = PeerSatisfactionEdges::of_lockfile(lockfile, state.config.peer_edge_options());
     let dep_types = detect_dep_types(lockfile, TransitiveEdges::classifying(include, &peer_edges));
 
-    let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
+    let default_virtual_store_dirs = [state.config.virtual_store_dir().to_path_buf()];
     let virtual_store_dirs = if lockfile_only {
         &[][..]
     } else {

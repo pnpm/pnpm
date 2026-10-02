@@ -152,28 +152,7 @@ describe('SOCKS proxy', () => {
       })
     })
 
-    const socksServer = net.createServer((socket) => {
-      // SOCKS5 handshake
-      socket.once('data', (data) => {
-        // Client greeting: version, method count, methods
-        if (data[0] === 0x05) {
-          // Reply: version 5, no auth required
-          socket.write(Buffer.from([0x05, 0x00]))
-          socket.once('data', (connectData) => {
-            // Connect request: version, cmd=connect, reserved, address type, addr, port
-            const port = connectData.readUInt16BE(connectData.length - 2)
-            // Reply: success
-            socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, (port >> 8) & 0xff, port & 0xff]))
-            // Tunnel the connection to the target
-            const target = net.connect(port, '127.0.0.1', () => {
-              socket.pipe(target)
-              target.pipe(socket)
-            })
-            target.on('error', () => socket.destroy())
-          })
-        }
-      })
-    })
+    const socksServer = net.createServer(handleSocks5Handshake)
 
     await new Promise<void>((resolve) => targetServer.listen(0, resolve))
     await new Promise<void>((resolve) => socksServer.listen(0, resolve))
@@ -299,3 +278,28 @@ describe('destroyDispatchers', () => {
     }
   })
 })
+
+function handleSocks5Handshake (socket: net.Socket): void {
+  socket.once('data', (data) => {
+    // Client greeting: version, method count, methods
+    if (data[0] !== 0x05) return
+    // Reply: version 5, no auth required
+    socket.write(Buffer.from([0x05, 0x00]))
+    socket.once('data', (connectData) => {
+      tunnelSocks5Connect(socket, connectData)
+    })
+  })
+}
+
+function tunnelSocks5Connect (socket: net.Socket, connectData: Buffer): void {
+  // Connect request: version, cmd=connect, reserved, address type, addr, port
+  const port = connectData.readUInt16BE(connectData.length - 2)
+  // Reply: success
+  socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, (port >> 8) & 0xff, port & 0xff]))
+  // Tunnel the connection to the target
+  const target = net.connect(port, '127.0.0.1', () => {
+    socket.pipe(target)
+    target.pipe(socket)
+  })
+  target.on('error', () => socket.destroy())
+}

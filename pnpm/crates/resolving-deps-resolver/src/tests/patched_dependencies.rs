@@ -57,7 +57,7 @@ async fn appends_patch_hash_to_pkg_id_and_records_applied_key() {
     .unwrap();
 
     assert_eq!(tree.direct.len(), 1);
-    assert_eq!(tree.direct[0].id, "foo@1.0.0(patch_hash=abc123)");
+    assert_eq!(&*tree.direct[0].id, "foo@1.0.0(patch_hash=abc123)");
     assert!(tree.packages.contains_key("foo@1.0.0(patch_hash=abc123)"));
     assert!(tree.applied_patches.contains("foo@1.0.0"));
 
@@ -108,7 +108,7 @@ async fn patches_git_dependency_with_manifest_version() {
     .await
     .unwrap();
 
-    assert_eq!(tree.direct[0].id, format!("foo@{git_ref}(patch_hash=abc123)"));
+    assert_eq!(&*tree.direct[0].id, format!("foo@{git_ref}(patch_hash=abc123)"));
     assert!(tree.applied_patches.contains("foo@1.0.0"));
 }
 
@@ -148,7 +148,7 @@ async fn leaves_local_directory_dependencies_unpatched() {
     .await
     .unwrap();
 
-    assert_eq!(tree.direct[0].id, "foo@file:../foo");
+    assert_eq!(&*tree.direct[0].id, "foo@file:../foo");
     assert!(tree.applied_patches.is_empty());
 }
 
@@ -189,7 +189,7 @@ async fn range_match_applies_patch_and_records_user_key() {
     .await
     .unwrap();
 
-    assert_eq!(tree.direct[0].id, "foo@1.2.0(patch_hash=deadbeef)");
+    assert_eq!(&*tree.direct[0].id, "foo@1.2.0(patch_hash=deadbeef)");
     assert!(tree.applied_patches.contains("foo@^1.0.0"));
 }
 
@@ -223,7 +223,7 @@ async fn unused_patch_leaves_ids_and_applied_set_alone() {
     .await
     .unwrap();
 
-    assert_eq!(tree.direct[0].id, "foo@1.0.0");
+    assert_eq!(&*tree.direct[0].id, "foo@1.0.0");
     assert!(tree.applied_patches.is_empty());
 }
 

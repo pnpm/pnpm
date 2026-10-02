@@ -1,0 +1,51 @@
+{
+  "name": "@pnpm/os.env.path-extender-windows",
+  "version": "1100.0.0",
+  "description": "A module for adding a new directory to the Path environment variable of the Windows Registry",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "environment",
+    "os",
+    "windows"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/os/env/path-extender-windows",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/os/env/path-extender-windows#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "prepublishOnly": "tsgo --build"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "safe-execa": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/os.env.path-extender-windows": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

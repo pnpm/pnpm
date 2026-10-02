@@ -55,57 +55,77 @@ export async function getPeerDependencyIssues (
     Object.values(ctx.projects).map(({ manifest }) => manifest),
     { catalogs: opts.catalogs }
   )
-  const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
   const {
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
   } = await resolveDependencies(
     projectsToResolve,
-    {
-      currentLockfile: ctx.currentLockfile,
-      allowedDeprecatedVersions: {},
-      allowUnusedPatches: false,
-      catalogs: opts.catalogs,
-      defaultUpdateDepth: -1,
-      dedupePeerDependents: opts.dedupePeerDependents,
-      dryRun: true,
-      engineStrict: false,
-      force: false,
-      forceFullResolution: true,
-      hooks: {
-        readPackage: createReadPackageHook({
-          ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
-          lockfileDir,
-          overrides,
-          packageExtensions: opts.packageExtensions,
-          readPackageHook: opts.hooks?.readPackage,
-          ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
-        }),
-      },
-      overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir),
-      linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
-      lockfileDir,
-      nodeVersion: opts.nodeVersion ?? process.version,
-      pnpmVersion: '',
-      preferWorkspacePackages: opts.preferWorkspacePackages,
-      preferredVersions,
-      preserveWorkspaceProtocol: false,
-      registriesByScope: ctx.registriesByScope,
-      saveWorkspaceProtocol: false, // this doesn't matter in our case. We won't write changes to package.json files
-      storeController: opts.storeController,
-      tag: 'latest',
-      globalVirtualStoreDir: opts.globalVirtualStoreDir,
-      virtualStoreDir: ctx.virtualStoreDir,
-      virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
-      wantedLockfile: ctx.wantedLockfile,
-      workspacePackages: ctx.workspacePackages ?? new Map(),
-      supportedArchitectures: opts.supportedArchitectures,
-      peersSuffixMaxLength: opts.peersSuffixMaxLength,
-      allProjectIds: Object.values(ctx.projects).map((p) => p.id),
-    }
+    createResolveOptions({ ctx, lockfileDir, opts, preferredVersions })
   )
 
   await waitTillAllFetchingsFinish()
 
   return peerDependencyIssuesByProjects
+}
+
+type PeerIssuesContext = Awaited<ReturnType<typeof getContext>>
+
+function createResolveOptions ({ ctx, lockfileDir, opts, preferredVersions }: {
+  ctx: PeerIssuesContext
+  lockfileDir: string
+  opts: ListMissingPeersOptions
+  preferredVersions: ReturnType<typeof getPreferredVersionsFromLockfileAndManifests>
+}): Parameters<typeof resolveDependencies>[1] {
+  return {
+    ...createOverrideHooks(opts, lockfileDir),
+    currentLockfile: ctx.currentLockfile,
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    catalogs: opts.catalogs,
+    defaultUpdateDepth: -1,
+    dedupePeerDependents: opts.dedupePeerDependents,
+    dryRun: true,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: true,
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
+    lockfileDir,
+    nodeVersion: opts.nodeVersion ?? process.version,
+    pnpmVersion: '',
+    preferWorkspacePackages: opts.preferWorkspacePackages,
+    preferredVersions,
+    preserveWorkspaceProtocol: false,
+    registriesByScope: ctx.registriesByScope,
+    saveWorkspaceProtocol: false, // this doesn't matter in our case. We won't write changes to package.json files
+    storeController: opts.storeController,
+    tag: 'latest',
+    globalVirtualStoreDir: opts.globalVirtualStoreDir,
+    virtualStoreDir: ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+    wantedLockfile: ctx.wantedLockfile,
+    workspacePackages: ctx.workspacePackages ?? new Map(),
+    supportedArchitectures: opts.supportedArchitectures,
+    peersSuffixMaxLength: opts.peersSuffixMaxLength,
+    allProjectIds: Object.values(ctx.projects).map((p) => p.id),
+  }
+}
+
+function createOverrideHooks (
+  opts: ListMissingPeersOptions,
+  lockfileDir: string
+): Pick<Parameters<typeof resolveDependencies>[1], 'hooks' | 'overrideBareSpecifier'> {
+  const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
+  return {
+    hooks: {
+      readPackage: createReadPackageHook({
+        ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
+        lockfileDir,
+        overrides,
+        packageExtensions: opts.packageExtensions,
+        readPackageHook: opts.hooks?.readPackage,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+      }),
+    },
+    overrideBareSpecifier: createDependencyOverrider(overrides, lockfileDir),
+  }
 }

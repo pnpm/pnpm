@@ -135,6 +135,49 @@ describe('the registered loader', () => {
     expect(result.stderr.toString()).toContain('ERR_PACKAGE_PATH_NOT_EXPORTED')
   })
 
+  test.each([
+    ['with NODE_PATH', { NODE_PATH: os.tmpdir() }],
+    ['without NODE_PATH', { NODE_PATH: '' }],
+  ])('runs an entry point through a CommonJS require hook %s', (_name, nodePathEnv) => {
+    // Mirrors how ts-node runs a .ts entry point: it registers a
+    // require.extensions hook, then reruns the main module.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    const runner = path.join(tmp, 'runner.js')
+    fs.writeFileSync(runner, `\
+require.extensions['.custom'] = (module, filename) => module._compile('console.log("custom-loaded")', filename)
+process.argv[1] = require('node:path').join(__dirname, 'entry.custom')
+require('node:module').runMain()
+`)
+    fs.writeFileSync(path.join(tmp, 'entry.custom'), 'not JavaScript')
+
+    const result = spawnSync(process.execPath, [runner], {
+      env: {
+        ...process.env,
+        ...nodePathEnv,
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe('custom-loaded')
+  })
+
+  test('still detects module syntax in a .js entry point outside a module package', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    const script = path.join(tmp, 'main.js')
+    fs.writeFileSync(script, 'import path from "node:path"\nconsole.log(typeof path.join)')
+
+    const result = spawnSync(process.execPath, [script], {
+      env: {
+        ...process.env,
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe('function')
+  })
+
   test('still fails cleanly when the specifier is nowhere on NODE_PATH', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
     const script = path.join(tmp, 'main.mjs')

@@ -27,7 +27,7 @@ const RUST_WRAPPER_PKGS = new Set([
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
 // `publishConfig.executableFiles` lists must stay identical — otherwise the
-// shims end up packed at 0644 in one of the tarballs (see #11483).
+// shims end up packed at 0644 in one of the tarballs (see pnpm/pnpm#11483).
 const PUBLISH_EXECUTABLE_FILES = [
   './dist/node-gyp-bin/node-gyp',
   './dist/node-gyp-bin/node-gyp.cmd',
@@ -151,7 +151,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             for (const depName of [
               '@pnpm/linux-arm64',
               '@pnpm/linux-x64',
-              '@pnpm/linuxstatic-arm64',
               '@pnpm/linuxstatic-x64',
               '@pnpm/macos-arm64',
               '@pnpm/win-arm64',

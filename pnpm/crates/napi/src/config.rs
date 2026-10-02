@@ -192,10 +192,7 @@ fn cache_key(dir: &Path, overlay: &ConfigOverlay) -> u64 {
 fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
     hash_file(&dir.join(".npmrc"), hasher);
 
-    let workspace_dir = std::env::var_os("NPM_CONFIG_WORKSPACE_DIR")
-        .or_else(|| std::env::var_os("npm_config_workspace_dir"))
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
+    let workspace_dir = pnpm_workspace::find_workspace_dir_from_env()
         .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
         hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);
@@ -308,13 +305,15 @@ fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorks
     // Overlay fields may invalidate the path derived by `Config::current`.
     if let Some(global_virtual_store_dir) = &overlay.global_virtual_store_dir {
         config.global_virtual_store_dir.clone_from(global_virtual_store_dir);
-    } else if overlay.enable_global_virtual_store.is_some()
+    }
+    if overlay.global_virtual_store_dir.is_some()
+        || overlay.enable_global_virtual_store.is_some()
         || overlay.store_dir.is_some()
         || overlay.pnpm_home_dir.is_some()
     {
         let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
-        let global_virtual_store_dir_explicit =
-            config.explicit_settings.contains_key("globalVirtualStoreDir");
+        let global_virtual_store_dir_explicit = overlay.global_virtual_store_dir.is_some()
+            || config.explicit_settings.contains_key("globalVirtualStoreDir");
         config.apply_global_virtual_store_derivation(
             virtual_store_dir_explicit,
             global_virtual_store_dir_explicit,

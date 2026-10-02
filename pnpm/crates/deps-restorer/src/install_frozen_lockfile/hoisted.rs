@@ -9,6 +9,7 @@ pub use hoist_plan::{
 
 mod direct_links;
 mod hoist_plan;
+mod package_root_links;
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
@@ -126,6 +127,11 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     unlink_prior_workspace_hoists(inputs)?;
     let (held_back_bins_dirs, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    package_root_links::link_hoisted_package_root_links(
+        &lockfile,
+        walked.graph.values(),
+        inputs.projects.dependency_groups.contains(&DependencyGroup::Optional),
+    )?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it
@@ -198,9 +204,19 @@ fn walk_hoisted_graph(
         .map(std::string::ToString::to_string)
         .collect();
     let walker_opts = hoisted_walker_options(inputs, lockfile, walker_skipped.clone());
-    let walked =
+    let mut walked =
         lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
             .map_err(HoistedLinkerError::HoistedDepGraph)?;
+    if let Some(files_by_pkg_id) = &inputs.graph.cas_paths_by_pkg_id {
+        for node in walked.graph.values_mut() {
+            if files_by_pkg_id
+                .get(&node.package.pkg_id_with_patch_hash)
+                .is_some_and(crate::HoistedPackageFiles::refreshes_installed_copy)
+            {
+                node.present = false;
+            }
+        }
+    }
     for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
         if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
             skipped.insert_installability(key);
@@ -267,11 +283,11 @@ fn link_hoisted<Reporter: self::Reporter>(
         config.force,
     );
     let held_back_bins_dirs = link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
-        import: crate::PackageImportOptions {
-            method: config.package_import_method,
-            logged_methods: inputs.materialization.logged_methods,
-            requester: inputs.materialization.requester,
-        },
+        import: crate::PackageImportOptions::from_config(
+            config,
+            inputs.materialization.logged_methods,
+            inputs.materialization.requester,
+        ),
         graph: &walked.graph,
         prev_graph: walked.prev_graph.as_ref(),
         hierarchy: &walked.hierarchy,

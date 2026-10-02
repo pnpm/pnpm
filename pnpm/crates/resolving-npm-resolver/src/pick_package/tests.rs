@@ -2,13 +2,20 @@ mod behavior;
 
 mod release_age;
 
+mod upgraded_mirror_revalidation;
+
+mod mature_fallback;
+
 mod trust_policy;
 
 mod cache_partitions;
 
 mod cache_read_modes;
 
+mod stable_range_mirror;
 mod version_selection;
+
+mod offline_store_pick;
 
 use std::sync::Arc;
 
@@ -151,12 +158,14 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         blocked_versions: None,
         policy: crate::PackagePickPolicy {
             published_by: None,
+            fallback_published_by: None,
             published_by_exclude: None,
             trust_policy: None,
         },
         request: crate::MetadataPickRequest {
             dry_run: false,
             optional: false,
+            refresh_metadata: false,
             update_checksums: false,
         },
     }

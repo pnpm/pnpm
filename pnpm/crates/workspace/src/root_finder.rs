@@ -28,12 +28,14 @@ pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
     ".pnpm-workspaces.yml",
 ];
 
-/// Env var that overrides the upward walk.
-pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
-
-/// Lowercase alias for [`WORKSPACE_DIR_ENV_VAR`], pre-allocated so the
-/// fallback lookup doesn't allocate a fresh `String` on every call.
-pub(crate) const WORKSPACE_DIR_ENV_VAR_LOWER: &str = "npm_config_workspace_dir";
+/// Env vars that override the upward walk, in lookup order. The
+/// `npm_config_` spellings stay accepted as a fallback.
+pub const WORKSPACE_DIR_ENV_VARS: &[&str] = &[
+    "PNPM_CONFIG_WORKSPACE_DIR",
+    "pnpm_config_workspace_dir",
+    "NPM_CONFIG_WORKSPACE_DIR",
+    "npm_config_workspace_dir",
+];
 
 /// Raised when an ancestor contains a misnamed workspace manifest
 /// before any `pnpm-workspace.yaml`. Carries pnpm's
@@ -93,19 +95,13 @@ fn belongs_to_workspace(workspace_dir: &Path, dir: &Path) -> Result<bool, FindWo
     .map_err(FindWorkspaceDirError::FindProjects)
 }
 
-/// Read `NPM_CONFIG_WORKSPACE_DIR` (and its lowercase spelling) and
+/// Read the first non-empty [`WORKSPACE_DIR_ENV_VARS`] entry and
 /// return the workspace dir it points at, if any. Exposed separately
 /// so callers can record where the workspace dir came from for
 /// debugging and so tests can avoid the upward walk.
 ///
-/// The env var is read under its uppercase spelling first, then its
-/// lowercase one — Node's process env is case-sensitive on POSIX but
-/// `NPM_CONFIG_*` is conventionally accepted in either case, so the
-/// two-step lookup preserves that contract.
-///
-/// An empty value is treated as unset. Without this, an
-/// exported-but-empty env var would short-circuit the upward walk and
-/// force the install into an invalid empty workspace dir.
+/// An empty value is treated as unset, so the next name is tried and,
+/// failing all, the upward walk takes over.
 #[must_use]
 pub fn find_workspace_dir_from_env() -> Option<PathBuf> {
     find_workspace_dir_from_env_with::<crate::api::Host>()
@@ -126,9 +122,9 @@ pub(crate) fn find_workspace_dir_from_env_with<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVarOs,
 {
-    Sys::var_os(WORKSPACE_DIR_ENV_VAR)
-        .or_else(|| Sys::var_os(WORKSPACE_DIR_ENV_VAR_LOWER))
-        .filter(|value| !value.is_empty())
+    WORKSPACE_DIR_ENV_VARS
+        .iter()
+        .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
         .map(PathBuf::from)
 }
 

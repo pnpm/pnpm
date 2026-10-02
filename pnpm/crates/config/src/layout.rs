@@ -2,75 +2,60 @@ use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
     Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, WantedLockfileSelection,
     WorkspaceSettings, collect_explicit_settings, create_matcher, default_store_dir,
-    esm_node_path_loader, get_current_branch, store_path,
+    esm_node_path_loader, get_branches_containing_head, get_current_branch, store_path,
 };
 
 impl Config {
-    /// Resolve relative patch file paths in
-    /// [`Config::patched_dependencies`] against
-    /// [`Config::workspace_dir`], compute SHA-256 hashes, and bucket
-    /// the entries into a [`PatchGroupRecord`](super::PatchGroupRecord).
+    /// Settle the two directories a global virtual store separates:
     ///
-    /// Resolves each configured patch path against the workspace dir,
-    /// then hashes the files.
+    /// - [`Self::global_virtual_store_dir`], where packages are linked under
+    ///   a global virtual store. It is the `globalVirtualStoreDir` setting
+    ///   when `global_virtual_store_dir_explicit`, otherwise the
+    ///   [`Self::configured_virtual_store_dir`] when
+    ///   `virtual_store_dir_explicit` and the global virtual store is on,
+    ///   otherwise `<store_dir>/links`.
+    /// - [`Self::install_state_dir`], which stays at `<modules_dir>/.pnpm`
+    ///   under a global virtual store, so projects sharing that store keep
+    ///   their own current lockfile and hidden hoisted modules. Without a
+    ///   global virtual store it is the virtual store itself, at the
+    ///   configured `virtualStoreDir` when one is set.
     ///
-    /// Returns `Ok(None)` when either field is unset (no yaml
-    /// found or no `patchedDependencies` key). Returns `Err(_)`
-    /// when any patch file can't be hashed or any key has an
-    /// invalid semver range.
+    /// pnpm instead rewrites `virtualStoreDir` to the global virtual store
+    /// and keeps the state in `installStateDir`. Pacquet's
+    /// [`Self::virtual_store_dir`] gives the same answer as pnpm's
+    /// `virtualStoreDir`.
     ///
-    /// IO-heavy; call once per install rather than at every site
-    /// that needs the resolved record.
-    /// Derive [`Self::global_virtual_store_dir`] from
-    /// `enable_global_virtual_store` + the existing `store_dir` /
-    /// `virtual_store_dir` fields.
-    ///
-    /// Pacquet diverges from pnpm on *which* field carries the GVS path:
-    ///
-    /// - **pnpm**: mutates `virtualStoreDir` in place when GVS is
-    ///   on and the user hasn't pinned it, so every consumer that
-    ///   reads `virtualStoreDir` ends up looking at `<storeDir>/links`.
-    /// - **Pacquet**: keeps `virtual_store_dir` at its project-local
-    ///   value (`<cwd>/node_modules/.pnpm` by default, or the user's
-    ///   yaml-pinned path) and writes the GVS path into the separate
-    ///   `global_virtual_store_dir` field. The install layer picks the
-    ///   right field through [`crate::Config::enable_global_virtual_store`]
-    ///   (or, in practice, through `pnpm_package_manager::VirtualStoreLayout`).
-    ///
-    /// The reason: pacquet still has a non-frozen
-    /// `InstallWithFreshLockfile` path that pnpm doesn't have.
-    /// Mutating `virtual_store_dir` would redirect that path to
-    /// `<storeDir>/links` too — but the issue (pnpm/pacquet#432)
-    /// scopes GVS to frozen-lockfile installs. Splitting the field
-    /// keeps the fresh-lockfile path on the project-local layout
-    /// while the frozen-lockfile path consumes the GVS-derived value.
-    ///
-    /// `virtual_store_dir_explicit` carries the "did the user set
-    /// `virtualStoreDir` in yaml" signal `SmartDefault` cannot express
-    /// on its own. When `true` *and* GVS is on, `global_virtual_store_dir`
-    /// mirrors `virtual_store_dir` (the user picked the GVS root via the
-    /// shared key). `global_virtual_store_dir_explicit` is the analogous
-    /// signal for the dedicated `globalVirtualStoreDir` yaml key — when
-    /// set, that value wins and the derivation leaves
-    /// `global_virtual_store_dir` alone. Otherwise the field falls back
-    /// to `<store_dir>/links`, an unconditional
-    /// `globalVirtualStoreDir = storeDir/links` assignment for the unset
-    /// case.
+    /// The derivation reads only settled inputs, so it runs again whenever
+    /// one of them changes: `--store-dir`, `updateConfig` hooks, and store
+    /// placement.
     pub fn apply_global_virtual_store_derivation(
         &mut self,
         virtual_store_dir_explicit: bool,
         global_virtual_store_dir_explicit: bool,
     ) {
-        if global_virtual_store_dir_explicit {
-            // User pinned the dedicated GVS key in yaml — honor it.
-            return;
-        }
-        self.global_virtual_store_dir =
-            if self.enable_global_virtual_store && virtual_store_dir_explicit {
-                self.virtual_store_dir.clone()
-            } else {
-                self.store_dir.links()
+        if !global_virtual_store_dir_explicit {
+            self.global_virtual_store_dir = match &self.configured_virtual_store_dir {
+                Some(dir) if self.enable_global_virtual_store && virtual_store_dir_explicit => {
+                    dir.clone()
+                }
+                _ => self.store_dir.links(),
             };
+        }
+        if self.enable_global_virtual_store {
+            self.install_state_dir = self.modules_dir.join(".pnpm");
+        } else if virtual_store_dir_explicit && let Some(dir) = &self.configured_virtual_store_dir {
+            self.install_state_dir.clone_from(dir);
+        }
+    }
+
+    /// Apply a resolved `virtualStoreDir` setting. It is retained in
+    /// [`Self::configured_virtual_store_dir`] for
+    /// [`Self::apply_global_virtual_store_derivation`], which moves
+    /// [`Self::install_state_dir`] back into the modules directory under a
+    /// global virtual store.
+    pub fn set_virtual_store_dir(&mut self, dir: std::path::PathBuf) {
+        self.configured_virtual_store_dir = Some(dir.clone());
+        self.install_state_dir = dir;
     }
 
     /// The directory owning the `pnpm-lock.yaml` that covers
@@ -155,8 +140,8 @@ impl Config {
     /// raw value (recovered from [`explicit_settings`]) and is re-resolved
     /// against `dir`, so a multi-component or absolute setting keeps its
     /// full shape — [`Path::join`] leaves an absolute value absolute.
-    /// Global-virtual-store installs keep their store-anchored
-    /// `virtual_store_dir`.
+    /// Under a global virtual store a `virtualStoreDir` names the store's
+    /// root, so it is not re-anchored.
     ///
     /// [`explicit_settings`]: Self::explicit_settings
     pub fn anchor_lockfile_paths(&mut self, dir: &Path) {
@@ -167,20 +152,20 @@ impl Config {
             };
         match self.explicit_settings.get("virtualStoreDir").and_then(serde_json::Value::as_str) {
             Some(raw) if !self.enable_global_virtual_store => {
-                self.virtual_store_dir = dir.join(raw);
+                self.set_virtual_store_dir(dir.join(raw));
             }
-            _ => self.follow_modules_dir_with_virtual_store(),
+            _ => self.follow_modules_dir_with_install_state_dir(),
         }
     }
 
-    /// Put the virtual store at `<modules_dir>/.pnpm`, pnpm's default,
-    /// unless `virtualStoreDir` is set or a global virtual store is on,
-    /// whose virtual store is store-anchored and follows nothing.
-    pub(crate) fn follow_modules_dir_with_virtual_store(&mut self) {
-        if !self.enable_global_virtual_store
-            && !self.explicit_settings.contains_key("virtualStoreDir")
+    /// Put [`Self::install_state_dir`] at `<modules_dir>/.pnpm`, pnpm's
+    /// default, unless `virtualStoreDir` is set and the global virtual store
+    /// is off.
+    pub(crate) fn follow_modules_dir_with_install_state_dir(&mut self) {
+        if self.enable_global_virtual_store
+            || !self.explicit_settings.contains_key("virtualStoreDir")
         {
-            self.virtual_store_dir = self.modules_dir.join(".pnpm");
+            self.install_state_dir = self.modules_dir.join(".pnpm");
         }
     }
 
@@ -411,6 +396,7 @@ impl Config {
         WantedLockfileSelection {
             file_name: self.wanted_lockfile_name().to_owned(),
             merge_git_branch_lockfiles: self.merge_git_branch_lockfiles,
+            branch_lockfile_candidates: self.git_branch_lockfile_candidates.clone(),
         }
     }
 
@@ -419,6 +405,13 @@ impl Config {
     /// `gitBranchLockfile` uses, and whether
     /// `mergeGitBranchLockfilesBranchPattern` puts this branch in merge
     /// mode.
+    ///
+    /// A detached HEAD names no branch. The checked-out commit still belongs
+    /// to the branches whose history includes it, so their lockfiles join
+    /// the read path through [`Self::git_branch_lockfile_candidates`] — the
+    /// read tries each before `pnpm-lock.yaml`. The write target stays
+    /// `pnpm-lock.yaml`, the same behavior as `mergeGitBranchLockfiles`,
+    /// because a branch containing HEAD need not have HEAD at its tip.
     ///
     /// The branch is read from the process's working directory, which is
     /// where pnpm reads it from too — not from the workspace root, which
@@ -433,7 +426,10 @@ impl Config {
             return;
         }
         let Ok(cwd) = Sys::current_dir() else { return };
-        let Some(branch) = get_current_branch::<GitHost>(&cwd) else { return };
+        let Some(branch) = get_current_branch::<GitHost>(&cwd) else {
+            self.apply_detached_head_branch_candidates(&cwd);
+            return;
+        };
         if pattern_decides {
             self.merge_git_branch_lockfiles =
                 create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(&branch);
@@ -441,6 +437,18 @@ impl Config {
         if self.use_git_branch_lockfile {
             self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
         }
+    }
+
+    /// Fill [`Self::git_branch_lockfile_candidates`] for a detached HEAD
+    /// under plain `gitBranchLockfile`, whose branch file the loader tries
+    /// before the shared one. Merge mode folds every branch lockfile in
+    /// regardless of the branch, so it needs no candidates.
+    fn apply_detached_head_branch_candidates(&mut self, cwd: &Path) {
+        if !self.use_git_branch_lockfile || self.merge_git_branch_lockfiles {
+            return;
+        }
+        self.git_branch_lockfile_candidates =
+            detached_head_candidates(&get_branches_containing_head::<GitHost>(cwd));
     }
 
     /// Record the settings `settings` sets in [`Self::explicit_settings`],
@@ -589,30 +597,17 @@ impl Config {
         )
     }
 
-    /// Return the `virtualStoreDir` value pnpm exposes externally — the
-    /// path written into `.modules.yaml` and emitted in the `pnpm:context`
-    /// NDJSON event.
-    ///
-    /// pnpm mutates `virtualStoreDir` in place when
-    /// `enableGlobalVirtualStore` is on and the user hasn't pinned
-    /// `virtualStoreDir`, so every consumer that reads `ctx.virtualStoreDir`
-    /// — including the modules-manifest writer and the `pnpm:context`
-    /// debug log — sees the GVS-derived path.
-    ///
-    /// Pacquet deliberately keeps [`Self::virtual_store_dir`] at its
-    /// project-local value (see [`Self::apply_global_virtual_store_derivation`]
-    /// for the why), so consumers that need the externally-observable
-    /// value must route through this helper instead of reading the field
-    /// directly. Otherwise the `.modules.yaml` round-trip mismatches
-    /// pnpm's, and the next `pnpm install` trips
-    /// `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR` → forces a
-    /// "modules directories will be reinstalled from scratch" prompt
-    /// on every install.
-    pub fn effective_virtual_store_dir(&self) -> &Path {
+    /// The directory packages are linked into: the global virtual store
+    /// when [`Self::enable_global_virtual_store`] is on, otherwise
+    /// [`Self::install_state_dir`]. This is the `virtualStoreDir` pnpm
+    /// records in `.modules.yaml` and emits in the `pnpm:context` event, so
+    /// reading the install state directory instead makes the next install
+    /// fail with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR`.
+    pub fn virtual_store_dir(&self) -> &Path {
         if self.enable_global_virtual_store {
             &self.global_virtual_store_dir
         } else {
-            &self.virtual_store_dir
+            &self.install_state_dir
         }
     }
 }
@@ -632,4 +627,16 @@ pub(crate) fn project_relative_modules_dir<'a>(
         && components.all(|component| matches!(component, std::path::Component::Normal(_)))
         && modules_dir.ends_with(relative))
     .then_some(relative)
+}
+
+/// The lockfile names of `branches`, without the ones longer than a
+/// filesystem allows: such a file cannot be on disk, and probing it fails
+/// with `ENAMETOOLONG` instead of reporting it absent.
+pub(crate) fn detached_head_candidates(branches: &[String]) -> Vec<String> {
+    const MAX_FILE_NAME_LENGTH: usize = 255;
+    branches
+        .iter()
+        .map(|branch| Lockfile::git_branch_file_name(branch))
+        .filter(|file_name| file_name.len() <= MAX_FILE_NAME_LENGTH)
+        .collect()
 }

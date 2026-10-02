@@ -6,6 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import { makeProjectNodePathOption, runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import {
+  type AppliedRelease,
   applyReleasePlan,
   type ApplyReleasePlanOptions,
   assembleReleasePlan,
@@ -13,18 +14,21 @@ import {
   privateProjectDirs,
   readChangeIntents,
   readLedger,
+  type ReleasePlan,
   toProjectDir,
 } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
-import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
+import { help } from './help.js'
+
+export { help }
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -55,72 +59,6 @@ type BumpType = typeof BUMP_TYPES[number]
 
 function isBumpType (value: string): value is BumpType {
   return (BUMP_TYPES as readonly string[]).includes(value)
-}
-
-export function help (): string {
-  return renderHelp({
-    description: 'Bumps the version of a package.',
-    usages: [
-      'pnpm version <newversion>',
-      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease|from-git>',
-      'pnpm version -r [--dry-run]',
-    ],
-    descriptionLists: [
-      {
-        title: 'Options',
-        list: [
-          {
-            description: "Don't check if working tree is clean",
-            name: '--no-git-checks',
-          },
-          {
-            description: 'Sets the prerelease identifier (e.g. alpha, beta, rc)',
-            name: '--preid <preid>',
-          },
-          {
-            description: 'Sets the tag prefix. Default is "v". Set to empty string to remove the prefix.',
-            name: '--tag-version-prefix <prefix>',
-          },
-          {
-            description: 'Allow bumping to the same version',
-            name: '--allow-same-version',
-          },
-          {
-            description: 'Commit message. "%s" is replaced with the new version. Default is "%s".',
-            name: '--message <message>',
-          },
-          {
-            description: "Don't create a commit or tag for the version bump. Git commits and tags are always skipped in recursive mode.",
-            name: '--no-git-tag-version',
-          },
-          {
-            description: 'Skip running git commit hooks when committing the version bump',
-            name: '--no-commit-hooks',
-          },
-          {
-            description: 'Sign the generated git tag with GPG',
-            name: '--sign-git-tag',
-          },
-          {
-            description: 'Filter packages by name (glob pattern)',
-            name: '--filter <pattern>',
-          },
-          {
-            description: 'Show information in JSON format',
-            name: '--json',
-          },
-          {
-            description: 'Apply command to all packages in workspace. Without a version argument, consumes the pending change intents from .changeset/ and applies the resulting release plan',
-            name: '--recursive',
-          },
-          {
-            description: 'Print what the command would do without changing anything',
-            name: '--dry-run',
-          },
-        ],
-      },
-    ],
-  })
 }
 
 interface VersionChange {
@@ -162,38 +100,11 @@ export async function handler (
   }
 
   const gitCwd = opts.workspaceDir ?? opts.dir
-  const explicitVersion = rawBump === 'from-git'
-    ? await versionFromGit(gitCwd, opts.tagVersionPrefix)
-    : valid(rawBump)
-  if (!explicitVersion && !isBumpType(rawBump)) {
-    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
-  }
-
-  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
-    if (!await isWorkingTreeClean({ cwd: gitCwd })) {
-      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
-    }
-  }
+  const explicitVersion = await resolveExplicitVersion(rawBump, { cwd: gitCwd, tagVersionPrefix: opts.tagVersionPrefix })
+  await assertCleanWorkingTree(opts, gitCwd)
 
   const lifecycleOpts = { ...opts, modulesDirFor: createProjectModulesDirResolver(opts) }
-  const changes: VersionChange[] = []
-
-  if (opts.recursive) {
-    const pkgDirs = Object.keys(opts.selectedProjectsGraph ?? {})
-    const bumpResults = await Promise.all(
-      pkgDirs.map(pkgDir => bumpPackageVersion({ pkgDir, rawBump, explicitVersion, opts: lifecycleOpts }))
-    )
-    for (const change of bumpResults) {
-      if (change) {
-        changes.push(change)
-      }
-    }
-  } else {
-    const change = await bumpPackageVersion({ pkgDir: opts.dir, rawBump, explicitVersion, opts: lifecycleOpts })
-    if (change) {
-      changes.push(change)
-    }
-  }
+  const changes = await bumpSelectedPackageVersions({ rawBump, explicitVersion, opts: lifecycleOpts })
 
   if (changes.length === 0) {
     throw new PnpmError('NO_PACKAGES_TO_VERSION', 'No packages to version')
@@ -208,6 +119,42 @@ export async function handler (
 
   await Promise.all(changes.map(change => runVersionLifecycleHook('postversion', change, lifecycleOpts)))
 
+  return renderVersionChanges(changes, opts)
+}
+
+/**
+ * The exact version `rawBump` names, or `null` when it is a bump type.
+ * Throws when it is neither.
+ */
+async function resolveExplicitVersion (
+  rawBump: string,
+  { cwd, tagVersionPrefix }: { cwd: string, tagVersionPrefix?: string }
+): Promise<string | null> {
+  const explicitVersion = rawBump === 'from-git'
+    ? await versionFromGit(cwd, tagVersionPrefix)
+    : valid(rawBump)
+  if (!explicitVersion && !isBumpType(rawBump)) {
+    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
+  }
+  return explicitVersion
+}
+
+async function assertCleanWorkingTree (opts: VersionHandlerOptions, cwd: string): Promise<void> {
+  if (opts.dryRun || opts.gitChecks === false || !await isGitRepo({ cwd })) return
+  if (!await isWorkingTreeClean({ cwd })) {
+    throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+  }
+}
+
+async function bumpSelectedPackageVersions ({ rawBump, explicitVersion, opts }: Omit<BumpPackageVersionOptions, 'pkgDir'>): Promise<VersionChange[]> {
+  const pkgDirs = opts.recursive ? Object.keys(opts.selectedProjectsGraph ?? {}) : [opts.dir]
+  const bumpResults = await Promise.all(
+    pkgDirs.map(pkgDir => bumpPackageVersion({ pkgDir, rawBump, explicitVersion, opts }))
+  )
+  return bumpResults.filter((change): change is VersionChange => change != null)
+}
+
+function renderVersionChanges (changes: VersionChange[], opts: Pick<VersionHandlerOptions, 'dryRun' | 'json'>): string {
   if (opts.json) {
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
@@ -226,12 +173,36 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     throw new PnpmError('WORKSPACE_ONLY', 'The bare "pnpm version -r" form consumes change intents and is only supported in a workspace')
   }
 
-  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: workspaceDir })) {
-    if (!await isWorkingTreeClean({ cwd: workspaceDir })) {
-      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+  await assertCleanWorkingTree(opts, workspaceDir)
+
+  const { applyOpts, filter, plan } = await planReleaseFromIntents(opts, workspaceDir)
+
+  if (plan.releases.length === 0) {
+    // A full (unfiltered) run garbage-collects the intent files an empty plan
+    // leaves behind: declined ("none"-only) intents and files a merge
+    // resurrected after every named package had already consumed them. A
+    // filtered run must not — "nothing pending in this scope" is no reason to
+    // delete prose belonging to packages outside the filter.
+    if (!opts.dryRun && filter == null) {
+      await applyReleasePlan(plan, applyOpts)
     }
+    return opts.json ? '[]' : 'No pending changes. Record one with "pnpm change".'
   }
 
+  if (opts.dryRun) {
+    return renderReleasePlan(plan)
+  }
+
+  return renderAppliedReleases(await applyReleasePlan(plan, applyOpts), opts.json)
+}
+
+interface IntentReleasePlan {
+  applyOpts: ApplyReleasePlanOptions
+  filter?: Set<string>
+  plan: ReleasePlan
+}
+
+async function planReleaseFromIntents (opts: VersionHandlerOptions, workspaceDir: string): Promise<IntentReleasePlan> {
   const intents = await readChangeIntents(workspaceDir)
   const ledger = await readLedger(workspaceDir)
   const projects = toWorkspaceProjects(opts.allProjects ?? [])
@@ -260,26 +231,11 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     versioning: opts.versioning,
     verifyPublished: buildVerifyPublished(opts, publishedNames),
   }
+  return { applyOpts, filter, plan }
+}
 
-  if (plan.releases.length === 0) {
-    // A full (unfiltered) run garbage-collects the intent files an empty plan
-    // leaves behind: declined ("none"-only) intents and files a merge
-    // resurrected after every named package had already consumed them. A
-    // filtered run must not — "nothing pending in this scope" is no reason to
-    // delete prose belonging to packages outside the filter.
-    if (!opts.dryRun && filter == null) {
-      await applyReleasePlan(plan, applyOpts)
-    }
-    return opts.json ? '[]' : 'No pending changes. Record one with "pnpm change".'
-  }
-
-  if (opts.dryRun) {
-    return renderReleasePlan(plan)
-  }
-
-  const applied = await applyReleasePlan(plan, applyOpts)
-
-  if (opts.json) {
+function renderAppliedReleases (applied: AppliedRelease[], json: boolean | undefined): string {
+  if (json) {
     return JSON.stringify(applied, null, 2)
   }
   let output = 'Versions applied:\n'
@@ -335,12 +291,14 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
 
 type VersionLifecycleOptions = VersionHandlerOptions & { modulesDirFor: ReturnType<typeof createProjectModulesDirResolver> }
 
-async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: {
+interface BumpPackageVersionOptions {
   pkgDir: string
   rawBump: string
   explicitVersion: string | null
   opts: VersionLifecycleOptions
-}): Promise<VersionChange | null> {
+}
+
+async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: BumpPackageVersionOptions): Promise<VersionChange | null> {
   const { manifest, writeProjectManifest, fileName } = await readProjectManifest(pkgDir)
 
   if (!manifest.name || !manifest.version) {

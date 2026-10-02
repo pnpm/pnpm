@@ -74,7 +74,7 @@ impl PackScripts {
                 init_cwd: dir,
                 node_execpath: None,
                 npm_execpath: None,
-                node_gyp_path: None,
+                node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
                 user_agent: Some(&self.user_agent),
                 extra_env: &self.extra_env,
             },

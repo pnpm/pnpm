@@ -205,5 +205,5 @@ fn modules_dir_resolves_against_the_project_and_carries_the_virtual_store() {
         ProjectConfig { modules_dir: Some("modules".to_string()), ..ProjectConfig::default() },
     );
     assert_eq!(config.modules_dir, project_dir.join("modules"));
-    assert_eq!(config.virtual_store_dir, project_dir.join("modules").join(".pnpm"));
+    assert_eq!(config.install_state_dir, project_dir.join("modules").join(".pnpm"));
 }

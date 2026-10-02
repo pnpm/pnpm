@@ -37,7 +37,7 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         allow_build: Box::new(move |_dep_path| allow.then_some(true)),
         pkg_resolution_id: "https://example.com/x.tgz",
@@ -58,7 +58,7 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         allow_build: Box::new(move |dep_path| (!dep_path.contains("://")).then_some(true)),
         pkg_resolution_id: "https://example.com/x.tgz",
@@ -82,7 +82,7 @@ fn opts_allow_dep_path<'a>(
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         allow_build: Box::new(move |actual_dep_path| (actual_dep_path == dep_path).then_some(true)),
         pkg_resolution_id,
@@ -391,4 +391,56 @@ fn prepare_scripts_run_with_strict_dep_builds_off() {
     let result = prepare_package::<SilentReporter>(&opts(true, false), dir.path(), None).unwrap();
     dbg!(&result);
     assert_eq!(fs::read_to_string(result.pkg_dir.join("strict-dep-builds.txt")).unwrap(), "false");
+}
+
+#[test]
+fn prepare_scripts_run_with_the_install_pm_on_fail() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "records-pm-on-fail", "version": "1.0.0",
+            "scripts": {
+                "prepare": r#"node -e "require('fs').writeFileSync('pm-on-fail.txt', String(process.env.pnpm_config_pm_on_fail))""#,
+            },
+        }),
+    );
+    let mut options = opts(true, false);
+    options.scripts.running_pnpm.pm_on_fail = Some("ignore");
+    let result = prepare_package::<SilentReporter>(&options, dir.path(), None).unwrap();
+    dbg!(&result);
+    assert_eq!(fs::read_to_string(result.pkg_dir.join("pm-on-fail.txt")).unwrap(), "ignore");
+}
+
+/// A pnpm pin is left to the running pnpm when `pmOnFail` is not
+/// `download`. The stand-in pnpm records the command it was given, which
+/// only happens if the build's `pnpm` reaches it.
+#[cfg(unix)]
+#[test]
+fn a_pinned_pnpm_is_prepared_by_the_running_pnpm_unless_pm_on_fail_is_download() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let bin_dir = tempdir().unwrap();
+    let running_pnpm = bin_dir.path().join("pnpm");
+    fs::write(&running_pnpm, "#!/bin/sh\necho \"$@\" > ran-running-pnpm.txt\n").unwrap();
+    fs::set_permissions(&running_pnpm, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "pins-pnpm", "version": "1.0.0",
+            "packageManager": "pnpm@9.0.0",
+            "scripts": { "prepare": "exit 0" },
+        }),
+    );
+    let mut options = opts(true, false);
+    options.scripts.running_pnpm.execpath = Some(&running_pnpm);
+    options.scripts.running_pnpm.pm_on_fail = Some("ignore");
+    let result = prepare_package::<SilentReporter>(&options, dir.path(), None).unwrap();
+    dbg!(&result);
+    assert_eq!(
+        fs::read_to_string(result.pkg_dir.join("ran-running-pnpm.txt")).unwrap(),
+        "install\n",
+    );
 }

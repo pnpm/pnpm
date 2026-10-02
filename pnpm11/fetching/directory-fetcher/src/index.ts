@@ -1,9 +1,13 @@
 import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetching.fetcher-base'
+import { isError } from '@pnpm/error'
+import type {
+  DirectoryFetcher,
+  DirectoryFetcherOptions,
+  LocalDirPackageImportMethod,
+} from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'
@@ -14,6 +18,7 @@ const directoryFetcherLogger = logger('directory-fetcher')
 
 export interface CreateDirectoryFetcherOptions {
   includeOnlyPackageFiles?: boolean
+  localDirPackageImportMethod?: LocalDirPackageImportMethod
   resolveSymlinks?: boolean
 }
 
@@ -21,7 +26,10 @@ export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
 ): { directory: DirectoryFetcher } {
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
-  const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
+  const packageImportMethod = opts?.localDirPackageImportMethod ?? 'hardlink'
+  const fetchFromDir = opts?.includeOnlyPackageFiles
+    ? fetchPackageFilesFromDir.bind(null, packageImportMethod)
+    : fetchAllFilesFromDir.bind(null, readFileStat, packageImportMethod)
 
   const directoryFetcher: DirectoryFetcher = async (cafs, resolution, opts) => {
     // Use path.resolve so absolute directories (e.g. cross-drive Windows paths
@@ -40,7 +48,7 @@ export function createDirectoryFetcher (
         return {
           local: true,
           filesMap: new Map(),
-          packageImportMethod: 'hardlink',
+          packageImportMethod,
           manifest,
           requiresBuild: false,
           sourceExists: false,
@@ -65,7 +73,7 @@ async function dirExists (dir: string): Promise<boolean> {
     await fs.stat(dir)
     return true
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -74,21 +82,23 @@ export interface FetchResult {
   local: true
   filesMap: FilesMap
   filesStats?: Record<string, Stats | null>
-  packageImportMethod: 'hardlink'
+  packageImportMethod: LocalDirPackageImportMethod
   manifest: DependencyManifest
   requiresBuild: boolean
 }
 
 export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Promise<FetchResult> {
+  const packageImportMethod = opts.localDirPackageImportMethod ?? 'hardlink'
   if (opts.includeOnlyPackageFiles) {
-    return fetchPackageFilesFromDir(dir)
+    return fetchPackageFilesFromDir(packageImportMethod, dir)
   }
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
-  return fetchAllFilesFromDir(readFileStat, dir)
+  return fetchAllFilesFromDir(readFileStat, packageImportMethod, dir)
 }
 
 async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
+  packageImportMethod: LocalDirPackageImportMethod,
   dir: string
 ): Promise<FetchResult> {
   const { filesMap, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
@@ -101,7 +111,7 @@ async function fetchAllFilesFromDir (
     local: true,
     filesMap,
     filesStats,
-    packageImportMethod: 'hardlink',
+    packageImportMethod,
     manifest,
     requiresBuild,
   }
@@ -117,24 +127,33 @@ async function _fetchAllFilesFromDir (
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
-    .map(async (file) => {
-      const fileStatResult = await readFileStat(path.join(dir, file))
-      if (!fileStatResult) return
-      const { filePath, stat } = fileStatResult
-      const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
-      if (stat.isDirectory()) {
-        const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
-        for (const [key, value] of subFetchResult.filesMap) {
-          filesMap.set(key, value)
-        }
-        Object.assign(filesStats, subFetchResult.filesStats)
-      } else {
-        filesMap.set(relativeSubdir, filePath)
-        filesStats[relativeSubdir] = fileStatResult.stat
-      }
-    })
+    .map((file) => handleDirEntry(readFileStat, dir, file, relativeDir, filesMap, filesStats))
   )
   return { filesMap, filesStats }
+}
+
+async function handleDirEntry (
+  readFileStat: ReadFileStat,
+  dir: string,
+  file: string,
+  relativeDir: string,
+  filesMap: FilesMap,
+  filesStats: Record<string, Stats | null>
+): Promise<void> {
+  const fileStatResult = await readFileStat(path.join(dir, file))
+  if (!fileStatResult) return
+  const { filePath, stat } = fileStatResult
+  const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
+  if (stat.isDirectory()) {
+    const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
+    for (const [key, value] of subFetchResult.filesMap) {
+      filesMap.set(key, value)
+    }
+    Object.assign(filesStats, subFetchResult.filesStats)
+  } else {
+    filesMap.set(relativeSubdir, filePath)
+    filesStats[relativeSubdir] = fileStatResult.stat
+  }
 }
 
 interface FileStatResult {
@@ -155,7 +174,7 @@ async function realFileStat (filePath: string): Promise<FileStatResult | null> {
     return { filePath, stat }
   } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return null
     }
@@ -171,7 +190,7 @@ async function fileStat (filePath: string): Promise<FileStatResult | null> {
     }
   } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return null
     }
@@ -179,7 +198,10 @@ async function fileStat (filePath: string): Promise<FileStatResult | null> {
   }
 }
 
-async function fetchPackageFilesFromDir (dir: string): Promise<FetchResult> {
+async function fetchPackageFilesFromDir (
+  packageImportMethod: LocalDirPackageImportMethod,
+  dir: string
+): Promise<FetchResult> {
   const files = await packlist(dir)
   const filesMap = new Map<string, string>(files.map((file) => [file, path.join(dir, file)]))
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
@@ -190,7 +212,7 @@ async function fetchPackageFilesFromDir (dir: string): Promise<FetchResult> {
   return {
     local: true,
     filesMap,
-    packageImportMethod: 'hardlink',
+    packageImportMethod,
     manifest,
     requiresBuild,
   }

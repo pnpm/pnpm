@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
-// @ts-expect-error
+// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
@@ -141,6 +141,19 @@ export function localFilePath (bareSpecifier: string, projectDir: string): strin
   return parseLocalScheme({ bareSpecifier }, projectDir, projectDir, { preserveAbsolutePaths: false })?.fetchSpec
 }
 
+/**
+ * The directory a local specifier links to, when it is saved as `link:`.
+ * `undefined` for a `file:` directory, a tarball, or a specifier that is not
+ * a local path.
+ */
+export function linkedDirectoryPath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!isLocalFilesystemSpecifier(bareSpecifier)) return undefined
+  const wd = { bareSpecifier }
+  const opts = { preserveAbsolutePaths: false }
+  const spec = parseLocalScheme(wd, projectDir, projectDir, opts) ?? parseLocalPath(wd, projectDir, projectDir, opts)
+  return spec?.normalizedBareSpecifier.startsWith('link:') ? spec.fetchSpec : undefined
+}
+
 export function parseLocalPath (
   wd: WantedLocalDependency,
   projectDir: string,
@@ -165,34 +178,9 @@ function fromLocal (
   type: 'file' | 'directory',
   opts: { preserveAbsolutePaths: boolean, injectWorkspacePackages?: boolean }
 ): LocalPackageSpec {
-  const spec = bareSpecifier.replace(/\\/g, '/')
-    .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
-    .replace(/^(?:file|link|workspace):(?:\/*([~./]))?/, '$1')
-
-  let protocol!: string
-  if (bareSpecifier.startsWith('file:')) {
-    protocol = 'file:'
-  } else if (bareSpecifier.startsWith('link:')) {
-    protocol = 'link:'
-  } else {
-    // Matches the name/range workspace match in the npm resolver, which injects under `injectWorkspacePackages` too.
-    const isInjected = injected || (bareSpecifier.startsWith('workspace:') && opts.injectWorkspacePackages === true)
-    protocol = type === 'directory' && !isInjected ? 'link:' : 'file:'
-  }
-  let fetchSpec!: string
-  let normalizedBareSpecifier!: string
-  if (/^~\//.test(spec)) {
-    // this is needed for windows and for file:~/foo/bar
-    fetchSpec = resolvePath(os.homedir(), spec.slice(2))
-    normalizedBareSpecifier = `${protocol}${spec}`
-  } else {
-    fetchSpec = resolvePath(projectDir, spec)
-    if (isAbsolute(spec)) {
-      normalizedBareSpecifier = `${protocol}${spec}`
-    } else {
-      normalizedBareSpecifier = `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
-    }
-  }
+  const spec = normalizeBareSpec(bareSpecifier)
+  const protocol = resolveLocalProtocol(bareSpecifier, type, injected, opts.injectWorkspacePackages)
+  const { fetchSpec, normalizedBareSpecifier } = resolveLocalFetchSpec(spec, protocol, projectDir)
 
   function normalizeRelativeOrAbsolute (relativeTo: string, fromPath: string) {
     let specPath
@@ -206,12 +194,12 @@ function fromLocal (
     return normalizePathPreservingUnc(specPath)
   }
 
-  injected = protocol === 'file:'
-  const dependencyPath = injected
+  const isFileProtocol = protocol === 'file:'
+  const dependencyPath = isFileProtocol
     ? normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)
     : normalizePathPreservingUnc(path.resolve(fetchSpec))
   const id = (
-    !injected && (type === 'directory' || projectDir === lockfileDir)
+    !isFileProtocol && (type === 'directory' || projectDir === lockfileDir)
       ? `${protocol}${normalizeRelativeOrAbsolute(projectDir, fetchSpec)}`
       : `${protocol}${normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)}`
   ) as PkgResolutionId
@@ -224,6 +212,43 @@ function fromLocal (
     type,
   }
 }
+
+function normalizeBareSpec (bareSpecifier: string): string {
+  return bareSpecifier.replace(/\\/g, '/')
+    .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
+    .replace(/^(?:file|link|workspace):(?:\/*([~./]))?/, '$1')
+}
+
+function resolveLocalProtocol (
+  bareSpecifier: string,
+  type: 'file' | 'directory',
+  injected?: boolean,
+  injectWorkspacePackages?: boolean
+): string {
+  if (bareSpecifier.startsWith('file:')) return 'file:'
+  if (bareSpecifier.startsWith('link:')) return 'link:'
+  const isInjected = injected || (bareSpecifier.startsWith('workspace:') && injectWorkspacePackages === true)
+  return type === 'directory' && !isInjected ? 'link:' : 'file:'
+}
+
+function resolveLocalFetchSpec (
+  spec: string,
+  protocol: string,
+  projectDir: string
+): { fetchSpec: string, normalizedBareSpecifier: string } {
+  if (/^~\//.test(spec)) {
+    return {
+      fetchSpec: resolvePath(os.homedir(), spec.slice(2)),
+      normalizedBareSpecifier: `${protocol}${spec}`,
+    }
+  }
+  const fetchSpec = resolvePath(projectDir, spec)
+  const normalizedBareSpecifier = isAbsolute(spec)
+    ? `${protocol}${spec}`
+    : `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
+  return { fetchSpec, normalizedBareSpecifier }
+}
+
 
 function resolvePath (where: string, spec: string): string {
   if (isAbsolutePath.test(spec)) return path.normalize(spec)

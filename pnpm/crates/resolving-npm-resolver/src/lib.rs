@@ -35,6 +35,7 @@ pub use fetch_full_metadata::{
 };
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 pub use infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
+pub use lookup_context::VerifierLookups;
 pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
     BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
@@ -42,7 +43,8 @@ pub use named_registry::{
 };
 pub use named_registry_resolver::NamedRegistryResolver;
 pub use npm_resolver::{
-    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, normalize_tarball_url,
+    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, detect_min_release_age_violation,
+    normalize_tarball_url,
 };
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
@@ -51,10 +53,11 @@ pub use parse_bare_specifier::{
 };
 pub use pick_package::{
     CachedPackument, InMemoryPackageMetaCache, MetadataCachePolicy, MetadataPickRequest,
-    MetadataRequestContext, MirrorPersistError, PackageMetaCache, PackagePickPolicy,
-    PackumentFetchLocker, PickPackageContext, PickPackageError, PickPackageOptions,
-    PickPackageResult, PickedManifestCache, persist_meta_to_mirror, pick_package,
-    shared_in_memory_cache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    MetadataRequestContext, MirrorPersistError, OfflineStoreView, PackageMetaCache,
+    PackagePickPolicy, PackumentFetchLocker, PickPackageContext, PickPackageError,
+    PickPackageOptions, PickPackageResult, PickedManifestCache, persist_meta_to_mirror,
+    pick_package, shared_in_memory_cache, shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 pub use pick_package_from_meta::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,

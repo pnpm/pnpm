@@ -128,19 +128,18 @@ pub fn resume_task_graph_from(
     task_name: &str,
     completed_tasks: Option<&HashSet<TaskKey>>,
 ) -> TaskGraph {
-    let anchor =
-        TaskKey { project: anchor_project.to_path_buf(), task_name: task_name.to_string() };
-    let Some(anchor_node) = graph.get(&anchor) else {
+    let anchors = resume_anchor_keys(&graph, anchor_project, task_name);
+    if anchors.is_empty() {
         // The anchor exists but its task is not in this graph: there is
         // nothing to skip.
         return graph;
-    };
+    }
     let dropped = completed_tasks.map_or_else(
-        || transitive_dependencies(&graph, anchor_node),
+        || transitive_dependencies(&graph, &anchors),
         |completed| {
             completed
                 .iter()
-                .filter(|key| **key != anchor && graph.contains_key(*key))
+                .filter(|key| !anchors.contains(*key) && graph.contains_key(*key))
                 .cloned()
                 .collect()
         },
@@ -155,15 +154,39 @@ pub fn resume_task_graph_from(
         .collect()
 }
 
-fn transitive_dependencies(graph: &TaskGraph, anchor: &TaskNode) -> HashSet<TaskKey> {
+/// The anchor project's task for `task_name`, or, when a `RegExp` selector
+/// expanded into a task per matched script, every task requested in that
+/// project.
+fn resume_anchor_keys(
+    graph: &TaskGraph,
+    anchor_project: &Path,
+    task_name: &str,
+) -> HashSet<TaskKey> {
+    let key = TaskKey { project: anchor_project.to_path_buf(), task_name: task_name.to_string() };
+    if graph.contains_key(&key) {
+        return HashSet::from([key]);
+    }
+    graph
+        .iter()
+        .filter(|(_, node)| node.requested && node.project == anchor_project)
+        .map(|(key, _)| key.clone())
+        .collect()
+}
+
+/// The anchors' transitive dependencies, other than the anchors themselves.
+fn transitive_dependencies(graph: &TaskGraph, anchors: &HashSet<TaskKey>) -> HashSet<TaskKey> {
     let mut dependencies: HashSet<TaskKey> = HashSet::new();
-    let mut stack: Vec<TaskKey> = anchor.dependencies.clone();
+    let mut stack: Vec<TaskKey> = anchors
+        .iter()
+        .flat_map(|anchor| graph[anchor].dependencies.iter().cloned())
+        .collect();
     while let Some(key) = stack.pop() {
         if !dependencies.insert(key.clone()) {
             continue;
         }
         stack.extend(graph[&key].dependencies.iter().cloned());
     }
+    dependencies.retain(|key| !anchors.contains(key));
     dependencies
 }
 
@@ -231,11 +254,12 @@ fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
 
 /// The task's key in the recursive summary. The task of the script the
 /// invocation named keeps the project directory alone — the format
-/// existing consumers of `pnpm-exec-summary.json` read — and only tasks
-/// `dependsOn` pulled in qualify it with the task name.
+/// existing consumers of `pnpm-exec-summary.json` read — and every other
+/// task qualifies it with the task name: those `dependsOn` pulled in, and
+/// the per-script tasks a `RegExp` selector expands into.
 #[must_use]
-pub fn task_summary_key(node: &TaskNode) -> String {
-    if node.requested {
+pub fn task_summary_key(node: &TaskNode, invoked_task_name: &str) -> String {
+    if node.requested && node.task_name == invoked_task_name {
         node.project.to_string_lossy().into_owned()
     } else {
         format!("{}#{}", node.project.to_string_lossy(), node.task_name)

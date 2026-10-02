@@ -111,7 +111,7 @@ pub(super) fn build_resolved_lockfile<Reporter>(
         splice: FilteredSplice {
             merge_wanted_lockfile: install.lockfiles.merge_wanted,
             real_importer_ids: install.projects.real_ids,
-            selected_importer_ids: install.projects.selected_ids,
+            selected_importer_ids: spliced_selection(&install),
             lockfile_dir: install.projects.lockfile_dir,
         },
         bumps: SpecBumps {
@@ -119,6 +119,15 @@ pub(super) fn build_resolved_lockfile<Reporter>(
             versions_overrider: resolved.overrides.versions_overrider.as_deref(),
         },
     })
+}
+/// The importers whose fresh entries replace their previous ones in a
+/// filtered install. With `autoDedupe`, every importer takes its fresh entry:
+/// deduplication can move a project the filter left out, and its previous
+/// entry would keep the version the resolution dropped.
+fn spliced_selection<'a>(
+    install: &FreshInputs<'a>,
+) -> Option<&'a std::collections::HashSet<String>> {
+    install.projects.selected_ids.filter(|_| !install.drivers.config.auto_dedupe)
 }
 fn resolves_peer_dependencies(install: &FreshInputs<'_>) -> bool {
     install.resolved_groups().contains(&pnpm_package_manifest::DependencyGroup::Peer)

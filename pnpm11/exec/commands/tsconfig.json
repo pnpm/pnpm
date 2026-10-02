@@ -73,6 +73,9 @@
       "path": "../../installing/commands"
     },
     {
+      "path": "../../log/group"
+    },
+    {
       "path": "../../pkg-manifest/reader"
     },
     {
@@ -98,6 +101,9 @@
     },
     {
       "path": "../../workspace/projects-filter"
+    },
+    {
+      "path": "../../workspace/projects-reader"
     },
     {
       "path": "../../workspace/projects-sorter"

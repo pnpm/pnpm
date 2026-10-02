@@ -22,7 +22,7 @@ for (const name of ['pnpm']) {
 // first there, and would find nothing at all when the directory holding these
 // bins is not on `PATH`.
 //
-// The .cmd and .ps1 wrappers resolve pnpm through the caller's `PATH` instead,
+// The .cmd wrappers resolve pnpm through the caller's `PATH` instead,
 // deliberately. `bin` is extensionless for every alias, so neither install
 // state makes them a shim target: with install scripts, setup.js hardlinks
 // pn.exe/pnpx.exe/pnx.exe and repoints `bin` at those; without them, `bin`
@@ -39,7 +39,9 @@ for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]
   }
   fs.writeFileSync(file, unixScript(name, subcommand), { mode: 0o755 })
   fs.writeFileSync(path.join(ownDir, name + '.cmd'), `@echo off\npnpm${subcommand} %*\nexit /b %errorlevel%\n`)
-  fs.writeFileSync(path.join(ownDir, name + '.ps1'), `pnpm${subcommand} @args\nexit $LASTEXITCODE\n`)
+  // No .ps1 wrapper: PowerShell would prefer it over the .cmd, and it fails
+  // wherever the execution policy blocks unsigned scripts.
+  fs.rmSync(path.join(ownDir, name + '.ps1'), { force: true })
 }
 
 function unixScript (name, subcommand) {
@@ -49,9 +51,8 @@ function unixScript (name, subcommand) {
 # limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
 # and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
 #
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -66,6 +67,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash
 # for \`\${self%/*}\` to strip. Only a drive letter or a UNC prefix marks one; a
@@ -91,7 +97,7 @@ esac
 hops=0
 while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops + 1))
-  link=$(command -p readlink "$self")
+  link=$(run_helper readlink "$self")
   case $link in
     /*) self=$link ;;
     *) self=\${self%/*}/$link ;;

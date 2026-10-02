@@ -86,7 +86,7 @@ async fn add_npm_selector(selector: &str) -> Option<String> {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = registry_url;
     config.minimum_release_age = None;
     let config = config.leak();
@@ -165,7 +165,7 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
     config.registries_by_scope.insert("@jsr".to_string(), jsr_registry_url);
     config.minimum_release_age = None;

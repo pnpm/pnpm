@@ -25,7 +25,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test("don't fail when peer dependency is fetched from GitHub", async () => {
   prepareEmpty()
@@ -1499,7 +1499,7 @@ test('local tarball dependency with peer dependency', async () => {
   const reporter = jest.fn()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
-    `file:${f.find('tar-pkg-with-peers-1.0.0.tgz')}`,
+    `file:${testFixtures.find('tar-pkg-with-peers-1.0.0.tgz')}`,
     'bar@npm:@pnpm.e2e/bar@100.0.0',
     'foo@npm:@pnpm.e2e/foo@100.0.0',
   ], testDefaults({ reporter }))
@@ -1528,7 +1528,7 @@ test('local tarball dependency with aliased peer dependency does not report peer
   prepareEmpty()
 
   const reporter = jest.fn()
-  const tarballPath = f.find('tar-pkg-with-aliased-peer-1.0.0.tgz')
+  const tarballPath = testFixtures.find('tar-pkg-with-aliased-peer-1.0.0.tgz')
 
   await addDependenciesToPackage({}, [
     `file:${tarballPath}`,

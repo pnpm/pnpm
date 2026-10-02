@@ -15,7 +15,7 @@ mod wait;
 
 mod arguments;
 
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::registry_client::build_publish_client;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
@@ -173,7 +173,7 @@ impl PublishArgs {
 
         let otp = resolve_otp_from_env::<Host>(self.flags.registry.otp.clone());
         let opts = self.publish_options(config, otp, stage);
-        let http_client = build_registry_client(config)?;
+        let http_client = build_publish_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
         let summary =

@@ -23,21 +23,8 @@ export interface PackageSpecObject {
 
 function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyle?: RangeSpecStyle): string {
   if (spec.startsWith('npm:')) {
-    const aliasBody = spec.slice('npm:'.length)
-    const aliasAt = spec.lastIndexOf('@')
-    if (aliasAt > 'npm:'.length) {
-      const alias = spec.slice(0, aliasAt + 1)
-      const inner = resolvedVersion == null
-        ? getPeerSpecifier(spec.slice(aliasAt + 1), undefined, rangeSpecStyle)
-        : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
-      return `${alias}${inner}`
-    }
-    if (semver.validRange(aliasBody) == null) {
-      const inner = resolvedVersion == null
-        ? '*'
-        : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
-      return `${spec}@${inner}`
-    }
+    const aliasedSpec = resolveAliasedNpmPeerSpecifier(spec, resolvedVersion, rangeSpecStyle)
+    if (aliasedSpec != null) return aliasedSpec
   }
   if (semver.valid(spec)) {
     return spec
@@ -46,6 +33,29 @@ function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyl
 
   const rangeFromResolved = resolvedVersion ? createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) : null
   return rangeFromResolved ?? '*'
+}
+
+function resolveAliasedNpmPeerSpecifier (
+  spec: string,
+  resolvedVersion?: string,
+  rangeSpecStyle?: RangeSpecStyle
+): string | undefined {
+  const aliasBody = spec.slice('npm:'.length)
+  const aliasAt = spec.lastIndexOf('@')
+  if (aliasAt > 'npm:'.length) {
+    const alias = spec.slice(0, aliasAt + 1)
+    const inner = resolvedVersion == null
+      ? getPeerSpecifier(spec.slice(aliasAt + 1), undefined, rangeSpecStyle)
+      : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
+    return `${alias}${inner}`
+  }
+  if (semver.validRange(aliasBody) == null) {
+    const inner = resolvedVersion == null
+      ? '*'
+      : createVersionSpecFromResolvedVersion(resolvedVersion, rangeSpecStyle) ?? '*'
+    return `${spec}@${inner}`
+  }
+  return undefined
 }
 
 export function createVersionSpecFromResolvedVersion (resolvedVersion: string, rangeSpecStyle?: RangeSpecStyle): string | null {
@@ -81,43 +91,60 @@ export function applyPackageSpecs (
 ): ProjectManifest {
   for (const packageSpec of packageSpecs) {
     if (packageSpec.saveType) {
-      const spec = packageSpec.bareSpecifier ?? findSpec(packageSpec.alias, packageManifest)
-      if (spec) {
-        packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] ?? {}
-        defineDepEntry(packageManifest[packageSpec.saveType]!, packageSpec.alias, spec)
-        for (const deptype of DEPENDENCIES_FIELDS) {
-          if (deptype !== packageSpec.saveType) {
-            deleteDepEntry(packageManifest[deptype], packageSpec.alias)
-          }
-        }
-        if (packageSpec.peer === true) {
-          packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
-          defineDepEntry(
-            packageManifest.peerDependencies,
-            packageSpec.alias,
-            getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
-          )
-        }
-      }
+      applyPackageSpecWithSaveType(packageManifest, packageSpec, packageSpec.saveType)
     } else if (packageSpec.bareSpecifier) {
-      const usedDepType = packageSpec.peer === true
-        ? 'peerDependencies'
-        : guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
-      if (usedDepType === 'peerDependencies') {
-        packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
-        defineDepEntry(
-          packageManifest.peerDependencies,
-          packageSpec.alias,
-          getPeerSpecifier(packageSpec.bareSpecifier, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
-        )
-      } else {
-        packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
-        defineDepEntry(packageManifest[usedDepType]!, packageSpec.alias, packageSpec.bareSpecifier)
-      }
+      applyPackageSpecBare(packageManifest, packageSpec, packageSpec.bareSpecifier)
     }
   }
   return packageManifest
 }
+
+function applyPackageSpecWithSaveType (
+  packageManifest: ProjectManifest,
+  packageSpec: PackageSpecObject,
+  saveType: DependenciesField
+): void {
+  const spec = packageSpec.bareSpecifier ?? findSpec(packageSpec.alias, packageManifest)
+  if (!spec) return
+
+  packageManifest[saveType] = packageManifest[saveType] ?? {}
+  defineDepEntry(packageManifest[saveType]!, packageSpec.alias, spec)
+  for (const deptype of DEPENDENCIES_FIELDS) {
+    if (deptype !== saveType) {
+      deleteDepEntry(packageManifest[deptype], packageSpec.alias)
+    }
+  }
+  if (packageSpec.peer === true) {
+    packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
+    defineDepEntry(
+      packageManifest.peerDependencies,
+      packageSpec.alias,
+      getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
+    )
+  }
+}
+
+function applyPackageSpecBare (
+  packageManifest: ProjectManifest,
+  packageSpec: PackageSpecObject,
+  bareSpecifier: string
+): void {
+  const usedDepType = packageSpec.peer === true
+    ? 'peerDependencies'
+    : guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
+  if (usedDepType === 'peerDependencies') {
+    packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
+    defineDepEntry(
+      packageManifest.peerDependencies,
+      packageSpec.alias,
+      getPeerSpecifier(bareSpecifier, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
+    )
+  } else {
+    packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
+    defineDepEntry(packageManifest[usedDepType]!, packageSpec.alias, bareSpecifier)
+  }
+}
+
 
 function findSpec (alias: string, manifest: ProjectManifest): string | undefined {
   const foundDepType = guessDependencyType(alias, manifest)

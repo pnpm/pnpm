@@ -2,12 +2,22 @@ import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
+import { clearMeta } from './clearMeta.js'
 import {
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { getPkgMirrorPath, legacyMirrorHint, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
+import { fullEtagOfAbbreviatedMirror, holdsFullMetaInAbbreviatedMirror, mirrorEtags } from './metaMirror.js'
+import {
+  discardMirrorAfterFailedUncacheableWrite,
+  getPkgMirrorPath,
+  legacyMirrorHint,
+  loadMeta,
+  loadMetaHeaders,
+  prepareJsonForDisk,
+  saveMeta,
+} from './pickPackage.js'
 
 export interface FetchMetadataCachedOptions {
   registry: string
@@ -60,34 +70,31 @@ export async function fetchAbbreviatedMetadataCached (
   return fetchMetadataCached(fetchOpts, pkgName, { ...opts, fullMetadata: false, metaDir: ABBREVIATED_META_DIR })
 }
 
+type MetadataCacheRequest = FetchMetadataCachedOptions & { fullMetadata: boolean, metaDir: string }
+
 async function fetchMetadataCached (
   fetchOpts: FetchMetadataFromFromRegistryOptions,
   pkgName: string,
-  opts: FetchMetadataCachedOptions & { fullMetadata: boolean, metaDir: string }
+  opts: MetadataCacheRequest
 ): Promise<PackageMeta> {
   const pkgMirror = opts.cacheDir != null
     ? getPkgMirrorPath(opts.cacheDir, opts.metaDir, opts.registry, pkgName)
     : null
 
-  if (opts.offline === true) {
-    if (pkgMirror != null) {
-      const cached = await loadMeta(pkgMirror)
-      if (cached != null) return cached
-    }
-    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${pkgName} in package mirror ${pkgMirror ?? ''}`, {
-      hint: opts.cacheDir != null ? await legacyMirrorHint(opts.cacheDir, opts.metaDir, opts.registry, pkgName) : undefined,
-    })
-  }
+  if (opts.offline === true) return loadOfflineMeta(pkgMirror, pkgName, opts)
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
+  const uncacheable = cacheHeaders?.uncacheable === true
+  const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, opts.fullMetadata)
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    fullMetadata: opts.fullMetadata,
-    etag: cacheHeaders?.etag,
-    modified: cacheHeaders?.modified,
+    cacheBypass: uncacheable,
+    fullMetadata: opts.fullMetadata || fullEtag != null,
+    etag: uncacheable ? undefined : (fullEtag ?? cacheHeaders?.etag),
+    modified: uncacheable ? undefined : cacheHeaders?.modified,
   })
-  if (!conditional.notModified) return persistAndReturn(conditional)
+  if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional, opts.fullMetadata)
 
   // A 304 only resolves as `notModified` when a validator was sent, which
   // requires cache headers loaded from a mirror — so a null mirror here is an
@@ -100,6 +107,28 @@ async function fetchMetadataCached (
   // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask again
   // as a cold cache would, which the registry can only answer with a body or an
   // error — never another 304.
+  return persistFetchedMeta(pkgMirror, await refetchBypassingCache(fetchOpts, pkgName, opts), opts.fullMetadata)
+}
+
+async function loadOfflineMeta (
+  pkgMirror: string | null,
+  pkgName: string,
+  opts: MetadataCacheRequest
+): Promise<PackageMeta> {
+  if (pkgMirror != null) {
+    const cached = await loadMeta(pkgMirror)
+    if (cached != null) return cached
+  }
+  throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${pkgName} in package mirror ${pkgMirror ?? ''}`, {
+    hint: opts.cacheDir != null ? await legacyMirrorHint(opts.cacheDir, opts.metaDir, opts.registry, pkgName) : undefined,
+  })
+}
+
+async function refetchBypassingCache (
+  fetchOpts: FetchMetadataFromFromRegistryOptions,
+  pkgName: string,
+  opts: MetadataCacheRequest
+): Promise<FetchMetadataResult> {
   const refetched = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
@@ -109,16 +138,22 @@ async function fetchMetadataCached (
   // Unreachable narrowing guard: the cache-bypassing request sends no validator,
   // so fetchMetadataFromFromRegistry rejects a repeated 304 before returning.
   if (refetched.notModified) throw new Error(`Unexpected 304 for ${pkgName} on a cache-bypassing refetch`)
-  return persistAndReturn(refetched)
+  return refetched
+}
 
-  // Persist a freshly downloaded body so the next install can do a headers-only
-  // conditional GET, then hand its meta back. Fire-and-forget — a cache-write
-  // failure isn't a reason to fail the caller; the next install just won't get
-  // the speedup.
-  function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
-    if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText)).catch(() => {})
-    }
-    return fetched.meta
+// Persist a freshly downloaded body so the next install can do a headers-only
+// conditional GET, then hand its meta back. Fire-and-forget — a cache-write
+// failure isn't a reason to fail the caller; the next install just won't get
+// the speedup.
+function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {
+  if (pkgMirror != null) {
+    const { etag, fullEtag } = mirrorEtags(fetched, mirrorFullMetadata)
+    const jsonForDisk = holdsFullMetaInAbbreviatedMirror(fetched, mirrorFullMetadata)
+      ? prepareJsonForDisk(clearMeta(fetched.meta), etag, { uncacheable: fetched.uncacheable, fullEtag })
+      : prepareJsonForDisk(fetched.meta, etag, fetched)
+    saveMeta(pkgMirror, jsonForDisk).catch(() => {
+      return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
+    })
   }
+  return fetched.meta
 }

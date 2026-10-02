@@ -4,7 +4,7 @@ import { expect, jest, test } from '@jest/globals'
 import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { bravoDepMatureUpTo101MinimumReleaseAge, bravoMatureBravoDep110ImmatureMinimumReleaseAge } from '@pnpm/testing.registry-mock'
 import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
@@ -89,7 +89,7 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
 
 test('strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts', async () => {
   // Pre-refactor strict mode threw at the resolver on the first immature
-  // pick (forcing a discover-by-loop dance, #10488). With always-defer the
+  // pick (forcing a discover-by-loop dance, pnpm/pnpm#10488). With always-defer the
   // resolver records every immature pick inline; the install command (here
   // simulated via the hook) decides what to do once it has the full set.
   prepareEmpty()
@@ -98,7 +98,7 @@ test('strict minimumReleaseAge surfaces every immature pick via handleResolution
   await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     handleResolutionPolicyViolations: async (violations) => {
-      for (const v of violations) seen.push(`${v.name}@${v.version}`)
+      for (const violation of violations) seen.push(`${violation.name}@${violation.version}`)
       throw new Error('immature picks rejected')
     },
   })).rejects.toThrow(/immature picks rejected/)
@@ -127,6 +127,47 @@ test('time-based resolution repopulates missing lockfile time entries on re-inst
 
   const lockfileAfterReinstall = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
   expect(lockfileAfterReinstall.time).toEqual(lockfileAfterFirstInstall.time)
+})
+
+test('a subdependency newer than the time-based cutoff but mature under minimumReleaseAge is not a violation', async () => {
+  const project = prepareEmpty()
+  const violations: string[] = []
+
+  // @pnpm.e2e/bravo@1.0.0 is published in 2022-04, so the time-based cutoff for
+  // its dependencies is one hour later. The override pins bravo-dep to 1.1.0,
+  // published in 2022-05, which a one-minute minimumReleaseAge admits.
+  await install({ dependencies: { '@pnpm.e2e/bravo': '1.0.0' } }, {
+    ...testDefaults({
+      minimumReleaseAge: 1,
+      resolutionMode: 'time-based',
+      overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
+    }),
+    handleResolutionPolicyViolations: async (found) => {
+      violations.push(...found.map((violation) => `${violation.name}@${violation.version}`))
+    },
+  })
+
+  expect(violations).toStrictEqual([])
+  expect(project.readLockfile().snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
+})
+
+test('a subdependency newer than minimumReleaseAge is reported against the minimumReleaseAge cutoff under time-based resolution', async () => {
+  prepareEmpty()
+  const reasons: string[] = []
+
+  await install({ dependencies: { '@pnpm.e2e/bravo': '1.0.0' } }, {
+    ...testDefaults({
+      minimumReleaseAge: bravoMatureBravoDep110ImmatureMinimumReleaseAge(),
+      resolutionMode: 'time-based',
+      overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
+    }),
+    handleResolutionPolicyViolations: async (found) => {
+      reasons.push(...found.map((violation) => `${violation.name}@${violation.version} ${violation.reason}`))
+    },
+  })
+
+  expect(reasons).toHaveLength(1)
+  expect(reasons[0]).toMatch(/^@pnpm\.e2e\/bravo-dep@1\.1\.0 was published at 2022-05-\S+, within the minimumReleaseAge cutoff \(2022-04-15T/)
 })
 
 const matureUpTo101MinimumReleaseAge = bravoDepMatureUpTo101MinimumReleaseAge()
@@ -442,7 +483,7 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
   // range) treating it as fully trusted. The verifier short-circuits on the
   // excluded entry, so it doesn't end up in the violations array — otherwise
   // every install would re-add the same exclude entry the user just dismissed.
-  expect(result.resolutionPolicyViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
+  expect(result.resolutionPolicyViolations.find((violation) => violation.name === 'is-odd')).toBeUndefined()
 })
 
 test('handleResolutionPolicyViolations throwing aborts the install before the lockfile is written', async () => {
@@ -486,7 +527,7 @@ test('handleResolutionPolicyViolations approval lets the install proceed cleanly
       // The real install command would inspect the violations and run
       // an enquirer prompt here. The test just confirms the hook gets a
       // full set and returns to approve.
-      expect(violations.some((v) => v.name === 'is-odd' && v.version === '0.1.0')).toBe(true)
+      expect(violations.some((violation) => violation.name === 'is-odd' && violation.version === '0.1.0')).toBe(true)
     },
   })
 

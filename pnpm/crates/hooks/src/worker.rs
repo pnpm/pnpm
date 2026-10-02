@@ -222,17 +222,27 @@ impl NodeWorker {
 
     /// Whether the loaded pnpmfile exports a callable `readPackage` hook.
     pub async fn has_read_package(&self) -> Result<bool, HookError> {
-        self.request(
-            "hasReadPackage",
-            serde_json::json!({ "query": "hasReadPackage" }),
-            Arc::new(|_| {}),
-        )
-        .await
-        .and_then(|value| {
-            value
-                .as_bool()
-                .ok_or_else(|| self.exec_err("invalid hasReadPackage response"))
-        })
+        self.capability_query("hasReadPackage").await
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `afterAllResolved` hook.
+    pub async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        self.capability_query("hasAfterAllResolved").await
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `preResolution` hook.
+    pub async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.capability_query("hasPreResolution").await
+    }
+
+    async fn capability_query(&self, query: &'static str) -> Result<bool, HookError> {
+        self.request(query, serde_json::json!({ "query": query }), Arc::new(|_| {}))
+            .await
+            .and_then(|value| {
+                value
+                    .as_bool()
+                    .ok_or_else(|| self.exec_err(format!("invalid {query} response")))
+            })
     }
 
     /// Call `method` on the custom resolver at `index` in the pnpmfile's

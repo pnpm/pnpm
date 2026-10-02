@@ -42,37 +42,31 @@ function copyAndRename (src: string, dest: string): void {
   for (const entry of entries) {
     const srcPath = path.join(src, entry)
     const destPath = path.join(dest, entry[0] === '_' ? entry.substring(1) : entry)
-    // Use lstatSync to avoid following symlinks - this prevents ENOENT errors
-    // when symlink targets haven't been copied yet (e.g., when copying directories
-    // in alphabetical order where a symlink points to a directory that comes later)
     const stats = fs.lstatSync(srcPath)
 
     if (stats.isSymbolicLink()) {
-      // Recreate symlinks to preserve the pnpm node_modules structure
-      let linkTarget = fs.readlinkSync(srcPath)
-
-      // On Windows, junctions store absolute paths internally.
-      // We need to convert them to paths relative to the new destination.
-      if (path.isAbsolute(linkTarget)) {
-        // Compute relative path from the original symlink to its target
-        const relativeTarget = path.relative(path.dirname(srcPath), linkTarget)
-        linkTarget = relativeTarget
-      }
-
-      // On Windows, pnpm uses junctions for directories to avoid permission issues.
-      // We use 'junction' type on Windows for all symlinks since pnpm fixtures
-      // typically contain directory symlinks in node_modules.
-      fs.symlinkSync(linkTarget, destPath, process.platform === 'win32' ? 'junction' : undefined)
+      copySymlink(srcPath, destPath)
     } else if (stats.isDirectory()) {
-      // If the entry is a directory, recursively copy its contents
-      if (!fs.existsSync(destPath)) {
-        fs.mkdirSync(destPath)
-      }
-      copyAndRename(srcPath, destPath)
+      copyDirectory(srcPath, destPath)
     } else if (stats.isFile()) {
       fs.copyFileSync(srcPath, destPath)
     }
   }
+}
+
+function copySymlink (srcPath: string, destPath: string): void {
+  let linkTarget = fs.readlinkSync(srcPath)
+  if (path.isAbsolute(linkTarget)) {
+    linkTarget = path.relative(path.dirname(srcPath), linkTarget)
+  }
+  fs.symlinkSync(linkTarget, destPath, process.platform === 'win32' ? 'junction' : undefined)
+}
+
+function copyDirectory (srcPath: string, destPath: string): void {
+  if (!fs.existsSync(destPath)) {
+    fs.mkdirSync(destPath)
+  }
+  copyAndRename(srcPath, destPath)
 }
 
 function findFixture (dir: string, name: string): string {

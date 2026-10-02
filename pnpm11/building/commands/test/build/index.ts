@@ -17,7 +17,7 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -87,7 +87,7 @@ test('rebuilds dependencies', async () => {
   storeIndexes.push(storeIndex1)
   const cacheIntegrity = storeIndex1.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
@@ -277,7 +277,7 @@ test('skipIfHasSideEffectsCache', async () => {
   const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
   storeIndexes.push(storeIndex)
   let cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = new Map([
     [sideEffectsKey, {
       added: new Map([
@@ -319,7 +319,7 @@ test('rebuild does not fail when a linked package is present', async () => {
   prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
-  f.copy('local-pkg', path.resolve('..', 'local-pkg'))
+  testFixtures.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
   await execa('node', [
     pnpmBin,

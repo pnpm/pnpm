@@ -2,6 +2,7 @@ pub use arguments::{
     InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
 };
 
+pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target};
 pub(crate) use pnpr_resolution::{install_selected_via_pnpr, install_via_pnpr};
 
 mod arguments;
@@ -38,20 +39,21 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
-    PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyLockfileOptions,
+    PnprClient, PnprClientError, PublishConfig, ResolveProject, ResolveProjectsOptions,
+    VerifyLockfileOptions,
 };
 use pnpm_reporter::Reporter;
 use pnpr_lockfile::{
     LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
 };
+use pnpr_pnpmfile::{check_frozen_pnpmfile, record_pnpmfile};
 use pnpr_request::{
     PnprBenchmarkRegistryOverride, PnprRequestInputs, pnpr_catalogs, pnpr_request_inputs,
     resolve_projects_for_pnpr, resolve_projects_options,
 };
 use pnpr_resolution::{
     DryRunIncompatibleWithPnpr, PnprSession, install_via_pnpr_inner, prefetch_allowed,
-    resolve_project,
 };
 
 use std::path::PathBuf;
@@ -239,13 +241,13 @@ impl InstallArgs {
         let frozen_lockfile = self.resolve_frozen_lockfile(&state)?;
         let lockfile_path = state.lockfile_path();
         let link = self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
-        if let Some(pnpr_server) = state.config.pnpr_server.as_deref() {
-            if self.materialization.dry_run {
-                return Err(DryRunIncompatibleWithPnpr.into());
-            }
+        if state.config.pnpr_server.is_some() && self.materialization.dry_run {
+            return Err(DryRunIncompatibleWithPnpr.into());
+        }
+        if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
             return Box::pin(install_via_pnpr_inner::<Reporter>(
                 &state,
-                pnpr_server,
+                target,
                 selection.as_ref(),
                 link,
             ))
@@ -351,6 +353,11 @@ impl InstallArgs {
     }
 
     /// Whether this install runs frozen.
+    ///
+    /// `--fix-lockfile` rewrites the lockfile, so it is never frozen. On
+    /// CI a project that already has a non-empty lockfile installs frozen
+    /// by default, unless the run is `--lockfile-only` or the effective
+    /// `preferFrozenLockfile` is `false`.
     fn resolve_frozen_lockfile(&self, state: &State) -> miette::Result<bool> {
         if self.lockfile.fix {
             return Ok(false);
@@ -462,6 +469,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod pnpr_pnpmfile;
 
 mod pnpr_request;
 

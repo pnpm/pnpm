@@ -131,6 +131,23 @@ describe('alias bins', () => {
     assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
   })
 
+  // The default path `command -p` searches can lack readlink, as inside a Nix
+  // build sandbox. No test host is set up that way, so the alias's `command -p`
+  // is rewritten to a `command` that searches a directory that does not exist.
+  it('resolves its symlink with a readlink from PATH when the default path lacks one', { skip: NO_SH }, async () => {
+    const { dir, wrapperDir } = createFixture()
+    const alias = path.join(wrapperDir, 'pnpx')
+    fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
+    const binDir = path.join(dir, 'node_modules', '.bin')
+    writeStub(path.join(binDir, 'pnpm'), 'decoy')
+    const link = path.join(binDir, 'pnpx')
+    fs.symlinkSync(path.relative(binDir, alias), link)
+
+    const result = await run(link, ARGS, { env: { PATH: BARE_PATH } })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+  })
+
   // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
   // path, which has no slash for `${self%/*}` to strip. Only a drive letter or a
   // UNC prefix marks one, since a backslash is an ordinary character in a Unix

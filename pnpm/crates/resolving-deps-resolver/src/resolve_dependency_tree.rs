@@ -27,7 +27,7 @@ use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveOptions, Resolver, WantedDependency,
+    ResolveError, ResolveOptions, Resolver, WantedDependency,
 };
 use serde_json::Value;
 use std::{
@@ -37,7 +37,7 @@ use std::{
 
 use crate::{
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{AncestorPkgIds, DirectDep, ResolvedTree},
 };
 
 mod catalogs;
@@ -219,7 +219,7 @@ pub enum ResolveDependencyTreeError {
     /// One of the resolver chain calls failed (network, parse, etc.).
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
-    Resolve(#[error(not(source))] String),
+    Resolve(#[error(source)] ResolveError),
 
     #[display("Conflicting registry revisions were requested for \"{name}@{version}\".")]
     #[diagnostic(
@@ -532,7 +532,7 @@ where
     // below it a level at a time.
     let direct =
         walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
-    ctx.workspace.versions.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
+    ctx.workspace.versions.record_preferred_version_roots(direct.iter().map(|dep| &*dep.id));
     // Second bump, after every write of this wave (including the roots
     // above) has landed: a `run_preferred_versions` read racing with
     // this call could bind the entry bump's revision to a partial
@@ -544,7 +544,7 @@ where
 /// What every direct dep of one importer wave resolves against.
 struct DirectRoot<'r> {
     reuse: ReuseSource,
-    ancestors: Arc<Vec<String>>,
+    ancestors: AncestorPkgIds,
     parent_pkg_aliases: &'r Arc<ParentPkgAliases>,
     base_overlay: &'r Option<Arc<PreferredVersionsOverlay>>,
 }

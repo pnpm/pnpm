@@ -66,17 +66,19 @@ pub enum PatchedDepPathsStatus {
 /// A patched dependency's hash is recorded in a lockfile more than once:
 ///
 /// 1. In `patchedDependencies`, which is the authoritative source of truth.
-/// 2. As a `(patch_hash=...)` segment on every reference to a patched
-///    package — importer entries, `snapshots:` keys, and the dependency
-///    edges between snapshots. (`packages:` is keyed without the patch
-///    hash, so it carries none of these.)
+/// 2. As a `(patch_hash=...)` segment on references that carry a package's
+///    full depPath. These are importer entries, `snapshots:` keys, and the
+///    dependency edges between snapshots. (`packages:` is keyed without the
+///    patch hash, so it carries none of these.) A peer collapsed to
+///    `name@version` to break a peer cycle carries no hash, as does every peer
+///    when peers are deduped.
 ///
 /// They disagree only when the file was hand-edited or a merge conflict was
 /// resolved wrongly: nothing pnpm writes can produce it, and the
 /// config-vs-lockfile gate in [`crate::check_lockfile_settings`] cannot see
 /// it, because that compares `patchedDependencies` against the configured
-/// patches and never reads the segments. A depPath missing the segment its
-/// patch calls for disagrees as much as one carrying the wrong hash.
+/// patches and never reads the segments. A full depPath missing the segment
+/// its patch calls for disagrees as much as one carrying the wrong hash.
 ///
 /// Judging a depPath needs the package's version and the patch set, and a
 /// lockfile in that state can be missing either. Neither failing is a
@@ -127,8 +129,8 @@ struct Checker<'a> {
     /// from allocating for the unpatched bulk of the graph.
     patched_names: HashSet<PkgName>,
     /// `(<name>@` for every patched package, which a peer segment naming it
-    /// starts with. Empty when peers are deduped: a peer segment is then only
-    /// the peer's `name@version`, and carries no patch hash of its own.
+    /// starts with. Empty when peers are deduped. Bare peer segments carry no
+    /// hash whether produced by deduplication or cycle collapse.
     patched_peer_markers: Vec<String>,
     packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     verdicts: HashMap<PackageKey, Verdict>,
@@ -260,10 +262,9 @@ impl<'a> Checker<'a> {
     /// The worst verdict among the depPath and the peer depPaths nested in its
     /// suffix that [`Checker::peer_to_judge`] selects.
     ///
-    /// pnpm writes a package's own hash as the first segment of the suffix.
-    /// Unless peers are deduped, a peer segment is that peer's whole depPath,
-    /// so a patched peer carries its hash inside it, and that hash is part of
-    /// this depPath's identity.
+    /// pnpm writes a package's own hash as the first segment of the suffix. A
+    /// peer segment carrying the peer's whole depPath includes its hash, which
+    /// is part of this depPath's identity. A bare peer segment does not.
     ///
     /// A depPath holding a marker is [`Verdict::Indeterminate`] when the
     /// marker is anywhere but the leading segment of its suffix, which is the
@@ -330,8 +331,10 @@ impl<'a> Checker<'a> {
     /// registry version of a patched package, `infers_unmarked_peers` holds
     /// for the depPath around it, and peers are not deduped. A
     /// `link:` peer is written with a path where the version goes, and patches
-    /// never apply to it. `Some(Err(()))` for a segment carrying a marker that
-    /// does not parse as a depPath.
+    /// never apply to it. A bare `name@version` peer may be the resolver's
+    /// hashless cycle collapse, so its missing hash cannot establish staleness.
+    /// `Some(Err(()))` for a segment carrying a marker that does not parse as
+    /// a depPath.
     fn peer_to_judge(
         &self,
         segment: &str,
@@ -352,9 +355,10 @@ impl<'a> Checker<'a> {
             return None;
         }
         let peer = inner.parse::<PackageKey>().ok()?;
-        (is_registry_version(&peer.suffix) && self.patched_names.contains(&peer.name)).then_some(
-            Ok(peer),
-        )
+        (is_registry_version(&peer.suffix)
+            && !peer.suffix.peer().is_empty()
+            && self.patched_names.contains(&peer.name))
+        .then_some(Ok(peer))
     }
 
     /// Compares `recorded`, the depPath's own patch hash, with the one

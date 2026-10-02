@@ -18,7 +18,7 @@
 //!
 //! ```text
 //! pacquet-meta-v1 <headers_len> <index_len>\n
-//! <headers JSON>           # MetaHeaders: etag, modified
+//! <headers JSON>           # MetaHeaders: etag, fullEtag, modified
 //! <index JSON>             # MirrorIndex: name, dist-tags, time,
 //!                          #   homepage, versions: [version, off, len]
 //! <fragments>              # concatenated raw per-version JSON
@@ -46,6 +46,10 @@
 //! - [`is_unreadable_registry_key`] — whether a directory name in the
 //!   mirror root predates the current key shape, so nothing can read it.
 
+#[cfg(test)]
+pub(crate) mod save_fail;
+
+pub use headers::MetaHeaders;
 pub use registry_key::{
     EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
     get_registry_name, is_unreadable_registry_key,
@@ -55,6 +59,8 @@ mod read_records;
 use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
 
 mod registry_key;
+
+mod headers;
 
 use std::{
     collections::HashMap,
@@ -85,20 +91,6 @@ pub const FULL_META_DIR: &str = "v11/metadata-full";
 
 /// Mirror directory for the filtered full metadata cache.
 pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
-
-/// Cached headers persisted as the mirror's first line. The cached
-/// metadata fetcher feeds these into `If-None-Match` /
-/// `If-Modified-Since` on the next request. Both fields are
-/// optional because some registries omit one or the other; the
-/// fetcher tolerates a partial header set and only sends the headers
-/// it has.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MetaHeaders {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub etag: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub modified: Option<String>,
-}
 
 /// Error from [`save_meta`]. Surfaced to callers that care about
 /// individual write failures (tests, in particular); production
@@ -254,12 +246,19 @@ pub fn save_meta_indexed(
     pkg_mirror: &Path,
     meta: &Package,
     etag: Option<&str>,
+    uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
-    let headers = serde_json::to_string(&MetaHeaders {
-        etag: etag.map(str::to_string),
-        modified: meta_modified(meta),
-    })
-    .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    save_meta_indexed_with_headers(pkg_mirror, meta, &MetaHeaders::new(meta, etag, uncacheable))
+}
+
+/// [`save_meta_indexed`] with the headers record given in full.
+pub fn save_meta_indexed_with_headers(
+    pkg_mirror: &Path,
+    meta: &Package,
+    headers: &MetaHeaders,
+) -> Result<(), SaveMetaError> {
+    let headers = serde_json::to_string(headers)
+        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
     let mut fragment_bytes = Vec::new();
     let mut spans = Vec::with_capacity(meta.versions.len());
@@ -300,12 +299,19 @@ pub fn save_meta_ndjson(
     pkg_mirror: &Path,
     meta: &Package,
     etag: Option<&str>,
+    uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
-    let headers = serde_json::to_vec(&MetaHeaders {
-        etag: etag.map(str::to_string),
-        modified: meta_modified(meta),
-    })
-    .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    save_meta_ndjson_with_headers(pkg_mirror, meta, &MetaHeaders::new(meta, etag, uncacheable))
+}
+
+/// [`save_meta_ndjson`] with the headers record given in full.
+pub fn save_meta_ndjson_with_headers(
+    pkg_mirror: &Path,
+    meta: &Package,
+    headers: &MetaHeaders,
+) -> Result<(), SaveMetaError> {
+    let headers =
+        serde_json::to_vec(headers).map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
     let mut body_meta = meta.clone();
     body_meta.etag = None;
     let body = serde_json::to_vec(&body_meta)
@@ -353,18 +359,6 @@ pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
     let mut cleared: Package = serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
     cleared.etag.clone_from(&meta.etag);
     Ok(cleared)
-}
-
-fn meta_modified(meta: &Package) -> Option<String> {
-    meta.modified
-        .clone()
-        .or_else(|| {
-            meta.time
-                .as_ref()
-                .and_then(|time| time.get("modified"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
 }
 
 /// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
@@ -553,6 +547,10 @@ pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHe
 /// The rename is the only atomic step; an observer sees either the
 /// old contents or the new ones, never a torn body line.
 pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError> {
+    #[cfg(test)]
+    if let Some(error) = save_fail::forced_mirror_save_error(pkg_mirror) {
+        return Err(error);
+    }
     let dir = pkg_mirror.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(dir)
         .map_err(|error| SaveMetaError::CreateDir { dir: dir.to_path_buf(), error })?;

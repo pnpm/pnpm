@@ -13,10 +13,10 @@ import { symlinkDirSync } from 'symlink-dir'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('prune removes extraneous packages', async () => {
-  const linkedPkg = f.prepare('hello-world-js-bin')
+  const linkedPkg = testFixtures.prepare('hello-world-js-bin')
   const project = prepareEmpty()
 
   const opts = testDefaults()

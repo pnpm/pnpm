@@ -46,7 +46,7 @@ pub(super) fn commit_modules_state(
     tracing::info!(target: "pacquet::install::phase", phase = "apply.current_lockfile", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
     // the wanted lockfile was reconstructed from
-    // `<virtual_store_dir>/lock.yaml`. The no-op short-circuit above
+    // `<install_state_dir>/lock.yaml`. The no-op short-circuit above
     // handles the common case; this branch covers the rare path where
     // `.modules.yaml` was wiped or inconsistent and the frozen install
     // had to relink.
@@ -159,7 +159,7 @@ pub(super) fn deferred_projects(
             .collect()
     })
 }
-/// Write `<virtual_store_dir>/lock.yaml`. Captures what was
+/// Write `<install_state_dir>/lock.yaml`. Captures what was
 /// actually materialized so the next install can diff each
 /// snapshot against it and skip the unchanged
 /// slots. Persist *after* `write_modules_manifest` succeeds so
@@ -186,7 +186,7 @@ pub(super) fn save_current_lockfile(
 ) -> Result<(), InstallError> {
     let Some(lockfile) = materialized_current_lockfile else { return Ok(()) };
     lockfile
-        .save_current_to_virtual_store_dir(&config.virtual_store_dir)
+        .save_current_to_install_state_dir(&config.install_state_dir)
         .map_err(InstallError::SaveCurrentLockfile)
 }
 /// Sweep the virtual store of everything the install no longer needs, and
@@ -228,15 +228,13 @@ fn virtual_store_prune_is_due(
     force: bool,
     now: SystemTime,
 ) -> bool {
-    let effective_virtual_store_dir = config.effective_virtual_store_dir();
+    let virtual_store_dir = config.virtual_store_dir();
     // Decide "this is the global store" from the resolved paths, not
     // the `enableGlobalVirtualStore` flag alone: the global store is
     // shared across projects, so a config that points `virtualStoreDir`
     // at it must not be pruned even when the flag is off.
-    let is_global_virtual_store = crate::prune_virtual_store::same_dir(
-        effective_virtual_store_dir,
-        &config.global_virtual_store_dir,
-    );
+    let is_global_virtual_store =
+        crate::prune_virtual_store::same_dir(virtual_store_dir, &config.global_virtual_store_dir);
     !is_global_virtual_store
         && (force
             || crate::prune_virtual_store::should_prune_virtual_store(
@@ -248,19 +246,19 @@ fn virtual_store_prune_is_due(
 }
 
 fn confined_virtual_store_prune_target(config: &Config) -> Option<PathBuf> {
-    let effective_virtual_store_dir = config.effective_virtual_store_dir();
+    let virtual_store_dir = config.virtual_store_dir();
     // Sweep the canonicalized prune target returned by the containment
     // check, never the raw configured path: deleting from the validated path
     // closes the time-of-check/time-of-use gap a symlink swap would
     // otherwise open.
     let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
-        effective_virtual_store_dir,
+        virtual_store_dir,
         &config.modules_dir,
     ) else {
         // A wanted lockfile exists but the store path is unsafe
         // (escapes node_modules); refuse the destructive sweep.
         tracing::warn!(
-            virtual_store_dir = %effective_virtual_store_dir.display(),
+            virtual_store_dir = %virtual_store_dir.display(),
             modules_dir = %config.modules_dir.display(),
             "skipping virtual-store prune: the virtual store is not inside node_modules",
         );
@@ -278,7 +276,7 @@ pub(super) struct RelinkedLockfileSave<'a> {
     loaded_wanted_lockfile: Option<&'a Lockfile>,
 }
 /// Regenerate `pnpm-lock.yaml` from the synthesized snapshot when the wanted
-/// lockfile was reconstructed from `<virtual_store_dir>/lock.yaml`. The
+/// lockfile was reconstructed from `<install_state_dir>/lock.yaml`. The
 /// no-op short-circuit in the caller handles the common case; this covers the
 /// rare path where `.modules.yaml` was wiped or inconsistent and the frozen
 /// install had to relink.

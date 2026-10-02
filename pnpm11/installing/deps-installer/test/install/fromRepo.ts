@@ -17,8 +17,8 @@ import { isCI } from 'ci-info'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
-const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
+const testFixtures = fixtures(import.meta.dirname)
+const withGitProtocolDepFixture = testFixtures.find('with-git-protocol-dep')
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -73,7 +73,7 @@ test('from a github repo with different name via named installation', async () =
     testDefaults({ fastUnpack: false, reporter })
   )
 
-  const m = project.requireModule('say-hi')
+  const moduleExports = project.requireModule('say-hi')
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
@@ -86,7 +86,7 @@ test('from a github repo with different name via named installation', async () =
     name: 'pnpm:root',
   }))
 
-  expect(m).toBe('Hi')
+  expect(moduleExports).toBe('Hi')
 
   expect(manifest.dependencies).toStrictEqual({ 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' })
 
@@ -117,7 +117,7 @@ test('from a github repo with different name', async () => {
     },
   }, testDefaults({ fastUnpack: false, reporter }))
 
-  const m = project.requireModule('say-hi')
+  const moduleExports = project.requireModule('say-hi')
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: expect.objectContaining({
@@ -130,7 +130,7 @@ test('from a github repo with different name', async () => {
     name: 'pnpm:root',
   }))
 
-  expect(m).toBe('Hi')
+  expect(moduleExports).toBe('Hi')
 
   expect(manifest.dependencies).toStrictEqual({
     'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
@@ -156,9 +156,9 @@ test('a subdependency is from a github repo with different name', async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-aliased-git-dependency'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+  const moduleExports = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
 
-  expect(m).toBe('Hi')
+  expect(moduleExports).toBe('Hi')
 
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({
@@ -189,9 +189,9 @@ test.skip('from a non-github git repo', async () => {
 
   await addDependenciesToPackage({}, ['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], testDefaults())
 
-  const m = project.requireModule('ikt')
+  const moduleExports = project.requireModule('ikt')
 
-  expect(m).toBeTruthy()
+  expect(moduleExports).toBeTruthy()
 
   const lockfile = project.readLockfile()
 

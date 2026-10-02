@@ -4,7 +4,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SOURCE;
-use pnpm_testing_utils::git_repo::GitRepoFixture;
+use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -62,6 +62,10 @@ pub(super) fn cargo_workspace(index_url: &str, dependencies: &str, source: &str)
 
 pub(super) fn install_in(root: &TempDir, args: &[&str]) {
     let cargo_home = TempDir::new().expect("create isolated Cargo home");
+    install_command(root, &cargo_home, args).assert().success();
+}
+
+fn install_command(root: &TempDir, cargo_home: &TempDir, args: &[&str]) -> Command {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
@@ -69,8 +73,6 @@ pub(super) fn install_in(root: &TempDir, args: &[&str]) {
         .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
         .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
         .with_args(args)
-        .assert()
-        .success();
 }
 
 #[test]
@@ -289,6 +291,69 @@ fn offline_install_without_registry_crates_never_reads_the_registry_config() {
     let config = std::fs::read_to_string(root.path().join(".cargo/config.toml"))
         .expect("read managed Cargo configuration");
     assert!(config.contains(r#"registry = "sparse+https://registry.example.test/index/""#));
+}
+
+#[test]
+fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
+    let mut registry = mockito::Server::new();
+    let archive = crate_archive("demo", "1.0.0");
+    let checksum = format!("{:x}", Sha256::digest(&archive));
+    let _config_mock = registry
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({
+                "dl": format!("{}/dl/{{crate}}/{{version}}", registry.url()),
+                "api": registry.url(),
+            })
+            .to_string(),
+        )
+        .create();
+    let _index_mock = registry
+        .mock("GET", "/de/mo/demo")
+        .with_body(format!(
+            "{}\n",
+            serde_json::json!({
+                "name": "demo",
+                "vers": "1.0.0",
+                "deps": [],
+                "cksum": checksum,
+                "features": {},
+                "yanked": false,
+                "v": 1,
+            }),
+        ))
+        .create();
+    let _download_mock = registry
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&archive)
+        .create();
+    let root = cargo_workspace(&registry.url(), "demo = \"1\"\n", "pub use demo::answer;\n");
+    install_in(&root, &["install"]);
+    install_in(&root, &["install", "--frozen-lockfile"]);
+    let lockfile = fs::read(root.path().join("Cargo.lock")).expect("read Cargo.lock");
+    let manifest = root.path().join("Cargo.toml");
+    fs::write(
+        &manifest,
+        fs::read_to_string(&manifest)
+            .expect("read Cargo manifest")
+            .replace(r#"demo = "1""#, r#"demo = "=1.0.1""#),
+    )
+    .expect("write Cargo manifest");
+
+    let cargo_home = TempDir::new().expect("create isolated Cargo home");
+    let output = install_command(&root, &cargo_home, &["install", "--frozen-lockfile"])
+        .output()
+        .expect("run pnpm install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("A frozen install must fail on a stale Cargo.lock: {output:?}");
+    assert!(!output.status.success());
+    assert_diagnostic_contains(
+        &stderr,
+        "app depends on demo =1.0.1, but Cargo.lock locks demo 1.0.0",
+    );
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_OUTDATED_LOCKFILE");
+    assert_eq!(fs::read(root.path().join("Cargo.lock")).expect("read Cargo.lock"), lockfile);
 }
 
 fn append_manifest_section(manifest: &Path, section: &str) {

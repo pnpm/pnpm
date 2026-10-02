@@ -3,7 +3,8 @@ import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { createEnvLockfile, extractMainDocument, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile, extractMainDocument, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import type { ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
@@ -162,6 +163,26 @@ testOnNonWindows('writeEnvLockfile preserves the lockfile mode against the umask
   }
 
   expect(fs.statSync(lockfilePath).mode & 0o777).toBe(0o666)
+})
+
+// A lockfile pnpm wrote for a project with no dependencies, with its empty
+// main document and the separator before it trimmed off.
+// https://github.com/pnpm/pnpm/issues/16477
+test('readEnvLockfile reads an env-only lockfile and writeWantedLockfile keeps it', async () => {
+  const dir = temporaryDirectory()
+  const lockfilePath = path.join(dir, WANTED_LOCKFILE)
+  await writeEnvLockfile(dir, envLockfileWithConfigDep())
+  const combined = fs.readFileSync(lockfilePath, 'utf8')
+  expect(combined.endsWith('\n---\n')).toBe(true)
+  fs.writeFileSync(lockfilePath, combined.slice(0, -'---\n'.length))
+
+  await expect(readEnvLockfile(dir)).resolves.toStrictEqual(envLockfileWithConfigDep())
+
+  await writeWantedLockfile(dir, { lockfileVersion: '9.0', importers: { ['.' as ProjectId]: { specifiers: {} } } })
+
+  const written = fs.readFileSync(lockfilePath, 'utf8')
+  expect(written.startsWith(combined)).toBe(true)
+  await expect(readEnvLockfile(dir)).resolves.toStrictEqual(envLockfileWithConfigDep())
 })
 
 function envLockfileWithConfigDep () {

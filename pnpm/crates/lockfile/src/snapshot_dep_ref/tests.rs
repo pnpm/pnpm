@@ -139,3 +139,21 @@ fn from_pkg_ver_peer_produces_plain_variant() {
     let dep: SnapshotDepRef = ver.clone().into();
     assert_eq!(dep, SnapshotDepRef::Plain(ver));
 }
+
+#[test]
+fn package_root_link_target_accepts_only_plain_paths_inside_the_package() {
+    use crate::package_root_link_target;
+    assert_eq!(package_root_link_target("<root>/typings/css-tree"), Some("typings/css-tree"));
+    for target in [
+        "<root>/",
+        "<root>/../outside",
+        "<root>/a/../../outside",
+        "<root>/a/./b",
+        "<root>/a//b",
+        "<root>/C:/Users/Public",
+        r"<root>/a\..\..\outside",
+        "packages/c",
+    ] {
+        assert_eq!(package_root_link_target(target), None, "{target}");
+    }
+}

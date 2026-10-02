@@ -55,7 +55,7 @@ impl DedupePipeline {
                 run_dedicated_dedupe::<Reporter>(
                     self.args,
                     cfg,
-                    projects,
+                    *projects,
                     &lockfile_path,
                     existing,
                     guard,
@@ -113,7 +113,7 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
 /// post-hook config, and finally dispatches to the install pipeline.
 /// The overrides must come after hooks because `updateConfig` can
 /// mutate `Config` fields (including `modules_dir` /
-/// `virtual_store_dir`), and the CLI `--ignore-scripts` flag must win
+/// `install_state_dir`), and the CLI `--ignore-scripts` flag must win
 /// over any hook-set value.
 pub(crate) struct PrunePipeline {
     pub(crate) args: PruneArgs,
@@ -134,7 +134,7 @@ impl PrunePipeline {
         let root_config = (&*manifest_path, &mut *cfg, &*config_root);
         prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Always)).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
-        // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
+        // modules_dir / install_state_dir via WorkspaceSettings::apply_to,
         // so the check must use the final (post-hook) config values.
         // The install pipeline's prune_target_within_modules also validates
         // VSD containment, but only at sweep time; this earlier check
@@ -180,14 +180,16 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
         http_client: Some(State::new_http_client(cfg)?),
         prune_excludes: !args.check,
         sync_injected_deps: false,
+        pipelined: false,
     }
     .run(|state| {
-        Box::pin(dedupe_dedicated_project::<Reporter>(
-            args.clone(),
-            state,
-            lockfile_path,
-            existing.as_deref(),
-        ))
+        let args = args.clone();
+        let lockfile_path = lockfile_path.to_path_buf();
+        let existing = existing.clone();
+        Box::pin(async move {
+            dedupe_dedicated_project::<Reporter>(args, state, &lockfile_path, existing.as_deref())
+                .await
+        })
     })
     .await?;
     if let Some(guard) = guard {

@@ -115,21 +115,31 @@ impl CliArgs {
             return None;
         }
         let dir = dunce::canonicalize(&self.paths.dir).ok()?;
-        let mut config =
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-                .current::<Host>(&dir)
-                .ok()?;
+        let mut config = seed_config(
+            self.paths.npmrc_auth_file.as_deref(),
+            self.paths.ignore_workspace,
+            config_overrides,
+        )
+        .current::<Host>(&dir)
+        .ok()?;
         config_overrides.apply(&mut config, &dir);
         self.network.apply(&mut config);
-        if let Some(store_dir) = self.paths.store_dir.as_deref()
-            && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
-        {
-            return None;
+        if let Some(store_dir) = self.paths.store_dir.as_deref() {
+            if apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err() {
+                return None;
+            }
+            config.cli_settings.insert("storeDir".to_string());
         }
         if let Some(state_dir) = self.paths.state_dir.as_deref() {
             apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+            config.cli_settings.insert("stateDir".to_string());
         }
         install_args.lockfile.directory.apply_to(&mut config, &dir);
+        config.frozen_store = resolve_bool_override(
+            install_args.materialization.frozen_store,
+            install_args.materialization.no_frozen_store,
+            config.frozen_store,
+        );
         config.progress = self.progress_enabled(config.progress);
         self.configure_reporter();
         if self.output.presentation.loglevel.is_none()
@@ -222,30 +232,27 @@ impl CliArgs {
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
-        let store_use = StoreUse::of(&command);
+        let (npm_command, store_use) = (command.npm_command_name(), StoreUse::of(&command));
         let load_config = |anchor: &Path, is_global: bool| {
             let target = ConfigTarget { anchor, is_global, store_use };
-            self.load_and_finalize_config(&target, config_overrides, setup, anchors)
+            self.load_and_finalize_config(&target, config_overrides, setup, anchors, npm_command)
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
         let config = || load_config(&anchors.dir, false);
         let config_self_update = || -> miette::Result<&'static mut Config> {
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-                .current_for_self_update::<Host>(&anchors.dir)
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
-                .and_then(|cfg| {
-                    self.finalize_run_config(
-                        cfg,
-                        &anchors.dir,
-                        false,
-                        config_overrides,
-                        setup,
-                        anchors,
-                    )
-                })
+            seed_config(
+                self.paths.npmrc_auth_file.as_deref(),
+                self.paths.ignore_workspace,
+                config_overrides,
+            )
+            .current_for_self_update::<Host>(&anchors.dir)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")
+            .and_then(|cfg| {
+                self.finalize_run_config(cfg, &anchors.dir, false, config_overrides, setup, anchors)
+            })
         };
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
@@ -271,15 +278,33 @@ impl CliArgs {
         config_overrides: &ConfigOverrides,
         setup: &RunSetup<'_>,
         anchors: &RunAnchors,
+        npm_command: &'static str,
     ) -> miette::Result<&'static mut Config> {
         let ConfigTarget { anchor, is_global, store_use } = *target;
-        let cfg = store_use.load(|place_store| self.load_config_at(anchor, place_store))?;
-        self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
+        let cfg = store_use.load(|place_store| {
+            self.load_config_at(anchor, place_store, config_overrides)
+        })?;
+        let config =
+            self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)?;
+        // npm names the running command for scripts in `npm_command`, and pnpm 11
+        // sets the same variable, so scripts that branch on it behave alike
+        // whichever CLI runs them. This map is what every script-spawning site
+        // reads.
+        config.extra_env.insert("npm_command".to_string(), npm_command.to_string());
+        Ok(config)
     }
 
-    fn load_config_at(&self, anchor: &Path, place_store: bool) -> miette::Result<Config> {
-        let mut seed =
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace);
+    fn load_config_at(
+        &self,
+        anchor: &Path,
+        place_store: bool,
+        config_overrides: &ConfigOverrides,
+    ) -> miette::Result<Config> {
+        let mut seed = seed_config(
+            self.paths.npmrc_auth_file.as_deref(),
+            self.paths.ignore_workspace,
+            config_overrides,
+        );
         seed.skip_store_dir_resolution = !place_store;
         seed.current::<Host>(anchor)
             .map_err(miette::Report::new)

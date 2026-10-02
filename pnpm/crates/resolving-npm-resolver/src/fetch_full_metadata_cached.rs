@@ -22,20 +22,21 @@ use std::{
 use pipe_trait::Pipe;
 use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode, header};
+use reqwest::{Response, StatusCode};
 
 use crate::{
     FetchMetadataError,
     errors::legacy_mirror_hint,
     fetch_full_metadata::{
         ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
-        is_abbreviated_content_type, normalize_abbreviated_meta, send_metadata_request,
-        warn_if_request_is_slow,
+        is_abbreviated_content_type, metadata_response_is_uncacheable, normalize_abbreviated_meta,
+        response_etag, send_metadata_request, warn_if_request_is_slow,
     },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
         get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
-        load_meta_headers_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        load_meta_headers_async, save_meta_indexed_with_headers, save_meta_ndjson_with_headers,
+        scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };
@@ -122,14 +123,6 @@ struct FetchAttempt<'a> {
     cache_bypass: AtomicBool,
 }
 
-fn response_etag(response: &reqwest::Response) -> Option<String> {
-    response
-        .headers()
-        .get(header::ETAG)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string)
-}
-
 impl FetchAttempt<'_> {
     async fn run(&self) -> Result<Package, FetchMetadataError> {
         let started_at = Instant::now();
@@ -155,12 +148,11 @@ impl FetchAttempt<'_> {
                 error: error.without_url(),
             })?;
 
-        let etag = response_etag(&response);
-        let normalize_to_abbreviated =
-            !opts.full_metadata && !is_abbreviated_content_type(response.headers());
+        let decode = self.decoder(&response, started_at);
         let raw_body = response
             .text()
             .await
+            .inspect_err(|error| opts.http.http_client.downscale_on_timeout(self.url, error))
             .map_err(|error| FetchMetadataError::BodyRead {
                 url: redact_url_credentials(self.url),
                 error: error.without_url(),
@@ -180,7 +172,6 @@ impl FetchAttempt<'_> {
         // socket that worker pumps — on a cold babylon install the
         // inline parses held the metadata phase to a third of pnpm's
         // throughput.
-        let decode = self.decoder(etag, normalize_to_abbreviated, started_at);
         let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
             .await
             .map_err(|error| FetchMetadataError::ParseTask {
@@ -192,34 +183,55 @@ impl FetchAttempt<'_> {
         meta.pipe(Ok)
     }
 
-    fn decoder(
-        &self,
-        etag: Option<String>,
-        normalize_to_abbreviated: bool,
-        started_at: Instant,
-    ) -> DecodeMeta {
+    fn decoder(&self, response: &Response, started_at: Instant) -> DecodeMeta {
+        let full_meta_in_abbreviated_mirror = self.stored_full_etag().is_some();
         DecodeMeta {
             url: self.url.to_string(),
             mirror_path: self.mirror_path.map(Path::to_path_buf),
-            etag,
-            normalize_to_abbreviated,
+            etag: response_etag(response),
+            uncacheable: metadata_response_is_uncacheable(response.headers()),
+            normalize_to_abbreviated: !self.opts.full_metadata
+                && !full_meta_in_abbreviated_mirror
+                && !is_abbreviated_content_type(response.headers()),
+            full_meta_in_abbreviated_mirror,
             should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
             started_at,
         }
     }
 
+    /// The full document's entity tag when this abbreviated mirror holds a
+    /// document a `minimumReleaseAge` upgrade stored there. That document is
+    /// revalidated as what it is, so a registry with per-representation tags
+    /// can still answer `304`.
+    fn stored_full_etag(&self) -> Option<&str> {
+        if self.opts.full_metadata {
+            return None;
+        }
+        self.cache_headers
+            .as_ref()?
+            .full_etag
+            .as_deref()
+            .filter(|etag| !etag.is_empty())
+    }
+
     fn metadata_request(&self) -> MetadataRequestOptions<'_> {
         let opts = self.opts;
+        let stored_uncacheable =
+            self.cache_headers.as_ref().is_some_and(|headers| headers.uncacheable);
+        let full_etag = self.stored_full_etag();
+        let requests_full = opts.full_metadata || full_etag.is_some();
         MetadataRequestOptions {
             pkg_name: self.pkg_name,
             url: self.url,
-            accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
+            accept: if requests_full { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
             priority: opts.priority,
-            etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
+            etag: full_etag.or_else(|| {
+                self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref())
+            }),
             modified: self.cache_headers
                 .as_ref()
                 .and_then(|headers| headers.modified.as_deref()),
-            bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
+            bypass_cache: stored_uncacheable || self.cache_bypass.load(Ordering::Relaxed),
             http: opts.http.one_attempt(),
         }
     }
@@ -284,7 +296,14 @@ struct DecodeMeta {
     url: String,
     mirror_path: Option<PathBuf>,
     etag: Option<String>,
+    /// The response `Cache-Control` forbade reusing this document, so the
+    /// next install must refetch it instead of revalidating the mirror.
+    uncacheable: bool,
     normalize_to_abbreviated: bool,
+    /// The response is the full document revalidating an abbreviated mirror
+    /// that a `minimumReleaseAge` upgrade filled, so its tag is recorded as
+    /// the full document's.
+    full_meta_in_abbreviated_mirror: bool,
     should_filter_metadata: bool,
     started_at: Instant,
 }
@@ -326,17 +345,36 @@ impl DecodeMeta {
     /// hydration.
     fn persist(&self, meta: &Package) -> Option<Package> {
         let path = self.mirror_path.as_deref()?;
+        let headers = if self.full_meta_in_abbreviated_mirror {
+            MetaHeaders::for_full_meta_in_abbreviated_mirror(
+                meta,
+                self.etag.as_deref(),
+                self.uncacheable,
+            )
+        } else {
+            MetaHeaders::new(meta, self.etag.as_deref(), self.uncacheable)
+        };
         if self.should_filter_metadata {
-            if let Err(error) = save_meta_ndjson(path, meta, self.etag.as_deref()) {
+            if let Err(error) = save_meta_ndjson_with_headers(path, meta, &headers) {
                 warn_mirror_write_failed(&error, path);
+                self.drop_mirror_that_would_revalidate(path);
             }
             return None;
         }
-        if let Err(error) = save_meta_indexed(path, meta, self.etag.as_deref()) {
+        if let Err(error) = save_meta_indexed_with_headers(path, meta, &headers) {
             warn_mirror_write_failed(&error, path);
+            self.drop_mirror_that_would_revalidate(path);
             return None;
         }
         load_meta(path)
+    }
+
+    /// A failed write leaves the previous header, whose validators the next
+    /// fetch would send. An uncacheable response must not keep that file.
+    fn drop_mirror_that_would_revalidate(&self, path: &Path) {
+        if self.uncacheable {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
 

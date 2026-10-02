@@ -9,7 +9,7 @@ import type { ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 import yaml from 'yaml-tag'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 const {
@@ -132,7 +132,7 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
         },
       },
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the fixture's package keys are plain strings, not branded DepPaths
   } as any
   const written = await writeWantedLockfile(projectPath, wantedLockfile)
   const loaded = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
@@ -140,6 +140,33 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
   // Verify the canonicalization actually dropped the undefined field —
   // toEqual is lenient about undefined-vs-missing, so check explicitly.
   expect('dedupePeers' in (written.settings ?? {})).toBe(false)
+})
+
+test('writeWantedLockfile() returns __proto__ keys of the lockfile as own properties', async () => {
+  const projectPath = temporaryDirectory()
+  const importers = {}
+  Object.defineProperty(importers, '__proto__', {
+    value: {
+      specifiers: { 'is-positive': '^1.0.0' },
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  })
+  const wantedLockfile = {
+    importers,
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-positive@1.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+  }
+  const written = await writeWantedLockfile(projectPath, wantedLockfile)
+  expect(Object.getPrototypeOf(written.importers)).toBe(Object.prototype)
+  expect(Object.keys(written.importers)).toStrictEqual(['__proto__'])
+  expect(written).toEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }))
 })
 
 test('writeLockfiles() return matches readWantedLockfile/readCurrentLockfile output', async () => {
@@ -248,8 +275,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative@1.0.0': {
-        // eslint-disable-next-line
-        dependencies: undefined as any,
+        dependencies: undefined,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

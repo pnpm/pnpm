@@ -1,0 +1,2 @@
+*.png binary
+*.jpg binary

@@ -24,6 +24,9 @@ pub use crate::{
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
     store_path::StoreRelocation,
+    windows_path_env::{
+        UnexpandedWindowsEnvVar, ensure_windows_dir_envs, ensure_windows_home_dir_env,
+    },
 };
 pub use pnpm_matcher as matcher;
 pub use pnpm_package_manifest::ManifestFormat;
@@ -60,6 +63,7 @@ mod global_bin_check;
 mod npmrc_auth;
 mod override_version_references;
 mod store_path;
+mod windows_path_env;
 mod workspace_yaml;
 
 use crate::{
@@ -67,15 +71,15 @@ use crate::{
         default_child_concurrency, default_enable_global_virtual_store,
         default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
         default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
-        default_fetch_warn_timeout_ms, default_hoist_pattern, default_modules_cache_max_age,
-        default_modules_dir, default_public_hoist_pattern, default_store_dir,
-        default_tag_version_prefix, default_user_agent, default_virtual_store_dir,
+        default_fetch_warn_timeout_ms, default_hoist_pattern, default_install_state_dir,
+        default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
+        default_store_dir, default_tag_version_prefix, default_user_agent,
     },
     npmrc_auth::NpmrcAuth,
 };
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_git_utils::{Host as GitHost, get_current_branch};
+use pnpm_git_utils::{Host as GitHost, get_branches_containing_head, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
 use pnpm_matcher::create_matcher;
 use pnpm_patching::{

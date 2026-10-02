@@ -18,20 +18,21 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DependencyManifest, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { omit } from 'ramda'
+import { clone, omit } from 'ramda'
+import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 
 import { delay, getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(f.find('is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFileSync<any>(f.find('is-positive-full.json'))
-const isPositiveBrokenMeta = loadJsonFileSync<any>(f.find('is-positive-broken.json'))
-const sindresorhusIsMeta = loadJsonFileSync<any>(f.find('sindresorhus-is.json'))
-const jsonMeta = loadJsonFileSync<any>(f.find('JSON.json'))
-const brokenIntegrity = loadJsonFileSync<any>(f.find('broken-integrity.json'))
+const testFixtures = fixtures(import.meta.dirname)
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
+const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(testFixtures.find('is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFileSync<any>(testFixtures.find('is-positive-full.json'))
+const isPositiveBrokenMeta = loadJsonFileSync<any>(testFixtures.find('is-positive-broken.json'))
+const sindresorhusIsMeta = loadJsonFileSync<any>(testFixtures.find('sindresorhus-is.json'))
+const jsonMeta = loadJsonFileSync<any>(testFixtures.find('JSON.json'))
+const brokenIntegrity = loadJsonFileSync<any>(testFixtures.find('broken-integrity.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registriesByScope = {
@@ -84,7 +85,7 @@ test('resolveFromNpm()', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -503,7 +504,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.versions['1.0.0'].version).toBe('1.0.0')
 })
 
@@ -525,7 +526,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `https%3A+registry.npmjs.org/JSON_${createHexHash('JSON')}.jsonl`)) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `https%3A+registry.npmjs.org/JSON_${createHexHash('JSON')}.jsonl`)) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -1674,7 +1675,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -1707,7 +1708,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -3115,7 +3116,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
@@ -3148,7 +3149,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
 test('request to a package with unpublished versions', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/code-snippet', method: 'GET' })
-    .reply(200, loadJsonFileSync(f.find('unpublished.json')) as object)
+    .reply(200, loadJsonFileSync(testFixtures.find('unpublished.json')) as object)
 
   const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
@@ -3182,7 +3183,7 @@ test('request to a package with no versions', async () => {
 })
 
 test('request to a package with no dist-tags', async () => {
-  const isPositiveMeta = omit(['dist-tags'], loadJsonFileSync<any>(f.find('is-positive.json'))) // eslint-disable-line
+  const isPositiveMeta = omit(['dist-tags'], loadJsonFileSync<any>(testFixtures.find('is-positive.json'))) // eslint-disable-line
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
@@ -3809,6 +3810,54 @@ test('peekManifestFromStore: bypassed when updateChecksums is true', async () =>
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('peekManifestFromStore: a publish date lookup keeps the store manifest of the locked package', async () => {
+  const storeDir = temporaryDirectory()
+  const storeIndex = new StoreIndex(storeDir)
+  const integrity = ssri.fromHex(isPositiveMetaFull.versions['1.0.0'].dist.shasum, 'sha1').toString()
+  storeIndex.set(storeIndexKey(integrity, 'is-positive@1.0.0'), {
+    algo: 'sha512',
+    files: new Map(),
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+      peerDependencies: { react: '*' },
+    },
+  })
+
+  const meta = clone(isPositiveMetaFull)
+  meta.versions['1.0.0'].peerDependencies = { react: '16.0.0' }
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, meta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir,
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^1.0.0' },
+    {
+      publishedBy: new Date('2020-01-01'),
+      currentPkg: {
+        id: 'is-positive@1.0.0' as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: {
+          integrity,
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
+      },
+    }
+  )
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(resolveResult!.publishedAt).toBe(isPositiveMetaFull.time['1.0.0'])
+  expect(resolveResult!.manifest!.peerDependencies).toStrictEqual({ react: '*' })
   getMockAgent().assertNoPendingInterceptors()
 })
 

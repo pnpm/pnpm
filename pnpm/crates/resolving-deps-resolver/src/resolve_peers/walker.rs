@@ -7,19 +7,19 @@ pub(crate) use walk_context::MissingSummary;
 
 pub(super) use walk_context::{
     MissingPeerInfo, NodeOutput, NodeWalkContext, RootWalk, SubtreeMissingByPkg,
+    index_peer_provider_children,
 };
 
-pub(crate) use missing_names::{MissingNames, index_missing_names};
+pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_names};
 
 mod walk_context;
 use walk_context::{
     ChildAliases, ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren,
     LockedPinContext, NodeEntry, NodePeers, NodePeersContext, SettledPeers, WalkResult,
-    index_peer_provider_children,
 };
 
 mod missing_names;
-use missing_names::{children_scc_ids, external_peers_to_report};
+use missing_names::external_peers_to_report;
 
 mod peer_issues;
 
@@ -43,15 +43,12 @@ use crate::{
         context::{
             ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
             SharedChain, importer_relative_link_dep_path, insert_parent_ref,
-            link_node_id_as_dep_path, peer_id_pair, pkg_name_version, remap_link_node_id,
-            satisfies_with_prereleases,
+            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id, satisfies_with_prereleases,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
     },
-    resolved_tree::{
-        AncestorIds, ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
-    },
+    resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
 use pnpm_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
@@ -80,7 +77,7 @@ pub(super) struct Walker<'tree> {
 pub(super) struct PeerWalkOutput {
     pub(super) graph: DependenciesGraph,
     pub(super) issues: PeerDependencyIssues,
-    pub(super) missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<String>>>,
+    pub(super) missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<Arc<str>>>>,
     /// Graph edges whose target `NodeId` had no `DepPath` yet at the
     /// time we built the parent's `graph_children` map — typically
     /// because the target is a later sibling direct dep that the walker
@@ -134,13 +131,6 @@ pub(super) struct PeerWalkTraversal {
     /// persistent [`PeerDiscoveryCaches`], so the pruned-provider
     /// fallback keeps its per-call meaning.
     pub(super) visited_this_call: HashSet<NodeId>,
-    /// Children-graph SCC ids behind the canonical cycle gate: every
-    /// intra-SCC edge whose target is not canonically later
-    /// (package-id order) is cut, the same cut at every occurrence, so
-    /// realized subtrees are entry-independent and no walk path can
-    /// revisit a package. Built lazily once per walker; the tree's
-    /// children are frozen for the walker's lifetime.
-    children_sccs: std::cell::OnceCell<Arc<HashMap<Arc<str>, usize>>>,
     /// Canonical back-edge targets realized but not yet walked; the
     /// walk drivers drain this after their direct-dep loops.
     pub(super) pending_canonical_nodes: Vec<NodeId>,
@@ -165,7 +155,7 @@ pub(super) struct PeerWalkProviders {
     /// providers for the must-win guard. Swapped per importer by the
     /// workspace entry point.
     pub(super) current_provider_sources: Vec<CurrentProviderSource>,
-    packages_by_id: HashMap<String, Arc<ResolvedPackage>>,
+    packages_by_id: HashMap<Arc<str>, Arc<ResolvedPackage>>,
 }
 
 impl<'tree> Walker<'tree> {
@@ -174,10 +164,10 @@ impl<'tree> Walker<'tree> {
         opts: ResolvePeersOptions,
         node_ids_by_previous_dep_path: HashMap<DepPath, NodeId>,
         current_provider_sources: Vec<CurrentProviderSource>,
-        caches: PeerDiscoveryCaches,
+        mut caches: PeerDiscoveryCaches,
         discovery: bool,
     ) -> Self {
-        let caches = prepare_discovery_caches(tree, caches);
+        caches.peer_providers.refresh(tree);
         Walker {
             tree,
             opts,
@@ -204,7 +194,6 @@ impl<'tree> Walker<'tree> {
                 in_progress: HashSet::default(),
                 discovery,
                 visited_this_call: HashSet::default(),
-                children_sccs: std::cell::OnceCell::new(),
                 pending_canonical_nodes: Vec::new(),
                 in_canonical_drain: false,
             },
@@ -233,12 +222,10 @@ impl<'tree> Walker<'tree> {
         self.caches
     }
 
-    /// The children-graph SCC table behind the canonical cycle gate;
-    /// see [`PeerWalkTraversal::children_sccs`].
+    /// The children-graph SCC table behind the canonical cycle gate; see
+    /// [`CanonicalCycleGate::table`](super::discovery::CanonicalCycleGate::table).
     pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
-        Arc::clone(self.traversal.children_sccs.get_or_init(|| {
-            Arc::new(children_scc_ids(self.tree))
-        }))
+        self.caches.canonical_cycles.table(self.tree, self.caches.view_generation())
     }
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:
@@ -258,7 +245,7 @@ impl<'tree> Walker<'tree> {
 
     /// The shared record-only node a canonical back-edge references;
     /// created lazily and queued for the driver's importer-context
-    /// walk. See [`crate::resolve_peers::discovery::PeerDiscoveryCaches::canonical_backedge_nodes`].
+    /// walk. See [`CanonicalCycleGate::backedge_nodes`](super::discovery::CanonicalCycleGate::backedge_nodes).
     pub(super) fn canonical_backedge_node(&mut self, pkg_id: &Arc<str>, depth: i32) -> NodeId {
         if self.tree.packages.get(&**pkg_id).is_some_and(|pkg| pkg.is_leaf) {
             let node_id = NodeId::leaf(pkg_id);
@@ -267,7 +254,7 @@ impl<'tree> Walker<'tree> {
                     node_id.clone(),
                     crate::resolved_tree::DependenciesTreeNode::new(
                         Arc::clone(pkg_id),
-                        TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                        TreeChildren::Lazy,
                         depth,
                         true,
                     ),
@@ -275,7 +262,7 @@ impl<'tree> Walker<'tree> {
             }
             return node_id;
         }
-        if let Some(node_id) = self.caches.canonical_backedge_nodes.get(&**pkg_id)
+        if let Some(node_id) = self.caches.canonical_cycles.backedge_nodes.get(&**pkg_id)
             && self.tree.dependencies_tree.contains_key(node_id)
         {
             return node_id.clone();
@@ -285,12 +272,12 @@ impl<'tree> Walker<'tree> {
             node_id.clone(),
             crate::resolved_tree::DependenciesTreeNode::new(
                 Arc::clone(pkg_id),
-                TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                TreeChildren::Lazy,
                 depth,
                 true,
             ),
         );
-        self.caches.canonical_backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
+        self.caches.canonical_cycles.backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
         self.traversal.pending_canonical_nodes.push(node_id.clone());
         node_id
     }
@@ -337,7 +324,7 @@ impl Walker<'_> {
         // suffix (the cycle fallback during the walk collapses peers
         // that are walk-ancestors), then rebuild the graph from the
         // per-node records keyed by the corrected depPaths.
-        let final_dep_paths = self.build_final_dep_paths();
+        let final_dep_paths = self.build_final_dep_paths(false).by_node_id;
         let direct_by_alias = self.importer_direct_dep_paths(&direct, &final_dep_paths);
         let graph = self.build_final_graph(&final_dep_paths);
         let paths_by_node_id = self.final_paths_by_node_id(&final_dep_paths);
@@ -465,8 +452,7 @@ impl Walker<'_> {
         if self.tree.all_peer_dep_names.is_empty() {
             return false;
         }
-        let (real_name, _) = pkg_name_version(&pkg.result);
-        self.tree.all_peer_dep_names.contains(&real_name)
+        self.tree.all_peer_dep_names.contains(&**pkg.name())
     }
 
     /// The parent refs an importer's direct deps seed the peer walk with.
@@ -485,7 +471,7 @@ impl Walker<'_> {
             if !self.is_peer_relevant(&direct.alias, pkg) {
                 continue;
             }
-            let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
+            let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, pkg.result())
                 .unwrap_or_else(|| direct.node_id.clone());
             insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, tree_node.depth);
         }
@@ -495,24 +481,12 @@ impl Walker<'_> {
 
 /// The ancestor package-id chain a node's children see. A package already on
 /// the chain is not repeated, so a cycle cannot grow it without bound.
-fn chain_with_pkg_id(chain: &SharedChain<String>, pkg_id: &Arc<str>) -> SharedChain<String> {
-    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(pkg_id.to_string()) }
+fn chain_with_pkg_id(chain: &SharedChain<Arc<str>>, pkg_id: &Arc<str>) -> SharedChain<Arc<str>> {
+    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(Arc::clone(pkg_id)) }
 }
 
 #[cfg(test)]
 mod tests;
-
-fn prepare_discovery_caches(
-    tree: &ResolvedTree,
-    mut caches: PeerDiscoveryCaches,
-) -> PeerDiscoveryCaches {
-    if caches.peer_provider_index_peer_names != tree.all_peer_dep_names {
-        caches.peer_provider_children_by_pkg_id.clear();
-        caches.peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
-    }
-    index_peer_provider_children(tree, &mut caches.peer_provider_children_by_pkg_id);
-    caches
-}
 
 impl SettledPeers {
     fn node_output(self, walked: &mut ChildrenWalk) -> NodeOutput {

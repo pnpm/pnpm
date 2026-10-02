@@ -43,7 +43,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         .join("materialization-store")
         .into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     config.package_import_method = PackageImportMethod::Copy;
     config.offline = true;
 

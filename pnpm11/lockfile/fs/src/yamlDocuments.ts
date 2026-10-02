@@ -1,9 +1,8 @@
 import { constants } from 'node:fs'
 import { type FileHandle, lstat, open, readFile } from 'node:fs/promises'
 import { StringDecoder } from 'node:string_decoder'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import stripBom from 'strip-bom'
 
 export const YAML_DOCUMENT_SEPARATOR = '\n---\n'
@@ -11,51 +10,23 @@ export const YAML_DOCUMENT_START = '---\n'
 
 const READ_BUFFER_SIZE = 64 * 1024
 
+/** How an env document lays out the start of its root importer. */
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES = '\n  .:\n    configDependencies:'
+
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
  * The file must start with "---\n" to indicate it contains an env lockfile document.
  * Stops reading as soon as the second document separator is found.
+ * A file with no separator is env-only, see {@link envOnlyDocument}.
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  */
 export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
   let fileHandle: FileHandle | undefined
-  let buffer = ''
-  let firstChunk = true
   try {
     fileHandle = await open(filePath, constants.O_RDONLY)
-    const decoder = new StringDecoder('utf8')
-    const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
-    let position = 0
-    while (true) {
-      const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop
-      if (bytesRead === 0) break
-      position += bytesRead
-      let chunk = decoder.write(readBuffer.subarray(0, bytesRead))
-      if (firstChunk && chunk.length > 0) {
-        // Strip BOM from the first chunk. Safe because the decoder uses utf8,
-        // so the 3-byte BOM is decoded into a single \uFEFF character.
-        chunk = stripBom(chunk)
-        firstChunk = false
-      }
-      buffer += chunk
-      // Normalize CRLF (Windows) to LF so document separator detection works.
-      buffer = buffer.replace(/\r\n/g, '\n')
-      if (canRejectDocumentStart(buffer)) {
-        return null
-      }
-      const sep = buffer.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
-      if (sep !== -1) {
-        return buffer.slice(YAML_DOCUMENT_START.length, sep)
-      }
-    }
-    const remainder = decoder.end()
-    if (remainder.length > 0) {
-      buffer += firstChunk ? stripBom(remainder) : remainder
-      buffer = buffer.replace(/\r\n/g, '\n')
-    }
-    return null
+    return await readFirstYamlDocument(fileHandle, readBufferSize)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -64,11 +35,56 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
   }
 }
 
+interface DecodedText {
+  text: string
+  bomStripped: boolean
+}
+
+async function readFirstYamlDocument (fileHandle: FileHandle, readBufferSize: number): Promise<string | null> {
+  const decoder = new StringDecoder('utf8')
+  const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
+  const decoded: DecodedText = { text: '', bomStripped: false }
+  let position = 0
+  while (true) {
+    const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop -- each read continues at the position the previous one reached
+    if (bytesRead === 0) return documentWithoutSeparator(decoded.text + decoder.end())
+    position += bytesRead
+    appendDecodedChunk(decoded, decoder.write(readBuffer.subarray(0, bytesRead)))
+    const document = findFirstYamlDocument(decoded.text)
+    if (document !== undefined) return document
+  }
+}
+
+function appendDecodedChunk (decoded: DecodedText, chunk: string): void {
+  if (!decoded.bomStripped && chunk.length > 0) {
+    // Strip BOM from the first chunk. Safe because the decoder uses utf8,
+    // so the 3-byte BOM is decoded into a single \uFEFF character.
+    chunk = stripBom(chunk)
+    decoded.bomStripped = true
+  }
+  // Normalize CRLF (Windows) to LF so document separator detection works.
+  decoded.text = (decoded.text + chunk).replace(/\r\n/g, '\n')
+}
+
+function documentWithoutSeparator (text: string): string | null {
+  return text.startsWith(YAML_DOCUMENT_START) ? envOnlyDocument(text.slice(YAML_DOCUMENT_START.length)) : null
+}
+
+/**
+ * The first document once `text` holds all of it, `null` once `text` cannot start an env
+ * document, and `undefined` while more of the file is needed to tell.
+ */
+function findFirstYamlDocument (text: string): string | null | undefined {
+  if (canRejectDocumentStart(text)) return null
+  const sep = text.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
+  return sep === -1 ? undefined : text.slice(YAML_DOCUMENT_START.length, sep)
+}
+
 export async function readLockfileToString (filePath: string): Promise<string | null> {
   try {
     return stripBom(await readFile(filePath, 'utf8')).replace(/\r\n/g, '\n')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -86,7 +102,7 @@ export async function ensureLockfileIsNotSymlink (filePath: string): Promise<voi
   try {
     stat = await lstat(filePath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return
     }
     throw err
@@ -116,8 +132,27 @@ export function extractEnvDocument (content: string): string | null {
   content = content.replace(/\r\n/g, '\n')
   if (!content.startsWith(YAML_DOCUMENT_START)) return null
   const sep = content.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
-  if (sep === -1) return null
+  if (sep === -1) return envOnlyDocument(content.slice(YAML_DOCUMENT_START.length))
   return content.slice(YAML_DOCUMENT_START.length, sep)
+}
+
+/**
+ * The env document of a lockfile whose empty main document was trimmed off
+ * together with the separator: `rest` up to where the separator would start, so
+ * a closing `---` line that has no newline after it is dropped too. Only a body
+ * whose root importer opens with the `configDependencies` key every env
+ * document writes qualifies, so a main lockfile that merely opens with `---`
+ * is not mistaken for one.
+ */
+function envOnlyDocument (rest: string): string | null {
+  let document = rest
+  for (const end of ['\n---', '\n']) {
+    if (rest.endsWith(end)) {
+      document = rest.slice(0, -end.length)
+      break
+    }
+  }
+  return document.includes(ROOT_IMPORTER_CONFIG_DEPENDENCIES) ? document : null
 }
 
 /**

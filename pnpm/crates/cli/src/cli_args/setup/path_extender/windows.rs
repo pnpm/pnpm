@@ -109,7 +109,7 @@ where
         if current.data != value {
             return Err(PathExtenderError::BadEnvFound {
                 env_name: name.to_string(),
-                wanted_value: value.to_string(),
+                current_value: current.data.clone(),
             });
         }
         if current.value_type.eq_ignore_ascii_case(registry_value_type(expandable_string)) {

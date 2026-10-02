@@ -43,7 +43,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     config.enable_global_virtual_store = true;
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.global_virtual_store_dir = config.store_dir.links();
     config.registry = registry.url().to_string();
     let config = config.leak();
@@ -95,6 +95,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -175,6 +176,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -191,7 +193,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
 /// Under GVS, the `virtualStoreDir` value pacquet persists in
 /// `.modules.yaml` must equal the path pnpm writes — i.e.
 /// `<storeDir>/v11/links` — not the project-local `node_modules/.pnpm`
-/// path pacquet keeps internally in [`Config::virtual_store_dir`]. If
+/// path pacquet keeps in [`Config::install_state_dir`]. If
 /// they diverge, the next `pnpm install` reads the manifest, recomputes
 /// `ctx.virtualStoreDir` from the GVS-on path, and trips its
 /// `checkCompatibility` with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR`
@@ -227,12 +229,10 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    // Keep `dirs.virtual_store_dir` at the project-local path. Pacquet's
-    // internal layout consumers still read this field; the parity
-    // requirement is only that the externally-observed value (the one
-    // pnpm sees in `.modules.yaml` / `pnpm:context`) routes through
-    // `global_virtual_store_dir` via `effective_virtual_store_dir`.
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    // The install state stays project-local; the value pnpm sees in
+    // `.modules.yaml` / `pnpm:context` is `Config::virtual_store_dir()`,
+    // the global virtual store.
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     // Source the GVS root from `dirs.store_dir.links()` so the assertion
     // below targets the same v11-suffixed path the
     // [`From<PathBuf> for StoreDir`] impl produces in production. Hard-
@@ -297,6 +297,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()

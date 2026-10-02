@@ -37,22 +37,29 @@ const READ_ONLY_GLOBAL_COMMANDS = new Set([
  * read (`pnpm bin -g`, `pnpm list -g`, `pnpm config get -g`, ...) stay allowed.
  */
 export function sudoBlockedOperation (opts: CheckSudoOptions): string | undefined {
-  const env = opts.env ?? process.env
-  const geteuid = opts.geteuid ?? process.geteuid?.bind(process)
-  if (geteuid == null || geteuid() !== 0) return undefined
-  if (!env.SUDO_USER || env.SUDO_USER === 'root') return undefined
-  const { cmd, cliParams, global: globalFlag, location } = opts
+  if (!isRunningUnderSudo(opts)) return undefined
+  const { cmd, global: globalFlag } = opts
   if (cmd === 'setup' || cmd === 'self-update') return `pnpm ${cmd}`
-  if (cmd === 'config' || cmd === 'set') {
-    const subcommand = cmd === 'set' ? 'set' : cliParams[0]
-    if (subcommand !== 'set' && subcommand !== 'delete') return undefined
-    // Config writes default to the global config file when no `--location`
-    // is given, so gate on the effective scope, not the `--global` flag
-    // alone. Mirrors the scope resolution in the config command handler.
-    const effectiveGlobal = location != null ? location === 'global' : globalFlag !== false
-    return effectiveGlobal ? `pnpm config ${subcommand} --global` : undefined
-  }
+  if (cmd === 'config' || cmd === 'set') return blockedConfigWrite(opts)
   if (globalFlag !== true || cmd == null) return undefined
   if (READ_ONLY_GLOBAL_COMMANDS.has(cmd)) return undefined
   return `pnpm ${cmd} --global`
+}
+
+function isRunningUnderSudo (opts: CheckSudoOptions): boolean {
+  const env = opts.env ?? process.env
+  const geteuid = opts.geteuid ?? process.geteuid?.bind(process)
+  if (geteuid == null || geteuid() !== 0) return false
+  return Boolean(env.SUDO_USER) && env.SUDO_USER !== 'root'
+}
+
+function blockedConfigWrite (opts: CheckSudoOptions): string | undefined {
+  const { cmd, cliParams, global: globalFlag, location } = opts
+  const subcommand = cmd === 'set' ? 'set' : cliParams[0]
+  if (subcommand !== 'set' && subcommand !== 'delete') return undefined
+  // Config writes default to the global config file when no `--location`
+  // is given, so gate on the effective scope, not the `--global` flag
+  // alone. Mirrors the scope resolution in the config command handler.
+  const effectiveGlobal = location != null ? location === 'global' : globalFlag !== false
+  return effectiveGlobal ? `pnpm config ${subcommand} --global` : undefined
 }

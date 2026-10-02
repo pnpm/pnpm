@@ -19,40 +19,19 @@ export interface ProjectSelector {
 }
 
 export function parseProjectSelector (rawSelector: string, prefix: string): ProjectSelector {
-  let exclude = false
-  if (rawSelector[0] === '!') {
-    exclude = true
-    rawSelector = rawSelector.substring(1)
-  }
-  let excludeSelf = false
-  const includeDependencies = rawSelector.endsWith('...')
-  if (includeDependencies) {
-    rawSelector = rawSelector.slice(0, -3)
-    if (rawSelector.endsWith('^')) {
-      excludeSelf = true
-      rawSelector = rawSelector.slice(0, -1)
-    }
-  }
-  const includeDependents = rawSelector.startsWith('...')
-  if (includeDependents) {
-    rawSelector = rawSelector.substring(3)
-    if (rawSelector[0] === '^') {
-      excludeSelf = true
-      rawSelector = rawSelector.slice(1)
-    }
-  }
-  const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
+  const { exclude, excludeSelf, includeDependencies, includeDependents, selector } = parseSelectorModifiers(rawSelector)
+  const matches = selector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
   if (matches === null) {
-    if (isSelectorByLocation(rawSelector)) {
+    if (isSelectorByLocation(selector)) {
       return {
         exclude,
         excludeSelf: false,
-        parentDir: path.join(prefix, rawSelector),
+        parentDir: path.join(prefix, selector),
       }
     }
     return {
       excludeSelf: false,
-      namePattern: rawSelector,
+      namePattern: selector,
     }
   }
 
@@ -65,6 +44,37 @@ export function parseProjectSelector (rawSelector: string, prefix: string): Proj
     namePattern: matches[1],
     parentDir: matches[2] && path.join(prefix, matches[2].slice(1, -1)),
   }
+}
+
+interface SelectorModifiers {
+  exclude: boolean
+  excludeSelf: boolean
+  includeDependencies: boolean
+  includeDependents: boolean
+  selector: string
+}
+
+function parseSelectorModifiers (rawSelector: string): SelectorModifiers {
+  const exclude = rawSelector[0] === '!'
+  let selector = exclude ? rawSelector.substring(1) : rawSelector
+  let excludeSelf = false
+  const includeDependencies = selector.endsWith('...')
+  if (includeDependencies) {
+    selector = selector.slice(0, -3)
+    if (selector.endsWith('^')) {
+      excludeSelf = true
+      selector = selector.slice(0, -1)
+    }
+  }
+  const includeDependents = selector.startsWith('...')
+  if (includeDependents) {
+    selector = selector.substring(3)
+    if (selector[0] === '^') {
+      excludeSelf = true
+      selector = selector.slice(1)
+    }
+  }
+  return { exclude, excludeSelf, includeDependencies, includeDependents, selector }
 }
 
 function isSelectorByLocation (rawSelector: string): boolean {

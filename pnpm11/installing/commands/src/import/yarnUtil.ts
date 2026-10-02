@@ -1,5 +1,5 @@
 /**
- * https://github.com/snyk/nodejs-lockfile-parser/blob/master/lib/parsers/yarn-utils.ts
+ * https://github.com/snyk/nodejs-lockfile-parser/blob/a4557f0015d0299045997b454cea9e91da2501de/lib/parsers/yarn-utils.ts
  */
 import type { structUtils } from '@yarnpkg/core'
 
@@ -9,58 +9,37 @@ const MULTIPLE_KEYS_REGEXP = / *, */
 export type ParseDescriptor = typeof structUtils.parseDescriptor
 export type ParseRange = typeof structUtils.parseRange
 
+type YarnRange = ReturnType<ParseRange>
+
 const keyNormalizer = (
   parseDescriptor: ParseDescriptor,
   parseRange: ParseRange
 ) => (rawDescriptor: string): string[] => {
   // See https://yarnpkg.com/features/protocols
-  const descriptors: string[] = [rawDescriptor]
   const descriptor = parseDescriptor(rawDescriptor)
   const name = `${descriptor.scope ? '@' + descriptor.scope + '/' : ''}${
     descriptor.name
   }`
-  const range = parseRange(descriptor.range)
+  return [rawDescriptor, ...normalizeRange(name, parseRange(descriptor.range))]
+}
+
+function normalizeRange (name: string, range: YarnRange): string[] {
   const protocol = range.protocol
+  if (protocol == null) {
+    return [range.source ? `${name}@${range.source}#${range.selector}` : `${name}@${range.selector}`]
+  }
   switch (protocol) {
     case 'npm:':
     case 'file:':
-      descriptors.push(`${name}@${range.selector}`)
-      descriptors.push(`${name}@${protocol}${range.selector}`)
-      break
+      return [`${name}@${range.selector}`, `${name}@${protocol}${range.selector}`]
     case 'git:':
     case 'git+ssh:':
     case 'git+http:':
     case 'git+https:':
     case 'github:':
-      if (range.source) {
-        descriptors.push(
-          `${name}@${protocol}${range.source}${
-            range.selector ? '#' + range.selector : ''
-          }`
-        )
-      } else {
-        descriptors.push(`${name}@${protocol}${range.selector}`)
-      }
-      break
+      return [range.source ? formatSourceDescriptor(name, range) : `${name}@${protocol}${range.selector}`]
     case 'patch:':
-      if (range.source && range.selector.startsWith(BUILTIN_PLACEHOLDER)) {
-        descriptors.push(range.source)
-      } else {
-        descriptors.push(
-          `${name}@${protocol}${range.source}${
-            range.selector ? '#' + range.selector : ''
-          }`
-        )
-      }
-      break
-    case null:
-    case undefined:
-      if (range.source) {
-        descriptors.push(`${name}@${range.source}#${range.selector}`)
-      } else {
-        descriptors.push(`${name}@${range.selector}`)
-      }
-      break
+      return [range.source && range.selector.startsWith(BUILTIN_PLACEHOLDER) ? range.source : formatSourceDescriptor(name, range)]
     case 'http:':
     case 'https:':
     case 'link:':
@@ -70,10 +49,14 @@ const keyNormalizer = (
     case 'virtual:':
     default:
     // For user defined plugins
-      descriptors.push(`${name}@${protocol}${range.selector}`)
-      break
+      return [`${name}@${protocol}${range.selector}`]
   }
-  return descriptors
+}
+
+function formatSourceDescriptor (name: string, range: YarnRange): string {
+  return `${name}@${range.protocol}${range.source}${
+    range.selector ? '#' + range.selector : ''
+  }`
 }
 
 export type YarnLockFileKeyNormalizer = (fullDescriptor: string) => Set<string>

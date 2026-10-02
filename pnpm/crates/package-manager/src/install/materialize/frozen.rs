@@ -62,6 +62,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 http_client: self.install.context.http_client,
                 pnpmfile_hook: self.resolution.pnpmfile_hook.as_ref(),
                 tarball_mem_cache: Some(&self.downloads.tarball_mem_cache),
+                fetch_caches: self.downloads.fetch_caches.as_ref(),
             },
             lockfiles: self.frozen_lockfiles(scope, lockfile),
             platform: pnpm_deps_restorer::FrozenPlatformOptions {
@@ -109,7 +110,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         );
         let scope = self.workspace.frozen_scope(
             lockfile,
-            self.install.execution.node_linker,
+            self.hoisted_prior(),
             self.groups(lockfile),
             self.install.lockfile_policy.ignore_manifest_check,
         );

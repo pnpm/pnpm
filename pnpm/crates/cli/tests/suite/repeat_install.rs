@@ -124,6 +124,91 @@ fn repeat_install_relinks_a_dangling_direct_dependency() {
     drop((root, mock_instance));
 }
 
+/// A failed optional build leaves the dependency absent, not linked to a
+/// removed directory, so a repeat install has nothing to repair
+/// ([#16468](https://github.com/pnpm/pnpm/issues/16468)).
+#[test]
+fn repeat_install_does_not_rerun_a_failed_optional_build() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "optionalDependencies": { "@pnpm.e2e/failing-postinstall": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  '@pnpm.e2e/failing-postinstall': true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let first = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run the first install");
+    assert!(first.status.success(), "a failing optional build must not fail the install");
+    assert!(String::from_utf8_lossy(&first.stdout).contains("postinstall"));
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/@pnpm.e2e/failing-postinstall")).is_err(),
+        "the failed optional dependency must not stay linked",
+    );
+
+    let second = pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run the repeat install");
+    let stdout = String::from_utf8_lossy(&second.stdout);
+    assert!(second.status.success(), "{stdout}");
+    assert!(stdout.contains("Already up to date"), "{stdout}");
+    assert!(!stdout.contains("postinstall"), "the failed build must not rerun: {stdout}");
+
+    drop((root, mock_instance));
+}
+
+/// An optional dependency's link broken outside pnpm is repaired like any
+/// other direct dependency's.
+#[test]
+fn repeat_install_relinks_a_dangling_optional_dependency() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "optionalDependencies": { "is-positive": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let optional_link = workspace.join("node_modules/is-positive");
+    pnpm_fs::remove_dirent(&optional_link).expect("remove the optional link");
+    pnpm_fs::symlink_dir(&workspace.join("node_modules/.pnpm/is-positive@0.0.0"), &optional_link)
+        .expect("point the optional link at a missing target");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(version_of(&workspace, "node_modules/is-positive"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
 /// TS: `repeat install with no inner lockfile should not rewrite
 /// packages in node_modules` (`deps-installer lockfile.ts:547`).
 #[test]

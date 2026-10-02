@@ -6,9 +6,11 @@ pub use catalog_mode::*;
 pub use command_lockfile::CommandLockfile;
 pub use dependencies_graph_to_lockfile::*;
 pub use fast_update_lockfile::prune_unreachable_packages;
+pub(crate) use hoisted_selection::selected_materialization_ids;
 pub use install::*;
 pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;
+pub use linked_peer_dependencies::linked_peer_dependencies_warning;
 pub use lockfile_diff::*;
 pub use manifest_spec_bumps::{AppliedSpecBumps, ManifestSpecBumps};
 pub use minimum_release_age::{MinimumReleaseAgeError, PolicyExcludes};
@@ -53,9 +55,11 @@ mod fast_update_lockfile;
 mod fast_update_overrides;
 mod fast_update_patched_dependencies;
 mod fast_update_settings;
+mod hoisted_selection;
 mod install;
 mod install_with_fresh_lockfile;
 mod link_manifest_link_deps;
+mod linked_peer_dependencies;
 mod lockfile_diff;
 mod manifest_spec_bumps;
 mod minimum_release_age;
@@ -155,7 +159,7 @@ pub fn report_merged_lockfile_conflicts<Reporter: pnpm_reporter::Reporter>(
 mod tests;
 
 /// The pnpmfiles an install runs, as configured. Every entry point that loads
-/// hooks or asks whether any exist reads the same pair of settings.
+/// hooks or asks whether any exist reads the same settings.
 #[must_use]
 pub fn pnpmfile_selection(
     config: &pnpm_config::Config,
@@ -163,5 +167,8 @@ pub fn pnpmfile_selection(
     pnpm_hooks::finder::PnpmfileSelection {
         configured: config.pnpmfile.as_deref(),
         global: config.global_pnpmfile.as_deref(),
+        config_dependencies: config.config_dependencies
+            .as_ref()
+            .map(|dependencies| dependencies as &dyn pnpm_hooks::finder::ConfigDependencyNames),
     }
 }

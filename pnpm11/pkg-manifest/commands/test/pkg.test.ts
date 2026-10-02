@@ -163,8 +163,7 @@ describe('pkg command', () => {
 
       await expect(handler({ dir: tmpDir }, ['set', '__proto__.polluted=true'])).rejects.toThrow()
       await expect(handler({ dir: tmpDir }, ['set', 'constructor.prototype.polluted=true'])).rejects.toThrow()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(({} as any).polluted).toBeUndefined()
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined()
     })
   })
 
@@ -303,7 +302,7 @@ describe('pkg command', () => {
         return { rootDir, manifest }
       })
       const selectedProjectsGraph = Object.fromEntries(
-        allProjects.map(p => [p.rootDir, { package: p }])
+        allProjects.map((project) => [project.rootDir, { package: project }])
       )
       return { allProjects, selectedProjectsGraph }
     }
@@ -324,6 +323,27 @@ describe('pkg command', () => {
       expect(JSON.parse(result as string)).toEqual({
         'pkg-a': { name: 'pkg-a' },
         'pkg-b': { name: 'pkg-b' },
+      })
+    })
+
+    test('keys projects that share a name by their directory', async () => {
+      const { selectedProjectsGraph } = setupWorkspace({
+        a: { name: 'pkg-a', version: '1.0.0' },
+        b: { name: 'pkg-a', version: '2.3.0' },
+        c: { name: 'pkg-c', version: '0.1.0' },
+      })
+
+      const result = await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        recursive: true,
+        selectedProjectsGraph,
+      }, ['get', 'version'])
+
+      expect(JSON.parse(result as string)).toEqual({
+        a: { version: '1.0.0' },
+        b: { version: '2.3.0' },
+        'pkg-c': { version: '0.1.0' },
       })
     })
 
@@ -372,7 +392,7 @@ describe('pkg command', () => {
         'pkg-c': { name: 'pkg-c', version: '3.0.0' },
       })
       const selected = Object.fromEntries(
-        [allProjects[0], allProjects[2]].map(p => [p.rootDir, selectedProjectsGraph[p.rootDir]])
+        [allProjects[0], allProjects[2]].map((project) => [project.rootDir, selectedProjectsGraph[project.rootDir]])
       )
 
       await handler({

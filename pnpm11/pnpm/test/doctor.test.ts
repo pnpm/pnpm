@@ -6,6 +6,7 @@ import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 
 import { type CheckResult, handler } from '../src/cmd/doctor.js'
+import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
 test('pnpm doctor pings the configured default registry with its credentials', async () => {
   prepare()
@@ -15,10 +16,7 @@ test('pnpm doctor pings the configured default registry with its credentials', a
     res.end('{}')
   })
   try {
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, '127.0.0.1', resolve)
-    })
+    await listenOnLocalhost(server)
     const { port } = server.address() as AddressInfo
     const registry = `http://127.0.0.1:${port}/`
     const { output } = await handler({
@@ -37,12 +35,7 @@ test('pnpm doctor pings the configured default registry with its credentials', a
     expect(connectivity?.detail).toContain(registry)
     expect(authorizationHeaders).toStrictEqual(['Bearer secret'])
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+    await closeServer(server)
   }
 })
 
@@ -53,10 +46,7 @@ test('pnpm doctor fails the connectivity check when the configured registry resp
     res.end()
   })
   try {
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, '127.0.0.1', resolve)
-    })
+    await listenOnLocalhost(server)
     const { port } = server.address() as AddressInfo
     const registry = `http://127.0.0.1:${port}/`
     const { output, exitCode } = await handler({
@@ -75,11 +65,6 @@ test('pnpm doctor fails the connectivity check when the configured registry resp
     expect(connectivity?.detail).toContain(registry)
     expect(exitCode).toBe(1)
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
+    await closeServer(server)
   }
 })

@@ -11,6 +11,19 @@ export interface PackageMeta {
   time?: PackageMetaTime
   modified?: string
   etag?: string
+  /**
+   * The ETag of a full document stored in the abbreviated metadata mirror by
+   * a `minimumReleaseAge` upgrade. Not part of the registry document. The
+   * metadata mirror stores it on the cache-headers line and reattaches it on
+   * read.
+   */
+  fullEtag?: string
+  /**
+   * Set when the registry response forbade caching this document.
+   * Not part of the registry document. The metadata mirror stores it
+   * on the cache-headers line and reattaches it on read.
+   */
+  uncacheable?: boolean
 }
 
 export interface PackageMetaWithTime extends PackageMeta {

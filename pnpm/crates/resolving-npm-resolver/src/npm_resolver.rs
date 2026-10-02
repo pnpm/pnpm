@@ -15,14 +15,15 @@
 //! package map; the path-relative forms (`workspace:./foo`,
 //! `workspace:../bar`) return `Ok(None)` so the local-resolver in the
 //! chain claims them.
+pub use release_policy::detect_min_release_age_violation;
 pub use resolution_result::normalize_tarball_url;
-pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
+pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier, dist_integrity};
 
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
-    CandidateChecks, PickFromRegistryOptions, PickedFromRegistry, RegistryPick,
-    pick_from_registry_with_guard, warn_once_on_trust_downgrade_fallback,
+    PickFromRegistryOptions, PickedFromRegistry, RegistryPick, pick_from_registry_with_guard,
+    warn_once_on_trust_downgrade_fallback,
 };
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
@@ -41,8 +42,7 @@ mod guarded_pick;
 
 mod workspace_pick;
 use workspace_pick::{
-    resolve_workspace_protocol, wanted_spec, workspace_fallback_for, workspace_packages_active,
-    workspace_shadow_pick,
+    resolve_workspace_protocol, wanted_spec, workspace_packages_active, workspace_shadow_pick,
 };
 
 mod store_peek;
@@ -68,10 +68,10 @@ use pnpm_resolving_resolver_base::{
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
     WorkspacePackages, parse_packument_timestamp,
 };
-use pnpm_store_dir::SharedReadonlyStoreIndex;
 use ssri::{Algorithm, Integrity};
 
 use crate::{
+    OfflineStoreView,
     errors::{
         AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
         InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
@@ -126,7 +126,9 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub metadata: RegistryMetadataClient<Cache>,
     pub format: RegistryMetadataFormat,
     pub cache_policy: crate::MetadataCachePolicy,
-    pub store_index: Option<SharedReadonlyStoreIndex>,
+    /// The install's store view, when the store is available. Offline picks
+    /// consult it to prefer versions whose tarball is already stored.
+    pub store_view: Option<OfflineStoreView>,
 }
 
 pub struct RegistryMetadataClient<Cache: PackageMetaCache> {
@@ -233,14 +235,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let optional = wanted_dependency.optional.unwrap_or(false);
         let workspace_packages_active = workspace_packages_active(opts, &spec);
 
-        if let Some(result) = fast_path_pick(
-            self.store_index.as_ref(),
-            wanted_dependency,
-            opts,
-            &spec,
-            workspace_packages_active,
-        )
-        .await?
+        let store_index = self.store_index();
+        if let Some(result) =
+            fast_path_pick(store_index, wanted_dependency, opts, &spec, workspace_packages_active)
+                .await?
         {
             return Ok(Some(result));
         }
@@ -250,14 +248,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             match self.pick_from_registry(&registry, &spec, opts, optional, trust_check).await {
                 Ok(RegistryPick::Picked(picked)) => picked,
                 outcome => {
-                    return workspace_fallback_for(
+                    return self.unpicked_fallback(
                         outcome,
                         wanted_dependency,
                         &registry,
                         workspace_packages_active,
                         &spec,
                         opts,
-                    );
+                    )
+                    .await;
                 }
             };
 
@@ -399,36 +398,19 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         optional: bool,
         trust_check: Option<TrustCheckOptions<'_>>,
     ) -> Result<RegistryPick, ResolveError> {
-        let overlay_selectors =
-            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors = overlay_selectors
-            .as_ref()
-            .or_else(|| opts.version.preferred_versions.get(&spec.name));
-        let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
-
-        let picked = pick_from_registry_with_guard(
-            &ctx,
-            PickFromRegistryOptions {
-                registry,
-                spec,
-                preferred_version_selectors: base_selectors,
-                pick_lowest_version: opts.version.pick_lowest_version,
-                include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
-                checks: crate::npm_resolver::CandidateChecks::new(&opts.policy, trust_check),
-                policy: crate::PackagePickPolicy {
-                    published_by: opts.policy.published_by,
-                    published_by_exclude: opts.policy.published_by_exclude.as_ref(),
-                    trust_policy: opts.policy.trust_policy,
-                },
-                request: crate::MetadataPickRequest {
-                    dry_run: opts.refresh.dry_run,
-                    optional,
-                    update_checksums: opts.refresh.update_checksums
-                        || opts.refresh.update == UpdateBehavior::Patches,
-                },
-            },
-        )
-        .await?;
+        let selectors = crate::preferred_overlay::preferred_selectors(opts, &spec.name);
+        let base_selectors = selectors.as_deref();
+        let ctx =
+            self.metadata.pick_context(&self.format, self.cache_policy, self.store_view.as_ref());
+        let pick_opts = PickFromRegistryOptions::new(
+            registry,
+            spec,
+            opts,
+            base_selectors,
+            optional,
+            trust_check,
+        );
+        let picked = pick_from_registry_with_guard(&ctx, pick_opts).await?;
         if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,
@@ -491,12 +473,14 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
         &'a self,
         format: &'a RegistryMetadataFormat,
         cache_policy: crate::MetadataCachePolicy,
+        store_view: Option<&'a OfflineStoreView>,
     ) -> PickPackageContext<'a, Cache> {
         PickPackageContext {
             full_metadata: format.full_metadata,
             needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
             filter_metadata: format.filter_metadata,
             cache_policy,
+            store_view,
             metadata: crate::MetadataRequestContext {
                 meta_cache: self.meta_cache.as_ref(),
                 fetch_locker: &self.fetch_locker,

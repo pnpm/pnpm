@@ -13,6 +13,8 @@ mod optional_peers;
 
 mod locked_peers;
 
+mod hashed_peer_suffix;
+
 use std::{
     str::FromStr,
     sync::{Arc, Mutex},

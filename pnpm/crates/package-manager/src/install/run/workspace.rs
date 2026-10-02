@@ -309,14 +309,14 @@ impl<'w> InstallScope<'w> {
     // project even when only a subset is selected), and it refuses a
     // workspace state a filtered install wrote, so "nothing changed"
     // still means every selected project is materialized.
-    pub(super) fn is_already_up_to_date<Reporter: self::Reporter>(
+    pub(super) fn is_already_up_to_date(
         &self,
         install: InstallView<'_>,
         owned: &InstallOwned,
         mode: &RunMode,
         workspace: &InstallWorkspace<'_>,
     ) -> Result<bool, InstallError> {
-        install_is_already_up_to_date::<Reporter>(&UpToDateCheck {
+        install_is_already_up_to_date(&UpToDateCheck {
             workspace: super::super::OptimisticRepeatInstallCheck {
                 config: install.context.config,
                 workspace_root: &workspace.dirs.workspace_root,
@@ -336,9 +336,9 @@ impl<'w> InstallScope<'w> {
             mutation: install.execution.mutation,
             update_seed_policy: &owned.resolution.update_seed_policy,
             frozen_lockfile: install.lockfile_policy.frozen,
+            resolve_only: mode.resolve_only,
             disable_optimistic_repeat_install: install.lockfile_policy.disable_optimistic_repeat,
             effective_node_version: mode.effective_node_version.as_deref(),
-            prefix: &workspace.prefix,
         })
     }
 }

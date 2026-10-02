@@ -21,8 +21,8 @@ import normalize from 'normalize-path'
 import { temporaryDirectory } from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
-const f = fixtures(import.meta.dirname)
-const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
+const testFixtures = fixtures(import.meta.dirname)
+const IS_POSITIVE_TARBALL = testFixtures.find('is-positive-1.0.0.tgz')
 
 const registriesByScope = { default: registry }
 
@@ -111,7 +111,7 @@ test('a custom fetcher is selected once per request, not re-picked on the fetch 
       return resolution.type == null && typeof resolution.tarball === 'string'
     },
     // Delegate the actual fetch to the standard remote-tarball fetcher.
-    fetch: async (cafs: any, resolution: any, opts: any, fetchers: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+    fetch: async (cafs: any, resolution: any, opts: any, fetchers: any) => // eslint-disable-line @typescript-eslint/no-explicit-any -- the test only forwards these arguments to the remote tarball fetcher
       fetchers.remoteTarball(cafs, resolution, opts),
   }]
   const requestPackage = createPackageRequester({
@@ -231,7 +231,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   const projectDir = temporaryDirectory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   const tarballRelativePath = path.relative(projectDir, tarballPath)
-  f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
+  testFixtures.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballRelativePath}`
   const wantedPackage = { bareSpecifier: tarball }
   const storeDir = temporaryDirectory()
@@ -272,11 +272,11 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
-  f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
+  testFixtures.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
   await delay(50)
 
   {
@@ -302,7 +302,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching!()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -370,7 +370,7 @@ test('refetch local tarball if its integrity has changed', async () => {
 test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {
   const projectDir = temporaryDirectory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
-  f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
+  testFixtures.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballPath}`
   const wantedPackage = { bareSpecifier: tarball }
   const storeDir = path.join(projectDir, 'store')
@@ -400,11 +400,11 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 
-  f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
+  testFixtures.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
   await delay(50)
 
   {
@@ -423,7 +423,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.resolvedFrom).toBe('remote')
+    expect(files.resolvedFrom).toBe('local-dir')
     expect(bundledManifest).toBeTruthy()
   }
 

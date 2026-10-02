@@ -28,6 +28,7 @@ fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: Depl
     };
     config.workspace_dir = deploy_dir.to_path_buf().into();
     config.inject_workspace_packages = false;
+    config.isolate_local_directory_imports = true;
     config.overrides = None;
     config.package_extensions = None;
     config.config_dependencies = None;
@@ -117,13 +118,13 @@ pub(super) fn create_deploy_install_config(
 ) -> Config {
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
-    deploy_config.virtual_store_dir = deploy_virtual_store_dir(base_config, deploy_dir);
+    deploy_config.install_state_dir = deploy_virtual_store_dir(base_config, deploy_dir);
     // The deploy directory owns the lockfile this install runs against —
     // the generated one for a shared deploy, its own resolution for the
     // legacy path. A `lockfileDir` pinning the *source* workspace's
     // lockfile must not redirect either.
     deploy_config.lockfile_dir = None;
-    deploy_config.global_virtual_store_dir = deploy_config.virtual_store_dir.clone();
+    deploy_config.global_virtual_store_dir = deploy_config.install_state_dir.clone();
     deploy_config.enable_global_virtual_store = false;
     deploy_config.pnpr_server = None;
     deploy_config.optimistic_repeat_install = false;
@@ -204,7 +205,8 @@ impl DeployArgs {
             base_install.lockfile_policy.disable_optimistic_repeat = true;
             base_install.execution.skip_runtimes =
                 config.skip_runtimes || self.install_args.materialization.no_runtime;
-            base_install.resolution.preferred_versions_override = preferred_versions_override;
+            base_install.resolution.preferred_versions_override =
+                preferred_versions_override.map(Into::into);
             base_install.context.lockfile_path = lockfile_path.as_deref();
             base_install.projects.supported_architectures = supported_architectures;
             base_install.projects.pnpmfile_hook_override = pnpmfile_hook;

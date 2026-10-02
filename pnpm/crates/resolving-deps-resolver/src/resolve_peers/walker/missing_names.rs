@@ -1,19 +1,17 @@
-use super::{
-    AncestorIds, Arc, BTreeMap, ChildEdge, HashMap, HashSet, MissingSummary, NodeId, ResolvedTree,
-};
+use super::{Arc, BTreeMap, ChildEdge, HashMap, HashSet, MissingSummary, NodeId, ResolvedTree};
 
 /// The resolved peers an ancestor still has to satisfy: the ones this node
 /// did not itself provide a child for.
 pub(super) fn external_peers_to_report(
     all_resolved_peers: &HashMap<String, NodeId>,
     children_map: &BTreeMap<String, NodeId>,
-    discovery_children: Option<&(Arc<Vec<ChildEdge>>, AncestorIds)>,
+    discovery_children: Option<&Arc<Vec<ChildEdge>>>,
 ) -> HashMap<String, NodeId> {
     all_resolved_peers
         .iter()
         .filter(|(peer_alias, _)| {
             !children_map.contains_key(peer_alias.as_str())
-                && discovery_children.is_none_or(|(children, _)| {
+                && discovery_children.is_none_or(|children| {
                     !children
                         .iter()
                         .any(|edge| edge.alias == **peer_alias)
@@ -53,7 +51,7 @@ impl<'a> MissingNames<'a> {
 /// Strongly-connected-component ids over the recorded children graph.
 /// Iterative Tarjan, mirroring the peer-graph variant in the finalize
 /// pass, so deep graphs cannot overflow the call stack.
-pub(super) fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
+pub(crate) fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> {
     let (node_ids, adjacency) = children_graph_adjacency(tree);
     let mut pass = SccPass::new(adjacency);
     pass.run();

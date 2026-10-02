@@ -24,7 +24,7 @@ use pnpm_config::{
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_npm_resolver::{
     CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
-    PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
+    PackageMetaCache, VerifierLookups, create_npm_resolution_verifier, merge_named_registries,
 };
 use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
@@ -78,6 +78,9 @@ pub enum BuildVerifiersError {
 /// `observed_dist_stats` is the optional [`ObservedDistStats`] sink
 /// the npm verifier fills with each verified entry's `dist` work
 /// statistics; pass `None` when the caller has no use for them.
+///
+/// `lookups` shares the npm verifier's registry lookups with the
+/// verifiers of other installs; see [`VerifierLookups`].
 pub fn build_resolution_verifiers(
     config: &Config,
     http_client: Arc<ThrottledClient>,
@@ -85,6 +88,7 @@ pub fn build_resolution_verifiers(
     auth_override: Option<Arc<AuthHeaders>>,
     observed_dist_stats: Option<ObservedDistStats>,
     planned_canonical_fetches: Option<PlannedCanonicalFetches>,
+    lookups: Option<VerifierLookups>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
 
@@ -122,6 +126,7 @@ pub fn build_resolution_verifiers(
         artifacts: pnpm_resolving_npm_resolver::VerificationArtifacts {
             observed_stats: observed_dist_stats,
             canonical_fetches: planned_canonical_fetches,
+            lookups,
         },
     };
 

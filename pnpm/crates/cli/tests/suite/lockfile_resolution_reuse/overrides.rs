@@ -123,7 +123,7 @@ fn exact_override_update_reuses_the_locked_children() {
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(
+    let current = pnpm_lockfile::Lockfile::load_current_from_install_state_dir(
         &fixture.workspace.join("node_modules/.pnpm"),
     )
     .expect("load current lockfile")
@@ -196,7 +196,7 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(&workspace.join(
+    let current = pnpm_lockfile::Lockfile::load_current_from_install_state_dir(&workspace.join(
         "node_modules/.pnpm",
     ))
     .expect("load current lockfile")
@@ -558,4 +558,63 @@ fn config_drift_full_resolve_keeps_still_satisfied_pins() {
     );
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn an_aliasing_override_survives_a_re_resolve_of_the_locked_child() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let manifest_path = fixture.workspace.join("package.json");
+    let workspace_yaml_path = fixture.workspace.join("pnpm-workspace.yaml");
+    let write_manifest = |dep_version: &str| {
+        fs::write(
+            &manifest_path,
+            serde_json::json!({
+                "dependencies": {
+                    "@pnpm.e2e/dep-of-pkg-with-1-dep": dep_version,
+                    "@pnpm.e2e/foobar": "100.0.0"
+                }
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+    };
+    write_manifest("100.0.0");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        format!(
+            "{workspace_yaml}overrides:\n  '@pnpm.e2e/foo@*': npm:@pnpm.e2e/pkg-with-1-dep@100.0.0\n",
+        ),
+    )
+    .expect("write aliasing override");
+    pacquet_at(&fixture.workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // The aliased package depends on the bumped direct dependency, so its
+    // locked subtree cannot be reused and the child resolves again.
+    write_manifest("100.1.0");
+    pacquet_at(&fixture.workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let foobar_key = "@pnpm.e2e/foobar@100.0.0".parse().expect("foobar key");
+    let foo_name = "@pnpm.e2e/foo".parse().expect("foo name");
+    let foo_ref = wanted.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&foobar_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|dependencies| dependencies.get(&foo_name))
+        .expect("locked foo edge of foobar");
+    assert_eq!(foo_ref.to_string(), "@pnpm.e2e/pkg-with-1-dep@100.0.0");
+    let packages = wanted.packages.as_ref().expect("locked packages");
+    assert!(!packages.contains_key(&"@pnpm.e2e/foo@100.0.0".parse().expect("foo key")));
+
+    drop(fixture);
 }

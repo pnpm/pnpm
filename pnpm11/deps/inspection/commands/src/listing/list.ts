@@ -50,32 +50,7 @@ For example: pnpm ls babel-* eslint-*',
       {
         title: 'Options',
 
-        list: [
-          ...SHARED_CLI_HELP_OPTIONS,
-          {
-            description: 'Max display depth of the dependency tree',
-            name: '--depth <number>',
-          },
-          {
-            description: 'Display only direct dependencies',
-            name: '--depth 0',
-          },
-          {
-            description: 'Display only projects. Useful in a monorepo. `pnpm ls -r --depth -1` lists all projects in a monorepo',
-            name: '--depth -1',
-          },
-          {
-            description: 'Display only dependencies that are also projects within the workspace',
-            name: '--only-projects',
-          },
-          {
-            description: 'List packages from the lockfile only, without checking node_modules.',
-            name: '--lockfile-only',
-          },
-          EXCLUDE_PEERS_HELP,
-          OPTIONS.globalDir,
-          ...UNIVERSAL_OPTIONS,
-        ],
+        list: getListHelpOptions(),
       },
       FILTERING,
     ],
@@ -84,6 +59,35 @@ For example: pnpm ls babel-* eslint-*',
       'pnpm ls [<pkg> ...]',
     ],
   })
+}
+
+function getListHelpOptions (): Array<{ description: string, name: string }> {
+  return [
+    ...SHARED_CLI_HELP_OPTIONS,
+    {
+      description: 'Max display depth of the dependency tree',
+      name: '--depth <number>',
+    },
+    {
+      description: 'Display only direct dependencies',
+      name: '--depth 0',
+    },
+    {
+      description: 'Display only projects. Useful in a monorepo. `pnpm ls -r --depth -1` lists all projects in a monorepo',
+      name: '--depth -1',
+    },
+    {
+      description: 'Display only dependencies that are also projects within the workspace',
+      name: '--only-projects',
+    },
+    {
+      description: 'List packages from the lockfile only, without checking node_modules.',
+      name: '--lockfile-only',
+    },
+    EXCLUDE_PEERS_HELP,
+    OPTIONS.globalDir,
+    ...UNIVERSAL_OPTIONS,
+  ]
 }
 
 export type ListCommandOptions = Pick<Config,
@@ -119,49 +123,7 @@ export async function handler (
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.global && opts.globalPkgDir) {
-    if (depth > 0) {
-      const allInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, [])
-      if (allInstallDirs.length === 1) {
-        // Single global install: delegate with params unchanged so
-        // listForPackages can search across the whole tree (including
-        // transitive deps), matching regular `pnpm ls` semantics.
-        return render([allInstallDirs[0]], params, {
-          ...opts,
-          depth,
-          include,
-          lockfileDir: allInstallDirs[0],
-          checkWantedLockfileOnly: opts.lockfileOnly,
-          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
-        })
-      }
-      // Multiple installs — try to narrow to a single one via params,
-      // matching against top-level aliases of each install group.
-      const matchingInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, params)
-      if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {
-        throw new PnpmError('GLOBAL_LS_DEPTH_NOT_SUPPORTED',
-          'Cannot list a merged dependency tree across multiple global packages. ' +
-          'Each global package is installed in an isolated directory with its own lockfile, ' +
-          'so transitive dependencies cannot be coherently merged. ' +
-          'Filter to a single global package by its top-level name, or omit --depth.')
-      }
-      if (matchingInstallDirs.length === 1) {
-        // Drop params: they served their purpose of narrowing to a single
-        // install group. Passing them through to `render` would activate
-        // search semantics, which prune the matched package's children.
-        return render([matchingInstallDirs[0]], [], {
-          ...opts,
-          depth,
-          include,
-          lockfileDir: matchingInstallDirs[0],
-          checkWantedLockfileOnly: opts.lockfileOnly,
-          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
-        })
-      }
-    }
-    return listGlobalPackages(opts.globalPkgDir, params, {
-      long: opts.long,
-      reportAs: determineReportAs(opts),
-    })
+    return listGlobal(opts, params, { depth, globalPkgDir: opts.globalPkgDir, include })
   }
   const workspaceProjectDirs = opts.allProjects?.map(({ rootDir }) => rootDir)
   const workspaceProjectPublishDirs = getWorkspaceProjectPublishDirs(opts.allProjects ?? [])
@@ -187,6 +149,66 @@ export async function handler (
     workspaceProjectDirs,
     workspaceProjectPublishDirs,
   })
+}
+
+interface GlobalListContext {
+  depth: number
+  globalPkgDir: string
+  include: IncludedDependencies
+}
+
+async function listGlobal (
+  opts: ListCommandOptions,
+  params: string[],
+  ctx: GlobalListContext
+): Promise<string> {
+  if (ctx.depth > 0) {
+    const installDirToRender = pickGlobalInstallDirForDepth(ctx.globalPkgDir, params)
+    if (installDirToRender != null) {
+      return render([installDirToRender.installDir], installDirToRender.params, {
+        ...opts,
+        depth: ctx.depth,
+        include: ctx.include,
+        lockfileDir: installDirToRender.installDir,
+        checkWantedLockfileOnly: opts.lockfileOnly,
+        onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+      })
+    }
+  }
+  return listGlobalPackages(ctx.globalPkgDir, params, {
+    long: opts.long,
+    reportAs: determineReportAs(opts),
+  })
+}
+
+function pickGlobalInstallDirForDepth (
+  globalPkgDir: string,
+  params: string[]
+): { installDir: string, params: string[] } | undefined {
+  const allInstallDirs = findGlobalInstallDirs(globalPkgDir, [])
+  if (allInstallDirs.length === 1) {
+    // Single global install: delegate with params unchanged so
+    // listForPackages can search across the whole tree (including
+    // transitive deps), matching regular `pnpm ls` semantics.
+    return { installDir: allInstallDirs[0], params }
+  }
+  // Multiple installs — try to narrow to a single one via params,
+  // matching against top-level aliases of each install group.
+  const matchingInstallDirs = findGlobalInstallDirs(globalPkgDir, params)
+  if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {
+    throw new PnpmError('GLOBAL_LS_DEPTH_NOT_SUPPORTED',
+      'Cannot list a merged dependency tree across multiple global packages. ' +
+      'Each global package is installed in an isolated directory with its own lockfile, ' +
+      'so transitive dependencies cannot be coherently merged. ' +
+      'Filter to a single global package by its top-level name, or omit --depth.')
+  }
+  if (matchingInstallDirs.length === 1) {
+    // Drop params: they served their purpose of narrowing to a single
+    // install group. Passing them through to `render` would activate
+    // search semantics, which prune the matched package's children.
+    return { installDir: matchingInstallDirs[0], params: [] }
+  }
+  return undefined
 }
 
 /**

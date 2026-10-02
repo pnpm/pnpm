@@ -114,7 +114,7 @@ fn recorded_modules(config: &Config, node_linker: NodeLinker) -> ModulesLayout {
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -162,7 +162,7 @@ fn short_circuits_over_a_bin(
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = project_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     let config: &'static Config = config.leak();
     let bin_dir = project_root.join(bin_dir);
     fs::create_dir_all(&bin_dir).expect("create the bin dir");
@@ -196,7 +196,7 @@ fn short_circuits_over_allow_builds(
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = project_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     config.allow_builds = configured
         .iter()
         .map(|(spec, allowed)| ((*spec).to_string(), *allowed))
@@ -336,7 +336,7 @@ fn moved_tree_is_reusable_over(
     let project_root = dir.path().join("project");
     let mut config = Config::new();
     config.modules_dir = project_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
     fs::create_dir_all(&config.modules_dir).expect("create the modules dir");
     fs::write(config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME), modules_yaml)
         .expect("write the modules manifest");

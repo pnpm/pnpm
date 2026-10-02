@@ -2,10 +2,10 @@ use super::{
     Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, DirectDep, FrontierNode, HashMap, HashSet,
     NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
     RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
-    SkippedOptionalDependencyParent, TreeCtx, catalogs_for_children, claim_children_owner,
-    extract_peer_dependencies, insert_tree_node, is_current_children_owner, lazy_children,
+    SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
+    claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
     lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names, remember_node_parent_ids,
+    register_peer_dep_names,
 };
 
 /// Settle children ownership across every occurrence one level seeded.
@@ -31,7 +31,7 @@ pub(super) fn assign_level_owners<'seed>(
     let winners: Vec<usize> = {
         let mut best: HashMap<&str, usize> = HashMap::default();
         for (index, pending) in level.iter().enumerate() {
-            let best_so_far = *best.entry(pending.identity.id.as_str()).or_insert(index);
+            let best_so_far = *best.entry(&pending.identity.id).or_insert(index);
             let standing = &level[best_so_far];
             // Depth joins the comparison even though one level shares
             // it, so this cannot drift from [`ChildrenOwner::wins_over`]
@@ -39,7 +39,7 @@ pub(super) fn assign_level_owners<'seed>(
             if (standing.ancestry.depth, &standing.ancestry.parent_ancestors)
                 > (pending.ancestry.depth, &pending.ancestry.parent_ancestors)
             {
-                best.insert(pending.identity.id.as_str(), index);
+                best.insert(&pending.identity.id, index);
             }
         }
         let mut winners: Vec<usize> = best.into_values().collect();
@@ -81,7 +81,7 @@ pub(super) fn install_owner_peer_dependencies(
         catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
-    let Some(existing) = packages.get_mut(pending.identity.id.as_str()) else { return Ok(()) };
+    let Some(existing) = packages.get_mut(&pending.identity.id) else { return Ok(()) };
     if existing.peer_dependencies == peer_dependencies {
         return Ok(());
     }
@@ -97,8 +97,7 @@ pub(super) fn install_owner_peer_dependencies(
 ///
 /// An occurrence walks only when it owns its package's children and
 /// nothing has recorded them under its context; every other one reads
-/// them from the owner's recording, under its own `parent_ids` cycle
-/// break.
+/// them from the owner's recording.
 pub(super) fn settle_seeds(
     ctx: &TreeCtx,
     seeds: Vec<NodeSeed>,
@@ -114,16 +113,11 @@ pub(super) fn settle_seeds(
         // an empty `Realized` map: a linked node has no children of its
         // own here.
         if pending.is_link {
-            insert_walked_node(
-                ctx,
-                &pending,
-                crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(BTreeMap::new())),
-            );
+            insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
             continue;
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
             continue;
         };
         if !pending.resolves_children_through_catalogs
@@ -133,8 +127,7 @@ pub(super) fn settle_seeds(
                 &children_context(ctx, &pending, &claim),
             )
         {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
             continue;
         }
         frontier.push(FrontierNode {
@@ -195,9 +188,9 @@ pub(super) fn record_walked_children(
     claim: &ChildrenOwnerClaim,
     child_specs: &[ChildSpec],
     seeds: &[NodeSeed],
-) -> (crate::resolved_tree::TreeChildren, bool) {
+) -> (TreeChildren, bool) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
-        return (lazy_children(&pending.ancestry.parent_ancestors), false);
+        return (TreeChildren::Lazy, false);
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
@@ -212,7 +205,7 @@ pub(super) fn record_walked_children(
             .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
-            pkg_id: Arc::from(dep.id),
+            pkg_id: dep.id,
             optional,
         });
         realized.insert(dep.alias, dep.node_id);
@@ -224,7 +217,7 @@ pub(super) fn record_walked_children(
         by_id,
         children_context(ctx, pending, claim),
     )
-    .into_children(realized, &pending.ancestry.parent_ancestors)
+    .into_children(realized)
 }
 
 /// The edge one seed contributes to its parent's children. `None` for
@@ -235,7 +228,7 @@ pub(super) fn seeded_dep(seed: &NodeSeed) -> Option<DirectDep> {
         NodeSeed::Pending(pending) => Some(DirectDep {
             alias: pending.identity.alias.clone(),
             node_id: pending.identity.node_id.clone(),
-            id: pending.identity.id.clone(),
+            id: Arc::clone(&pending.identity.id),
         }),
     }
 }
@@ -249,7 +242,9 @@ pub(super) fn children_context(
 ) -> RecordedChildrenContext {
     RecordedChildrenContext {
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
-        prior_key: pending.prior_key.clone(),
+        prior_key: pending.prior_key
+            .clone()
+            .filter(|_| !ctx.update_scope().unpins_every_edge()),
         update_active: !matches!(ctx.update_reuse_scope(), super::super::UpdateReuseScope::All),
     }
 }
@@ -263,17 +258,8 @@ pub(super) fn children_context(
 /// are unique by construction, so that only ever fires for leaves.
 /// Linked nodes carry `depth = -1` so the peer-resolution pass
 /// short-circuits them.
-pub(super) fn insert_walked_node(
-    ctx: &TreeCtx,
-    pending: &PendingNode,
-    children: crate::resolved_tree::TreeChildren,
-) {
+pub(super) fn insert_walked_node(ctx: &TreeCtx, pending: &PendingNode, children: TreeChildren) {
     let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
-    remember_node_parent_ids(
-        ctx,
-        &pending.identity.node_id,
-        Arc::clone(&pending.ancestry.parent_ancestors),
-    );
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 
@@ -305,8 +291,8 @@ pub(in super::super) fn level_versions(
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
             NodeSeed::Done(Some(dep)) => packages
-                .get(dep.id.as_str())
-                .and_then(|pkg| pkg.result.package.name_ver.as_ref()),
+                .get(&dep.id)
+                .and_then(|pkg| pkg.result().package.name_ver.as_ref()),
             NodeSeed::Done(None) => None,
         };
         let Some(name_ver) = name_ver else { continue };
@@ -325,17 +311,17 @@ pub(in super::super) fn level_versions(
 /// counterpart of pnpm's `getPkgsInfoFromIds`).
 pub(super) fn pkgs_info_from_ids(
     ctx: &TreeCtx,
-    ancestor_ids: &[String],
+    ancestor_ids: &[Arc<str>],
 ) -> Vec<SkippedOptionalDependencyParent> {
     let packages = lock_recoverable(&ctx.workspace.tree.packages);
     ancestor_ids
         .iter()
         .map(|id| {
             let name_ver = packages
-                .get(id.as_str())
-                .and_then(|pkg| pkg.result.package.name_ver.as_ref());
+                .get(id)
+                .and_then(|pkg| pkg.result().package.name_ver.as_ref());
             SkippedOptionalDependencyParent {
-                id: id.clone(),
+                id: id.to_string(),
                 name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),
                 version: name_ver.map(|name_ver| name_ver.suffix.to_string()).unwrap_or_default(),
             }

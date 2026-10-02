@@ -2,13 +2,15 @@
 
 use super::{
     Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
-    OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
+    OptimisticRepeatInstallCheck, Path, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
-    first_project_missing_modules_dir, first_setting_drift, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches,
+    first_project_missing_modules_dir, first_selected_project_missing_from_current_lockfile,
+    first_selected_project_missing_modules_dir, first_setting_drift,
+    modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
+    project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now, relocated_state},
-    update_workspace_state,
+    update_workspace_state, wanted_lockfile_file_has_content,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -41,10 +43,17 @@ pub enum RunDepsStatus {
 /// `state` arrives from the caller, which already had to load it to
 /// decide whether a check is possible at all (a missing state is
 /// "Cannot check whether dependencies are outdated").
+///
+/// `selected_project_dirs` are the project directories the gated command
+/// selected. A state that records a filtered install exempts the projects
+/// that install did not select from the modules-directory requirement, but
+/// the selected ones are still held to it; an empty selection keeps that
+/// exemption for every project.
 #[must_use]
 pub fn check_deps_status_before_run(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
 ) -> RunDepsStatus {
     let install_args = install_args_from_state(state);
     let outdated =
@@ -56,7 +65,7 @@ pub fn check_deps_status_before_run(
     let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
     let moved = relocated.is_some();
     let state = relocated.as_ref().unwrap_or(state);
-    if let Some(issue) = first_static_drift(check, state, moved) {
+    if let Some(issue) = first_static_drift(check, state, moved, selected_project_dirs) {
         return outdated(issue);
     }
 
@@ -112,9 +121,10 @@ fn first_static_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     moved: bool,
+    selected_project_dirs: &[&Path],
 ) -> Option<String> {
     first_lockfile_or_setting_drift(check, state)
-        .or_else(|| first_workspace_drift(check, state, moved))
+        .or_else(|| first_workspace_drift(check, state, moved, selected_project_dirs))
 }
 
 fn first_lockfile_or_setting_drift(
@@ -136,13 +146,17 @@ fn first_lockfile_or_setting_drift(
     if let Some(reason) = lockfile_conflict_drift(check, state.last_validated_timestamp) {
         return Some(reason);
     }
+    let mut ignored_workspace_state_settings = vec!["dev", "optional", "production"];
+    if install_would_run_frozen(check) {
+        ignored_workspace_state_settings.push("autoDedupe");
+    }
     if let Some(setting) = first_setting_drift(
         state,
         config,
         node_linker,
         included,
         supported_architectures,
-        &["dev", "optional", "production"],
+        &ignored_workspace_state_settings,
     ) {
         return Some(format!("The value of the {setting} setting has changed"));
     }
@@ -155,12 +169,27 @@ fn first_lockfile_or_setting_drift(
     None
 }
 
+/// Whether the `pnpm install` this gate spawns would run with a frozen
+/// lockfile, the way `InstallArgs::resolve_frozen_lockfile` decides it: on CI
+/// an install whose lockfile is present and non-empty is frozen unless
+/// `preferFrozenLockfile` is off, and an absent or empty lockfile re-resolves
+/// either way. A frozen install never re-resolves, so it cannot record the
+/// dedupe baseline a pending `autoDedupe` setting asks for: the gate would
+/// spawn an install before every script and never settle
+/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+fn install_would_run_frozen(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let config = check.config;
+    config.frozen_lockfile.unwrap_or(config.ci && config.prefer_frozen_lockfile)
+        && wanted_lockfile_file_has_content(check.workspace_root, config)
+}
+
 /// A `moved` tree leaves its patches to the content proof, as the install
 /// fast path does.
 fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     moved: bool,
+    selected_project_dirs: &[&Path],
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -172,18 +201,12 @@ fn first_workspace_drift(
     if !project_structure_matches(state, project_manifests) {
         return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
-    // A filtered install legitimately leaves unselected projects
-    // without a modules directory.
-    if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(check)
-    {
-        return Some(format!(
-            "Workspace package {id} has dependencies but does not have a modules directory",
-        ));
+    if let Some(issue) = first_uninstalled_project(check, state, selected_project_dirs) {
+        return Some(issue);
     }
     if !is_workspace_install
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+        && !current_lockfile_file_has_content(&config.install_state_dir)
     {
         return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
     }
@@ -191,6 +214,36 @@ fn first_workspace_drift(
         return Some("Patches were modified".to_string());
     }
     pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
+}
+
+/// The issue for the first project the gated command needs installed that
+/// is not.
+///
+/// A filtered install legitimately leaves the projects it did not select
+/// uninstalled, so a state that records one exempts them. The projects the
+/// gated command selected are still held to it: without that, a filtered run
+/// or exec could select a project the filtered install never materialized and
+/// run it without its dependencies
+/// (<https://github.com/pnpm/pnpm/issues/11865>). Their modules directories
+/// alone do not prove that, so they must also be importers of the current
+/// lockfile.
+fn first_uninstalled_project(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
+) -> Option<String> {
+    let missing_modules_dir = |id: String| {
+        format!("Workspace package {id} has dependencies but does not have a modules directory")
+    };
+    if !state.filtered_install {
+        return first_project_missing_modules_dir(check, state).map(missing_modules_dir);
+    }
+    first_selected_project_missing_modules_dir(check, state, selected_project_dirs)
+        .map(missing_modules_dir)
+        .or_else(|| {
+            first_selected_project_missing_from_current_lockfile(check, selected_project_dirs)
+                .map(|id| format!("Workspace package {id} has dependencies but was not installed"))
+        })
 }
 
 /// The verdict the gate can already reach from what the current lockfile
@@ -287,7 +340,7 @@ pub(crate) fn missing_wanted_lockfile_stand_in_ok(
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
         return Ok(());
     }
-    match Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir) {
+    match Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir) {
         Ok(Some(_)) => Ok(()),
         Ok(None) => Err(format!("Cannot find a lockfile in {}", check.workspace_root.display())),
         Err(_) => Err("the current lockfile cannot be loaded".to_string()),

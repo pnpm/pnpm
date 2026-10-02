@@ -11,6 +11,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
+    ffi::OsString,
     fs, io,
     os::unix::process::ExitStatusExt,
     path::Path,
@@ -19,6 +20,9 @@ use std::{
     thread::{self, sleep},
     time::{Duration, Instant},
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
 
 /// How long a script is given to shut down before the test gives up. Well
 /// past the second the fixtures take, and short enough to report a stuck
@@ -185,6 +189,109 @@ fn ctrl_c_interrupts_the_script_once() {
     drop(root);
 }
 
+/// A nested `pnpm run` keeps a shell as the script's parent. dash holds the
+/// terminal's `SIGINT` until that command exits, so pnpm's status is the
+/// script's own status
+/// (<https://github.com/pnpm/pnpm/issues/9945>).
+#[test]
+fn a_nested_run_keeps_the_scripts_exit_status_after_ctrl_c() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let path = path_with_the_tested_pnpm(&pacquet, root.path());
+    write_project_running(&workspace, "test", "node dev.js", GRACEFUL_SCRIPT);
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "start": "node dev.js",
+            "start:with-bug": "pnpm run start",
+        },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(
+        pacquet
+            .with_env("PATH", path)
+            .with_args(["--config.verify-deps-before-run=false", "run", "start:with-bug"]),
+    );
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited\n{output}",
+    );
+    assert!(
+        !output.contains("ELIFECYCLE"),
+        "a script that shut down cleanly is not a lifecycle failure\n{output}",
+    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too\n{output}");
+
+    drop(root);
+}
+
+/// After a command handles a terminal `SIGINT`, the rest of the script runs
+/// in every shell, as bash runs it. dash on its own would die from the
+/// signal.
+#[test]
+fn ctrl_c_handled_by_a_command_lets_the_rest_of_the_script_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js && echo > after.txt", GRACEFUL_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "run",
+        "dev",
+    ]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert!(
+        workspace.join("after.txt").exists(),
+        "the command after the interrupted one must run\n{output}",
+    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too\n{output}");
+
+    drop(root);
+}
+
+/// The same shell, when the script never handles `SIGINT`, still ends
+/// pnpm with that signal. The child's status is a real interrupt, and
+/// pnpm reports it.
+#[test]
+fn ctrl_c_still_reports_a_script_the_shell_could_not_keep_alive() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js", LINGERING_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "run",
+        "dev",
+    ]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert_eq!(
+        status.signal(),
+        Some(libc::SIGINT),
+        "an unhandled interrupt still ends pnpm with SIGINT\n{output}",
+    );
+    assert!(
+        output.contains("[ELIFECYCLE] Command failed with signal SIGINT."),
+        "an unhandled interrupt is still a lifecycle failure\n{output}",
+    );
+
+    drop(root);
+}
+
 /// Without a terminal, the shell running the script may stay its parent
 /// (dash does) and then keeps a relayed `SIGINT` to itself until its
 /// child exits. pnpm signals the script's whole process group instead,
@@ -218,6 +325,41 @@ fn a_termination_without_a_terminal_reaches_the_script_behind_its_shell() {
     write_project_running(&workspace, "test", "node dev.js", SIGNAL_SCRIPT);
 
     let mut process = spawn_without_terminal(pacquet.with_args(["run", "dev"]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    signal(&process, libc::SIGTERM);
+    wait_for_shutdown(&mut process);
+
+    assert!(
+        workspace.join("shut-down.txt").exists(),
+        "the script must have finished shutting down before pnpm exited",
+    );
+
+    drop(root);
+}
+
+/// As a container's PID 1, pnpm adopts the processes whose parent died. A
+/// relayed `SIGTERM` ends both shells of a nested `pnpm run` at once, so the
+/// script becomes a child of the outer pnpm and stays a zombie in the inner
+/// pnpm's process group until the outer pnpm reaps it. The inner pnpm must
+/// not wait for that zombie, or neither pnpm ever exits.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_nested_run_ends_after_a_termination_when_pnpm_adopts_the_orphans() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let path = path_with_the_tested_pnpm(&pacquet, root.path());
+    fs::write(workspace.join("dev.js"), SIGNAL_SCRIPT).expect("write the script");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "dev": "node dev.js", "nested": "pnpm run dev" },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    let mut command = pacquet
+        .with_env("PATH", path)
+        .with_args(["--config.verify-deps-before-run=false", "run", "nested"]);
+    adopt_orphans(&mut command);
+    let mut process = spawn_without_terminal(command);
     wait_for_file(&workspace.join("started.txt"), &mut process);
     signal(&process, libc::SIGTERM);
     wait_for_shutdown(&mut process);
@@ -345,6 +487,47 @@ fn killing_the_process_group_of_pnpm_kills_the_script_behind_its_shell_too() {
     drop(root);
 }
 
+/// Every script of a parallel run leads a group of its own, and one
+/// watchdog watches them all, so killing pnpm's group ends every one.
+#[test]
+fn killing_the_process_group_of_pnpm_kills_every_script_of_a_parallel_run() {
+    const PROJECTS: [&str; 3] = ["project-1", "project-2", "project-3"];
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &PROJECTS, LINGERING_SCRIPT);
+
+    // The scripts outlive pnpm for a moment, so their stdio is discarded
+    // rather than left holding the test harness's pipes open should they
+    // outlive pnpm for good.
+    let mut process = spawn_without_terminal(
+        pacquet
+            .with_args(["-r", "--filter=./project-*", "--parallel", "run", "dev"])
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null()),
+    );
+    let started = PROJECTS.map(|project| workspace.join(project).join("started.txt"));
+    for marker in &started {
+        wait_for_file(marker, &mut process);
+    }
+    let scripts = started.map(|marker| read_pid(&marker));
+    signal_group(&process, libc::SIGKILL);
+    wait_for_shutdown(&mut process);
+
+    let survivors: Vec<_> = scripts
+        .into_iter()
+        .filter(|&script| !ends_within(script, SHUTDOWN_DEADLINE))
+        .collect();
+    for &script in &survivors {
+        // SAFETY: `script` is a process the test's own fixture recorded.
+        unsafe {
+            libc::kill(script, libc::SIGKILL);
+        }
+    }
+    assert!(survivors.is_empty(), "no script should outlive pnpm: {survivors:?}");
+
+    drop(root);
+}
+
 /// pnpm's own exit is not its death. A process the script started and
 /// left behind in its group runs on afterwards, as it does when the
 /// script shares pnpm's group.
@@ -438,6 +621,37 @@ fn write_workspace(workspace: &Path, projects: &[&str], script: &str) {
         let dir = workspace.join(name);
         fs::create_dir_all(&dir).expect("create the project directory");
         write_project(&dir, name, script);
+    }
+}
+
+/// A `PATH` on which the pnpm under test is `pnpm`, so a script that runs
+/// `pnpm` again runs the same build.
+fn path_with_the_tested_pnpm(pacquet: &Command, root: &Path) -> OsString {
+    let bin = root.join("bin");
+    fs::create_dir_all(&bin).expect("create a bin directory");
+    std::os::unix::fs::symlink(pacquet.get_program(), bin.join("pnpm"))
+        .expect("expose the test pnpm as pnpm");
+    std::env::join_paths(
+        std::iter::once(bin)
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
+    )
+    .expect("join PATH")
+}
+
+/// Make the process that `command` starts adopt the orphans among its
+/// descendants, as a container's PID 1 does, without making the test
+/// itself their parent.
+#[cfg(target_os = "linux")]
+fn adopt_orphans(command: &mut Command) {
+    // SAFETY: `prctl` is async-signal-safe, which is all a `pre_exec` hook
+    // between `fork` and `exec` may call. The attribute survives `exec`.
+    unsafe {
+        command.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1) < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
     }
 }
 

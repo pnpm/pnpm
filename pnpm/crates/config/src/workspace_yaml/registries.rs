@@ -24,6 +24,7 @@ use serde::{
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
+    num::NonZeroUsize,
 };
 
 /// The bare scope standing for the registry that packages resolve from when
@@ -71,6 +72,10 @@ pub struct RegistryDeclaration {
     /// See [`RegistryOptions::supports_time_field`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supports_time_field: Option<bool>,
+    /// The most requests pnpm keeps in flight to this registry's origin, within
+    /// the overall `networkConcurrency`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_concurrency: Option<NonZeroUsize>,
     /// The scopes routed here, `@`-prefixed. A bare `@` is the scope-less
     /// default registry, the one the `registry` setting names.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -146,6 +151,9 @@ pub struct RegistryLookups {
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
     /// Ecosystem indexes and their exclusive Python package routes.
     pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
+    /// Per-registry request caps, keyed by normalized registry URL. A cap is
+    /// about the server's origin, so it applies to an index of any ecosystem.
+    pub network_concurrency_by_registry: BTreeMap<String, NonZeroUsize>,
 }
 
 /// The scopes `entries` routes, `@`-prefixed, with the bare `@` among them
@@ -335,6 +343,12 @@ fn extend_lookups_with_declarations(
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
+        if let Some(limit) = declaration.network_concurrency {
+            lookups.network_concurrency_by_registry
+                .entry(normalized.clone())
+                .and_modify(|smallest| *smallest = (*smallest).min(limit))
+                .or_insert(limit);
+        }
         if !ecosystems::collect_index(&mut lookups.indexes_by_ecosystem, &normalized, &declaration)
         {
             extend_npm_routes(lookups, registry, &normalized, declaration);
@@ -421,13 +435,33 @@ pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDe
 }
 
 /// [`to_declarations`] plus the default registry declared as the bare `@`
-/// scope — the resolved view `pnpm config get registries` prints, where
-/// nothing travels separately.
+/// scope and each registry's `networkConcurrency` — the resolved view
+/// `pnpm config get registries` prints, where nothing travels separately.
+/// A pnpr server receives neither: it does not make the client's requests.
 #[must_use]
 pub fn to_resolved_declarations(
     lookups: &RegistryLookups,
 ) -> IndexMap<String, RegistryDeclaration> {
     let mut declarations = to_declarations(lookups);
+    // A prefix route keeps the URL as written, so one registry can appear
+    // both with and without the trailing slash the cap's key carries. Each
+    // spelling gets the cap.
+    let mut declared_keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for declared in declarations.keys() {
+        declared_keys
+            .entry(normalize_registry_url(declared))
+            .or_default()
+            .push(declared.clone());
+    }
+    for (registry, limit) in &lookups.network_concurrency_by_registry {
+        let keys = declared_keys
+            .get(registry)
+            .cloned()
+            .unwrap_or_else(|| vec![registry.clone()]);
+        for key in keys {
+            declarations.entry(key).or_default().network_concurrency = Some(*limit);
+        }
+    }
     if let Some(default_registry) = &lookups.default_registry {
         declarations
             .entry(default_registry.clone())

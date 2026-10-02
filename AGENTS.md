@@ -28,6 +28,14 @@ When a shared bug fix cannot be completed in both stacks in the same PR, call ou
 
 The pacquet-side version policy is in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#version-policy).
 
+## Website documentation
+
+User documentation lives in `pnpm/docs/` for v12, `pnpm11/docs/` for v11,
+and `pnpr/docs/` for the registry. Update
+the affected version's docs and sidebar in the same PR as a behavior change.
+See [DOCUMENTATION.md](./DOCUMENTATION.md) for local previews and release publishing.
+The blog and website application remain in pnpm/pnpm.io.
+
 ## Repository Structure
 
 The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
@@ -326,6 +334,18 @@ To ensure your code adheres to the style guide, run:
 pnpm run lint
 ```
 
+### Size and shape limits
+
+`@pnpm/eslint-config` ports the perfectionist rules that the Rust workspace enforces through [`dylint.toml`](./dylint.toml), with the same limits:
+
+-   A function body has at most 40 lines of code, a cognitive complexity of at most 10, at most 3 levels of nesting, and at most 12 distinct local names.
+-   A condition has at most 5 `&&` or `||` operators, and a method chain has at most 9 calls.
+-   A production file has at most 400 lines of code.
+-   Variables, parameters, and type parameters have descriptive names, not single letters.
+-   Every `eslint-disable` directive gives a reason after `--`.
+
+Tests are exempt from the length, local-name, and chain limits, as they are in Rust. Meet a limit by refactoring, not by disabling the rule: extract a helper named for what it does, return early, or name a predicate. Packages that do not pass the size limits yet are listed in `PENDING_SIZE_AND_SHAPE_REFACTOR` in [`eslint.config.mjs`](./eslint.config.mjs). When you refactor a package to pass them, remove it from that list.
+
 ### Conventions
 
 Recurring engineering conventions in this codebase — the rules reviewers most often enforce:
@@ -340,25 +360,28 @@ Recurring engineering conventions in this codebase — the rules reviewers most 
 
 ## Common Gotchas
 
-### Error Type Checking in Jest (TypeScript only)
+### Error Type Checking (TypeScript only)
 
-When checking if a caught error is an `Error` object, **do not use `instanceof Error`**. Jest runs tests in a VM context where `instanceof` checks can fail across realms.
-
-Instead, use `util.types.isNativeError()`:
+When checking if a caught value is an `Error`, use `isError()` from `@pnpm/error`. Do not use `instanceof Error` or `util.types.isNativeError()` alone. Jest runs tests in a VM context where `instanceof` fails across realms. StackBlitz WebContainers reject async `fs` calls with errors that `util.types.isNativeError()` does not recognize. `isError()` accepts both.
 
 ```typescript
-import util from 'util'
+import { isError } from '@pnpm/error'
 
 try {
   // ... some operation
 } catch (err: unknown) {
-  // ❌ Wrong - may fail in Jest
+  // ❌ Wrong - fails in Jest
   if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
     return null
   }
-  
-  // ✅ Correct - works across realms
+
+  // ❌ Wrong - fails in WebContainers
   if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    return null
+  }
+
+  // ✅ Correct
+  if (isError(err) && 'code' in err && err.code === 'ENOENT') {
     return null
   }
   throw err
@@ -369,7 +392,7 @@ try {
 
 The [`pull-requests`](./.agents/skills/pull-requests/SKILL.md) skill covers taking
 a change through a pull request: opening it from the template, waiting for the
-checks, and working the review rounds. Two rules hold whether or not it is loaded:
+checks, and working the review rounds. These rules hold whether or not it is loaded:
 
 -   **Open the PR as a draft.** CI runs on a draft in this repository and the
     reviewers do not, so the checks and your own pass over the diff happen
@@ -380,6 +403,14 @@ checks, and working the review rounds. Two rules hold whether or not it is loade
     failure, verify each finding before acting on it, and push the fixes. Repeat
     until the checks are green and a round produces nothing to act on. Handing
     back a PR that has an unread round or a red check on it is unfinished work.
+-   **File tasks in [pnpm/tasks](https://github.com/pnpm/tasks), not in pnpm/pnpm.**
+    An issue in pnpm/pnpm is a bug report against released pnpm behavior.
+    Planned work goes to pnpm/tasks (`gh issue create -R pnpm/tasks`): follow-ups
+    left by a PR, refactors, performance work, v11/v12 parity gaps, CI, benchmark
+    and test-harness work, and docs to update after a release. Feature ideas go to
+    [Discussions](https://github.com/pnpm/pnpm/discussions/new?category=ideas).
+    Report a security vulnerability the way [SECURITY.md](./SECURITY.md)
+    directs, not as a task.
 -   **Sign all agent-authored content.** When posting a comment, creating an issue, or opening a PR, append a footer to the message indicating that it was written by an agent. The footer must include the name of the agent and the name of the model used. Example:
 
     ```markdown

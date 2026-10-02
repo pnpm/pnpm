@@ -5,7 +5,9 @@
 //! writes new inodes, which the copies do not share, so after such a
 //! script the copies have to be diffed against the source and patched
 //! in place. `syncInjectedDepsAfterScripts` names the scripts that
-//! should trigger it.
+//! should trigger it. While one of those scripts is still running,
+//! the copies are refreshed as independent files so a watcher on the
+//! injected package sees each write.
 
 pub use dir_patcher::{
     Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
@@ -28,6 +30,9 @@ use pnpm_workspace::FindWorkspaceProjectsError;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::mpsc::{self, RecvTimeoutError},
+    thread::{self, JoinHandle},
+    time::{Duration, SystemTime},
 };
 
 /// Error type for [`sync_injected_deps`].
@@ -279,6 +284,134 @@ fn resolved_injected_targets(
             .map(|target_dir| workspace_dir.join(target_dir))
             .collect(),
     )
+}
+
+/// A source directory and the injected copies a running script should
+/// publish from it.
+pub struct InjectedEditSource {
+    pub source: PathBuf,
+    pub targets: Vec<PathBuf>,
+}
+
+/// The same sources [`sync_injected_deps`] patches from: the
+/// `publishConfig.directory` of the manifest read before the script, and the
+/// project root when that differs. Empty when the package has no name, no
+/// workspace, or no injected copies, or when the modules manifest cannot be
+/// read. [`sync_injected_deps`] reports that error after the script, so it
+/// does not stop the script from starting.
+#[must_use]
+pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSource> {
+    let (Some(_), Some(workspace_dir)) = (opts.pkg_name, opts.workspace_dir) else {
+        return Vec::new();
+    };
+    let modules = match read_workspace_modules(opts.workspace_modules_dir) {
+        Ok(modules) => modules,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::sync_injected_deps",
+                "Not publishing injected dependencies while the script is running: {error}",
+            );
+            return Vec::new();
+        }
+    };
+    let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
+    let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
+    let mut sources = vec![content_source_dir.clone()];
+    if content_source_dir != pkg_root_dir {
+        sources.push(pkg_root_dir);
+    }
+    sources
+        .into_iter()
+        .filter_map(|source| {
+            let targets =
+                resolved_injected_targets(opts, workspace_dir, &source, modules.as_ref())?;
+            Some(InjectedEditSource { source, targets })
+        })
+        .collect()
+}
+
+/// Polls injected copies until [`InjectedEditWatch::stop`] or drop.
+///
+/// The thread joins on stop, so the end-of-script hardlink sync does not
+/// run beside a publish.
+pub struct InjectedEditWatch {
+    stop: Option<mpsc::Sender<()>>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl InjectedEditWatch {
+    pub fn stop(&mut self) {
+        // Dropping the sender wakes the thread out of its wait.
+        self.stop.take();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+impl Drop for InjectedEditWatch {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+const PUBLISH_INTERVAL: Duration = Duration::from_millis(200);
+
+/// Publish injected copies on a short interval for as long as the watch lives.
+///
+/// `edited_since` stays fixed at two seconds before the watch starts, which
+/// covers a filesystem's one-second modification-time resolution. An
+/// already-copied file is not republished: its inode differs and its
+/// modification time was preserved.
+#[must_use]
+pub fn watch_injected_edits(sources: Vec<InjectedEditSource>) -> InjectedEditWatch {
+    let (stop, stopped) = mpsc::channel::<()>();
+    let thread = thread::spawn(move || {
+        let edited_since = SystemTime::now()
+            .checked_sub(Duration::from_secs(2))
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        loop {
+            for source in &sources {
+                publish_to_targets(source, edited_since);
+            }
+            if !matches!(stopped.recv_timeout(PUBLISH_INTERVAL), Err(RecvTimeoutError::Timeout)) {
+                break;
+            }
+        }
+    });
+    InjectedEditWatch { stop: Some(stop), thread: Some(thread) }
+}
+
+fn publish_to_targets(
+    InjectedEditSource { source, targets }: &InjectedEditSource,
+    edited_since: SystemTime,
+) {
+    // A publish directory the script has not built yet reads back empty,
+    // which would empty the injected copies.
+    if !source.is_dir() {
+        return;
+    }
+    let source_files = match dir_patcher::PublishSource::load(source) {
+        Ok(source_files) => source_files,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::sync_injected_deps",
+                source = ?source,
+                "Failed to read an injected dependency while its script is running: {error}",
+            );
+            return;
+        }
+    };
+    for target in targets {
+        if let Err(error) = dir_patcher::publish_edits(&source_files, target, edited_since) {
+            tracing::debug!(
+                target: "pacquet::sync_injected_deps",
+                source = ?source,
+                target = ?target,
+                "Failed to publish an injected dependency while its script is running: {error}",
+            );
+        }
+    }
 }
 
 fn read_workspace_modules(

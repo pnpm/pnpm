@@ -551,3 +551,43 @@ test('preserves foreign top-level keys', () => {
   expect(merged.otherTool).toBe(true)
 })
 
+test('correctly handles constructor and __proto__ keys in dependencies and foreign properties', () => {
+  const ours: LockfileObject = {
+    ...simpleLockfile,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          constructor: '1.0.0',
+        },
+        specifiers: {
+          constructor: '1.0.0',
+        },
+      },
+    },
+  }
+  const theirs: LockfileObject = {
+    ...simpleLockfile,
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+        },
+      },
+    },
+  }
+
+  // When constructor exists on only one side, it shouldn't hit Object.prototype.constructor in mergeVersions
+  const merged = mergeLockfileChanges(ours, theirs)
+  expect(merged.importers['.' as ProjectId].dependencies?.constructor).toBe('1.0.0')
+  expect(merged.importers['.' as ProjectId].dependencies?.foo).toBe('1.0.0')
+
+  // Top-level __proto__ foreign key
+  const oursProto = JSON.parse('{"importers":{},"lockfileVersion":"5.2","__proto__":{"polluted":true}}')
+  const mergedProto = mergeLockfileChanges(oursProto, simpleLockfile)
+  expect(Object.hasOwn(mergedProto, '__proto__')).toBe(true)
+  expect((({} as Record<string, unknown>)).polluted).toBeUndefined()
+})
+

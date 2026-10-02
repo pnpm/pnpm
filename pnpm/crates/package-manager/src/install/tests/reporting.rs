@@ -1,5 +1,5 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
+    super::{Install, InstallError, ProjectMutation, update_workspace_state_or_warn},
     InstallDirs, PARTIAL_INSTALL_LOCKFILE, recorded_verified_file_integrity_report,
     seed_placeholder_virtual_store_slot,
 };
@@ -14,6 +14,7 @@ use pnpm_reporter::{
 };
 use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
 use std::{sync::Mutex, time::Duration};
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -33,7 +34,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = virtual_store_dir;
+    config.install_state_dir = virtual_store_dir;
     config.registry = mock_instance.url().to_string();
     config.minimum_release_age = Some(60 * 24 * 365 * 100);
     config.minimum_release_age_strict = Some(true);
@@ -85,6 +86,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run_with_prompt_eligibility::<SilentReporter>(false)
@@ -150,7 +152,7 @@ async fn install_emits_pnpm_event_sequence() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registries_by_scope.insert(
         "@private".to_string(),
         "https://private.example.com/npm/".to_string(),
@@ -215,6 +217,7 @@ async fn install_emits_pnpm_event_sequence() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -341,7 +344,7 @@ async fn install_warns_when_the_default_store_bypasses_an_existing_home_store() 
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let home_store_dir = dirs.path().join("home-store");
     std::fs::create_dir_all(home_store_dir.join(STORE_VERSION)).unwrap();
     let relocation = StoreRelocation {
@@ -406,6 +409,7 @@ async fn install_warns_when_the_default_store_bypasses_an_existing_home_store() 
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -474,7 +478,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     // Skip fetch retries entirely — the install is expected to fail
     // after emitting `_broken_node_modules`, so any retry budget is
     // pure waste here.
@@ -491,7 +495,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     // gone (the `rm -rf node_modules/.pnpm/<slot>` scenario).
     std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
 
     // The install will attempt to fetch the placeholder (bogus URL),
@@ -546,6 +550,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -612,7 +617,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
@@ -620,7 +625,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 
     std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
     seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
@@ -672,6 +677,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -766,4 +772,47 @@ fn verified_file_integrity_is_scoped_to_one_install() {
     dbg!(this_install);
     assert_eq!(this_install.files, 1);
     assert_eq!(this_install.duration, Duration::from_millis(100));
+}
+
+/// A lost state-file write must not fail the command, and it must not
+/// be silent either: `tracing::warn!` is inert unless `TRACE` is set,
+/// so the warning goes through the reporter, matching the v11 writer's
+/// `globalWarn`.
+#[test]
+fn a_lost_workspace_state_write_warns_through_the_reporter() {
+    static MESSAGES: Mutex<Vec<(LogLevel, String)>> = Mutex::new(Vec::new());
+    // One shared static, so one caller at a time: `cargo nextest` gives
+    // each test its own process, a plain `cargo test` does not.
+    static RECORDER: Mutex<()> = Mutex::new(());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push((log.level, log.message.clone()));
+            }
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    // A regular file where the workspace root belongs: `update_workspace_state`
+    // cannot create the directory it writes into, so the write is lost.
+    let blocker = dir.path().join("blocker");
+    std::fs::write(&blocker, b"not a dir").unwrap();
+    let state = WorkspaceState::default();
+    let source_error = update_workspace_state(&blocker, &state).unwrap_err();
+
+    let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    MESSAGES.lock().unwrap().clear();
+    // Returns `()`: a lost cache write is not the command's failure.
+    update_workspace_state_or_warn::<RecordingReporter>(&blocker, &state);
+    let recorded = MESSAGES.lock().unwrap().clone();
+
+    assert_eq!(recorded.len(), 1, "exactly one warning, got: {recorded:?}");
+    let (level, message) = &recorded[0];
+    assert_eq!(*level, LogLevel::Warn);
+    assert_eq!(message, &format!("Failed to write the workspace state: {source_error}"));
 }

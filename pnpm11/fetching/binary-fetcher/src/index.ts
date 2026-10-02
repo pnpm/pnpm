@@ -1,17 +1,20 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 import fsPromises from 'node:fs/promises'
 import { isIP } from 'node:net'
 import path from 'node:path'
-import util from 'node:util'
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
-import AdmZip from 'adm-zip'
 import { isSubdir } from 'is-subdir'
 import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
+import yauzl from 'yauzl'
 
 export interface CreateBinaryFetcherOptions {
   fetch: FetchFromRegistry
@@ -33,18 +36,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
   // caller's object can't reintroduce invalid patterns, and so zip extraction doesn't
   // recompile the regex per fetch. The tarball path still needs the pattern string — it
   // crosses the worker thread boundary, where RegExp instances don't survive structured clone.
-  const archiveFilters = new Map<string, { pattern: string, regex: RegExp }>()
-  for (const [name, pattern] of Object.entries(ctx.archiveFilters ?? {})) {
-    try {
-      archiveFilters.set(name, { pattern, regex: new RegExp(pattern) })
-    } catch (err: unknown) {
-      const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
-      throw new PnpmError(
-        'INVALID_ARCHIVE_FILTER',
-        `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
-      )
-    }
-  }
+  const archiveFilters = compileArchiveFilters(ctx.archiveFilters)
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
@@ -56,44 +48,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
       bin: resolution.bin,
     }
     const archiveFilter = opts.pkg.name != null ? archiveFilters.get(opts.pkg.name) : undefined
-
-    let fetchResult!: FetchResult
-    switch (resolution.archive) {
-      case 'tarball': {
-        fetchResult = await ctx.fetchFromRemoteTarball(cafs, {
-          tarball: resolution.url,
-          integrity: resolution.integrity,
-        }, {
-          ...opts,
-          appendManifest: manifest,
-          ignoreFilePattern: archiveFilter?.pattern ?? opts.ignoreFilePattern,
-        })
-        break
-      }
-      case 'zip': {
-        const tempLocation = await cafs.tempDir()
-        await downloadAndUnpackZip(ctx.fetch, {
-          url: resolution.url,
-          integrity: resolution.integrity,
-          basename: resolution.prefix ?? '',
-          authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
-          ignoreEntry: archiveFilter?.regex,
-        }, tempLocation)
-        fetchResult = await addFilesFromDir({
-          storeDir: cafs.storeDir,
-          storeIndex: ctx.storeIndex,
-          dir: tempLocation,
-          filesIndexFile: opts.filesIndexFile,
-          readManifest: false,
-          appendManifest: manifest,
-          includeNodeModules: true,
-        })
-        break
-      }
-      default: {
-        throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
-      }
-    }
+    const fetchResult = await fetchArchive(ctx, { cafs, resolution, opts, manifest, archiveFilter })
     return {
       ...fetchResult,
       manifest,
@@ -102,6 +57,82 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
   return {
     binary: fetchBinary,
   }
+}
+
+interface CompiledArchiveFilter {
+  pattern: string
+  regex: RegExp
+}
+
+function compileArchiveFilters (archiveFilters: Record<string, string> | undefined): Map<string, CompiledArchiveFilter> {
+  const compiled = new Map<string, CompiledArchiveFilter>()
+  for (const [name, pattern] of Object.entries(archiveFilters ?? {})) {
+    try {
+      compiled.set(name, { pattern, regex: new RegExp(pattern) })
+    } catch (err: unknown) {
+      const detail = isError(err) ? `: ${err.message}` : ''
+      throw new PnpmError(
+        'INVALID_ARCHIVE_FILTER',
+        `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
+      )
+    }
+  }
+  return compiled
+}
+
+type BinaryFetcherArgs = Parameters<BinaryFetcher>
+
+interface FetchArchiveParams {
+  cafs: BinaryFetcherArgs[0]
+  resolution: BinaryFetcherArgs[1]
+  opts: BinaryFetcherArgs[2]
+  manifest: { name: string, version: string, bin: BinaryFetcherArgs[1]['bin'] }
+  archiveFilter: CompiledArchiveFilter | undefined
+}
+
+async function fetchArchive (ctx: CreateBinaryFetcherOptions, params: FetchArchiveParams): Promise<FetchResult> {
+  const { cafs, resolution, opts, manifest, archiveFilter } = params
+  switch (resolution.archive) {
+    case 'tarball': {
+      return ctx.fetchFromRemoteTarball(cafs, {
+        tarball: resolution.url,
+        integrity: resolution.integrity,
+      }, {
+        ...opts,
+        appendManifest: manifest,
+        ignoreFilePattern: archiveFilter?.pattern ?? opts.ignoreFilePattern,
+      })
+    }
+    case 'zip': {
+      return fetchZipArchive(ctx, params)
+    }
+    default: {
+      throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
+    }
+  }
+}
+
+async function fetchZipArchive (
+  ctx: CreateBinaryFetcherOptions,
+  { cafs, resolution, opts, manifest, archiveFilter }: FetchArchiveParams
+): Promise<FetchResult> {
+  const tempLocation = await cafs.tempDir()
+  await downloadAndUnpackZip(ctx.fetch, {
+    url: resolution.url,
+    integrity: resolution.integrity,
+    basename: resolution.prefix ?? '',
+    authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
+    ignoreEntry: archiveFilter?.regex,
+  }, tempLocation)
+  return addFilesFromDir({
+    storeDir: cafs.storeDir,
+    storeIndex: ctx.storeIndex,
+    dir: tempLocation,
+    filesIndexFile: opts.filesIndexFile,
+    readManifest: false,
+    appendManifest: manifest,
+    includeNodeModules: true,
+  })
 }
 
 function getSecureNodeMirrorAuthHeader (
@@ -163,7 +194,7 @@ export async function downloadAndUnpackZip (
 }
 
 /**
- * Downloads a file with integrity verification.
+ * Streams a download to `tmpPath`, verifying its integrity on the way.
  */
 async function downloadWithIntegrityCheck (
   fetchFromRegistry: FetchFromRegistry,
@@ -171,26 +202,23 @@ async function downloadWithIntegrityCheck (
   tmpPath: string
 ): Promise<void> {
   const response = await fetchFromRegistry(url, { authHeaderValue })
-
-  // Collect all chunks from the response
-  const chunks: Buffer[] = []
-  for await (const chunk of response.body!) {
-    chunks.push(chunk as Buffer)
+  const expected = ssri.parse(integrity)
+  const algorithm = expected.pickAlgorithm()
+  const hash = crypto.createHash(algorithm)
+  await pipeline(
+    response.body as AsyncIterable<Uint8Array>,
+    new Transform({
+      transform (chunk: Buffer, _encoding, callback) {
+        hash.update(chunk)
+        callback(null, chunk)
+      },
+    }),
+    fs.createWriteStream(tmpPath)
+  )
+  const found = ssri.fromHex(hash.digest('hex'), algorithm)
+  if (!expected.match(found)) {
+    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${url}". Wanted "${expected.toString()}". Got "${found.toString()}".`)
   }
-  const data = Buffer.concat(chunks)
-
-  try {
-    // Verify integrity if provided
-    ssri.checkData(data, integrity, { error: true })
-  } catch (err) {
-    if (!(err instanceof Error) || !('expected' in err) || !('found' in err)) {
-      throw err
-    }
-    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${url}". Wanted "${err.expected as string}". Got "${err.found as string}".`)
-  }
-
-  // Write the verified data to file
-  await fsPromises.writeFile(tmpPath, data)
 }
 
 /**
@@ -209,10 +237,6 @@ async function extractZipToTarget (
   targetDir: string,
   ignoreEntry?: RegExp
 ): Promise<void> {
-  const zip = new AdmZip(zipPath)
-  // The extraction directory must not be guessable: AdmZip opens each destination with
-  // `fs.openSync(path, 'w')`, which resolves symlinks (GHSA-vwc7-r8mq-g2x9, unpatched),
-  // so a symlink planted at a known path redirects the write out of the store.
   const extractionRoot = basename === ''
     ? targetDir
     : await fsPromises.mkdtemp(path.join(path.dirname(targetDir), '_unzip_'))
@@ -221,7 +245,7 @@ async function extractZipToTarget (
     if (basename !== '') {
       validatePathSecurity(extractionRoot, basename)
     }
-    extractEntries(zip, { extractionRoot, basename, ignoreEntry })
+    await extractEntries(zipPath, { extractionRoot, basename, ignoreEntry })
     await renameOverwrite(path.join(extractionRoot, basename), targetDir)
   } finally {
     if (extractionRoot !== targetDir) {
@@ -236,32 +260,79 @@ interface ExtractEntriesOptions {
   ignoreEntry?: RegExp
 }
 
-function extractEntries (zip: AdmZip, { extractionRoot, basename, ignoreEntry }: ExtractEntriesOptions): void {
+/**
+ * Extracts one entry at a time, streaming each to disk. An entry is read only up
+ * to the uncompressed size the archive declares for it.
+ */
+async function extractEntries (zipPath: string, { extractionRoot, basename, ignoreEntry }: ExtractEntriesOptions): Promise<void> {
   const basenamePrefix = basename === '' ? '' : `${basename}/`
   // Normalize `ignoreEntry` to a stateless regex. `.test()` on a `/g` or `/y` regex
   // advances `lastIndex` between calls, which would cause inconsistent skips across
   // entries in this loop.
   const testEntry = toStatelessTester(ignoreEntry)
 
-  // Extract each entry with path validation to prevent path traversal attacks.
-  // Directory entries are skipped: AdmZip's `extractEntryTo(dir, ...)` expands
-  // to every descendant via `getEntryChildren`, which would bypass the
-  // `ignoreEntry` filter (e.g. the archive's top-level
-  // `node-vX.Y.Z-<platform>-<arch>/` entry would pull in npm/corepack files
-  // even though the per-file relative paths match the ignore regex).
-  // File extraction creates parent directories implicitly.
-  for (const entry of zip.getEntries()) {
-    if (entry.isDirectory) continue
-    const entryPath = entry.entryName
-    validatePathSecurity(extractionRoot, entryPath)
-    if (testEntry) {
-      const relative = basenamePrefix && entryPath.startsWith(basenamePrefix)
-        ? entryPath.slice(basenamePrefix.length)
-        : entryPath
-      if (testEntry(relative)) continue
+  await fsPromises.mkdir(extractionRoot, { recursive: true })
+  const createdDirs = new Set<string>()
+  // File names are decoded here rather than by yauzl so that an unsafe path is
+  // rejected by validatePathSecurity, with its error code.
+  const zipfile = await yauzl.openPromise(zipPath, { decodeStrings: false })
+  try {
+    for await (const entry of zipfile.eachEntry()) {
+      const entryPath = yauzl.getFileNameLowLevel(entry.generalPurposeBitFlag, entry.fileNameRaw, entry.extraFields, false)
+      // Directory entries are optional in a zip, so directories are created from file paths instead.
+      if (entryPath.endsWith('/')) continue
+      validatePathSecurity(extractionRoot, entryPath)
+      if (testEntry?.(stripBasenamePrefix(entryPath, basenamePrefix))) continue
+      await mkdirWithoutFollowingSymlinks(extractionRoot, path.dirname(entryPath), createdDirs)
+      await extractEntry(zipfile, entry, path.join(extractionRoot, entryPath))
     }
-    zip.extractEntryTo(entry, extractionRoot, true, true)
+  } finally {
+    zipfile.close()
   }
+}
+
+function stripBasenamePrefix (entryPath: string, basenamePrefix: string): string {
+  return basenamePrefix && entryPath.startsWith(basenamePrefix)
+    ? entryPath.slice(basenamePrefix.length)
+    : entryPath
+}
+
+/**
+ * Creates `relativeDir` under `root` one segment at a time, refusing any segment
+ * that already exists as something other than a directory. A symlink or junction
+ * there could otherwise lead the extraction outside of `root`.
+ */
+async function mkdirWithoutFollowingSymlinks (root: string, relativeDir: string, createdDirs: Set<string>): Promise<void> {
+  let dir = root
+  for (const segment of relativeDir.split('/')) {
+    if (segment === '' || segment === '.') continue
+    dir = path.join(dir, segment)
+    if (createdDirs.has(dir)) continue
+    await mkdirOrAssertRealDirectory(dir) // eslint-disable-line no-await-in-loop -- each segment is created inside the previous one, once the previous one is known to be a real directory
+    createdDirs.add(dir)
+  }
+}
+
+async function mkdirOrAssertRealDirectory (dir: string): Promise<void> {
+  try {
+    await fsPromises.mkdir(dir)
+  } catch (err: unknown) {
+    if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    if (!(await fsPromises.lstat(dir)).isDirectory()) {
+      throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract into "${dir}" because it is not a directory`)
+    }
+  }
+}
+
+async function extractEntry (zipfile: yauzl.ZipFile, entry: yauzl.Entry, target: string): Promise<void> {
+  // A later entry with the same path replaces an earlier one. The file is
+  // removed rather than opened for writing, so that a symlink at the path is
+  // replaced instead of followed.
+  await fsPromises.rm(target, { force: true })
+  await pipeline(
+    await zipfile.openReadStreamPromise(entry),
+    fs.createWriteStream(target, { flags: 'wx' })
+  )
 }
 
 function toStatelessTester (regex: RegExp | undefined): ((input: string) => boolean) | undefined {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.npm-lifecycle",
-  "version": "1100.0.1",
+  "version": "1100.0.3",
   "description": "JavaScript package lifecycle hook runner",
   "keywords": [
     "pnpm",
@@ -42,6 +42,7 @@
     "@yarnpkg/fslib": "catalog:",
     "@yarnpkg/shell": "catalog:",
     "node-gyp": "catalog:",
+    "shlex": "catalog:",
     "uid-number": "catalog:",
     "which": "catalog:"
   },

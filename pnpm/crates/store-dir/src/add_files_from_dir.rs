@@ -7,7 +7,7 @@
 //! the directory so [`upload`](crate::upload()) can diff it against
 //! the pristine `PackageFilesIndex.files` row and seed the cache.
 
-use crate::{CafsFileInfo, StoreDir, WriteCasFileError};
+use crate::{CafsFileInfo, SYMLINK_MODE, StoreDir, WriteCasFileError, normalize_symlink_target};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::file_mode::is_executable;
@@ -24,6 +24,9 @@ use std::{
 #[derive(Debug)]
 pub struct AddedFiles {
     pub files: HashMap<String, CafsFileInfo>,
+    /// Whether the walk followed a symlink it could not record as a
+    /// [`SYMLINK_MODE`] entry.
+    pub has_unrecorded_symlinks: bool,
 }
 
 /// Error type of [`add_files_from_dir()`].
@@ -48,6 +51,12 @@ pub enum AddFilesFromDirError {
         #[error(source)]
         source: io::Error,
     },
+    #[display("Failed to read symlink {}: {source}", path.display())]
+    ReadLink {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
     #[display("Failed to read file {}: {source}", path.display())]
     ReadFile {
         path: PathBuf,
@@ -60,6 +69,10 @@ pub enum AddFilesFromDirError {
 
 /// Walk `pkg_root` and write every regular file into `store_dir`'s
 /// CAFS, producing an `AddedFiles { files }` map.
+///
+/// On Unix a symlink whose target [`normalize_symlink_target`] accepts is
+/// recorded as a [`SYMLINK_MODE`] entry instead of being followed. Other
+/// symlinks are followed when they stay inside the package.
 ///
 /// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set —
 /// each canonical directory path is inserted when we descend
@@ -80,16 +93,18 @@ pub fn add_files_from_dir(
         })?;
     let mut ctx = WalkCtx {
         files: HashMap::new(),
+        has_unrecorded_symlinks: false,
         canonical_root: canonical_root.clone(),
         visited: HashSet::from([canonical_root.clone()]),
         store_dir,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
-    Ok(AddedFiles { files: ctx.files })
+    Ok(AddedFiles { files: ctx.files, has_unrecorded_symlinks: ctx.has_unrecorded_symlinks })
 }
 
 struct WalkCtx<'a> {
     files: HashMap<String, CafsFileInfo>,
+    has_unrecorded_symlinks: bool,
     canonical_root: PathBuf,
     visited: HashSet<PathBuf>,
     store_dir: &'a StoreDir,
@@ -116,7 +131,14 @@ fn walk(
             format!("{relative_dir}/{name}")
         };
 
-        let Some(target) = resolve_entry(ctx, &entry, current_real_path, &name)? else {
+        let Some(target) = resolve_entry(
+            ctx,
+            &entry,
+            current_real_path,
+            (relative_dir, &relative_subpath),
+            &name,
+        )?
+        else {
             continue;
         };
         match target {
@@ -149,9 +171,10 @@ enum EntryTarget {
 }
 
 fn resolve_entry(
-    ctx: &WalkCtx<'_>,
+    ctx: &mut WalkCtx<'_>,
     entry: &fs::DirEntry,
     current_real_path: &Path,
+    (relative_dir, relative_subpath): (&str, &str),
     name: &str,
 ) -> Result<Option<EntryTarget>, AddFilesFromDirError> {
     let absolute = entry.path();
@@ -166,6 +189,13 @@ fn resolve_entry(
         return Ok(Some(EntryTarget::File { read_path: absolute, meta: None }));
     }
 
+    if relative_dir.is_empty() && name == "node_modules" {
+        return Ok(None);
+    }
+    if cfg!(unix) && record_symlink(ctx, &absolute, relative_subpath)? {
+        return Ok(None);
+    }
+    ctx.has_unrecorded_symlinks = true;
     let Ok(real) = dunce::canonicalize(&absolute) else { return Ok(None) };
     if !real.starts_with(&ctx.canonical_root) {
         return Ok(None);
@@ -176,6 +206,38 @@ fn resolve_entry(
         return Ok(Some(EntryTarget::Directory(real)));
     }
     Ok(Some(EntryTarget::File { read_path: real, meta: Some(meta) }))
+}
+
+/// Record the symlink at `absolute` as a [`SYMLINK_MODE`] entry, reporting
+/// whether its target could be recorded.
+fn record_symlink(
+    ctx: &mut WalkCtx<'_>,
+    absolute: &Path,
+    relative_subpath: &str,
+) -> Result<bool, AddFilesFromDirError> {
+    let target = fs::read_link(absolute)
+        .map_err(|source| AddFilesFromDirError::ReadLink {
+            path: absolute.to_path_buf(),
+            source,
+        })?;
+    let Some(target) =
+        target.to_str().and_then(|target| normalize_symlink_target(relative_subpath, target))
+    else {
+        return Ok(false);
+    };
+    let (_path, hash) = ctx.store_dir
+        .write_cas_file(target.as_bytes(), false)
+        .map_err(AddFilesFromDirError::WriteCas)?;
+    ctx.files.insert(
+        relative_subpath.to_string(),
+        CafsFileInfo {
+            digest: format!("{hash:x}"),
+            mode: SYMLINK_MODE,
+            size: target.len() as u64,
+            checked_at: None,
+        },
+    );
+    Ok(true)
 }
 
 /// Recurse via the resolved directory so a symlinked sub-directory's

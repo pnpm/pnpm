@@ -2,7 +2,6 @@ use crate::{
     State,
     cli_args::{
         install::{InstallArgs, NodeLinkerArg, resolve_bool_override},
-        package_manager::read_root_manifest,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
 };
@@ -14,10 +13,10 @@ use lockfile::{
     load_deploy_lockfile, manifest_dependency_names,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use package_manager::{inherit_package_manager, write_inherited_package_manager};
+use path_compare::{ProjectPathKey, is_ancestor_path, is_child_path, same_path};
 use peers::{
-    bind_singleton_peers, deploy_peer_edges, omit_peers_of_excluded_dependencies,
-    prune_deploy_lockfile_graph,
+    LinkedWorkspaceProject, bind_singleton_peers, deploy_peer_edges,
+    omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_directory_fetcher::DirectoryFetcher;
@@ -39,9 +38,9 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
 use resolution::{
-    ResolveBases, convert_package_key, convert_package_metadata, convert_resolved_dependency_spec,
-    convert_snapshot, create_file_url_key, project_snapshot_to_snapshot_entry,
-    validate_lockfile_local_path,
+    ResolveBases, convert_importer_version_to_snapshot_ref, convert_package_key,
+    convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
+    create_file_url_key, project_snapshot_to_snapshot_entry, validate_lockfile_local_path,
 };
 use serde_json::{Map, Value};
 use std::{
@@ -52,9 +51,8 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
 };
 use target::{
-    ProjectPathKey, apply_deploy_hook, copy_project, is_ancestor_path, is_child_path,
-    prepare_deploy_dir, relative_path, resolve_target_dir, same_path, validate_deploy_target,
-    write_deploy_files,
+    apply_deploy_hook, copy_project, prepare_deploy_dir, real_deploy_dir, relative_path,
+    resolve_target_dir, validate_deploy_target, write_deploy_files,
 };
 use workspace_manifest::deploy_workspace_settings;
 
@@ -144,7 +142,6 @@ struct ProjectInfo {
 struct SelectedProject {
     project: Project,
     projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
-    engine_pin_manifest: Option<Value>,
 }
 
 impl SelectedProject {
@@ -219,9 +216,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        let manifest_path = deploy_dir.join("package.json");
-        apply_deploy_hook(&manifest_path)?;
-        write_inherited_package_manager(&manifest_path, selected.engine_pin_manifest.as_ref())?;
+        apply_deploy_hook(deploy_dir, &selected.project.root_dir)?;
         let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
             config,
             config.lockfile_dir_for(&selected.project.root_dir),
@@ -272,6 +267,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<SharedDeployOutcome> {
+        let deploy_dir = &real_deploy_dir(deploy_dir)?;
         // The shared lockfile, and the importer ids naming the projects in
         // it, belong to the lockfile dir — which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.
@@ -285,7 +281,7 @@ impl DeployArgs {
         let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
-        let mut deploy_files = create_deploy_files(
+        let deploy_files = create_deploy_files(
             &lockfile,
             selected,
             &project_id,
@@ -294,7 +290,6 @@ impl DeployArgs {
             config,
             &dependency_groups,
         )?;
-        inherit_package_manager(&mut deploy_files.manifest, selected.engine_pin_manifest.as_ref());
         write_deploy_files(deploy_dir, &deploy_files)?;
         // Boxed for the same large-future reason as the legacy path above.
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -352,11 +347,7 @@ fn select_project(
         .into_iter()
         .find(|project| lexical_normalize(&project.root_dir) == selected_root)
         .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject {
-        project,
-        projects_by_path,
-        engine_pin_manifest: read_root_manifest(workspace_dir, config.preferred_manifest_format),
-    })
+    Ok(SelectedProject { project, projects_by_path })
 }
 
 /// Index the workspace projects by [`ProjectPathKey`]. When two roots compare
@@ -401,6 +392,8 @@ mod tests;
 
 mod target;
 
+mod path_compare;
+
 mod resolution;
 
 mod peers;
@@ -410,5 +403,3 @@ mod lockfile;
 mod install;
 
 mod workspace_manifest;
-
-mod package_manager;

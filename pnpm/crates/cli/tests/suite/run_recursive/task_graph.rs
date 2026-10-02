@@ -114,6 +114,290 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     drop(root);
 }
 
+/// `project-a` depends on `project-b`; both declare `build` and `test`, and
+/// the workspace orders `test` after the project's own `build`.
+fn write_build_test_workspace(workspace: &std::path::Path) {
+    let scripts = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": if name == "project-a" { json!({ "project-b": "workspace:*" }) } else { json!({}) },
+            "scripts": {
+                "build": append_line_script(&format!("{name}-build"), "../order.log"),
+                "test": append_line_script(&format!("{name}-test"), "../order.log"),
+            },
+        })
+    };
+    write_workspace(
+        workspace,
+        &[("project-a", scripts("project-a")), ("project-b", scripts("project-b"))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n  - project-a\n  - project-b\n",
+            "tasks:\n",
+            "  build:\n    dependsOn: ['^build']\n",
+            "  test:\n    dependsOn: ['build']\n",
+        ),
+    )
+    .expect("write workspace settings");
+}
+
+fn assert_build_test_order(workspace: &std::path::Path) {
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let lines: Vec<&str> = order.lines().collect();
+    let mut sorted = lines.clone();
+    sorted.sort_unstable();
+    assert_eq!(sorted, ["project-a-build", "project-a-test", "project-b-build", "project-b-test"]);
+    let position = |line: &str| {
+        lines
+            .iter()
+            .position(|found| *found == line)
+            .expect(line)
+    };
+    assert!(position("project-b-build") < position("project-a-build"));
+    assert!(position("project-a-build") < position("project-a-test"));
+    assert!(position("project-b-build") < position("project-b-test"));
+}
+
+#[test]
+fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_build_test_workspace(&workspace);
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .assert()
+        .success();
+
+    assert_build_test_order(&workspace);
+    drop(root);
+}
+
+/// Every script runs once, and `test` waits for the `build` the same
+/// selector matched.
+#[test]
+fn regexp_selector_orders_the_matched_scripts_by_their_depends_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_build_test_workspace(&workspace);
+
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "/^(build|test)$/"])
+        .assert()
+        .success();
+
+    assert_build_test_order(&workspace);
+    // Each matched script is its own task, so each gets its own summary key.
+    let statuses = summary_statuses(&workspace);
+    for task in ["project-a#build", "project-a#test", "project-b#build", "project-b#test"] {
+        assert_eq!(statuses.get(task).map(String::as_str), Some("passed"), "{task}");
+    }
+    assert_eq!(statuses.get("project-a"), None);
+    drop(root);
+}
+
+/// The selector seeds a task per matched script, and the hidden one among
+/// them is dropped as it is when the selector is one task per project.
+#[test]
+fn regexp_selector_with_tasks_skips_a_matched_hidden_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": {
+                    "test": append_line_script("test", "../order.log"),
+                    ".test": append_line_script(".test", "../order.log"),
+                },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  build:\n    dependsOn: []\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order.lines().collect::<Vec<_>>(), ["test"]);
+    drop(root);
+}
+
+/// A matched hidden script that another matched script names in its
+/// `dependsOn` is a deliberate reference, so it runs.
+#[test]
+fn regexp_selector_runs_a_matched_hidden_script_named_in_depends_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": {
+                    "test": append_line_script("test", "../order.log"),
+                    ".test-setup": append_line_script(".test-setup", "../order.log"),
+                },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  test:\n    dependsOn: ['.test-setup']\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order.lines().collect::<Vec<_>>(), [".test-setup", "test"]);
+    drop(root);
+}
+
+/// `project-a`'s `test` names `.setup` in its `dependsOn`, which exempts
+/// only `project-a`'s `.setup`. The unrelated `project-b`'s hidden `.setup`
+/// the selector matched is filtered as usual.
+#[test]
+fn a_depends_on_reference_exempts_only_the_hidden_task_it_targets() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let scripts = |name: &str, visible: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": {
+                visible: append_line_script(&format!("{name}-{visible}"), "../order.log"),
+                ".setup": append_line_script(&format!("{name}-setup"), "../order.log"),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-a", scripts("project-a", "test")), ("project-b", scripts("project-b", "lint"))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\n  - project-b\ntasks:\n  test:\n    dependsOn: ['.setup']\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test|lint|setup/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let mut lines: Vec<&str> = order.lines().collect();
+    lines.sort_unstable();
+    assert_eq!(lines, ["project-a-setup", "project-a-test", "project-b-lint"]);
+    drop(root);
+}
+
+/// `.setup: dependsOn: ['^.setup']` is an explicit reference across
+/// projects, so `project-b`'s hidden `.setup` runs before `project-a`'s even
+/// though the two tasks share a name.
+#[test]
+fn an_explicit_same_name_depends_on_exempts_the_hidden_task_it_targets() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let scripts = |name: &str, visible: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": if name == "project-a" { json!({ "project-b": "workspace:*" }) } else { json!({}) },
+            "scripts": {
+                visible: append_line_script(&format!("{name}-{visible}"), "../order.log"),
+                ".setup": append_line_script(&format!("{name}-setup"), "../order.log"),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-a", scripts("project-a", "test")), ("project-b", scripts("project-b", "lint"))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n  - project-a\n  - project-b\n",
+            "tasks:\n",
+            "  test:\n    dependsOn: ['.setup']\n",
+            "  .setup:\n    dependsOn: ['^.setup']\n",
+        ),
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test|lint|setup/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let lines: Vec<&str> = order.lines().collect();
+    let mut sorted = lines.clone();
+    sorted.sort_unstable();
+    assert_eq!(sorted, ["project-a-setup", "project-a-test", "project-b-lint", "project-b-setup"]);
+    let position = |line: &str| {
+        lines
+            .iter()
+            .position(|found| *found == line)
+            .expect(line)
+    };
+    assert!(position("project-b-setup") < position("project-a-setup"));
+    drop(root);
+}
+
+/// `--reverse` makes `build` depend on the hidden task the invocation
+/// named. That edge is no `dependsOn` reference, so the name is rejected.
+#[test]
+fn reverse_run_still_rejects_a_hidden_script_name_with_depends_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": {
+                    "build": append_line_script("build", "../order.log"),
+                    ".secret": append_line_script(".secret", "../order.log"),
+                },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  .secret:\n    dependsOn: ['build']\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["-r", "run", "--reverse", ".secret"])
+        .env_remove("npm_lifecycle_event")
+        .output()
+        .expect("spawn pacquet");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_HIDDEN_SCRIPT"));
+    assert!(!workspace.join("order.log").exists());
+    drop(root);
+}
+
 /// `dependency`'s lint waits for the marker `dependent`'s lint writes:
 /// only possible when the explicitly empty `dependsOn` frees the lint
 /// tasks from the project-graph order.

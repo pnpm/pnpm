@@ -150,6 +150,85 @@ fn version_flag_switches_to_project_package_manager_version() {
     drop((root, mock_instance));
 }
 
+/// An option only the pinned pnpm knows reaches that pnpm, instead of being
+/// rejected by this one before it switches (pnpm/pnpm#16353).
+#[test]
+fn unknown_option_goes_to_the_pinned_pnpm() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+
+    for command in ["install", "i"] {
+        let output = test_command(pacquet_in(&workspace), root.path())
+            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .args([command, "--only-the-pinned-pnpm-knows"])
+            .output()
+            .expect("run pacquet with an unknown option");
+        dbg!(&output);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            !stderr.contains("unexpected argument"),
+            "{command}: this pnpm rejected it: {stderr}",
+        );
+        assert!(
+            stdout.contains("Unknown option: 'only-the-pinned-pnpm-knows'"),
+            "{command}: the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+/// A command the parsed command line would not switch keeps this pnpm's
+/// rejection: a config command outside `--location project`, reached
+/// through its alias, and a global command, with `-g` in a short cluster.
+#[test]
+fn unknown_option_stays_rejected_for_commands_that_do_not_switch() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+
+    for args in [
+        &["c", "list", "--only-the-pinned-pnpm-knows"][..],
+        &["add", "-gE", "is-positive", "--only-the-pinned-pnpm-knows"],
+    ] {
+        let output = test_command(pacquet_in(&workspace), root.path())
+            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .args(args)
+            .output()
+            .expect("run pacquet with an unknown option");
+        dbg!(&output);
+        assert!(!output.status.success(), "{args:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("unexpected argument"),
+            "{args:?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn unknown_option_is_rejected_without_a_pin_to_switch_to() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"project"}"#).expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .args(["install", "--only-the-pinned-pnpm-knows"])
+        .output()
+        .expect("run pacquet install with an unknown option");
+    dbg!(&output);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+
+    drop(root);
+}
+
 /// The engine is installed into the shared global virtual store and the
 /// directory the install runs from is thrown away. A project that selects
 /// the hoisted linker must not drag the engine into that directory
@@ -176,6 +255,54 @@ fn version_flag_switches_to_the_pinned_version_under_the_hoisted_node_linker() {
         .expect("run pacquet --version");
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+/// The project's `nodeVersion` describes the Node.js its dependencies run on,
+/// not the one running the pinned pnpm. The engine must land in the slot the
+/// next command looks up, so a second command reuses it without the registry.
+#[test]
+fn version_flag_reuses_the_pinned_engine_when_node_version_names_another_major() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"9.3.0","onFail":"download"}}}"#,
+    )
+    .expect("write package.json");
+    let other_node_version = match pnpm_graph_hasher::detect_node_major() {
+        Some(20) => "22.0.0",
+        _ => "20.0.0",
+    };
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("nodeVersion: {other_node_version}\n"),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = test_command(pacquet_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+    dbg!(&output);
+    assert!(output.status.success(), "the first pacquet --version should install the engine");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    let output = test_command(pacquet_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:9/")
+        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version against an unreachable registry");
+    dbg!(&output);
+    assert!(
+        output.status.success(),
+        "the second pacquet --version should reuse the installed engine",
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
 
     drop((root, mock_instance));
@@ -496,6 +623,15 @@ fn version_command(root: &Path, workspace: &Path, registry: &str) -> Command {
     let mut command = test_command(command, root);
     command.env("PNPM_CONFIG_REGISTRY", registry).arg("--version");
     command
+}
+
+fn pacquet_in(workspace: &Path) -> Command {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
 }
 
 fn test_command(mut command: Command, root: &Path) -> Command {

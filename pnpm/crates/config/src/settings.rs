@@ -9,10 +9,10 @@ use super::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
     default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
     default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_git_shallow_hosts, default_hoist_pattern, default_modules_cache_max_age,
-    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
-    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
-    default_unsafe_perm, default_user_agent, default_virtual_store_dir,
+    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
+    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
+    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
+    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
     default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
     side_effects_cache_remote_env, workspace_yaml,
 };
@@ -303,19 +303,18 @@ pub struct Config {
     #[default = true]
     pub symlink: bool,
 
-    /// The directory with links to the store. All direct and indirect dependencies of the
-    /// project are linked into this directory.
-    ///
-    /// When [`enable_global_virtual_store`] is `true` and the user has not
-    /// explicitly set this field, [`Config::current`] re-points it at
-    /// `<store_dir>/v11/links`. The `v11/` segment comes from appending
-    /// `STORE_VERSION` to the configured `storeDir` before the
-    /// `join(storeDir, 'links')` step runs — so the join lands one level
-    /// deeper than the configured root.
-    ///
-    /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
-    #[default(_code = "default_virtual_store_dir()")]
-    pub virtual_store_dir: PathBuf,
+    /// The `.pnpm` directory of the install root's modules directory. It
+    /// holds the current lockfile and the hidden hoisted modules of that
+    /// install, as pnpm's `installStateDir` does. Without a global virtual store it
+    /// is also the virtual store, see [`Self::virtual_store_dir`]. Not to be
+    /// confused with the machine-wide [`Self::state_dir`].
+    #[default(_code = "default_install_state_dir()")]
+    pub install_state_dir: PathBuf,
+
+    /// The resolved explicit `virtualStoreDir` setting, retained separately
+    /// because [`Self::install_state_dir`] stays in the modules directory
+    /// under a global virtual store.
+    pub configured_virtual_store_dir: Option<PathBuf>,
 
     /// When `true`, the virtual store is shared across every project on
     /// the machine: packages live under `<store_dir>/v11/links/...` and
@@ -328,22 +327,9 @@ pub struct Config {
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 
-    /// The shared global-virtual-store directory. When
-    /// [`enable_global_virtual_store`] is `true` this is the same path as
-    /// [`virtual_store_dir`]; when `false`, it is still computed as
-    /// `<store_dir>/v11/links` (an unconditional assignment) even though
-    /// no install path consults it in that mode today.
-    ///
-    /// Populated by [`Config::current`] after yaml has been applied; the
-    /// `SmartDefault` value is overwritten there with the path derived
-    /// from the resolved `store_dir` / `virtual_store_dir`. The default
-    /// here is only meaningful when `Config::new()` is used in isolation
-    /// (mostly tests), and matches the derivation's own fallback so
-    /// such a config never points the shared store at the working
-    /// directory.
-    ///
-    /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
-    /// [`virtual_store_dir`]: Self::virtual_store_dir
+    /// The shared package store used when [`Self::enable_global_virtual_store`]
+    /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from
+    /// `globalVirtualStoreDir`, `virtualStoreDir`, or `<store_dir>/links`.
     #[default(_code = "default_store_dir::<Host>().links()")]
     pub global_virtual_store_dir: PathBuf,
 
@@ -580,6 +566,16 @@ pub struct Config {
     /// `pnpm-lock.yaml`.
     pub git_branch_lockfile_name: Option<String>,
 
+    /// The `pnpm-lock.<branch>.yaml` files a detached HEAD's install reads
+    /// before `pnpm-lock.yaml`: the lockfiles of the branches containing
+    /// the checked-out commit. Empty unless
+    /// [`Self::use_git_branch_lockfile`] is on and HEAD is detached with
+    /// containing branches. The write target stays
+    /// [`Self::git_branch_lockfile_name`] — `None` here too, so a detached
+    /// install still writes the shared lockfile, as under
+    /// [`Self::merge_git_branch_lockfiles`].
+    pub git_branch_lockfile_candidates: Vec<String>,
+
     /// Refuse network requests during install. The `offline` flag gates
     /// the metadata-fetch path with `ERR_PNPM_NO_OFFLINE_META` when no
     /// cached metadata exists for a spec. Pacquet doesn't have a
@@ -655,6 +651,10 @@ pub struct Config {
     /// The indexes and exclusive package routes declared for non-npm ecosystems.
     /// Read through `python_indexes` and `cargo_index_url`.
     pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<crate::EcosystemIndex>>,
+
+    /// The `networkConcurrency` of each `registries` entry that sets one,
+    /// keyed by registry URL with a trailing slash.
+    pub network_concurrency_by_registry: BTreeMap<String, std::num::NonZeroUsize>,
 
     /// Resolved proxy configuration — `https-proxy`, `http-proxy`, and
     /// `no-proxy` (plus the legacy `proxy` key and env-var fallbacks),
@@ -887,6 +887,16 @@ pub struct Config {
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
     /// `pnpm-workspace.yaml` / `.npmrc` setting.
     pub force: bool,
+
+    /// Whether packages resolved from a local directory are imported
+    /// with `clone-or-copy` whatever
+    /// [`package_import_method`](Self::package_import_method) says, so no
+    /// installed file shares an inode with its source directory.
+    ///
+    /// Set only by `pnpm deploy` with a shared lockfile, whose deployed
+    /// workspace dependencies must not change when the workspace sources
+    /// do. Not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub isolate_local_directory_imports: bool,
 
     /// `forceIgnoresPlatform`. When `true`, [`force`](Self::force) also
     /// bypasses the per-snapshot installability check, so optional
@@ -1199,12 +1209,13 @@ pub struct Config {
 
     /// `extraEnv`: extra environment variables exported to the lifecycle
     /// scripts and spawned child processes of a command. Empty by
-    /// default. Not a `pnpm-workspace.yaml` key — the only way to
-    /// populate it is an `updateConfig` pnpmfile hook that returns an
-    /// `extraEnv` object, wired up in `pnpm_cli`'s
-    /// `run_update_config_hooks`. That hook runs for the install family
-    /// and commands that pack packages, making the returned environment
-    /// available to their lifecycle scripts.
+    /// default. Not a `pnpm-workspace.yaml` key — it is populated by an
+    /// `updateConfig` pnpmfile hook that returns an `extraEnv` object,
+    /// wired up in `pnpm_cli`'s `run_update_config_hooks`, and by pnpm
+    /// itself for the variables npm exports to scripts, such as
+    /// `npm_command`. The hook runs
+    /// for the install family and commands that pack packages, making
+    /// the returned environment available to their lifecycle scripts.
     pub extra_env: HashMap<String, String>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
@@ -1231,7 +1242,7 @@ pub struct Config {
     /// [`resolve_child_concurrency`](crate::defaults::resolve_child_concurrency) so the yaml value can be
     /// negative (interpreted as `parallelism - |value|`).
     ///
-    /// Default: `min(4, availableParallelism())`.
+    /// Default: `5`.
     /// Chunks run sequentially (children before parents); only
     /// members within a chunk are parallelized.
     #[default(_code = "default_child_concurrency()")]
@@ -1762,6 +1773,24 @@ pub struct Config {
     /// raw value. The `config` command turns this into the record it prints.
     pub explicit_settings: serde_json::Map<String, serde_json::Value>,
 
+    /// Camel-cased names of the settings the command line set: every
+    /// `--config.<key>` override and bare setting flag, `registry` for
+    /// `--registry`, `storeDir` / `stateDir` for `--store-dir` /
+    /// `--state-dir`. A `--config.@<scope>:registry` override is recorded
+    /// under that `@<scope>:registry` key. Recorded by the CLI as it layers
+    /// the flags onto the loaded config; the `updateConfig` hooks cannot
+    /// change these settings, since the command line outranks every other
+    /// layer.
+    pub cli_settings: BTreeSet<String>,
+
+    /// The `--config.<setting>=<value>` values the command line carries
+    /// for settings the CLI has no handling of its own for, keyed by
+    /// kebab-case name. The CLI seeds them before [`Config::current`], which
+    /// applies them above `PNPM_CONFIG_*` and before the derivations that
+    /// read the final settings, such as the lockfile-dir anchoring and the
+    /// global virtual store.
+    pub cli_setting_values: BTreeMap<String, String>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution
@@ -1840,7 +1869,7 @@ impl Config {
             self.cache_dir.clone(),
             self.state_dir.clone(),
             self.modules_dir.clone(),
-            self.virtual_store_dir.clone(),
+            self.install_state_dir.clone(),
             self.global_virtual_store_dir.clone(),
         ]
     }

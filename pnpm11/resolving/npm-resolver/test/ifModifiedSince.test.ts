@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { afterEach, beforeEach, expect, test } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
+import gfs from '@pnpm/fs.graceful-fs'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -10,6 +11,7 @@ import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
+import { metadataResponseIsUncacheable } from '../src/fetch.js'
 import {
   fetchAbbreviatedMetadataCached,
   fetchFullMetadataCached,
@@ -17,14 +19,14 @@ import {
 import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
+const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -234,16 +236,227 @@ test('a 304 Not Modified renews the metadata file mtime so the publishedBy fresh
   // The touch is fire-and-forget, so poll briefly instead of asserting
   // immediately.
   const renewed = () => fs.statSync(metaPath).mtime.getTime() > aged.getTime() + 1000
-  await new Promise<void>((resolve) => {
-    const start = Date.now()
-    const timer = setInterval(() => {
-      if (renewed() || Date.now() - start > 5000) {
-        clearInterval(timer)
-        resolve()
-      }
-    }, 50)
-  })
+  await pollUntil(renewed, 50)
   expect(renewed()).toBe(true)
+})
+
+test('max-age=0 metadata is refetched without validators', async () => {
+  const cacheDir = temporaryDirectory()
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, {
+      headers: {
+        etag: '"old"',
+        'cache-control': 'max-age=0, private, must-revalidate',
+      },
+    })
+
+  const resolverOptions = {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  }
+  const first = createResolveFromNpm(resolverOptions)
+  const firstResult = await first.resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '3.1.0' },
+    {}
+  )
+  expect(firstResult!.id).toBe('is-positive@3.1.0')
+
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/is-positive.jsonl`)
+  const saved = await retryLoadJsonFile<{ uncacheable?: boolean }>(cachePath, (data) => data.uncacheable === true)
+  expect(saved.uncacheable).toBe(true)
+
+  const version = isPositiveMeta.versions['3.1.0']
+  const newer = {
+    ...isPositiveMeta,
+    'dist-tags': { latest: '9.9.9' },
+    versions: {
+      ...isPositiveMeta.versions,
+      '9.9.9': { ...version, version: '9.9.9' },
+    },
+  }
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, newer, {
+      headers: {
+        etag: '"new"',
+        'cache-control': 'public, max-age=300',
+      },
+    })
+
+  const second = createResolveFromNpm(resolverOptions)
+  const secondResult = await second.resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '9.9.9' },
+    {}
+  )
+  expect(secondResult!.id).toBe('is-positive@9.9.9')
+})
+
+test('metadataResponseIsUncacheable reads max-age numerically and ignores qualified no-cache', () => {
+  expect(metadataResponseIsUncacheable('max-age=0, private, must-revalidate')).toBe(true)
+  expect(metadataResponseIsUncacheable('MAX-AGE = 00')).toBe(true)
+  expect(metadataResponseIsUncacheable('No-Store')).toBe(true)
+  expect(metadataResponseIsUncacheable('public, no-cache')).toBe(true)
+  expect(metadataResponseIsUncacheable('no-cache="set-cookie"')).toBe(false)
+  expect(metadataResponseIsUncacheable('public, max-age=300')).toBe(false)
+  expect(metadataResponseIsUncacheable(null)).toBe(false)
+})
+
+test('an uncacheable 304 to a mirror without the flag is refetched without validators', async () => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registriesByScope.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"old"'))
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { 'if-none-match': '"old"' },
+    })
+    .reply(304, '', { headers: { 'cache-control': 'max-age=0, private, must-revalidate' } })
+  const version = isPositiveMeta.versions['3.1.0']
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: { ...isPositiveMeta.versions, '9.9.9': { ...version, version: '9.9.9' } },
+    }, {
+      headers: {
+        etag: '"new"',
+        'cache-control': 'max-age=0, private, must-revalidate',
+      },
+    })
+
+  const result = await fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registriesByScope.default,
+  })
+
+  expect(result.versions['9.9.9']).toBeDefined()
+  const saved = await retryLoadJsonFile<{ uncacheable?: boolean }>(pkgMirror, (data) => data.uncacheable === true)
+  expect(saved.uncacheable).toBe(true)
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('an uncacheable field in the registry body does not mark the metadata uncacheable', async () => {
+  const cacheDir = temporaryDirectory()
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, { ...isPositiveMeta, uncacheable: true }, {
+      headers: {
+        etag: '"body-flag"',
+        'cache-control': 'public, max-age=300',
+      },
+    })
+  const resolverOptions = {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  }
+  const wanted = { alias: 'is-positive', bareSpecifier: '3.1.0' }
+  expect((await createResolveFromNpm(resolverOptions).resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, isPositiveMeta)
+  expect((await createResolveFromNpm(resolverOptions).resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(1)
+})
+
+test('a failed uncacheable metadata write removes the previous mirror', async () => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registriesByScope.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"old"'))
+  expect(fs.existsSync(pkgMirror)).toBe(true)
+
+  const writeFile = jest.spyOn(gfs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
+  try {
+    getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+      .intercept({ path: '/is-positive', method: 'GET' })
+      .reply(200, isPositiveMeta, {
+        headers: {
+          etag: '"new"',
+          'cache-control': 'max-age=0',
+        },
+      })
+
+    const result = await fetchFullMetadataCached({
+      fetch,
+      retry: { retries: 0 },
+      timeout: 30_000,
+      fetchWarnTimeoutMs: 30_000,
+    }, 'is-positive', {
+      cacheDir,
+      registry: registriesByScope.default,
+    })
+    expect(result.name).toBe('is-positive')
+
+    await pollUntil(() => !fs.existsSync(pkgMirror), 20)
+    expect(fs.existsSync(pkgMirror)).toBe(false)
+  } finally {
+    writeFile.mockRestore()
+  }
+})
+
+test('max-age=0 metadata is reused within one install but not from the disk mirror', async () => {
+  const cacheDir = temporaryDirectory()
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, {
+      headers: {
+        etag: '"old"',
+        'cache-control': 'max-age=0, private, must-revalidate',
+      },
+    })
+
+  const resolverOptions = {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  }
+  const resolve = createResolveFromNpm(resolverOptions)
+  const wanted = { alias: 'is-positive', bareSpecifier: '3.1.0' }
+  expect((await resolve.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, isPositiveMeta, {
+      headers: {
+        etag: '"new"',
+        'cache-control': 'public, max-age=300',
+      },
+    })
+  expect((await resolve.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(1)
+
+  const freshProcess = createResolveFromNpm(resolverOptions)
+  expect((await freshProcess.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  getMockAgent().assertNoPendingInterceptors()
 })
 
 test('store etag from 200 response in cache', async () => {
@@ -271,7 +484,7 @@ test('store etag from 200 response in cache', async () => {
 
   // Verify etag was saved to disk cache
   const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/is-positive.jsonl`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   const savedMeta = await retryLoadJsonFile<any>(cachePath)
   expect(savedMeta.etag).toBe('"xyz789"')
 })
@@ -538,4 +751,17 @@ function matchCacheBypassHeaders (headers: Record<string, string>): boolean {
   return headers['if-none-match'] === undefined &&
     headers['if-modified-since'] === undefined &&
     headers['cache-control'] === 'no-cache'
+}
+
+/** Resolves once `condition` holds or 5 seconds have passed, checking every `intervalMs`. */
+async function pollUntil (condition: () => boolean, intervalMs: number): Promise<void> {
+  const started = Date.now()
+  return new Promise<void>((resolve) => {
+    const timer = setInterval(() => {
+      if (condition() || Date.now() - started > 5000) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, intervalMs)
+  })
 }

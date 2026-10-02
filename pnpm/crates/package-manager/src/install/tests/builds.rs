@@ -86,7 +86,7 @@ fn build_modules_manifest_serializes_skipped_set() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
-    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    config.install_state_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
 
     let key1: PackageKey = "darwin-only-pkg@1.0.0".parse().unwrap();
@@ -138,7 +138,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
-    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    config.install_state_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
 
     let manifest = super::super::build_modules_manifest(
@@ -174,7 +174,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     let config = config.leak();
 
@@ -228,6 +228,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

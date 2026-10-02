@@ -48,6 +48,18 @@ onlyOnWindows('keeps a /c inside the script when scriptShell is cmd.exe', async 
   expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~install:', 'stdout', expect.stringContaining('can-compile-ran'))
 })
 
+test('rejects when the temporary directory of the script cannot be created', async () => {
+  const wd = temporaryDirectory()
+  fs.writeFileSync(path.join(wd, 'node_modules'), '')
+
+  await expect(lifecycle({ name: 'foo', version: '1.0.0', scripts: { install: 'exit 0' } }, 'install', wd, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: path.join(wd, 'node_modules'),
+    unsafePerm: false,
+  })).rejects.toMatchObject({ code: 'ENOTDIR' })
+})
+
 test("reports child's output", async () => {
   const log = makeLog()
 
@@ -132,6 +144,26 @@ test('rejects when the spawn observer fails', async () => {
     })
   ).rejects.toThrow(/observer failed/)
   expect(childClosed).toBe(true)
+})
+
+skipOnWindows('runs a configured scriptShell when shellEmulator is also set', async () => {
+  const wd = temporaryDirectory()
+  const shim = path.join(wd, 'probe-shell.sh')
+  fs.writeFileSync(
+    shim,
+    '#!/bin/sh\nprintf \'%s\\n\' "$2" >> "$(dirname "$0")/shell-invocations.txt"\nexec /bin/sh -c "$2"\n',
+    { mode: 0o755 }
+  )
+
+  await lifecycle({ name: 'probe', version: '1.0.0', scripts: { postinstall: 'export FOO=1' } }, 'postinstall', wd, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: wd,
+    scriptShell: shim,
+    shellEmulator: true,
+  })
+
+  expect(fs.readFileSync(path.join(wd, 'shell-invocations.txt'), 'utf8')).toContain('export FOO=1')
 })
 
 test('runs lifecycle scripts with the shell emulator', async () => {

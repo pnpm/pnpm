@@ -46,6 +46,8 @@
 //!   that has both ignore files gets them combined rather than
 //!   `.npmignore` winning. This is rare in published packages.
 
+pub use files_field::build_files_matcher;
+
 use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -176,6 +178,8 @@ fn collect_own_files(
     let files_field = manifest.get("files").and_then(Value::as_array);
     let files_matcher: Option<Gitignore> =
         files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
+    let named_files: BTreeSet<String> =
+        files_field.map(|arr| named_file_entries(pkg_dir, arr)).unwrap_or_default();
     let main_path = manifest.get("main").and_then(Value::as_str);
     let bin_paths: Vec<&str> = manifest
         .get("bin")
@@ -200,8 +204,12 @@ fn collect_own_files(
     // honor `.gitignore` even though a git-hosted snapshot's `.git/`
     // has already been deleted by [`crate::GitFetcher`] before this
     // point.
-    let selection =
-        FileSelection { files_matcher: files_matcher.as_ref(), main_path, bin_paths: &bin_paths };
+    let selection = FileSelection {
+        files_matcher: files_matcher.as_ref(),
+        named_files: &named_files,
+        main_path,
+        bin_paths: &bin_paths,
+    };
     let builder = ignore_walk_builder(pkg_dir, workspace_dir, files_matcher.is_some())?;
     collect_walked_files(&builder, pkg_dir, &selection, &mut out)?;
     collect_always_included_at_root(pkg_dir, &mut out)?;
@@ -213,6 +221,9 @@ fn collect_own_files(
 struct FileSelection<'a> {
     /// The `files` allowlist, when the manifest declares one.
     files_matcher: Option<&'a Gitignore>,
+    /// The `files` entries that name an existing file; they ship even when
+    /// another entry excludes the directory holding them.
+    named_files: &'a BTreeSet<String>,
     main_path: Option<&'a str>,
     bin_paths: &'a [&'a str],
 }
@@ -304,7 +315,7 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
     let Some(matcher) = selection.files_matcher else {
         return false;
     };
-    !files_field_includes(matcher, rel)
+    !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)
         && !is_main_or_bin(rel, selection.main_path, selection.bin_paths)
 }
@@ -441,74 +452,6 @@ fn add_workspace_ignore_file(
     Ok(())
 }
 
-/// Compile the `manifest.files` allowlist into a single `Gitignore`
-/// matcher rooted at `pkg_dir`. Returns `None` when no entries
-/// compile (e.g., the field was present but every entry was empty or
-/// malformed) so the caller treats the absence as "include
-/// everything", the same as an unset / empty `files`. Lines that fail
-/// to parse are dropped with a `tracing::debug!` — npm-packlist
-/// tolerates bad globs the same way (a bad pattern just doesn't match
-/// anything).
-pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
-    let mut builder = ignore::gitignore::GitignoreBuilder::new(pkg_dir);
-    let mut added = 0;
-    for entry in entries {
-        let Some(raw) = entry.as_str() else { continue };
-        let normalized = normalize_field_path(raw);
-        if normalized.is_empty() {
-            continue;
-        }
-        let pattern = anchor_files_entry(&normalized);
-        if let Err(error) = builder.add_line(None, &pattern) {
-            tracing::debug!(
-                target: "pacquet::fs_packlist",
-                ?pattern,
-                ?error,
-                "skipping invalid `files` entry",
-            );
-            continue;
-        }
-        added += 1;
-    }
-    if added == 0 {
-        return None;
-    }
-    match builder.build() {
-        Ok(gi) => Some(gi),
-        Err(error) => {
-            tracing::debug!(
-                target: "pacquet::fs_packlist",
-                ?error,
-                "failed to build `files`-field matcher; treating field as absent",
-            );
-            None
-        }
-    }
-}
-
-/// Anchor a [`normalize_field_path`]-ed `files` entry at the package
-/// root — the matcher is rooted there, so the leading slash is what
-/// binds the pattern to it. An exclusion is left unanchored, matching
-/// how npm-packlist hands a negated entry to `ignore-walk`.
-fn anchor_files_entry(pattern: &str) -> String {
-    if pattern.starts_with('!') {
-        return pattern.to_string();
-    }
-    format!("/{pattern}")
-}
-
-/// `true` when `rel` matches the `files`-field allowlist. The matcher
-/// was built with the `files` entries as gitignore-style include
-/// patterns.
-///
-/// `Gitignore::matched_path_or_any_parents` walks the path's ancestor
-/// chain and returns `Ignore` when any segment matches — exactly the
-/// behavior npm-packlist's `files`-field needs (a directory pattern
-/// includes its contents recursively).
-fn files_field_includes(matcher: &Gitignore, rel: &str) -> bool {
-    matcher.matched_path_or_any_parents(rel, false).is_ignore()
-}
-
 fn is_always_included_at_root(rel: &str) -> bool {
     // Only files at the root carry the always-include semantics; a
     // `LICENSE` deep in a subtree follows the same `.npmignore` /
@@ -570,14 +513,6 @@ fn relative_forward_slash(root: &Path, full: &Path) -> String {
     buf
 }
 
-/// Strip a leading `./` and any leading slashes from `path` so manifest
-/// field entries match the forward-slash relative form `packlist`
-/// produces. Mirrors `npm-packlist`'s normalization step.
-fn normalize_field_path(path: &str) -> String {
-    let trimmed = path.trim_start_matches("./");
-    trimmed.trim_start_matches('/').to_string()
-}
-
 /// Whether a [`normalize_field_path`]-ed `main` / `bin` value stays inside
 /// the package: non-empty, only normal path components (no `..`, root, or
 /// drive/UNC prefix), and no backslash (a separator on Windows, where the
@@ -619,6 +554,8 @@ fn into_io(err: ignore::Error) -> std::io::Error {
 }
 
 mod bundled;
+mod files_field;
 mod symlinks;
 use bundled::collect_bundled_files;
+use files_field::{files_field_includes, named_file_entries, normalize_field_path};
 use symlinks::{is_admissible_root_file, is_packable};

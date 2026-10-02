@@ -43,7 +43,7 @@ async fn cold_batch_links_slots_in_parallel() {
     config.registry = "https://registry.test".to_string();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir;
-    config.virtual_store_dir = virtual_store_dir.clone();
+    config.install_state_dir = virtual_store_dir.clone();
     config.package_import_method = PackageImportMethod::Copy;
     config.offline = true;
     let config = config.leak();
@@ -240,7 +240,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     config.registry = "https://registry.test".to_string();
     config.store_dir = store_dir.into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     config.enable_global_virtual_store = true;
     config.global_virtual_store_dir = root.path().join("links");
     config.package_import_method = PackageImportMethod::Copy;
@@ -511,7 +511,7 @@ fn group_slots_by_dir_is_identity_without_gvs() {
 
     let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = false;
-    config.virtual_store_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
+    config.install_state_dir = std::path::PathBuf::from("/tmp/proj/node_modules/.pnpm");
     let config = config.leak();
     let layout = crate::VirtualStoreLayout::new(config, None, None, None, None, None);
 

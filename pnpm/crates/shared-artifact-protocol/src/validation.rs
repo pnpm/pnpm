@@ -2,8 +2,8 @@ use super::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
     ArtifactPayload, ArtifactProtocolError, ArtifactSubject, BASE64, BTreeMap, BuilderProfile,
     HashSet, MAX_ARTIFACT_SIZE, MAX_ENCODED_FILE_SIZE, MAX_FILE_SIZE, MAX_MANIFEST_FILES,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, Sha512, ValidatedArtifactPublication,
-    validate_compatibility,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, SYMLINK_MODE, Sha512,
+    ValidatedArtifactPublication, validate_compatibility,
 };
 use base64::Engine as _;
 use sha2::Digest as _;
@@ -41,7 +41,7 @@ fn validate_added_file<'a>(
     file: &'a ArtifactFile,
     integrity_sizes: &mut BTreeMap<&'a String, u64>,
 ) -> Result<(), ArtifactProtocolError> {
-    if file.mode != 0o644 && file.mode != 0o755 {
+    if file.mode != 0o644 && file.mode != 0o755 && file.mode != SYMLINK_MODE {
         return Err(ArtifactProtocolError::InvalidManifest(format!(
             "path {:?} has unsupported mode {:o}",
             file.path, file.mode,

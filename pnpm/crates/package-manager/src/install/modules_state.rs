@@ -106,10 +106,10 @@ fn importer_bins_are_relocatable(
 /// own.
 fn virtual_store_bins_are_relocatable(config: &Config, lockfile: &Lockfile, root: &Path) -> bool {
     let layout = crate::VirtualStoreLayout::legacy(
-        config.virtual_store_dir.clone(),
+        config.virtual_store_dir().to_path_buf(),
         config.virtual_store_dir_max_length as usize,
     );
-    bin_dir_is_relocatable(&config.virtual_store_dir.join("node_modules").join(".bin"), root)
+    bin_dir_is_relocatable(&config.install_state_dir.join("node_modules").join(".bin"), root)
         && lockfile.snapshots
             .as_ref()
             .is_none_or(|snapshots| {
@@ -240,7 +240,7 @@ pub(crate) fn modules_layout_consistent_with(
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
             == config
-                .effective_virtual_store_dir()
+                .virtual_store_dir()
                 .to_string_lossy()
                 .as_ref()
 }
@@ -436,7 +436,7 @@ pub(super) fn build_modules_manifest(
             .collect(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,

@@ -10,7 +10,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -46,7 +46,7 @@ const DEFAULT_OPTIONS = {
 test('prune removes external link that is not in package.json', async () => {
   const project = prepare(undefined)
   const storeDir = path.resolve('store')
-  f.copy('local-pkg', 'local')
+  testFixtures.copy('local-pkg', 'local')
 
   symlinkDirSync(path.resolve('local'), path.join('node_modules/local-pkg'))
 
@@ -156,11 +156,9 @@ test('prune: ignores all the lifecycle scripts when --ignore-scripts is used', a
     version: '0.0.0',
 
     scripts: {
-      // eslint-disable:object-literal-sort-keys
       preinstall: server.sendLineScript('preinstall'),
       prepare: server.sendLineScript('prepare'),
       postinstall: server.sendLineScript('postinstall'),
-      // eslint-enable:object-literal-sort-keys
     },
   })
 

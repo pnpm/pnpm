@@ -5,7 +5,7 @@ import path from 'node:path'
 import { checkbox } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -36,30 +36,8 @@ export function help (): string {
 export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest'>
 
 export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
-  let patchesToRemove = params
   const patchedDependencies = { ...opts.patchedDependencies }
-
-  if (!params.length) {
-    const allPatches = Object.keys(patchedDependencies)
-    if (allPatches.length) {
-      try {
-        patchesToRemove = await checkbox({
-          choices: allPatches.map((name) => ({ name, value: name })),
-          message: 'Select the patch to be removed',
-          required: true,
-          validate: (values) => {
-            return values.length === 0 ? 'Select at least one option.' : true
-          },
-          theme: { keybindings: ['vim'] },
-        })
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
-          throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
-        }
-        throw err
-      }
-    }
-  }
+  const patchesToRemove = params.length ? params : await promptForPatchesToRemove(Object.keys(patchedDependencies))
 
   if (!patchesToRemove.length) {
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
@@ -85,15 +63,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     delete patchedDependencies[patch]
   }
 
-  const patchesDirs = new Set(patchesToRemoveTargets.map(({ parentDir }) => parentDir))
-  await Promise.all(Array.from(patchesDirs).map(async (dir) => {
-    try {
-      const files = await fs.readdir(dir)
-      if (!files.length) {
-        await fs.rmdir(dir)
-      }
-    } catch {}
-  }))
+  await removeEmptyPatchesDirs(patchesToRemoveTargets)
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
@@ -103,6 +73,38 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     ...opts,
     patchedDependencies,
   })
+}
+
+async function promptForPatchesToRemove (allPatches: string[]): Promise<string[]> {
+  if (!allPatches.length) return []
+  try {
+    return await checkbox({
+      choices: allPatches.map((name) => ({ name, value: name })),
+      message: 'Select the patch to be removed',
+      required: true,
+      validate: (values) => {
+        return values.length === 0 ? 'Select at least one option.' : true
+      },
+      theme: { keybindings: ['vim'] },
+    })
+  } catch (err: unknown) {
+    if (isError(err) && err.name === 'ExitPromptError') {
+      throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
+    }
+    throw err
+  }
+}
+
+async function removeEmptyPatchesDirs (patchesToRemoveTargets: PatchRemovalTarget[]): Promise<void> {
+  const patchesDirs = new Set(patchesToRemoveTargets.map(({ parentDir }) => parentDir))
+  await Promise.all(Array.from(patchesDirs).map(async (dir) => {
+    try {
+      const files = await fs.readdir(dir)
+      if (!files.length) {
+        await fs.rmdir(dir)
+      }
+    } catch {}
+  }))
 }
 
 interface PatchRemovalContext {

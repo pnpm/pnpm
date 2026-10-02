@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.directory-fetcher",
-  "version": "1100.0.35",
+  "version": "1100.0.36",
   "description": "A fetcher for local directory packages",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.binary-fetcher",
-  "version": "1102.0.16",
+  "version": "1102.0.18",
   "description": "A fetcher for binary archives",
   "keywords": [
     "pnpm",
@@ -35,11 +35,11 @@
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "adm-zip": "catalog:",
     "is-subdir": "catalog:",
     "rename-overwrite": "catalog:",
     "ssri": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "yauzl": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/worker": "workspace:^"
@@ -49,6 +49,8 @@
     "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@types/adm-zip": "catalog:",
     "@types/ssri": "catalog:",
+    "@types/yauzl": "catalog:",
+    "adm-zip": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

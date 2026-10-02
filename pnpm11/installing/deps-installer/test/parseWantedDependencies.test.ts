@@ -220,3 +220,22 @@ test('an alias a hook removes is dropped and reported', () => {
   expect(wantedDependencies.map(({ alias }) => alias)).toStrictEqual(['semver'])
   expect(removedByHook).toStrictEqual(['hook-removed'])
 })
+
+test('a dependency named like an Object.prototype property is not read from the prototype', () => {
+  const { wantedDependencies } = parseWantedDependencies(['constructor'], {
+    ...defaults,
+    currentBareSpecifiers: {},
+    defaultCatalog: {},
+    preferredSpecs: {},
+    overrides: {},
+  })
+
+  expect(wantedDependencies).toStrictEqual([{
+    alias: 'constructor',
+    bareSpecifier: 'latest',
+    dev: false,
+    optional: false,
+    prevSpecifier: undefined,
+    saveCatalogName: undefined,
+  }])
+})

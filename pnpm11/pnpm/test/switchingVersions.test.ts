@@ -39,6 +39,19 @@ test('switch to the pinned pnpm version although a task setting is only known to
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('switch to the pinned pnpm version although an option is only known to it (pnpm/pnpm#16353)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help', '--lock'], { env, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
 test('child pnpm processes select the version for their own directory', () => {
   prepare()
   const rootDir = process.cwd()
@@ -446,8 +459,8 @@ test('throws error if pnpm binary in store is corrupt', () => {
 
   // Find the pnpm binary in the global virtual store and corrupt it.
   const entries = fs.readdirSync(storeDir, { recursive: true }) as string[]
-  const pnpmBinEntry = entries.find(e => {
-    const normalized = e.replace(/\\/g, '/')
+  const pnpmBinEntry = entries.find(entry => {
+    const normalized = entry.replace(/\\/g, '/')
     return normalized.endsWith('/bin/pnpm') && !normalized.includes('node_modules')
   })
   if (!pnpmBinEntry) throw new Error('Could not find pnpm binary in store')

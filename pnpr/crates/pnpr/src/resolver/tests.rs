@@ -26,7 +26,8 @@ use super::{
     cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution},
     protocol::{ResolveRequest, ResolveRequestProject},
     reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
-    resolution_cache_key, store_resolution,
+    reject_unsafe_publish_directories, reject_unusable_resolve, resolution_cache_key,
+    store_resolution,
 };
 use pnpr_config::{Config as RegistryConfig, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};

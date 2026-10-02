@@ -103,7 +103,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
-        store_index: None,
+        store_view: None,
     };
     (resolver, cache_dir)
 }
@@ -164,6 +164,8 @@ fn options<'a>(
             strict_pkg_content_check: true,
             package_import_method: pnpm_config::PackageImportMethod::default(),
         },
+        store_index: None,
+        store_index_writer: None,
         root_dir,
 
         registries: &harness.registries,

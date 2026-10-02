@@ -51,15 +51,14 @@ pub(super) fn child_specs_of(
     pending: &PendingNode,
     peer_shadowed: &HashSet<String>,
 ) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
-    let cached = lock_recoverable(&ctx.workspace.children.specs_by_id)
-        .get(pending.identity.id.as_str())
-        .cloned();
+    let cached =
+        lock_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
     let child_specs = if let Some(specs) = cached {
         specs
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
         lock_recoverable(&ctx.workspace.children.specs_by_id)
-            .entry(Arc::from(pending.identity.id.as_str()))
+            .entry(Arc::clone(&pending.identity.id))
             .or_insert_with(|| Arc::clone(&specs));
         specs
     };
@@ -204,13 +203,13 @@ pub(super) fn child_wanted(
 /// snapshot); only the repeat of the full `parent … child` sequence is
 /// dropped.
 pub(crate) fn parent_ids_contain_sequence(
-    pkg_ids: &[String],
+    pkg_ids: &[Arc<str>],
     pkg_id1: &str,
     pkg_id2: &str,
 ) -> bool {
     let Some(pkg1_index) = pkg_ids
         .iter()
-        .position(|id| id == pkg_id1)
+        .position(|id| &**id == pkg_id1)
     else {
         return false;
     };
@@ -219,7 +218,7 @@ pub(crate) fn parent_ids_contain_sequence(
     }
     let Some(pkg2_index) = pkg_ids
         .iter()
-        .rposition(|id| id == pkg_id2)
+        .rposition(|id| &**id == pkg_id2)
     else {
         return false;
     };

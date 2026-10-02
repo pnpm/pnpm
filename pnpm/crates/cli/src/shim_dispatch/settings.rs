@@ -48,6 +48,7 @@ pub(crate) fn global_shims_setting() -> GlobalShims {
 #[derive(Debug, Display)]
 pub(crate) enum LoadGlobalShimsSettingError {
     Workspace(LoadWorkspaceYamlError),
+    DirEnv(pnpm_config::UnexpandedWindowsEnvVar),
     #[display("malformed {env_name} value {value:?}: {source}")]
     Environment {
         env_name: &'static str,
@@ -57,6 +58,7 @@ pub(crate) enum LoadGlobalShimsSettingError {
 }
 
 fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSettingError> {
+    pnpm_config::ensure_windows_dir_envs::<Host>().map_err(LoadGlobalShimsSettingError::DirEnv)?;
     let mut shims = GlobalShims::default();
     let default_state_dir = default_state_dir::<Host>().unwrap_or_default();
     let mut state_dir = default_state_dir.clone();

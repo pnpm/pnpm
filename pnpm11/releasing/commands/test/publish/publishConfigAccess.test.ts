@@ -142,3 +142,21 @@ describe('createPublishOptions: auth', () => {
     expect(opts.token).toBe('scoped-token')
   })
 })
+
+describe('createPublishOptions: timeout', () => {
+  test('waits at least 5 minutes for the registry to accept the publish request', async () => {
+    const opts = await createPublishOptions(
+      { name: 'pkg', version: '1.0.0' },
+      baseOpts()
+    )
+    expect(opts.timeout).toBe(5 * 60 * 1000)
+  })
+
+  test('keeps a fetchTimeout longer than 5 minutes', async () => {
+    const opts = await createPublishOptions(
+      { name: 'pkg', version: '1.0.0' },
+      { ...baseOpts(), fetchTimeout: 10 * 60 * 1000 }
+    )
+    expect(opts.timeout).toBe(10 * 60 * 1000)
+  })
+})

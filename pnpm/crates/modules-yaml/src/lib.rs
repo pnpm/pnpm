@@ -545,7 +545,7 @@ fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
         // relative path like `../../Users/.../store/v11/links` joined
         // with `<workspace>/node_modules` round-trips as
         // `<workspace>/node_modules/../../Users/...`, which never byte-
-        // matches the config's `effective_virtual_store_dir()` — and
+        // matches the config's `virtual_store_dir()` — and
         // [`crate::Install`]'s no-op short-circuit relies on that
         // equality to skip materialization on a clean install.
         (false, false) => lexical_normalize(&modules_dir.join(stored_path)),

@@ -356,11 +356,11 @@ impl InstallPackageBySnapshot<'_> {
                 removed_aliases: &[],
                 symlink: config.symlink,
             },
-            import: crate::PackageImportOptions {
-                method: config.package_import_method,
-                logged_methods: self.ctx.logged_methods,
-                requester: self.ctx.requester,
-            },
+            import: crate::PackageImportOptions::from_config(
+                config,
+                self.ctx.logged_methods,
+                self.ctx.requester,
+            ),
             source: crate::SlotImportSource {
                 is_mutable: slot.source_is_mutable,
                 source_exists: slot.source_exists,

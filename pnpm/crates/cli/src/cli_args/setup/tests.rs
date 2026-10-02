@@ -5,7 +5,7 @@
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
     PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
-    standalone_manifest,
+    standalone_manifest, write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -127,7 +127,7 @@ fn alias_scripts_replace_a_hardlink_of_the_running_executable() {
 }
 
 /// The aliases are `sh` scripts, so this runs where `sh` does. On Windows the
-/// `.cmd` and `.ps1` wrappers take over, and they have only `PATH` to go on.
+/// `.cmd` wrappers take over; see `windows_alias_scripts`.
 #[cfg(unix)]
 #[test]
 fn alias_scripts_run_the_pnpm_beside_them() {
@@ -164,28 +164,60 @@ fn alias_scripts_run_the_pnpm_beside_them() {
     }
 }
 
-/// The Windows counterparts of [`alias_scripts_run_the_pnpm_beside_them`]. The
-/// stand-in siblings are named for the `pnpm.cmd` / `pnpm.ps1` shims that
-/// `pnpm add -g` links next to the aliases, which is what fixes the shape these
-/// wrappers have to reach.
+/// The default path `command -p` searches can lack `readlink`, as inside a Nix
+/// build sandbox. No test host is set up that way, so each alias's `command -p`
+/// is rewritten to a `command` that searches a directory that does not exist.
+#[cfg(unix)]
+#[test]
+fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let bin_dir = dir.path().join("bin");
+    create_alias_scripts(&bin_dir).expect("write alias scripts");
+    let sibling = bin_dir.join("pnpm");
+    std::fs::write(&sibling, "#!/bin/sh\necho \"sibling: $*\"\n").expect("write stub");
+    std::fs::set_permissions(&sibling, std::fs::Permissions::from_mode(0o755))
+        .expect("make stub executable");
+    let link_dir = dir.path().join("links");
+    std::fs::create_dir_all(&link_dir).expect("create link dir");
+
+    for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
+        let alias = bin_dir.join(name);
+        let script = std::fs::read_to_string(&alias).expect("read alias script");
+        std::fs::write(&alias, script.replace("command -p ", "PATH=/nonexistent command "))
+            .expect("rewrite alias script");
+        std::os::unix::fs::symlink(&alias, link_dir.join(name)).expect("link the alias");
+
+        let output = std::process::Command::new(link_dir.join(name))
+            .args(["add", "foo"])
+            .env("PATH", "/usr/bin:/bin")
+            .output()
+            .expect("run the alias script");
+
+        let stdout = String::from_utf8(output.stdout).expect("alias stdout is UTF-8");
+        assert_eq!(stdout, format!("sibling: {subcommand}add foo\n"), "{name} ran the wrong pnpm");
+    }
+}
+
+/// The Windows counterpart of [`alias_scripts_run_the_pnpm_beside_them`]. The
+/// stand-in sibling is named for the `pnpm.cmd` shim that `pnpm add -g` links
+/// next to the aliases, which is what fixes the shape these wrappers have to
+/// reach.
 #[cfg(windows)]
 mod windows_alias_scripts {
     use super::{Path, create_alias_scripts};
 
-    /// `cmd.exe` needs `System32` for its own startup, and `powershell.exe` lives
-    /// a few levels deeper. Both are on the `PATH` handed to the child, since that
-    /// is what a command name may be resolved against; the decoy stays first
-    /// either way, which is what these tests turn on.
+    /// `cmd.exe` needs `System32` for its own startup. It follows the decoy on the
+    /// `PATH` handed to the child, and the decoy coming first is what this test
+    /// turns on.
     const SYSTEM32: &str = r"C:\Windows\System32";
-    const POWERSHELL_DIR: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0";
-    /// What the stand-in shims exit with, so the wrappers are shown to hand the
+    /// What the stand-in shim exits with, so the wrappers are shown to hand the
     /// shim's status back rather than reporting their own success.
     const SHIM_EXIT_CODE: i32 = 3;
 
-    /// A bin directory holding the aliases and a stand-in `pnpm.cmd`, which is the
-    /// only sibling shim guaranteed to be there: the bin linker omits `pnpm.ps1`
-    /// for a package named `pnpm`, so neither wrapper may rely on it. No
-    /// `pnpm.ps1` is planted, so a wrapper that reached for one would fail here.
+    /// A bin directory holding the aliases and a stand-in `pnpm.cmd`, the sibling
+    /// shim the bin linker writes for a package named `pnpm`.
     fn bin_dir_with_cmd_sibling() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("create temp dir");
         let bin_dir = dir.path().join("bin");
@@ -214,7 +246,7 @@ mod windows_alias_scripts {
                 .arg("/c")
                 .arg(bin_dir.join(format!("{name}.cmd")))
                 .args(["add", "foo"])
-                .env("PATH", format!("{};{SYSTEM32};{POWERSHELL_DIR}", decoy_dir.display()))
+                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
                 .output()
                 .expect("run the alias wrapper");
 
@@ -231,37 +263,20 @@ mod windows_alias_scripts {
             );
         }
     }
+}
 
-    #[test]
-    fn ps1_wrappers_call_the_shim_beside_them() {
-        let dir = bin_dir_with_cmd_sibling();
-        let bin_dir = dir.path().join("bin");
-        let decoy_dir = dir.path().join("decoy");
+/// PowerShell prefers `pn.ps1` over `pn.cmd`, so an unsigned leftover from an
+/// earlier setup would keep failing under the default execution policy.
+#[test]
+fn windows_alias_wrapper_removes_a_stale_ps1() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let stale = dir.path().join("pn.ps1");
+    std::fs::write(&stale, "stale wrapper\n").expect("write stale wrapper");
 
-        for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
-            // `-ExecutionPolicy Bypass` because a runner's default policy blocks
-            // running a script from disk, which is not what this is testing.
-            let output = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-                .arg(bin_dir.join(format!("{name}.ps1")))
-                .args(["add", "foo"])
-                .env("PATH", format!("{};{SYSTEM32};{POWERSHELL_DIR}", decoy_dir.display()))
-                .output()
-                .expect("run the alias wrapper");
+    write_windows_alias_wrapper(dir.path(), "pn", "").expect("write alias wrapper");
 
-            let stdout = String::from_utf8(output.stdout).expect("wrapper stdout is UTF-8");
-            assert_eq!(
-                stdout.trim_end(),
-                format!("sibling: {subcommand}add foo"),
-                "{name}.ps1 ran the wrong pnpm",
-            );
-            assert_eq!(
-                output.status.code(),
-                Some(SHIM_EXIT_CODE),
-                "{name}.ps1 dropped the shim's exit status",
-            );
-        }
-    }
+    assert!(dir.path().join("pn.cmd").is_file());
+    assert!(!stale.exists());
 }
 
 #[test]

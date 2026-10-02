@@ -3,7 +3,7 @@ use super::{
     HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
     PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver, WantedSpec,
     WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
-    get_hoistable_optional_peers_with_locked_versions, hoist_peers, index_missing_names,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
 
@@ -294,7 +294,7 @@ impl ImporterHoistState {
     pub(super) fn append_resolved_peer_providers(
         &mut self,
         providers: &BTreeMap<String, crate::NodeId>,
-        provider_pkg_ids: &HashMap<crate::NodeId, String>,
+        provider_pkg_ids: &HashMap<crate::NodeId, Arc<str>>,
         missing_required: &BTreeMap<String, MissingPeerInfo>,
     ) {
         if !self.policy.peers.auto_install_peers {
@@ -312,7 +312,7 @@ impl ImporterHoistState {
             self.dependencies.direct.push(DirectDep {
                 alias: alias.clone(),
                 node_id: node_id.clone(),
-                id: pkg_id.clone(),
+                id: Arc::clone(pkg_id),
             });
             self.dependencies.hoisted_peer_provider_node_ids.insert(node_id.clone());
             self.dependencies.parent_pkg_aliases.insert(alias.clone());
@@ -336,10 +336,11 @@ impl ImporterHoistState {
     /// the graph can supply. A candidate is skipped when the importer
     /// provides one of its own peers at a version its range rejects.
     fn hoistable_optional_peers(&self) -> BTreeMap<String, String> {
-        let hoist_preferred = self.ctx.preferred_versions_for_names(
-            &self.selection.preferred_versions,
-            self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
-        );
+        let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
+        let hoist_preferred =
+            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
+        let preferred_tiers =
+            self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
         let workspace = self.ctx.workspace();
         let peer_ranges = CandidatePeerRanges::new(workspace);
@@ -350,11 +351,11 @@ impl ImporterHoistState {
                     peers_accept_provided_versions(&ranges, &provided_peer_versions)
                 })
         };
-        get_hoistable_optional_peers_with_locked_versions(
+        get_hoistable_optional_peers_with_preferred_versions(
             &self.dependencies.all_missing_optional_peers,
             &hoist_preferred,
             self.hoist_root_deps(),
-            &self.selection.locked_versions,
+            &preferred_tiers,
             &accepts_candidate,
         )
     }

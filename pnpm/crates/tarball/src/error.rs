@@ -242,6 +242,10 @@ pub enum TarballError {
 }
 
 impl TarballError {
+    pub(crate) fn is_fetch_timeout(&self) -> bool {
+        matches!(self, TarballError::FetchTarball(network) if network.error.is_timeout())
+    }
+
     /// Preserve the status and error code custom fetchers use for fallback decisions.
     #[must_use]
     pub fn fetch_error_details(&self) -> FetchErrorDetails {

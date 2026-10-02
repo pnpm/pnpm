@@ -4,6 +4,8 @@ use super::{
     BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageImportMethod,
     PackageKey, Path, PathBuf, Reporter, import_indexed_dir,
 };
+use pnpm_store_dir::SideEffectsOverlay;
+use std::{fs, io};
 
 /// Compute the package directory inside the virtual store for a snapshot key.
 ///
@@ -53,12 +55,19 @@ pub(crate) fn virtual_store_dir_for_key(
 ///
 /// Only reached for packages that both pass the build-allow policy and
 /// have a cache entry — a handful per install, not the whole tree.
-pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
+pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &SideEffectsOverlay) -> bool {
     !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
         && pkg_dir.is_dir()
-        && overlay
+        && overlay.files
             .keys()
             .all(|relative| pkg_dir.join(relative).exists())
+        && overlay.symlinks
+            .iter()
+            .all(|(relative, target)| symlink_points_to(&pkg_dir.join(relative), target))
+}
+
+fn symlink_points_to(link: &Path, target: &str) -> bool {
+    fs::read_link(link).is_ok_and(|actual| actual == Path::new(target))
 }
 
 /// The `.pnpm-needs-build` content of a slot whose build has started and
@@ -125,7 +134,7 @@ pub(crate) fn discard_skipped_optional_dependency(
     key: &PackageKey,
 ) -> Result<(), BuildModulesError> {
     let virtual_store_dir = pkg_roots.layout.package_store_dir();
-    for pkg_dir in pkg_roots.all(key) {
+    for pkg_dir in pkg_roots.all_recorded(key) {
         if !is_contained_descendant(virtual_store_dir, &pkg_dir)
             && !is_contained_descendant(lockfile_dir, &pkg_dir)
         {
@@ -137,7 +146,14 @@ pub(crate) fn discard_skipped_optional_dependency(
             );
             continue;
         }
-        match pnpm_fs::remove_dir_all_with_retry(&pkg_dir) {
+        // A duplicate placement is recorded as a link to the location
+        // imported first; the link is unlinked itself, never followed.
+        let remove = if pnpm_fs::is_symlink_or_junction(&pkg_dir).unwrap_or(false) {
+            pnpm_fs::remove_symlink_dir
+        } else {
+            pnpm_fs::remove_dir_all_with_retry
+        };
+        match remove(&pkg_dir) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(source) => {
@@ -199,14 +215,36 @@ impl PkgRoots<'_> {
         }
     }
 
-    /// Every on-disk directory holding a snapshot's package.
+    /// Every distinct on-disk directory holding a snapshot's package.
     ///
     /// The isolated linker gives each snapshot exactly one virtual-store
     /// slot, so this is [`Self::canonical`] in a one-element list. The
     /// hoisted linker can place the same snapshot at several paths — a
     /// version conflict keeps a package out of the root and the walker
-    /// nests a copy under each consumer that needs it.
+    /// nests a copy under each consumer that needs it. Two recorded
+    /// locations may also alias one directory: the hoisted linker
+    /// replaces a duplicate placement with a symlink to the location
+    /// imported first (see [`crate::symlink_package()`]), so both paths
+    /// resolve to the same files. Those collapse here — a write has to
+    /// reach each distinct directory once, not once per recorded path.
     pub(crate) fn all(self, key: &PackageKey) -> Vec<PathBuf> {
+        match self.by_key {
+            Some(map) => match map.get(key) {
+                Some(dirs) => dedupe_aliased_dirs(dirs),
+                None => Vec::new(),
+            },
+            None => vec![virtual_store_dir_for_key(self.layout, key)],
+        }
+    }
+
+    /// Every recorded on-disk location of a snapshot's package, aliasing
+    /// included: a duplicate hoisted placement recorded as a link to
+    /// another location (see [`crate::symlink_package()`]) is listed as
+    /// itself, not collapsed into its target. Removal walks this list —
+    /// each alias has to be unlinked too, or it is left dangling over
+    /// the removed directory — while writes use [`Self::all`] to reach
+    /// each distinct directory once.
+    pub(crate) fn all_recorded(self, key: &PackageKey) -> Vec<PathBuf> {
         match self.by_key {
             Some(map) => map
                 .get(key)
@@ -215,6 +253,27 @@ impl PkgRoots<'_> {
             None => vec![virtual_store_dir_for_key(self.layout, key)],
         }
     }
+}
+
+/// Collapse locations that resolve to one directory, keeping the recorded
+/// (non-canonicalized) paths so consumers keep writing where the walker
+/// placed them. Single-location snapshots — the common case — skip the
+/// canonicalization entirely.
+fn dedupe_aliased_dirs(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    if dirs.len() == 1 {
+        return dirs.to_vec();
+    }
+    let mut seen = std::collections::HashSet::with_capacity(dirs.len());
+    let mut distinct = Vec::with_capacity(dirs.len());
+    for dir in dirs {
+        // A path that fails to canonicalize is kept: the directory may
+        // genuinely be gone, and the caller's own `exists()` handling
+        // decides what that means.
+        if seen.insert(dir.canonicalize().unwrap_or_else(|_| dir.clone())) {
+            distinct.push(dir.clone());
+        }
+    }
+    distinct
 }
 
 /// Re-import a snapshot's package directory from the side-effects cache
@@ -239,20 +298,53 @@ pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
     logged_methods: &std::sync::atomic::AtomicU8,
     import_method: PackageImportMethod,
     pkg_dir: &Path,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &SideEffectsOverlay,
 ) -> Result<(), BuildModulesError> {
     import_indexed_dir::<Reporter>(
         logged_methods,
         import_method,
         pkg_dir,
-        overlay,
+        &overlay.files,
         ImportIndexedDirOpts {
             force: true,
             keep_modules_dir: true,
             ..ImportIndexedDirOpts::default()
         },
     )
-    .map_err(BuildModulesError::MaterializeSideEffects)
+    .map_err(BuildModulesError::MaterializeSideEffects)?;
+    for (relative, target) in &overlay.symlinks {
+        let link = pkg_dir.join(relative);
+        create_overlay_symlink(&link, target)
+            .map_err(|source| BuildModulesError::MaterializeSideEffectsSymlink {
+                path: link,
+                source,
+            })?;
+    }
+    Ok(())
+}
+
+/// Replace whatever is at `link` with a symlink to `target`. The overlay
+/// holds no symlinks off Unix (see [`pnpm_store_dir::SideEffectsOverlay`]).
+fn create_overlay_symlink(link: &Path, target: &str) -> io::Result<()> {
+    if symlink_points_to(link, target) {
+        return Ok(());
+    }
+    if let Some(parent) = link.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::symlink_metadata(link) {
+        Ok(meta) if meta.is_dir() => fs::remove_dir_all(link)?,
+        Ok(_) => fs::remove_file(link)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, link);
+    #[cfg(not(unix))]
+    return Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        format!("cannot restore the symlink to {target} on this platform"),
+    ));
 }
 
 /// Walk every ancestor `node_modules/.bin` from `pkg_root` up to

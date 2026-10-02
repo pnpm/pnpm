@@ -1,9 +1,9 @@
 import assert from 'node:assert'
 import { chmodSync, constants, existsSync, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import fs from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { FilesMap, ImportIndexedPackage, ImportOptions } from '@pnpm/store.controller-types'
@@ -64,6 +64,35 @@ function createImportPackage (
   }
 }
 
+function probeCloneAndSwitch (to: string, opts: ImportOptions, createOpts?: CreateIndexedPkgImporterOptions): 'clone' | undefined {
+  if (process.platform === 'win32') return undefined
+  try {
+    if (!tryClonePkg(to, opts)) return undefined
+    if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'clone' })
+    return 'clone'
+  } catch {
+    return undefined
+  }
+}
+
+function handleHardlinkProbeError (
+  err: unknown,
+  to: string,
+  opts: ImportOptions,
+  createOpts?: CreateIndexedPkgImporterOptions
+): { nextAuto: ImportIndexedPackage, result: string | undefined } {
+  assert(isError(err))
+  if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
+    globalWarn(err.message)
+    globalInfo('Falling back to copying packages from store')
+    if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'copy' })
+    return { nextAuto: copyPkg, result: copyPkg(to, opts) }
+  }
+  if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'hardlink' })
+  const nextAuto = hardlinkPkg.bind(null, linkOrCopy)
+  return { nextAuto, result: nextAuto(to, opts) }
+}
+
 function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): ImportIndexedPackage {
   let auto = initialAuto
 
@@ -73,24 +102,9 @@ function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): Impo
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    // Although reflinks are supported on Windows Dev Drives,
-    // they are 10x slower than hard links.
-    // Hence, we prefer reflinks by default only on Linux and macOS.
-    if (process.platform !== 'win32') {
-      try {
-        // Probe with the raw clone function (no ENOTSUP fallback).
-        // On filesystems that don't support reflinks (e.g. ext4), this
-        // throws and we fall through to hardlinks — which is much faster
-        // than copying.  If the probe succeeds, we switch to the full
-        // clone importer (with ENOTSUP fallback for transient failures
-        // during heavy parallel I/O) for all subsequent packages.
-        if (!tryClonePkg(to, opts)) return undefined
-        if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'clone' })
-        auto = createClonePkg()
-        return 'clone'
-      } catch {
-        // ignore
-      }
+    if (probeCloneAndSwitch(to, opts, createOpts)) {
+      auto = createClonePkg()
+      return 'clone'
     }
     try {
       if (!hardlinkPkg(linkOrThrowOnLinkFailure, to, opts)) return undefined
@@ -98,18 +112,9 @@ function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): Impo
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
-      if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
-        globalWarn(err.message)
-        globalInfo('Falling back to copying packages from store')
-        if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'copy' })
-        auto = copyPkg
-        return auto(to, opts)
-      }
-      // We still choose hard linking that will fall back to copying in edge cases.
-      if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'hardlink' })
-      auto = hardlinkPkg.bind(null, linkOrCopy)
-      return auto(to, opts)
+      const { nextAuto, result } = handleHardlinkProbeError(err, to, opts, createOpts)
+      auto = nextAuto
+      return result
     }
   }
 }
@@ -165,6 +170,20 @@ function tryClonePkg (
   return undefined
 }
 
+function withCloneFallback (clone: CloneFunction, fallback: CloneFunction): ImportFile {
+  return (src, dest) => {
+    try {
+      clone(src, dest)
+    } catch (err: unknown) {
+      if (isError(err) && 'code' in err && err.code === 'ENOTSUP') {
+        fallback(src, dest)
+        return
+      }
+      throw err
+    }
+  }
+}
+
 /**
  * Creates a clone-based package importer.  Reflinks are atomic, so clone can
  * serve as both importFile and importFileAtomic.  However, on Linux
@@ -175,20 +194,9 @@ function tryClonePkg (
  */
 function createClonePkg (): ImportIndexedPackage {
   const clone = alignedClone(createCloneFunction())
-  const withFallback = (fallback: CloneFunction): ImportFile => (src, dest) => {
-    try {
-      clone(src, dest)
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
-        fallback(src, dest)
-        return
-      }
-      throw err
-    }
-  }
   const importer: Importer = {
-    importFile: withFallback(resilientCopyFileSync),
-    importFileAtomic: withFallback(atomicCopyFileSync),
+    importFile: withCloneFallback(clone, resilientCopyFileSync),
+    importFileAtomic: withCloneFallback(clone, atomicCopyFileSync),
   }
   return (to: string, opts: ImportOptions) => {
     if (shouldImportPkg(to, opts)) {
@@ -235,31 +243,36 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
 
 let _cloneFunction: CloneFunction | undefined
 
+function createNativeReflinkClone (): CloneFunction {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loads the native addon only on the platforms that use it
+  const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
+  return (fr, to) => {
+    try {
+      reflinkFileSync(fr, to)
+    } catch (err: unknown) {
+      if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    }
+  }
+}
+
+function createPosixReflinkClone (): CloneFunction {
+  return (src: string, dest: string) => {
+    try {
+      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    } catch (err: unknown) {
+      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    }
+  }
+}
+
 function createCloneFunction (): CloneFunction {
   if (_cloneFunction) return _cloneFunction
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
-    // eslint-disable-next-line
-    const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-    _cloneFunction = (fr, to) => {
-      try {
-        reflinkFileSync(fr, to)
-      } catch (err: unknown) {
-        // If the file already exists, then we just proceed.
-        // This will probably only happen if the package's index file contains the same file twice.
-        // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
-      }
-    }
+    _cloneFunction = createNativeReflinkClone()
   } else {
-    _cloneFunction = (src: string, dest: string) => {
-      try {
-        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-      } catch (err: unknown) {
-        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-      }
-    }
+    _cloneFunction = createPosixReflinkClone()
   }
   return _cloneFunction
 }
@@ -343,8 +356,8 @@ function isCafsFile (src: string): boolean {
 }
 
 function isLowerHex (value: string, from: number, to: number): boolean {
-  for (let i = from; i < to; i++) {
-    const code = value.charCodeAt(i)
+  for (let index = from; index < to; index++) {
+    const code = value.charCodeAt(index)
     if (!((code >= 0x30 && code <= 0x39) || (code >= 0x61 && code <= 0x66))) return false
   }
   return true
@@ -380,7 +393,7 @@ function linkOrCopy (existingPath: string, newPath: string): void {
   } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
@@ -406,7 +419,7 @@ function resilientCopyFileSync (src: string, dest: string): void {
     fs.copyFileSync(src, dest)
     alignStoreFileMode(src, dest)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTSUP') {
+    if (isError(err) && 'code' in err && err.code === 'ENOTSUP') {
       const storeMode = storeEntryModeForSource(src)
       const srcMode = storeMode ?? fs.statSync(src).mode
       fs.writeFileSync(dest, fs.readFileSync(src), { mode: srcMode })
@@ -423,7 +436,7 @@ function pkgLinkedToStore (filesMap: FilesMap, linkedPkgDir: string): boolean {
   try {
     stats0 = fs.statSync(linkedFile)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
   }
   const stats1 = fs.statSync(filesMap.get(filename)!)
   if (stats0.ino === stats1.ino) return true
@@ -453,7 +466,7 @@ function atomicCopyFileSync (src: string, dest: string): void {
   } catch (err) {
     try {
       fs.unlinkSync(tmp)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     throw err
   }
   renameOverwriteSync(tmp, dest)

@@ -31,7 +31,7 @@ fn immutable_uri_absolutizes_a_relative_path() {
     assert!(uri.ends_with("/relative-store/index.db?immutable=1"), "{uri}");
 }
 
-fn sample_index() -> PackageFilesIndex {
+pub(super) fn sample_index() -> PackageFilesIndex {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
@@ -158,6 +158,45 @@ fn set_then_get_round_trips() {
         .expect("row must exist after set");
 
     assert_eq!(loaded, original);
+}
+
+#[test]
+fn readonly_index_reads_wal_commits_and_checkpointed_growth() {
+    let dir = tempdir().unwrap();
+    let writer = StoreIndex::open(dir.path()).unwrap();
+    let initial = sample_index();
+    for i in 0..1000 {
+        writer
+            .set(&format!("pkg-{i:06}"), &initial)
+            .unwrap();
+    }
+    writer.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    let reader = StoreIndex::open_readonly(dir.path()).unwrap();
+    assert_eq!(
+        reader
+            .get("pkg-000000")
+            .unwrap()
+            .as_ref(),
+        Some(&initial),
+    );
+
+    let mut added = sample_index();
+    added.files.get_mut("index.js").unwrap().size = 4096;
+    for i in 1000..1100 {
+        writer
+            .set(&format!("pkg-{i:06}"), &added)
+            .unwrap();
+    }
+    assert_eq!(
+        reader
+            .get("pkg-001099")
+            .unwrap()
+            .as_ref(),
+        Some(&added),
+    );
+    writer.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    assert_eq!(reader.get("pkg-001099").unwrap(), Some(added));
+    assert_eq!(reader.get("pkg-000000").unwrap(), Some(initial));
 }
 
 #[test]
@@ -550,4 +589,40 @@ fn open_immutable_reads_wal_db_on_readonly_directory() {
             "immutable open must not create the {sidecar} sidecar",
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn new_index_db_inherits_group_write_and_reopen_keeps_owner_and_mode() {
+    use std::{
+        fs,
+        os::unix::fs::{MetadataExt, PermissionsExt},
+    };
+
+    let tmp = tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let store = tmp.path().join("store");
+    drop(StoreIndex::open(&store).unwrap());
+
+    let db = store.join("index.db");
+    let created = fs::metadata(&db).unwrap();
+    assert_ne!(created.permissions().mode() & 0o020, 0, "new index.db must be group-writable");
+    assert_eq!(created.gid(), fs::metadata(tmp.path()).unwrap().gid());
+    assert_eq!(
+        fs::metadata(&store)
+            .unwrap()
+            .permissions()
+            .mode()
+            & (0o020 | 0o2000),
+        0o020 | 0o2000,
+    );
+
+    fs::set_permissions(&db, fs::Permissions::from_mode(0o600)).unwrap();
+    let before = fs::metadata(&db).unwrap();
+    drop(StoreIndex::open(&store).unwrap());
+    let after = fs::metadata(&db).unwrap();
+    assert_eq!(after.uid(), before.uid());
+    assert_eq!(after.gid(), before.gid());
+    assert_eq!(after.ino(), before.ino());
+    assert_eq!(after.permissions().mode() & 0o777, 0o600);
 }

@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 import workerThreads from 'node:worker_threads'
 
+import { isError } from '@pnpm/error'
 import { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { renameOverwriteSync } from 'rename-overwrite'
 
@@ -41,18 +41,7 @@ function writeOrCheck (
   // Fast path: check if the file already exists on disk with correct content.
   const existingFile = withFileLockRetry(() => fs.statSync(fileDest, { throwIfNoEntry: false }))
   if (existingFile) {
-    if (verifyFileIntegrity(fileDest, integrity)) {
-      return Date.now()
-    }
-    // File exists but has wrong integrity (corruption/partial write).
-    // Overwrite it in place when possible, keeping the inode so the
-    // hard links to it from other projects' node_modules are healed by
-    // the same write (pnpm/pnpm#3445). Fall back to atomic temp+rename
-    // when in-place overwrite is refused or fails verification.
-    if (overwriteFileInPlace(fileDest, buffer, integrity)) {
-      return Date.now()
-    }
-    return writeFileAtomic(fileDest, buffer, mode)
+    return checkOrRepairExistingFile(fileDest, buffer, mode, integrity)
   }
 
   // File doesn't exist. Use exclusive-create (O_CREAT|O_EXCL) so that
@@ -62,14 +51,8 @@ function writeOrCheck (
   try {
     writeFileExclusive(fileDest, buffer, mode)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // Another process created the file. If it finished successfully,
-      // integrity will pass. If it crashed or is still writing, integrity
-      // will fail and we recover via atomic temp+rename.
-      if (verifyFileIntegrity(fileDest, integrity)) {
-        return Date.now()
-      }
-      return writeFileAtomic(fileDest, buffer, mode)
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') {
+      return checkConcurrentlyCreatedFile(fileDest, buffer, mode, integrity)
     }
     throw err
   }
@@ -77,6 +60,43 @@ function writeOrCheck (
   // We log the creation time ourselves and save it in the package index file.
   // Having this information allows us to skip content checks for files that were not modified since "birth time".
   return Date.now()
+}
+
+function checkOrRepairExistingFile (
+  fileDest: string,
+  buffer: Buffer,
+  mode: number | undefined,
+  integrity: Integrity
+): number {
+  if (verifyFileIntegrity(fileDest, integrity)) {
+    return Date.now()
+  }
+  // File exists but has wrong integrity (corruption/partial write).
+  // Overwrite it in place when possible, keeping the inode so the
+  // hard links to it from other projects' node_modules are healed by
+  // the same write (pnpm/pnpm#3445). Fall back to atomic temp+rename
+  // when in-place overwrite is refused or fails verification.
+  if (overwriteFileInPlace(fileDest, buffer, integrity)) {
+    return Date.now()
+  }
+  return writeFileAtomic(fileDest, buffer, mode)
+}
+
+/**
+ * Another process created the file. If it finished successfully,
+ * integrity will pass. If it crashed or is still writing, integrity
+ * will fail and we recover via atomic temp+rename.
+ */
+function checkConcurrentlyCreatedFile (
+  fileDest: string,
+  buffer: Buffer,
+  mode: number | undefined,
+  integrity: Integrity
+): number {
+  if (verifyFileIntegrity(fileDest, integrity)) {
+    return Date.now()
+  }
+  return writeFileAtomic(fileDest, buffer, mode)
 }
 
 function writeFileAtomic (
@@ -185,7 +205,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
   try {
     renameOverwriteSync(temp, fileDest)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
     // The temporary file path is created by appending the process ID to the target file name.
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817

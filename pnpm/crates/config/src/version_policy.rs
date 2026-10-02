@@ -287,6 +287,17 @@ impl PackageVersionPolicy {
             None => PolicyMatch::No,
         }
     }
+
+    /// Whether a bare-name or wildcard rule matches `pkg_name`, so the
+    /// policy covers every version of it. Equivalent to
+    /// `matches(pkg_name) == PolicyMatch::AnyVersion` without merging the
+    /// exact versions of the other matching rules.
+    #[must_use]
+    pub fn covers_every_version(&self, pkg_name: &str) -> bool {
+        self.rules
+            .iter()
+            .any(|rule| rule.exact_versions.is_empty() && rule.name_matcher.matches(pkg_name))
+    }
 }
 
 /// Compile a list of `<name-pattern>[@<version>||<version>...]` rules

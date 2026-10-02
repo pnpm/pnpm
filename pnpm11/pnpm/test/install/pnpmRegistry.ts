@@ -453,3 +453,91 @@ test('pnpm install with pnpr server works in a workspace with multiple projects'
   expect(fs.existsSync('project-a/node_modules/is-positive')).toBe(true)
   expect(fs.existsSync('project-b/node_modules/is-negative')).toBe(true)
 })
+
+test('pnpm install via the pnpr server records the pnpmfile checksum', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': 'catalog:',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig (config) {
+  config.catalogs = { default: { 'is-positive': '1.0.0' } }
+  return config
+} } }`)
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  const lockfile = project.readLockfile()
+  expect(lockfile.pnpmfileChecksum).toBeDefined()
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('1.0.0')
+
+  await execPnpm(['install', '--frozen-lockfile'])
+  project.has('is-positive')
+})
+
+test('pnpm install resolves locally when the pnpmfile defines a readPackage hook', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.name === 'is-positive') pkg.dependencies = { 'is-negative': '1.0.0' }
+  return pkg
+} } }`)
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  const lockfile = project.readLockfile()
+  expect(lockfile.pnpmfileChecksum).toBeDefined()
+  expect(lockfile.snapshots['is-positive@1.0.0'].dependencies).toStrictEqual({ 'is-negative': '1.0.0' })
+})
+
+test('a frozen install via the pnpr server rejects a changed pnpmfile', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = { hooks: { filterLog: () => true } }')
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+  const recorded = project.readLockfile().pnpmfileChecksum
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = { hooks: { filterLog: () => true } } // changed')
+
+  requestCount = 0
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', `--config.pnprServer=http://localhost:${serverPort}`])
+  ).rejects.toThrow('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
+
+  expect(requestCount).toBe(0)
+  expect(project.readLockfile().pnpmfileChecksum).toBe(recorded)
+})
+
+test('pnpm install resolves locally when the pnpmfile defines a preResolution hook', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { preResolution () {
+  require('fs').writeFileSync(__dirname + '/pre-resolution-ran', '')
+} } }`)
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  expect(fs.existsSync('pre-resolution-ran')).toBe(true)
+})

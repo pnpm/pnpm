@@ -433,6 +433,25 @@ fn files_field_keeps_explicitly_deep_patterns() {
 }
 
 #[test]
+fn files_field_exclusion_prunes_the_directory_it_names() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "src/a.js");
+    touch(root, "test/fixture.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!**/test"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["package.json".to_string(), "src/a.js".into()]);
+}
+
+#[test]
 fn files_field_exclusions_are_not_anchored() {
     let dir = tempdir().unwrap();
     let root = dir.path();
@@ -450,6 +469,77 @@ fn files_field_exclusions_are_not_anchored() {
     out.sort();
 
     assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
+}
+
+#[test]
+fn files_field_named_file_survives_an_ancestor_exclusion() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "app.js");
+    touch(root, "dist/app.js");
+    touch(root, "dist/index.d.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!dist", "dist/index.d.ts"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["app.js".to_string(), "dist/index.d.ts".into(), "package.json".into()],
+        "an entry that names a file ships it even when another entry excludes its directory",
+    );
+}
+
+#[test]
+fn files_field_named_file_follows_an_exclusion_that_names_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    touch(root, "lib/secret.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib", "lib/secret.js", "!lib/secret.js"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["lib/index.js".to_string(), "package.json".into()],
+        "an exclusion that names the file itself still wins over the entry naming it",
+    );
+}
+
+#[test]
+fn files_field_trailing_slash_entry_does_not_name_a_file() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "app.js");
+    touch(root, "dist/app.js");
+    touch(root, "dist/index.d.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!dist", "dist/index.d.ts/"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["app.js".to_string(), "package.json".into()],
+        "a trailing slash makes the entry directory-only, so it re-adds nothing",
+    );
 }
 
 #[cfg(unix)]

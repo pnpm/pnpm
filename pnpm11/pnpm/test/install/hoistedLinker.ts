@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
@@ -141,3 +142,99 @@ test('filter with node-linker=hoisted and shamefully-hoist=true only installs de
   expect(fs.existsSync('node_modules/is-negative')).toBe(false)
 })
 
+// The hoisted linker gives a workspace project its own modules directory only
+// for the dependencies it nests there, so a missing one is not proof of a stale
+// install. The repeat install has to tell a removed one, which the last install
+// recorded, from one that was never created.
+test('a repeat hoisted install restores a removed workspace project modules directory', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '0.0.0', private: true, dependencies: { 'is-positive': '3.1.0' } },
+    },
+    // pkg-a, pkg-b and pkg-d conflict with the root's version, so each gets a
+    // copy nested under it. pkg-d's is optional. pkg-c's dependency goes to the root.
+    {
+      location: 'packages/pkg-a',
+      package: { name: 'pkg-a', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+    {
+      location: 'packages/pkg-b',
+      package: { name: 'pkg-b', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+    {
+      location: 'packages/pkg-c',
+      package: { name: 'pkg-c', version: '1.0.0', dependencies: { 'is-negative': '1.0.0' } },
+    },
+    {
+      location: 'packages/pkg-d',
+      package: { name: 'pkg-d', version: '1.0.0', optionalDependencies: { 'is-positive': '1.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'], nodeLinker: 'hoisted' })
+
+  execPnpmSync(['install'], { expectSuccess: true })
+  expect(fs.existsSync('packages/pkg-c/node_modules')).toBe(false)
+
+  // A project whose dependencies all went to the root must not defeat the fast path.
+  expect(execPnpmSync(['install'], {
+    env: { pnpm_config_silent: 'false' },
+    expectSuccess: true,
+  }).stdout.toString()).toContain('Already up to date')
+
+  const nestingProjects = ['pkg-a', 'pkg-b', 'pkg-d']
+  for (const project of nestingProjects) {
+    fs.rmSync(path.join('packages', project, 'node_modules'), { recursive: true })
+    execPnpmSync(['install'], { expectSuccess: true })
+    for (const restored of nestingProjects) {
+      const manifestPath = path.join('packages', restored, 'node_modules/is-positive/package.json')
+      expect(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version).toBe('1.0.0')
+    }
+  }
+})
+
+test('a filtered install with node-linker=hoisted keeps the packages of installed projects', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { 'is-negative': '1.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'], nodeLinker: 'hoisted' })
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'], nodeLinker: 'hoisted', dedupePeerDependents: false })
+  execPnpmSync(['install', '--filter', 'project-1'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+})
+
+test('filtered installs of different projects with node-linker=hoisted add up', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { 'is-negative': '1.0.0' } },
+    },
+    {
+      location: 'project-3',
+      package: { name: 'project-3', version: '1.0.0', dependencies: { 'is-positive': '1.0.0', '@pnpm.e2e/foo': '100.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-1', 'project-2', 'project-3'], nodeLinker: 'hoisted' })
+
+  execPnpmSync(['install', '--filter', 'project-1'], { expectSuccess: true })
+  execPnpmSync(['install', '--filter', 'project-2'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/foo')).toBe(false)
+})

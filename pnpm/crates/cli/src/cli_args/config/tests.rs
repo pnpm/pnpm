@@ -488,6 +488,96 @@ fn set_refuses_kebab_workspace_key() {
     assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY");
 }
 
+/// A project's `pnpm-workspace.yaml` carries no machine-level state, so
+/// writing one there would leave behind a key pnpm ignores. The documented
+/// error names the key, and the file is left as it was.
+#[test]
+fn set_refuses_a_machine_level_key_in_the_project_manifest() {
+    for key in ["stateDir", "pnpm-home-dir", "config-dir", "scope"] {
+        let tmp = TempDir::new().unwrap();
+        let config = config_with_dir(&tmp.path().join("global-config"));
+        std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "storeDir: ~/store\n").unwrap();
+
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(ConfigLocation::Project), false),
+            key,
+            Some("/tmp/somewhere".into()),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            err.code().unwrap().to_string(),
+            "ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING",
+            "{key}",
+        );
+        assert!(
+            err.to_string().contains("cannot be set in a project's pnpm-workspace.yaml"),
+            "{key}: {err}",
+        );
+        assert_eq!(
+            read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+            Some(json!({ "storeDir": "~/store" })),
+            "{key} must not be written",
+        );
+    }
+}
+
+/// Deleting is how a user clears a manifest that already carries a
+/// machine-level key, so the write-side refusal must not block it.
+#[test]
+fn delete_clears_a_machine_level_key_from_the_project_manifest() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    std::fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "configDir: /tmp/somewhere\nstoreDir: ~/store\n",
+    )
+    .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "config-dir",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+        Some(json!({ "storeDir": "~/store" })),
+    );
+}
+
+/// The reader refuses a machine-level key under any spelling, so a delete
+/// clears the kebab-case spelling a hand-edited manifest may carry too.
+#[test]
+fn delete_clears_every_spelling_of_a_machine_level_key() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    std::fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "state-dir: /tmp/kebab\nstateDir: /tmp/camel\nstoreDir: ~/store\n",
+    )
+    .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "stateDir",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+        Some(json!({ "storeDir": "~/store" })),
+    );
+}
+
 // --- config delete ---------------------------------------------------------
 
 #[test]
@@ -856,6 +946,21 @@ fn get_scoped_registry_from_auth_and_merged() {
     assert_eq!(
         config_get(&absent, flags(false, None, false), "@scope:registry").unwrap(),
         "undefined",
+    );
+}
+
+/// A registry's `networkConcurrency` is part of the resolved `registries` view.
+#[test]
+fn list_shows_a_registry_network_concurrency() {
+    let mut config = config_for_get(&[], &[]);
+    config.network_concurrency_by_registry.insert(
+        "https://npm.corp.example/".to_string(),
+        std::num::NonZeroUsize::new(4).unwrap(),
+    );
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(
+        listed["registries"]["https://npm.corp.example/"],
+        json!({ "networkConcurrency": 4 }),
     );
 }
 

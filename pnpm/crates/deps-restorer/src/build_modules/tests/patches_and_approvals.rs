@@ -240,7 +240,7 @@ new file mode 100644
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -379,7 +379,7 @@ new file mode 100644
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 
@@ -487,7 +487,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             patched_engines: crate::PatchedEngineCheck {
                 engine_strict: false,
                 node_version: None,
-                virtual_store_dir: None,
+                install_state_dir: None,
             },
         },
 

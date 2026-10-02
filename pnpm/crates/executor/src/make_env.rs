@@ -82,7 +82,7 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    stamp_executables(&mut env, &opts.environment, opts.pkg_root);
+    stamp_executables(&mut env, &opts.environment, opts.pkg_root, is_windows);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -98,9 +98,16 @@ fn build_env_for_platform(
     //    [`filter_parent_env`] dropped it, so it is refused here — under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
+    //    On Windows an `extra_env` key also replaces every differently
+    //    cased spelling already present, such as the stamped
+    //    `npm_config_node_gyp` default, which would otherwise race it at
+    //    spawn time.
     for (k, v) in opts.environment.extra_env {
         if is_delegation_marker(k, is_windows) {
             continue;
+        }
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case(k));
         }
         env.insert(k.clone(), v.clone());
     }
@@ -230,13 +237,19 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
     key.strip_prefix(prefix)
 }
 
-/// Look up the `PATH` value from `env` case-insensitively. On
-/// Windows the system variable is typically `Path`, not `PATH`;
-/// returning the value here lets the rest of [`build_env`] stay
-/// independent of casing.
+/// Whether `key` names the `PATH` variable. Windows compares environment
+/// names case-insensitively, and its system variable is typically `Path`.
+/// Elsewhere names are case-sensitive, so a `Path` variable is a variable
+/// of its own and must not stand in for `PATH`.
+pub(crate) fn is_path_key(key: &str) -> bool {
+    if cfg!(windows) { key.eq_ignore_ascii_case("PATH") } else { key == "PATH" }
+}
+
+/// Look up the `PATH` value from `env`, spelled as [`is_path_key`]
+/// accepts it, so the rest of [`build_env`] stays independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
     env.iter()
-        .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
+        .find_map(|(k, v)| is_path_key(k).then(|| v.clone()))
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
@@ -304,11 +317,13 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
 ///
 /// `npm_config_node_gyp` is a default pnpm supplies, not a reserved stamp: TS
 /// `npm-lifecycle` sets it before spreading `extraEnv`, so a user `extraEnv`
-/// overrides it. It is stamped before `extra_env` to match.
+/// overrides it, and only when the environment left it unset, so an inherited
+/// value wins too. It is stamped before `extra_env` to match.
 fn stamp_executables(
     env: &mut HashMap<String, String>,
     opts: &crate::ScriptEnvironment<'_>,
     pkg_root: &Path,
+    is_windows: bool,
 ) {
     let parent_path = path_value(env);
     env.extend(
@@ -330,8 +345,25 @@ fn stamp_executables(
             .into_owned(),
     );
 
-    if let Some(path) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+    // A user's own `npm_config_node_gyp`, inherited from the parent
+    // environment, wins: TS `npm-lifecycle` fills the variable only when
+    // the environment left it unset, and reads an empty value as unset.
+    // Windows treats differently cased spellings as one variable, so an
+    // inherited `NPM_CONFIG_NODE_GYP` must win there too, and an empty
+    // spelling must be removed before the default is stamped or the two
+    // would race in the child's environment block.
+    const NODE_GYP_KEY: &str = "npm_config_node_gyp";
+    let names_node_gyp = |key: &str| {
+        if is_windows { key.eq_ignore_ascii_case(NODE_GYP_KEY) } else { key == NODE_GYP_KEY }
+    };
+    let inherited = env
+        .iter()
+        .any(|(key, value)| names_node_gyp(key) && !value.is_empty());
+    if let Some(path) = opts.node_gyp_path
+        && !inherited
+    {
+        env.retain(|key, _| !names_node_gyp(key));
+        env.insert(NODE_GYP_KEY.into(), path.to_string_lossy().into_owned());
     }
 }
 

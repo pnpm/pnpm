@@ -47,6 +47,24 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
         .as_deref()
 }
 
+/// The bundled `node-gyp` entry point script, the path written into
+/// `npm_config_node_gyp` when the environment does not carry a value of
+/// its own. This is the default the TypeScript CLI supplies through
+/// `require.resolve('node-gyp/bin/node-gyp')`; when the payload is
+/// absent, as in a `cargo build` in a checkout, the variable stays
+/// unset, which is also what the TypeScript CLI does when that
+/// resolution fails.
+///
+/// The entry is taken from the payload [`bundled_node_gyp_bin`] resolved,
+/// never probed on its own, so the variable and the wrapper on `PATH`
+/// always come from the same shipped copy.
+pub fn bundled_node_gyp_entry() -> Option<&'static Path> {
+    static RESOLVED: OnceLock<Option<PathBuf>> = OnceLock::new();
+    RESOLVED
+        .get_or_init(|| node_gyp_entry_in_payload(bundled_node_gyp_bin()?))
+        .as_deref()
+}
+
 fn bundled_node_gyp_bin_beside(exe: &Path) -> Option<PathBuf> {
     // `current_exe` is the path pnpm was launched through on some platforms,
     // macOS among them. The unresolved path is tried first because
@@ -68,6 +86,18 @@ fn bundled_node_gyp_bin_in(exe_dir: &Path) -> Option<PathBuf> {
         .join(NODE_GYP_WRAPPER)
         .is_file()
         .then_some(bin_dir)
+}
+
+/// The `node-gyp.js` that `bin_dir`'s wrapper runs as its fallback, when
+/// the payload shipped it.
+fn node_gyp_entry_in_payload(bin_dir: &Path) -> Option<PathBuf> {
+    let entry = bin_dir
+        .parent()?
+        .join("node_modules")
+        .join("node-gyp")
+        .join("bin")
+        .join("node-gyp.js");
+    entry.is_file().then_some(entry)
 }
 
 #[cfg(test)]

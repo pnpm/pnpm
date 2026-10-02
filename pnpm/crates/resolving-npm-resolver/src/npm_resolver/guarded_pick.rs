@@ -2,8 +2,8 @@ use super::{
     AllVersionsBlockedError, Arc, GuardExhaustionPolicy, GuardRepickLimitError, Package,
     PackageMetaCache, PackageVersion, PackageVersionGuardDecision, PickPackageContext,
     PickPackageError, PickPackageOptions, RegistryPackageSpec, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolveError, pick_package, redact_and_sanitize,
-    registry_response_status, to_registry_url,
+    RegistryResponseErrorOptions, ResolveError, ResolveOptions, UpdateBehavior, pick_package,
+    redact_and_sanitize, registry_response_status, to_registry_url,
 };
 use crate::trust_checks::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
 
@@ -36,6 +36,39 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub checks: CandidateChecks<'a>,
     pub policy: crate::PackagePickPolicy<'a>,
     pub request: crate::MetadataPickRequest,
+}
+
+impl<'a> PickFromRegistryOptions<'a> {
+    pub(crate) fn new(
+        registry: &'a str,
+        spec: &'a RegistryPackageSpec,
+        opts: &'a ResolveOptions,
+        preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
+        optional: bool,
+        trust_check: Option<TrustCheckOptions<'a>>,
+    ) -> Self {
+        Self {
+            registry,
+            spec,
+            preferred_version_selectors,
+            pick_lowest_version: opts.version.pick_lowest_version,
+            include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
+            checks: CandidateChecks::new(&opts.policy, trust_check),
+            policy: crate::PackagePickPolicy {
+                published_by: opts.policy.published_by,
+                fallback_published_by: opts.policy.fallback_published_by,
+                published_by_exclude: opts.policy.published_by_exclude.as_ref(),
+                trust_policy: opts.policy.trust_policy,
+            },
+            request: crate::MetadataPickRequest {
+                dry_run: opts.refresh.dry_run,
+                optional,
+                refresh_metadata: opts.refresh.refreshes_metadata(),
+                update_checksums: opts.refresh.update_checksums
+                    || opts.refresh.update == UpdateBehavior::Patches,
+            },
+        }
+    }
 }
 
 /// Checks that can set a picked candidate aside so the picker tries the

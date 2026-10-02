@@ -1,9 +1,11 @@
 use super::super::{
     Host, InstallError, LogEvent, LogLevel, OptimisticRepeatInstallCheck,
-    OptimisticRepeatInstallDecision, PnpmLog, Reporter, UpdateSeedPolicy,
+    OptimisticRepeatInstallDecision, PnpmLog, Reporter, SummaryLog, UpdateSeedPolicy,
     check_optimistic_repeat_install, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, unapproved_recorded_ignored_builds,
 };
+use pnpm_config::Config;
+use std::path::Path;
 
 /// Everything the optimistic repeat-install short-circuit consults.
 pub(super) struct UpToDateCheck<'a> {
@@ -11,9 +13,11 @@ pub(super) struct UpToDateCheck<'a> {
     pub(super) mutation: crate::ProjectMutation,
     pub(super) update_seed_policy: &'a UpdateSeedPolicy,
     pub(super) frozen_lockfile: bool,
+    /// `--lockfile-only` or `--dry-run`: nothing is linked, so the project is
+    /// not registered in the store.
+    pub(super) resolve_only: bool,
     pub(super) disable_optimistic_repeat_install: bool,
     pub(super) effective_node_version: Option<&'a str>,
-    pub(super) prefix: &'a str,
 }
 /// Whether nothing has changed since the previous successful install
 /// (settings, workspace structure, manifest mtimes), so the whole pipeline can
@@ -38,9 +42,12 @@ pub(super) struct UpToDateCheck<'a> {
 /// subset is selected), and it refuses a workspace state a filtered install
 /// wrote, so "nothing changed" still means every selected project is
 /// materialized.
-pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
+pub(super) fn install_is_already_up_to_date(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
+    if !check.resolve_only {
+        register_workspace_in_store(check.workspace.config, check.workspace.workspace_root);
+    }
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
         && !check.frozen_lockfile
@@ -59,15 +66,7 @@ pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
         );
         return Ok(false);
     }
-    if !build_state_allows_short_circuit(check)? {
-        return Ok(false);
-    }
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Info,
-        message: "Already up to date".to_string(),
-        prefix: check.prefix.to_string(),
-    }));
-    Ok(true)
+    build_state_allows_short_circuit(check)
 }
 /// Whether the recorded build state lets the fast path stand.
 ///
@@ -116,5 +115,81 @@ pub(super) fn build_state_allows_short_circuit(
         }
         Ok(None) => Ok(true),
         Err(_) => Ok(false),
+    }
+}
+
+/// Whether an embedder's in-memory hooks differ from the ones the wanted
+/// lockfile records: a different `pnpmfileChecksum`, or an untracked
+/// `readPackage` hook that appeared or went away. The repeat-install check
+/// detects a changed pnpmfile by its mtime, which in-memory hooks do not
+/// have. An unchanged untracked hook does not count, as an unchanged
+/// pnpmfile does not. An unreadable lockfile or hook counts as changed. A
+/// missing lockfile leaves nothing to compare.
+pub(super) async fn pnpmfile_hook_override_changed(
+    hooks: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
+) -> bool {
+    let Some(hooks) = hooks else { return false };
+    let (recorded_checksum, recorded_untracked) = match lockfile.get() {
+        Ok(Some(lockfile)) => {
+            (lockfile.pnpmfile_checksum.clone(), lockfile.untracked_pnpmfile_read_package_hook())
+        }
+        Ok(None) => return false,
+        Err(_) => return true,
+    };
+    recorded_checksum != hooks.calculate_pnpmfile_checksum().await
+        || hooks
+            .untracked_read_package_hook()
+            .await
+            .map_or(true, |current| current != recorded_untracked)
+}
+
+/// Reports a run the repeat-install fast path finished.
+pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
+    prefix: String,
+) -> super::InstallRunOutcome {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: "Already up to date".to_string(),
+        prefix: prefix.clone(),
+    }));
+    Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+    super::InstallRunOutcome::AlreadyUpToDate
+}
+
+/// Register the workspace root in the store's project registry, once per
+/// install, with or without the global virtual store. The repeat-install
+/// fast paths call it before they short-circuit, so a project installed
+/// unregistered still gets an entry. Store prune walks the workspace's
+/// `node_modules` to find every installed package, so one entry per
+/// workspace is enough. A frozen store is read-only, but a global virtual
+/// store install still registers, best-effort, because prune removes the
+/// slots of an unregistered project.
+///
+/// Best-effort: a registry write failure shouldn't fail the install, so it is
+/// surfaced as `tracing::warn!` instead.
+pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
+    if config.frozen_store && !config.enable_global_virtual_store {
+        return;
+    }
+    // Create the store root before calling `register_project` so its
+    // `path_contains` guard can canonicalize the path instead of falling
+    // through to a literal comparison that wrongly matches against
+    // `<workspace>/../pacquet-store/v11`-shaped relative store paths
+    // (resolved-on-disk: outside the workspace; lexical: starts with the
+    // workspace prefix).
+    if let Err(error) = std::fs::create_dir_all(pnpm_store_dir::StoreDir::root(&config.store_dir)) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to ensure store root exists before project registry write; install continues",
+        );
+    }
+    if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, workspace_root) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to register workspace root in the store project registry; install continues",
+        );
     }
 }

@@ -513,6 +513,33 @@ fn store_add_waits_for_the_store_operation_lock() {
     assert!(output.contains("Acquired the store add operation lock"), "{output}");
 }
 
+#[cfg(unix)]
+#[test]
+fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let runtime_dir = workspace.join("runtime");
+    fs::create_dir(&runtime_dir).expect("create XDG_RUNTIME_DIR");
+
+    pacquet
+        .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])
+        .env("XDG_RUNTIME_DIR", &runtime_dir)
+        .assert()
+        .success();
+
+    let lock_dirs: Vec<_> = fs::read_dir(&runtime_dir)
+        .expect("read XDG_RUNTIME_DIR")
+        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry").path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("pnpm-store-operation-locks-"))
+        })
+        .collect();
+    assert_eq!(lock_dirs.len(), 1, "{lock_dirs:?}");
+    assert!(lock_dirs[0].join("all-stores.lock").is_file());
+}
+
 #[test]
 fn store_add_fails_when_a_package_cannot_be_fetched() {
     let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
@@ -525,6 +552,55 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
     eprintln!("stderr={stderr}");
     assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
+}
+
+#[test]
+fn store_prune_reports_undecodable_entries() {
+    for count in [0, 1, 2] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+        let store_dir = pnpm_store_dir::StoreDir::from(root.path().join("store"));
+        drop(pnpm_store_dir::StoreIndex::open_in(&store_dir).expect("initialize store index"));
+        Command::new("node")
+            .with_args([
+                "-e",
+                r"
+                const { DatabaseSync } = require('node:sqlite');
+                const db = new DatabaseSync(process.argv[1]);
+                const insert = db.prepare('INSERT INTO package_index (key, data) VALUES (?, ?)');
+                for (let i = 0; i < Number(process.argv[2]); i++) {
+                    insert.run(`unreadable-${i}`, Buffer.from([0xc1]));
+                }
+                db.close();
+                ",
+            ])
+            .with_arg(store_dir.root().join("index.db"))
+            .with_arg(count.to_string())
+            .assert()
+            .success();
+
+        let output = pacquet
+            .with_args(["store", "prune", "--store-dir"])
+            .with_arg(store_dir.root())
+            .output()
+            .expect("run store prune");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "store prune failed: {stderr}");
+        if count == 0 {
+            assert!(!stderr.contains("could not be read"), "stderr={stderr}");
+        } else {
+            let noun = if count == 1 { "entry" } else { "entries" };
+            let notice = format!("Kept {count} package index {noun} that could not be read");
+            assert!(stderr.contains(&notice), "stderr={stderr}");
+        }
+        assert_eq!(
+            pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+                .expect("open pruned store index")
+                .keys()
+                .expect("read retained keys")
+                .len(),
+            count,
+        );
+    }
 }
 
 #[test]
@@ -652,4 +728,120 @@ fn store_prune_honors_dlx_cache_max_age() {
             );
         }
     }
+}
+
+/// The dlx cache holds hard links into the store, so one prune must drop an
+/// expired entry and reclaim the packages only that entry used.
+#[test]
+fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    _utils::append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
+    pacquet_at(&workspace)
+        .with_args(["dlx", "--package=is-positive@1.0.0", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let package_keys = || {
+        pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+            .expect("open store index")
+            .keys()
+            .expect("read store index keys")
+    };
+    assert!(
+        package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+    );
+
+    _utils::append_workspace_yaml_key(&workspace, "dlxCacheMaxAge", 0);
+    pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    let dlx_entries = fs::read_dir(npmrc_info.cache_dir.join("dlx")).map_or(0, Iterator::count);
+    assert_eq!(dlx_entries, 0, "store prune must remove the expired dlx cache entry");
+    assert!(
+        !package_keys()
+            .iter()
+            .any(|key| key.contains("is-positive@1.0.0")),
+        "store prune must reclaim the packages of the expired dlx cache entry",
+    );
+}
+
+/// A group-writable, setgid store stands in for a multi-user store. Install
+/// must not replace `index.db` or drop group-write from store files.
+#[cfg(unix)]
+#[test]
+fn install_keeps_a_group_writable_store() {
+    use pnpm_testing_utils::bin::AddMockedRegistry;
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+
+    let versioned = store_dir.join(STORE_VERSION);
+    fs::create_dir_all(&versioned).expect("create the versioned store");
+    fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o2775)).expect("chmod store");
+    fs::set_permissions(&versioned, fs::Permissions::from_mode(0o2775))
+        .expect("chmod versioned store");
+
+    let index = versioned.join("index.db");
+    fs::write(&index, []).expect("seed index.db");
+    fs::set_permissions(&index, fs::Permissions::from_mode(0o664)).expect("chmod index.db");
+    let before = fs::metadata(&index).expect("stat index.db");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert_index = |label: &str| {
+        let meta = fs::metadata(&index).expect("stat index.db");
+        assert_eq!(meta.uid(), before.uid(), "{label} uid");
+        assert_eq!(meta.gid(), before.gid(), "{label} gid");
+        assert_eq!(meta.ino(), before.ino(), "{label} inode");
+        assert_eq!(meta.mode() & 0o777, 0o664, "{label} mode");
+    };
+
+    pacquet_at(&workspace)
+        .arg("install")
+        .assert()
+        .success();
+    assert_index("first install");
+    assert_eq!(fs::metadata(&versioned).unwrap().mode() & 0o7777, 0o2775);
+
+    let files_dir = versioned.join("files");
+    assert!(files_dir.is_dir(), "install must write content-addressed files");
+    let store_gid = fs::metadata(&versioned).unwrap().gid();
+    let mut stack = vec![files_dir];
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir).expect("read store files") {
+            let path = entry.expect("store entry").path();
+            let meta = fs::symlink_metadata(&path).expect("stat store entry");
+            if meta.is_dir() {
+                stack.push(path);
+            } else if meta.is_file() {
+                assert_eq!(meta.gid(), store_gid, "{}", path.display());
+                assert_ne!(meta.mode() & 0o020, 0, "{}", path.display());
+            }
+        }
+    }
+
+    pacquet_at(&workspace)
+        .arg("install")
+        .assert()
+        .success();
+    assert_index("second install");
+
+    drop((root, mock_instance));
 }

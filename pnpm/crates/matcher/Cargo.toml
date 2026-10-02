@@ -12,3 +12,6 @@ repository.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+regex = { workspace = true }

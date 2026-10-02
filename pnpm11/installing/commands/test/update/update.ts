@@ -290,6 +290,35 @@ test('vulnerability updates do not save dependencies added by packageExtensions'
   })
 })
 
+test('vulnerability updates ignore updateConfig.ignoreDependencies of a single project', async () => {
+  const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      [vulnerablePackage]: '100.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageVulnerabilityAudit: createPackageVulnerabilityAudit(vulnerablePackage),
+    updateConfig: { ignoreDependencies: ['@pnpm.e2e/foo'] },
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    [vulnerablePackage]: '100.1.0',
+    '@pnpm.e2e/foo': '100.0.0',
+  })
+})
+
 test('vulnerability updates do not widen pinned dependencies added by packageExtensions', async () => {
   const vulnerablePackage = '@pnpm.e2e/pkg-with-1-dep'
   const packageExtensions = {

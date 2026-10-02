@@ -1,12 +1,12 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { type AuditAdvisory, satisfiesSafe } from '@pnpm/deps.compliance.audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/network.fetch'
 import npa from '@pnpm/npm-package-arg'
 import semver from 'semver'
 
 import type { AuditOptions } from './audit.js'
-import { createAuditNetworkOptions } from './auditContext.js'
+import { type AuditNetworkOptions, createAuditNetworkOptions } from './auditContext.js'
 
 export interface PackumentPublishInfo {
   /**
@@ -36,61 +36,77 @@ export type PublishTimesFetcher = (pkgName: string) => Promise<PackumentPublishI
 export function createPublishTimesFetcher (opts: AuditOptions): PublishTimesFetcher {
   const networkOptions = createAuditNetworkOptions(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri)
-  const fetchFromRegistry = createFetchFromRegistry({
-    ca: networkOptions.ca,
-    cert: networkOptions.cert,
-    httpProxy: networkOptions.httpProxy,
-    httpsProxy: networkOptions.httpsProxy,
-    key: networkOptions.key,
-    localAddress: networkOptions.localAddress,
-    maxSockets: networkOptions.maxSockets,
-    noProxy: networkOptions.noProxy,
-    strictSsl: networkOptions.strictSsl,
-    configByUri: opts.configByUri,
-  })
+  const registryClient: RegistryClient = {
+    fetchFromRegistry: createFetchFromRegistry({
+      ca: networkOptions.ca,
+      cert: networkOptions.cert,
+      httpProxy: networkOptions.httpProxy,
+      httpsProxy: networkOptions.httpsProxy,
+      key: networkOptions.key,
+      localAddress: networkOptions.localAddress,
+      maxSockets: networkOptions.maxSockets,
+      noProxy: networkOptions.noProxy,
+      strictSsl: networkOptions.strictSsl,
+      configByUri: opts.configByUri,
+    }),
+    getAuthHeader,
+    networkOptions,
+    registriesByScope: opts.registriesByScope,
+  }
   const timesByPkg = new Map<string, Promise<PackumentPublishInfo | undefined>>()
   return (pkgName) => {
     let times = timesByPkg.get(pkgName)
     if (times == null) {
-      times = fetchTimes(pkgName)
+      times = fetchPublishInfo(pkgName, registryClient)
       timesByPkg.set(pkgName, times)
     }
     return times
   }
+}
 
-  async function fetchTimes (pkgName: string): Promise<PackumentPublishInfo | undefined> {
-    try {
-      const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
-      const packageUrl = new URL(npa(pkgName).escapedName, registry.endsWith('/') ? registry : `${registry}/`).href
-      // Full metadata: the abbreviated packument has no `time` field.
-      const res = await fetchFromRegistry(packageUrl, {
-        authHeaderValue: getAuthHeader(registry, { pkgName }),
-        fullMetadata: true,
-        retry: networkOptions.retry,
-        timeout: networkOptions.fetchTimeout,
-      })
-      if (!res.ok) return undefined
-      const body = await res.json() as {
-        time?: Record<string, string>
-        versions?: Record<string, { deprecated?: string }>
-      }
-      if (body.time == null || typeof body.time !== 'object' || Array.isArray(body.time)) return undefined
-      const deprecated = new Set<string>()
-      if (body.versions != null && typeof body.versions === 'object') {
-        for (const [version, manifest] of Object.entries(body.versions)) {
-          if (manifest != null && typeof manifest === 'object' && typeof manifest.deprecated === 'string') {
-            const parsed = semver.parse(version, { loose: true })
-            if (parsed != null) deprecated.add(parsed.version)
-          }
-        }
-      }
-      return { time: body.time as Record<string, string>, deprecated }
-    } catch {
-      // A failed lookup must not break the fix flow: the caller keeps its
-      // current behavior (the exclude entry) when the age is unknown.
-      return undefined
-    }
+interface RegistryClient {
+  fetchFromRegistry: FetchFromRegistry
+  getAuthHeader: ReturnType<typeof createGetAuthHeaderByURI>
+  networkOptions: AuditNetworkOptions
+  registriesByScope: AuditOptions['registriesByScope']
+}
+
+interface PackumentWithPublishTimes {
+  time?: Record<string, string>
+  versions?: Record<string, { deprecated?: string }>
+}
+
+async function fetchPublishInfo (pkgName: string, client: RegistryClient): Promise<PackumentPublishInfo | undefined> {
+  try {
+    const registry = pickRegistryForPackage(client.registriesByScope, pkgName)
+    const packageUrl = new URL(npa(pkgName).escapedName, registry.endsWith('/') ? registry : `${registry}/`).href
+    // Full metadata: the abbreviated packument has no `time` field.
+    const res = await client.fetchFromRegistry(packageUrl, {
+      authHeaderValue: client.getAuthHeader(registry, { pkgName }),
+      fullMetadata: true,
+      retry: client.networkOptions.retry,
+      timeout: client.networkOptions.fetchTimeout,
+    })
+    if (!res.ok) return undefined
+    const body = await res.json() as PackumentWithPublishTimes
+    if (body.time == null || typeof body.time !== 'object' || Array.isArray(body.time)) return undefined
+    return { time: body.time as Record<string, string>, deprecated: collectDeprecatedVersions(body.versions) }
+  } catch {
+    // A failed lookup must not break the fix flow: the caller keeps its
+    // current behavior (the exclude entry) when the age is unknown.
+    return undefined
   }
+}
+
+function collectDeprecatedVersions (versions: PackumentWithPublishTimes['versions']): Set<string> {
+  const deprecated = new Set<string>()
+  if (versions == null || typeof versions !== 'object') return deprecated
+  for (const [version, manifest] of Object.entries(versions)) {
+    if (manifest == null || typeof manifest !== 'object' || typeof manifest.deprecated !== 'string') continue
+    const parsed = semver.parse(version, { loose: true })
+    if (parsed != null) deprecated.add(parsed.version)
+  }
+  return deprecated
 }
 
 export interface PublishedVersion {
@@ -122,10 +138,8 @@ export function lowestNonDeprecatedVersion (
 ): PublishedVersion | undefined {
   let lowest: { key: string, parsed: semver.SemVer } | undefined
   for (const key of Object.keys(publishInfo.time)) {
-    if (key === 'created' || key === 'modified') continue
-    const parsed = semver.parse(key, { loose: true })
-    if (parsed == null || publishInfo.deprecated.has(parsed.version)) continue
-    if (!satisfiesSafe(parsed.version, range)) continue
+    const parsed = parseFixCandidate(key, publishInfo, range)
+    if (parsed == null) continue
     if (lowest == null || compareFixCandidates(parsed, lowest.parsed) < 0) {
       lowest = { key, parsed }
     }
@@ -133,11 +147,23 @@ export function lowestNonDeprecatedVersion (
   return lowest && { key: lowest.key, version: lowest.parsed.version }
 }
 
-function compareFixCandidates (a: semver.SemVer, b: semver.SemVer): number {
-  const aIsPrerelease = a.prerelease.length > 0
-  const bIsPrerelease = b.prerelease.length > 0
-  if (aIsPrerelease !== bIsPrerelease) return aIsPrerelease ? 1 : -1
-  return semver.compare(a, b)
+/**
+ * Parses a `time` key into the published version it names, when that version
+ * is not deprecated and satisfies `range`.
+ */
+function parseFixCandidate (key: string, publishInfo: PackumentPublishInfo, range: string): semver.SemVer | undefined {
+  if (key === 'created' || key === 'modified') return undefined
+  const parsed = semver.parse(key, { loose: true })
+  if (parsed == null || publishInfo.deprecated.has(parsed.version)) return undefined
+  if (!satisfiesSafe(parsed.version, range)) return undefined
+  return parsed
+}
+
+function compareFixCandidates (left: semver.SemVer, right: semver.SemVer): number {
+  const leftIsPrerelease = left.prerelease.length > 0
+  const rightIsPrerelease = right.prerelease.length > 0
+  if (leftIsPrerelease !== rightIsPrerelease) return leftIsPrerelease ? 1 : -1
+  return semver.compare(left, right)
 }
 
 /**

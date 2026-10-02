@@ -6,10 +6,10 @@ import { expect, test } from '@jest/globals'
 import { findPackages, findPackagesSync } from '@pnpm/workspace.projects-reader'
 import { temporaryDirectory } from 'tempy'
 
-function compare (a: string | undefined, b: string | undefined) {
-  if (a == null) return 1
-  if (b == null) return -1
-  return a.localeCompare(b)
+function compare (left: string | undefined, right: string | undefined) {
+  if (left == null) return 1
+  if (right == null) return -1
+  return left.localeCompare(right)
 }
 
 const fixtures = path.join(import.meta.dirname, 'findPackages-fixtures')

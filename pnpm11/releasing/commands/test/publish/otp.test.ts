@@ -16,6 +16,10 @@ function createOkResponse (): OtpPublishResponse {
   return { ok: true, status: 200, statusText: 'OK', text: async () => '' }
 }
 
+function getRetryAfterFiveSeconds (name: string): string | null {
+  return name === 'retry-after' ? '5' : null
+}
+
 type MockContextOverrides = Omit<Partial<OtpContext>, 'process'> & {
   process?: Partial<OtpContext['process']>
 }
@@ -243,7 +247,7 @@ describe('publishWithOtpHandling', () => {
           fetchCallCount++
           if (fetchCallCount === 1) {
             return {
-              headers: { get: (name: string) => name === 'retry-after' ? '5' : null },
+              headers: { get: getRetryAfterFiveSeconds },
               json: async () => ({}),
               ok: true,
               status: 202,

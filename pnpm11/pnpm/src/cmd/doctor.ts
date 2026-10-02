@@ -1,12 +1,12 @@
-import { spawnSync } from 'node:child_process'
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { isError } from '@pnpm/error'
 import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
 import { pick } from 'ramda'
@@ -233,7 +233,7 @@ async function checkConnectivity (opts: DoctorCommandOptions): Promise<CheckResu
     return {
       title,
       status: 'fail',
-      detail: `could not reach ${registry}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      detail: `could not reach ${registry}: ${isError(err) ? err.message : String(err)}`,
       fix: 'Check your network, proxy, and registry configuration.',
     }
   }
@@ -254,36 +254,8 @@ export async function checkInstallSmokeTest (
   const base = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-doctor-install-'))
   const started = Date.now()
   try {
-    const provider = path.join(base, 'provider')
-    const consumer = path.join(base, 'consumer')
-    await fs.promises.mkdir(provider, { recursive: true })
-    await fs.promises.mkdir(consumer, { recursive: true })
-    await fs.promises.writeFile(
-      path.join(provider, 'package.json'),
-      JSON.stringify({ name: 'pnpm-doctor-fixture', version: '0.0.0' })
-    )
-    await fs.promises.writeFile(
-      path.join(consumer, 'package.json'),
-      JSON.stringify({
-        name: 'pnpm-doctor-consumer',
-        version: '0.0.0',
-        private: true,
-        dependencies: { 'pnpm-doctor-fixture': 'file:../provider' },
-      })
-    )
-
-    const [command, ...baseArgs] = pnpmCommand
-    const args = [
-      ...baseArgs,
-      'install',
-      '--offline',
-      '--ignore-scripts',
-      '--ignore-workspace',
-      '--no-frozen-lockfile',
-      `--store-dir=${path.join(base, 'store')}`,
-      `--cache-dir=${path.join(base, 'cache')}`,
-    ]
-    const result = spawnSync(command, args, { cwd: consumer, encoding: 'utf8', timeout: 120_000 })
+    const consumer = await writeSmokeTestProjects(base)
+    const result = runOfflineInstall({ pnpmCommand, base, consumer })
 
     if (result.status !== 0) {
       const stderr = (result.stderr ?? '').trim()
@@ -307,6 +279,48 @@ export async function checkInstallSmokeTest (
   } finally {
     await fs.promises.rm(base, { recursive: true, force: true })
   }
+}
+
+/**
+ * Write a `provider` package and a `consumer` project that depends on it as a
+ * `file:` dependency. Returns the consumer's directory.
+ */
+async function writeSmokeTestProjects (base: string): Promise<string> {
+  const provider = path.join(base, 'provider')
+  const consumer = path.join(base, 'consumer')
+  await fs.promises.mkdir(provider, { recursive: true })
+  await fs.promises.mkdir(consumer, { recursive: true })
+  await fs.promises.writeFile(
+    path.join(provider, 'package.json'),
+    JSON.stringify({ name: 'pnpm-doctor-fixture', version: '0.0.0' })
+  )
+  await fs.promises.writeFile(
+    path.join(consumer, 'package.json'),
+    JSON.stringify({
+      name: 'pnpm-doctor-consumer',
+      version: '0.0.0',
+      private: true,
+      dependencies: { 'pnpm-doctor-fixture': 'file:../provider' },
+    })
+  )
+  return consumer
+}
+
+function runOfflineInstall (
+  { pnpmCommand, base, consumer }: { pnpmCommand: string[], base: string, consumer: string }
+): SpawnSyncReturns<string> {
+  const [command, ...baseArgs] = pnpmCommand
+  const args = [
+    ...baseArgs,
+    'install',
+    '--offline',
+    '--ignore-scripts',
+    '--ignore-workspace',
+    '--no-frozen-lockfile',
+    `--store-dir=${path.join(base, 'store')}`,
+    `--cache-dir=${path.join(base, 'cache')}`,
+  ]
+  return spawnSync(command, args, { cwd: consumer, encoding: 'utf8', timeout: 120_000 })
 }
 
 function renderReport (checks: CheckResult[]): string {
@@ -355,7 +369,7 @@ async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, 
 function canReflink (source: string, dest: string): boolean {
   try {
     if (process.platform === 'darwin' || process.platform === 'win32') {
-      // eslint-disable-next-line
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the native addon is loaded synchronously and only on the platforms that need it
       const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
       reflinkFileSync(source, dest)
     } else {
@@ -393,7 +407,7 @@ async function dirIsInPath (dir: string, pathEnv: string): Promise<boolean> {
   }
 }
 
-const areSameDir = (a: string, b: string): boolean => a !== '' && b !== '' && path.relative(a, b) === ''
+const areSameDir = (dir1: string, dir2: string): boolean => dir1 !== '' && dir2 !== '' && path.relative(dir1, dir2) === ''
 
 function canWriteToDir (dir: string): boolean {
   const probe = path.join(dir, `.pnpm-doctor-write-${process.pid}`)

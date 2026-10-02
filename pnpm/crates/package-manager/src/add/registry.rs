@@ -87,6 +87,7 @@ pub(super) async fn resolve_explicit_registry_spec(
         &policy,
         &resolution.meta_cache,
         &resolution.fetch_locker,
+        resolution.store_view(add.config),
     );
     let opts = explicit_registry_pick_options(
         add.config,
@@ -152,12 +153,14 @@ pub(super) fn explicit_registry_pick_options<'a>(
         blocked_versions: None,
         policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
             published_by: policy.published_by,
+            fallback_published_by: None,
             published_by_exclude: policy.published_by_exclude.as_ref(),
             trust_policy: Some(config.trust_policy),
         },
         request: pnpm_resolving_npm_resolver::MetadataPickRequest {
             dry_run: false,
             optional: false,
+            refresh_metadata: false,
             update_checksums: false,
         },
     }

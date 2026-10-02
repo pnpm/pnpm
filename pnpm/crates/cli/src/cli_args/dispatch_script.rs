@@ -91,6 +91,9 @@ pub(super) fn test<'a>(
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
+    // A built-in command that a same-named script replaces arrives here with
+    // its own name in `npm_command`, and a script run reports `run-script`.
+    config.extra_env.insert("npm_command".to_string(), "run-script".to_string());
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.locations.dir;
     let reporter = ctx.reporter();
@@ -172,6 +175,7 @@ struct RecursiveCliOptions<'a> {
     report_summary: bool,
     parallel: bool,
     if_present: bool,
+    sequential: bool,
 }
 
 impl<'a> RecursiveCliOptions<'a> {
@@ -192,6 +196,7 @@ impl<'a> RecursiveCliOptions<'a> {
             report_summary: ctx.workspace.report_summary,
             parallel: ctx.workspace.parallel,
             if_present: ctx.workspace.if_present,
+            sequential: ctx.workspace.sequential,
         }
     }
 }
@@ -203,6 +208,7 @@ fn with_recursive_run_options(
 ) -> RunArgs {
     args.workspace = cli_options.execution_args(config);
     args.if_present |= cli_options.if_present;
+    args.sequential |= cli_options.sequential;
     args
 }
 

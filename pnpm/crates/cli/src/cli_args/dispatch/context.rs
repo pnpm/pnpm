@@ -67,6 +67,8 @@ pub(crate) struct WorkspaceInvocation<'a> {
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
     pub(crate) if_present: bool,
+    /// The top-level `-s` / `--sequential` spelling (`pnpm -s lint`).
+    pub(crate) sequential: bool,
 }
 
 pub(crate) struct CommandLoaders<'a> {
@@ -156,6 +158,7 @@ impl<'a> From<&'a crate::cli_args::cli_command::CliWorkspaceArgs> for WorkspaceI
             report_summary: args.execution.report_summary,
             parallel: args.ordering.parallel,
             if_present: args.execution.if_present,
+            sequential: args.execution.sequential,
         }
     }
 }

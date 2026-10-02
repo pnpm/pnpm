@@ -2,9 +2,9 @@ import util from 'node:util'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T | PromiseLike<T>) => void
+interface Deferred<Value> {
+  promise: Promise<Value>
+  resolve: (value: Value | PromiseLike<Value>) => void
   reject: (reason?: unknown) => void
 }
 
@@ -69,10 +69,10 @@ test('preserves every Windows bin deletion failure', async () => {
   expect(removal.reason.errors).toStrictEqual([bareError, executableError])
 })
 
-function createDeferred<T> (): Deferred<T> {
-  let resolve!: Deferred<T>['resolve']
-  let reject!: Deferred<T>['reject']
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+function createDeferred<Value> (): Deferred<Value> {
+  let resolve!: Deferred<Value>['resolve']
+  let reject!: Deferred<Value>['reject']
+  const promise = new Promise<Value>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })

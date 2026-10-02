@@ -34,7 +34,7 @@ const { audit } = await import('@pnpm/deps.compliance.commands')
 
 const mockCheckbox = jest.mocked(checkbox)
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -46,7 +46,7 @@ afterEach(async () => {
 })
 
 test('audit --fix -i shows interactive prompt and only fixes selected vulnerabilities', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -78,7 +78,7 @@ test('audit --fix -i shows interactive prompt and only fixes selected vulnerabil
 })
 
 test('audit --fix=update -i does not open the interactive update prompt', async () => {
-  const tmp = f.prepare('update-single-depth-2')
+  const tmp = testFixtures.prepare('update-single-depth-2')
   const mockResponse = await loadJsonFile<Record<string, unknown[]>>(path.join(tmp, 'responses', 'top-level-vulnerability.json'))
   const vulnerablePkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
   const patchedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -116,7 +116,7 @@ test('audit --fix=update -i does not open the interactive update prompt', async 
 })
 
 test('audit --fix -i prompt is called with correct structure', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -150,16 +150,16 @@ test('audit --fix -i prompt is called with correct structure', async () => {
   const choices = callArgs.choices as Array<{ type?: string; name?: string; value?: string }>
 
   const separatorNames = choices
-    .filter((c) => c instanceof Separator || c.type === 'separator')
-    .map((c) => c instanceof Separator ? c.separator : String(c))
+    .filter((choice) => choice instanceof Separator || choice.type === 'separator')
+    .map((choice) => choice instanceof Separator ? choice.separator : String(choice))
 
-  expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
-  expect(separatorNames.some((s: string) => s.includes('high'))).toBe(true)
-  expect(separatorNames.some((s: string) => s.includes('moderate'))).toBe(true)
+  expect(separatorNames.some((name: string) => name.includes('critical'))).toBe(true)
+  expect(separatorNames.some((name: string) => name.includes('high'))).toBe(true)
+  expect(separatorNames.some((name: string) => name.includes('moderate'))).toBe(true)
 })
 
 test('audit --fix -i collapses advisories that share module_name@vulnerable_versions', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -177,14 +177,14 @@ test('audit --fix -i collapses advisories that share module_name@vulnerable_vers
 
   const callArgs = mockCheckbox.mock.calls[0][0]
   const choices = callArgs.choices as Array<Record<string, unknown>>
-  const valueChoices = choices.filter((c) => 'value' in c)
-  const minimatchRows = valueChoices.filter((c) => c.value === 'minimatch@<3.1.3')
+  const valueChoices = choices.filter((choice) => 'value' in choice)
+  const minimatchRows = valueChoices.filter((choice) => choice.value === 'minimatch@<3.1.3')
   expect(minimatchRows).toHaveLength(1)
   expect(String(minimatchRows[0].name)).toMatch(/GHSA-3ppc-4f35-3m26.*GHSA-7r86-[a-z0-9-]+/)
 })
 
 test('audit --fix -i with auditLevel filters before showing prompt', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -204,8 +204,8 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
   const callArgs = mockCheckbox.mock.calls[0][0]
   const choices = callArgs.choices as Array<Record<string, unknown>>
   const separatorNames = choices
-    .filter((c) => c instanceof Separator || c.type === 'separator')
-    .map((c) => c instanceof Separator ? c.separator : String(c))
-  expect(separatorNames.filter((s: string) => s.includes('critical') || s.includes('high') || s.includes('moderate') || s.includes('low'))).toHaveLength(1)
-  expect(separatorNames.some((s: string) => s.includes('critical'))).toBe(true)
+    .filter((choice) => choice instanceof Separator || choice.type === 'separator')
+    .map((choice) => choice instanceof Separator ? choice.separator : String(choice))
+  expect(separatorNames.filter((name: string) => name.includes('critical') || name.includes('high') || name.includes('moderate') || name.includes('low'))).toHaveLength(1)
+  expect(separatorNames.some((name: string) => name.includes('critical'))).toBe(true)
 })

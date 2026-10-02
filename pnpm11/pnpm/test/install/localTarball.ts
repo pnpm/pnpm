@@ -35,37 +35,20 @@ test.each(['changed', 'deleted', 'directory', 'excluded', 'direct', 'fetch', 'un
   fs.writeFileSync('package.json', JSON.stringify({
     name: 'project',
     version: '1.0.0',
-    [mutation === 'excluded' ? 'devDependencies' : isUnsupported ? 'optionalDependencies' : 'dependencies']: mutation === 'direct' || isUnsupported
+    [dependencyFieldFor(mutation, isUnsupported)]: mutation === 'direct' || isUnsupported
       ? { 'local-tarball': 'file:./local-tarball.tgz' }
       : { parent: 'file:./parent-1.0.0.tgz' },
   }))
 
   await execPnpm(['install'])
 
-  if (['changed', 'direct', 'fetch'].includes(mutation)) {
-    fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'second'\n")
-    packLocalTarball(packageDir, tarball)
-  } else {
-    fs.rmSync(tarball)
-    if (mutation === 'directory') {
-      fs.mkdirSync(tarball)
-    } else if (mutation === 'fifo') {
-      execFileSync('mkfifo', [tarball])
-    }
-  }
+  mutateLocalTarball({ mutation, packageDir, tarball })
 
   if (mutation === 'fetch') {
     fs.writeFileSync('package.json', JSON.stringify({ name: 'project', version: '1.0.0' }))
     fs.writeFileSync('pnpm-lock.yaml', fs.readFileSync('pnpm-lock.yaml', 'utf8').replace('\n  .:', '\n  packages/app:'))
   }
-  const installArgs = mutation === 'fetch'
-    ? ['fetch']
-    : mutation === 'lockfile-only'
-      ? ['install', '--frozen-lockfile', '--lockfile-only']
-      : mutation === 'forced-unsupported-optional'
-        ? ['install', '--frozen-lockfile', '--force']
-        : ['install', '--frozen-lockfile', ...(mutation === 'excluded' ? ['--prod'] : [])]
-  const { status, stdout, stderr } = execPnpmSync(installArgs, { env: { CI: 'true' } })
+  const { status, stdout, stderr } = execPnpmSync(installArgsFor(mutation), { env: { CI: 'true' } })
   if (['excluded', 'unsupported-optional', 'lockfile-only'].includes(mutation)) {
     expect(status).toBe(0)
     return
@@ -83,4 +66,36 @@ function packLocalTarball (packageDir: string, tarball: string): void {
   execPnpmSync(['pack', '--pack-destination', '..'], { cwd: packageDir, expectSuccess: true })
   fs.rmSync(tarball, { force: true })
   fs.renameSync(path.join(packageDir, '..', 'local-tarball-1.0.0.tgz'), tarball)
+}
+
+function dependencyFieldFor (mutation: string, isUnsupported: boolean): string {
+  if (mutation === 'excluded') return 'devDependencies'
+  return isUnsupported ? 'optionalDependencies' : 'dependencies'
+}
+
+function mutateLocalTarball ({ mutation, packageDir, tarball }: { mutation: string, packageDir: string, tarball: string }): void {
+  if (['changed', 'direct', 'fetch'].includes(mutation)) {
+    fs.writeFileSync(path.join(packageDir, 'index.js'), "module.exports = 'second'\n")
+    packLocalTarball(packageDir, tarball)
+    return
+  }
+  fs.rmSync(tarball)
+  if (mutation === 'directory') {
+    fs.mkdirSync(tarball)
+  } else if (mutation === 'fifo') {
+    execFileSync('mkfifo', [tarball])
+  }
+}
+
+function installArgsFor (mutation: string): string[] {
+  switch (mutation) {
+    case 'fetch':
+      return ['fetch']
+    case 'lockfile-only':
+      return ['install', '--frozen-lockfile', '--lockfile-only']
+    case 'forced-unsupported-optional':
+      return ['install', '--frozen-lockfile', '--force']
+    default:
+      return ['install', '--frozen-lockfile', ...(mutation === 'excluded' ? ['--prod'] : [])]
+  }
 }

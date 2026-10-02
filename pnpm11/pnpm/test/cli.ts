@@ -15,8 +15,8 @@ import {
   execPnpxSync,
 } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
-const hasOutdatedDepsFixture = f.find('has-outdated-deps')
+const testFixtures = fixtures(import.meta.dirname)
+const hasOutdatedDepsFixture = testFixtures.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
   prepareEmpty()
@@ -62,8 +62,8 @@ test('installs in the folder where the package.json file is', async () => {
 
   await execPnpm(['install', 'rimraf@2.5.1'])
 
-  const m = project.requireModule('rimraf')
-  expect(typeof m).toBe('function')
+  const rimraf = project.requireModule('rimraf')
+  expect(typeof rimraf).toBe('function')
   project.isExecutable('.bin/rimraf')
 })
 

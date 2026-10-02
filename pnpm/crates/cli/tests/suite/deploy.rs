@@ -418,18 +418,13 @@ fn shared_lockfile_deploy_supports_non_injected_workspace() {
         .with_arg("install")
         .assert()
         .success();
-    // The deployed lockfile stores the workspace sources as paths relative to
-    // the target this deploy is handed, while the reinstall below resolves
-    // them from the target's canonical path. Deploy to the canonical path so
-    // the two agree: a target reached through a symlink that changes the
-    // path's depth resolves those entries somewhere else entirely, which is
-    // its own defect and not what this test is about.
-    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    let deploy_dir = root.path().join("deploy");
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--prod"])
         .with_arg(&deploy_dir)
         .assert()
         .success();
+    let deploy_dir = fs::canonicalize(&deploy_dir).unwrap();
 
     let lib_link = deploy_dir.join("node_modules/lib");
     assert!(
@@ -1002,3 +997,5 @@ mod target;
 mod dependency_groups;
 
 mod virtual_store;
+
+mod source_isolation;

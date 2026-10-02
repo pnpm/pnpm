@@ -558,8 +558,8 @@ test('injected workspace dependency keeps link: on a plain install when a consum
   // Add a competing foo@100.1.0 to the consumer and run a plain install. n
   // itself is untouched.
   consumerManifest.dependencies['@pnpm.e2e/foo'] = '100.1.0'
-  const allProjectsAfter = allProjects.map((p) =>
-    p.rootDir === path.resolve('consumer') ? { ...p, manifest: consumerManifest } : p
+  const allProjectsAfter = allProjects.map((project) =>
+    project.rootDir === path.resolve('consumer') ? { ...project, manifest: consumerManifest } : project
   )
   await mutateModules(installMutations, testDefaults({ ...sharedOpts, allProjects: allProjectsAfter }))
 

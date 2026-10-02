@@ -3,7 +3,10 @@
 use crate::{
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
-    resolved_tree::{DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
+    resolved_tree::{
+        ChildEdge, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput,
+        ResolvedTree, TreeChildren,
+    },
 };
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
@@ -23,6 +26,27 @@ pub(super) fn tree_node(
         depth,
         true,
     )
+}
+
+/// A regular (non-optional) child edge.
+pub(super) fn child_edge(alias: &str, pkg_id: &str) -> ChildEdge {
+    ChildEdge { alias: alias.to_string(), pkg_id: Arc::from(pkg_id), optional: false }
+}
+
+/// Add an importer-level direct dependency whose children the peer walk
+/// expands from [`ResolvedTree::children_by_id`].
+pub(super) fn add_lazy_direct_dep(
+    dependencies_tree: &mut HashMap<NodeId, DependenciesTreeNode>,
+    direct: &mut Vec<DirectDep>,
+    alias: &str,
+    pkg_id: &str,
+) {
+    let node_id = NodeId::next();
+    dependencies_tree.insert(
+        node_id.clone(),
+        DependenciesTreeNode::new(Arc::from(pkg_id), TreeChildren::Lazy, 0, true),
+    );
+    direct.push(DirectDep { alias: alias.to_string(), node_id, id: pkg_id.into() });
 }
 
 pub(super) fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
@@ -61,17 +85,17 @@ pub(super) fn package_with_peer_dependencies(
             ((*name).to_string(), PeerDep { version: (*version).to_string(), optional: *optional })
         })
         .collect();
-    ResolvedPackage {
+    ResolvedPackage::new(ResolvedPackageInput {
         id: format!("{name}@{version}").into(),
         result: Arc::new(resolve_result(name, version)),
         peer_dependencies,
         optional: false,
         is_leaf,
-    }
+    })
 }
 
 pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedPackage {
-    ResolvedPackage {
+    ResolvedPackage::new(ResolvedPackageInput {
         id: Arc::from(id.to_string()),
         result: Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
@@ -93,7 +117,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
         peer_dependencies: BTreeMap::new(),
         optional: false,
         is_leaf: true,
-    }
+    })
 }
 
 pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {

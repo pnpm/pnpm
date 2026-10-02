@@ -129,6 +129,7 @@ async fn pick_types_metadata(
         &policy,
         &inputs.resolution.meta_cache,
         &inputs.resolution.fetch_locker,
+        inputs.resolution.store_view(inputs.add.config),
     );
     let options = explicit_registry_pick_options(
         inputs.add.config,

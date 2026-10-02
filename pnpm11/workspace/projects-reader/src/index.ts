@@ -133,39 +133,68 @@ interface DiscoveryPlan {
 }
 
 function planDiscovery (workspaceRoot: string, opts: FindWorkspaceProjectsNoCheckOpts | undefined): DiscoveryPlan {
-  const fixedIgnore = new Set(['**/node_modules/**', '**/bower_components/**'])
-  const toProjectModulesDir = (modulesDir: string): string | undefined => {
-    if (path.isAbsolute(modulesDir)) {
-      // An absolute modulesDir is one directory, skipped when it is inside the workspace.
-      const relativeToWorkspace = path.relative(workspaceRoot, modulesDir)
-      if (isBelow(relativeToWorkspace)) fixedIgnore.add(`${convertPathToPattern(relativeToWorkspace)}/**`)
-      return undefined
-    }
-    const relativeToProject = path.relative('.', modulesDir)
-    return isBelow(relativeToProject) && relativeToProject !== 'node_modules' ? relativeToProject : undefined
-  }
-  const defaultModulesDir = opts?.modulesDir == null ? undefined : toProjectModulesDir(opts.modulesDir)
-  const modulesDirsByProjectName = new Map(
-    Object.entries(opts?.modulesDirsByProjectName ?? {}).map(([projectName, modulesDir]) => [projectName, toProjectModulesDir(modulesDir)])
-  )
+  const { fixedIgnore, defaultModulesDir, modulesDirsByProjectName } = resolveConfiguredModulesDirs(workspaceRoot, opts)
   const modulesDirOf = ({ manifest }: Project): string | undefined =>
     manifest.name != null && modulesDirsByProjectName.has(manifest.name) ? modulesDirsByProjectName.get(manifest.name) : defaultModulesDir
   const allModulesDirs = new Set([defaultModulesDir, ...modulesDirsByProjectName.values()].filter((dir) => dir != null))
   return {
     initialIgnore: [...fixedIgnore, ...Array.from(allModulesDirs, (dir) => `**/${convertPathToPattern(dir)}/**`)],
-    ignoreFor: (projects) => [
-      ...fixedIgnore,
-      ...projects.flatMap((project) => {
-        const modulesDir = modulesDirOf(project)
-        if (modulesDir == null) return []
-        const relativeRootDir = path.relative(workspaceRoot, project.rootDir)
-        const prefix = relativeRootDir === '' ? '' : `${convertPathToPattern(relativeRootDir)}/`
-        return [`${prefix}${convertPathToPattern(modulesDir)}/**`]
-      }),
-    ],
+    ignoreFor: (projects) => buildIgnoreForProjects(workspaceRoot, projects, fixedIgnore, modulesDirOf),
     modulesDirOf,
     skipsProjectModulesDirs: allModulesDirs.size > 0,
   }
+}
+
+interface ConfiguredModulesDirs {
+  fixedIgnore: Set<string>
+  defaultModulesDir: string | undefined
+  modulesDirsByProjectName: Map<string, string | undefined>
+}
+
+function resolveConfiguredModulesDirs (
+  workspaceRoot: string,
+  opts: FindWorkspaceProjectsNoCheckOpts | undefined
+): ConfiguredModulesDirs {
+  const fixedIgnore = new Set(['**/node_modules/**', '**/bower_components/**'])
+  const toProjectModulesDir = (modulesDir: string): string | undefined =>
+    normalizeProjectModulesDir(workspaceRoot, modulesDir, fixedIgnore)
+  const defaultModulesDir = opts?.modulesDir == null ? undefined : toProjectModulesDir(opts.modulesDir)
+  const modulesDirsByProjectName = new Map(
+    Object.entries(opts?.modulesDirsByProjectName ?? {}).map(([projectName, modulesDir]) => [projectName, toProjectModulesDir(modulesDir)])
+  )
+  return { defaultModulesDir, fixedIgnore, modulesDirsByProjectName }
+}
+
+function normalizeProjectModulesDir (
+  workspaceRoot: string,
+  modulesDir: string,
+  fixedIgnore: Set<string>
+): string | undefined {
+  if (path.isAbsolute(modulesDir)) {
+    const relativeToWorkspace = path.relative(workspaceRoot, modulesDir)
+    if (isBelow(relativeToWorkspace)) fixedIgnore.add(`${convertPathToPattern(relativeToWorkspace)}/**`)
+    return undefined
+  }
+  const relativeToProject = path.relative('.', modulesDir)
+  return isBelow(relativeToProject) && relativeToProject !== 'node_modules' ? relativeToProject : undefined
+}
+
+function buildIgnoreForProjects (
+  workspaceRoot: string,
+  projects: Project[],
+  fixedIgnore: Set<string>,
+  modulesDirOf: (project: Project) => string | undefined
+): string[] {
+  return [
+    ...fixedIgnore,
+    ...projects.flatMap((project) => {
+      const modulesDir = modulesDirOf(project)
+      if (modulesDir == null) return []
+      const relativeRootDir = path.relative(workspaceRoot, project.rootDir)
+      const prefix = relativeRootDir === '' ? '' : `${convertPathToPattern(relativeRootDir)}/`
+      return [`${prefix}${convertPathToPattern(modulesDir)}/**`]
+    }),
+  ]
 }
 
 /**

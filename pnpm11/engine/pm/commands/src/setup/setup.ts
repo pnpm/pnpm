@@ -5,6 +5,11 @@ import path from 'node:path'
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
+import {
+  addDirToEnvPath,
+  type ConfigReport,
+  type PathExtenderReport,
+} from '@pnpm/os.env.path-extender'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
 
@@ -12,11 +17,6 @@ import {
   validateGHActionsEnvFileValues,
   writeGHActionsEnvFiles,
 } from './ghActionsEnv.js'
-import {
-  addDirToEnvPath,
-  type ConfigReport,
-  type PathExtenderReport,
-} from './pathExtender.js'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -152,26 +152,10 @@ function createAliasScripts (targetDir: string): void {
   createShellScript(targetDir, 'pnx', ' dlx')
 }
 
-/**
- * Write one alias, `subcommand` being the shell text it appends to the pnpm call
- * (`' dlx'` for `pnpx` and `pnx`).
- *
- * The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this command
- * just installed: a pnpm / pnpm.cmd / pnpm.ps1 shim trio, one per shell. The bin
- * linker writes a bare pnpm.exe only for the `node` bin name, so each form has
- * exactly one sibling to name.
- */
-function createShellScript (targetDir: string, name: string, subcommand: string): void {
-  // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = `#!/bin/sh
-# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
-# file itself before looking beside it. The hop cap matches the kernel's ELOOP
-# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
-# and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
-#
-# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
-# instead, so the helpers run with node_modules and relative entries dropped from
-# PATH.
+// Sets $self to the regular file this alias script lives in, walking the shim
+// or symlink chain it was launched through.
+const RESOLVE_SELF_SCRIPT = `# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
 caller_path_set=\${PATH+set}
 caller_path=\${PATH-}
 helper_path=
@@ -186,6 +170,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
+# A helper comes from PATH only when the default path lacks it and PATH has it.
+# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+run_helper() {
+  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash
 # for \`\${self%/*}\` to strip. Only a drive letter or a UNC prefix marks one; a
@@ -211,14 +200,36 @@ esac
 hops=0
 while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
   hops=$((hops + 1))
-  link=$(command -p readlink "$self")
+  link=$(run_helper readlink "$self")
   case $link in
     /*) self=$link ;;
     *) self=\${self%/*}/$link ;;
   esac
 done
 if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
-# The walk has to end at a regular file. Running out of hops leaves $self a
+`
+
+/**
+ * Write one alias, `subcommand` being the shell text it appends to the pnpm call
+ * (`' dlx'` for `pnpx` and `pnx`).
+ *
+ * The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this command
+ * just installed: a pnpm shim and, on Windows, its pnpm.cmd twin. The bin linker
+ * writes a bare pnpm.exe only for the `node` bin name, so each form has exactly
+ * one sibling to name.
+ *
+ * On Windows this also writes the `.cmd` form and removes a `.ps1` form of the same
+ * name, so PowerShell runs the `.cmd`.
+ */
+function createShellScript (targetDir: string, name: string, subcommand: string): void {
+  // windows can also use shell script via mingw or cygwin so no filter
+  const shellScript = `#!/bin/sh
+# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
+# and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
+#
+${RESOLVE_SELF_SCRIPT}# The walk has to end at a regular file. Running out of hops leaves $self a
 # symlink; a chain that changed under us can leave it dangling or a directory, and
 # a failed readlink leaves a trailing slash. Each case would take \`pnpm\` from the
 # wrong directory — the substitution this script exists to prevent.
@@ -237,11 +248,12 @@ exec "\${self%/*}/pnpm"${subcommand} "$@"
     // %-expansion, and the exit code is the shim's either way, since this is the
     // last command this script runs. `%~dp0` already ends in a backslash.
     fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\n"%~dp0pnpm.cmd"${subcommand} %*\r\n`)
-    // Also pnpm.cmd, not pnpm.ps1: the bin linker omits the PowerShell shim for a
-    // package named `pnpm` (makePowerShellShim), so the sibling .ps1 may not exist
-    // while the .cmd always does. $basedir is spelled the way the generated .ps1
-    // shims spell it, so this works on PowerShell 2.0 as well.
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "$basedir\\pnpm.cmd"${subcommand} @args\nexit $LastExitCode\n`)
+    // No .ps1 form, and one an earlier setup left is removed, because PowerShell
+    // prefers it over the .cmd. It could only call pnpm.cmd too, since the bin
+    // linker omits pnpm.ps1 (makePowerShellShim), so it would add nothing but an
+    // execution-policy error where unsigned scripts are blocked, and it would drop
+    // a bare `--` from the arguments.
+    fs.rmSync(path.join(targetDir, `${name}.ps1`), { force: true })
   }
 }
 

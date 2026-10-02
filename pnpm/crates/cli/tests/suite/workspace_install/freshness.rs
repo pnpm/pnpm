@@ -1,5 +1,5 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, assert_frozen_outdated, fs,
+    AddMockedRegistry, CommandExtra, CommandTempCwd, assert_frozen_outdated, bump_mtime, fs,
     is_symlink_or_junction, pacquet_at, two_project_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -159,6 +159,43 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
 }
 
 #[test]
+fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+        &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml");
+    lockfile.importers.remove("pkg-b").expect("pkg-b importer exists");
+    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-b importer");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
+    fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a node_modules");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("pkg-a/node_modules/is-positive/package.json").exists(),
+        "the frozen install must still link pkg-a's dependencies",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn normal_install_accepts_missing_dependency_free_workspace_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({ "name": "pkg-a", "version": "1.0.0" }),
@@ -274,6 +311,60 @@ fn frozen_install_rejects_a_workspace_project_without_a_manifest() {
         .with_args(["--filter", "pkg-a", "install", "--frozen-lockfile"])
         .assert()
         .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_skips_a_workspace_project_whose_directory_is_absent_until_it_reappears() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a/node_modules");
+    let pkg_b_manifest =
+        fs::read_to_string(workspace.join("pkg-b/package.json")).expect("read pkg-b/package.json");
+    fs::remove_dir_all(workspace.join("pkg-b")).expect("remove pkg-b");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        is_symlink_or_junction(&workspace.join("pkg-a/node_modules/is-positive"))
+            .expect("read pkg-a/node_modules/is-positive"),
+        "pkg-a was not installed",
+    );
+    assert!(!workspace.join("pkg-b").exists(), "the frozen install recreated pkg-b");
+
+    fs::create_dir(workspace.join("pkg-b")).expect("recreate pkg-b");
+    fs::write(workspace.join("pkg-b/package.json"), pkg_b_manifest)
+        .expect("restore pkg-b/package.json");
+    bump_mtime(&workspace.join("pkg-b/package.json"));
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        is_symlink_or_junction(&workspace.join("pkg-b/node_modules/is-negative"))
+            .expect("read pkg-b/node_modules/is-negative"),
+        "pkg-b was not installed after its directory reappeared",
+    );
 
     drop((root, mock_instance));
 }

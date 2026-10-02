@@ -13,6 +13,112 @@ import { cmdShim } from '@pnpm/bins.cmd-shim'
 const describeOnWindows = process.platform === 'win32' ? describe : describe.skip
 const describeOnPosix = process.platform === 'win32' ? describe.skip : describe
 
+describeOnWindows('CMD shims with Unicode paths', () => {
+  for (const codepage of [437, 936, 65001]) {
+    for (const exitCode of [0, 7]) {
+      test(`runs a Unicode target under CP ${codepage} and preserves exit ${exitCode}`, async () => {
+        const tempDir = temporaryDirectory()
+        try {
+          const targetDir = path.join(tempDir, '工具')
+          fs.mkdirSync(targetDir)
+          const target = path.join(targetDir, 'cli.js')
+          fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)))\nprocess.exit(Number(process.argv[4]))\n', 'utf8')
+          await cmdShim(target, path.join(tempDir, 'shim'))
+          fs.writeFileSync(path.join(tempDir, 'run.cmd'), [
+            '@echo off',
+            '@for /f "tokens=2 delims=:" %%a in (\'chcp\') do @set "original_codepage=%%a"',
+            `@chcp ${codepage}>nul`,
+            `@call shim.cmd "argument with spaces" "a&b" ${exitCode}`,
+            '@set "shim_exit=%errorlevel%"',
+            '@chcp',
+            '@chcp %original_codepage%>nul',
+            '@exit /b %shim_exit%',
+          ].join('\r\n') + '\r\n', 'utf8')
+          const result = spawnSync('cmd.exe', ['/d', '/c', 'run.cmd'], {
+            cwd: tempDir,
+            encoding: 'utf8',
+            windowsHide: true,
+            timeout: 30000,
+          })
+          assert.equal(result.status, exitCode, `stdout: ${result.stdout}\nstderr: ${result.stderr}`)
+          const [args, restoredCodepage] = result.stdout.trim().split(/\r?\n/)
+          assert.deepEqual(JSON.parse(args), ['argument with spaces', 'a&b', String(exitCode)])
+          assert.match(restoredCodepage, new RegExp(`\\b${codepage}\\b`))
+          if (codepage === 936) {
+            fs.writeFileSync(path.join(tempDir, 'exit-only.cmd'), `@shim.cmd "argument with spaces" "a&b" ${exitCode}\r\n`, 'utf8')
+            const shadowedResult = spawnSync('cmd.exe', ['/d', '/c', 'exit-only.cmd'], {
+              cwd: tempDir,
+              env: { ...process.env, ERRORLEVEL: '99' },
+              encoding: 'utf8',
+              windowsHide: true,
+              timeout: 30000,
+            })
+            assert.equal(shadowedResult.status, exitCode, `stdout: ${shadowedResult.stdout}\nstderr: ${shadowedResult.stderr}`)
+          }
+        } finally {
+          fs.rmSync(tempDir, { recursive: true, force: true })
+        }
+      })
+    }
+  }
+})
+
+describeOnWindows('PowerShell shims with Unicode paths', () => {
+  for (const exitCode of [0, 7]) {
+    test(`runs a Unicode target under Windows PowerShell and preserves exit ${exitCode}`, async () => {
+      const tempDir = temporaryDirectory()
+      try {
+        const targetDir = path.join(tempDir, '工具')
+        fs.mkdirSync(targetDir)
+        const target = path.join(targetDir, 'cli.js')
+        fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)))\nprocess.exit(Number(process.argv[3]))\n', 'utf8')
+        await cmdShim(target, path.join(tempDir, 'shim'))
+        const shim = path.join(tempDir, 'shim.ps1')
+        assert.ok(fs.readFileSync(shim).subarray(0, 3).equals(Buffer.from([0xEF, 0xBB, 0xBF])), 'the shim must start with a UTF-8 BOM')
+        const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', shim, 'argument with spaces', String(exitCode)], {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 30000,
+        })
+        assert.equal(result.status, exitCode, `stdout: ${result.stdout}\nstderr: ${result.stderr}`)
+        assert.deepEqual(JSON.parse(result.stdout.trim()), ['argument with spaces', String(exitCode)])
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+  }
+
+  test('leaves an ASCII-only shim without a BOM', async () => {
+    const tempDir = temporaryDirectory()
+    try {
+      const target = path.join(tempDir, 'cli.js')
+      fs.writeFileSync(target, '#!/usr/bin/env node\n', 'utf8')
+      await cmdShim(target, path.join(tempDir, 'shim'))
+      assert.ok(fs.readFileSync(path.join(tempDir, 'shim.ps1'), 'utf8').startsWith('#!/usr/bin/env pwsh\n'))
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describeOnPosix('PowerShell shims with Unicode paths on POSIX', () => {
+  test('keeps the shebang at the start of a non-ASCII shim', async () => {
+    const tempDir = temporaryDirectory()
+    try {
+      const targetDir = path.join(tempDir, '工具')
+      fs.mkdirSync(targetDir)
+      const target = path.join(targetDir, 'cli.js')
+      fs.writeFileSync(target, '#!/usr/bin/env node\n', 'utf8')
+      await cmdShim(target, path.join(tempDir, 'shim'))
+      const shim = fs.readFileSync(path.join(tempDir, 'shim.ps1'), 'utf8')
+      assert.ok(shim.includes('工具'))
+      assert.ok(shim.startsWith('#!/usr/bin/env pwsh\n'))
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describeOnWindows('create a command shim for a .exe file', () => {
   test('shim files', async (t) => {
     const tempDir = temporaryDirectory()
@@ -341,14 +447,37 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
   })
 
-  // Where no default path is compiled in, as on Nix, command -p searches the
-  // caller's PATH. No test host behaves that way, so the shim's command -p is
-  // rewritten to the plain command such a shell amounts to.
-  test('skips node_modules and relative PATH entries when command -p searches PATH', async () => {
+  // The bash 3.2 that macOS ships as sh answers command -p -v from PATH, so a
+  // caller's PATH without the helpers must still leave them to the default
+  // path. No test host runs that bash, so the shim's command -p -v is rewritten
+  // to the command -v it amounts to there.
+  test('keeps the default path helpers when command -p -v searches PATH', async () => {
     const tempDir = temporaryDirectory()
     const binDir = await makeShimmedTool(tempDir)
     const shim = path.join(binDir, 'tsc')
-    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'command '))
+    const body = fs.readFileSync(shim, 'utf8')
+    assert.ok(body.includes('command -p -v '), 'precondition: the shim probes the default path')
+    writeExecutable(shim, body.replaceAll('command -p -v ', 'command -v '))
+    const nodeDir = path.join(tempDir, 'node-only')
+    fs.mkdirSync(nodeDir)
+    fs.symlinkSync(process.execPath, path.join(nodeDir, 'node'))
+
+    const r = spawnSync(path.join(binDir, 'tsc-link'), [], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PATH: nodeDir },
+    })
+    assert.equal(r.stdout.trim(), 'tsc-output', r.stderr)
+  })
+
+  // The default path command -p searches can lack the helpers, as inside a Nix
+  // build sandbox. No test host is set up that way, so each command -p in the
+  // shim is rewritten to a command that searches a directory that does not exist.
+  test('skips node_modules and relative PATH entries when the default path lacks the helpers', async () => {
+    const tempDir = temporaryDirectory()
+    const binDir = await makeShimmedTool(tempDir)
+    const shim = path.join(binDir, 'tsc')
+    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const decoyDir = plantHijackTreeAndDecoys(tempDir)
     const callersPath = [path.dirname(process.execPath), process.env.PATH].join(path.delimiter)
     const run = (PATH, cwd) => spawnSync(path.join(binDir, 'tsc-link'), [], {
@@ -404,7 +533,8 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
     const shim = path.join(tempDir, 'tool')
     await cmdShim(target, shim, { createCmdFile: false })
 
-    const conversion = fs.readFileSync(shim, 'utf8')
+    const body = fs.readFileSync(shim, 'utf8')
+    const conversion = body
       .split('\n')
       .find((line) => line.startsWith('basedir=$('))
     assert.ok(conversion, 'the header must assign basedir from the shim path')
@@ -412,11 +542,13 @@ describeOnPosix('sh shim converts a Windows-form path', () => {
     // preserves backslashes can make an echo-based header pass the path
     // assertion below, so also require the printf conversion form.
     assert.ok(
-      conversion.includes(String.raw`command -p printf '%s\n' "$link"`),
-      'the basedir conversion must use command -p printf so backslashes stay literal'
+      conversion.includes(String.raw`run_helper printf '%s\n' "$link"`),
+      'the basedir conversion must use printf so backslashes stay literal'
     )
+    const runHelper = body.slice(body.indexOf('run_helper() {\n'), body.indexOf('\n}\n', body.indexOf('run_helper() {\n')) + 3)
+    assert.ok(runHelper.startsWith('run_helper() {\n'), 'the header must define run_helper')
 
-    const script = `link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
+    const script = `${runHelper}link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
     const r = spawnSync('/bin/sh', ['-c', script], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -441,12 +573,12 @@ describeOnPosix('sh shim picks its Windows path converter', () => {
   }
 
   const runPlatformBranch = (shimBody, uname, systemConverter, callersPath) => {
-    const caseHead = 'case `command -p uname -a` in'
+    const caseHead = 'case `run_helper uname -a` in'
     const start = shimBody.indexOf(caseHead)
     assert.notEqual(start, -1, 'the header must select a platform')
     const end = shimBody.indexOf('\nesac\n', start) + '\nesac\n'.length
     const branch = shimBody.slice(start, end)
-      .replaceAll('`command -p uname -a`', '"$fake_uname"')
+      .replaceAll('`run_helper uname -a`', '"$fake_uname"')
       .replaceAll('command -p cygpath', '"$system_converter"')
       .replaceAll('command -p wslpath', '"$system_converter"')
     const script = `basedir=${BASEDIR}\nbasedir_win="$basedir"\nexe=""\nmsys=""\n${branch}\nprintf '%s\\n%s' "$basedir_win" "$exe"`

@@ -2,7 +2,7 @@ import { parseRegistryQualifiedVersion, refToRelative, removeSuffix } from '@pnp
 import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
@@ -156,33 +156,38 @@ export async function resolvePackageManagerIntegrities (
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
   stripRegistryTarballUrls(lockfile)
 
-  if (lockfile.packages) {
-    // Build packageManagerDependencies from the resolved lockfile importers
-    const importer = lockfile.importers['.' as ProjectId]
-    const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
-    for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
-      packageManagerDependencies[name] = {
-        specifier: importer.specifiers[name],
-        version,
-      }
-    }
-    envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
-
-    // Merge new packages into the env lockfile object, then prune stale entries
-    const merged = convertToLockfileEnvObject(envLockfile)
-    for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
-      merged.packages![depPath as DepPath] = pkg
-    }
-    const pruned = pruneSharedLockfile(merged)
-    const prunedFile = convertToLockfileFile(pruned)
-    envLockfile.packages = prunedFile.packages ?? {}
-    envLockfile.snapshots = prunedFile.snapshots ?? {}
-
-    if (save) {
-      await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
-    }
+  if (!lockfile.packages) return envLockfile
+  mergeResolvedPackageManagerDeps(envLockfile, { ...lockfile, packages: lockfile.packages })
+  if (save) {
+    await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   }
   return envLockfile
+}
+
+function mergeResolvedPackageManagerDeps (
+  envLockfile: EnvLockfile,
+  lockfile: LockfileObject & Required<Pick<LockfileObject, 'packages'>>
+): void {
+  // Build packageManagerDependencies from the resolved lockfile importers
+  const importer = lockfile.importers['.' as ProjectId]
+  const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
+  for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
+    packageManagerDependencies[name] = {
+      specifier: importer.specifiers[name],
+      version,
+    }
+  }
+  envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
+
+  // Merge new packages into the env lockfile object, then prune stale entries
+  const merged = convertToLockfileEnvObject(envLockfile)
+  for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
+    merged.packages![depPath as DepPath] = pkg
+  }
+  const pruned = pruneSharedLockfile(merged)
+  const prunedFile = convertToLockfileFile(pruned)
+  envLockfile.packages = prunedFile.packages ?? {}
+  envLockfile.snapshots = prunedFile.snapshots ?? {}
 }
 
 /**
@@ -199,18 +204,18 @@ export async function resolvePackageManagerIntegrities (
 function stripRegistryTarballUrls (lockfile: LockfileObject): void {
   for (const pkg of Object.values(lockfile.packages ?? {})) {
     const resolution = pkg.resolution
-    if (
-      resolution == null ||
-      !('integrity' in resolution) || !resolution.integrity ||
-      !('tarball' in resolution) || typeof resolution.tarball !== 'string' ||
-      resolution.tarball.startsWith('file:') ||
-      ('gitHosted' in resolution && resolution.gitHosted === true) ||
-      ('path' in resolution && resolution.path != null)
-    ) {
-      continue
-    }
+    if (resolution == null || !('integrity' in resolution) || !resolution.integrity) continue
+    if (!isRegistryTarballResolution(resolution)) continue
     pkg.resolution = { integrity: resolution.integrity }
   }
+}
+
+function isRegistryTarballResolution (resolution: LockfileResolution): boolean {
+  if (!('tarball' in resolution) || typeof resolution.tarball !== 'string') return false
+  if (resolution.tarball.startsWith('file:')) return false
+  const isGitHosted = 'gitHosted' in resolution && resolution.gitHosted === true
+  const isDirectory = 'path' in resolution && resolution.path != null
+  return !isGitHosted && !isDirectory
 }
 
 /**

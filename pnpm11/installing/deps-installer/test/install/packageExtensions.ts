@@ -721,7 +721,7 @@ function createTarGz (entries: Array<{ name: string, content: string | Buffer }>
     header.write('00', 263, 2, 'ascii')
 
     let checksum = 0
-    for (let i = 0; i < 512; i++) checksum += header[i]
+    for (let offset = 0; offset < 512; offset++) checksum += header[offset]
     header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii')
 
     blocks.push(header)

@@ -65,11 +65,11 @@ export const GLOBAL_OPTIONS = pick([
 export type CommandResponse = string | { output?: string, exitCode: number }
 
 export type Command = (
-  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any -- each command declares its own option type
 ) | (
-  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => void // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => void // eslint-disable-line @typescript-eslint/no-explicit-any -- each command declares its own option type
 ) | (
-  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
+  (opts: PnpmOptions | any, params: string[], commands?: CommandHandlerMap) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any -- each command declares its own option type
 )
 
 export interface CommandDefinition {
@@ -218,7 +218,7 @@ const skipPackageManagerCheckForCommandArray = ['completion-server']
 const recursiveByDefaultCommandArray: string[] = []
 const overridableByScriptCommandArray: string[] = []
 
-for (let i = 0; i < commands.length; i++) {
+for (let commandIndex = 0; commandIndex < commands.length; commandIndex++) {
   const {
     cliOptionsTypes,
     commandNames,
@@ -229,9 +229,9 @@ for (let i = 0; i < commands.length; i++) {
     skipPackageManagerCheck,
     recursiveByDefault,
     overridableByScript,
-  } = commands[i]
+  } = commands[commandIndex]
   if (!commandNames || commandNames.length === 0) {
-    throw new Error(`The command at index ${i} doesn't have command names`)
+    throw new Error(`The command at index ${commandIndex} doesn't have command names`)
   }
   for (const commandName of commandNames) {
     handlerByCommandName[commandName] = handler as Command
@@ -253,8 +253,8 @@ for (let i = 0; i < commands.length; i++) {
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
-    for (let i = 1; i < commandNames.length; i++) {
-      aliasToFullName.set(commandNames[i], fullName)
+    for (const alias of commandNames.slice(1)) {
+      aliasToFullName.set(alias, fullName)
     }
   }
 }
@@ -278,12 +278,13 @@ export const pnpmCmds = handlerByCommandName
 export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
+  if (!Object.hasOwn(cliOptionsTypesByCommandName, commandName)) return {}
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
 export function getCommandFullName (commandName: string): string | null {
   return aliasToFullName.get(commandName) ??
-    (handlerByCommandName[commandName] ? commandName : null)
+    (Object.hasOwn(handlerByCommandName, commandName) ? commandName : null)
 }
 
 export const recursiveByDefaultCommands = new Set(recursiveByDefaultCommandArray)

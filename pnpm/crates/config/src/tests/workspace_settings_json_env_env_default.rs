@@ -267,6 +267,64 @@ pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     assert_eq!(config.workspace_key_issues.refused, vec!["scope".to_owned()]);
 }
 
+/// `globalShims` is read only from the global config file, the pnpm home's
+/// own `pnpm-workspace.yaml`, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment
+/// variable. A project file's value is ignored, so a repository cannot grant
+/// itself the right to run its own binaries in place of the user's global
+/// ones. See the `globalShims` section of `docs/settings/other.md`.
+#[test]
+pub fn pnpm_workspace_yaml_cannot_set_global_shims() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "globalShims: false\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.global_shims.is_enabled("node"), "the built-in defaults must survive");
+    assert!(!config.global_shims.dispatches_nothing());
+}
+
+/// The record merges key-wise, so a single named entry is the other shape
+/// of the same leak rather than a separate setting.
+#[test]
+pub fn pnpm_workspace_yaml_cannot_add_a_global_shim_entry() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "globalShims: {typescript: true}\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(!config.global_shims.is_enabled("typescript"));
+}
+
+/// A global command anchors its config at the pnpm home, so the manifest
+/// there is one of the trusted locations the `globalShims` docs name.
+#[test]
+pub fn pnpm_home_manifest_sets_global_shims() {
+    fake_env!(load_with_fake_env);
+    let pnpm_home = tempdir().expect("pnpm home tempdir");
+    fs::write(pnpm_home.path().join("pnpm-workspace.yaml"), "globalShims: {typescript: true}\n")
+        .expect("write to pnpm-workspace.yaml");
+    set_fake_env(&[("PNPM_HOME", pnpm_home.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(pnpm_home.path());
+
+    assert!(config.global_shims.is_enabled("typescript"));
+}
+
+#[test]
+pub fn global_config_yaml_sets_global_shims() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "globalShims: {typescript: true}\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert!(config.global_shims.is_enabled("typescript"));
+}
+
 #[test]
 pub fn global_config_yaml_supplies_the_login_scope_over_workspace_yaml() {
     fake_env!(load_with_fake_env);
@@ -446,7 +504,7 @@ pub fn invalid_workspace_yaml_propagates_error() {
 }
 
 /// Running `pacquet install` from a workspace subdirectory must
-/// not leave `modules_dir` / `virtual_store_dir` anchored at the
+/// not leave `modules_dir` / `install_state_dir` anchored at the
 /// CLI `--dir`. The presence of `pnpm-workspace.yaml` in an
 /// ancestor signals that the workspace root is the install anchor,
 /// matching pnpm v11, which anchors the install at the lockfile
@@ -471,13 +529,13 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
         "modules_dir must be anchored at the workspace root, not the subdir",
     );
     assert_eq!(
-        config.virtual_store_dir,
+        config.install_state_dir,
         workspace_root.join("node_modules/.pnpm"),
         "virtual_store_dir must be anchored at the workspace root, not the subdir",
     );
 }
 
-/// `NPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
+/// `PNPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
 /// path-anchoring just like it steers
 /// [`pnpm_workspace::find_workspace_dir`] — otherwise the
 /// virtual store would land in the cwd while the per-importer
@@ -486,10 +544,10 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
 /// install. See PR [#443](https://github.com/pnpm/pacquet/pull/443).
 ///
 /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
-/// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.
+/// `env_workspace` path for the `PNPM_CONFIG_WORKSPACE_DIR` lookup.
 /// No `EnvGuard`, no `unsafe { env::set_var(...) }`.
 #[test]
-pub fn npm_config_workspace_dir_re_anchors_modules() {
+pub fn pnpm_config_workspace_dir_re_anchors_modules() {
     let env_workspace = tempdir().unwrap();
     let cwd_dir = tempdir().unwrap();
     static ENV_WORKSPACE_PATH: std::sync::OnceLock<OsString> = std::sync::OnceLock::new();
@@ -509,7 +567,7 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     }
     impl EnvVarOs for HostWithEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| {
+            (name == "PNPM_CONFIG_WORKSPACE_DIR").then(|| {
                 ENV_WORKSPACE_PATH
                     .get()
                     .expect("ENV_WORKSPACE_PATH initialised")
@@ -530,26 +588,26 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     assert_eq!(
         config.modules_dir,
         env_workspace.path().join("node_modules"),
-        "modules_dir must follow NPM_CONFIG_WORKSPACE_DIR, not the cwd",
+        "modules_dir must follow PNPM_CONFIG_WORKSPACE_DIR, not the cwd",
     );
     assert_eq!(
-        config.virtual_store_dir,
+        config.install_state_dir,
         env_workspace.path().join("node_modules/.pnpm"),
-        "virtual_store_dir must follow NPM_CONFIG_WORKSPACE_DIR, not the cwd",
+        "virtual_store_dir must follow PNPM_CONFIG_WORKSPACE_DIR, not the cwd",
     );
 }
 
-/// An empty `NPM_CONFIG_WORKSPACE_DIR` falls through to the
+/// An empty workspace-dir env var falls through to the
 /// upward walk, matching pnpm, which treats only a non-empty
 /// workspace-dir value as set. Pairs with `pnpm_workspace`'s
 /// `empty_env_var_is_treated_as_unset`.
 ///
 /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
-/// empty `OsString` for both spellings of the env var. The truthy
-/// filter in `Config::current` should reject both, and the
+/// empty `OsString` for every spelling of the env var. The truthy
+/// filter in `Config::current` should reject them all, and the
 /// install should fall through to the `start_dir`-walk.
 #[test]
-pub fn empty_npm_config_workspace_dir_falls_through() {
+pub fn empty_workspace_dir_env_var_falls_through() {
     struct HostWithEmptyEnvWorkspaceDir;
     impl EnvVar for HostWithEmptyEnvWorkspaceDir {
         fn var(name: &str) -> Option<String> {
@@ -558,9 +616,7 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
     }
     impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir").then(
-                OsString::new,
-            )
+            pnpm_workspace::WORKSPACE_DIR_ENV_VARS.contains(&name).then(OsString::new)
         }
     }
     impl GetHomeDir for HostWithEmptyEnvWorkspaceDir {
@@ -575,7 +631,7 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
         Config::new().current::<HostWithEmptyEnvWorkspaceDir>(tmp.path()).expect("config loads");
     // No yaml in tmp → no re-anchor → cwd-anchored defaults.
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, tmp.path().join("node_modules/.pnpm"));
 }
 
 #[test]
@@ -715,9 +771,11 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
     let config =
         Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
     assert_eq!(
-        config.virtual_store_dir, global_path,
+        config.virtual_store_dir(),
+        global_path,
         "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
     );
+    assert_eq!(config.install_state_dir, project.path().join("node_modules/.pnpm"));
 }
 
 /// Workspace-only keys in the global `config.yaml` are silently

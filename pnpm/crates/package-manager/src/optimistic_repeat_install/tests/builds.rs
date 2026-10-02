@@ -43,7 +43,11 @@ fn returns_skipped_when_patched_dependencies_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -85,7 +89,11 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     // Validate everything on disk, then bump the patch past that timestamp.
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
@@ -128,7 +136,11 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     // Both the manifest and patch were written before this timestamp.
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
@@ -169,7 +181,11 @@ fn returns_skipped_when_allow_builds_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -230,7 +246,11 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 

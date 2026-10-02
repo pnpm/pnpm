@@ -107,7 +107,7 @@ export async function endsWithin (pid: number, timeout: number): Promise<boolean
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     if (!isRunning(pid)) return true
-    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polling: each check must wait for the previous delay
   }
   return false
 }

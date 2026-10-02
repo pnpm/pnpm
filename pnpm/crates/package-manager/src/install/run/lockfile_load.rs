@@ -42,7 +42,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
         selection,
         loaded_workspace_projects,
     )?;
-    announce_manifest_load::<Reporter>(install, &workspace.dirs.workspace_root);
+    announce_manifest_load::<Reporter>(install);
     let (pnpmfile_hook, manifests) =
         load_hooked_manifests::<Reporter>(install, owned, workspace, scope, pre_hooked_paths)
             .await?;
@@ -67,11 +67,7 @@ pub(super) struct StartedLockfiles<'a> {
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
 }
 // Publish the initial manifest before the context event that renders the install header.
-pub(super) fn announce_manifest_load<Reporter: self::Reporter>(
-    install: InstallView<'_>,
-    workspace_root: &Path,
-) {
-    register_workspace_in_store(install.context.config, workspace_root);
+pub(super) fn announce_manifest_load<Reporter: self::Reporter>(install: InstallView<'_>) {
     if install.context.emit_initial_manifest {
         emit_initial_package_manifest::<Reporter>(install.context.manifest);
     }
@@ -132,13 +128,13 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
 // Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor
 // while the wanted one parses, since neither depends on the other.
 pub(super) fn spawn_current_lockfile_load(config: &Config) -> CurrentLockfileLoad {
-    let virtual_store_dir = config.virtual_store_dir.clone();
+    let install_state_dir = config.install_state_dir.clone();
     tokio::task::spawn_blocking(move || {
-        Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        Lockfile::load_current_from_install_state_dir(&install_state_dir)
     })
 }
 // Load the *current* lockfile that records what the previous
-// install actually materialized in `<virtual_store_dir>/lock.yaml`.
+// install actually materialized in `<install_state_dir>/lock.yaml`.
 // The frozen-lockfile path diffs each wanted snapshot against
 // this on a per-`PackageKey` basis to decide whether the
 // already-installed slot is still usable. `Ok(None)` on a
@@ -244,42 +240,6 @@ pub(super) fn needs_early_host_detection(
             _ => false,
         })
 }
-/// Register the workspace root in the store's project registry, once per
-/// install. Store prune walks the workspace's `node_modules/.pnpm/` to find
-/// every installed package, so one entry per workspace is enough.
-///
-/// Gated on `enableGlobalVirtualStore` because pacquet wires the
-/// prune-by-registry path only under GVS for now; pnpm registers
-/// unconditionally, so once the non-GVS prune path lands the gate should be
-/// dropped.
-///
-/// Best-effort: a registry write failure shouldn't fail the install, so it is
-/// surfaced as `tracing::warn!` instead.
-pub(super) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
-    if !config.enable_global_virtual_store {
-        return;
-    }
-    // Create the store root before calling `register_project` so its
-    // `path_contains` guard can canonicalize the path instead of falling
-    // through to a literal comparison that wrongly matches against
-    // `<workspace>/../pacquet-store/v11`-shaped relative store paths
-    // (resolved-on-disk: outside the workspace; lexical: starts with the
-    // workspace prefix).
-    if let Err(error) = std::fs::create_dir_all(pnpm_store_dir::StoreDir::root(&config.store_dir)) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to ensure store root exists before project registry write; install continues",
-        );
-    }
-    if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, workspace_root) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to register workspace root in the store project registry; install continues",
-        );
-    }
-}
 /// A corrupted or version-incompatible current lockfile is disposable state:
 /// pnpm warns and continues with none, because the wanted lockfile and
 /// filesystem remain authoritative.
@@ -295,7 +255,7 @@ pub(super) fn load_current_lockfile<Reporter: self::Reporter>(
                 level: LogLevel::Warn,
                 message: format!(
                     "Ignoring broken lockfile at {}: {error}",
-                    config.virtual_store_dir.display(),
+                    config.install_state_dir.display(),
                 ),
                 prefix: prefix.to_string(),
             }));

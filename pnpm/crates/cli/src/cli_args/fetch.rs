@@ -34,6 +34,7 @@ impl FetchArgs {
             manifest,
             lockfile,
             resolved_packages,
+            dedicated: _,
         } = &state;
 
         let has_both = self.prod == self.dev;

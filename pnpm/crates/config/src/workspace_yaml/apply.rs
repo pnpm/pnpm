@@ -141,7 +141,7 @@ impl WorkspaceSettings {
             config.modules_dir = resolve(base_dir, &v);
         }
         if let Some(v) = self.virtual_store_dir.take() {
-            config.virtual_store_dir = resolve(base_dir, &v);
+            config.set_virtual_store_dir(resolve(base_dir, &v));
         }
         if let Some(v) = self.global_virtual_store_dir.take() {
             config.global_virtual_store_dir = resolve(base_dir, &v);
@@ -203,6 +203,7 @@ impl WorkspaceSettings {
         config.registries_by_prefix.extend(lookups.registries_by_prefix);
         config.registry_options_by_url.extend(lookups.registry_options_by_url);
         config.indexes_by_ecosystem.extend(lookups.indexes_by_ecosystem);
+        config.network_concurrency_by_registry.extend(lookups.network_concurrency_by_registry);
         declared_prefixes
     }
 

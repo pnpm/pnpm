@@ -192,6 +192,42 @@ pub(super) fn reject_invalid_patch_hashes(request: &ResolveRequest) -> Option<Re
     ))
 }
 
+/// Reject a project whose `publishConfig.directory` escapes the project it
+/// belongs to. The resolver joins the value onto the project dir to build a
+/// workspace link, and the request is untrusted, so an absolute, drive- or
+/// UNC-bearing, or `..`-carrying value must not reach that join. Runs before
+/// every resolve path, including the frozen fast path that returns the caller's
+/// input lockfile without walking the tree.
+///
+/// Unlike the importer dir this value is not an identity that two builds have
+/// to agree on, so a benign non-canonical form such as `./dist` stays accepted:
+/// a local install resolves it, and failing only through a server would break
+/// installs that work without one.
+/// Returns a `400` response when one is found.
+pub(super) fn reject_unsafe_publish_directories(request: &ResolveRequest) -> Option<Response> {
+    let directory = request.projects
+        .as_deref()?
+        .iter()
+        .filter_map(|project| project.publish_config.as_ref()?.directory.as_deref())
+        .find(|directory| escapes_its_project(directory))?;
+    Some(json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("publishConfig.directory {directory:?} points outside its project"),
+    ))
+}
+
+/// Whether a client-supplied publish directory could address a path outside the
+/// project it is joined onto: absolute, drive- or UNC-bearing (a backslash or a
+/// colon), or carrying a `..` component.
+fn escapes_its_project(directory: &str) -> bool {
+    directory.starts_with('/')
+        || directory.contains('\\')
+        || directory.contains(':')
+        || directory
+            .split('/')
+            .any(|component| component == "..")
+}
+
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
 /// the default and named registries, every dependency spec, catalog and

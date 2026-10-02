@@ -1,47 +1,43 @@
-import fs from 'node:fs'
 import path from 'node:path'
-import { setTimeout as delay } from 'node:timers/promises'
-import util from 'node:util'
 
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { linkLogger } from '@pnpm/core-loggers'
-import { isTransientFileLockError, withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
-import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
+import type { DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
-import { resolveLinkTarget } from 'resolve-link-target'
-import { symlinkDir } from 'symlink-dir'
 
-export interface DependenciesGraphNode<T extends string> {
-  dir: string
-  children: Record<string, T>
-  optionalDependencies: Set<string>
-  hasBin: boolean
-  name: string
-  depPath: DepPath
-}
+import { createGetAliasHoistType, type GetAliasHoistType } from './createGetAliasHoistType.js'
+import { graphWalker, type GraphWalkerStep } from './graphWalker.js'
+import { hoistLogger, selectHoistedModulesDir } from './hoistedModulesDirs.js'
+import { hoistWorkspacePackages, type HoistWorkspacePackagesOpts } from './hoistWorkspacePackages.js'
+import { symlinkHoistedDependency } from './symlinkHoistedDependency.js'
+import type {
+  DependenciesGraph,
+  DependenciesGraphNode,
+  DirectDependenciesByImporterId,
+  HoistedDependenciesByNodeId,
+  HoistedWorkspaceProject,
+  HoistGraphResult,
+  HoistType,
+} from './types.js'
+import { collectOccupiedAliases } from './workspaceAliasConflicts.js'
 
-export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
+export { type GraphDependency, type GraphWalker, graphWalker, type GraphWalkerStep } from './graphWalker.js'
+export { hoistWorkspacePackages, type HoistWorkspacePackagesOpts, pruneStaleWorkspaceHoists } from './hoistWorkspacePackages.js'
+export type { DependenciesGraph, DependenciesGraphNode, DirectDependenciesByImporterId, HoistedWorkspaceProject } from './types.js'
 
-export interface DirectDependenciesByImporterId<T extends string> {
-  [importerId: string]: Map<string, T>
-}
-
-const hoistLogger = logger('hoist')
-
-export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
-  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<(() => Promise<void>) | void>
+export interface HoistOpts<NodeId extends string> extends GetHoistedDependenciesOpts<NodeId> {
+  beforeWorkspaceLinks?: HoistWorkspacePackagesOpts<NodeId>['beforeWorkspaceLinks']
+  directDependencyAliases?: HoistWorkspacePackagesOpts<NodeId>['directDependencyAliases']
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
 }
 
-export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
+export async function hoist<NodeId extends string> (opts: HoistOpts<NodeId>): Promise<HoistedDependencies | null> {
   const initialResult = getHoistedDependencies(opts)
   // Ahead of the graph, so that a workspace project always wins the alias over an
   // equally named transitive dependency instead of whichever symlink lands first.
@@ -73,7 +69,6 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
 
   // Here we only link the bins of the privately hoisted modules.
@@ -90,10 +85,10 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
   return hoistedDependencies
 }
 
-export interface GetHoistedDependenciesOpts<T extends string> {
-  graph: DependenciesGraph<T>
+export interface GetHoistedDependenciesOpts<NodeId extends string> {
+  graph: DependenciesGraph<NodeId>
   skipped: Set<DepPath>
-  directDepsByImporterId: DirectDependenciesByImporterId<T>
+  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
   importerIds?: ProjectId[]
   privateHoistPattern: string[]
   privateHoistedModulesDir: string
@@ -103,308 +98,26 @@ export interface GetHoistedDependenciesOpts<T extends string> {
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
 }
 
-export interface HoistedWorkspaceProject {
-  name: string
-  dir: string
-}
-
-export interface HoistWorkspacePackagesOpts<T extends string> {
-  beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<(() => Promise<void>) | void>
-  directDepsByImporterId: DirectDependenciesByImporterId<T>
-  graph: DependenciesGraph<T>
-  hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
-  occupiedAliases?: OccupiedAliases
-  privateHoistedModulesDir: string
-  privateHoistPattern: string[]
-  publicHoistedModulesDir: string
-  publicHoistPattern: string[]
-  virtualStoreDir: string
-}
-
-/**
- * Symlinks the workspace projects that the hoist patterns select.
- *
- * Every named project of the workspace is a candidate, not only the ones some other
- * project depends on, so this pass reads the projects rather than the dependency
- * graph. That also makes it independent of the graph: it is the whole of the work
- * for a workspace that installs nothing from a registry, and an install that changes
- * no dependency can run it on its own, without walking the graph again.
- *
- * A project loses its alias to a direct dependency of any project, which is hoisted
- * from the graph instead. A dependency with no node in the graph, a `workspace:`
- * link among them, claims nothing: the graph walk skips it too.
- */
-export async function hoistWorkspacePackages<T extends string> (opts: HoistWorkspacePackagesOpts<T>): Promise<HoistedDependencies> {
-  if (opts.hoistedWorkspacePackages == null) {
-    await opts.beforeWorkspaceLinks?.({})
-    return {}
-  }
-  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
-  const aliasesTakenByDependencies = new Set<string>()
-  for (const directDeps of Object.values(opts.directDepsByImporterId)) {
-    for (const [alias, nodeId] of directDeps.entries()) {
-      if (opts.graph[nodeId] == null) continue
-      aliasesTakenByDependencies.add(alias.toLowerCase())
-    }
-  }
-  const symlink = symlinkHoistedDependency.bind(null, {
-    virtualStoreDir: opts.virtualStoreDir,
-    internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
-  })
-  let placementCandidates: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public']> = []
-  for (const [projectId, project] of Object.entries(opts.hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
-    const { name } = project
-    const hoistType = getAliasHoistType(name)
-    if (!hoistType || aliasesTakenByDependencies.has(name.toLowerCase())) continue
-    aliasesTakenByDependencies.add(name.toLowerCase())
-    placementCandidates.push([projectId, project, hoistType])
-  }
-  const conflictingProjectIds = findConflictingWorkspaceProjectIds(placementCandidates, opts.occupiedAliases)
-  placementCandidates = placementCandidates.filter(([projectId]) => !conflictingProjectIds.has(projectId))
-  const hoistedDependencies = Object.fromEntries(placementCandidates.map(([projectId, { name }, hoistType]) => [
-    projectId,
-    { [name]: hoistType },
-  ])) as HoistedDependencies
-  const rollback = await opts.beforeWorkspaceLinks?.(hoistedDependencies)
-  let placements: Array<readonly [ProjectId, HoistedWorkspaceProject, 'private' | 'public', string]>
-  try {
-    placements = await Promise.all(placementCandidates.map(async ([projectId, project, hoistType]) => {
-      const targetDir = hoistType === 'public'
-        ? opts.publicHoistedModulesDir
-        : opts.privateHoistedModulesDir
-      const trustedRoot = findCommonPathAncestor(opts.publicHoistedModulesDir, targetDir) ?? path.parse(path.resolve(targetDir)).root
-      const destination = await prepareWorkspaceModulesDir(targetDir, project.name, trustedRoot)
-      return [projectId, project, hoistType, destination] as const
-    }))
-  } catch (error: unknown) {
-    await runWorkspaceRollback(rollback, opts.privateHoistedModulesDir)
-    throw error
-  }
-  const results = await Promise.allSettled(placements.map(async ([, { dir }, , destination]) => symlink(dir, destination)))
-  const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-  if (failure != null) {
-    const cleanupResults = await Promise.allSettled(placements.map(async ([, { dir }, , destination], index) => {
-      if (results[index].status !== 'fulfilled') return
-      await removeWorkspaceLinkIfTarget(destination, dir)
-    }))
-    reportWorkspaceRollbackFailures(cleanupResults, opts.privateHoistedModulesDir)
-    await runWorkspaceRollback(rollback, opts.privateHoistedModulesDir)
-    throw failure.reason
-  }
-  return hoistedDependencies
-}
-
-export async function pruneStaleWorkspaceHoists (
-  previous: HoistedDependencies,
-  next: HoistedDependencies,
-  projectIds: Set<ProjectId>,
-  privateHoistedModulesDir: string,
-  publicHoistedModulesDir: string
-): Promise<() => Promise<void>> {
-  const staleLinks = (await Promise.all(Array.from(projectIds).flatMap((projectId) => {
-    const nextAliases = next[projectId]
-    return Object.entries(previous[projectId] ?? {}).flatMap(([alias, hoistType]) => {
-      if (nextAliases?.[alias] === hoistType) return []
-      const modulesDir = hoistType === 'public'
-        ? publicHoistedModulesDir
-        : privateHoistedModulesDir
-      const trustedRoot = findCommonPathAncestor(publicHoistedModulesDir, modulesDir) ?? path.parse(path.resolve(modulesDir)).root
-      return [(async () => {
-        const destination = await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
-        let target: string
-        try {
-          const rawTarget = await fs.promises.readlink(destination)
-          target = path.resolve(path.dirname(destination), rawTarget)
-        } catch (error: unknown) {
-          if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) {
-            return undefined
-          }
-          throw error
-        }
-        return { alias, destination, modulesDir, target, trustedRoot }
-      })()]
-    })
-  }))).filter(link => link != null)
-  const removalResults = await Promise.allSettled(staleLinks.map(async ({ alias, destination, modulesDir, trustedRoot }) => {
-    await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
-    await fs.promises.unlink(destination)
-  }))
-  const failure = removalResults.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-  const restore = async (links: typeof staleLinks): Promise<void> => {
-    await Promise.all(links.map(async ({ alias, destination, modulesDir, target, trustedRoot }) => {
-      await prepareWorkspaceModulesDir(modulesDir, alias, trustedRoot)
-      await fs.promises.symlink(target, destination, process.platform === 'win32' ? 'junction' : 'dir')
-    }))
-  }
-  if (failure != null) {
-    await restore(staleLinks.filter((_, index) => removalResults[index].status === 'fulfilled'))
-    throw failure.reason
-  }
-  const parentCleanupResults = await Promise.allSettled(staleLinks.map(async ({ alias, destination, modulesDir, trustedRoot }) => {
-    await removeEmptyWorkspaceParents(modulesDir, alias, path.dirname(destination), trustedRoot)
-  }))
-  const parentCleanupFailure = parentCleanupResults.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-  if (parentCleanupFailure != null) {
-    await restore(staleLinks)
-    throw parentCleanupFailure.reason
-  }
-  return async () => restore(staleLinks)
-}
-
-async function removeEmptyWorkspaceParents (modulesDir: string, alias: string, parent: string, trustedRoot: string): Promise<void> {
-  if (parent === modulesDir) return
-  await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
-  try {
-    await fs.promises.rmdir(parent)
-  } catch (error: unknown) {
-    if (util.types.isNativeError(error) && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code))) return
-    throw error
-  }
-  await removeEmptyWorkspaceParents(modulesDir, alias, path.dirname(parent), trustedRoot)
-}
-
-async function runWorkspaceRollback (rollback: (() => Promise<void>) | void, prefix: string): Promise<void> {
-  if (rollback == null) return
-  try {
-    await rollback()
-  } catch (error: unknown) {
-    hoistLogger.warn({ message: `Failed to roll back workspace hoist links: ${String(error)}`, prefix })
-  }
-}
-
-function reportWorkspaceRollbackFailures (results: PromiseSettledResult<void>[], prefix: string): void {
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      hoistLogger.warn({ message: `Failed to clean up a workspace hoist link: ${String(result.reason)}`, prefix })
-    }
-  }
-}
-
-function findConflictingWorkspaceProjectIds (
-  candidates: Array<[ProjectId, HoistedWorkspaceProject, 'private' | 'public']>,
-  occupiedAliases?: OccupiedAliases
-): Set<ProjectId> {
-  const conflictingProjectIds = new Set<ProjectId>()
-  for (const hoistType of ['private', 'public'] as const) {
-    const projectIdsByName = new Map<string, ProjectId[]>()
-    for (const [projectId, project, candidateHoistType] of candidates) {
-      if (candidateHoistType !== hoistType) continue
-      const name = project.name.toLowerCase()
-      if (occupiedAliases != null && conflictsWithOccupiedAlias(name, occupiedAliases[hoistType])) {
-        conflictingProjectIds.add(projectId)
-        continue
-      }
-      const projectIds = projectIdsByName.get(name)
-      if (projectIds == null) {
-        projectIdsByName.set(name, [projectId])
-      } else {
-        projectIds.push(projectId)
-      }
-    }
-    const activeAncestors: Array<[string, ProjectId[]]> = []
-    for (const current of [...projectIdsByName.entries()].sort(([left], [right]) => compareWorkspaceAliases(left, right))) {
-      while (activeAncestors.length > 0 && !current[0].startsWith(`${activeAncestors.at(-1)![0]}/`)) {
-        activeAncestors.pop()
-      }
-      if (activeAncestors.length > 0) {
-        for (const [, projectIds] of activeAncestors) {
-          for (const projectId of projectIds) conflictingProjectIds.add(projectId)
-        }
-        for (const projectId of current[1]) conflictingProjectIds.add(projectId)
-      }
-      activeAncestors.push(current)
-    }
-  }
-  return conflictingProjectIds
-}
-
-interface AliasIndex {
-  aliases: Set<string>
-  ancestors: Set<string>
-}
-
-interface OccupiedAliases {
-  private: AliasIndex
-  public: AliasIndex
-}
-
-function collectOccupiedAliases<T extends string> (
-  result: HoistGraphResult<T> | null,
-  directDepsByImporterId: DirectDependenciesByImporterId<T>
-): OccupiedAliases {
-  const occupiedAliases: OccupiedAliases = {
-    private: { aliases: new Set(), ancestors: new Set() },
-    public: { aliases: new Set(), ancestors: new Set() },
-  }
-  if (result != null) {
-    for (const aliases of result.hoistedDependenciesByNodeId.values()) {
-      for (const [alias, hoistType] of Object.entries(aliases)) {
-        addOccupiedAlias(alias, occupiedAliases[hoistType])
-      }
-    }
-  }
-  const rootDirectDeps = directDepsByImporterId['.' as ProjectId]
-  if (rootDirectDeps != null) {
-    for (const alias of rootDirectDeps.keys()) addOccupiedAlias(alias, occupiedAliases.public)
-  }
-  return occupiedAliases
-}
-
-function addOccupiedAlias (alias: string, index: AliasIndex): void {
-  const components = alias.toLowerCase().split('/')
-  index.aliases.add(components.join('/'))
-  for (let length = 1; length < components.length; length++) {
-    index.ancestors.add(components.slice(0, length).join('/'))
-  }
-}
-
-function conflictsWithOccupiedAlias (alias: string, index: AliasIndex): boolean {
-  if (index.ancestors.has(alias)) return true
-  const components = alias.split('/')
-  for (let length = 1; length < components.length; length++) {
-    if (index.aliases.has(components.slice(0, length).join('/'))) return true
-  }
-  return false
-}
-
-function compareWorkspaceAliases (left: string, right: string): number {
-  const leftComponents = left.split('/')
-  const rightComponents = right.split('/')
-  const length = Math.min(leftComponents.length, rightComponents.length)
-  for (let index = 0; index < length; index++) {
-    const compared = lexCompare(leftComponents[index], rightComponents[index])
-    if (compared !== 0) return compared
-  }
-  return leftComponents.length - rightComponents.length
-}
-
-async function removeWorkspaceLinkIfTarget (destination: string, target: string): Promise<void> {
-  let resolvedTarget: string
-  try {
-    resolvedTarget = await resolveLinkTarget(destination)
-  } catch (error: unknown) {
-    if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return
-    throw error
-  }
-  if (resolvedTarget === target) await fs.promises.unlink(destination)
-}
-
-export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {
+export function getHoistedDependencies<NodeId extends string> (opts: GetHoistedDependenciesOpts<NodeId>): HoistGraphResult<NodeId> | null {
   if (Object.keys(opts.graph ?? {}).length === 0) return null
+  const rootDirectDeps = opts.directDepsByImporterId['.' as ProjectId] ?? new Map<string, NodeId>()
+  const privateRootAliases = isSubdir(path.dirname(opts.publicHoistedModulesDir), opts.privateHoistedModulesDir)
+    ? new Set<string>()
+    : new Set(Array.from(rootDirectDeps.keys()).filter(createMatcher(opts.privateHoistPattern)))
   const { directDeps, step } = graphWalker(
     opts.graph,
     opts.directDepsByImporterId
   )
-  const deps: Array<Dependency<T>> = [
+  const deps: Array<Dependency<NodeId>> = [
     {
       children: directDeps
         .reduce((acc, { alias, nodeId }) => {
-          if (!acc[alias]) {
+          if (!Object.hasOwn(acc, alias)) {
             acc[alias] = nodeId
           }
           return acc
-        }, {} as Record<string, T>),
-      nodeId: '' as T,
+        }, privateRootAliases.size > 0 ? Object.fromEntries(rootDirectDeps) : {} as Record<string, NodeId>),
+      nodeId: '' as NodeId,
       depth: -1,
     },
     ...getDependencies(0, step),
@@ -412,27 +125,13 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? new Map(), {
+  return hoistGraph(deps, rootDirectDeps, {
     getAliasHoistType,
+    privateRootAliases,
     graph: opts.graph,
     reservedAliases: opts.reservedAliases,
     skipped: opts.skipped,
   })
-}
-
-type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
-
-function createGetAliasHoistType (
-  publicHoistPattern: string[],
-  privateHoistPattern: string[]
-): GetAliasHoistType {
-  const publicMatcher = createMatcher(publicHoistPattern)
-  const privateMatcher = createMatcher(privateHoistPattern)
-  return (alias: string) => {
-    if (publicMatcher(alias)) return 'public'
-    if (privateMatcher(alias)) return 'private'
-    return false
-  }
 }
 
 interface LinkAllBinsOptions {
@@ -463,12 +162,12 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions): Promi
   }
 }
 
-function getDependencies<T extends string> (
+function getDependencies<NodeId extends string> (
   depth: number,
-  step: GraphWalkerStep<T>
-): Array<Dependency<T>> {
-  const deps: Array<Dependency<T>> = []
-  const nextSteps: Array<GraphWalkerStep<T>> = []
+  step: GraphWalkerStep<NodeId>
+): Array<Dependency<NodeId>> {
+  const deps: Array<Dependency<NodeId>> = []
+  const nextSteps: Array<GraphWalkerStep<NodeId>> = []
   for (const { node, nodeId, next } of step.dependencies) {
     deps.push({
       children: node.children,
@@ -487,334 +186,134 @@ function getDependencies<T extends string> (
 
   return [
     ...deps,
-    ...(nextSteps.flatMap(getDependencies.bind(null, depth + 1)) as Array<Dependency<T>>),
+    ...(nextSteps.flatMap(getDependencies.bind(null, depth + 1)) as Array<Dependency<NodeId>>),
   ]
 }
 
-export interface Dependency<T extends string> {
-  children: Record<string, T>
-  nodeId: T
+export interface Dependency<NodeId extends string> {
+  children: Record<string, NodeId>
+  nodeId: NodeId
   depth: number
 }
 
-interface HoistGraphResult<T extends string> {
-  hoistedDependencies: HoistedDependencies
-  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>
-  hoistedAliasesWithBins: string[]
+interface HoistGraphOpts<NodeId extends string> {
+  getAliasHoistType: GetAliasHoistType
+  privateRootAliases: Set<string>
+  graph: DependenciesGraph<NodeId>
+  reservedAliases?: Iterable<string>
+  skipped: Set<DepPath>
 }
 
-type HoistedDependenciesByNodeId<T extends string> = Map<T, Record<string, 'public' | 'private'>>
+interface HoistGraphContext<NodeId extends string> extends HoistGraphOpts<NodeId> {
+  currentSpecifiers: Map<string, NodeId>
+  hoistedAliases: Set<string>
+  hoistedAliasesWithBins: Set<string>
+  hoistedDependencies: HoistedDependencies
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<NodeId>
+}
 
-function hoistGraph<T extends string> (
-  depNodes: Array<Dependency<T>>,
-  currentSpecifiers: Map<string, T>,
-  opts: {
-    getAliasHoistType: GetAliasHoistType
-    graph: DependenciesGraph<T>
-    reservedAliases?: Iterable<string>
-    skipped: Set<DepPath>
+interface HoistCandidate<NodeId extends string> {
+  alias: string
+  nodeId: NodeId
+  node: DependenciesGraphNode<NodeId> | undefined
+}
+
+function hoistGraph<NodeId extends string> (
+  depNodes: Array<Dependency<NodeId>>,
+  currentSpecifiers: Map<string, NodeId>,
+  opts: HoistGraphOpts<NodeId>
+): HoistGraphResult<NodeId> {
+  const ctx: HoistGraphContext<NodeId> = {
+    ...opts,
+    currentSpecifiers,
+    hoistedAliases: new Set([
+      ...Array.from(currentSpecifiers.keys()).filter(alias => !opts.privateRootAliases.has(alias)),
+      ...opts.reservedAliases ?? [],
+    ].map(alias => alias.toLowerCase())),
+    hoistedAliasesWithBins: new Set<string>(),
+    hoistedDependencies: Object.create(null),
+    hoistedDependenciesByNodeId: new Map(),
   }
-): HoistGraphResult<T> {
-  const hoistedAliases = new Set([
-    ...currentSpecifiers.keys(),
-    ...opts.reservedAliases ?? [],
-  ].map(alias => alias.toLowerCase()))
-  const hoistedDependencies: HoistedDependencies = Object.create(null)
-  const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
-  const hoistedAliasesWithBins = new Set<string>()
 
-  depNodes
-    // sort by depth and then alphabetically
-    .sort((a, b) => {
-      const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? lexCompare(a.nodeId, b.nodeId) : depthDiff
-    })
-    // build the alias map and the id map
-    .forEach((depNode) => {
-      for (const [childAlias, childNodeId] of Object.entries<T>(depNode.children)) {
-        const hoist = opts.getAliasHoistType(childAlias)
-        if (!hoist) continue
-        const childAliasNormalized = childAlias.toLowerCase()
-        // if this alias has already been taken, skip it
-        if (hoistedAliases.has(childAliasNormalized)) {
-          continue
-        }
-        if (!hoistedDependenciesByNodeId.has(childNodeId)) {
-          hoistedDependenciesByNodeId.set(childNodeId, {})
-        }
-        hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
-        const node = opts.graph[childNodeId as T]
-        if (node?.depPath == null || opts.skipped.has(node.depPath)) {
-          continue
-        }
-        if (node.hasBin) {
-          hoistedAliasesWithBins.add(childAlias)
-        }
-        hoistedAliases.add(childAliasNormalized)
-        if (!hoistedDependencies[node.depPath]) {
-          hoistedDependencies[node.depPath] = {}
-        }
-        hoistedDependencies[node.depPath][childAlias] = hoist
-      }
-    })
+  // build the alias map and the id map
+  for (const depNode of depNodes.sort(compareByDepthThenNodeId)) {
+    for (const [childAlias, childNodeId] of Object.entries<NodeId>(depNode.children)) {
+      hoistChild(ctx, {
+        alias: childAlias,
+        nodeId: childNodeId,
+        node: opts.graph[childNodeId as NodeId],
+      })
+    }
+  }
 
   return {
-    hoistedDependencies,
-    hoistedDependenciesByNodeId,
-    hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins),
+    hoistedDependencies: ctx.hoistedDependencies,
+    hoistedDependenciesByNodeId: ctx.hoistedDependenciesByNodeId,
+    hoistedAliasesWithBins: Array.from(ctx.hoistedAliasesWithBins),
   }
 }
 
-async function symlinkHoistedDependencies<T extends string> (
-  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>,
-  opts: {
-    graph: DependenciesGraph<T>
-    privateHoistedModulesDir: string
-    publicHoistedModulesDir: string
-    virtualStoreDir: string
-    virtualStoreDirMaxLength: number
+function compareByDepthThenNodeId<NodeId extends string> (left: Dependency<NodeId>, right: Dependency<NodeId>): number {
+  const depthDiff = left.depth - right.depth
+  return depthDiff === 0 ? lexCompare(left.nodeId, right.nodeId) : depthDiff
+}
+
+function hoistChild<NodeId extends string> (ctx: HoistGraphContext<NodeId>, child: HoistCandidate<NodeId>): void {
+  const { alias: childAlias, nodeId: childNodeId, node } = child
+  const hoist = getChildHoistType(ctx, child)
+  if (!hoist) return
+  const childAliasNormalized = childAlias.toLowerCase()
+  // if this alias has already been taken, skip it
+  if (ctx.hoistedAliases.has(childAliasNormalized)) return
+  if (!ctx.hoistedDependenciesByNodeId.has(childNodeId)) {
+    ctx.hoistedDependenciesByNodeId.set(childNodeId, {})
   }
+  ctx.hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
+  if (node?.depPath == null || ctx.skipped.has(node.depPath)) return
+  if (node.hasBin) {
+    ctx.hoistedAliasesWithBins.add(childAlias)
+  }
+  ctx.hoistedAliases.add(childAliasNormalized)
+  if (!ctx.hoistedDependencies[node.depPath]) {
+    ctx.hoistedDependencies[node.depPath] = {}
+  }
+  ctx.hoistedDependencies[node.depPath][childAlias] = hoist
+}
+
+function getChildHoistType<NodeId extends string> (ctx: HoistGraphContext<NodeId>, child: HoistCandidate<NodeId>): HoistType | false {
+  if (!ctx.privateRootAliases.has(child.alias)) return ctx.getAliasHoistType(child.alias)
+  // Only the root's own version of a root dependency may take its alias, and a skipped one keeps it reserved.
+  if (ctx.currentSpecifiers.get(child.alias) !== child.nodeId) return false
+  if (child.node?.depPath != null && ctx.skipped.has(child.node.depPath)) return false
+  return 'private'
+}
+
+interface SymlinkHoistedDependenciesOpts<NodeId extends string> {
+  graph: DependenciesGraph<NodeId>
+  privateHoistedModulesDir: string
+  publicHoistedModulesDir: string
+  virtualStoreDir: string
+}
+
+async function symlinkHoistedDependencies<NodeId extends string> (
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<NodeId>,
+  opts: SymlinkHoistedDependenciesOpts<NodeId>
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, {
     virtualStoreDir: opts.virtualStoreDir,
-    internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
+    installStateDir: path.dirname(opts.privateHoistedModulesDir),
   })
-  const promises: Array<Promise<void>> = []
-  for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
-    promises.push((async () => {
-      const node = opts.graph[hoistedDepNodeId]
-      if (node == null) {
-        // This dependency is probably a skipped optional dependency.
-        hoistLogger.debug({ hoistFailedFor: hoistedDepNodeId })
-        return
-      }
-      const depLocation = node.dir
-      await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
-        const targetDir = hoistType === 'public'
-          ? opts.publicHoistedModulesDir
-          : opts.privateHoistedModulesDir
-        const dest = path.join(targetDir, pkgAlias)
-        return symlink(depLocation, dest)
-      }))
-    })())
-  }
-  await Promise.all(promises)
-}
-
-async function symlinkHoistedDependency (
-  opts: { virtualStoreDir: string, internalPnpmDir: string },
-  depLocation: string,
-  dest: string
-): Promise<void> {
-  return withFileLockRetryAsync(() => symlinkHoistedDependencyOnce(opts, depLocation, dest))
-}
-
-async function symlinkHoistedDependencyOnce (
-  opts: { virtualStoreDir: string, internalPnpmDir: string },
-  depLocation: string,
-  dest: string
-): Promise<void> {
-  try {
-    await symlinkDir(depLocation, dest, { overwrite: false })
-    linkLogger.debug({ target: dest, link: depLocation })
-    return
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'EEXIST' && err.code !== 'EISDIR') throw err
-  }
-  let existingSymlink!: string
-  try {
-    existingSymlink = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return createHoistedDependencyLink(depLocation, dest)
-    }
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EINVAL') throw err
-    hoistLogger.debug({
-      skipped: dest,
-      reason: 'a directory is present at the target location',
-    })
-    return
-  }
-  if (!isSubdir(opts.virtualStoreDir, existingSymlink) && !isSubdir(opts.internalPnpmDir, existingSymlink)) {
-    hoistLogger.debug({
-      skipped: dest,
-      existingSymlink,
-      reason: 'an external symlink is present at the target location',
-    })
-    return
-  }
-  try {
-    await fs.promises.unlink(dest)
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-  }
-  await createHoistedDependencyLink(depLocation, dest)
-}
-
-async function createHoistedDependencyLink (depLocation: string, dest: string): Promise<void> {
-  let retries = 0
-  while (true) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await symlinkDir(depLocation, dest, { overwrite: false })
-      break
-    } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
-      let winningTarget: string
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        winningTarget = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
-      } catch (readError: unknown) {
-        retries += 1
-        if (util.types.isNativeError(readError) && 'code' in readError) {
-          if (readError.code === 'ENOENT' && retries <= 100) continue
-          if (readError.code === 'EINVAL') {
-            // macOS can report EINVAL when a concurrent unlink interrupts readlink.
-            try {
-              // eslint-disable-next-line no-await-in-loop
-              const stat = await fs.promises.lstat(dest)
-              // eslint-disable-next-line no-await-in-loop
-              if ((stat.isSymbolicLink() || await mayBeJunctionInCreation(dest, stat)) && retries <= 100) {
-                // eslint-disable-next-line no-await-in-loop
-                await delay(1)
-                continue
-              }
-            } catch (statError: unknown) {
-              if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT' && retries <= 100) continue
-            }
-          }
-        }
-        throw err
-      }
-      if (path.relative(depLocation, winningTarget) !== '') throw err
-      break
-    }
-  }
-  linkLogger.debug({ target: dest, link: depLocation })
-}
-
-/**
- * A junction is created as an empty directory that gets its reparse point
- * afterwards, so a concurrent hoist can find a plain directory in its place
- * for a moment. Until then its creator holds it open without sharing, so
- * listing it fails with a transient file-lock error, which counts as a
- * junction in creation. A junction completed after `stat` was read lists its
- * target's entries, so a non-empty directory is checked again. Always false
- * off Windows. Rejects with any other listing or inspection error.
- */
-async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
-  if (process.platform !== 'win32' || !stat.isDirectory()) return false
-  let entries: string[]
-  try {
-    entries = await fs.promises.readdir(dest)
-  } catch (err: unknown) {
-    if (isTransientFileLockError(err)) return true
-    throw err
-  }
-  if (entries.length === 0) return true
-  return (await fs.promises.lstat(dest)).isSymbolicLink()
-}
-
-export function graphWalker<T extends string> (
-  graph: DependenciesGraph<T>,
-  directDepsByImporterId: DirectDependenciesByImporterId<T>,
-  opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    skipped?: Set<DepPath>
-  }
-): GraphWalker<T> {
-  const startNodeIds = [] as T[]
-  const allDirectDeps = [] as Array<{ alias: string, nodeId: T }>
-
-  for (const directDeps of Object.values(directDepsByImporterId)) {
-    for (const [alias, nodeId] of directDeps.entries()) {
-      const depNode = graph[nodeId]
-      if (depNode == null) continue
-      startNodeIds.push(nodeId)
-      allDirectDeps.push({ alias, nodeId })
-    }
-  }
-  const visited = new Set<T>()
-  return {
-    directDeps: allDirectDeps,
-    step: makeStep({
-      includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
-      graph,
-      visited,
-      skipped: opts?.skipped,
-    }, startNodeIds),
-  }
-}
-
-function makeStep<T extends string> (
-  ctx: {
-    includeOptionalDependencies: boolean
-    graph: DependenciesGraph<T>
-    visited: Set<T>
-    skipped?: Set<DepPath>
-  },
-  nextNodeIds: T[]
-): GraphWalkerStep<T> {
-  const result: GraphWalkerStep<T> = {
-    dependencies: [],
-    links: [],
-    missing: [],
-  }
-  const _next = collectChildNodeIds.bind(null, {
-    includeOptionalDependencies: ctx.includeOptionalDependencies,
-  })
-  for (const nodeId of nextNodeIds) {
-    if (ctx.visited.has(nodeId)) continue
-    ctx.visited.add(nodeId)
-    const node = ctx.graph[nodeId]
+  await Promise.all(Array.from(hoistedDependenciesByNodeId.entries(), async ([hoistedDepNodeId, pkgAliases]) => {
+    const node = opts.graph[hoistedDepNodeId]
     if (node == null) {
-      if (nodeId.startsWith('link:')) {
-        result.links.push(nodeId)
-        continue
-      }
-      result.missing.push(nodeId)
-      continue
+      // This dependency is probably a skipped optional dependency.
+      hoistLogger.debug({ hoistFailedFor: hoistedDepNodeId })
+      return
     }
-    if (ctx.skipped?.has(node.depPath)) continue
-    result.dependencies.push({
-      nodeId,
-      next: () => makeStep<T>(ctx, _next(node) as T[]),
-      node,
-    })
-  }
-  return result
-}
-
-function collectChildNodeIds<T extends string> (opts: { includeOptionalDependencies: boolean }, nextPkg: DependenciesGraphNode<T>): T[] {
-  if (opts.includeOptionalDependencies) {
-    return Object.values(nextPkg.children)
-  } else {
-    const nextNodeIds: T[] = []
-    for (const [alias, nodeId] of Object.entries(nextPkg.children)) {
-      if (!nextPkg.optionalDependencies.has(alias)) {
-        nextNodeIds.push(nodeId)
-      }
-    }
-    return nextNodeIds
-  }
-}
-
-export interface GraphWalker<T extends string> {
-  directDeps: Array<{
-    alias: string
-    nodeId: T
-  }>
-  step: GraphWalkerStep<T>
-}
-
-export interface GraphWalkerStep<T extends string> {
-  dependencies: Array<GraphDependency<T>>
-  links: string[]
-  missing: string[]
-}
-
-export interface GraphDependency<T extends string> {
-  nodeId: T
-  node: DependenciesGraphNode<T>
-  next: () => GraphWalkerStep<T>
+    const depLocation = node.dir
+    await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
+      const dest = path.join(selectHoistedModulesDir(hoistType, opts), pkgAlias)
+      return symlink(depLocation, dest)
+    }))
+  }))
 }

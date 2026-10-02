@@ -4,8 +4,8 @@ use super::super::{
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
     hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
     map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
-    recorded_allow_builds_differ, unapproved_recorded_ignored_builds, update_workspace_state,
-    verify_lockfile_eagerly,
+    recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
 
@@ -172,7 +172,7 @@ pub(super) fn modules_cache_prune_due(
     modules_manifest.is_some_and(|modules| {
         crate::prune_virtual_store::should_prune_virtual_store(
             crate::prune_virtual_store::same_dir(
-                config.effective_virtual_store_dir(),
+                config.virtual_store_dir(),
                 &config.global_virtual_store_dir,
             ),
             Some(modules.pruned_at.as_str()),
@@ -192,7 +192,19 @@ pub(super) struct UpToDateInstall<'a, 'install> {
     pub(super) modules: &'a pnpm_modules_yaml::ModulesLayout,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    pub(super) carried_state: CarriedWorkspaceState,
+}
+/// The workspace-state fields the up-to-date refresh carries over from the
+/// previous run instead of recomputing: the refresh materializes nothing, so
+/// it may neither claim every importer was materialized nor establish a
+/// dedupe baseline.
+pub(super) struct CarriedWorkspaceState {
+    /// The previous run's `filteredInstall`. Clearing it would claim every
+    /// importer is materialized when a filtered install left the unselected
+    /// ones untouched.
     pub(super) filtered_install: bool,
+    /// The previous run's `autoDedupe`; only a resolving install sets it.
+    pub(super) recorded_auto_dedupe: Option<bool>,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -250,7 +262,7 @@ pub(super) fn enforce_recorded_build_policy(
 pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
     context: &UpToDateInstall<'_, '_>,
 ) {
-    let state = build_workspace_state::<Host>(
+    let mut state = build_workspace_state::<Host>(
         context.tree.workspace_root,
         context.tree.config,
         context.tree.node_linker,
@@ -258,19 +270,11 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         context.supported_architectures,
         context.projects.catalogs,
         context.projects.manifests,
-        context.filtered_install,
+        context.carried_state.filtered_install,
         filesystem_now_ms(context.tree.workspace_root),
     );
-    if let Err(error) = update_workspace_state(context.tree.workspace_root, &state) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to write the workspace state",
-        );
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            "Failed to write the workspace state: {error}",
-        ));
-    }
+    state.settings.auto_dedupe = context.carried_state.recorded_auto_dedupe;
+    update_workspace_state_or_warn::<Reporter>(context.tree.workspace_root, &state);
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

@@ -50,33 +50,55 @@ export async function handler (
 ): Promise<undefined | string> {
   if (!opts.overrides) return 'Nothing to unlink'
 
-  const removedLinks: Record<string, string> = {}
-  for (const selector in opts.overrides) {
-    const specifier = opts.overrides[selector]
-    if (specifier.startsWith('link:') && (!params?.length || params.includes(selector))) {
-      removedLinks[selector] = specifier
-      delete opts.overrides[selector]
-    }
-  }
+  const removedLinks = removeLinkOverrides(opts.overrides, params)
   let rootProjectManifest = opts.rootProjectManifest
   if (!isEmpty(removedLinks)) {
     const unlinked = await removeLinkedDependencies(opts, removedLinks)
     if (!opts.dryRun) {
-      await writeSettings({
-        workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-        rootProjectManifestDir: opts.rootProjectManifestDir,
-        updatedSettings: {
-          overrides: isEmpty(opts.overrides) ? undefined : opts.overrides,
-        },
-      })
-      if (unlinked?.changed) {
-        await unlinked.writeProjectManifest(unlinked.manifest)
-      }
+      await saveUnlinkedSettings(opts, unlinked)
     }
     rootProjectManifest = unlinked?.manifest ?? rootProjectManifest
   }
   await install.handler({ ...opts, rootProjectManifest })
   return undefined
+}
+
+/**
+ * Deletes from `overrides` the `link:` overrides selected by `params` (all of
+ * them when `params` is empty) and returns the deleted entries.
+ */
+function removeLinkOverrides (overrides: Record<string, string>, params: string[]): Record<string, string> {
+  const removedLinks: Record<string, string> = {}
+  for (const selector in overrides) {
+    const specifier = overrides[selector]
+    if (specifier.startsWith('link:') && (!params?.length || params.includes(selector))) {
+      removedLinks[selector] = specifier
+      delete overrides[selector]
+    }
+  }
+  return removedLinks
+}
+
+async function saveUnlinkedSettings (
+  opts: install.InstallCommandOptions,
+  unlinked: RemovedLinkedDependencies | undefined
+): Promise<void> {
+  await writeSettings({
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    rootProjectManifestDir: opts.rootProjectManifestDir,
+    updatedSettings: {
+      overrides: isEmpty(opts.overrides) ? undefined : opts.overrides,
+    },
+  })
+  if (unlinked?.changed) {
+    await unlinked.writeProjectManifest(unlinked.manifest)
+  }
+}
+
+interface RemovedLinkedDependencies {
+  manifest: ProjectManifest
+  changed: boolean
+  writeProjectManifest: WriteProjectManifest
 }
 
 /**
@@ -90,7 +112,7 @@ export async function handler (
 async function removeLinkedDependencies (
   opts: install.InstallCommandOptions,
   removedLinks: Record<string, string>
-): Promise<{ manifest: ProjectManifest, changed: boolean, writeProjectManifest: WriteProjectManifest } | undefined> {
+): Promise<RemovedLinkedDependencies | undefined> {
   const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir, opts)
   if (manifest == null) return undefined
   const rootDir = path.resolve(opts.rootProjectManifestDir)

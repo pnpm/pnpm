@@ -7,9 +7,9 @@ use std::{
 use tokio::sync::watch;
 
 #[cfg(unix)]
-use group_watchdog::GroupWatchdog;
-#[cfg(unix)]
-use std::{io::Read, os::unix::process::CommandExt, process::Stdio, ptr, time::Duration};
+use std::{
+    io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
+};
 
 /// Tracks the processes started by one command so a bailing task can stop
 /// other work that is still in flight.
@@ -151,7 +151,7 @@ pub fn spawn_child<'tracker>(
     // must a relayed signal address that group rather than the child.
     let own_process_group = cfg!(unix) && separate_process_group;
     #[cfg(unix)]
-    let (child, watchdog) = watch_process_group(child, own_process_group)?;
+    let (child, watched) = watch_process_group(child, own_process_group)?;
     let relay = crate::interrupt::relay_to_child(child.id(), own_process_group);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
@@ -165,25 +165,23 @@ pub fn spawn_child<'tracker>(
         _registration: registration,
         relay,
         #[cfg(unix)]
-        watchdog,
+        watched,
     })
 }
 
-/// Start a watchdog for `child` when it leads a process group of its own.
+/// Have the watchdog watch `child`'s group when the child leads one.
+/// Returns whether the group is watched.
 ///
-/// A child left without its watchdog would be the very orphan the watchdog
-/// exists to prevent, so if one cannot be started the child's group is
-/// killed before the failure is returned.
+/// A child left unwatched would be the very orphan the watchdog exists to
+/// prevent, so if the watch cannot be set up the child's group is killed
+/// before the failure is returned.
 #[cfg(unix)]
-fn watch_process_group(
-    mut child: Child,
-    own_process_group: bool,
-) -> io::Result<(Child, Option<GroupWatchdog>)> {
+fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<(Child, bool)> {
     if !own_process_group {
-        return Ok((child, None));
+        return Ok((child, false));
     }
-    match GroupWatchdog::spawn(child.id()) {
-        Ok(watchdog) => Ok((child, watchdog)),
+    match group_watchdog::watch(child.id()) {
+        Ok(watched) => Ok((child, watched)),
         Err(error) => {
             terminate_process(child.id(), true);
             let _ = child.wait();
@@ -208,7 +206,7 @@ pub struct SpawnedChild<'tracker> {
     _registration: Option<Registration<'tracker>>,
     relay: crate::interrupt::SignalRelay,
     #[cfg(unix)]
-    watchdog: Option<GroupWatchdog>,
+    watched: bool,
 }
 
 impl SpawnedChild<'_> {
@@ -218,49 +216,56 @@ impl SpawnedChild<'_> {
 
     /// Wait for the child, and after a relayed signal for its whole process
     /// group: a shell that died from the signal may have left the script it
-    /// started still shutting down. The group's watchdog is released once
-    /// pnpm is done with the group, so whatever the child left running in
-    /// it is not ended by pnpm's own exit.
+    /// started still shutting down. pnpm then stops watching the group, so
+    /// whatever the child left running in it is not ended by pnpm's own
+    /// exit.
     pub fn wait(&mut self) -> io::Result<std::process::ExitStatus> {
         let status = self.child.wait()?;
         if self.own_process_group && self.relay.relayed() {
             wait_for_process_group(self.child.id());
         }
         #[cfg(unix)]
-        if let Some(watchdog) = self.watchdog.take() {
-            watchdog.release();
+        if std::mem::take(&mut self.watched) {
+            group_watchdog::release(self.child.id());
         }
         Ok(status)
     }
 }
 
-/// Block until no process of the group led by `leader` is left.
-///
-/// Members that became pnpm's children, as they do when pnpm is a
-/// container's PID 1, are reaped along the way; the others are init's to
-/// reap, and disappear from the group on their own.
+/// Block until no process of the group led by `leader` is still running.
 #[cfg(unix)]
 fn wait_for_process_group(leader: u32) {
     let Ok(leader) = i32::try_from(leader) else { return };
-    let group = -leader;
-    loop {
-        // SAFETY: `group` names the process group pnpm created for the
-        // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
-        // signal 0 only probes; `ESRCH` says the group is empty.
-        let empty = unsafe {
-            while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
-            libc::kill(group, 0) != 0
-                && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
-        };
-        if empty {
-            return;
-        }
+    let table = cfg!(target_os = "linux").then(|| Path::new("/proc"));
+    while group_is_running(leader, table) {
         std::thread::sleep(Duration::from_millis(20));
     }
 }
 
 #[cfg(not(unix))]
 fn wait_for_process_group(_: u32) {}
+
+/// Whether the group led by `leader` may still hold a process that has not
+/// exited, once the members that are pnpm's own children are reaped.
+///
+/// A member that another process adopted stays in the group as a zombie
+/// until that process reaps it, and the kernel still counts it. When pnpm
+/// is a container's PID 1, the outer pnpm of a nested `pnpm run` adopts the
+/// script while it waits for the inner pnpm to exit. `table`, laid out as
+/// Linux lays out `/proc`, tells such zombies apart from the members that
+/// are still shutting down.
+#[cfg(unix)]
+fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
+    let group = -leader;
+    // SAFETY: `group` names the process group pnpm created for the
+    // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
+    // signal 0 only probes; `ESRCH` says the group is empty.
+    let empty = unsafe {
+        while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
+        libc::kill(group, 0) != 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+    };
+    !empty && table.is_none_or(|table| process_table::has_running_member(table, leader))
+}
 
 pub(crate) struct EmulatedCancellation<'tracker> {
     receiver: watch::Receiver<bool>,
@@ -442,6 +447,8 @@ fn taskkill_path() -> Option<std::path::PathBuf> {
 
 #[cfg(unix)]
 mod group_watchdog;
+#[cfg(unix)]
+mod process_table;
 
 #[cfg(all(test, unix))]
 mod tests;

@@ -6,9 +6,9 @@ import type { DepPath, ProjectId } from '@pnpm/types'
 import yaml from 'js-yaml'
 import { temporaryDirectory } from 'tempy'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
-const { getCurrentBranch } = await import('@pnpm/network.git-utils')
+const { getBranchesContainingHead, getCurrentBranch } = await import('@pnpm/network.git-utils')
 const {
   existsNonEmptyWantedLockfile,
   readCurrentLockfile,
@@ -259,6 +259,36 @@ test('existsNonEmptyWantedLockfile()', async () => {
     },
   })
   expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(true)
+})
+
+test('existsNonEmptyWantedLockfile() on a branch counts only the branch lockfile', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('feature'))
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(false)
+
+  await writeFile(path.join(projectPath, 'pnpm-lock.feature.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(true)
+})
+
+test('existsNonEmptyWantedLockfile() on a detached HEAD counts the candidates and the shared lockfile', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
+  jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve(['feature']))
+  const projectPath = temporaryDirectory()
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(false)
+
+  await writeFile(path.join(projectPath, 'pnpm-lock.feature.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(true)
+
+  const sharedOnlyPath = temporaryDirectory()
+  await writeFile(path.join(sharedOnlyPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(sharedOnlyPath, { useGitBranchLockfile: true })).toBe(true)
+  jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve([]))
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {

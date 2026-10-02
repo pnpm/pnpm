@@ -95,7 +95,11 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
             // backoff (10 s + 60 s) on every run.
             retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         },
-        artifacts: crate::VerificationArtifacts { observed_stats: None, canonical_fetches: None },
+        artifacts: crate::VerificationArtifacts {
+            observed_stats: None,
+            canonical_fetches: None,
+            lookups: None,
+        },
     }
 }
 

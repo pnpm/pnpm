@@ -644,3 +644,19 @@ fn should_print_cache_path() {
     fs::create_dir_all(&printed).unwrap();
     assert_eq!(fs::canonicalize(&printed).unwrap(), fs::canonicalize(&cache_dir).unwrap());
 }
+
+#[test]
+fn prune_help_says_older_versions_depend_on_pruned_dirs() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let output = pacquet
+        .with_args(["cache", "prune", "--help"])
+        .output()
+        .expect("run pnpm cache prune --help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these"),
+        "help should say older versions depend on the pruned directories: {stdout}",
+    );
+    drop(root);
+}

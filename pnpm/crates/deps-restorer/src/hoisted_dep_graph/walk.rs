@@ -328,7 +328,23 @@ pub(super) fn walk_workspace_importer(
     let importer_root = state.lockfile_dir.join(importer_id);
     let importer_hierarchy =
         walk_deps(state, &importer_root.join("node_modules"), &dep.0.dependencies.borrow())?;
-    state.per_importer_hierarchies.insert(importer_root, importer_hierarchy);
+    let has_deps = state.lockfile.importers
+        .get(importer_id)
+        .is_some_and(|importer| {
+            importer.dependencies
+                .as_ref()
+                .is_some_and(|deps| !deps.is_empty())
+                || importer.dev_dependencies
+                    .as_ref()
+                    .is_some_and(|deps| !deps.is_empty())
+                || importer.optional_dependencies
+                    .as_ref()
+                    .is_some_and(|deps| !deps.is_empty())
+        })
+        || !dep.0.dependencies.borrow().is_empty();
+    if has_deps {
+        state.per_importer_hierarchies.insert(importer_root, importer_hierarchy);
+    }
     // Reserve the importer's slot so [`WalkState::into_result`]'s
     // post-walk loop knows the importer was visited, even when it ends
     // up with zero direct deps.
@@ -347,6 +363,11 @@ pub(super) fn resolve_reference<'l>(
     state: &WalkState<'l>,
     reference: &str,
 ) -> Result<Option<ResolvedReference<'l>>, HoistedDepGraphError> {
+    // A `link:<root>/...` placeholder the hoister kept next to its package;
+    // `link_hoisted_package_root_links` creates the link.
+    if reference.starts_with("link:") {
+        return Ok(None);
+    }
     let pkg_key: PackageKey = match reference.parse() {
         Ok(key) => key,
         Err(source) => {

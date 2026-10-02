@@ -668,10 +668,10 @@ test('collapse lifecycle output when it has too many lines', async () => {
     stage: 'postinstall',
     wd: 'packages/foo',
   })
-  for (let i = 0; i < 100; i++) {
+  for (let lineNumber = 0; lineNumber < 100; lineNumber++) {
     lifecycleLogger.debug({
       depPath: 'packages/foo',
-      line: `foo ${i}`,
+      line: `foo ${lineNumber}`,
       stage: 'postinstall',
       stdio: 'stdout',
       wd: 'packages/foo',
@@ -968,7 +968,7 @@ test('do not fail if the debug log has no output', async () => {
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    line: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- simulates a malformed log that has no line
     stage: 'install',
     stdio: 'stdout',
     wd,

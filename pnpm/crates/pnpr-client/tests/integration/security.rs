@@ -36,6 +36,7 @@ async fn an_importer_outside_the_request_is_rejected() {
         dir: "packages/app".to_string(),
         name: Some("app".to_string()),
         version: Some("1.0.0".to_string()),
+        publish_config: None,
         dependencies: BTreeMap::new(),
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),

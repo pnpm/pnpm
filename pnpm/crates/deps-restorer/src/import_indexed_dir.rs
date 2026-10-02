@@ -418,22 +418,15 @@ fn replace_non_dir<Reporter: self::Reporter>(
 ///
 /// On Unix `fs::remove_file` unlinks any non-directory inode (regular
 /// file, symlink-to-anywhere, fifo, socket). On Windows it rejects
-/// directory symlinks and junctions — the OS treats those as
-/// directory-shaped and they have to go through `remove_dir` instead.
-/// Detect that case by resolving the link's target; if the target is
-/// a directory (or the link is dangling but reports as a symlink),
-/// route through `remove_dir`.
+/// directory symlinks and junctions with `ERROR_ACCESS_DENIED` — the OS
+/// treats those as directory-shaped and they have to go through
+/// `remove_dir` instead. The link's own type decides, not its target's,
+/// so a dangling junction left behind by a deleted target is unlinked
+/// too.
 fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()> {
     #[cfg(windows)]
-    if file_type.is_symlink() {
-        // Resolved metadata follows the symlink: if the link points
-        // at a directory (or is a junction, which Rust models as a
-        // symlink whose target is a directory), `remove_dir` is the
-        // correct call. Fall through to `remove_file` for dangling
-        // links or symlinks-to-file.
-        if matches!(fs::metadata(path), Ok(meta) if meta.is_dir()) {
-            return pnpm_fs::remove_dir_with_retry(path);
-        }
+    if std::os::windows::fs::FileTypeExt::is_symlink_dir(&file_type) {
+        return pnpm_fs::remove_dir_with_retry(path);
     }
     let _ = file_type;
     pnpm_fs::remove_file_with_retry(path)

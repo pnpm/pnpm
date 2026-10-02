@@ -15,16 +15,16 @@ import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
-const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive-full.json'))
-const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
+const badDatesMeta = loadJsonFileSync<any>(testFixtures.find('bad-dates.json'))
+const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive-full.json'))
+const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -360,9 +360,9 @@ test('a replacement packument under the same cache key gets its own upgrade', as
   // Four requests: an abbreviated fetch and its upgrade per resolve. The
   // second resolve gets a fresh document, so its upgrade must run again.
   const agent = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
-  for (let i = 0; i < 4; i++) {
+  for (let requestIndex = 0; requestIndex < 4; requestIndex++) {
     agent.intercept({ path: '/is-positive', method: 'GET' })
-      .reply(200, partialTimeMeta(), { headers: { etag: `"partial-time-${i}"` } })
+      .reply(200, partialTimeMeta(), { headers: { etag: `"partial-time-${requestIndex}"` } })
   }
 
   const { clearCache, resolveFromNpm } = createResolveFromNpm({
@@ -644,7 +644,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
 
   // The upgraded full metadata should be persisted to disk so the next
   // install doesn't re-trigger the upgrade fetch.
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta?.time).toBeDefined()
@@ -961,14 +961,13 @@ test('a repeated 304 to the release-age upgrade is handled without reporting an 
 
 // An ETag identifies one representation, so the full document's validator
 // cannot describe the abbreviated slot the upgrade writes it into. A registry
-// that keys ETags per representation, such as npmjs.org, can never match it,
-// so the next abbreviated request is answered with a body that has no `time`
-// and the upgrade runs all over again.
+// that keys ETags per representation, such as npmjs.org, can never match it
+// on an abbreviated request, so it is recorded as `fullEtag` instead.
 //
 // The upgrade reaches the mirror from two directions, and both are covered
 // here: a 304 on the cached mirror, and a fresh abbreviated 200 with no
 // mirror to validate against.
-test('the release-age upgrade of a validated mirror writes no etag', async () => {
+test('the release-age upgrade of a validated mirror records the full etag', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
@@ -1001,16 +1000,17 @@ test('the release-age upgrade of a validated mirror writes no etag', async () =>
     publishedBy: new Date('2015-06-05T00:00:00.000Z'),
   })
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.fullEtag).toBe('"full-etag"')
   // `modified` is the packument's own `time.modified`, identical in both
   // representations, so it stays and keeps the next request conditional.
   expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
 })
 
-test('the release-age upgrade of a freshly fetched packument writes no etag', async () => {
+test('the release-age upgrade of a freshly fetched packument records the full etag', async () => {
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
@@ -1043,11 +1043,85 @@ test('the release-age upgrade of a freshly fetched packument writes no etag', as
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.fullEtag).toBe('"full-etag"')
   expect(persistedMeta.modified).toBe(isPositiveMeta.time.modified)
+})
+
+// npmjs.org ignores If-Modified-Since, so only the full document's own ETag
+// lets it answer 304 for an abbreviated mirror the upgrade filled.
+test('an abbreviated mirror holding an upgraded full document revalidates with the full etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const cacheHeaders = JSON.stringify({ fullEtag: '"full-etag"', modified: isPositiveMeta.time.modified })
+  const mirror = `${cacheHeaders}\n${JSON.stringify(isPositiveMeta)}`
+  fs.writeFileSync(cachePath, mirror, 'utf8')
+  // Date the mirror before the cutoff so it is revalidated instead of being
+  // trusted as freshly written.
+  fs.utimesSync(cachePath, new Date(0), new Date(0))
+
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { accept: /^application\/json/, 'if-none-match': '"full-etag"' },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(0)
+  expect(fs.readFileSync(cachePath, 'utf8')).toBe(mirror)
+})
+
+test('a changed full document revalidating an abbreviated mirror is recorded condensed with its full etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const cacheHeaders = JSON.stringify({ fullEtag: '"old-full-etag"', modified: isPositiveMeta.time.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(isPositiveMeta)}`, 'utf8')
+  fs.utimesSync(cachePath, new Date(0), new Date(0))
+
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { accept: /^application\/json/, 'if-none-match': '"old-full-etag"' },
+    })
+    .reply(200, isPositiveMeta, { headers: { etag: '"new-full-etag"' } })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(0)
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.fullEtag === '"new-full-etag"')
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.time).toEqual(isPositiveMeta.time)
+  expect(persistedMeta.readme).toBeUndefined()
+  expect(persistedMeta.versions['1.0.0'].scripts).toBeUndefined()
 })
 
 /**

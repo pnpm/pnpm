@@ -36,7 +36,7 @@ async fn fetcher_rejects_option_shaped_commit() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -80,7 +80,7 @@ async fn fetcher_rejects_partial_commit_before_running_git() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -130,7 +130,7 @@ async fn fetcher_imports_package_into_cas() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -186,7 +186,7 @@ async fn fetcher_rejects_commit_mismatch() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -256,7 +256,7 @@ async fn fetcher_blocks_build_when_not_allowed() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -320,7 +320,7 @@ async fn fetcher_runs_prepare_script_when_allowed() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -379,7 +379,7 @@ async fn fetcher_surfaces_prepare_failure() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -461,7 +461,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -561,7 +561,7 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -654,7 +654,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
         },
         source: crate::GitSource {
             cache: &crate::GitSourceCache::default(),
@@ -786,6 +786,8 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
         .to_string();
     dbg!(&help);
     assert!(help.contains("needs an SSH key for github.com"), "{help}");
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(help.contains("Permission denied (publickey)"), "{help}");
     assert!(help.contains("pnpm update @scope/pkg"), "{help}");
     assert!(help.contains("do not re-resolve git dependencies"), "{help}");
 }

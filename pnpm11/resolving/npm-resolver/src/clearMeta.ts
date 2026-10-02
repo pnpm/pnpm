@@ -1,6 +1,6 @@
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
-// The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
+// The list taken from https://github.com/npm/registry/blob/ae49abf1bac0/docs/responses/package-metadata.md#abbreviated-version-object
 // with the addition of 'libc'
 const ABBREVIATED_VERSION_FIELDS = [
   'name',
@@ -63,6 +63,14 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   }
   if (pkg.etag != null) {
     condensed.etag = pkg.etag
+  }
+  if (pkg.fullEtag != null) {
+    condensed.fullEtag = pkg.fullEtag
+  }
+  // Mirror-only, like `etag`: condensing must not drop the signal that the
+  // next online lookup has to refetch.
+  if (pkg.uncacheable === true) {
+    condensed.uncacheable = true
   }
   condensedPackuments.set(pkg, condensed)
   condensedPackuments.set(condensed, condensed)

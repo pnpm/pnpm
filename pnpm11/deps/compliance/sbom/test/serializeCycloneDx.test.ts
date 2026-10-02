@@ -105,11 +105,11 @@ describe('serializeCycloneDx', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
 
-    const babel = parsed.components.find((c: { name: string }) => c.name === 'core')
+    const babel = parsed.components.find((component: { name: string }) => component.name === 'core')
     expect(babel.scope).toBe('excluded')
     expect(babel.properties).toContainEqual({ name: 'cdx:npm:package:development', value: 'true' })
 
-    const lodash = parsed.components.find((c: { name: string }) => c.name === 'lodash')
+    const lodash = parsed.components.find((component: { name: string }) => component.name === 'lodash')
     expect(lodash.scope).toBeUndefined()
     expect(lodash.properties).toBeUndefined()
   })
@@ -119,7 +119,7 @@ describe('serializeCycloneDx', () => {
     result.components[1].depType = DepType.DevAndProd
     const parsed = JSON.parse(serializeCycloneDx(result))
 
-    const babel = parsed.components.find((c: { name: string }) => c.name === 'core')
+    const babel = parsed.components.find((component: { name: string }) => component.name === 'core')
     expect(babel.scope).toBeUndefined()
     expect(babel.properties).toBeUndefined()
   })
@@ -134,7 +134,7 @@ describe('serializeCycloneDx', () => {
     expect(root.authors).toEqual([{ name: 'ACME Corp' }])
     expect(root.supplier).toBeUndefined()
     const vcsRef = root.externalReferences.find(
-      (r: { type: string }) => r.type === 'vcs'
+      (reference: { type: string }) => reference.type === 'vcs'
     )
     expect(vcsRef.url).toBe('https://github.com/acme/sbom-app.git')
   })
@@ -200,7 +200,7 @@ describe('serializeCycloneDx', () => {
     expect(lodash.hashes).toBeUndefined()
 
     const distRef = lodash.externalReferences.find(
-      (r: { type: string }) => r.type === 'distribution'
+      (reference: { type: string }) => reference.type === 'distribution'
     )
     expect(distRef).toBeDefined()
     expect(distRef.url).toBe('https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz')
@@ -217,7 +217,7 @@ describe('serializeCycloneDx', () => {
 
     const lodash = parsed.components[0]
     const distRef = lodash.externalReferences.find(
-      (r: { type: string }) => r.type === 'distribution'
+      (reference: { type: string }) => reference.type === 'distribution'
     )
     expect(distRef).toBeDefined()
     expect(distRef.url).toBe('git+https://github.com/lodash/lodash.git#abc123')
@@ -231,7 +231,7 @@ describe('serializeCycloneDx', () => {
 
     const lodash = parsed.components[0]
     const distRef = lodash.externalReferences?.find(
-      (r: { type: string }) => r.type === 'distribution'
+      (reference: { type: string }) => reference.type === 'distribution'
     )
     expect(distRef).toBeUndefined()
   })
@@ -243,12 +243,12 @@ describe('serializeCycloneDx', () => {
     const parsed = JSON.parse(serializeCycloneDx(result))
 
     const lodashRef = parsed.components[0].externalReferences.find(
-      (r: { type: string }) => r.type === 'issue-tracker'
+      (reference: { type: string }) => reference.type === 'issue-tracker'
     )
     expect(lodashRef.url).toBe('https://github.com/lodash/lodash/issues')
 
     const rootRef = parsed.metadata.component.externalReferences.find(
-      (r: { type: string }) => r.type === 'issue-tracker'
+      (reference: { type: string }) => reference.type === 'issue-tracker'
     )
     expect(rootRef.url).toBe('https://github.com/acme/sbom-app/issues')
   })
@@ -258,7 +258,7 @@ describe('serializeCycloneDx', () => {
     const parsed = JSON.parse(serializeCycloneDx(result))
 
     const ref = parsed.components[0].externalReferences?.find(
-      (r: { type: string }) => r.type === 'issue-tracker'
+      (reference: { type: string }) => reference.type === 'issue-tracker'
     )
     expect(ref).toBeUndefined()
   })
@@ -307,7 +307,7 @@ describe('serializeCycloneDx', () => {
 
     const lodash = parsed.components[0]
     const vcsRef = lodash.externalReferences.find(
-      (r: { type: string }) => r.type === 'vcs'
+      (reference: { type: string }) => reference.type === 'vcs'
     )
     expect(vcsRef).toBeDefined()
     expect(vcsRef.url).toBe('https://github.com/lodash/lodash.git')
@@ -322,7 +322,7 @@ describe('serializeCycloneDx', () => {
 
     expect(parsed.dependencies).toBeDefined()
     const rootDep = parsed.dependencies.find(
-      (d: { ref: string }) => d.ref === 'pkg:npm/%40acme/sbom-app@1.0.0'
+      (dependency: { ref: string }) => dependency.ref === 'pkg:npm/%40acme/sbom-app@1.0.0'
     )
     expect(rootDep).toBeDefined()
     expect(rootDep.dependsOn).toContain('pkg:npm/lodash@4.17.21')

@@ -7,17 +7,17 @@ use pnpm_testing_utils::{
 };
 use std::{fs, path::Path, process::Command};
 
-const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+pub(crate) const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
 
-fn pnpm_at(workspace: &Path) -> Command {
+pub(crate) fn pnpm_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(workspace)
         .without_ambient_pnpm_config()
 }
 
-fn write_settings(workspace: &Path, settings: impl AsRef<str>) -> std::io::Result<()> {
+pub(crate) fn write_settings(workspace: &Path, settings: impl AsRef<str>) -> std::io::Result<()> {
     let path = workspace.join("pnpm-workspace.yaml");
     let mut current: serde_json::Map<String, serde_json::Value> =
         serde_saphyr::from_str(&fs::read_to_string(&path)?).unwrap();
@@ -30,7 +30,7 @@ fn write_settings(workspace: &Path, settings: impl AsRef<str>) -> std::io::Resul
     fs::write(path, serde_saphyr::to_string(&current).unwrap())
 }
 
-fn write_project(workspace: &Path, project: &str, version: &str) {
+pub(crate) fn write_project(workspace: &Path, project: &str, version: &str) {
     let dir = workspace.join(project);
     fs::create_dir_all(&dir).unwrap();
     fs::write(
@@ -125,6 +125,143 @@ fn frozen_install_does_not_record_a_dedupe_baseline_and_repeat_install_skips_aft
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("Already up to date"), "{stdout}");
+    drop((root, mock_instance));
+}
+
+/// The `autoDedupe` the workspace state records, `None` when the key is
+/// absent — what the next command's settings comparison reads as "no dedupe
+/// baseline has been established".
+fn recorded_auto_dedupe(workspace: &Path) -> Option<bool> {
+    let path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
+    let state: pnpm_workspace_state::WorkspaceState =
+        serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    state.settings.auto_dedupe
+}
+
+/// Gives a project a `hello` script for the verify-deps gate to run. `node
+/// -e` is the portable stand-in for the shell programs Windows has none of.
+fn write_project_with_script(workspace: &Path, project: &str, version: &str) {
+    let dir = workspace.join(project);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("package.json"),
+        serde_json::json!({
+            "name": project,
+            "dependencies": {DEP: version, PARENT: "100.0.0"},
+            "scripts": { "hello": r#"node -e "console.log('script-output')""# },
+        })
+        .to_string(),
+    )
+    .unwrap();
+}
+
+/// The workspace root is an importer of the shared lockfile, and the run
+/// gate reads its manifest before it can check anything at all.
+fn write_root_manifest(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .unwrap();
+}
+
+/// The `$ <script>` echo a gated run writes to stderr; an install the gate
+/// spawns adds its own output below it.
+const SCRIPT_ECHO: &str = r#"$ node -e "console.log('script-output')""#;
+
+/// Runs a project's script through the verify-deps gate with the given CI
+/// verdict, which decides whether the install the gate spawns is frozen.
+fn gate_run(project_dir: &Path, ci: &str) -> std::process::Output {
+    pnpm_at(project_dir)
+        .with_env("PNPM_CONFIG_CI", ci)
+        .with_args(["run", "hello"])
+        .output()
+        .unwrap()
+}
+
+/// A no-op frozen install still refreshes the workspace state, and that
+/// refresh must carry the recorded dedupe baseline forward: dropping it
+/// makes the next command treat the tree as one that was never deduped
+/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+#[test]
+fn an_up_to_date_frozen_install_keeps_the_recorded_dedupe_baseline() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    write_project_with_script(&workspace, "low", "100.0.0");
+    write_project(&workspace, "high", "100.1.0");
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(recorded_auto_dedupe(&workspace), Some(true));
+
+    let output = pnpm_at(&workspace)
+        .with_env("PNPM_CONFIG_CI", "true")
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    assert_eq!(
+        recorded_auto_dedupe(&workspace),
+        Some(true),
+        "the up-to-date refresh must keep the baseline the resolving install recorded",
+    );
+    drop((root, mock_instance));
+}
+
+/// On CI the install the verify-deps gate spawns runs frozen, so it never
+/// re-resolves and can never record the dedupe baseline a pending
+/// `autoDedupe` setting asks for. The gate must not spawn an install before
+/// every script for it ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+#[test]
+fn a_pending_dedupe_baseline_does_not_spawn_an_install_on_ci() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    // Installed without the setting, so the recorded settings carry no
+    // dedupe baseline.
+    write_root_manifest(&workspace);
+    write_settings(&workspace, "packages:\n  - low\n  - high\n").unwrap();
+    write_project_with_script(&workspace, "low", "100.0.0");
+    write_project(&workspace, "high", "100.1.0");
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    // Enabling it now leaves the baseline pending.
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    assert_eq!(recorded_auto_dedupe(&workspace), None);
+
+    let output = gate_run(&workspace.join("low"), "true");
+    assert!(output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("script-output"), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        stderr.trim(),
+        SCRIPT_ECHO,
+        "the gate must not spawn an install a frozen lockfile cannot complete",
+    );
+
+    // Outside CI the spawned install can resolve, so the gate still runs
+    // one, and the baseline it records settles the runs after it.
+    let output = gate_run(&workspace.join("low"), "false");
+    assert!(output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Done in"),
+        "a resolving install must still run for the pending baseline: {stderr}",
+    );
+    assert_eq!(recorded_auto_dedupe(&workspace), Some(true));
+    let output = gate_run(&workspace.join("low"), "false");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr).trim(),
+        SCRIPT_ECHO,
+        "the recorded baseline must settle the gate",
+    );
     drop((root, mock_instance));
 }
 
@@ -407,4 +544,108 @@ fn deduplication_converges_transitive_dependencies_on_the_direct_dependency_vers
         );
         drop((root, npmrc_info));
     }
+}
+
+#[test]
+fn downgrading_a_dependency_moves_other_projects_to_the_named_version() {
+    let cases = ["peerDependencies", "dependencies"]
+        .into_iter()
+        .flat_map(|group| [true, false].map(|filtered| (group, filtered)))
+        .flat_map(|(group, filtered)| [None, Some(0)].map(|age| (group, filtered, age)));
+    for (group, filtered, minimum_release_age) in cases {
+        eprintln!("{group}, filtered: {filtered}, minimumReleaseAge: {minimum_release_age:?}");
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let age_setting = minimum_release_age.map_or_else(String::new, |age| {
+            format!("minimumReleaseAge: {age}\n")
+        });
+        write_settings(
+            &workspace,
+            format!("packages:\n  - low\n  - high\nautoDedupe: true\n{age_setting}"),
+        )
+        .unwrap();
+        for (project, manifest) in [
+            ("low", serde_json::json!({"name": "low", "dependencies": {DEP: "100.1.0"}})),
+            ("high", serde_json::json!({"name": "high", group: {DEP: "^100.0.0"}})),
+        ] {
+            fs::create_dir_all(workspace.join(project)).unwrap();
+            fs::write(workspace.join(project).join("package.json"), manifest.to_string()).unwrap();
+        }
+        // A full install fills the store, which lets the resolver reuse a
+        // locked version it has the manifest of without picking again.
+        pnpm_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_eq!(
+            importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "high", DEP),
+            "100.1.0",
+        );
+        let add = [&format!("{DEP}@100.0.0"), "--lockfile-only"];
+        if filtered {
+            pnpm_at(&workspace)
+                .with_args(["--filter=low", "add"])
+                .with_args(add)
+        } else {
+            pnpm_at(&workspace.join("low")).with_arg("add").with_args(add)
+        }
+        .assert()
+        .success();
+        let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+        assert_eq!(importer_version(&lockfile, "low", DEP), "100.0.0");
+        assert_eq!(importer_version(&lockfile, "high", DEP), "100.0.0");
+        assert!(
+            !lockfile.packages
+                .as_ref()
+                .unwrap()
+                .contains_key(&format!("{DEP}@100.1.0").parse().unwrap()),
+        );
+        drop((root, npmrc_info));
+    }
+}
+
+#[test]
+fn filtered_downgrade_reaches_other_projects_on_the_next_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    for (project, version) in [("low", "100.1.0"), ("high", "^100.0.0")] {
+        fs::create_dir_all(workspace.join(project)).unwrap();
+        fs::write(
+            workspace.join(project).join("package.json"),
+            serde_json::json!({"name": project, "dependencies": {DEP: version}}).to_string(),
+        )
+        .unwrap();
+    }
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let installed = |project: &str| {
+        let manifest = workspace
+            .join(project)
+            .join("node_modules")
+            .join(DEP)
+            .join("package.json");
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(manifest).unwrap()).unwrap();
+        manifest["version"].clone()
+    };
+    assert_eq!(installed("high"), "100.1.0");
+    pnpm_at(&workspace)
+        .with_args(["--filter=low", "add", &format!("{DEP}@100.0.0")])
+        .assert()
+        .success();
+    assert_eq!(installed("low"), "100.0.0");
+    assert_eq!(installed("high"), "100.1.0");
+    assert_eq!(
+        importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "high", DEP),
+        "100.0.0",
+    );
+    pnpm_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(installed("high"), "100.0.0");
+    drop((root, npmrc_info));
 }

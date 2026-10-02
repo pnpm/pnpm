@@ -1,10 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getBinsToLink, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
@@ -106,36 +105,39 @@ async function cleanupReplacedGlobalInstall (
   opts: CleanupReplacedGlobalInstallsOptions,
   groupSnapshot: GlobalPackageBinSnapshot
 ): Promise<unknown[]> {
-  const errors: unknown[] = []
   const { info: group, binNames } = groupSnapshot
-  let binRemovalFailed = false
-  for (const binName of binNames) {
-    if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
-    try {
-      await removeBin(path.join(opts.globalBinDir, binName)) // eslint-disable-line no-await-in-loop -- Each removal must settle before cleanup continues.
-    } catch (err) {
-      errors.push(err)
-      binRemovalFailed = true
-    }
-  }
+  const errors = await removeReplacedBins(opts, binNames)
   // The group's install directory is what a later run reads its ownership
   // from, so keep the group until every one of its bins is gone.
-  if (binRemovalFailed) return errors
+  if (errors.length > 0) return errors
   if (group.hash !== opts.activeHash) {
-    try {
-      await fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true })
-    } catch (err) {
-      errors.push(err)
-    }
+    await collectFailure(errors, () => fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true }))
   }
   if (isSubdir(opts.globalDir, group.installDir)) {
-    try {
-      await fs.promises.rm(group.installDir, { recursive: true, force: true })
-    } catch (err) {
-      errors.push(err)
-    }
+    await collectFailure(errors, () => fs.promises.rm(group.installDir, { recursive: true, force: true }))
   }
   return errors
+}
+
+async function removeReplacedBins (
+  opts: CleanupReplacedGlobalInstallsOptions,
+  binNames: Iterable<string>
+): Promise<unknown[]> {
+  const errors: unknown[] = []
+  for (const binName of binNames) {
+    if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
+    // eslint-disable-next-line no-await-in-loop -- Each removal must settle before cleanup continues.
+    await collectFailure(errors, () => removeBin(path.join(opts.globalBinDir, binName)))
+  }
+  return errors
+}
+
+async function collectFailure (errors: unknown[], step: () => Promise<unknown>): Promise<void> {
+  try {
+    await step()
+  } catch (err) {
+    errors.push(err)
+  }
 }
 
 /**
@@ -297,7 +299,7 @@ async function backupBinSlots (opts: {
   }
   const savedBinSlots: SavedBinSlot[] = []
   for (const [index, original] of originals.entries()) {
-    const savedBinSlot = await backupBinSlot({ // eslint-disable-line no-await-in-loop
+    const savedBinSlot = await backupBinSlot({ // eslint-disable-line no-await-in-loop -- stops at the first failed backup instead of racing the rest against the backup directory's removal
       original,
       backup: path.join(opts.backupDir, String(index)),
     })
@@ -419,5 +421,5 @@ async function binTargetExists (target: string): Promise<boolean> {
 }
 
 function isErrorWithCode (err: unknown, code: string): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === code
+  return isError(err) && 'code' in err && err.code === code
 }

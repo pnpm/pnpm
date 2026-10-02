@@ -101,7 +101,7 @@ export interface RegistryDeclaration extends RegistryOptions {
  * registry does: the scope-routed URLs, the `<name>:`-addressed aliases, and
  * the declared per-registry settings.
  *
- * Mixed into an options type (`RegistryContext & { … }`) rather than spelled
+ * Mixed into an options type (`RegistryContext & { ... }`) rather than spelled
  * out field by field, so that a new per-registry setting reaches every
  * consumer by being added here. Forward it with `pickRegistryContext` for the
  * same reason: dropping a field is silent — the tarball URL is simply rebuilt

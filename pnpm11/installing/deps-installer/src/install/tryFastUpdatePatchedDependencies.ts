@@ -99,43 +99,55 @@ export function everyConfiguredPatchIsApplied (
 function planRekeys (lockfile: LockfileObject, groups: PatchGroupRecord): Rekeys | undefined {
   const rekeys: Rekeys = new Map()
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
-    const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, snapshot)
-    const { patchHashIndex } = dp.indexOfDepPathSuffix(depPath)
-    // The resolver matches patches against a package's plain semver version.
-    // A named registry or a git / tarball reference occupies the same slot
-    // here, and matching those cannot be reproduced from the key, so the
-    // question is only whether it could matter: any configured patch naming
-    // this package, or a patch hash already on the key, hands the decision
-    // back to the resolver.
-    if (version == null || nonSemverVersion != null || registryName != null) {
-      if (groups[name] != null || patchHashIndex !== -1) return undefined
-      continue
-    }
-    let patch
-    try {
-      patch = getPatchInfo(groups, name, version)
-    } catch {
-      return undefined
-    }
-    const base = dp.removeSuffix(depPath)
-    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
-    const peers = peersIndex === -1 ? '' : depPath.substring(peersIndex)
-    const segment = patch ? `(patch_hash=${patch.hash})` : ''
-    const moved = `${base}${segment}${peers}` as DepPath
+    const moved = rekeyedDepPath(depPath, snapshot, groups)
+    if (moved == null) return undefined
     if (moved !== depPath) rekeys.set(depPath, moved)
   }
   if (rekeys.size === 0) return rekeys
+  return peerSuffixMayEmbedRekeyed(lockfile, rekeys) ? undefined : rekeys
+}
 
-  const movedBases = [...rekeys.keys()].map((depPath) => dp.removeSuffix(depPath))
-  for (const depPath of Object.keys(lockfile.packages ?? {})) {
-    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
-    if (peersIndex === -1) continue
-    const peers = depPath.substring(peersIndex)
-    if (peerSuffixIsOpaque(peers) || movedBases.some((base) => peers.includes(base))) {
-      return undefined
-    }
+/**
+ * The key `depPath` gets under `groups`, or `null` when only the resolver can
+ * decide whether a patch applies to it.
+ */
+function rekeyedDepPath (depPath: DepPath, snapshot: PackageSnapshot, groups: PatchGroupRecord): DepPath | null {
+  const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, snapshot)
+  // The resolver matches patches against a package's plain semver version.
+  // A named registry or a git / tarball reference occupies the same slot
+  // here, and matching those cannot be reproduced from the key, so the
+  // question is only whether it could matter: any configured patch naming
+  // this package, or a patch hash already on the key, hands the decision
+  // back to the resolver.
+  if (version == null || nonSemverVersion != null || registryName != null) {
+    const { patchHashIndex } = dp.indexOfDepPathSuffix(depPath)
+    return groups[name] != null || patchHashIndex !== -1 ? null : depPath
   }
-  return rekeys
+  let patch
+  try {
+    patch = getPatchInfo(groups, name, version)
+  } catch {
+    return null
+  }
+  const base = dp.removeSuffix(depPath)
+  const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
+  const peers = peersIndex === -1 ? '' : depPath.substring(peersIndex)
+  const segment = patch ? `(patch_hash=${patch.hash})` : ''
+  return `${base}${segment}${peers}` as DepPath
+}
+
+/**
+ * Whether some peer suffix embeds a rekeyed package, or is too opaque to tell,
+ * which would rekey its dependents too.
+ */
+function peerSuffixMayEmbedRekeyed (lockfile: LockfileObject, rekeys: Rekeys): boolean {
+  const movedBases = [...rekeys.keys()].map((depPath) => dp.removeSuffix(depPath))
+  return Object.keys(lockfile.packages ?? {}).some((depPath) => {
+    const { peersIndex } = dp.indexOfDepPathSuffix(depPath)
+    if (peersIndex === -1) return false
+    const peers = depPath.substring(peersIndex)
+    return peerSuffixIsOpaque(peers) || movedBases.some((base) => peers.includes(base))
+  })
 }
 
 /**

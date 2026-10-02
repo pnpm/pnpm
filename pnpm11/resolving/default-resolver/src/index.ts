@@ -14,6 +14,7 @@ import {
   createNpmResolver,
   type JsrResolveResult,
   type NamedRegistryResolveResult,
+  type NpmResolver,
   type NpmResolveResult,
   type PackageMeta,
   type PackageMetaCache,
@@ -76,11 +77,11 @@ async function resolveFromCustomResolvers (
     // Skip custom resolvers that don't support both canResolve and resolve
     if (!customResolver.canResolve || !customResolver.resolve) continue
 
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- the first custom resolver that accepts the dependency wins, so they are tried in order
     const canResolve = await checkCustomResolverCanResolve(customResolver, wantedDependency)
 
     if (canResolve) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the first custom resolver that accepts the dependency wins, so they are tried in order
       const result = await customResolver.resolve(wantedDependency, {
         lockfileDir: opts.lockfileDir,
         projectDir: opts.projectDir,
@@ -107,75 +108,119 @@ export function createResolver (
     customResolvers?: CustomResolver[]
   }
 ): { resolve: DefaultResolver, resolveLatest: ResolveLatestDispatcher, clearCache: () => void } {
-  const {
-    resolveFromNpm,
-    resolveFromJsr,
-    resolveFromNamedRegistry,
-    resolveLatestFromNpm,
-    resolveLatestFromJsr,
-    resolveLatestFromNamedRegistry,
-    clearCache,
-  } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+  const npmResolvers = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
-  const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
-  const _resolveFromLocalPath = resolveFromLocalPath.bind(null, localCtx)
-  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, getAuthHeader, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors, cacheDir: pnpmOpts.cacheDir })
-  const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
-  const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
-  const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, getAuthHeader, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
-  const _resolveLatestDenoRuntime = resolveLatestDenoRuntime.bind(null, { resolveFromNpm })
-  const _resolveLatestBunRuntime = resolveLatestBunRuntime.bind(null, { resolveFromNpm })
-  const _resolveFromCustomResolvers = pnpmOpts.customResolvers
-    ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
-    : null
+  const runtimes = buildRuntimeResolvers(fetchFromRegistry, getAuthHeader, pnpmOpts, npmResolvers.resolveFromNpm)
+  const customResolvers = pnpmOpts.customResolvers ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers) : null
+
   return {
-    resolve: async (wantedDependency, opts) => {
-      const resolution = await _resolveFromCustomResolvers?.(wantedDependency, opts) ??
-        await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
-        await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
-        (wantedDependency.bareSpecifier && (
-          await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
-          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
-          await _resolveFromLocalScheme(wantedDependency as { bareSpecifier: string }, opts)
-        )) ??
-        await _resolveNodeRuntime(wantedDependency, opts) ??
-        await _resolveDenoRuntime(wantedDependency, opts) ??
-        await _resolveBunRuntime(wantedDependency, opts) ??
-        // Named-registry runs between the explicit local schemes above and the
-        // path-shape match below, so `<alias>:@scope/pkg` reaches the configured
-        // registry while a colliding `file:`/`link:`/`workspace:` alias cannot
-        // hijack the built-in protocols.
-        await resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
-        (wantedDependency.bareSpecifier
-          ? await _resolveFromLocalPath(wantedDependency as { bareSpecifier: string }, opts)
-          : null)
-      if (!resolution) {
-        let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
-        if (specifier !== '') {
-          specifier = `"${specifier}"`
-        }
-        throw new PnpmError(
-          'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
-          `${specifier} isn't supported by any available resolver.`)
-      }
-      return resolution
-    },
-    resolveLatest: async (query, opts) => {
-      const info = (await resolveLatestFromNpm(query, opts)) ??
-        (await resolveLatestFromJsr(query, opts)) ??
-        (await resolveLatestFromGit(query)) ??
-        (await resolveLatestFromTarball(query)) ??
-        (await resolveLatestFromLocal(query)) ??
-        (await _resolveLatestNodeRuntime(query, opts)) ??
-        (await _resolveLatestDenoRuntime(query, opts)) ??
-        (await _resolveLatestBunRuntime(query, opts)) ??
-        (await resolveLatestFromNamedRegistry(query, opts))
-      return info
-    },
-    clearCache,
+    resolve: buildResolveFunction({
+      customResolvers,
+      npmResolvers,
+      resolveFromGit,
+      localCtx,
+      runtimes,
+      fetchFromRegistry,
+    }),
+    resolveLatest: buildResolveLatestFunction({
+      npmResolvers,
+      runtimes,
+    }),
+    clearCache: npmResolvers.clearCache,
   }
 }
+
+interface RuntimeResolvers {
+  resolveNode: (wanted: WantedDependency, opts: ResolveOptions) => Promise<NodeRuntimeResolveResult | null>
+  resolveDeno: (wanted: WantedDependency, opts: ResolveOptions) => Promise<DenoRuntimeResolveResult | null>
+  resolveBun: (wanted: WantedDependency, opts: ResolveOptions) => Promise<BunRuntimeResolveResult | null>
+  resolveLatestNode: (query: LatestQuery, opts: ResolveOptions) => Promise<LatestInfo | undefined>
+  resolveLatestDeno: (query: LatestQuery, opts: ResolveOptions) => Promise<LatestInfo | undefined>
+  resolveLatestBun: (query: LatestQuery, opts: ResolveOptions) => Promise<LatestInfo | undefined>
+}
+
+function buildRuntimeResolvers (
+  fetchFromRegistry: FetchFromRegistry,
+  getAuthHeader: GetAuthHeader,
+  pnpmOpts: ResolverFactoryOptions & { nodeDownloadMirrors?: Record<string, string> },
+  resolveFromNpm: NpmResolver
+): RuntimeResolvers {
+  return {
+    resolveNode: resolveNodeRuntime.bind(null, { fetchFromRegistry, getAuthHeader, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors, cacheDir: pnpmOpts.cacheDir }),
+    resolveDeno: resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm }),
+    resolveBun: resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm }),
+    resolveLatestNode: resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, getAuthHeader, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors }),
+    resolveLatestDeno: resolveLatestDenoRuntime.bind(null, { resolveFromNpm }),
+    resolveLatestBun: resolveLatestBunRuntime.bind(null, { resolveFromNpm }),
+  }
+}
+
+interface ResolveFunctionContext {
+  customResolvers: ((wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult | null>) | null
+  npmResolvers: ReturnType<typeof createNpmResolver>
+  resolveFromGit: ReturnType<typeof createGitResolver>
+  localCtx: { preserveAbsolutePaths?: boolean }
+  runtimes: RuntimeResolvers
+  fetchFromRegistry: FetchFromRegistry
+}
+
+function buildResolveFunction (ctx: ResolveFunctionContext): DefaultResolver {
+  return async (wantedDependency, opts) => {
+    const resolution = await dispatchResolve(ctx, wantedDependency, opts)
+    if (!resolution) {
+      let specifier = `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`
+      if (specifier !== '') {
+        specifier = `"${specifier}"`
+      }
+      throw new PnpmError(
+        'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
+        `${specifier} isn't supported by any available resolver.`)
+    }
+    return resolution
+  }
+}
+
+async function dispatchResolve (
+  ctx: ResolveFunctionContext,
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions
+): Promise<DefaultResolveResult | null> {
+  const spec = wantedDependency.bareSpecifier ? (wantedDependency as { bareSpecifier: string }) : null
+  const resolution = await ctx.customResolvers?.(wantedDependency, opts) ??
+    await ctx.npmResolvers.resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
+    await ctx.npmResolvers.resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
+    (spec && (
+      await ctx.resolveFromGit(spec, opts) ??
+      await resolveFromTarball(ctx.fetchFromRegistry, spec) ??
+      await resolveFromLocalScheme(ctx.localCtx, spec, opts)
+    )) ??
+    await ctx.runtimes.resolveNode(wantedDependency, opts) ??
+    await ctx.runtimes.resolveDeno(wantedDependency, opts) ??
+    await ctx.runtimes.resolveBun(wantedDependency, opts) ??
+    await ctx.npmResolvers.resolveFromNamedRegistry(wantedDependency, opts as ResolveFromNpmOptions) ??
+    (spec ? await resolveFromLocalPath(ctx.localCtx, spec, opts) : null)
+  return resolution
+}
+
+function buildResolveLatestFunction (ctx: {
+  npmResolvers: ReturnType<typeof createNpmResolver>
+  runtimes: RuntimeResolvers
+}): ResolveLatestDispatcher {
+  return async (query, opts) => {
+    const info = (await ctx.npmResolvers.resolveLatestFromNpm(query, opts)) ??
+      (await ctx.npmResolvers.resolveLatestFromJsr(query, opts)) ??
+      (await resolveLatestFromGit(query)) ??
+      (await resolveLatestFromTarball(query)) ??
+      (await resolveLatestFromLocal(query)) ??
+      (await ctx.runtimes.resolveLatestNode(query, opts)) ??
+      (await ctx.runtimes.resolveLatestDeno(query, opts)) ??
+      (await ctx.runtimes.resolveLatestBun(query, opts)) ??
+      (await ctx.npmResolvers.resolveLatestFromNamedRegistry(query, opts))
+    return info
+  }
+}
+
 
 export type ResolutionVerifierFactoryOptions =
   & Pick<ResolverFactoryOptions, 'cacheDir' | 'registriesByScope' | 'registriesByPrefix' | 'offline' | 'retry' | 'timeout' | 'fetchWarnTimeoutMs'>

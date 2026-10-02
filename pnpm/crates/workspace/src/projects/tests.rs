@@ -4,7 +4,11 @@ use super::{
 };
 use crate::ManifestFormat;
 use pretty_assertions::assert_eq;
-use std::{fs, io::ErrorKind, path::Path};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
 
 mod managed_directories;
@@ -24,7 +28,25 @@ fn make_yaml_project(root: &std::path::Path, rel: &str, name: &str) {
     fs::write(dir.join("package.yaml"), format!("name: {name}\nversion: 0.0.1\n")).unwrap();
 }
 
+/// Discover with and without a managed directory and require the same
+/// answer. The CLI always passes managed directories, which moves the walk
+/// off the prebuilt ignore template, so a case checked only without them
+/// misses the path every real install takes.
 fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
+    let without_managed = find_project_names_with(root, patterns, Vec::new());
+    let with_managed = find_project_names_with(root, patterns, vec![PathBuf::from("node_modules")]);
+    assert_eq!(
+        without_managed, with_managed,
+        "managed directories changed the result of {patterns:?}",
+    );
+    with_managed
+}
+
+fn find_project_names_with(
+    root: &Path,
+    patterns: &[&str],
+    ignored_directories: Vec<PathBuf>,
+) -> Vec<String> {
     find_workspace_projects(
         root,
         &FindWorkspaceProjectsOpts {
@@ -34,6 +56,7 @@ fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
                     .map(|pattern| (*pattern).to_string())
                     .collect(),
             ),
+            ignored_directories,
             ..Default::default()
         },
     )

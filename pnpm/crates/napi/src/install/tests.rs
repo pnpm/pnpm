@@ -143,6 +143,7 @@ fn install_options() -> InstallOptions {
         auth_header_by_uri: None,
         pnpm_home_dir: None,
         reporter: None,
+        read_package_hook_checksum: None,
     }
 }
 
@@ -198,3 +199,5 @@ mod files;
 mod reporting;
 
 mod lockfile;
+
+mod read_package_hook;

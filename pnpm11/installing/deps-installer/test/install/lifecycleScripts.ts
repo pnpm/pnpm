@@ -416,9 +416,9 @@ testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
 
   process.env[PATH] = initialPath
     .split(path.delimiter)
-    .filter((p: string) => !p.includes('node-gyp-bin') &&
-      !p.includes(`${path.sep}npm${path.sep}`) &&
-      !p.includes(`${path.sep}.npm${path.sep}`))
+    .filter((dir: string) => !dir.includes('node-gyp-bin') &&
+      !dir.includes(`${path.sep}npm${path.sep}`) &&
+      !dir.includes(`${path.sep}.npm${path.sep}`))
     .join(path.delimiter)
 
   await addDependenciesToPackage({}, ['drivelist@5.1.8'], testDefaults({ fastUnpack: false, allowBuilds: { drivelist: true } }))
@@ -551,7 +551,7 @@ test.each(['test-git-fetch', 'artifact', 'repository'])('explicitly denied git p
   const opts = testDefaults({ fastUnpack: false, allowBuilds: { [key]: false } })
   for (const allowed of [false, false, true, false]) {
     fs.rmSync('node_modules', { force: true, recursive: true })
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- each install reuses the store populated by the previous one
     await install(manifest, {
       ...opts,
       allowBuilds: allowed ? { [`test-git-fetch@${gitDependency}`]: true } : { [key]: false },
@@ -1100,4 +1100,39 @@ test('build dependencies that were not previously built after allowBuilds change
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+test.each([false, true])('persist ignored builds after allowing previously ignored scripts (approve all: %s)', async (approveAll) => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example@1.0.0'],
+    testDefaults({ fastUnpack: false, allowBuilds: {} })
+  )
+
+  const initialModulesManifest = project.readModulesManifest()!
+  expect(initialModulesManifest.allowBuilds).toStrictEqual({})
+  expect(Array.from(initialModulesManifest.ignoredBuilds!).sort()).toStrictEqual([
+    '@pnpm.e2e/install-script-example@1.0.0',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  const allowBuilds = {
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    ...(approveAll ? { '@pnpm.e2e/install-script-example': true } : {}),
+  }
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    frozenLockfile: true,
+    allowBuilds,
+  }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBe(approveAll)
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest).not.toBeNull()
+  expect(Array.from(modulesManifest!.ignoredBuilds ?? [])).toStrictEqual(
+    approveAll ? [] : ['@pnpm.e2e/install-script-example@1.0.0']
+  )
 })

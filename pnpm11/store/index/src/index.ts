@@ -1,10 +1,20 @@
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
+import { grantModeBits, mkdirInheritingMode, readDirMode, unixCreationMode } from '@pnpm/store.file-mode'
 import { Packr } from 'msgpackr'
+
+import {
+  adaptStoreDatabase,
+  closeSqliteQuietly,
+  createFallbackDatabase,
+  isFallbackDatabase,
+  isMissingSqliteMethod,
+} from './fallbackDatabase.js'
 
 const FROZEN_STORE_WRITE_MESSAGE = 'Cannot write to the package store because frozenStore is enabled (the store is opened read-only). This indicates the store is missing content the install needs.'
 
@@ -22,7 +32,7 @@ const SQLITE_BUSY = 5
 const RETRY_DELAY_MS = 50
 const MAX_RETRIES = 100 // ~5 seconds total
 
-function sqliteRetry<T> (fn: () => T): T {
+function sqliteRetry<Result> (fn: () => Result): Result {
   for (let attempt = 0; ; attempt++) {
     try {
       return fn()
@@ -36,10 +46,11 @@ function sqliteRetry<T> (fn: () => T): T {
   }
 }
 
-function isSqliteBusy (err: any): boolean { // eslint-disable-line @typescript-eslint/no-explicit-any
+function isSqliteBusy (err: unknown): boolean {
+  const errcode = (err as { errcode?: unknown } | null | undefined)?.errcode
   // errcode may be an extended error code (e.g. SQLITE_BUSY_RECOVERY = 261),
   // so mask off the upper bits to get the primary error code.
-  return (err?.errcode & 0xFF) === SQLITE_BUSY
+  return typeof errcode === 'number' && (errcode & 0xFF) === SQLITE_BUSY
 }
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4))
@@ -139,8 +150,25 @@ export class StoreIndex {
 
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
-    fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(`${storeDir}/index.db`)
+    mkdirInheritingMode(storeDir)
+    if (process.platform !== 'win32') createIndexWithInheritedMode(storeDir)
+    this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
+    try {
+      this.configureDatabase()
+    } catch (err: unknown) {
+      if (isFallbackDatabase(this.db) || !isMissingSqliteMethod(err)) throw err
+      closeSqliteQuietly(this.db)
+      this.db = createFallbackDatabase(storeDir)
+      this.configureDatabase()
+    }
+  }
+
+  /** Open the host SQLite connection before missing methods are adapted. */
+  protected openConnection (storeDir: string): DatabaseSyncType {
+    return new DatabaseSync(`${storeDir}/index.db`)
+  }
+
+  private configureDatabase (): void {
     // Set busy_timeout FIRST so SQLite's internal busy handler is active
     // during all subsequent operations. On Windows, file locking is mandatory
     // and concurrent processes (e.g. parallel dlx calls) will contend.
@@ -262,8 +290,8 @@ export class StoreIndex {
    * Used by the fetch phase for throughput.
    */
   queueWrites (writes: Array<{ key: string, buffer: Uint8Array }>): void {
-    for (const w of writes) {
-      this.pendingWrites.push(w)
+    for (const write of writes) {
+      this.pendingWrites.push(write)
     }
     if (!this.flushScheduled) {
       this.flushScheduled = true
@@ -281,6 +309,27 @@ export class StoreIndex {
     this.pendingWrites = []
   }
 
+  private inTransaction (action: () => void): void {
+    sqliteRetry(() => {
+      this.db.exec('BEGIN IMMEDIATE')
+      let committed = false
+      try {
+        action()
+        this.db.exec('COMMIT')
+        committed = true
+      } finally {
+        this.rollbackIfUncommitted(committed)
+      }
+    })
+  }
+
+  private rollbackIfUncommitted (committed: boolean): void {
+    if (committed) return
+    try {
+      this.db.exec('ROLLBACK')
+    } catch {}
+  }
+
   /**
    * Write multiple pre-packed entries in a single transaction.
    * The buffers must already be msgpack-encoded.
@@ -293,21 +342,9 @@ export class StoreIndex {
       })
       return
     }
-    sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        for (const { key, buffer } of entries) {
-          this.stmtSet.run(key, buffer)
-        }
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
+    this.inTransaction(() => {
+      for (const { key, buffer } of entries) {
+        this.stmtSet.run(key, buffer)
       }
     })
   }
@@ -323,21 +360,9 @@ export class StoreIndex {
       this.db.exec('VACUUM')
       return
     }
-    sqliteRetry(() => {
-      this.db.exec('BEGIN IMMEDIATE')
-      let committed = false
-      try {
-        for (const key of keys) {
-          this.stmtDel.run(key)
-        }
-        this.db.exec('COMMIT')
-        committed = true
-      } finally {
-        if (!committed) {
-          try {
-            this.db.exec('ROLLBACK')
-          } catch {}
-        }
+    this.inTransaction(() => {
+      for (const key of keys) {
+        this.stmtDel.run(key)
       }
     })
     this.db.exec('VACUUM')
@@ -366,7 +391,7 @@ export class StoreIndex {
     }
   }
 
-  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip it (the DB is immutable). */
+  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip database writes. */
   protected optimizeBeforeClose (): void {
     try {
       this.db.exec('PRAGMA optimize')
@@ -377,25 +402,19 @@ export class StoreIndex {
 }
 
 /**
- * A {@link StoreIndex} opened read-only for installs against a store on a
- * read-only filesystem (`frozenStore`). The index is a WAL-mode database, and a
- * normal WAL read creates an `index.db-shm` sidecar in the store directory —
- * which fails on a read-only directory and surfaces as "attempt to write a
- * readonly database" on the first query. Opening via the SQLite `immutable=1`
- * URI tells SQLite the file cannot change, so it bypasses the WAL/shm machinery
- * and reads the file directly, creating no sidecars.
- *
- * The store is assumed complete; every write is a programming error and throws.
+ * A read-only connection to a store that other processes may write to.
+ * Participates in WAL locking and change detection. SQLite may create sidecar
+ * files in the store directory. Use {@link ImmutableStoreIndex} for a frozen
+ * store on a read-only filesystem.
  */
 export class ReadOnlyStoreIndex extends StoreIndex {
   protected override openDatabase (storeDir: string): void {
-    if (!nodeSupportsImmutableSqliteUri()) {
-      throw new PnpmError(
-        'FROZEN_STORE_UNSUPPORTED_NODE',
-        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
-      )
-    }
-    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+    this.db = this.openConnection(storeDir)
+    this.db.prepare('PRAGMA busy_timeout=5000').run()
+  }
+
+  protected override openConnection (storeDir: string): DatabaseSyncType {
+    return new DatabaseSync(`${storeDir}/index.db`, { readOnly: true })
   }
 
   protected override prepareStatements (): void {
@@ -435,18 +454,40 @@ export class ReadOnlyStoreIndex extends StoreIndex {
     this.throwReadOnly()
   }
 
-  private throwReadOnly (): never {
+  protected throwReadOnly (): never {
+    throw new PnpmError('STORE_READ_ONLY', 'Cannot write to the package store because its index is opened read-only.')
+  }
+}
+
+/**
+ * A frozen store whose database cannot change, including through other
+ * processes. Skips SQLite locking and change detection and creates no WAL
+ * sidecars, allowing reads on a read-only filesystem. Concurrent writes can
+ * cause incorrect results or SQLITE_CORRUPT errors.
+ */
+export class ImmutableStoreIndex extends ReadOnlyStoreIndex {
+  protected override openDatabase (storeDir: string): void {
+    if (!nodeSupportsImmutableSqliteUri()) {
+      throw new PnpmError(
+        'FROZEN_STORE_UNSUPPORTED_NODE',
+        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
+      )
+    }
+    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+  }
+
+  protected override throwReadOnly (): never {
     throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
   }
 }
 
 /**
- * Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
+ * Build the `file://...?immutable=1` URI used to open `index.db` read-only (see
  * the frozen-store rationale at the call site). `pathToFileURL` yields a
  * canonical file URL on every platform: it percent-encodes the URI delimiters
  * that could otherwise truncate the path or inject a query/fragment (`?`, `#`,
  * `%`, spaces) and, on Windows, maps the drive letter and backslashes into a
- * valid `file:///C:/…` form. A raw `file:${path}` concatenation would mis-parse
+ * valid `file:///C:/...` form. A raw `file:${path}` concatenation would mis-parse
  * those. See https://sqlite.org/uri.html.
  */
 function immutableSqliteUri (dbPath: string): string {
@@ -456,7 +497,7 @@ function immutableSqliteUri (dbPath: string): string {
 }
 
 /**
- * Whether the running Node.js can open a `file:…?immutable=1` SQLite URI.
+ * Whether the running Node.js can open a `file:...?immutable=1` SQLite URI.
  *
  * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
  * query is honored rather than treated as part of a literal filename — starting
@@ -471,4 +512,31 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   if (major === 22) return minor >= 15
   if (major === 23) return minor >= 11
   return true
+}
+
+// SQLite copies the database's mode onto the WAL sidecars, so a new
+// index.db gets the store directory's inherited mode, as both the open
+// ceiling and the post-create grant, before SQLite opens it.
+// The exclusive create decides which process made the database. An existing
+// database, including one a concurrent process just created, is not chmod'd.
+function createIndexWithInheritedMode (storeDir: string): void {
+  const dbPath = path.join(storeDir, 'index.db')
+  const creation = unixCreationMode(readDirMode(storeDir), undefined)
+  let fd: number
+  try {
+    fd = fs.openSync(dbPath, 'wx', creation.openMode)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return
+    throw new PnpmError('STORE_DIR_STORE_INDEX_CREATE_FILE', `Failed to create index.db at ${dbPath}: ${isError(err) ? err.message : String(err)}`, { cause: err })
+  }
+  try {
+    if (creation.grantMode != null) grantModeBits(fd, creation.grantMode)
+  } catch (err: unknown) {
+    // A database left without its inherited mode would be taken as complete
+    // by the next open, which skips the grant for an existing file.
+    fs.closeSync(fd)
+    fs.rmSync(dbPath, { force: true })
+    throw err
+  }
+  fs.closeSync(fd)
 }

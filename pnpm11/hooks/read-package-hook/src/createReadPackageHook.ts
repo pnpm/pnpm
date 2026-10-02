@@ -67,13 +67,55 @@ export function createReadPackageHook (
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
   }
 ): ReadPackageHook | undefined {
-  const hooks: ReadPackageHook[] = []
-  const effectivePackageExtensions = getEffectivePackageExtensions({
-    ignoreCompatibilityDb,
+  const hooks = collectBaseHooks({
     packageExtensions,
+    readPackageHook,
+    overrides,
+    lockfileDir,
+    convergeDeclaredRanges,
+    ignoredOptionalDependencies,
   })
-  if (effectivePackageExtensions != null) {
-    hooks.push(createPackageExtender(effectivePackageExtensions))
+
+  const dependencyHooks = [...hooks]
+  const compatibilityPackageExtensions = getEffectivePackageExtensions({
+    ignoreCompatibilityDb,
+  })
+  if (compatibilityPackageExtensions != null) {
+    dependencyHooks.unshift(createPackageExtender(compatibilityPackageExtensions))
+  }
+
+  if (dependencyHooks.length === 0) {
+    return undefined
+  }
+  const readPackageAndExtend = ((pkg: PackageManifest | ProjectManifest, dir?: string) => {
+    const hooksForManifest = dir == null ? dependencyHooks : hooks
+    if (hooksForManifest.length === 0) return pkg
+    if (hooksForManifest.length === 1) return hooksForManifest[0](pkg, dir)
+    return pipeWith(async (f, res) => f(await res, dir), hooksForManifest as any)(pkg, dir) // eslint-disable-line @typescript-eslint/no-explicit-any -- ramda's pipeWith typings cannot express a list of same-typed async hooks
+  }) as ReadPackageHook
+  return readPackageAndExtend
+}
+
+function collectBaseHooks (
+  {
+    packageExtensions,
+    readPackageHook,
+    overrides,
+    lockfileDir,
+    convergeDeclaredRanges,
+    ignoredOptionalDependencies,
+  }: {
+    packageExtensions?: Record<string, PackageExtension>
+    readPackageHook?: ReadPackageHook[] | ReadPackageHook
+    overrides?: VersionOverrideWithoutRawSelector[]
+    lockfileDir: string
+    convergeDeclaredRanges?: CreateVersionsOverriderOptions['convergeDeclaredRanges']
+    ignoredOptionalDependencies?: string[]
+  }
+): ReadPackageHook[] {
+  const hooks: ReadPackageHook[] = []
+  if (!isEmpty(packageExtensions ?? {})) {
+    hooks.push(createPackageExtender(packageExtensions!))
   }
   if (Array.isArray(readPackageHook)) {
     hooks.push(...readPackageHook)
@@ -86,14 +128,7 @@ export function createReadPackageHook (
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))
   }
-
-  if (hooks.length === 0) {
-    return undefined
-  }
-  const readPackageAndExtend = hooks.length === 1
-    ? hooks[0]
-    : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg, dir)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
-  return readPackageAndExtend
+  return hooks
 }
 
 function mergePackageExtensions (

@@ -19,7 +19,7 @@ use pnpm_fs::symlink_dir;
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{DirWitness, is_symlink_or_junction, symlink_file},
+    fs::{DirWitness, bump_mtime, is_symlink_or_junction, symlink_file},
 };
 use std::{fs, path::Path, process::Command};
 
@@ -626,6 +626,73 @@ fn install_filter_prod_with_hoisted_linker_and_shamefully_hoist() {
     assert!(
         !fixture.workspace.join("node_modules/@foo/no-deps").exists(),
         "unselected project's dev dependency must not be installed",
+    );
+}
+
+/// The projects share the root `node_modules`, so a filtered install keeps
+/// the packages of the projects an earlier install put there
+/// ([pnpm/pnpm#16483](https://github.com/pnpm/pnpm/issues/16483)).
+#[test]
+fn filtered_install_keeps_the_packages_of_installed_projects_with_hoisted_linker() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("is-negative", "1.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+
+    fixture.append_workspace_yaml("dedupePeerDependents: false\n");
+    bump_mtime(&fixture.workspace.join("pnpm-workspace.yaml"));
+    fixture.run(["--filter", "project-1", "install"]);
+
+    assert!(is_real_dir(&fixture.workspace, "node_modules/is-positive"));
+    assert!(
+        is_real_dir(&fixture.workspace, "node_modules/is-negative"),
+        "the unselected project's dependency must stay installed",
+    );
+}
+
+/// A filtered install of one project after a filtered install of another
+/// installs its own dependencies and keeps the other's. A project neither
+/// install selected stays out even when it shares a dependency with one.
+#[test]
+fn filtered_installs_of_different_projects_add_up_with_hoisted_linker() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("is-negative", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-3",
+        "project-3",
+        ManifestDeps {
+            prod: &[("is-positive", "1.0.0"), ("@foo/no-deps", "1.0.0")],
+            ..Default::default()
+        },
+    );
+
+    fixture.run(["--filter", "project-1", "install"]);
+    fixture.run(["--filter", "project-2", "install"]);
+
+    assert!(is_real_dir(&fixture.workspace, "node_modules/is-positive"));
+    assert!(is_real_dir(&fixture.workspace, "node_modules/is-negative"));
+    assert!(
+        !fixture.workspace.join("node_modules/@foo/no-deps").exists(),
+        "a project no install selected must stay uninstalled",
     );
 }
 

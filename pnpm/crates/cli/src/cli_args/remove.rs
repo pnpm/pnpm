@@ -70,6 +70,9 @@ pub struct RemoveArgs {
 
 impl RemoveArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut pnpm_config::Config) {
+        if self.trust_lockfile || self.no_trust_lockfile {
+            config.cli_settings.insert("trustLockfile".to_string());
+        }
         config.trust_lockfile = resolve_bool_override(
             self.trust_lockfile,
             self.no_trust_lockfile,
@@ -89,6 +92,7 @@ impl RemoveArgs {
             manifest,
             lockfile,
             resolved_packages,
+            dedicated: _,
         } = state;
         let lockfile = command_lockfile(lockfile, lockfile_path)?;
 

@@ -23,6 +23,59 @@ pub struct FrozenInstallDrivers<'a> {
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
+
+    /// The store-side caches this install shares with the other installs
+    /// of the same command. `None` gives the install caches of its own.
+    pub fetch_caches: Option<&'a SharedFetchCaches>,
+}
+
+impl FrozenInstallDrivers<'_> {
+    /// [`crate::CasPrefetch::start`] for this install, verifying store files
+    /// against the shared cache when it shares one.
+    pub(crate) async fn start_cas_prefetch(
+        &self,
+        entries: LockfileEntries<'_>,
+        allow_build_policy: &crate::AllowBuildPolicy,
+        supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
+    ) -> crate::CasPrefetch {
+        let store_context = self.fetch_caches.map(SharedFetchCaches::store_context);
+        crate::CasPrefetch::start(
+            self.config,
+            entries,
+            allow_build_policy,
+            supported_architectures,
+            store_context.as_ref(),
+        )
+        .await
+    }
+
+    /// The git sources the install fetches through: the shared ones, or
+    /// its own.
+    pub(crate) fn git_source_cache(&self) -> Arc<pnpm_git_fetcher::GitSourceCache> {
+        self.fetch_caches.map_or_else(Default::default, |caches| Arc::clone(&caches.git_sources))
+    }
+}
+
+/// The store-side caches an install otherwise builds for itself: the store
+/// files it has verified and the git sources it has fetched. Installs that
+/// share one reuse each other's work, which is sound because both caches
+/// are keyed by content that one command cannot see change.
+#[derive(Default, Clone)]
+pub struct SharedFetchCaches {
+    pub verified_files: pnpm_store_dir::SharedVerifiedFilesCache,
+    pub git_sources: Arc<pnpm_git_fetcher::GitSourceCache>,
+}
+
+impl SharedFetchCaches {
+    /// What [`crate::CasPrefetch::start`] takes to verify store files
+    /// against this cache, with no store index opened ahead of it.
+    #[must_use]
+    pub fn store_context(&self) -> crate::CreateVirtualStoreStoreContext<'_> {
+        crate::CreateVirtualStoreStoreContext {
+            index: None,
+            verified_files_cache: &self.verified_files,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

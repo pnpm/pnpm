@@ -72,6 +72,8 @@ pub fn proxy_env_fallback_applies_through_current() {
         "proxy",
         "NO_PROXY",
         "no_proxy",
+        "PNPM_CONFIG_WORKSPACE_DIR",
+        "pnpm_config_workspace_dir",
         "NPM_CONFIG_WORKSPACE_DIR",
         "npm_config_workspace_dir",
     ]);
@@ -89,6 +91,8 @@ pub fn proxy_env_fallback_applies_through_current() {
         env::remove_var("proxy");
         env::remove_var("NO_PROXY");
         env::remove_var("no_proxy");
+        env::remove_var("PNPM_CONFIG_WORKSPACE_DIR");
+        env::remove_var("pnpm_config_workspace_dir");
         env::remove_var("NPM_CONFIG_WORKSPACE_DIR");
         env::remove_var("npm_config_workspace_dir");
         env::set_var("HTTPS_PROXY", "http://env.example:8080");

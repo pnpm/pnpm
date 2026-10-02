@@ -216,7 +216,7 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
     let pure_pre: Vec<(&crate::node_id::NodeId, bool)> = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
-        .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy { .. })))
+        .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy)))
         .collect();
     assert_eq!(pure_pre.len(), 2, "expected two occurrences of pure, got {pure_pre:?}");
     assert!(
@@ -233,7 +233,7 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
     let still_lazy = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
-        .filter(|(_, node)| matches!(node.children, TreeChildren::Lazy { .. }))
+        .filter(|(_, node)| matches!(node.children, TreeChildren::Lazy))
         .count();
     assert_eq!(
         still_lazy, 1,

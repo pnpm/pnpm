@@ -104,6 +104,7 @@ pub(super) async fn verify_input_lockfile(
         Some(Arc::clone(auth_headers)),
         Some(Arc::clone(&dist_stats)),
         None,
+        None,
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))

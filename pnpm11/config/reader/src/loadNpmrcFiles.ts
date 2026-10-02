@@ -3,14 +3,18 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
-import { nerfDart } from '@pnpm/config.registry-auth-key'
-import { PnpmError } from '@pnpm/error'
+import { isError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
 
+import { findLocalPrefix } from './findLocalPrefix.js'
+import { type JsonAuthResult, readGlobalConfigAuth, readJsonAuthEnv } from './jsonAuth.js'
 import { isNpmrcReadableKey } from './localConfig.js'
-import { npmDefaults } from './npmDefaults.js'
 import { parseCAFileContents } from './parseCAFileContents.js'
+import { rescopeUnscopedCreds } from './rescopeUnscopedCreds.js'
+
+export { findLocalPrefix } from './findLocalPrefix.js'
+export type { JsonAuthResult } from './jsonAuth.js'
 
 export interface NpmrcConfigResult {
   /**
@@ -40,30 +44,6 @@ export interface NpmrcConfigResult {
   declaredRegistries: Record<string, string>
   /** The same routes from the non-project `.npmrc` files, for the package-manager bootstrap. */
   trustedDeclaredRegistries: Record<string, string>
-}
-
-/**
- * Result of parsing the structured `_auth` value.
- *
- * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, …)
- *   ready to merge into the existing auth-config pipeline.
- * - `registries` — trusted scope→URL routes inferred from the `_auth`
- *   **environment variable**. `"default"` is set by the `"@"` scope;
- *   `"@org"` by a package scope. The environment is the operator's
- *   channel — a CI runner pointed at a mandated proxy — so these outrank
- *   what any config file declares, and repo-controlled
- *   `pnpm-workspace.yaml` / project `.npmrc` cannot redirect them.
- *   Merged above workspace yaml but below CLI flags.
- * - `fallbackRegistries` — the same routes inferred from the `_auth` of
- *   the global config **file**. That file is the user's own store rather
- *   than a mandate, so a `registries` / `registry` declared in a yaml or
- *   an `.npmrc` outranks it and it only fills in what nothing else declares.
- */
-export interface JsonAuthResult {
-  auth: Record<string, string>
-  registries: Record<string, string>
-  fallbackRegistries: Record<string, string>
-  defaultCandidates?: string[]
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -101,6 +81,64 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ? path.resolve(opts.dir)
     : findLocalPrefix(process.cwd())
 
+  const { builtin, user, authIni, workspace, envScoped, jsonAuth, cli } = readNpmrcSources({ opts, env, localPrefix, warnings })
+
+  // Handle cafile: expand to ca certs.
+  // Priority: CLI > workspace > auth.ini > user > defaults
+  loadCAFile([
+    cli,
+    workspace,
+    authIni,
+    user,
+    opts.defaultOptions,
+  ])
+
+  return {
+    // Merge all sources (lowest to highest priority):
+    // builtin < defaults < user < auth.ini < workspace < env (//-scoped + JSON auth) < CLI
+    mergedConfig: pickNpmrcReadableKeys([builtin, opts.defaultOptions, user, authIni, workspace, envScoped, jsonAuth.auth, cli]),
+    // Build rawConfig with same priority order
+    rawConfig: {
+      ...builtin,
+      ...opts.defaultOptions,
+      ...user,
+      ...authIni,
+      ...workspace,
+      ...envScoped,
+      ...jsonAuth.auth,
+      ...cli,
+    },
+    // The env-scoped config is trusted (it comes from the environment, not the
+    // repository), so it is included here while the workspace .npmrc is not.
+    trustedConfig: pickNpmrcReadableKeys([builtin, opts.defaultOptions, user, authIni, envScoped, jsonAuth.auth, cli]),
+    workspaceNpmrc: workspace,
+    userConfig: user,
+    localPrefix,
+    warnings,
+    jsonAuth,
+    declaredRegistries: readDeclaredRegistries([user, authIni, workspace]),
+    trustedDeclaredRegistries: readDeclaredRegistries([user, authIni]),
+  }
+}
+
+interface ReadNpmrcSourcesContext {
+  opts: LoadNpmrcConfigOpts
+  env: Record<string, string | undefined>
+  localPrefix: string
+  warnings: string[]
+}
+
+interface NpmrcSources {
+  builtin: Record<string, unknown>
+  user: Record<string, unknown>
+  authIni: Record<string, unknown>
+  workspace: Record<string, unknown>
+  envScoped: Record<string, unknown>
+  jsonAuth: JsonAuthResult
+  cli: Record<string, unknown>
+}
+
+function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSourcesContext): NpmrcSources {
   const userConfigPath = normalizePath(opts.npmrcAuthFile) ?? path.resolve(os.homedir(), '.npmrc')
 
   // Read .npmrc from workspace root (or project root if no workspace)
@@ -109,7 +147,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // When npmrcAuthFile explicitly points at the project .npmrc, the user has
   // opted in to trusting it — allow auth env expansion and suppress the warning.
   const workspaceIsTrustedAuthFile = userConfigPath === workspaceNpmrcPath
-  const workspaceNpmrc = readAndFilterNpmrc(
+  const workspace = readAndFilterNpmrc(
     workspaceNpmrcPath,
     warnings,
     env,
@@ -120,10 +158,10 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   )
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
-  const userConfig = readAndFilterNpmrc(userConfigPath, warnings, env)
+  const user = readAndFilterNpmrc(userConfigPath, warnings, env)
 
   // Read pnpm auth file (~/.config/pnpm/auth.ini)
-  const pnpmAuthConfig = readAndFilterNpmrc(
+  const authIni = readAndFilterNpmrc(
     path.join(opts.configDir, 'auth.ini'),
     warnings,
     env
@@ -132,22 +170,30 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // Apply the same per-source rescope to CLI options so an unscoped
   // `--_authToken` follows the same trust rule as one written into an .npmrc.
   // We clone first to avoid mutating the caller's cliOptions object.
-  const cliOptions = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
+  const cli = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
 
-  // URL-scoped auth/registry settings supplied via `npm_config_//…` and
-  // `pnpm_config_//…` environment variables. The registry a credential is
+  // URL-scoped auth/registry settings supplied via `npm_config_//...` and
+  // `pnpm_config_//...` environment variables. The registry a credential is
   // bound to is encoded in the (trusted) variable name, so unlike a project
   // `.npmrc` these cannot be redirected to another host by the repository —
   // making them a safe, file-free way to configure registry authentication.
-  const envScopedConfig = readUrlScopedEnvConfig(env)
+  const envScoped = readUrlScopedEnvConfig(env)
 
-  // Structured `_auth` registry auth from two trusted, non-repo sources:
-  // the `pnpm_config__auth` env var (one JSON object, so it survives CI
-  // runners that silently drop env vars whose names contain `/`, `:`, or
-  // `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
-  // key of the global pnpm config yaml. The env var wins on conflict.
+  const jsonAuth = readJsonAuth(opts.globalConfigAuth, env, warnings)
+
+  const builtin = readPnpmBuiltinConfig(opts.moduleDirname, warnings, env)
+
+  return { builtin, user, authIni, workspace, envScoped, jsonAuth, cli }
+}
+
+// Structured `_auth` registry auth from two trusted, non-repo sources:
+// the `pnpm_config__auth` env var (one JSON object, so it survives CI
+// runners that silently drop env vars whose names contain `/`, `:`, or
+// `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
+// key of the global pnpm config yaml. The env var wins on conflict.
+function readJsonAuth (globalConfigAuth: unknown, env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
   const envJsonAuth = readJsonAuthEnv(env)
-  const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
+  const globalConfigJsonAuth = readGlobalConfigAuth(globalConfigAuth)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: envJsonAuth.registries,
@@ -157,74 +203,32 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   for (const [key, value] of Object.entries(jsonAuth.auth)) {
     jsonAuth.auth[key] = substituteEnv(value, env, { warnings, key, context: ' in _auth.authToken' })
   }
+  return jsonAuth
+}
 
-  // Read pnpm builtin rc + inline defaults
-  const pnpmBuiltinConfig: Record<string, unknown> = {
+// Read pnpm builtin rc + inline defaults
+function readPnpmBuiltinConfig (moduleDirname: string, warnings: string[], env: Record<string, string | undefined>): Record<string, unknown> {
+  return {
     ...readAndFilterNpmrc(
-      path.resolve(path.join(opts.moduleDirname, 'pnpmrc')),
+      path.resolve(path.join(moduleDirname, 'pnpmrc')),
       warnings,
       env
     ),
     registry: 'https://registry.npmjs.org/',
     '@jsr:registry': 'https://npm.jsr.io/',
   }
+}
 
-  // Handle cafile: expand to ca certs.
-  // Priority: CLI > workspace > auth.ini > user > defaults
-  loadCAFile([
-    cliOptions,
-    workspaceNpmrc,
-    pnpmAuthConfig,
-    userConfig,
-    opts.defaultOptions,
-  ])
-
-  // Merge all sources (lowest to highest priority):
-  // builtin < defaults < user < auth.ini < workspace < env (//-scoped + JSON auth) < CLI
-  const mergedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, envScopedConfig, jsonAuth.auth, cliOptions]) {
+function pickNpmrcReadableKeys (sources: Array<Record<string, unknown>>): Record<string, unknown> {
+  const picked: Record<string, unknown> = {}
+  for (const source of sources) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
-        mergedConfig[key] = value
+        picked[key] = value
       }
     }
   }
-
-  // The env-scoped config is trusted (it comes from the environment, not the
-  // repository), so it is included here while the workspace .npmrc is not.
-  const trustedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, envScopedConfig, jsonAuth.auth, cliOptions]) {
-    for (const [key, value] of Object.entries(source)) {
-      if (isNpmrcReadableKey(key)) {
-        trustedConfig[key] = value
-      }
-    }
-  }
-
-  // Build rawConfig with same priority order
-  const rawConfig = {
-    ...pnpmBuiltinConfig,
-    ...opts.defaultOptions,
-    ...userConfig,
-    ...pnpmAuthConfig,
-    ...workspaceNpmrc,
-    ...envScopedConfig,
-    ...jsonAuth.auth,
-    ...cliOptions,
-  }
-
-  return {
-    mergedConfig,
-    rawConfig,
-    trustedConfig,
-    workspaceNpmrc,
-    userConfig,
-    localPrefix,
-    warnings,
-    jsonAuth,
-    declaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig, workspaceNpmrc]),
-    trustedDeclaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig]),
-  }
+  return picked
 }
 
 /**
@@ -246,13 +250,13 @@ function readDeclaredRegistries (sources: Array<Record<string, unknown>>): Recor
   return registries
 }
 
-// Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is
+// Matches `npm_config_//...` and `pnpm_config_//...` env var names. The prefix is
 // matched case-insensitively (as npm does), but the captured key keeps its
 // original case because URL-scoped keys are case-sensitive (e.g. `:_authToken`).
 const URL_SCOPED_ENV_RE = /^p?npm_config_(\/\/.+)$/i
 
-// Collect URL-scoped settings (keys beginning with `//host…`, such as
-// `//registry.npmjs.org/:_authToken`) from `npm_config_//…` and `pnpm_config_//…`
+// Collect URL-scoped settings (keys beginning with `//host...`, such as
+// `//registry.npmjs.org/:_authToken`) from `npm_config_//...` and `pnpm_config_//...`
 // environment variables. These are host-scoped by construction — the registry
 // the value applies to is part of the variable name — so they are safe to honor
 // from the trusted environment without a config file. When the same key is set
@@ -281,238 +285,106 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
   return { ...npmScoped, ...pnpmScoped }
 }
 
-function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
-  const value = readJsonAuthEnvValue(env)
-  if (value == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch (err: unknown) {
-    throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${err instanceof Error ? err.message : String(err)}`)
-  }
-  return parseJsonAuth(parsed, 'pnpm_config__auth')
-}
-
-/**
- * Parse a URL-keyed `_auth` object into `.npmrc`-shaped flat auth keys plus
- * the registry routes inferred from each host. Shared by the env var and the
- * global config yaml.
- *
- * Strict: any malformed entry throws. Both sources are user-controlled, so a
- * typo should fail fast rather than silently drop auth. `source` names the
- * origin in errors; raw URL keys are never echoed — they can embed secrets.
- */
-function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new PnpmError('INVALID_AUTH_SETTING', `${source} must be a JSON object`)
-  }
-
-  const auth: Record<string, string> = {}
-  const registries: Record<string, string> = {}
-  const defaultCandidates: string[] = []
-  for (const [index, [url, scopes]] of Object.entries(parsed as Record<string, unknown>).entries()) {
-    const registry = parseJsonAuthRegistry(url, index + 1, source)
-    if (scopes === null || typeof scopes !== 'object' || Array.isArray(scopes)) {
-      throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}] must be an object keyed by scope`)
-    }
-    for (const [scope, rawCreds] of Object.entries(scopes as Record<string, unknown>)) {
-      if (!isJsonAuthScope(scope)) {
-        throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: scope must be "@" or a package scope like "@org"`)
-      }
-      if (rawCreds === null || typeof rawCreds !== 'object' || Array.isArray(rawCreds)) {
-        throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}] must be an auth object`)
-      }
-      const token = jsonAuthToken(rawCreds as Record<string, unknown>, registry, scope, source)
-      auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
-      // Infer a registry route from the same entry (see JsonAuthResult.registries).
-      // Last write wins on a duplicate scope, matching yaml/CLI.
-      if (scope === '@') {
-        defaultCandidates.push(registry.normalized)
-      } else {
-        registries[scope] = registry.normalized
-      }
-    }
-  }
-  if (defaultCandidates.length > 0) {
-    registries.default = defaultCandidates[defaultCandidates.length - 1]
-  }
-  return { auth, registries, fallbackRegistries: {}, defaultCandidates }
-}
-
-/** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
-function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
-  if (globalConfigAuth == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
-  return parseJsonAuth(globalConfigAuth, '_auth')
-}
-
-interface JsonAuthRegistry {
-  label: string
-  nerfed: string
-  normalized: string
-}
-
-function parseJsonAuthRegistry (url: string, entryNumber: number, source: string): JsonAuthRegistry {
-  const label = jsonAuthRegistryLabel(url, entryNumber)
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
-  }
-  if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.hostname === '') {
-    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
-  }
-  if (parsed.username !== '' || parsed.password !== '' || parsed.search !== '' || parsed.hash !== '') {
-    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: registry URL must not include credentials, query, or fragment`)
-  }
-
-  const normalized = normalizeRegistryUrl(parsed.href)
-  const nerfed = nerfDart(normalized)
-  if (nerfed === '') {
-    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
-  }
-  return { label, nerfed, normalized }
-}
-
-function jsonAuthRegistryLabel (url: string, entryNumber: number): string {
-  const entryLabel = `entry ${entryNumber}`
-  try {
-    const parsed = new URL(url)
-    if ((parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.hostname !== '') {
-      return `${entryLabel} (${parsed.protocol}//${parsed.host})`
-    }
-  } catch {}
-  return entryLabel
-}
-
-function readJsonAuthEnvValue (env: Record<string, string | undefined>): string | undefined {
-  return env.pnpm_config__auth !== '' && env.pnpm_config__auth != null
-    ? env.pnpm_config__auth
-    : env.PNPM_CONFIG__AUTH !== '' && env.PNPM_CONFIG__AUTH != null
-      ? env.PNPM_CONFIG__AUTH
-      : undefined
-}
-
-function isJsonAuthScope (scope: string): boolean {
-  return scope === '@' || (scope.startsWith('@') && scope.length > 1 && !scope.includes('/') && !scope.includes(':'))
-}
-
-// Validate one scope's credentials and return its `authToken`. Only
-// `authToken` is supported — the deprecated `basicAuth` / `username` +
-// `password` forms (any other field) are rejected, as is a missing or
-// non-string token.
-function jsonAuthToken (
-  creds: Record<string, unknown>,
-  registry: JsonAuthRegistry,
-  scope: string,
-  source: string
-): string {
-  for (const field of Object.keys(creds)) {
-    if (field !== 'authToken') {
-      throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}][${JSON.stringify(field)}]: unsupported auth field (only "authToken" is supported)`)
-    }
-  }
-  const token = creds.authToken
-  if (typeof token !== 'string') {
-    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: "authToken" must be a string`)
-  }
-  return token
-}
-
-// Per-registry rc keys that, when written without a `//host/` prefix, fall
-// through to whatever default registry the merged config settles on. We
-// rewrite each such key to its URL-scoped form at load time, pinning it to
-// the `registry=` value declared in the same source. A later layer can
-// still override the merged registry, but it cannot pull along a credential
-// or client certificate authored for a different host.
-//
-// Two groups:
-// * auth keys — `_authToken` etc. Pinned to prevent credential leaks. npm
-//   rejects these unscoped since npm@9 (ERR_INVALID_AUTH); pnpm keeps them
-//   working but warns so users migrate before a future major drops support.
-// * client certificate keys — `cert`/`key` (inline PEM). Pinned to prevent
-//   a client certificate (and the identity it carries) being presented to
-//   the wrong host. The `certfile`/`keyfile` path variants are not in
-//   `NPM_AUTH_SETTINGS`, so unscoped forms never reach the merged config
-//   in the first place — only the URL-scoped `//host/:certfile=...` and
-//   `//host/:keyfile=...` forms are honored, and those are already pinned
-//   to their authoring registry by construction.
-//
-// `ca`/`cafile` are intentionally left unscoped-by-default: they're trust
-// anchors, not credentials, and corporate MITM-proxy setups rely on them
-// applying globally to every HTTPS request. The default registry override
-// can't weaponize an unscoped CA (the attacker would need a cert signed
-// by it), so the same pinning isn't warranted.
-const UNSCOPED_RESCOPABLE_KEYS = [
-  '_authToken', '_auth', 'username', '_password', 'tokenHelper',
-  'cert', 'key',
-] as const
-
 function readAndFilterNpmrc (
   filePath: string,
   warnings: string[],
   env: Record<string, string | undefined>,
   opts: ReadAndFilterNpmrcOptions = {}
 ): Record<string, unknown> {
-  let raw: Record<string, unknown>
-  try {
-    raw = readIniFileSync(filePath) as Record<string, unknown>
-  } catch (err: unknown) {
-    if (isErrorWithCode(err, 'ENOENT') || isErrorWithCode(err, 'EISDIR')) {
-      return {}
-    }
-    warnings.push(`Issue while reading "${filePath}". ${err instanceof Error ? err.message : String(err)}`)
-    return {}
-  }
+  const raw = readNpmrcFile(filePath, warnings)
+  if (raw == null) return {}
 
+  const ctx: NpmrcFilterContext = {
+    filePath,
+    warnings,
+    env,
+    expandAuthValueEnv: opts.expandAuthValueEnv ?? true,
+    expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? true,
+  }
   const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
-  const expandAuthValueEnv = opts.expandAuthValueEnv ?? true
-  const expandRequestDestinationEnv = opts.expandRequestDestinationEnv ?? true
   for (const [rawKey, rawValue] of Object.entries(raw)) {
-    if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(rawKey)) {
-      warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
-      continue
-    }
-    if (!expandAuthValueEnv && hasEnvPlaceholder(rawKey) && isAuthValueKey(rawKey)) {
-      warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
-      continue
-    }
-    const key = substituteEnv(rawKey, env, { warnings, key: rawKey })
-    if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(key)) {
-      warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
-      continue
-    }
-    if (!expandAuthValueEnv && hasEnvPlaceholder(rawKey) && isAuthValueKey(key)) {
-      warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
-      continue
-    }
-    let value: unknown = rawValue
-    if (typeof rawValue === 'string') {
-      if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawValue) && isRequestDestinationValueKey(key)) {
-        warnIgnoredRequestDestinationEnv(filePath, key, warnings)
-        continue
-      }
-      if (!expandAuthValueEnv && hasEnvPlaceholder(rawValue) && isAuthValueKey(key)) {
-        warnIgnoredAuthValueEnv(filePath, key, warnings)
-        continue
-      }
-      value = substituteEnv(rawValue, env, { warnings, key })
-    }
-
+    const entry = readNpmrcEntry(ctx, rawKey, rawValue)
     // Only keep auth/registry related keys
-    if (isNpmrcReadableKey(key)) {
-      // A relative `cafile=` resolves against the .npmrc's directory rather
-      // than process.cwd(), so `pnpm --dir <project>` from a different cwd
-      // still finds it. See https://github.com/pnpm/pnpm/issues/11624.
-      if (key === 'cafile' && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
-        value = path.resolve(npmrcDir, value)
-      }
-      result[key] = value
-    }
+    if (entry == null || !isNpmrcReadableKey(entry.key)) continue
+    result[entry.key] = resolveCafilePath(entry, npmrcDir)
   }
   return rescopeUnscopedCreds(result, filePath, warnings)
+}
+
+function readNpmrcFile (filePath: string, warnings: string[]): Record<string, unknown> | undefined {
+  try {
+    return readIniFileSync(filePath) as Record<string, unknown>
+  } catch (err: unknown) {
+    if (isErrorWithCode(err, 'ENOENT') || isErrorWithCode(err, 'EISDIR')) {
+      return undefined
+    }
+    warnings.push(`Issue while reading "${filePath}". ${isError(err) ? err.message : String(err)}`)
+    return undefined
+  }
+}
+
+interface NpmrcFilterContext {
+  filePath: string
+  warnings: string[]
+  env: Record<string, string | undefined>
+  expandAuthValueEnv: boolean
+  expandRequestDestinationEnv: boolean
+}
+
+interface NpmrcEntry {
+  key: string
+  value: unknown
+}
+
+function readNpmrcEntry (ctx: NpmrcFilterContext, rawKey: string, rawValue: unknown): NpmrcEntry | undefined {
+  const keyGate = { text: rawKey, reportedKey: rawKey, isRequestDestination: isRequestDestinationKey }
+  if (skipsUnexpandedEnv(ctx, { ...keyGate, key: rawKey })) return undefined
+  const key = substituteEnv(rawKey, ctx.env, { warnings: ctx.warnings, key: rawKey })
+  if (skipsUnexpandedEnv(ctx, { ...keyGate, key })) return undefined
+  if (typeof rawValue !== 'string') return { key, value: rawValue }
+  if (skipsUnexpandedEnv(ctx, { text: rawValue, key, reportedKey: key, isRequestDestination: isRequestDestinationValueKey })) {
+    return undefined
+  }
+  return { key, value: substituteEnv(rawValue, ctx.env, { warnings: ctx.warnings, key }) }
+}
+
+interface UnexpandedEnvGate {
+  /** The raw text whose env placeholders would be expanded. */
+  text: string
+  /** The key that decides whether the text is a request destination or an auth value. */
+  key: string
+  /** The key named in the warning. */
+  reportedKey: string
+  isRequestDestination: (key: string) => boolean
+}
+
+/**
+ * Whether an entry is dropped because it would expand an environment variable
+ * into a request destination or an auth value that the source may not expand.
+ * Warns about every dropped entry.
+ */
+function skipsUnexpandedEnv (ctx: NpmrcFilterContext, gate: UnexpandedEnvGate): boolean {
+  if (!hasEnvPlaceholder(gate.text)) return false
+  if (!ctx.expandRequestDestinationEnv && gate.isRequestDestination(gate.key)) {
+    warnIgnoredRequestDestinationEnv(ctx.filePath, gate.reportedKey, ctx.warnings)
+    return true
+  }
+  if (!ctx.expandAuthValueEnv && isAuthValueKey(gate.key)) {
+    warnIgnoredAuthValueEnv(ctx.filePath, gate.reportedKey, ctx.warnings)
+    return true
+  }
+  return false
+}
+
+// A relative `cafile=` resolves against the .npmrc's directory rather
+// than process.cwd(), so `pnpm --dir <project>` from a different cwd
+// still finds it. See https://github.com/pnpm/pnpm/issues/11624.
+function resolveCafilePath ({ key, value }: NpmrcEntry, npmrcDir: string): unknown {
+  if (key === 'cafile' && typeof value === 'string' && value !== '' && !path.isAbsolute(value)) {
+    return path.resolve(npmrcDir, value)
+  }
+  return value
 }
 
 function isRequestDestinationKey (key: string): boolean {
@@ -552,64 +424,6 @@ function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: strin
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
     `See ${DOCS_URL}`)
-}
-
-// Rewrite any unscoped per-registry keys in `source` to their URL-scoped
-// equivalents (`//host[:port]/path/:<key>=...`) using `source.registry` —
-// or the builtin default registry if the source doesn't declare its own.
-// This pins each layer's credential, client certificate, or CA setting to
-// the registry that layer named (or the implicit npmjs default), so a
-// later layer overriding `registry=` cannot pull a setting authored for
-// one host along to a different host. A URL-scoped key for the same
-// registry already present in `source` wins; we never overwrite an
-// explicit scoped value.
-//
-// Each rewrite triggers a deprecation warning so users migrate to writing
-// the URL-scoped form directly. npm has rejected unscoped credentials
-// outright since `npm@9` (`ERR_INVALID_AUTH`).
-function rescopeUnscopedCreds (
-  source: Record<string, unknown>,
-  sourceLabel: string,
-  warnings: string[]
-): Record<string, unknown> {
-  // Bail early if there's nothing to rescope. This skips the nerfDart call
-  // when a source like the builtin pnpmrc has only a `registry=` line —
-  // rescoping there would do nothing anyway.
-  if (!UNSCOPED_RESCOPABLE_KEYS.some(key => key in source)) {
-    return source
-  }
-  const rawRegistry = typeof source.registry === 'string' && source.registry !== '' ? source.registry : null
-  const fallbackRegistry = rawRegistry ?? npmDefaults.registry
-  let nerfedRegistry: string
-  try {
-    nerfedRegistry = nerfDart(normalizeRegistryUrl(fallbackRegistry))
-  } catch {
-    // `registry=` resolved to something `URL` can't parse — often an
-    // unresolved `${VAR}` placeholder that left the string empty. Drop the
-    // unscoped keys (a bare token is unsafe to bind anywhere) and warn.
-    const dropped = UNSCOPED_RESCOPABLE_KEYS.filter(key => key in source)
-    for (const key of dropped) delete source[key]
-    warnings.push(`Unscoped per-registry settings (${dropped.join(', ')}) in "${sourceLabel}" were ignored: ` +
-      `the source's "registry" value (${JSON.stringify(source.registry)}) is not a parseable URL, so pnpm cannot pin them anywhere safe. ` +
-      'Write them URL-scoped (e.g. "//registry.example.com/:_authToken=...") to send them to a specific registry.')
-    return source
-  }
-  const rescoped: string[] = []
-  for (const key of UNSCOPED_RESCOPABLE_KEYS) {
-    if (!(key in source)) continue
-    const scopedKey = `${nerfedRegistry}:${key}`
-    if (!(scopedKey in source)) {
-      source[scopedKey] = source[key]
-    }
-    delete source[key]
-    rescoped.push(key)
-  }
-  if (rescoped.length > 0) {
-    warnings.push(`Unscoped per-registry settings (${rescoped.join(', ')}) in "${sourceLabel}" are deprecated. ` +
-      `pnpm pinned them to "${nerfedRegistry}" for this run, but a future release will stop supporting unscoped per-registry settings. ` +
-      `Write them as "${nerfedRegistry}:${rescoped[0]}=..." instead.`)
-  }
-  return source
 }
 
 // Use the lossy variant so unresolved `${VAR}` placeholders become '' (each
@@ -656,72 +470,16 @@ function findEmptyEnvPlaceholders (value: string, env: Record<string, string | u
   return placeholders
 }
 
-function normalizePath (p: string | undefined): string | undefined {
-  if (p == null) return undefined
-  if (p.startsWith('~/') || p.startsWith('~\\')) {
-    p = path.join(os.homedir(), p.slice(2))
+function normalizePath (filePath: string | undefined): string | undefined {
+  if (filePath == null) return undefined
+  if (filePath.startsWith('~/') || filePath.startsWith('~\\')) {
+    filePath = path.join(os.homedir(), filePath.slice(2))
   }
-  return path.resolve(p)
+  return path.resolve(filePath)
 }
 
 function isErrorWithCode (err: unknown, code: string): boolean {
   return err != null && typeof err === 'object' && 'code' in err && err.code === code
-}
-
-/**
- * Find the nearest directory containing package.json, node_modules,
- * or pnpm-workspace.yaml by walking up from startDir.
- * Ported from @pnpm/npm-conf/lib/util.js findPrefix.
- */
-export function findLocalPrefix (startDir: string): string {
-  let name = path.resolve(startDir)
-
-  let walkedUp = false
-  while (path.basename(name) === 'node_modules') {
-    name = path.dirname(name)
-    walkedUp = true
-  }
-
-  if (walkedUp) {
-    return name
-  }
-
-  return findPrefixUp(name, name)
-}
-
-function findPrefixUp (name: string, original: string): string {
-  const driveRootRegex = /^[a-z]:[/\\]?$/i
-  if (name === '/' || (process.platform === 'win32' && driveRootRegex.test(name))) {
-    return original
-  }
-
-  try {
-    const files = fs.readdirSync(name)
-    if (
-      files.includes('node_modules') ||
-      files.includes('package.json') ||
-      files.includes('package.json5') ||
-      files.includes('package.yaml') ||
-      files.includes('pnpm-workspace.yaml')
-    ) {
-      return name
-    }
-
-    const dirname = path.dirname(name)
-    if (dirname === name) {
-      return original
-    }
-
-    return findPrefixUp(dirname, original)
-  } catch (err: unknown) {
-    if (name === original) {
-      if (isErrorWithCode(err, 'ENOENT')) {
-        return original
-      }
-      throw err
-    }
-    return original
-  }
 }
 
 /**

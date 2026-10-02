@@ -224,6 +224,7 @@ fn remove_install<'i>(
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
 }

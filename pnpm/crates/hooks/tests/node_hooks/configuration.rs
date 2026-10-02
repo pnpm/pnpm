@@ -64,7 +64,7 @@ export const hooks = { updateConfig (config) {
         let configured = [pnpmfile_path];
         let hooks = finder::load_pnpmfiles(
             tmp.path(),
-            finder::PnpmfileSelection { configured: Some(&configured), global: None },
+            finder::PnpmfileSelection { configured: Some(&configured), ..Default::default() },
         )
         .expect("configured pnpmfile should exist")
         .expect("configured pnpmfile should load");

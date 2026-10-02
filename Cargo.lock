@@ -3773,7 +3773,7 @@ dependencies = [
 [[package]]
 name = "node-semver"
 version = "2.2.0"
-source = "git+https://github.com/pnpm/node-semver-rs?rev=1ae976a0023b4dec80b1a5411ccee8343f91320e#1ae976a0023b4dec80b1a5411ccee8343f91320e"
+source = "git+https://github.com/pnpm/node-semver-rs?rev=3d74d6b7f4de1de2006cf2f7663aac09de65b1f6#3d74d6b7f4de1de2006cf2f7663aac09de65b1f6"
 dependencies = [
  "bytecount",
  "miette 7.6.0",
@@ -4672,6 +4672,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-injected-deps-syncer",
  "pnpm-install-coordinator",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-lockfile-import",
  "pnpm-lockfile-preferred-versions",
@@ -5173,6 +5174,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "which 8.0.4",
  "windows-sys 0.61.2",
 ]
 
@@ -5475,6 +5477,9 @@ dependencies = [
 [[package]]
 name = "pnpm-matcher"
 version = "0.0.1"
+dependencies = [
+ "regex",
+]
 
 [[package]]
 name = "pnpm-micro-benchmark"
@@ -5494,6 +5499,7 @@ dependencies = [
  "pnpm-registry",
  "pnpm-reporter",
  "pnpm-resolving-deps-resolver",
+ "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
  "pnpm-tarball",
@@ -5687,6 +5693,7 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "chrono",
+ "console",
  "dashmap",
  "derive_more",
  "dialoguer",
@@ -5750,6 +5757,7 @@ dependencies = [
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
+ "pnpm-text-sanitize",
  "pnpm-workspace",
  "pnpm-workspace-manifest-writer",
  "pnpm-workspace-projects-graph",
@@ -6156,6 +6164,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6181,13 +6190,17 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+ "url",
 ]
 
 [[package]]
 name = "pnpm-resolving-tarball-resolver"
 version = "0.0.1"
 dependencies = [
+ "httpdate",
  "mockito",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-reporter",
@@ -6227,6 +6240,7 @@ dependencies = [
  "dashmap",
  "derive_more",
  "dunce",
+ "junction 2.0.0",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
@@ -6456,6 +6470,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-reporter",
  "pretty_assertions",
+ "regex",
  "rustc-hash 2.1.3",
  "serde",
  "serde_json",
@@ -6475,7 +6490,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.13"
+version = "0.1.0-alpha.14"
 dependencies = [
  "async-trait",
  "axum 0.8.9",

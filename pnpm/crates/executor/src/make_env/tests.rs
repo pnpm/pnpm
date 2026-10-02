@@ -1,7 +1,7 @@
 use super::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, ROOT_PREINSTALL_ALREADY_RAN_ENV,
     VERIFY_DEPS_BEFORE_RUN_ENV, build_env, build_env_for_platform, escape_newlines,
-    is_delegation_marker, is_stamping_key, sanitize_env_key, stamp_package,
+    is_delegation_marker, is_stamping_key, path_value, sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -264,6 +264,87 @@ fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
 
+const BUNDLED_NODE_GYP: &str = "/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js";
+
+/// Build the env with the bundled `node-gyp` default configured.
+fn build_with_node_gyp_default(
+    parent: HashMap<String, String>,
+    extra_env: &HashMap<String, String>,
+    is_windows: bool,
+) -> HashMap<String, String> {
+    let pkg_root = Path::new("/tmp/w");
+    let mut opts = base_opts(pkg_root, pkg_root, extra_env);
+    opts.environment.node_gyp_path = Some(Path::new(BUNDLED_NODE_GYP));
+    build_env_for_platform(&opts, &json!({"name":"w","version":"0"}), parent, is_windows).env
+}
+
+/// TS `npm-lifecycle` fills `npm_config_node_gyp` only when the
+/// environment left it unset, so an inherited value is kept.
+#[test]
+fn an_inherited_npm_config_node_gyp_is_kept_over_the_default() {
+    let parent =
+        HashMap::from([("npm_config_node_gyp".to_string(), "/user/node-gyp.js".to_string())]);
+
+    let env = build_with_node_gyp_default(parent, &empty_extra(), false);
+
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some("/user/node-gyp.js"));
+}
+
+#[test]
+fn node_gyp_path_fills_npm_config_node_gyp_when_the_environment_left_it_unset() {
+    let parent = HashMap::from([("npm_config_node_gyp".to_string(), String::new())]);
+
+    let env = build_with_node_gyp_default(parent, &empty_extra(), false);
+
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some(BUNDLED_NODE_GYP));
+}
+
+#[test]
+fn an_uppercase_inherited_npm_config_node_gyp_is_kept_on_windows() {
+    let parent =
+        HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), "/user/node-gyp.js".to_string())]);
+
+    let env = build_with_node_gyp_default(parent, &empty_extra(), true);
+
+    assert_eq!(env.get("NPM_CONFIG_NODE_GYP").map(String::as_str), Some("/user/node-gyp.js"));
+    assert!(!env.contains_key("npm_config_node_gyp"), "{env:?}");
+}
+
+/// An empty inherited alias is dropped before the default is stamped, so
+/// the two spellings cannot race in the child's environment on Windows.
+#[test]
+fn an_empty_inherited_alias_does_not_shadow_the_default_on_windows() {
+    let parent = HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), String::new())]);
+
+    let env = build_with_node_gyp_default(parent, &empty_extra(), true);
+
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some(BUNDLED_NODE_GYP));
+    assert!(!env.contains_key("NPM_CONFIG_NODE_GYP"), "{env:?}");
+}
+
+/// A user `extraEnv` overrides the default, and on Windows a differently
+/// cased `extraEnv` key replaces the stamped spelling rather than racing it.
+#[test]
+fn a_differently_cased_extra_env_node_gyp_replaces_the_default_on_windows() {
+    let extra =
+        HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), "/hook/node-gyp.js".to_string())]);
+
+    let env = build_with_node_gyp_default(HashMap::new(), &extra, true);
+
+    assert_eq!(env.get("NPM_CONFIG_NODE_GYP").map(String::as_str), Some("/hook/node-gyp.js"));
+    assert!(!env.contains_key("npm_config_node_gyp"), "{env:?}");
+}
+
+#[test]
+fn an_uppercase_inherited_npm_config_node_gyp_is_unrelated_on_posix() {
+    let parent =
+        HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), "/user/node-gyp.js".to_string())]);
+
+    let env = build_with_node_gyp_default(parent, &empty_extra(), false);
+
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some(BUNDLED_NODE_GYP));
+}
+
 #[test]
 fn stamp_package_recurses_into_kept_buckets() {
     let mut env = HashMap::new();
@@ -447,4 +528,17 @@ fn package_manager_environment_preserves_native_node_paths() {
         .expect("spawn shell");
     assert!(output.status.success());
     assert_eq!(output.stdout, [node.as_slice(), b"\n", node.as_slice(), b"\n"].concat());
+}
+
+/// Windows compares environment names case-insensitively, so its usual
+/// `Path` spelling supplies `PATH`. Elsewhere `Path` is a variable of its own.
+/// <https://github.com/pnpm/pnpm/issues/16308>
+#[test]
+fn path_value_reads_path_in_another_case_only_on_windows() {
+    let env = HashMap::from([("Path".to_string(), "/decoy/bin".to_string())]);
+    let expected = cfg!(windows).then(|| "/decoy/bin".to_string());
+    assert_eq!(path_value(&env), expected);
+
+    let env = HashMap::from([("PATH".to_string(), "/usr/bin".to_string())]);
+    assert_eq!(path_value(&env).as_deref(), Some("/usr/bin"));
 }

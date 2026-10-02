@@ -42,13 +42,38 @@ fn single_missing_integrity_violation_picks_missing_integrity_variant() {
     assert!(matches!(err, VerifyError::MissingTarballIntegrity { .. }), "got: {err:?}");
 }
 
+/// A single-code batch surfaces the verifier's own code, as the
+/// TypeScript gate does.
+#[test]
+fn single_code_batch_surfaces_the_verifier_code() {
+    for code in [
+        "MINIMUM_RELEASE_AGE_VIOLATION",
+        "TRUST_DOWNGRADE",
+        "MISSING_TARBALL_INTEGRITY",
+        "TARBALL_URL_MISMATCH",
+        "TARBALL_REVISION_MISMATCH",
+        "MISSING_NAMED_REGISTRY",
+        "RESOLUTION_SHAPE_MISMATCH",
+    ] {
+        let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", code, "broken")]);
+        let diagnostic_code = miette::Diagnostic::code(&err).expect("a code").to_string();
+        assert_eq!(diagnostic_code, format!("ERR_PNPM_{code}"));
+    }
+}
+
+#[test]
+fn unknown_single_code_falls_back_to_the_generic_envelope() {
+    let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", "SOMETHING_NEW", "broken")]);
+    assert!(matches!(err, VerifyError::LockfileResolutionVerification { .. }), "got: {err:?}");
+}
+
 #[test]
 fn mixed_codes_escalate_and_render_code_per_entry() {
     let err = VerifyError::from_rendered(&[
         rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
         rendered("bravo", "2.0.0", "TRUST_DOWNGRADE", "downgrade"),
     ]);
-    let VerifyError::LockfileResolutionVerification { count, breakdown } = err else {
+    let VerifyError::LockfileResolutionVerification { count, breakdown, .. } = err else {
         panic!("expected LockfileResolutionVerification");
     };
     assert_eq!(count, 2);
@@ -172,4 +197,61 @@ fn renders_three_entries_mixed_codes() {
         ),
     ]);
     insta::assert_snapshot!("three_entries_mixed_codes", err.to_string());
+}
+
+fn help_text(err: &VerifyError) -> String {
+    miette::Diagnostic::help(err).expect("verification errors carry a hint").to_string()
+}
+
+#[test]
+fn policy_violation_hint_gates_relaxing_the_policy_on_trust() {
+    let err = VerifyError::from_rendered(&[rendered(
+        "acme",
+        "1.0.0",
+        "MINIMUM_RELEASE_AGE_VIOLATION",
+        "young",
+    )]);
+    let help = help_text(&err);
+    assert!(
+        help.contains("If the fresh resolution still fails and you trust the affected packages, relax the policy that flagged them."),
+        "got: {help}",
+    );
+}
+
+/// No configured policy produces these, so relaxing one cannot clear them.
+#[test]
+fn structural_violation_hints_do_not_suggest_relaxing_a_policy() {
+    for code in [
+        "MISSING_TARBALL_INTEGRITY",
+        "RESOLUTION_SHAPE_MISMATCH",
+        "TARBALL_URL_MISMATCH",
+        "TARBALL_REVISION_MISMATCH",
+        "MISSING_NAMED_REGISTRY",
+    ] {
+        let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", code, "broken")]);
+        let help = help_text(&err);
+        assert!(help.contains(r#"run "pnpm clean --lockfile""#), "{code}: {help}");
+        assert!(!help.contains("relax the policy"), "{code}: {help}");
+    }
+}
+
+#[test]
+fn mixed_batch_with_a_structural_violation_does_not_suggest_relaxing_a_policy() {
+    let err = VerifyError::from_rendered(&[
+        rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
+        rendered("bravo", "2.0.0", "MISSING_TARBALL_INTEGRITY", "no integrity"),
+    ]);
+    assert!(matches!(err, VerifyError::LockfileResolutionVerification { .. }), "got: {err:?}");
+    let help = help_text(&err);
+    assert!(!help.contains("relax the policy"), "got: {help}");
+}
+
+#[test]
+fn mixed_policy_batch_keeps_the_policy_hint() {
+    let err = VerifyError::from_rendered(&[
+        rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
+        rendered("bravo", "2.0.0", "TRUST_DOWNGRADE", "downgrade"),
+    ]);
+    let help = help_text(&err);
+    assert!(help.contains("relax the policy that flagged them"), "got: {help}");
 }

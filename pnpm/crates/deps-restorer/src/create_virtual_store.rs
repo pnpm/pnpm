@@ -74,7 +74,7 @@ pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::V
 /// already built (typically because pnpm seeded the cache on a
 /// previous install).
 pub type SideEffectsMapsBySnapshot =
-    HashMap<PackageKey, std::sync::Arc<HashMap<String, HashMap<String, PathBuf>>>>;
+    HashMap<PackageKey, std::sync::Arc<HashMap<String, pnpm_store_dir::SideEffectsOverlay>>>;
 
 pub type SideEffectsBySnapshot =
     HashMap<PackageKey, std::sync::Arc<HashMap<String, pnpm_store_dir::SideEffectsDiff>>>;
@@ -242,7 +242,7 @@ pub struct CreateVirtualStore<'a> {
     /// The wanted lockfile's entries — what this run materializes.
     pub entries: LockfileEntries<'a>,
     /// Entries recorded by the previous install, parsed from
-    /// `<virtual_store_dir>/lock.yaml`. Used for reuse decisions and child-link
+    /// `<install_state_dir>/lock.yaml`. Used for reuse decisions and child-link
     /// cleanup, including under `--force`. Empty on a first install.
     pub current_entries: LockfileEntries<'a>,
     /// The wanted lockfile's importers. The root project's runtime pin

@@ -1,8 +1,8 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs, { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { globalWarn } from '@pnpm/logger'
 import { fastPathTemp } from 'path-temp'
@@ -34,43 +34,55 @@ export function hardLinkDir (src: string, destDirs: string[]): void {
 }
 
 function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean): void {
-  let files: string[] = []
-  try {
-    files = fs.readdirSync(src)
-  } catch (err: unknown) {
-    if (!isRoot || !((util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
-    globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
-    return
-  }
+  const files = readSourceFiles(src, destDirs, isRoot)
+  if (!files) return
   for (const file of files) {
     if (file === 'node_modules') continue
     const srcFile = path.join(src, file)
     const srcStats = fs.lstatSync(srcFile, { bigint: true })
     if (srcStats.isDirectory()) {
-      const destSubdirs = destDirs.map((destDir) => {
-        const destSubdir = path.join(destDir, file)
-        clearMismatchedDirent(destSubdir, true)
-        try {
-          gfs.mkdirSync(destSubdir, { recursive: true })
-        } catch (err: unknown) {
-          if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-        }
-        return destSubdir
-      })
-      _hardLinkDir(srcFile, destSubdirs)
-      continue
+      hardLinkSubdir(srcFile, file, destDirs)
+    } else {
+      hardLinkFileEntry(srcFile, file, destDirs, srcStats)
     }
-    for (const destDir of destDirs) {
-      const destFile = path.join(destDir, file)
-      try {
-        linkOrCopyFile(srcFile, destFile, srcStats)
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-          // Ignore broken symlinks
-          continue
-        }
-        throw err
+  }
+}
+
+function readSourceFiles (src: string, destDirs: string[], isRoot?: boolean): string[] | null {
+  try {
+    return fs.readdirSync(src)
+  } catch (err: unknown) {
+    if (!isRoot || !((isError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
+    globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
+    return null
+  }
+}
+
+function hardLinkSubdir (srcFile: string, file: string, destDirs: string[]): void {
+  const destSubdirs = destDirs.map((destDir) => {
+    const destSubdir = path.join(destDir, file)
+    clearMismatchedDirent(destSubdir, true)
+    try {
+      gfs.mkdirSync(destSubdir, { recursive: true })
+    } catch (err: unknown) {
+      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+    }
+    return destSubdir
+  })
+  _hardLinkDir(srcFile, destSubdirs)
+}
+
+function hardLinkFileEntry (srcFile: string, file: string, destDirs: string[], srcStats: fs.BigIntStats): void {
+  for (const destDir of destDirs) {
+    const destFile = path.join(destDir, file)
+    try {
+      linkOrCopyFile(srcFile, destFile, srcStats)
+    } catch (err: unknown) {
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
+        // Ignore broken symlinks
+        continue
       }
+      throw err
     }
   }
 }
@@ -80,7 +92,7 @@ function linkOrCopyFile (srcFile: string, destFile: string, srcStats: fs.BigIntS
     linkOrCopy(srcFile, destFile)
     return
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     if ('code' in err && err.code === 'ENOENT') {
       gfs.mkdirSync(path.dirname(destFile), { recursive: true })
       linkOrCopy(srcFile, destFile)
@@ -106,7 +118,7 @@ function isSameFile (destFile: string, srcStats: fs.BigIntStats): boolean {
   } catch (err: unknown) {
     // The caller got EEXIST for this path, so only a concurrent removal
     // explains it being gone; anything else is a real failure to report.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
   // Filesystems that report neither an inode nor a device (some on Windows)
@@ -131,7 +143,7 @@ function replaceFile (srcFile: string, destFile: string): void {
   } catch (err: unknown) {
     try {
       fs.unlinkSync(tempFile)
-    } catch {} // eslint-disable-line:no-empty
+    } catch {}
     throw err
   }
 }
@@ -146,7 +158,7 @@ function clearMismatchedDirent (destPath: string, wantDirectory: boolean): void 
   try {
     stats = fs.lstatSync(destPath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
   if (stats.isDirectory() === wantDirectory) return
@@ -163,7 +175,7 @@ function linkOrCopy (srcFile: string, destFile: string): void {
   } catch (err: unknown) {
     // In some container environments (OverlayFS), linkSync throws ENOENT
     // instead of EXDEV when linking across layers. We must fallback to copy in this case too.
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EXDEV' || err.code === 'ENOENT')) {
+    if (isError(err) && 'code' in err && (err.code === 'EXDEV' || err.code === 'ENOENT')) {
       gfs.copyFileSync(srcFile, destFile)
     } else {
       throw err

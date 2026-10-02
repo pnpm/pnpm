@@ -48,13 +48,14 @@ pub(super) async fn resolve_added_dependency(
     let types_selector =
         super::types::resolve_types_selector(package_name, &bare_specifier, manifest, inputs)
             .await?;
-    let (manifest_specifier, updated_catalogs, warnings) = resolve_catalog_and_warnings(
+    let (manifest_specifier, updated_catalogs, mut warnings) = resolve_catalog_and_warnings(
         inputs,
         package_name,
         bare_specifier,
         prev_specifier.as_deref(),
         package_selector,
     )?;
+    warnings.extend(selector.linked_peer_dependencies_warning(package_name, inputs.prefix));
     Ok(ResolvedAddedDependency {
         package_name: package_name.to_string(),
         manifest_specifier,
@@ -117,6 +118,15 @@ impl AddSelector {
             _ => None,
         };
         Ok(Self { protocol, aliasless })
+    }
+
+    fn linked_peer_dependencies_warning(
+        &self,
+        package_name: &str,
+        prefix: &str,
+    ) -> Option<LogEvent> {
+        let linked_manifest = self.aliasless.as_ref()?.linked_manifest.as_deref()?;
+        crate::linked_peer_dependencies_warning(package_name, linked_manifest, prefix)
     }
 
     fn package_name<'s>(&'s self, package_selector: &'s str) -> &'s str {

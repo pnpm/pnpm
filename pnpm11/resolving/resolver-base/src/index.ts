@@ -313,7 +313,7 @@ function libcMatches (variantLibc: string | undefined, requestedLibc: string | n
   return variantLibc === requestedLibc
 }
 
-function pickSupported<T extends string | null | undefined> (requirements: string[] | undefined, hostValue: T): string | T {
+function pickSupported<HostValue extends string | null | undefined> (requirements: string[] | undefined, hostValue: HostValue): string | HostValue {
   if (!requirements?.length) return hostValue
   if (requirements.some((requirement) => requirement === 'current' || requirement === hostValue)) return hostValue
   return requirements[0]
@@ -413,6 +413,8 @@ export interface ResolveOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  /** Release-age cutoff to try when the time-based cutoff has no match. */
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   projectDir: string
   lockfileDir: string

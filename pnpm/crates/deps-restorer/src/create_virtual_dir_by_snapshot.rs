@@ -186,10 +186,8 @@ impl CreateVirtualDirBySnapshot<'_> {
         Ok((slot, lock, interrupted_build))
     }
 
-    /// The method this slot's files are imported with — the configured one,
-    /// unless a build or patch is still going to write them.
     fn import_method(&self) -> PackageImportMethod {
-        effective_import_method(self.import.method, self.source.needs_build)
+        self.import.method_for(self.source.is_mutable, self.source.needs_build)
     }
 
     fn import_slot<Reporter: self::Reporter>(

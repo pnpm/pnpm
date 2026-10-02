@@ -87,7 +87,7 @@ test('env remove deletes a pnpm-managed Node when there is no global bin directo
   fs.mkdirSync(path.join(nodejsDir, '20.0.0'), { recursive: true })
 
   await env.handler({
-    // @ts-expect-error
+    // @ts-expect-error bin is typed as required, but the test simulates a missing global bin directory
     bin: undefined,
     global: true,
     pnpmHomeDir,
@@ -111,7 +111,7 @@ test('env remove removes a matching global node package when there is no global 
   createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
 
   await env.handler({
-    // @ts-expect-error
+    // @ts-expect-error bin is typed as required, but the test simulates a missing global bin directory
     bin: undefined,
     global: true,
     pnpmHomeDir,
@@ -128,7 +128,7 @@ test('env remove removes a matching global node package when there is no global 
 test('fail if there is no global bin directory', async () => {
   await expect(
     env.handler({
-      // @ts-expect-error
+      // @ts-expect-error bin is typed as required, but the test simulates a missing global bin directory
       bin: undefined,
       global: true,
       pnpmHomeDir: '/tmp/pnpm-home',

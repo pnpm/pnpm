@@ -3,7 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use pretty_assertions::assert_eq;
 use std::{fs, process::Command};
 
@@ -220,6 +220,59 @@ fn config_set_ca_array_json_writes_unbracketed_ca_keys_to_clean_file() {
     assert!(text.contains("ca=cert-y"));
     assert!(!text.contains("ca[]="));
     assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    drop(root);
+}
+
+/// A project's `pnpm-workspace.yaml` carries no machine-level state, so
+/// `--location=project` refuses one and tells the user where it belongs.
+#[test]
+fn config_set_refuses_a_machine_level_key_in_the_project_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: ~/store\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["config", "set", "--location=project", "state-dir", "/somewhere"])
+        .output()
+        .expect("run pnpm config set");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "unexpected success: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING"), "stderr={stderr}");
+    assert_diagnostic_contains(
+        &stderr,
+        "Set it for the machine instead: pnpm config set --global state-dir",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml"),
+        "storeDir: ~/store\n",
+    );
+
+    drop(root);
+}
+
+/// `pnpm config get registries` prints a registry's `networkConcurrency` as
+/// the `registries` entry in `pnpm-workspace.yaml` wrote it.
+#[test]
+fn config_get_registries_shows_a_registry_network_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "registries:\n  https://npm.corp.example/:\n    scopes: ['@acme']\n    networkConcurrency: 4\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["config", "get", "registries", "--json"])
+        .output()
+        .expect("run pacquet config get registries");
+    eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    let registries: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("registries print as JSON");
+    assert_eq!(registries["https://npm.corp.example/"]["networkConcurrency"], 4);
 
     drop(root);
 }

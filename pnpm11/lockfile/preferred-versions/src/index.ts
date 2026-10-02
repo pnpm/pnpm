@@ -18,29 +18,30 @@ export function getPreferredVersionsFromLockfileAndManifests (
   manifests: Array<DependencyManifest | ProjectManifest>,
   opts: { catalogs?: Catalogs, dedupe?: boolean } = {}
 ): PreferredVersions {
-  // All maps in here are keyed by package names and specifiers coming from
-  // manifests and the lockfile — attacker-controlled inputs. Null-prototype
-  // objects make a crafted key (e.g. `__proto__`) a plain own key instead of
-  // a write through Object.prototype.
   const preferredVersions: PreferredVersions = Object.create(null)
+  const catalogs = opts.catalogs ?? {}
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
     for (const [name, bareSpecifier] of Object.entries(specs)) {
-      const spec = resolveCatalogSpec(opts.catalogs ?? {}, name, bareSpecifier)
-      if (spec == null) continue
-      const selector = getVersionSelectorType(spec)
-      if (!selector) continue
-      preferredVersions[name] = preferredVersions[name] ?? (Object.create(null) as VersionSelectors)
-      preferredVersions[name][spec] = {
-        selectorType: selector.type,
-        weight: DIRECT_DEP_SELECTOR_WEIGHT,
-      }
+      addDirectDepSpecifier(preferredVersions, catalogs, name, bareSpecifier)
     }
   }
   if (!snapshots) return preferredVersions
   // Dedupe must let newly resolved dependencies compete with lockfile versions.
   addPreferredVersionsFromLockfile(snapshots, preferredVersions, opts.dedupe ? 1 : EXISTING_VERSION_SELECTOR_WEIGHT)
   return preferredVersions
+}
+
+function addDirectDepSpecifier (preferredVersions: PreferredVersions, catalogs: Catalogs, name: string, bareSpecifier: string): void {
+  const spec = resolveCatalogSpec(catalogs, name, bareSpecifier)
+  if (spec == null) return
+  const selector = getVersionSelectorType(spec)
+  if (!selector) return
+  preferredVersions[name] = preferredVersions[name] ?? (Object.create(null) as VersionSelectors)
+  preferredVersions[name][spec] = {
+    selectorType: selector.type,
+    weight: DIRECT_DEP_SELECTOR_WEIGHT,
+  }
 }
 
 /**
@@ -58,46 +59,36 @@ function resolveCatalogSpec (catalogs: Catalogs, alias: string, bareSpecifier: s
 }
 
 function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions, weight: number): void {
-  // The snapshots object can contain multiple entries with the same package
-  // name and version. This is because a dependency can appear multiple times
-  // with the same version in the lockfile due to peer dependency resolution. To
-  // avoid inflating the weight of package versions that appear multiple times,
-  // generate a map with only the unique set to iterate over.
-  const uniqueNameVersions: Record<string, Set<string>> = Object.create(null)
-  for (const [depPath, snapshot] of Object.entries(snapshots)) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    uniqueNameVersions[name] ??= new Set()
-    uniqueNameVersions[name].add(version)
-  }
-
+  const uniqueNameVersions = collectUniqueNameVersions(snapshots)
   for (const [name, versions] of Object.entries(uniqueNameVersions)) {
+    preferredVersions[name] ??= Object.create(null) as VersionSelectors
+    const selectors = preferredVersions[name]
     for (const version of versions) {
-      preferredVersions[name] ??= Object.create(null) as VersionSelectors
-
-      const existingSelector = preferredVersions[name][version]
-      if (existingSelector == null) {
-        preferredVersions[name][version] = { selectorType: 'version', weight }
-        continue
-      }
-
-      // The lookup for this selector was for an exact version and not a range
-      // or tag. If there's an existing selector and it's not for a version,
-      // that's unexpected and our program state is corrupted.
-      const existingSelectorType = typeof existingSelector === 'string'
-        ? existingSelector
-        : existingSelector.selectorType
-      if (existingSelectorType !== 'version') {
-        throw new Error(`Encountered unexpected version selector '${existingSelectorType}' for dependency '${name}@${version}'`)
-      }
-
-      // There might be an existing selector on this exact version from a direct
-      // dependency. If so, we should increase its weight. This allows a version
-      // present in the lockfile that's also used by a direct dependency to be
-      // considered at a higher priority than a package with only one of the two
-      // criteria.
-      preferredVersions[name][version] = addWeightToVersionSelector(existingSelector, weight)
+      addLockfileVersionToSelectors(selectors, name, version, weight)
     }
   }
+}
+
+function addLockfileVersionToSelectors (
+  selectors: VersionSelectors,
+  name: string,
+  version: string,
+  weight: number
+): void {
+  const existingSelector = selectors[version]
+  if (existingSelector == null) {
+    selectors[version] = { selectorType: 'version', weight }
+    return
+  }
+
+  const existingSelectorType = typeof existingSelector === 'string'
+    ? existingSelector
+    : existingSelector.selectorType
+  if (existingSelectorType !== 'version') {
+    throw new Error(`Encountered unexpected version selector '${existingSelectorType}' for dependency '${name}@${version}'`)
+  }
+
+  selectors[version] = addWeightToVersionSelector(existingSelector, weight)
 }
 
 function addWeightToVersionSelector (
@@ -108,3 +99,14 @@ function addWeightToVersionSelector (
     ? { selectorType: selector, weight: weight + 1 }
     : { selectorType: selector.selectorType, weight: selector.weight + weight }
 }
+
+function collectUniqueNameVersions (snapshots: PackageSnapshots): Record<string, Set<string>> {
+  const uniqueNameVersions: Record<string, Set<string>> = Object.create(null)
+  for (const [depPath, snapshot] of Object.entries(snapshots)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+    uniqueNameVersions[name] ??= new Set()
+    uniqueNameVersions[name].add(version)
+  }
+  return uniqueNameVersions
+}
+

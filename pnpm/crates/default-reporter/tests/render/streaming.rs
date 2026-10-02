@@ -3,6 +3,7 @@ use super::{
     fetching_in_progress, fetching_started, interleaved_lifecycle_events, lifecycle_stdio_events,
     pnpm_log, progress, progress_at, render, stage_at, state, state_with_options,
 };
+use pnpm_reporter::{LifecycleLog, LifecycleMessage};
 
 #[test]
 fn prints_progress_on_first_download() {
@@ -105,6 +106,44 @@ fn loglevel_error_suppresses_warnings_and_the_visual_streams() {
         ],
     );
     assert_eq!(frame, "");
+}
+
+#[test]
+fn loglevel_warn_keeps_failed_lifecycle_output() {
+    let mut reporter = state_with_options(ReporterOptions {
+        append_only: true,
+        max_log_level: MaxLogLevel::Warn,
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            aggregate_output: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    });
+    let mut events = lifecycle_stdio_events();
+    events.push(LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Exit {
+            dep_path: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+            exit_code: 1,
+            optional: false,
+            stage: "postinstall".to_string(),
+            wd: "/repo/node_modules/.pnpm/esbuild@1.0.0".to_string(),
+        },
+    }));
+
+    let lines = super::emitted_lines(&mut reporter, events);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("node install.js")),
+        "lines: {lines:#?}",
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("downloading the binary")),
+        "lines: {lines:#?}",
+    );
 }
 
 #[test]

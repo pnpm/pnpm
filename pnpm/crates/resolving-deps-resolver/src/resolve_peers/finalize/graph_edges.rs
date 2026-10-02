@@ -235,7 +235,7 @@ impl<'a> PeerNameTarjan<'a> {
     }
 }
 
-fn merge_additional_edges(
+pub(crate) fn merge_additional_edges(
     existing: &mut DependenciesGraphNode,
     candidate: DependenciesGraphNode,
     transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,

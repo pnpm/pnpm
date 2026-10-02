@@ -116,6 +116,23 @@ fn moves_fixed_progress_line_to_the_end() {
 }
 
 #[test]
+fn ignores_progress_after_importing_done() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(CWD, Stage::ResolutionStarted),
+            progress("resolved"),
+            progress("fetched"),
+            stage_at(CWD, Stage::ResolutionDone),
+            stage_at(CWD, Stage::ImportingDone),
+            progress("found_in_store"),
+        ],
+    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0, done");
+}
+
+#[test]
 fn stats_render_packages_line_and_bar() {
     let mut reporter = state(false);
     let frame = render(

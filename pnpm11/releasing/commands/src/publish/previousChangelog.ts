@@ -9,7 +9,7 @@ import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@p
 import { fetchMetadataFromFromRegistry } from '@pnpm/resolving.npm-resolver'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { lt, rsort, valid } from 'semver'
-import tar from 'tar-stream'
+import tar, { type ExtractEvents } from 'tar-stream'
 
 import { readResponseBodyCapped } from '../tarball/readResponseBodyCapped.js'
 
@@ -159,25 +159,32 @@ async function extractTarballEntry (tarballData: Buffer, entryName: string): Pro
   const extract = tar.extract()
   return new Promise<string | undefined>((resolve) => {
     let contents: string | undefined
+    const resolveUndefined = (): void => {
+      resolve(undefined)
+    }
     extract.on('entry', (header, stream, next) => {
       if (header.name !== entryName) {
-        stream.resume()
-        stream.on('end', next)
-        stream.on('error', () => resolve(undefined))
+        skipTarEntry(stream, next, resolveUndefined)
         return
       }
       const chunks: Buffer[] = []
       stream.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
-      stream.on('error', () => resolve(undefined))
+      stream.on('error', resolveUndefined)
       stream.on('end', () => {
         contents = Buffer.concat(chunks).toString('utf8')
         next()
       })
     })
-    extract.on('error', () => resolve(undefined))
+    extract.on('error', resolveUndefined)
     extract.on('finish', () => resolve(contents))
     extract.end(tarData)
   })
+}
+
+function skipTarEntry (stream: ExtractEvents['entry'][1], next: () => void, onError: () => void): void {
+  stream.resume()
+  stream.on('end', next)
+  stream.on('error', onError)
 }
 
 /**

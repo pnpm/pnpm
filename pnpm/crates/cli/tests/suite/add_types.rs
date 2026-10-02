@@ -4,6 +4,11 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{fmt::Write as _, fs, path::Path, process::Command};
 
+/// A mirror stored without an `ETag` is reused for five minutes, so the
+/// tests that count metadata requests serve one to keep every lookup a
+/// registry request.
+const METADATA_ETAG: &str = r#""1""#;
+
 fn serve_package(server: &mut mockito::Server, name: &str, extra: &Value) -> Vec<mockito::Mock> {
     let (version, packument) = package_metadata(server, name, extra);
     let encoded = name.replace('/', "%2f");
@@ -456,6 +461,7 @@ fn bulk_add_fetches_only_required_metadata_formats() {
                 .mock("GET", mockito::Matcher::Regex(format!("(?i)^/{encoded}$")))
                 .match_header("accept", "application/json; q=1.0, */*")
                 .with_header("content-type", "application/json")
+                .with_header("etag", METADATA_ETAG)
                 .with_body(packument.to_string())
                 .expect(usize::from(!types_package))
                 .create(),
@@ -468,6 +474,7 @@ fn bulk_add_fetches_only_required_metadata_formats() {
                     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
                 )
                 .with_header("content-type", "application/json")
+                .with_header("etag", METADATA_ETAG)
                 .with_body(packument.to_string())
                 .expect(1 + usize::from(types_package))
                 .create(),
@@ -528,6 +535,7 @@ fn jsr_sources_and_direct_jsr_registry_packages_use_their_own_metadata_policy() 
                     )
                     .match_header("accept", accept)
                     .with_header("content-type", "application/json")
+                    .with_header("etag", METADATA_ETAG)
                     .with_body(body.to_string())
                     .expect(count)
                     .create(),

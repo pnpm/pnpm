@@ -793,3 +793,70 @@ test('lockfileToPackageRegistry writes workspace dependency locators with forwar
     joinSpy.mockRestore()
   }
 })
+
+const lockfileWithPackageRootLink: LockfileObject = {
+  importers: {
+    ['.' as ProjectId]: {
+      dependencies: { parent: '1.0.0' },
+      specifiers: { parent: '1.0.0' },
+    },
+  },
+  lockfileVersion: '9.0',
+  packages: {
+    ['parent@1.0.0' as DepPath]: {
+      resolution: { integrity: '' },
+      dependencies: { child: 'link:<root>/child' },
+    },
+  },
+}
+
+test('lockfileToPackageRegistry locates a link:<root> dependency inside the package that declares it', () => {
+  const packageRegistry = lockfileToPackageRegistry(lockfileWithPackageRootLink, {
+    importerNames: {},
+    lockfileDir: process.cwd(),
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const childLocation = './node_modules/.pnpm/parent@1.0.0/node_modules/parent/child/'
+  expect(packageRegistry.get('parent')!.get('1.0.0')!.packageDependencies.get('child')).toBe(childLocation)
+  expect(packageRegistry.get('child')!.get(childLocation)!.packageLocation).toBe(childLocation)
+})
+
+test('lockfileToPackageMap locates a link:<root> dependency inside the package that declares it', () => {
+  const packageMap = lockfileToPackageMap(lockfileWithPackageRootLink, {
+    importerNames: { '.': 'root' },
+    lockfileDir: process.cwd(),
+    rootModulesDir: path.resolve('node_modules'),
+    virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const childId = packageMap.packages['parent@1.0.0'].dependencies.child
+  expect(packageMap.packages[childId].url).toBe('./.pnpm/parent@1.0.0/node_modules/parent/child')
+})
+
+test('dependenciesGraphToPackageMap locates a link:<root> dependency inside the package that declares it', () => {
+  const rootModulesDir = path.resolve('node_modules')
+  const parentDir = path.join(rootModulesDir, 'parent')
+  const packageMap = dependenciesGraphToPackageMap({
+    directDependenciesByImporterId: { '.': { parent: parentDir } },
+    graph: {
+      [parentDir]: {
+        children: {},
+        depPath: 'parent@1.0.0' as DepPath,
+        dir: parentDir,
+        name: 'parent',
+      },
+    },
+    importerNames: { '.': 'root' },
+    lockfile: lockfileWithPackageRootLink,
+    lockfileDir: process.cwd(),
+    packageIdStrategy: 'path',
+    rootModulesDir,
+  })
+
+  const childId = packageMap.packages.parent.dependencies.child
+  expect(packageMap.packages[childId].url).toBe('./parent/child')
+})

@@ -104,6 +104,7 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
     config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
+    config.cli_settings.insert("registry".to_string());
 }
 
 pub(super) fn normalize_registry_url(registry: &str) -> String {
@@ -111,6 +112,20 @@ pub(super) fn normalize_registry_url(registry: &str) -> String {
 }
 
 impl ConfigOverrides {
+    fn record_cli_settings(&self, config: &mut Config) {
+        config.cli_settings.extend(
+            self.settings
+                .iter()
+                .map(|key| {
+                    if super::tokens::scoped_registry_key(key).is_some() {
+                        key.clone()
+                    } else {
+                        pnpm_config::naming_cases::to_camel_case(key)
+                    }
+                }),
+        );
+    }
+
     /// Layer the CLI overrides on top of a [`Config`] that has already
     /// been built from defaults, `.npmrc`, and `pnpm-workspace.yaml`.
     /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
@@ -118,46 +133,68 @@ impl ConfigOverrides {
     /// `dir` is the canonicalized `--dir`, the fallback base for a
     /// relative path-valued setting outside a workspace.
     pub fn apply(&self, config: &mut Config, dir: &Path) {
+        self.record_cli_settings(config);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
         record_overrides!(self, config, allow_unused_patches => "allowUnusedPatches");
-        copy_overrides!(
-            self,
-            config,
-            bail,
-            ci,
-            color,
-            embed_readme,
-            ignore_workspace_root_check,
-            optional,
-        );
+        self.apply_command_flag_overrides(config);
         self.apply_lockfile_overrides(config);
-        copy_overrides!(self, config, pending, progress, recursive_install, reverse);
+        self.apply_recursive_list_overrides(config);
         self.apply_hoist_overrides(config);
-        copy_overrides!(
-            self,
-            config,
-            shell_emulator,
-            skip_manifest_obfuscation,
-            sort,
-            use_beta_cli
-        );
+        self.apply_deploy_overrides(config);
         self.apply_registry_overrides(config);
-        copy_overrides!(self, config, deploy_all_files, force_legacy_deploy);
-        // `pnpm config get ignore-scripts` answers from the explicitly-set
-        // settings, so a CLI-set value has to be recorded there to be
-        // reported as set while it suppresses the scripts.
         record_overrides!(self, config, ignore_scripts => "ignoreScripts");
-        copy_overrides!(self, config, inject_workspace_packages);
+        record_overrides!(self, config, inject_workspace_packages => "injectWorkspacePackages");
         self.apply_socket_and_release_age_overrides(config);
         self.apply_linker_and_run_overrides(config);
         self.apply_trust_and_cache_overrides(config);
         self.apply_install_policy_overrides(config);
         self.apply_global_directory(config, dir);
         self.apply_lockfile_anchored_paths(config, dir);
+    }
+
+    /// Flags that shape how a command runs and reports, without changing
+    /// what gets installed.
+    fn apply_command_flag_overrides(&self, config: &mut Config) {
+        record_overrides!(
+            self,
+            config,
+            bail => "bail",
+            ci => "ci",
+            embed_readme => "embedReadme",
+            ignore_workspace_root_check => "ignoreWorkspaceRootCheck",
+            optional => "optional",
+        );
+        record_enum_overrides!(self, config, color => "color");
+    }
+
+    /// Options of the recursive and listing commands.
+    fn apply_recursive_list_overrides(&self, config: &mut Config) {
+        record_overrides!(
+            self,
+            config,
+            pending => "pending",
+            progress => "progress",
+            recursive_install => "recursiveInstall",
+            reverse => "reverse",
+        );
+    }
+
+    /// Deployment options and the remaining command-line toggles.
+    fn apply_deploy_overrides(&self, config: &mut Config) {
+        record_overrides!(
+            self,
+            config,
+            shell_emulator => "shellEmulator",
+            skip_manifest_obfuscation => "skipManifestObfuscation",
+            sort => "sort",
+            use_beta_cli => "useBetaCli",
+            deploy_all_files => "deployAllFiles",
+            force_legacy_deploy => "forceLegacyDeploy",
+        );
     }
 
     fn apply_global_directory(&self, config: &mut Config, dir: &Path) {
@@ -219,6 +256,7 @@ impl ConfigOverrides {
     fn apply_lockfile_overrides(&self, config: &mut Config) {
         if let Some(value) = self.package_lock {
             config.package_lock = value;
+            config.explicit_settings.insert("packageLock".to_string(), value.into());
             if self.lockfile.is_none() && !config.explicit_settings.contains_key("lockfile") {
                 config.lockfile = value;
             }
@@ -289,6 +327,7 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.max_sockets {
             config.max_sockets = Some(value);
+            config.explicit_settings.insert("maxSockets".to_string(), value.into());
         }
         // pnpm seeds `explicitlySetKeys` from the command line as well as
         // from the config files, and the workspace state reads it back to
@@ -316,6 +355,7 @@ impl ConfigOverrides {
     fn apply_linker_and_run_overrides(&self, config: &mut Config) {
         if let Some(value) = self.node_linker {
             config.node_linker = value;
+            config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
             // A CLI-selected hoisted linker turns the default on just
             // like a yaml-selected one — pnpm merges CLI options before
             // its `nodeLinker` switch, so the derivation must see this
@@ -324,9 +364,11 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.pm_on_fail {
             config.pm_on_fail = Some(value);
+            config.explicit_settings.insert("pmOnFail".to_string(), setting_value(value));
         }
         if let Some(value) = self.runtime_on_fail {
             config.runtime_on_fail = Some(value);
+            config.explicit_settings.insert("runtimeOnFail".to_string(), setting_value(value));
         }
         record_overrides!(self, config, shared_workspace_lockfile => "sharedWorkspaceLockfile");
         // The `pnpm_config_verify_deps_before_run` env var outranks even
@@ -378,6 +420,9 @@ impl ConfigOverrides {
             .clone()
             .or_else(|| config.workspace_dir.clone())
             .unwrap_or_else(|| dir.to_path_buf());
+        if let Some(raw) = &self.virtual_store_dir {
+            config.set_virtual_store_dir(lexical_normalize(&anchor.join(raw)));
+        }
         config.anchor_lockfile_paths(&anchor);
         let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
         let global_virtual_store_dir_explicit =

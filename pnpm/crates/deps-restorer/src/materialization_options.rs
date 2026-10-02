@@ -21,6 +21,36 @@ pub struct PackageImportOptions<'a> {
     /// `requester`. Same value as the `prefix` in
     /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
+    /// Mirrors [`Config::isolate_local_directory_imports`].
+    pub isolate_mutable_sources: bool,
+}
+
+impl<'a> PackageImportOptions<'a> {
+    #[must_use]
+    pub fn from_config(config: &Config, logged_methods: &'a AtomicU8, requester: &'a str) -> Self {
+        PackageImportOptions {
+            method: config.package_import_method,
+            logged_methods,
+            requester,
+            isolate_mutable_sources: config.isolate_local_directory_imports,
+        }
+    }
+
+    /// The method a package's files are actually materialized with: `clone-or-copy`
+    /// when a build or patch will still write them, or when the source is a
+    /// mutable local directory this install must not share inodes with;
+    /// `hardlink` for any other mutable local directory under the `auto`
+    /// method, so an in-place edit of the source reaches the injected copy,
+    /// as pnpm v11's directory fetcher asks for; [`Self::method`] otherwise.
+    #[must_use]
+    pub fn method_for(&self, source_is_mutable: bool, needs_build: bool) -> PackageImportMethod {
+        let needs_private_files =
+            needs_build || (source_is_mutable && self.isolate_mutable_sources);
+        if source_is_mutable && !needs_private_files && self.method == PackageImportMethod::Auto {
+            return PackageImportMethod::Hardlink;
+        }
+        crate::effective_import_method(self.method, needs_private_files)
+    }
 }
 
 #[derive(Clone, Copy)]

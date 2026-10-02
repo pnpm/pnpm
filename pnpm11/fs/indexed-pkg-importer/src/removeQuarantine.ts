@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
+import { isError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 
 const QUARANTINE_ATTR = 'com.apple.quarantine'
@@ -88,5 +89,5 @@ function getStderr (err: unknown): string {
     const stderr = (err as { stderr?: Buffer | string }).stderr
     if (stderr != null) return stderr.toString()
   }
-  return err instanceof Error ? err.message : String(err)
+  return isError(err) ? err.message : String(err)
 }

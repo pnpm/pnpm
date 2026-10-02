@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU8, Ordering},
 };
+use target_mode::{align_target_mode, desired_permissions, source_has_desired_mode};
 
 /// Error type for [`link_file`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -256,7 +257,7 @@ fn is_placed_concurrently(error: &io::Error, source_file: &Path, target_link: &P
 }
 
 /// Materialize an independent copy of `source_file` over `target_link`
-/// carrying the current process's [`desired_mode`], leaving `source_file`
+/// carrying its [`desired_permissions`], leaving `source_file`
 /// untouched.
 fn replace_shared_inode_with_copy(source_file: &Path, target_link: &Path) -> io::Result<()> {
     pnpm_fs::copy_file_atomic_with_permissions(
@@ -426,25 +427,13 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     STATE.import::<Reporter, Sys>(method, logged, source_file, target_link)
 }
 
-/// Materialize `source_file` at `target_link` for the copy tier, at the
-/// mode a fresh store write under the current umask would give the CAS
-/// entry rather than the source's population-time mode (pnpm/pnpm#3807).
+/// Materialize `source_file` at `target_link` for the copy tier.
 ///
 /// [`pnpm_fs::copy_file_exclusive`] creates the target exclusively, so
 /// an occupied target raises `AlreadyExists` and reaches
 /// [`recover_from_concurrent_import`], where every tier sends one. A
 /// partial file it removes on failure would otherwise be adopted by a
 /// later import as a concurrent writer's finished work.
-fn desired_permissions(source_file: &Path) -> io::Result<fs::Permissions> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        Ok(fs::Permissions::from_mode(desired_mode(source_file)))
-    }
-    #[cfg(not(unix))]
-    fs::File::open(source_file)?.metadata().map(|meta| meta.permissions())
-}
-
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     pnpm_fs::copy_file_exclusive(
         source_file,
@@ -459,48 +448,6 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Result<()> {
     Sys::reflink(source_file, target_link)?;
     align_target_mode(source_file, target_link)
-}
-
-/// The mode the materialized file should carry: what a fresh store
-/// write under the current process umask would give this CAS entry
-/// (pnpm/pnpm#3807).
-#[cfg(unix)]
-fn desired_mode(source_file: &Path) -> u32 {
-    pnpm_fs::file_mode::store_entry_mode(
-        pnpm_fs::file_mode::cas_path_is_executable(source_file),
-        pnpm_fs::file_mode::current_umask(),
-    )
-}
-
-/// Whether `source_file`'s on-disk mode is [`desired_mode`]. A mode that
-/// differs cannot be fixed on a store inode, so the hardlink tiers copy
-/// instead; a reflink that copied the same mode onto the target is
-/// aligned instead.
-#[cfg(unix)]
-fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    use std::os::unix::fs::MetadataExt;
-    Ok(fs::metadata(source_file)?.mode() & 0o777 == desired_mode(source_file))
-}
-
-/// Align a materialized `target_link` with the mode a fresh store write
-/// under the current umask would give `source_file`. A reflink carries the
-/// source's mode onto the target — `clonefile` copies its attributes and the
-/// reflink tier sets them explicitly — so an entry the store wrote under a
-/// wider umask keeps that wider mode in `node_modules` until it is aligned
-/// here (pnpm/pnpm#3807).
-#[cfg(unix)]
-fn align_target_mode(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    pnpm_fs::file_mode::set_path_permissions(target_link, desired_mode(source_file))
-}
-
-#[cfg(not(unix))]
-fn source_has_desired_mode(_source_file: &Path) -> io::Result<bool> {
-    Ok(true)
-}
-
-#[cfg(not(unix))]
-fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io::Result<()> {
-    Ok(())
 }
 
 #[cfg(unix)]
@@ -684,6 +631,8 @@ fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
         }
     }
 }
+
+mod target_mode;
 
 #[cfg(test)]
 mod tests;

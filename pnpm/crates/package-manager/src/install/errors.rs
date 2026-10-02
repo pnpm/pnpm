@@ -42,6 +42,13 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_NO_LOCKFILE))]
     NoLockfile,
 
+    /// The command stops at the first failure, and the install of another
+    /// workspace project, such as one this project depends on, failed before
+    /// this one linked. The command reports that failure, which is recorded
+    /// before this one.
+    #[display("The install stopped at another workspace project's failure")]
+    WorkspaceDependencyFailed,
+
     /// A `packageExtensions` selector the freshness gates could not parse.
     /// The resolver reports the same error; this reaches it first because
     /// the gates apply the extensions before deciding whether to resolve.
@@ -181,7 +188,7 @@ pub enum InstallError {
 
     /// Surfaces a failure to persist `pnpm-lock.yaml` after the
     /// `cache+node_modules` shortcut regenerated it from the
-    /// materialized snapshot at `<virtual_store_dir>/lock.yaml`.
+    /// materialized snapshot at `<install_state_dir>/lock.yaml`.
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 

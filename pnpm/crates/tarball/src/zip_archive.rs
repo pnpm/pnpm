@@ -319,7 +319,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     max_bytes: Option<usize>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let (client, response_head) = crate::archive_request::request_archive::<Reporter>(
+    let (client, response_head, _) = crate::archive_request::request_archive::<Reporter>(
         http_client,
         package_url,
         package_id,
@@ -327,10 +327,16 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         pnpm_network::UNPRIORITIZED,
         attempt,
         false,
+        None,
     )
     .await?;
-    let buffer =
-        download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes).await?;
+    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes)
+        .await
+        .inspect_err(|error| {
+            if error.is_fetch_timeout() {
+                http_client.downscale_while_peers_active(package_url);
+            }
+        })?;
     drop(client);
 
     let result = ZipExtraction {

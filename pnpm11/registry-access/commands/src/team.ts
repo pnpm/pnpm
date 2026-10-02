@@ -1,12 +1,17 @@
 import { docsUrl } from '@pnpm/cli.utils'
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
-import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
-import { normalizeRegistryUrl, rcOptionsTypes, readErrorBody } from './common.js'
+import { rcOptionsTypes } from './common.js'
+import {
+  getOrgTeamsUrl,
+  getRegistryAndAuthForOrg,
+  getTeamMembersUrl,
+  getTeamUrl,
+  throwRegistryError,
+} from './teamRegistry.js'
 
 export { rcOptionsTypes }
 
@@ -21,57 +26,59 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['team']
 
+const HELP_DESCRIPTION_LISTS = [
+  {
+    title: 'Commands',
+    list: [
+      {
+        description: 'Create a new team in an organization.',
+        name: 'create',
+      },
+      {
+        description: 'Destroy an existing team.',
+        name: 'destroy',
+      },
+      {
+        description: 'Add a user to an existing team.',
+        name: 'add',
+      },
+      {
+        description: 'Remove a user from an existing team.',
+        name: 'rm',
+      },
+      {
+        description: 'List teams in an organization or users in a team.',
+        name: 'ls',
+      },
+    ],
+  },
+  {
+    title: 'Options',
+    list: [
+      {
+        description: 'The base URL of the npm registry.',
+        name: '--registry <url>',
+      },
+      {
+        description: 'One-time password for registries that require two-factor authentication.',
+        name: '--otp',
+      },
+      {
+        description: 'Output parseable results.',
+        name: '--parseable',
+      },
+      {
+        description: 'Output results as JSON.',
+        name: '--json',
+      },
+    ],
+  },
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manage organization teams and team memberships.',
-    descriptionLists: [
-      {
-        title: 'Commands',
-        list: [
-          {
-            description: 'Create a new team in an organization.',
-            name: 'create',
-          },
-          {
-            description: 'Destroy an existing team.',
-            name: 'destroy',
-          },
-          {
-            description: 'Add a user to an existing team.',
-            name: 'add',
-          },
-          {
-            description: 'Remove a user from an existing team.',
-            name: 'rm',
-          },
-          {
-            description: 'List teams in an organization or users in a team.',
-            name: 'ls',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-        list: [
-          {
-            description: 'The base URL of the npm registry.',
-            name: '--registry <url>',
-          },
-          {
-            description: 'One-time password for registries that require two-factor authentication.',
-            name: '--otp',
-          },
-          {
-            description: 'Output parseable results.',
-            name: '--parseable',
-          },
-          {
-            description: 'Output results as JSON.',
-            name: '--json',
-          },
-        ],
-      },
-    ],
+    descriptionLists: HELP_DESCRIPTION_LISTS,
     url: docsUrl('team'),
     usages: [
       'pnpm team create <scope:team> [--otp <code>]',
@@ -360,7 +367,17 @@ async function teamListMembers (options: TeamListOptions & { team: string }): Pr
   }
 
   const members = await response.json() as TeamMember[]
+  return formatTeamMembers(members, { scope, team, parseable, json })
+}
 
+interface TeamMembersFormat {
+  scope: string
+  team: string
+  parseable: boolean
+  json: boolean
+}
+
+function formatTeamMembers (members: TeamMember[], { scope, team, parseable, json }: TeamMembersFormat): string {
   if (json) {
     return JSON.stringify(members.map(m => m.name), null, 2)
   }
@@ -407,62 +424,4 @@ function parseScopeTeam (spec: string): { scope: string, team?: string } {
       `Team spec must start with @scope, got "${spec}". Use @scope or @scope:team format.`)
   }
   return { scope, team }
-}
-
-function getRegistryAndAuthForOrg (
-  opts: TeamOptions,
-  scope: string
-): { registryUrl: string, authHeader: string | undefined } {
-  const pkgName = `@${scope}/__pnpm_team__`
-  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, pkgName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, pkgName)
-  if (!authHeader) {
-    throw new PnpmError('TEAM_MISSING_AUTH', 'Authentication required for registry access')
-  }
-  return { registryUrl, authHeader }
-}
-
-function getAuthHeaderForRegistry (
-  configByUri: Record<string, RegistryConfig> | undefined,
-  registryUrl: string,
-  packageName: string
-): string | undefined {
-  const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
-  return getAuthHeader(registryUrl, { pkgName: packageName })
-}
-
-function getOrgTeamsUrl (registryUrl: string, scope: string): string {
-  return new URL(`-/org/${encodeURIComponent(scope)}/team`, normalizeRegistryUrl(registryUrl)).href
-}
-
-function getTeamUrl (registryUrl: string, scope: string, team: string): string {
-  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}`, normalizeRegistryUrl(registryUrl)).href
-}
-
-function getTeamMembersUrl (registryUrl: string, scope: string, team: string): string {
-  return new URL(`-/team/${encodeURIComponent(scope)}/${encodeURIComponent(team)}/user`, normalizeRegistryUrl(registryUrl)).href
-}
-
-async function throwRegistryError (response: Response, action: string): Promise<never> {
-  const errorBody = await readErrorBody(response)
-  const safeErrorBody = [...errorBody]
-    .filter(c => {
-      const code = c.charCodeAt(0)
-      return code > 0x1f && (code < 0x7f || code > 0x9f)
-    })
-    .join('')
-    .slice(0, 500)
-  if (response.status === 401) {
-    throw new PnpmError('UNAUTHORIZED', `You must be logged in to ${action}. ${safeErrorBody}`)
-  }
-  if (response.status === 403) {
-    throw new PnpmError('FORBIDDEN', `You do not have permission to ${action}. ${safeErrorBody}`)
-  }
-  if (response.status === 404) {
-    throw new PnpmError('NOT_FOUND', `Organization or team not found. ${safeErrorBody}`)
-  }
-  if (response.status === 409) {
-    throw new PnpmError('TEAM_CONFLICT', `Team operation failed due to conflict. ${safeErrorBody}`)
-  }
-  throw new PnpmError('REGISTRY_ERROR', `Failed to ${action}: ${response.status} ${response.statusText}. ${safeErrorBody}`)
 }

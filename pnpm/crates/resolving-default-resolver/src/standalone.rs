@@ -30,8 +30,8 @@ use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    merge_named_registries, shared_in_memory_cache, shared_packument_fetch_locker,
-    shared_picked_manifest_cache,
+    OfflineStoreView, merge_named_registries, shared_in_memory_cache,
+    shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 use pnpm_resolving_tarball_resolver::TarballResolver;
@@ -144,8 +144,12 @@ fn build_npm_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
-        store_index: None,
+        store_view: offline_store_view(config),
     }
+}
+
+fn offline_store_view(config: &Config) -> Option<OfflineStoreView> {
+    OfflineStoreView::open_for_offline(config.offline, &config.store_dir, config.frozen_store)
 }
 
 fn build_node_resolver(config: &Config, http_client: &Arc<ThrottledClient>) -> NodeResolver {
@@ -204,5 +208,6 @@ fn build_named_registry_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
+        store_view: offline_store_view(config),
     })
 }

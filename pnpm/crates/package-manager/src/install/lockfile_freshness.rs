@@ -1,10 +1,12 @@
 pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
+pub(crate) use directory_deps::{ProjectManifestsByDir, project_manifests_by_dir};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
-    ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
+    ImporterSatisfactionCheck, OptionalDependencyExclusions, WorkspaceProjects,
+    check_importer_satisfies,
 };
 
 use rayon::prelude::*;
@@ -108,7 +110,7 @@ async fn workspace_manifests_satisfy(
             pnpmfile_hook: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
-                allow_missing_dependency_free_importers: false,
+                allow_missing_dependency_free_importers: true,
                 allow_unresolved_optional_dependencies: false,
                 prune_stale_importers: true,
             },
@@ -247,10 +249,11 @@ fn unclaimed_importer_id<'a>(
         .find(|importer_id| !manifest_ids.contains(importer_id) && matches(importer_id))
 }
 
-/// Fail on an importer no project claims whose directory holds no project
-/// manifest. A project left out of the workspace patterns keeps its manifest
-/// and a frozen install skips it, but one whose directory or manifest is gone
-/// cannot be installed at all.
+/// Fail on an importer no project claims whose directory exists but holds no
+/// project manifest, since that project cannot be installed. A frozen install
+/// skips a project left out of the workspace patterns, which keeps its
+/// manifest, and one whose whole directory is absent, as in a Docker build
+/// context that excludes it.
 pub(super) fn check_importer_manifests_exist(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
@@ -260,14 +263,17 @@ pub(super) fn check_importer_manifests_exist(
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
         let project_dir = inputs.lockfile_dir.join(importer_id);
-        !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
-            .iter()
-            .any(|basename| project_dir.join(basename).exists())
+        project_dir.exists()
+            && !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
+                .iter()
+                .any(|basename| project_dir.join(basename).exists())
     });
     match missing {
-        Some(importer_id) => Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
-            importer_id: importer_id.to_string(),
-        })),
+        Some(importer_id) => {
+            Err(FreshnessCheckError::Stale(StalenessReason::ImporterWithoutManifest {
+                importer_id: importer_id.to_string(),
+            }))
+        }
         None => Ok(()),
     }
 }
@@ -347,6 +353,8 @@ fn check_importer_freshness(
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
+    let project_manifests =
+        project_manifests_by_dir(inputs.manifests.iter().map(|(_, manifest)| *manifest));
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
     // serial fold keeps the first error in importer order, like the
@@ -359,7 +367,7 @@ fn check_importer_freshness(
                 lockfile,
                 inputs,
                 parsed_overrides,
-                &ignored_optional_matcher,
+                (&ignored_optional_matcher, &project_manifests),
                 importer_id,
                 manifest,
             )
@@ -376,7 +384,10 @@ fn check_single_importer(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    ignored_optional_matcher: &pnpm_matcher::Matcher,
+    (ignored_optional_matcher, project_manifests): (
+        &pnpm_matcher::Matcher,
+        &ProjectManifestsByDir<'_>,
+    ),
     importer_id: &str,
     manifest: &PackageManifest,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
@@ -392,7 +403,10 @@ fn check_single_importer(
         manifest,
         importer_id,
         config: inputs.config,
-        workspace_packages: inputs.workspace_packages,
+        workspace: WorkspaceProjects {
+            packages: inputs.workspace_packages,
+            manifests_by_dir: project_manifests,
+        },
         optional_exclusions: OptionalDependencyExclusions {
             ignored: ignored_optional_matcher,
             allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,

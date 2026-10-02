@@ -2,7 +2,12 @@ use super::{
     Config, Context, DependencyGroup, InstallFamilySelection, Matcher, Path, Reporter, State,
     Update, UpdateArgs, build_workspace_packages_map, github_actions, recursive,
 };
-use crate::state::command_lockfile;
+use crate::{
+    cli_args::install::{
+        PnprLink, PnprTarget, install_selected_via_pnpr, install_via_pnpr, pnpr_target,
+    },
+    state::command_lockfile,
+};
 
 fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
     manifest
@@ -71,16 +76,12 @@ impl UpdateArgs {
         let explicit_groups = self.dependency_options.explicit_groups();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
         let lockfile_path = state.lockfile_path();
-        if let Some(pnpr_server) =
-            self.delegated_pnpr_server(state.config, update_actions, &include_direct)
-        {
-            return self.run_patch_refresh::<Reporter>(
-                &state,
-                selection.as_ref(),
-                pnpr_server,
-                &lockfile_path,
-            )
-            .await;
+        if self.can_delegate_patch_refresh(update_actions, &include_direct) {
+            let link = self.pnpr_patch_link(&state, &lockfile_path);
+            if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
+                return run_patch_refresh::<Reporter>(&state, selection.as_ref(), target, link)
+                    .await;
+            }
         }
         let workspace_packages = match &selection {
             Some(selection) => {
@@ -102,30 +103,6 @@ impl UpdateArgs {
             },
         )
         .await
-    }
-
-    async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
-        &self,
-        state: &State,
-        selection: Option<&InstallFamilySelection>,
-        pnpr_server: &str,
-        lockfile_path: &Path,
-    ) -> miette::Result<()> {
-        let link = self.pnpr_patch_link(state, lockfile_path);
-        match selection {
-            Some(selection) => {
-                super::super::install::install_selected_via_pnpr::<Reporter>(
-                    state,
-                    pnpr_server,
-                    selection,
-                    link,
-                )
-                .await
-            }
-            None => {
-                super::super::install::install_via_pnpr::<Reporter>(state, pnpr_server, link).await
-            }
-        }
     }
 
     async fn run_local<Reporter: self::Reporter + 'static>(
@@ -275,17 +252,18 @@ impl UpdateArgs {
     fn updates_packages(&self, package_selectors: &[String]) -> bool {
         !self.selection.interactive || !package_selectors.is_empty()
     }
+}
 
-    /// The pnpr server this run may delegate to, when it has nothing to do
-    /// beyond refreshing patches.
-    fn delegated_pnpr_server<'config>(
-        &self,
-        config: &'config Config,
-        update_actions: bool,
-        include_direct: &[DependencyGroup],
-    ) -> Option<&'config str> {
-        self.can_delegate_patch_refresh(update_actions, include_direct)
-            .then_some(config.pnpr_server.as_deref())
-            .flatten()
+async fn run_patch_refresh<Reporter: self::Reporter + 'static>(
+    state: &State,
+    selection: Option<&InstallFamilySelection>,
+    target: PnprTarget<'_>,
+    link: PnprLink<'_>,
+) -> miette::Result<()> {
+    match selection {
+        Some(selection) => {
+            install_selected_via_pnpr::<Reporter>(state, target, selection, link).await
+        }
+        None => install_via_pnpr::<Reporter>(state, target, link).await,
     }
 }

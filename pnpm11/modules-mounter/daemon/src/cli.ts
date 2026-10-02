@@ -32,4 +32,7 @@ import { createFuseHandlers } from './createFuseHandlers.js'
       }
     })
   })
-})()
+})().catch((err: unknown) => {
+  console.error(err)
+  process.exitCode = 1
+})

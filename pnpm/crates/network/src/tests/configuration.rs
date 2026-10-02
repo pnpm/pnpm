@@ -109,6 +109,7 @@ fn for_installs_honors_custom_network_settings() {
         fetch_warn_timeout: std::time::Duration::from_secs(2),
         fetch_min_speed_ki_bps: 75,
         user_agent: "pnpm/9.9.9 npm/? node/? darwin arm64".to_string(),
+        ..NetworkSettings::default()
     };
     let client = ThrottledClient::for_installs(
         &ProxyConfig::default(),

@@ -85,6 +85,76 @@ fn dedupe_preserves_auto_installed_peer_with_a_newer_major_in_another_importer()
     drop((root, npmrc_info));
 }
 
+/// The root's optional peer is satisfied by the copy `packages/a` installs,
+/// so the root walks that copy's subtree again. Its `foo: *` edge must keep
+/// the version install gave it: <https://github.com/pnpm/pnpm/issues/16447>.
+#[test]
+fn dedupe_check_passes_after_install_with_a_star_dependency_under_a_hoisted_optional_peer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "devDependencies": {
+                "@pnpm.e2e/foo": "^2.0.0",
+                "@pnpm.e2e/has-optional-requires-any-foo-peer": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root manifest");
+    let project = workspace.join("packages/a");
+    fs::create_dir_all(&project).expect("create project");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "devDependencies": {
+                "@pnpm.e2e/foo": "^1.0.0",
+                "@pnpm.e2e/has-optional-requires-any-foo-peer": "1.0.0",
+                "@pnpm.e2e/requires-any-foo": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write project manifest");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let installed = fs::read_to_string(&lockfile_path).expect("read installed lockfile");
+    eprintln!("installed lockfile:\n{installed}");
+    assert!(
+        importer_version(
+            &read_lockfile(&lockfile_path),
+            ".",
+            "@pnpm.e2e/has-optional-requires-any-foo-peer",
+        )
+        .contains("@pnpm.e2e/requires-any-foo@1.0.0"),
+        "the root must bind its optional peer to the copy packages/a installs",
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["dedupe", "--check", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_at(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+    let deduped = fs::read_to_string(&lockfile_path).expect("read deduped lockfile");
+    eprintln!("deduped lockfile:\n{deduped}");
+    assert_eq!(deduped, installed);
+    drop((root, npmrc_info));
+}
+
 #[test]
 fn dedupe_writes_lockfile() {
     let CommandTempCwd {

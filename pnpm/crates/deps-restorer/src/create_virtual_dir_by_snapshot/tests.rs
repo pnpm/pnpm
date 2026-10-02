@@ -170,6 +170,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
             requester: "/proj",
+            isolate_mutable_sources: false,
         },
         source: crate::SlotImportSource {
             is_mutable: false,
@@ -261,6 +262,7 @@ fn needs_build_slots_ignore_the_configured_import_method() {
                 method,
                 logged_methods: &logged_methods,
                 requester: "/proj",
+                isolate_mutable_sources: false,
             },
             source: crate::SlotImportSource {
                 is_mutable,
@@ -311,6 +313,16 @@ fn needs_build_slots_ignore_the_configured_import_method() {
         reported_import_method(PackageImportMethod::Hardlink, true, true),
         WireImportMethod::Clone,
     );
+    // Under the default method, a `file:` package that nothing will build is
+    // hard-linked, so an in-place edit of its source reaches the slot.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Auto, true, false),
+        WireImportMethod::Hardlink,
+    );
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Auto, true, true),
+        WireImportMethod::Clone,
+    );
 }
 
 /// The write-through the issue reports: a build script that rewrites a
@@ -358,6 +370,7 @@ fn a_build_write_does_not_reach_the_import_source() {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
             requester: "/proj",
+            isolate_mutable_sources: false,
         },
         source: crate::SlotImportSource {
             is_mutable: true,
@@ -422,6 +435,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
             method: PackageImportMethod::Copy,
             logged_methods: &logged_methods,
             requester: "/proj",
+            isolate_mutable_sources: false,
         },
         source: crate::SlotImportSource {
             is_mutable: false,
@@ -478,6 +492,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
             method: PackageImportMethod::Copy,
             logged_methods: &AtomicU8::new(0),
             requester: "/proj",
+            isolate_mutable_sources: false,
         },
         source: crate::SlotImportSource {
             is_mutable: false,
@@ -535,6 +550,7 @@ fn run_rejects_traversal_package_name() {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
             requester: "/proj",
+            isolate_mutable_sources: false,
         },
         source: crate::SlotImportSource {
             is_mutable: false,
@@ -600,6 +616,7 @@ async fn run_removes_obsolete_child_links() {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
             requester: "/proj",
+            isolate_mutable_sources: false,
         },
         source: crate::SlotImportSource {
             is_mutable: false,

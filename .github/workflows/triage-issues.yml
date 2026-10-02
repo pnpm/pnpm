@@ -37,6 +37,28 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Assign the author or ask whether they are working on a fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Passed as env, never inlined into the script, so the free-form body
+          # cannot be interpreted as shell code.
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          fix_state=$(.github/scripts/issue-fix-intent.sh <<<"$ISSUE_BODY")
+          case "$fix_state" in
+            checked)
+              # GitHub refuses some authors as assignees. Triage must still run.
+              gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
+                echo "::warning::Could not assign the issue to $AUTHOR"
+              ;;
+            missing)
+              gh issue comment "$ISSUE_URL" --body "@$AUTHOR, are you planning to open a pull request for this? If so, reply here and a maintainer will assign the issue to you, so nobody else starts on the same fix." ||
+                echo "::warning::Could not ask $AUTHOR about a fix"
+              ;;
+          esac
+
       - name: Triage with Oz agent
         uses: warpdotdev/oz-agent-action@261367f00a9899a054aac2661b39e6783f5e7c25 # v1.0.35
         id: triage

@@ -1,7 +1,7 @@
 pub(crate) use resolve::fallback_version;
 
 mod publish;
-use publish::link_publish_modules_dir;
+use publish::remove_publish_modules_link;
 
 mod report;
 use report::emit_root_added;
@@ -41,9 +41,9 @@ use std::{
 /// - Emit one `pnpm:root added` per direct dependency with the
 ///   importer's `rootDir` as the event prefix (a per-project emit).
 ///
-/// The virtual store dir (`config.virtual_store_dir`) stays singular
+/// The virtual store dir (`config.virtual_store_dir()`) stays singular
 /// across the install — only the per-project `node_modules/` and its
-/// symlinks fan out. By default `pnpm_config::default_virtual_store_dir`
+/// symlinks fan out. By default `pnpm_config::default_install_state_dir`
 /// anchors it at `<workspace_root>/node_modules/.pnpm` (matching pnpm),
 /// but the actual location is whatever the resolved `Config` field
 /// holds — `pnpm-workspace.yaml`'s `virtualStoreDir` can move it.
@@ -112,10 +112,10 @@ pub enum SymlinkDirectDependenciesError {
         source: SymlinkPackageError,
     },
 
-    #[display("Failed to inspect modules directory {dir:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_MODULES_DIR))]
-    InspectModulesDir {
-        dir: PathBuf,
+    #[display("Failed to remove the modules directory link {link:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_PUBLISH_MODULES_LINK))]
+    RemovePublishModulesLink {
+        link: PathBuf,
         #[error(source)]
         source: std::io::Error,
     },
@@ -565,7 +565,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     }
 
     if symlink {
-        link_publish_modules_dir(importer_id, project_snapshot, project_dir, modules_dir)?;
+        remove_publish_modules_link(project_snapshot, project_dir, modules_dir)?;
     }
 
     Ok(())

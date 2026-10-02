@@ -168,7 +168,7 @@ insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.15.0" }
 libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication"] }
 futures-util = { version = "0.3.32" }
-flate2 = { version = "1.1.9" }
+flate2 = { version = "1.1.9", default-features = false, features = ["zlib-rs"] }
 gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
@@ -258,10 +258,12 @@ mockito = { version = "1.7.2" }
 # bound, so `<=16` becomes `<=16.0.0-0` and rejects every 16.x. The fork
 # expands it as the X-Range npm's semver does, and fixes `Ord for Bound`
 # reporting both an inclusive and an exclusive bound on one version as the
-# lesser, which made `Range::intersect` depend on argument order. Upstream
-# has not released since 2.2.0 (February 2025); drop this once it does.
+# lesser, which made `Range::intersect` depend on argument order. It also
+# merges the overlapping alternatives of an intersection, which otherwise
+# multiply on each step of a chain. Upstream has not released since 2.2.0
+# (February 2025); drop this once it does.
 [patch.crates-io]
-node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "1ae976a0023b4dec80b1a5411ccee8343f91320e" }
+node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"

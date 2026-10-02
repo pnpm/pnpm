@@ -34,6 +34,7 @@ on:
       # Integration test targets never link into the benchmarked binaries.
       - '!pnpm/crates/*/tests/**'
       - '!pnpr/crates/*/tests/**'
+      - '!pnpr/docs/**'
       - '!pnpr/*.md'
       - '!pnpr/crates/*/*.md'
       - '!pnpr/docker/*.md'
@@ -62,6 +63,7 @@ on:
       # Integration test targets never link into the benchmarked binaries.
       - '!pnpm/crates/*/tests/**'
       - '!pnpr/crates/*/tests/**'
+      - '!pnpr/docs/**'
       - '!pnpr/*.md'
       - '!pnpr/crates/*/*.md'
       - '!pnpr/docker/*.md'
@@ -405,7 +407,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: just
 

@@ -15,7 +15,7 @@ pub use _utils::*;
 use crate::_utils;
 
 use serde_json::json;
-use std::fs;
+use std::{fs, path::Path};
 
 /// Where the lifecycle scripts of
 /// [`recursive_install_builds_workspace_projects_in_correct_order`] record
@@ -622,8 +622,11 @@ fn symlink_local_package_from_publish_config_directory() {
     assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, Some(false));
 }
 
-/// pnpm/pnpm#8338: transitive dependencies and bins are accessible when using
-/// `publishConfig.directory` and `publishConfig.linkDirectory`.
+/// pnpm/pnpm#8338: dependents get the bins of a project linked through its
+/// `publishConfig.directory`, and Node resolves the project's own dependencies
+/// from the publish directory's real path. pnpm/pnpm#16226: pnpm writes nothing
+/// into the publish directory and removes the `node_modules` link that 12.7.0
+/// put there.
 #[test]
 fn transitive_dependencies_and_bins_with_publish_config_directory() {
     let fixture = WorkspaceFixture::new();
@@ -651,37 +654,49 @@ fn transitive_dependencies_and_bins_with_publish_config_directory() {
     fs::create_dir_all(&publish_dir).expect("create publish directory");
     fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello');")
         .expect("write bin executable");
+    fs::create_dir_all(project_1.join("node_modules")).expect("create project-1 node_modules");
+    pnpm_fs::symlink_dir(&project_1.join("node_modules"), &publish_dir.join("node_modules"))
+        .expect("plant the stale publish-directory link");
+
+    let assert_linked = |stage: &str| {
+        assert_publish_dir_resolves_dependency(&project_2, &publish_dir, &project_1, stage);
+        assert!(
+            project_2.join("node_modules/.bin/project-1-bin").exists(),
+            "{stage}: project-1-bin should be linked into project-2/node_modules/.bin",
+        );
+    };
 
     fixture.run(["install"]);
-
-    assert!(
-        project_1.join("dist/node_modules/is-positive").exists(),
-        "is-positive should exist under project-1/dist/node_modules",
-    );
-
-    assert!(
-        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
-        "is-positive should exist under project-2/node_modules/project-1/node_modules",
-    );
-
-    assert!(
-        project_2.join("node_modules/.bin/project-1-bin").exists(),
-        "project-1-bin should be linked into project-2/node_modules/.bin",
-    );
+    assert_linked("fresh install");
 
     fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
     fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
-    fs::remove_dir_all(project_1.join("dist/node_modules"))
-        .expect("remove project-1 dist node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
+    assert_linked("frozen install");
+}
 
-    assert!(
-        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
-        "frozen install: is-positive should exist under project-2/node_modules/project-1/node_modules",
+/// `project_2/node_modules/project-1` resolves to `publish_dir`, whose
+/// ancestor `project_1/node_modules` holds `is-positive`, and `publish_dir`
+/// has no `node_modules` of its own.
+fn assert_publish_dir_resolves_dependency(
+    project_2: &Path,
+    publish_dir: &Path,
+    project_1: &Path,
+    stage: &str,
+) {
+    assert_eq!(
+        fs::canonicalize(project_2.join("node_modules/project-1")).expect("resolve project-1 link"),
+        fs::canonicalize(publish_dir).expect("resolve publish directory"),
+        "{stage}: project-1 should be linked to its publish directory",
     );
     assert!(
-        project_2.join("node_modules/.bin/project-1-bin").exists(),
-        "frozen install: project-1-bin should be linked into project-2/node_modules/.bin",
+        project_1.join("node_modules/is-positive").exists(),
+        "{stage}: is-positive should exist under project-1/node_modules",
+    );
+    let publish_modules_dir = publish_dir.join("node_modules");
+    assert!(
+        fs::symlink_metadata(&publish_modules_dir).is_err(),
+        "{stage}: pnpm should not create {publish_modules_dir:?}",
     );
 }
 
@@ -743,30 +758,82 @@ fn transitive_dependencies_and_bins_with_nested_publish_config_directory() {
     fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('nested');")
         .expect("write bin executable");
 
-    fixture.run(["install"]);
+    let assert_linked = |stage: &str| {
+        assert_publish_dir_resolves_dependency(&project_2, &publish_dir, &project_1, stage);
+        assert!(
+            project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
+            "{stage}: project-1-nested-bin should be linked into project-2/node_modules/.bin",
+        );
+    };
 
-    assert!(
-        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
-        "is-positive should exist under project-2/node_modules/project-1/node_modules",
-    );
-    assert!(
-        project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
-        "project-1-nested-bin should be linked into project-2/node_modules/.bin",
-    );
+    fixture.run(["install"]);
+    assert_linked("fresh install");
 
     fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
     fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
-    fs::remove_dir_all(project_1.join("dist/nested/node_modules"))
-        .expect("remove project-1 nested dist node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
+    assert_linked("frozen install");
+}
 
+/// pnpm/pnpm#16226: a real `node_modules` directory inside the publish
+/// directory belongs to the build output, so pnpm leaves it in place.
+#[test]
+fn publish_config_directory_keeps_its_own_node_modules() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+    let bundled = project_1.join("dist/node_modules/bundled/index.js");
+    fs::create_dir_all(bundled.parent().expect("bundled parent")).expect("create bundled dir");
+    fs::write(&bundled, "").expect("write bundled file");
+
+    fixture.run(["install"]);
+
+    assert!(bundled.exists(), "pnpm should keep {bundled:?}");
+}
+
+/// pnpm/pnpm#16226: a publish directory that a lifecycle script builds does
+/// not exist yet when pnpm links the dependents' bins.
+#[test]
+fn install_before_publish_config_directory_is_built() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({ "project-1-bin": "./cli.js" });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    fixture.run(["install"]);
+
+    let publish_dir = project_1.join("dist");
     assert!(
-        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
-        "frozen install: is-positive should exist under project-2/node_modules/project-1/node_modules",
+        fs::symlink_metadata(&publish_dir).is_err(),
+        "pnpm should not create the publish directory {publish_dir:?}",
     );
     assert!(
-        project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
-        "frozen install: project-1-nested-bin should be linked into project-2/node_modules/.bin",
+        fs::symlink_metadata(project_2.join("node_modules/project-1")).is_ok(),
+        "project-1 should be linked into project-2/node_modules",
     );
 }
 
@@ -957,6 +1024,50 @@ fn workspace_project_dependencies_built_during_headless_install_with_dedicated_l
             "the dependency's lifecycle scripts must run during the headless install: {artifact}",
         );
     }
+}
+
+/// TS: `built dependencies are restored from a populated store when the
+/// workspace has separate lockfiles` (`pnpm/test/monorepo/index.ts`).
+/// The package extension gives the built dependency a dependency of its
+/// own, so its side-effects cache key includes the dependency graph hash.
+/// A frozen reinstall into wiped `node_modules` restores the build
+/// output, and `--ignore-scripts` still leaves it out.
+#[test]
+fn built_dependencies_restored_from_populated_store_with_dedicated_lockfiles() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "sharedWorkspaceLockfile: false\n\
+         allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n\
+         packageExtensions:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0':\n    dependencies:\n      is-positive: 1.0.0\n",
+    );
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    let project = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0")],
+            ..Default::default()
+        },
+    );
+    let artifact = project.join(
+        "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+    );
+    let wipe_modules = || {
+        fs::remove_dir_all(fixture.workspace.join("node_modules"))
+            .expect("remove root node_modules");
+        fs::remove_dir_all(project.join("node_modules")).expect("remove project-1 node_modules");
+    };
+
+    fixture.run(["install"]);
+    assert!(artifact.exists(), "the first install must build the dependency");
+
+    wipe_modules();
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert!(artifact.exists(), "a frozen reinstall must restore the build output");
+
+    wipe_modules();
+    fixture.run(["install", "--frozen-lockfile", "--ignore-scripts"]);
+    assert!(!artifact.exists(), "--ignore-scripts must not restore the build output");
 }
 
 /// TS: `custom virtual store directory in a workspace with not shared

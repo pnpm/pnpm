@@ -69,7 +69,7 @@ fn returns_up_to_date_when_bare_tarball_specs_are_ambiguous() {
         let path = dir.path().join(spec);
         fs::create_dir_all(path.parent().expect("tarball parent")).expect("create parent");
         fs::write(path, b"local file with an ambiguous specifier").expect("write local file");
-        let lockfile = write_registry_lockfile(dir.path(), &config.virtual_store_dir, spec);
+        let lockfile = write_registry_lockfile(dir.path(), &config.install_state_dir, spec);
         validate_existing_files(dir.path());
 
         let decision = check_with_lockfile(
@@ -109,7 +109,11 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -151,7 +155,11 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -243,7 +251,11 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -387,7 +399,11 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -428,7 +444,11 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -468,7 +488,11 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -521,7 +545,11 @@ fn returns_skipped_when_package_extensions_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -563,7 +591,11 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -616,7 +648,11 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 

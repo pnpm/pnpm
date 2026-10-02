@@ -64,7 +64,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -96,7 +96,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -110,6 +110,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
@@ -181,6 +182,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -237,7 +239,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     config.lockfile = false;
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     let included = pnpm_modules_yaml::IncludedDependencies {
@@ -251,6 +253,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
@@ -333,7 +336,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -365,7 +368,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
         virtual_store_dir: config
-            .effective_virtual_store_dir()
+            .virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
@@ -373,7 +376,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
     };
     write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
     lockfile
-        .save_current_to_virtual_store_dir(&dirs.virtual_store_dir)
+        .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
 
     let mut projects = std::collections::BTreeMap::new();
@@ -382,6 +385,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(
@@ -452,6 +456,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -548,6 +553,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<RecordingReporter>()
@@ -633,7 +639,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
-    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.install_state_dir = dirs.virtual_store_dir.clone();
     config.registry = mock_instance.url().to_string();
     // Add a `peerDependencies` entry to the resolved manifest of
     // `@pnpm.e2e/hello-world-js-bin`, marked optional so the missing
@@ -703,6 +709,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

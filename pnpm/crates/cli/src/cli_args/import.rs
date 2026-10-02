@@ -1,14 +1,19 @@
 mod yarn_patches;
 
+use std::{collections::BTreeMap, path::Path};
+
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pnpm_lockfile::{EnvLockfile, Lockfile};
-use pnpm_lockfile_import::{read_foreign_lockfile_versions, to_preferred_versions};
+use pnpm_lockfile_import::{
+    YARN_LOCKFILE_NAME, read_foreign_lockfile_versions, to_preferred_versions,
+};
 use pnpm_network::redact_url_for_display;
-use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manager::{Install, PreferredVersionsOverride, ProjectMutation};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
+use pnpm_resolving_resolver_base::PreferredVersions;
 
 #[derive(Debug, Args)]
 pub struct ImportArgs {
@@ -28,7 +33,10 @@ impl ImportArgs {
 
         self.warn_ignored_pnpr_server::<Reporter>(state.config);
 
-        let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
+        let mut preferred_versions = PreferredVersionsOverride::from(to_preferred_versions(
+            &read_foreign_lockfile_versions(dir)?,
+        ));
+        preferred_versions.by_importer = nested_yarn_lock_preferred_versions(&state, dir)?;
         let state = yarn_patches::import_yarn_patches::<Reporter>(state, dir)?;
 
         let lockfile_dir = state.lockfile_dir();
@@ -96,10 +104,38 @@ fn discard_failed_import(
         .wrap_err("restoring the original lockfile")
 }
 
+/// Pins from a `yarn.lock` in a workspace project other than the directory
+/// passed to `pnpm import`. The root lockfile stays the shared seed.
+fn nested_yarn_lock_preferred_versions(
+    state: &State,
+    imported_dir: &Path,
+) -> miette::Result<BTreeMap<String, PreferredVersions>> {
+    let Some(workspace_dir) = state.config.workspace_dir.as_deref() else {
+        return Ok(BTreeMap::new());
+    };
+    let (projects, _) = super::recursive::discover_workspace_projects(workspace_dir, state.config)?;
+    let lockfile_dir = state.lockfile_dir();
+    let imported_id = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, imported_dir);
+    let mut by_importer = BTreeMap::new();
+    for project in projects {
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(lockfile_dir, &project.root_dir);
+        if importer_id == imported_id {
+            continue;
+        }
+        if !project.root_dir.join(YARN_LOCKFILE_NAME).is_file() {
+            continue;
+        }
+        let versions = read_foreign_lockfile_versions(&project.root_dir)?;
+        by_importer.insert(importer_id, to_preferred_versions(&versions));
+    }
+    Ok(by_importer)
+}
+
 async fn import_versions<Reporter: self::Reporter + 'static>(
     state: &State,
     lockfile_path: &std::path::Path,
-    preferred_versions: pnpm_resolving_resolver_base::PreferredVersions,
+    preferred_versions: PreferredVersionsOverride,
 ) -> miette::Result<()> {
     let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
 

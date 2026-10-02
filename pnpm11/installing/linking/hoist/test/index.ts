@@ -216,17 +216,7 @@ test('waits for a Windows junction whose creator still holds it exclusively', as
   jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(async (dest) => {
     await unlink(dest)
     fs.mkdirSync(link)
-    let lockedReads = 0
-    jest.spyOn(fs.promises, 'readdir').mockImplementation(async (...args) => {
-      if (args[0] === link && !fs.lstatSync(link).isSymbolicLink()) {
-        if (++lockedReads === 3) {
-          fs.rmdirSync(link)
-          await symlinkDir(target, link)
-        }
-        throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' })
-      }
-      return readdir(...args)
-    })
+    mockReaddirOfLockedJunction({ link, target, readdir })
   })
   try {
     await hoist(opts)
@@ -235,6 +225,18 @@ test('waits for a Windows junction whose creator still holds it exclusively', as
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+function mockReaddirOfLockedJunction (opts: { link: string, target: string, readdir: typeof fs.promises.readdir }): void {
+  let lockedReads = 0
+  jest.spyOn(fs.promises, 'readdir').mockImplementation(async (...args) => {
+    if (args[0] !== opts.link || fs.lstatSync(opts.link).isSymbolicLink()) return opts.readdir(...args)
+    if (++lockedReads === 3) {
+      fs.rmdirSync(opts.link)
+      await symlinkDir(opts.target, opts.link)
+    }
+    throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' })
+  })
+}
 
 test('stops retrying when a competing link stays unreadable', async () => {
   const { root, link, target, opts } = await prepareStaleHoist()

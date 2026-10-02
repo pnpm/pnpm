@@ -4,7 +4,7 @@ pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
 pub(super) use listing::ScriptSelector;
 
 use super::{
-    exec::{ExecArgs, ExecDirs},
+    exec::{ExecArgs, ExecDirs, ExecError},
     reporter::{ReporterType, reporter_emit, suppresses_info_output},
 };
 use clap::Args;
@@ -14,6 +14,7 @@ use execution::{
     ScriptOutcome, no_matching_script, run_selected_scripts, script_concurrency, script_extra_env,
     selected_scripts,
 };
+use filter_hint::filter_placement_hint;
 use indexmap::IndexMap;
 
 use listing::{render_project_commands, throw_or_filter_hidden_scripts};
@@ -23,7 +24,6 @@ use pnpm_executor::{
     ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, exit_like,
     run_script,
 };
-use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -42,6 +42,7 @@ use std::{
 };
 
 mod environment;
+mod filter_hint;
 mod recursive;
 
 #[derive(Debug, Args)]
@@ -103,6 +104,10 @@ pub enum RunError {
     )]
     AllHidden { scripts: String },
 
+    #[display("Command \"{command}\" not found")]
+    #[diagnostic(code(ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL), help("{hint}"))]
+    NoScriptOrCommand { command: String, hint: String },
+
     #[display("Missing script start or file server.js")]
     #[diagnostic(code(ERR_PNPM_NO_SCRIPT_OR_SERVER))]
     NoScriptOrServer,
@@ -123,6 +128,19 @@ pub enum RunError {
         )
     )]
     DryRunNotRecursive,
+}
+
+impl RunError {
+    /// Every argument after the script name belongs to the script, so a
+    /// `--filter` there selected no projects.
+    fn no_script(script_name: &str, args: &[String]) -> Self {
+        let not_found = format!(r#"Command "{script_name}" not found."#);
+        let hint = match filter_placement_hint(script_name, args) {
+            Some(placement) => format!("{not_found} {placement}"),
+            None => not_found,
+        };
+        RunError::NoScript { script: script_name.to_owned(), hint }
+    }
 }
 
 impl RunArgs {
@@ -189,7 +207,7 @@ impl RunArgs {
         // Before the manifest is read, so a mistyped command in a
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
-        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        super::verify_deps::verify_deps_before_run(dir, &[dir], config, reporter)?;
         let Some((script_name, args)) = self.script.split_first() else {
             let manifest = read_project_manifest_only(dir, config.preferred_manifest_format)
                 .map_err(RunError::Manifest)?;
@@ -306,7 +324,29 @@ impl RunArgs {
     }
 }
 
+/// Hand a name that matches no script to `exec`. When `exec` finds no such
+/// command either, the error says where a trailing filter option belongs.
 fn exec_fallback(
+    script_name: &str,
+    args: &[String],
+    dirs: ExecDirs<'_>,
+    config: &Config,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    let result = exec_script_name(script_name, args, dirs, config, reporter);
+    let Some(hint) = filter_placement_hint(script_name, args) else {
+        return result;
+    };
+    result.map_err(|report| match report.downcast::<ExecError>() {
+        Ok(ExecError::CommandNotFound { command }) => {
+            RunError::NoScriptOrCommand { command, hint }.into()
+        }
+        Ok(error) => error.into(),
+        Err(report) => report,
+    })
+}
+
+fn exec_script_name(
     script_name: &str,
     args: &[String],
     dirs: ExecDirs<'_>,
@@ -332,5 +372,7 @@ fn exec_fallback(
 mod tests;
 
 mod execution;
+
+mod injected_sync;
 
 mod listing;

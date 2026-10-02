@@ -41,6 +41,11 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
     if let Some(target) = raw_id.strip_prefix("link:") {
+        // A link into the declaring package is resolved where that package
+        // is placed, so it has no lockfile-relative form.
+        if pnpm_lockfile::package_root_link_target(target).is_some() {
+            return Ok(raw_id.to_string());
+        }
         return Ok(link_pkg_id(ctx, target));
     }
     // Resolvers that learn the name from the fetched manifest (git,

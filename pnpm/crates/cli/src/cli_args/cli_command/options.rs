@@ -56,6 +56,9 @@ impl CliArgs {
         if self.workspace.ordering.parallel {
             self.validate_parallel_global_option()?;
         }
+        if self.workspace.execution.sequential {
+            self.validate_sequential_top_level_option()?;
+        }
         if self.output.lifecycle.hide_prefix {
             self.validate_run_scoped_global_option("--reporter-hide-prefix")?;
         }
@@ -182,6 +185,13 @@ impl CliArgs {
         }
     }
 
+    fn validate_sequential_top_level_option(&self) -> Result<(), clap::Error> {
+        if matches!(self.command, CliCommand::Run(_) | CliCommand::External(_)) {
+            return Ok(());
+        }
+        Err(Self::unexpected_argument_error("--sequential"))
+    }
+
     fn validate_run_scoped_global_option(&self, option: &str) -> Result<(), clap::Error> {
         if matches!(
             self.command,
@@ -242,6 +252,16 @@ impl super::CliNetworkArgs {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
+        if self.https_proxy.is_some() {
+            config.cli_settings.insert("httpsProxy".to_string());
+        }
+        if self.http_proxy.is_some() {
+            config.cli_settings.insert("httpProxy".to_string());
+        }
+        if self.no_proxy.is_some() {
+            config.cli_settings.insert("noProxy".to_string());
+            config.cli_settings.insert("noproxy".to_string());
+        }
         if let Some(registry) = self.registry.as_deref() {
             crate::config_overrides::apply_registry_override(config, registry);
         }

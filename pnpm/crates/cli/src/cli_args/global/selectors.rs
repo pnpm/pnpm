@@ -64,11 +64,9 @@ pub(super) fn groups_matching_params(
     Some(filtered)
 }
 
-/// With `--latest`, a dependency is reduced to its bare alias so the newest
-/// registry version is resolved.
-/// The selectors that reinstall a group. With `--latest` a plain version spec
-/// is dropped so the newest release is picked; `pins` holds back the aliases
-/// that would otherwise move backwards.
+/// The selectors that reinstall a group. With `--latest`, a plain version spec
+/// uses the latest dist-tag so the seeded manifest range cannot hold it back;
+/// `pins` holds back aliases that would otherwise move backwards.
 pub(super) fn update_selectors(
     dependencies: &[(String, String)],
     latest: bool,
@@ -80,7 +78,7 @@ pub(super) fn update_selectors(
             if let Some(pin) = pins.get(alias) {
                 format!("{alias}@{pin}")
             } else if latest && is_plain_version_spec(spec) {
-                alias.clone()
+                format!("{alias}@latest")
             } else {
                 format!("{alias}@{spec}")
             }
@@ -176,7 +174,7 @@ pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> boo
 /// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
 /// `npm:` alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm
 /// CLI under another name — the install still carries pnpm's own `pnpm` bin.
-fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
+pub(super) fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
     let name = npm_alias_target(spec);
     is_pnpm_cli_package_name(name.as_deref().unwrap_or(alias))
 }

@@ -27,7 +27,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -879,7 +879,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('..')
 
-  const modules = readYamlFileSync<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const modules = readYamlFileSync<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw modules manifest fields
   expect(modules).toBeTruthy()
   expect(modules.pendingBuilds).toHaveLength(0)
 
@@ -1116,10 +1116,10 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
 const REGISTRY_MIRROR_DIR = path.join(import.meta.dirname, './registry-mirror')
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the metadata is replayed to the mock registry as is */
 const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
-const tarballPath = f.find('is-positive-3.1.0.tgz')
+const tarballPath = testFixtures.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
   await setupMockAgent()
@@ -1523,7 +1523,7 @@ test('lockfile v6', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ useLockfileV6: true }))
 
   {
-    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
@@ -1531,7 +1531,7 @@ test('lockfile v6', async () => {
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], testDefaults())
 
   {
-    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
@@ -1540,12 +1540,12 @@ test('lockfile v6', async () => {
 
 test('lockfile v5 is converted to lockfile v6', async () => {
   const tmp = tempDir()
-  f.copy('lockfile-v5', tmp)
+  testFixtures.copy('lockfile-v5', tmp)
   prepareEmpty()
 
   await install({ dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }, testDefaults())
 
-  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
 })

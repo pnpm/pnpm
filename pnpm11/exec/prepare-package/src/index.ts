@@ -1,9 +1,8 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { AllowBuild, DepPath, PackageManifest } from '@pnpm/types'
@@ -55,23 +54,9 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
     userAgent: opts.userAgent,
   }
   try {
-    const installScriptName = `${pm}-install`
-    manifest.scripts[installScriptName] = `${pm} install`
-    await runLifecycleHook(installScriptName, manifest, execOpts)
-    for (const scriptName of PREPUBLISH_SCRIPTS) {
-      if (manifest.scripts[scriptName] == null || manifest.scripts[scriptName] === '') continue
-      let newScriptName
-      if (pm !== 'pnpm') {
-        newScriptName = `${pm}-run-${scriptName}`
-        manifest.scripts[newScriptName] = `${pm} run ${scriptName}`
-      } else {
-        newScriptName = scriptName
-      }
-      // eslint-disable-next-line no-await-in-loop
-      await runLifecycleHook(newScriptName, manifest, execOpts)
-    }
+    await runPrepareScripts(pm, manifest, execOpts)
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     Object.assign(err, {
       code: 'ERR_PNPM_PREPARE_PACKAGE',
     })
@@ -79,6 +64,25 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
   return { shouldBeBuilt: true, pkgDir }
+}
+
+async function runPrepareScripts (
+  pm: string,
+  manifest: PackageManifest,
+  execOpts: RunLifecycleHookOptions
+): Promise<void> {
+  const installScriptName = `${pm}-install`
+  manifest.scripts![installScriptName] = `${pm} install`
+  await runLifecycleHook(installScriptName, manifest, execOpts)
+  for (const scriptName of PREPUBLISH_SCRIPTS) {
+    if (manifest.scripts![scriptName] == null || manifest.scripts![scriptName] === '') continue
+    const newScriptName = pm !== 'pnpm' ? `${pm}-run-${scriptName}` : scriptName
+    if (pm !== 'pnpm') {
+      manifest.scripts![newScriptName] = `${pm} run ${scriptName}`
+    }
+    // eslint-disable-next-line no-await-in-loop -- prepublish scripts run in the order npm defines
+    await runLifecycleHook(newScriptName, manifest, execOpts)
+  }
 }
 
 export function resolvePackageBuildPermission (

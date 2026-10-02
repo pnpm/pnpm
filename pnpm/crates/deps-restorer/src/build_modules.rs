@@ -119,6 +119,15 @@ pub enum BuildModulesError {
     #[diagnostic(transparent)]
     MaterializeSideEffects(#[error(source)] ImportIndexedDirError),
 
+    /// Creating a symlink a cached build recorded failed while its
+    /// side-effects overlay was re-materialized into the slot.
+    #[display("Failed to create the symlink {} from the side-effects cache: {source}", path.display())]
+    MaterializeSideEffectsSymlink {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     /// A global-virtual-store slot's `.pnpm-needs-build` marker exists but
     /// cannot be read, so whether another install's build left the slot
     /// half-built is unknown.
@@ -345,9 +354,9 @@ impl BuildModules<'_> {
     /// fail without them.
     fn project_bin_dirs(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> Vec<PathBuf> {
         let hoisted_bin_dir = self.scripts.path.private_hoisting
-            .then_some(self.scripts.patched_engines.virtual_store_dir)
+            .then_some(self.scripts.patched_engines.install_state_dir)
             .flatten()
-            .map(|virtual_store_dir| virtual_store_dir.join("node_modules").join(".bin"));
+            .map(|install_state_dir| install_state_dir.join("node_modules").join(".bin"));
         self.runtime_node_bin_dir(snapshots)
             .into_iter()
             .chain(hoisted_bin_dir)

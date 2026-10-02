@@ -29,6 +29,9 @@ pub(crate) struct WantedPackageManager {
 pub(crate) struct PackageManagerToSync {
     pub(crate) specifier: String,
     pub(crate) version: String,
+    /// `version` is the running pnpm, picked for a range pin, and still has
+    /// to be held to the project's `minimumReleaseAge`.
+    pub(crate) running_pnpm_for_range: bool,
 }
 
 /// The pnpm version to record under the env lockfile's
@@ -53,12 +56,20 @@ pub(crate) fn package_manager_to_sync(
     if let Some(version) =
         source_version.filter(|version| version_satisfies(version, wanted_version))
     {
-        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
+        return Some(PackageManagerToSync {
+            specifier: wanted_version.to_string(),
+            version,
+            running_pnpm_for_range: false,
+        });
     }
     if let Some(version) =
         exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version))
     {
-        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
+        return Some(PackageManagerToSync {
+            specifier: wanted_version.to_string(),
+            version,
+            running_pnpm_for_range: false,
+        });
     }
     // A range pin names no exact version, so the running pnpm's version is
     // the one the project actually uses.
@@ -66,6 +77,7 @@ pub(crate) fn package_manager_to_sync(
         .then(|| PackageManagerToSync {
             specifier: wanted_version.to_string(),
             version: PNPM_VERSION.to_string(),
+            running_pnpm_for_range: true,
         })
 }
 

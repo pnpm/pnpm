@@ -12,6 +12,15 @@ test('the "issues" alias resolves to the "bugs" command', async () => {
   expect(cmd).toBe('bugs')
 })
 
+test('names of Object.prototype members are not commands', async () => {
+  expect(getCommandFullName('constructor')).toBeNull()
+  expect(getCommandFullName('__proto__')).toBeNull()
+  expect(getCliOptionsTypes('constructor')).toEqual({})
+
+  const { cmd } = await parseCliArgs(['constructor'])
+  expect(cmd).toBe('run')
+})
+
 test('a bare --fix reaches the audit command handler as an empty string', async () => {
   const { options } = await parseCliArgs(['audit', '--fix'])
   expect(options.fix).toBe('')

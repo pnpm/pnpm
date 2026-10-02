@@ -6,12 +6,12 @@ import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import { execPnpm, spawnPnpm } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const PKG_FILES = [
-  ...fs.readdirSync(f.find('injected-dep-files')),
+  ...fs.readdirSync(testFixtures.find('injected-dep-files')),
   'package.json',
 ].sort()
 
@@ -49,7 +49,7 @@ function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
   ])
 
   for (const pkgName of ['foo', 'bar', 'baz']) {
-    f.copy('injected-dep-files', pkgName)
+    testFixtures.copy('injected-dep-files', pkgName)
   }
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -114,6 +114,63 @@ test('with sync-injected-deps-after-scripts', async () => {
     ).toBe(path.resolve('bar/build2.cjs'))
   }
 })
+
+test('a listed script publishes injected edits before it exits', async () => {
+  preparePackages([
+    {
+      name: 'foo',
+      version: '0.0.0',
+      scripts: { dev: 'node ./dev.cjs' },
+    },
+    {
+      name: 'bar',
+      version: '0.0.0',
+      dependencies: { foo: 'workspace:*' },
+    },
+  ])
+  // Runs until the test creates ../stop, like a dev server.
+  fs.writeFileSync('foo/dev.cjs', `
+const fs = require('fs')
+fs.writeFileSync('live.txt', 'first')
+const timer = setInterval(() => {
+  if (fs.existsSync('../stop')) clearInterval(timer)
+}, 50)
+`)
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*'],
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts: ['dev'],
+  })
+  await execPnpm(['install'])
+
+  const injectedFile = 'node_modules/.pnpm/foo@file+foo/node_modules/foo/live.txt'
+  const dev = spawnPnpm(['--dir', 'foo', 'run', 'dev'])
+  const exited = new Promise<number | null>(resolve => dev.once('exit', resolve))
+  try {
+    await waitForContent(injectedFile, 'first')
+    fs.writeFileSync('foo/live.txt', 'second')
+    await waitForContent(injectedFile, 'second')
+    expect(fs.statSync(injectedFile).ino).not.toBe(fs.statSync('foo/live.txt').ino)
+  } finally {
+    fs.writeFileSync('stop', '')
+  }
+  expect(await exited).toBe(0)
+})
+
+async function waitForContent (filePath: string, content: string): Promise<void> {
+  const deadline = Date.now() + 30_000
+  while (readFileOrUndefined(filePath) !== content) {
+    if (Date.now() > deadline) {
+      throw new Error(`${filePath} never held ${JSON.stringify(content)}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polls until the file holds the content
+  }
+}
+
+function readFileOrUndefined (filePath: string): string | undefined {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : undefined
+}
 
 test('without sync-injected-deps-after-scripts', async () => {
   prepareInjectedDepsWorkspace([])

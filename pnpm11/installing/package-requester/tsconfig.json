@@ -46,6 +46,9 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../resolving/local-resolver"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

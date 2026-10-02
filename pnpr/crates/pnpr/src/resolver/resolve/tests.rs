@@ -87,6 +87,58 @@ async fn workspace_star_uses_forwarded_project_name() {
 }
 
 #[tokio::test]
+async fn workspace_link_uses_forwarded_publish_directory() {
+    let lockfile = Box::pin(resolve_json(serde_json::json!({
+        "projects": [
+            {
+                "dir": "packages/app",
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" }
+            },
+            {
+                "dir": "packages/lib",
+                "name": "lib",
+                "version": "1.2.3",
+                "publishConfig": { "directory": "dist" }
+            }
+        ]
+    })))
+    .await;
+
+    assert_workspace_link(&lockfile, "packages/app", "lib", "../lib/dist");
+    assert_eq!(lockfile.importers["packages/lib"].publish_directory.as_deref(), Some("dist"));
+}
+
+#[tokio::test]
+async fn links_through_a_non_canonical_publish_directory_inside_the_project() {
+    // The request layer rejects escapes only (see
+    // `request_validation::reject_unsafe_publish_directories`); a local install
+    // resolves `./dist`, so the pnpr path must not fail where that one
+    // succeeds. The value is recorded verbatim, so the link is built from what
+    // the client sent rather than from a rewritten path.
+    let lockfile = Box::pin(resolve_json(serde_json::json!({
+        "projects": [
+            {
+                "dir": "packages/app",
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" }
+            },
+            {
+                "dir": "packages/lib",
+                "name": "lib",
+                "version": "1.2.3",
+                "publishConfig": { "directory": "./dist" }
+            }
+        ]
+    })))
+    .await;
+
+    assert_eq!(lockfile.importers["packages/lib"].publish_directory.as_deref(), Some("./dist"));
+}
+
+#[tokio::test]
 async fn forwarded_catalogs_resolve_catalog_specifiers() {
     // The reconstructed workspace carries no catalog sections, so a
     // `catalog:` specifier resolves only because the request's `catalogs`
@@ -300,7 +352,7 @@ async fn try_resolve_json_with(
     config.store_dir = StoreDir::new(temp.path().join("store"));
     config.cache_dir = temp.path().join("cache");
     config.modules_dir = temp.path().join("node_modules");
-    config.virtual_store_dir = temp.path().join("node_modules/.pnpm");
+    config.install_state_dir = temp.path().join("node_modules/.pnpm");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
     let request: ResolveRequest = serde_json::from_value(request).expect("resolve request parses");

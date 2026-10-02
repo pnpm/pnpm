@@ -182,7 +182,7 @@ async fn update_config_null_clears_virtual_store_dir() {
     run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
     assert!(!config.explicit_settings.contains_key("virtualStoreDir"));
 }
 
@@ -705,4 +705,80 @@ async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
         .expect("a matching pnpm version resolves");
 
     assert_eq!(resolved.version, PNPM_VERSION);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_override_cli_proxy_settings() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.httpsProxy = 'http://hook-https:8080/'; config.httpProxy = 'http://hook-http:8080/'; config.noProxy = 'hook.example'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.apply_proxy_cli_overrides(
+        Some("http://cli-https:8080/"),
+        Some("http://cli-http:8080/"),
+        Some("cli.example"),
+    );
+    config.cli_settings.insert("httpsProxy".to_string());
+    config.cli_settings.insert("httpProxy".to_string());
+    config.cli_settings.insert("noProxy".to_string());
+    config.cli_settings.insert("noproxy".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://cli-https:8080/"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://cli-http:8080/"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pnpm_network::NoProxySetting::List(vec!["cli.example".to_string()])),
+    );
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_override_command_cli_flags() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.optional = true; config.autoDedupe = true; config.frozenStore = true; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.optional = false;
+    config.auto_dedupe = false;
+    config.frozen_store = false;
+    config.cli_settings.insert("optional".to_string());
+    config.cli_settings.insert("autoDedupe".to_string());
+    config.cli_settings.insert("frozenStore".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(!config.optional);
+    assert!(!config.auto_dedupe);
+    assert!(!config.frozen_store);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_replace_the_public_hoist_pattern_of_cli_shamefully_hoist() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.shamefullyHoist = false; config.publicHoistPattern = ['*types*']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.explicit_settings.insert("shamefullyHoist".to_string(), true.into());
+    config.apply_shamefully_hoist_derivation();
+    config.cli_settings.insert("shamefullyHoist".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
 }

@@ -137,7 +137,7 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
     let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
     config.global_virtual_store_dir = cwd.join("store/links");
-    config.virtual_store_dir = cwd.join("node_modules/.pnpm");
+    config.install_state_dir = cwd.join("node_modules/.pnpm");
 
     let snapshots =
         HashMap::from([("dep1@1.0.0".parse::<PackageKey>().unwrap(), SnapshotEntry::default())]);
@@ -186,7 +186,7 @@ fn lockfile_package_map_omits_metadata_keys_of_peer_suffixed_snapshots() {
     let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
     config.global_virtual_store_dir = cwd.join("store/links");
-    config.virtual_store_dir = cwd.join("node_modules/.pnpm");
+    config.install_state_dir = cwd.join("node_modules/.pnpm");
 
     let snapshot_key = "dep1@1.0.0(dep2@2.0.0)".parse::<PackageKey>().unwrap();
     let snapshots = HashMap::from([(snapshot_key.clone(), SnapshotEntry::default())]);

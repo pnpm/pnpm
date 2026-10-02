@@ -6,8 +6,7 @@ import type { PnpmError } from '@pnpm/error'
 import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects, filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -259,8 +258,8 @@ test('pnpm recursive run concurrently', async () => {
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const outputs1 = server1.getLines().map(x => Number.parseInt(x))
-  const outputs2 = server2.getLines().map(x => Number.parseInt(x))
+  const outputs1 = server1.getLines().map(line => Number.parseInt(line))
+  const outputs2 = server2.getLines().map(line => Number.parseInt(line))
 
   expect(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1])).toBeTruthy()
 })

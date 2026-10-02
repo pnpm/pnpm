@@ -343,7 +343,7 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
             shell: None,
             node_execpath: None,
             npm_execpath: None,
-            pnpm_execpath: None,
+            running_pnpm: pnpm_git_fetcher::RunningPnpm::default(),
         },
         store: pnpm_git_fetcher::GitStoreContext {
             dir: &config.store_dir,

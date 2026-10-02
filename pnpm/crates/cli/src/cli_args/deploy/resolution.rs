@@ -156,7 +156,7 @@ fn convert_importer_dep_version(
     Ok(version.clone())
 }
 
-fn convert_importer_version_to_snapshot_ref(
+pub(super) fn convert_importer_version_to_snapshot_ref(
     alias: &PkgName,
     version: &ImporterDepVersion,
     ctx: &ConvertCtx,
@@ -212,6 +212,13 @@ fn resolve_snapshot_dep_ref(
         }
         SnapshotDepRef::Alias(key) => resolve_pkg_ver_peer(&key.suffix, bases.file_base)
             .map(|local| local.with_alias(&key.name)),
+        // A link into the declaring package is resolved where that package
+        // is placed, so it reads the same in the deploy directory.
+        SnapshotDepRef::Link(target)
+            if pnpm_lockfile::package_root_link_target(target).is_some() =>
+        {
+            None
+        }
         SnapshotDepRef::Link(target) => Some(resolve_link_payload(bases.link_base, target)),
     }
 }

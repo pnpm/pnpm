@@ -330,6 +330,46 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     drop(root);
 }
 
+/// A `**` pattern must not reach a project under a dot-prefixed directory
+/// (pnpm/pnpm#16250). The CLI hands discovery its managed directories,
+/// which is the walk this pins; the crate's unit tests pass none by default.
+#[test]
+fn recursive_run_skips_projects_under_dot_directories() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - '**'\n")
+        .expect("write pnpm-workspace.yaml");
+    let visible = workspace.join("pkgs/visible");
+    let hidden = workspace.join(".cache/hidden");
+    for (dir, name) in [(&visible, "visible"), (&hidden, "hidden")] {
+        fs::create_dir_all(dir).expect("create project dir");
+        fs::write(
+            dir.join("package.json"),
+            json!({
+                "name": name,
+                "version": "1.0.0",
+                "scripts": { "build": write_marker_script("ran.txt") },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+    }
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(visible.join("ran.txt").exists(), "the visible project's build should run");
+    assert!(
+        !hidden.join("ran.txt").exists(),
+        "a project under a dot directory must not be a workspace project",
+    );
+
+    drop(root);
+}
+
 /// Starting inside a member project is what the flag exists for
 /// (pnpm/pnpm#13031), so every case is checked from both.
 const WORKSPACE_ROOT_START_DIRS: [&str; 2] = [".", "project-1"];

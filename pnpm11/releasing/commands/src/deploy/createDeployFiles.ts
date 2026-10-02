@@ -1,38 +1,41 @@
 import path from 'node:path'
-import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
-import {
-  getPeerSatisfactionEdgesToSkip,
-  isPeerSatisfactionEdge,
-  type PeerSatisfactionEdges,
-  pruneDanglingPeerSatisfactionEdges,
-} from '@pnpm/lockfile.peer-edges'
+import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
-  DirectoryResolution,
   LockfileObject,
-  LockfileResolution,
-  PackageSnapshot,
   PackageSnapshots,
   ProjectSnapshot,
-  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import type {
   DependenciesField,
   DepPath,
   PnpmSettings,
-  Project,
   ProjectId,
   ProjectManifest,
 } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { pick } from 'ramda'
 
+import {
+  type ConvertOptions,
+  convertPackageSnapshot,
+  convertProjectSnapshotToPackageSnapshot,
+  convertResolvedDependencies,
+  createFileUrlDepPath,
+  type DeployAllProjects,
+  resolveLinkOrFile,
+} from './convertDeploySnapshots.js'
+import {
+  bindSingletonPeers,
+  filterDeployPackageSnapshots,
+  type LinkedWorkspaceProject,
+} from './deployPackageGraph.js'
+
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
 export interface CreateDeployFilesOptions {
-  allProjects: Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
+  allProjects: DeployAllProjects
   deployDir: string
   include: { [dependenciesField in DependenciesField]: boolean }
   lockfile: LockfileObject
@@ -65,22 +68,125 @@ export interface DeployFiles {
   workspaceManifest: DeployWorkspaceManifest
 }
 
-export function createDeployFiles ({
-  allProjects,
-  deployDir,
-  include,
-  lockfile,
-  lockfileDir,
-  patchedDependencies,
-  selectedProjectManifest,
-  projectId,
-  resolvePeersFromWorkspaceRoot,
-  rootProjectManifestDir,
-  allowBuilds,
-}: CreateDeployFilesOptions): DeployFiles {
-  const deployedProjectRealPath = path.resolve(lockfileDir, projectId)
-  const inputSnapshot = lockfile.importers[projectId]
+export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles {
+  const deployedProjectRealPath = path.resolve(opts.lockfileDir, opts.projectId)
+  const { peerSatisfactionEdges, targetPackageSnapshots } = convertLockfilePackages(opts, deployedProjectRealPath)
+  const linkedWorkspaceProjects = convertWorkspaceImporters(opts, { deployedProjectRealPath, targetPackageSnapshots })
+  const targetSnapshot = createDeployImporterSnapshot(opts, deployedProjectRealPath)
 
+  const deployPackageSnapshots = filterDeployPackageSnapshots(
+    targetSnapshot,
+    targetPackageSnapshots,
+    { include: opts.include, peerSatisfactionEdges }
+  )
+  bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
+
+  const workspaceManifest = createDeployWorkspaceManifest(opts.lockfile)
+  const result: DeployFiles = {
+    lockfile: createDeployLockfile(opts.lockfile, { deployPackageSnapshots, targetSnapshot }),
+    manifest: createDeployManifest(opts.selectedProjectManifest, targetSnapshot),
+    workspaceManifest,
+  }
+
+  if (opts.lockfile.patchedDependencies && opts.patchedDependencies) {
+    result.lockfile.patchedDependencies = { ...opts.lockfile.patchedDependencies }
+    workspaceManifest.patchedDependencies = relativizePatchPaths(opts.patchedDependencies, opts.deployDir)
+  }
+
+  if (opts.allowBuilds) {
+    workspaceManifest.allowBuilds = opts.allowBuilds
+  }
+
+  return result
+}
+
+function convertLockfilePackages (
+  opts: CreateDeployFilesOptions,
+  deployedProjectRealPath: string
+): { peerSatisfactionEdges: Map<DepPath, ReadonlySet<string>>, targetPackageSnapshots: PackageSnapshots } {
+  // Classified on the workspace lockfile: the deploy lockfile keeps only the
+  // deployed project's included dependencies, so it no longer shows which
+  // importers list a peer.
+  const sourcePeerSatisfactionEdges = getPeerSatisfactionEdgesToSkip(opts.lockfile, {
+    include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+  })
+  const peerSatisfactionEdges = new Map<DepPath, ReadonlySet<string>>()
+  const targetPackageSnapshots: PackageSnapshots = {}
+  const convertOptions: ConvertOptions = {
+    allProjects: opts.allProjects,
+    deployDir: opts.deployDir,
+    deployedProjectRealPath,
+    lockfileDir: opts.lockfileDir,
+    projectRootDirRealPath: opts.rootProjectManifestDir,
+  }
+  for (const name in opts.lockfile.packages) {
+    const inputDepPath = name as DepPath
+    const resolveResult = resolveLinkOrFile(inputDepPath, convertOptions)
+    const outputDepPath = resolveResult
+      ? createFileUrlDepPath(resolveResult, opts.allProjects)
+      : inputDepPath
+    const skippedAliases = sourcePeerSatisfactionEdges?.get(inputDepPath)
+    if (skippedAliases != null) peerSatisfactionEdges.set(outputDepPath, skippedAliases)
+    targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(opts.lockfile.packages[inputDepPath], convertOptions)
+  }
+  return { peerSatisfactionEdges, targetPackageSnapshots }
+}
+
+function convertWorkspaceImporters (
+  opts: CreateDeployFilesOptions,
+  ctx: { deployedProjectRealPath: string, targetPackageSnapshots: PackageSnapshots }
+): Map<DepPath, LinkedWorkspaceProject> {
+  const peerBearingProjects = indexPeerBearingProjects(opts.allProjects)
+  const linkedWorkspaceProjects = new Map<DepPath, LinkedWorkspaceProject>()
+  const injectedWorkspace = opts.lockfile.settings?.injectWorkspacePackages === true
+  for (const importerPath in opts.lockfile.importers) {
+    if (importerPath === opts.projectId) continue
+    const projectSnapshot = opts.lockfile.importers[importerPath as ProjectId]
+    const projectRootDirRealPath = path.resolve(opts.lockfileDir, importerPath)
+    const convertOptions: ConvertOptions = {
+      allProjects: opts.allProjects,
+      deployDir: opts.deployDir,
+      lockfileDir: opts.lockfileDir,
+      deployedProjectRealPath: ctx.deployedProjectRealPath,
+      projectRootDirRealPath,
+    }
+    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions)
+    const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
+    ctx.targetPackageSnapshots[depPath] = packageSnapshot
+    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    if (manifest == null) continue
+    linkedWorkspaceProjects.set(depPath, {
+      manifest,
+      dedupedPeerResolutions: injectedWorkspace
+        ? convertResolvedDependencies(
+          pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
+          convertOptions
+        )
+        : undefined,
+    })
+  }
+  return linkedWorkspaceProjects
+}
+
+/**
+ * Indexed under both spellings of each project's directory, so the importer
+ * loop costs one lookup per importer rather than a scan of every project: the
+ * importer path is resolved lexically, while a project directory reached
+ * through a symlink has a different real path.
+ */
+function indexPeerBearingProjects (allProjects: DeployAllProjects): Map<string, ProjectManifest> {
+  const peerBearingProjects = new Map<string, ProjectManifest>()
+  for (const project of allProjects) {
+    if (project.manifest.peerDependencies == null) continue
+    peerBearingProjects.set(project.rootDir, project.manifest)
+    peerBearingProjects.set(project.rootDirRealPath, project.manifest)
+  }
+  return peerBearingProjects
+}
+
+function createDeployImporterSnapshot (opts: CreateDeployFilesOptions, deployedProjectRealPath: string): ProjectSnapshot {
+  const inputSnapshot = opts.lockfile.importers[opts.projectId]
   const targetSnapshot: ProjectSnapshot = {
     ...inputSnapshot,
     specifiers: {},
@@ -88,106 +194,59 @@ export function createDeployFiles ({
     devDependencies: {},
     optionalDependencies: {},
   }
-  const directDependencyNames = dependencyNames(selectedProjectManifest)
+  const directDependencyNames = dependencyNames(opts.selectedProjectManifest)
   const peerOnlyDependencies = new Set(
-    Object.keys(selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+    Object.keys(opts.selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
   )
-
-  // Classified on the workspace lockfile: the deploy lockfile keeps only the
-  // deployed project's included dependencies, so it no longer shows which
-  // importers list a peer.
-  const sourcePeerSatisfactionEdges = getPeerSatisfactionEdgesToSkip(lockfile, { include, resolvePeersFromWorkspaceRoot })
-  const peerSatisfactionEdges = new Map<DepPath, ReadonlySet<string>>()
-  const targetPackageSnapshots: PackageSnapshots = {}
-  for (const name in lockfile.packages) {
-    const inputDepPath = name as DepPath
-    const inputSnapshot = lockfile.packages[inputDepPath]
-    const resolveResult = resolveLinkOrFile(inputDepPath, {
-      lockfileDir,
-      projectRootDirRealPath: rootProjectManifestDir,
-    })
-    const outputDepPath = resolveResult
-      ? createFileUrlDepPath(resolveResult, allProjects)
-      : inputDepPath
-    const skippedAliases = sourcePeerSatisfactionEdges?.get(inputDepPath)
-    if (skippedAliases != null) peerSatisfactionEdges.set(outputDepPath, skippedAliases)
-    targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(inputSnapshot, {
-      allProjects,
-      deployDir,
-      deployedProjectRealPath,
-      lockfileDir,
-      projectRootDirRealPath: rootProjectManifestDir,
-    })
-  }
-
-  // Indexed under both spellings of each project's directory, so the importer
-  // loop below costs one lookup per importer rather than a scan of every
-  // project: the importer path is resolved lexically, while a project directory
-  // reached through a symlink has a different real path.
-  const peerBearingProjects = new Map<string, ProjectManifest>()
-  for (const project of allProjects) {
-    if (project.manifest.peerDependencies == null) continue
-    peerBearingProjects.set(project.rootDir, project.manifest)
-    peerBearingProjects.set(project.rootDirRealPath, project.manifest)
-  }
-
-  const linkedWorkspaceProjects = new Map<DepPath, ProjectManifest>()
-  for (const importerPath in lockfile.importers) {
-    if (importerPath === projectId) continue
-    const projectSnapshot = lockfile.importers[importerPath as ProjectId]
-    const projectRootDirRealPath = path.resolve(lockfileDir, importerPath)
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, {
-      allProjects,
-      deployDir,
-      lockfileDir,
-      deployedProjectRealPath,
-      projectRootDirRealPath,
-    })
-    const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
-    targetPackageSnapshots[depPath] = packageSnapshot
-    const manifest = peerBearingProjects.get(projectRootDirRealPath)
-    if (manifest != null) linkedWorkspaceProjects.set(depPath, manifest)
-  }
-
   for (const field of DEPENDENCIES_FIELD) {
     // An excluded group's direct dependencies are left out of both the
     // deployed manifest and the deployed importer, because the graph filter
-    // below drops the packages they would point at. A runtime reference is
+    // drops the packages they would point at. A runtime reference is
     // the exception: the engines field that generates it survives in the
     // deployed manifest and regenerates the edge on every read, so the
     // importer keeps it. The deploy install skips it with the rest of its
     // excluded group.
-    const targetDependencies = targetSnapshot[field] ?? {}
-    const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
       const version = inputDependencies[name]
-      if (!include[field] && !peerOnlyDependencies.has(name) && !version.startsWith('runtime:')) continue
-      const resolveResult = resolveLinkOrFile(version, {
-        lockfileDir,
-        projectRootDirRealPath: path.resolve(lockfileDir, projectId),
-      })
-
-      if (!resolveResult) {
-        targetDependencies[name] = version
-        targetSpecifiers[name] = deployDependencySpecifier(name, version)
-        continue
-      }
-
-      resolveResult.packageName ??= name
-      targetSpecifiers[name] = targetDependencies[name] =
-        resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects)
+      if (!opts.include[field] && !peerOnlyDependencies.has(name) && !version.startsWith('runtime:')) continue
+      addDeployImporterDependency(targetSnapshot, { deployedProjectRealPath, field, name, opts, version })
     }
   }
+  return targetSnapshot
+}
 
-  const deployPackageSnapshots = filterDeployPackageSnapshots(
-    targetSnapshot,
-    targetPackageSnapshots,
-    { include, peerSatisfactionEdges }
-  )
-  bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
+function addDeployImporterDependency (
+  targetSnapshot: ProjectSnapshot,
+  dependency: {
+    deployedProjectRealPath: string
+    field: DependenciesField
+    name: string
+    opts: CreateDeployFilesOptions
+    version: string
+  }
+): void {
+  const { deployedProjectRealPath, field, name, opts, version } = dependency
+  const targetDependencies = targetSnapshot[field] ?? {}
+  const targetSpecifiers = targetSnapshot.specifiers
+  const resolveResult = resolveLinkOrFile(version, {
+    lockfileDir: opts.lockfileDir,
+    projectRootDirRealPath: path.resolve(opts.lockfileDir, opts.projectId),
+  })
 
-  const workspaceManifest: DeployWorkspaceManifest = {
+  if (!resolveResult) {
+    targetDependencies[name] = version
+    targetSpecifiers[name] = deployDependencySpecifier(name, version)
+    return
+  }
+
+  resolveResult.packageName ??= name
+  targetSpecifiers[name] = targetDependencies[name] =
+    resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, opts.allProjects)
+}
+
+function createDeployWorkspaceManifest (lockfile: LockfileObject): DeployWorkspaceManifest {
+  return {
     autoInstallPeers: lockfile.settings?.autoInstallPeers ?? true,
     dedupePeers: lockfile.settings?.dedupePeers ?? false,
     excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
@@ -197,49 +256,48 @@ export function createDeployFiles ({
     peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength ?? 1000,
     virtualStoreType: 'project',
   }
-  const result: DeployFiles = {
-    lockfile: {
-      ...lockfile,
-      // The deployed manifest contains concrete versions, and catalogs are not copied to the target.
-      catalogs: undefined,
-      patchedDependencies: undefined,
-      overrides: undefined, // the effects of the overrides should already be part of the package snapshots
-      packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
-      pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
-      settings: {
-        ...lockfile.settings,
-        injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the lockfile
-      },
-      importers: {
-        ['.' as ProjectId]: targetSnapshot,
-      },
-      packages: deployPackageSnapshots,
+}
+
+function createDeployLockfile (
+  lockfile: LockfileObject,
+  deployed: { deployPackageSnapshots: PackageSnapshots, targetSnapshot: ProjectSnapshot }
+): LockfileObject {
+  return {
+    ...lockfile,
+    // The deployed manifest contains concrete versions, and catalogs are not copied to the target.
+    catalogs: undefined,
+    patchedDependencies: undefined,
+    overrides: undefined, // the effects of the overrides should already be part of the package snapshots
+    packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
+    pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
+    settings: {
+      ...lockfile.settings,
+      injectWorkspacePackages: undefined, // the effects of injecting workspace packages should already be part of the lockfile
     },
-    manifest: omitPeersOfExcludedDependencies({
-      ...selectedProjectManifest,
-      dependencies: pick(Object.keys(targetSnapshot.dependencies ?? {}), targetSnapshot.specifiers),
-      devDependencies: pick(Object.keys(targetSnapshot.devDependencies ?? {}), targetSnapshot.specifiers),
-      optionalDependencies: pick(Object.keys(targetSnapshot.optionalDependencies ?? {}), targetSnapshot.specifiers),
-    }, selectedProjectManifest, targetSnapshot),
-    workspaceManifest,
+    importers: {
+      ['.' as ProjectId]: deployed.targetSnapshot,
+    },
+    packages: deployed.deployPackageSnapshots,
   }
+}
 
-  if (lockfile.patchedDependencies && patchedDependencies) {
-    result.lockfile.patchedDependencies = { ...lockfile.patchedDependencies }
-    const deployManifestPatchedDeps: Record<string, string> = {}
-    for (const name in patchedDependencies) {
-      const absolutePath = patchedDependencies[name]
-      const relativePath = normalizePath(path.relative(deployDir, absolutePath))
-      deployManifestPatchedDeps[name] = relativePath
-    }
-    workspaceManifest.patchedDependencies = deployManifestPatchedDeps
+function createDeployManifest (selectedProjectManifest: ProjectManifest, targetSnapshot: ProjectSnapshot): ProjectManifest {
+  return omitPeersOfExcludedDependencies({
+    ...selectedProjectManifest,
+    dependencies: pick(Object.keys(targetSnapshot.dependencies ?? {}), targetSnapshot.specifiers),
+    devDependencies: pick(Object.keys(targetSnapshot.devDependencies ?? {}), targetSnapshot.specifiers),
+    optionalDependencies: pick(Object.keys(targetSnapshot.optionalDependencies ?? {}), targetSnapshot.specifiers),
+  }, selectedProjectManifest, targetSnapshot)
+}
+
+function relativizePatchPaths (patchedDependencies: Record<string, string>, deployDir: string): Record<string, string> {
+  const deployManifestPatchedDeps: Record<string, string> = {}
+  for (const name in patchedDependencies) {
+    const absolutePath = patchedDependencies[name]
+    const relativePath = normalizePath(path.relative(deployDir, absolutePath))
+    deployManifestPatchedDeps[name] = relativePath
   }
-
-  if (allowBuilds) {
-    workspaceManifest.allowBuilds = allowBuilds
-  }
-
-  return result
+  return deployManifestPatchedDeps
 }
 
 function deployDependencySpecifier (alias: string, reference: string): string {
@@ -272,273 +330,7 @@ function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string
   return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(source[field] ?? {})))
 }
 
-function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
+function omitKeys<Value> (record: Record<string, Value> | undefined, keys: Set<string>): Record<string, Value> | undefined {
   if (record == null) return undefined
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
-}
-
-/** Takes ownership of `packages`: the retained snapshots are edited in place. */
-function filterDeployPackageSnapshots (
-  importer: ProjectSnapshot,
-  packages: PackageSnapshots,
-  opts: {
-    include: CreateDeployFilesOptions['include']
-    peerSatisfactionEdges: PeerSatisfactionEdges
-  }
-): PackageSnapshots {
-  const { include, peerSatisfactionEdges } = opts
-  const queue: DepPath[] = []
-  const enqueue = (dependencies: ResolvedDependencies | undefined, parent?: DepPath) => {
-    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
-      if (parent != null && isPeerSatisfactionEdge(peerSatisfactionEdges, parent, alias)) continue
-      const depPath = dp.refToRelative(reference, alias)
-      if (depPath != null && packages[depPath] != null) queue.push(depPath)
-    }
-  }
-
-  enqueue(importer.dependencies)
-  enqueue(importer.devDependencies)
-  enqueue(importer.optionalDependencies)
-
-  const reachable = new Set<DepPath>()
-  let head = 0
-  while (head < queue.length) {
-    const depPath = queue[head++]!
-    if (reachable.has(depPath)) continue
-    reachable.add(depPath)
-
-    const snapshot = packages[depPath]
-    if (snapshot == null) continue
-    enqueue(snapshot.dependencies, depPath)
-    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies, depPath)
-  }
-
-  return pruneDanglingPeerSatisfactionEdges(Object.fromEntries(
-    Array.from(reachable, (depPath) => {
-      const snapshot = packages[depPath]
-      // A retained snapshot's optional edges point at packages this filter just dropped.
-      if (!include.optionalDependencies) snapshot.optionalDependencies = undefined
-      return [depPath, snapshot]
-    })
-  ) as PackageSnapshots, peerSatisfactionEdges)
-}
-
-/**
- * Resolves the peer dependencies of linked workspace packages against the
- * deployed graph, editing the snapshots in `packages` in place.
- *
- * A linked workspace package has no package snapshot in the shared lockfile, so
- * the importer its deployed snapshot is synthesized from carries no peer
- * bindings and they cannot be recovered afterwards. A peer already bound by
- * either dependency map, or absent from the deployed graph entirely, is left
- * alone.
- *
- * @throws PnpmError DEPLOY_AMBIGUOUS_PEER when the deployed graph offers more
- * than one resolution for a peer, since choosing between them is precisely the
- * decision injecting the package would have made.
- */
-function bindSingletonPeers (
-  importer: ProjectSnapshot,
-  packages: PackageSnapshots,
-  linkedWorkspaceProjects: Map<DepPath, ProjectManifest>
-): void {
-  if (linkedWorkspaceProjects.size === 0) return
-
-  // Keyed by the resolved dependency path rather than the reference that
-  // spelled it, so an npm-aliased edge and a plain one that name the same
-  // package count once.
-  const references = new Map<string, Set<string>>()
-  const collect = (dependencies: ResolvedDependencies | undefined) => {
-    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
-      const depPath = dp.refToRelative(reference, alias)
-      if (depPath == null) continue
-      const { name } = dp.parse(depPath)
-      if (name == null) continue
-      let referencesOfName = references.get(name)
-      if (referencesOfName == null) references.set(name, referencesOfName = new Set())
-      referencesOfName.add(depPath.slice(name.length + 1))
-    }
-  }
-  collect(importer.dependencies)
-  collect(importer.devDependencies)
-  collect(importer.optionalDependencies)
-  for (const snapshot of Object.values(packages)) {
-    collect(snapshot.dependencies)
-    collect(snapshot.optionalDependencies)
-  }
-
-  for (const [depPath, manifest] of linkedWorkspaceProjects) {
-    const snapshot = packages[depPath]
-    if (snapshot == null) continue
-    for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
-      // Consult the manifest, not just the snapshot: the graph prune clears the
-      // optional map before this runs, so a peer the package depends on
-      // optionally is invisible in the snapshot under `--no-optional`, and
-      // binding it there would resurrect a dependency the flag excluded.
-      if (declaresDependency(manifest, peerName)) continue
-      if (declaresDependency(snapshot, peerName)) continue
-      const candidates = references.get(peerName)
-      // A peer the deployed graph does not provide at all stays unresolved,
-      // exactly as it is in the workspace this deploy was taken from.
-      if (candidates == null) continue
-      if (candidates.size > 1) {
-        throw new PnpmError('DEPLOY_AMBIGUOUS_PEER', `Workspace package '${manifest.name ?? depPath}' declares a peer dependency on '${peerName}', which resolves to more than one version (${Array.from(candidates).sort().join(', ')}) in the deployed graph. Without "injectWorkspacePackages" there is no snapshot to bind it to.`, {
-          hint: `Pin '${peerName}' to a single version with an "overrides" entry, set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag.`,
-        })
-      }
-      snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }
-    }
-  }
-}
-
-/**
- * Whether `source` binds `name` through one of its runtime dependency maps.
- *
- * Own keys only: a package may legitimately be named `constructor` or
- * `toString`, and a plain property read would find those on `Object.prototype`
- * and report a binding that does not exist.
- */
-function declaresDependency (
-  source: Pick<ProjectManifest, 'dependencies' | 'optionalDependencies'> | Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies'>,
-  name: string
-): boolean {
-  return (source.dependencies != null && Object.hasOwn(source.dependencies, name)) ||
-    (source.optionalDependencies != null && Object.hasOwn(source.optionalDependencies, name))
-}
-
-interface ConvertOptions {
-  allProjects: CreateDeployFilesOptions['allProjects']
-  deployDir: string
-  deployedProjectRealPath: string
-  projectRootDirRealPath: string
-  lockfileDir: string
-}
-
-function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOptions): PackageSnapshot {
-  const inputResolution = inputSnapshot.resolution
-  let outputResolution: LockfileResolution
-  if ('integrity' in inputResolution) {
-    outputResolution = inputResolution
-  } else if ('tarball' in inputResolution && typeof inputResolution.tarball === 'string') {
-    outputResolution = { ...inputResolution }
-    if (inputResolution.tarball.startsWith('file:')) {
-      const inputPath = inputResolution.tarball.slice('file:'.length)
-      const resolvedPath = path.resolve(opts.lockfileDir, inputPath)
-      const outputPath = normalizePath(path.relative(opts.deployDir, resolvedPath))
-      outputResolution.tarball = `file:${outputPath}`
-      if ('path' in inputResolution && typeof inputResolution.path === 'string') {
-        outputResolution.path = outputPath
-      }
-    }
-  } else if (inputResolution.type === 'directory') {
-    const dirResolution = inputResolution as DirectoryResolution
-    const resolvedPath = path.resolve(opts.lockfileDir, dirResolution.directory)
-    const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
-    outputResolution = { ...dirResolution, directory }
-  } else if (inputResolution.type === 'git' || inputResolution.type === 'variations') {
-    outputResolution = inputResolution
-  } else if (inputResolution.type && typeof inputResolution.type === 'string') {
-    // Custom resolution type - pass through as-is
-    outputResolution = inputResolution
-  } else {
-    throw new Error(`Unknown resolution type: ${JSON.stringify(inputResolution)}`)
-  }
-
-  return {
-    ...inputSnapshot,
-    resolution: outputResolution,
-    dependencies: convertResolvedDependencies(inputSnapshot.dependencies, opts),
-    optionalDependencies: convertResolvedDependencies(inputSnapshot.optionalDependencies, opts),
-  }
-}
-
-function convertProjectSnapshotToPackageSnapshot (projectSnapshot: ProjectSnapshot, opts: ConvertOptions): PackageSnapshot {
-  const resolution: DirectoryResolution = {
-    type: 'directory',
-    directory: normalizePath(path.relative(opts.deployDir, opts.projectRootDirRealPath)),
-  }
-  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, opts)
-  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, opts)
-  return {
-    dependencies,
-    optionalDependencies,
-    resolution,
-  }
-}
-
-function convertResolvedDependencies (
-  input: ResolvedDependencies | undefined,
-  opts: Pick<ConvertOptions, 'allProjects' | 'deployedProjectRealPath' | 'lockfileDir' | 'projectRootDirRealPath'>
-): ResolvedDependencies | undefined {
-  if (!input) return undefined
-  const output: ResolvedDependencies = {}
-
-  for (const key in input) {
-    const version = input[key]
-    const resolveResult = resolveLinkOrFile(version, opts)
-    if (!resolveResult) {
-      output[key] = version
-      continue
-    }
-
-    if (resolveResult.resolvedPath === opts.deployedProjectRealPath) {
-      output[key] = 'link:.' // the path is relative to the lockfile dir, which means '.' would reference the deploy dir
-      continue
-    }
-
-    resolveResult.packageName ??= key
-    output[key] = createFileUrlDepPath(resolveResult, opts.allProjects)
-  }
-
-  return output
-}
-
-interface ResolveLinkOrFileResult {
-  scheme: 'link:' | 'file:'
-  resolvedPath: string
-  suffix?: string
-  packageName?: string
-}
-
-function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
-  const { lockfileDir, projectRootDirRealPath } = opts
-
-  function resolveScheme (scheme: ResolveLinkOrFileResult['scheme'], base: string): ResolveLinkOrFileResult | undefined {
-    if (!pkgVer.startsWith(scheme)) return undefined
-    const { id, peerDepGraphHash: suffix } = dp.parseDepPath(pkgVer.slice(scheme.length))
-    const resolvedPath = path.resolve(base, id)
-    return { scheme, resolvedPath, suffix }
-  }
-
-  const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
-  if (resolveSchemeResult) return resolveSchemeResult
-
-  const { name, nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
-  if (!nonSemverVersion) return undefined
-
-  if (version) {
-    throw new Error(`Something goes wrong, version should be undefined but isn't: ${version}`)
-  }
-
-  const parseResult = resolveLinkOrFile(nonSemverVersion, opts)
-  if (!parseResult) return undefined
-
-  if (parseResult.suffix) {
-    throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
-  }
-
-  parseResult.suffix = `${patchHash ?? ''}${peerDepGraphHash ?? ''}`
-  parseResult.packageName = name
-
-  return parseResult
-}
-
-function createFileUrlDepPath (
-  { resolvedPath, suffix, packageName }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix' | 'packageName'>,
-  allProjects: CreateDeployFilesOptions['allProjects']
-): DepPath {
-  const depFileUrl = url.pathToFileURL(resolvedPath).toString()
-  const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
-  const name = project?.manifest.name ?? packageName ?? path.basename(resolvedPath)
-  return `${name}@${depFileUrl}${suffix ?? ''}` as DepPath
 }

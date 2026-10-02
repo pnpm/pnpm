@@ -17,7 +17,7 @@ test('throws an error when the peerDependencies have unallowed specs', async () 
     },
   ])
 
-  // eslint-disable-next-line
+  // eslint-disable-next-line jest/valid-expect -- the rejects matchers are awaited below
   const { rejects } = expect(
     install({
       name: 'root',
@@ -86,7 +86,7 @@ test("empty overrides don't disable peer dependencies validation", async () => {
 
   const overrides = {}
 
-  // eslint-disable-next-line
+  // eslint-disable-next-line jest/valid-expect -- the rejects matchers are awaited below
   const { rejects } = expect(
     install({
       name: 'root',
