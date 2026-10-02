@@ -6,7 +6,7 @@ mod provider_config;
 use provider_config::{build_providers, secure_url};
 
 mod provider_metadata;
-use provider_metadata::MetadataCache;
+use provider_metadata::{MetadataCache, MetadataFreshness};
 
 mod workload;
 use workload::{
@@ -127,7 +127,7 @@ impl OidcState {
         if provider.config.login.is_none() {
             return Err(RegistryError::NotFound);
         }
-        let metadata = self.metadata(provider, false).await?;
+        let metadata = self.metadata(provider, MetadataFreshness::Cached).await?;
         let client = self.login_client(provider, metadata)?;
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
         let (url, state, nonce) = client
@@ -161,7 +161,7 @@ impl OidcState {
         let _exchange = self.exchanges.try_acquire().map_err(|_| unavailable())?;
         self.record_attempt(&login.state_hash)?;
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
-        let metadata = self.metadata(provider, false).await?;
+        let metadata = self.metadata(provider, MetadataFreshness::Cached).await?;
         let response = self
             .login_client(provider, metadata.clone())?
             .exchange_code(AuthorizationCode::new(code.to_string()))
@@ -233,7 +233,10 @@ impl OidcState {
     ) -> Result<i64> {
         let mut verifier = token_verifier(&provider.config, metadata)?;
         if token.claims(&verifier, nonce).is_err() {
-            verifier = token_verifier(&provider.config, &self.metadata(provider, true).await?)?;
+            verifier = token_verifier(
+                &provider.config,
+                &self.metadata(provider, MetadataFreshness::Refetched).await?,
+            )?;
         }
         let claims = token.claims(&verifier, nonce).map_err(|_| rejected())?;
         if let Some(expected) = claims.access_token_hash() {

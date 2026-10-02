@@ -6,6 +6,15 @@ use super::{
 const METADATA_TTL: Duration = Duration::from_mins(5);
 const REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 
+/// How fresh a provider's metadata has to be. `Refetched` asks for a new
+/// discovery, and takes the cached copy only when one was attempted within
+/// [`REFRESH_INTERVAL`], which bounds the retries a rejected token triggers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum MetadataFreshness {
+    Cached,
+    Refetched,
+}
+
 #[derive(Default)]
 pub(super) struct MetadataCache {
     pub(super) value: Option<(Instant, CoreProviderMetadata)>,
@@ -16,16 +25,16 @@ impl OidcState {
     pub(super) async fn metadata(
         &self,
         provider: &Provider,
-        refresh: bool,
+        freshness: MetadataFreshness,
     ) -> Result<CoreProviderMetadata> {
-        let cached = cached_metadata(&*provider.metadata.lock().await, refresh);
+        let cached = cached_metadata(&*provider.metadata.lock().await, freshness);
         if let Some(metadata) = cached {
             return Ok(metadata);
         }
         let _refresh = provider.refresh.lock().await;
         {
             let mut cache = provider.metadata.lock().await;
-            if let Some(metadata) = cached_metadata(&cache, refresh) {
+            if let Some(metadata) = cached_metadata(&cache, freshness) {
                 return Ok(metadata);
             }
             if cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL) {
@@ -45,10 +54,18 @@ impl OidcState {
     }
 }
 
-fn cached_metadata(cache: &MetadataCache, refresh: bool) -> Option<CoreProviderMetadata> {
-    let recently_attempted = cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL);
-    cache.value
+fn cached_metadata(
+    cache: &MetadataCache,
+    freshness: MetadataFreshness,
+) -> Option<CoreProviderMetadata> {
+    let unexpired = cache.value
         .as_ref()
-        .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL && (!refresh || recently_attempted))
-        .map(|(_, metadata)| metadata.clone())
+        .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL);
+    match freshness {
+        MetadataFreshness::Cached => unexpired,
+        MetadataFreshness::Refetched => unexpired.filter(|_| {
+            cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL)
+        }),
+    }
+    .map(|(_, metadata)| metadata.clone())
 }
