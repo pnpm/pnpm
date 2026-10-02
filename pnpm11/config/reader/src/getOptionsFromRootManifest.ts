@@ -92,7 +92,7 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
-  if (settings.peerDependencyRules != null) {
+  if (settings.peerDependencyRules !== undefined) {
     assertValidPeerDependencyRules(settings.peerDependencyRules)
   }
   translateRegistrySettings(settings)
@@ -463,13 +463,13 @@ function assertValidAllowBuilds (allowBuilds: unknown): asserts allowBuilds is R
 function assertValidPeerDependencyRules (peerDependencyRules: unknown): asserts peerDependencyRules is PeerDependencyRules {
   assertObjectSetting(peerDependencyRules, 'peerDependencyRules')
   const rules = peerDependencyRules as Record<string, unknown>
-  if (rules.ignoreMissing != null) {
+  if (rules.ignoreMissing !== undefined) {
     assertStringArray(rules.ignoreMissing, 'peerDependencyRules.ignoreMissing')
   }
-  if (rules.allowAny != null) {
+  if (rules.allowAny !== undefined) {
     assertStringArray(rules.allowAny, 'peerDependencyRules.allowAny')
   }
-  if (rules.allowedVersions != null) {
+  if (rules.allowedVersions !== undefined) {
     assertStringRecord(rules.allowedVersions, 'peerDependencyRules.allowedVersions')
   }
 }

@@ -987,3 +987,17 @@ test('getOptionsFromPnpmSettings() accepts valid peerDependencyRules', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), { peerDependencyRules })
   expect(options.peerDependencyRules).toStrictEqual(peerDependencyRules)
 })
+
+test.each([
+  ['peerDependencyRules', null, 'The "peerDependencyRules" setting should be an object, but got null'],
+  ['peerDependencyRules', { ignoreMissing: null }, 'The "peerDependencyRules.ignoreMissing" setting should be an array of strings, but got null'],
+  ['peerDependencyRules', { allowAny: null }, 'The "peerDependencyRules.allowAny" setting should be an array of strings, but got null'],
+  ['peerDependencyRules', { allowedVersions: null }, 'The "peerDependencyRules.allowedVersions" setting should be an object, but got null'],
+])('getOptionsFromPnpmSettings() rejects explicit null in %s', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
