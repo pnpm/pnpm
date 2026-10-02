@@ -1,7 +1,7 @@
 use super::{
-    ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-    is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
-    read_head_filled, relative_target, search_script_runtime,
+    CmdShimBatch, ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim,
+    generate_sh_shim, is_sh_shim_hardened, is_shim_pointing_at, parse_shebang,
+    parse_shebang_from_bytes, read_head_filled, relative_target, search_script_runtime,
     sh::{
         SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
         SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
@@ -662,7 +662,7 @@ fn generate_cmd_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc.cmd");
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
-    let body = generate_cmd_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_cmd_shim(target, shim, Some(&runtime), &[], CmdShimBatch::Kept);
 
     assert!(body.starts_with("@SETLOCAL\r\n"), "must start with @SETLOCAL CRLF");
     assert!(
@@ -675,7 +675,7 @@ fn generate_cmd_shim_matches_pnpm_template() {
 fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
     let target = Path::new("/p/cli");
     let shim = Path::new("/p/.bin/cli.cmd");
-    let body = generate_cmd_shim(target, shim, None, &[]);
+    let body = generate_cmd_shim(target, shim, None, &[], CmdShimBatch::Kept);
     assert!(
         body.contains(r#"@"%~dp0\..\cli""#),
         "no-runtime arm must exec the target directly, body:\n{body}",
@@ -683,11 +683,69 @@ fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
 }
 
 #[test]
+fn generate_cmd_shim_ends_the_batch_before_a_direct_target() {
+    let target = Path::new("/home/global/v11/abc/node_modules/pnpm/pnpm.exe");
+    let shim = Path::new("/home/bin/pnpm.cmd");
+    let body = generate_cmd_shim(target, shim, None, &[], CmdShimBatch::EndedBeforeTarget);
+    assert_eq!(
+        body,
+        "@SETLOCAL\r\n\
+         @SET \"_PNPM_RESTORE_TITLE=\"\r\n\
+         @SETLOCAL EnableDelayedExpansion\r\n\
+         @SET \"_PNPM_CMDLINE=!CMDCMDLINE:/c=!\"\r\n\
+         @IF \"!_PNPM_CMDLINE!\"==\"!CMDCMDLINE!\" (ENDLOCAL & SET \"_PNPM_RESTORE_TITLE=1\") ELSE ENDLOCAL\r\n\
+         @GOTO #_undefined_# 2>NUL || (IF \"%_PNPM_RESTORE_TITLE%\"==\"1\" TITLE %COMSPEC%) & \"%~dp0\\..\\global\\v11\\abc\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n",
+    );
+}
+
+/// The `SETLOCAL` scope is gone by the time the target starts, so a
+/// `NODE_PATH` block would set nothing the target sees.
+#[test]
+fn generate_cmd_shim_ending_the_batch_sets_no_node_path() {
+    let target = Path::new("/proj/node_modules/pnpm/pnpm");
+    let shim = Path::new("/proj/node_modules/.bin/pnpm.cmd");
+    let node_path = ["/proj/node_modules".to_string()];
+    let body = generate_cmd_shim(target, shim, None, &node_path, CmdShimBatch::EndedBeforeTarget);
+    assert!(!body.contains("NODE_PATH"), "body:\n{body}");
+    assert!(body.ends_with("& \"%~dp0\\..\\pnpm\\pnpm\"  %*\r\n"), "body:\n{body}");
+}
+
+/// The interpreter lookup sets `PATHEXT`, which must not outlive the shim, so
+/// a target run through an interpreter keeps its batch context.
+#[test]
+fn generate_cmd_shim_keeps_the_batch_for_an_interpreted_target() {
+    let target = Path::new("/proj/node_modules/pnpm/bin/pnpm.cjs");
+    let shim = Path::new("/proj/node_modules/.bin/pnpm.cmd");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let node_path = ["/proj/node_modules".to_string()];
+    assert_eq!(
+        generate_cmd_shim(
+            target,
+            shim,
+            Some(&runtime),
+            &node_path,
+            CmdShimBatch::EndedBeforeTarget
+        ),
+        generate_cmd_shim(target, shim, Some(&runtime), &node_path, CmdShimBatch::Kept),
+    );
+}
+
+#[test]
+fn generate_cmd_shim_ending_the_batch_keeps_shebang_args() {
+    let target = Path::new("/p/cli");
+    let shim = Path::new("/p/.bin/cli.cmd");
+    let runtime = ScriptRuntime { prog: None, args: " --50%".into() };
+    let body =
+        generate_cmd_shim(target, shim, Some(&runtime), &[], CmdShimBatch::EndedBeforeTarget);
+    assert!(body.ends_with(" & \"%~dp0\\..\\cli\"  --50%% %*\r\n"), "body:\n{body}");
+}
+
+#[test]
 fn generate_cmd_shim_escapes_percent_in_paths() {
     let target = Path::new("/50% off/pkg/cli");
     let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
     let node_path = ["/50% off/proj/node_modules".to_string()];
-    let body = generate_cmd_shim(target, shim, None, &node_path);
+    let body = generate_cmd_shim(target, shim, None, &node_path, CmdShimBatch::Kept);
 
     assert!(
         body.contains(r"50%% off\proj\node_modules;%NODE_PATH%"),
@@ -704,7 +762,7 @@ fn generate_cmd_shim_escapes_percent_in_prog_and_args() {
     let target = Path::new("/proj/pkg/cli");
     let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
     let runtime = ScriptRuntime { prog: Some("/50%OS%bin/sh".into()), args: "-x %OS%".into() };
-    let body = generate_cmd_shim(target, shim, Some(&runtime), &[]);
+    let body = generate_cmd_shim(target, shim, Some(&runtime), &[], CmdShimBatch::Kept);
 
     assert!(
         body.contains(r#"@IF EXIST "%~dp0\/50%%OS%%bin/sh.exe""#),

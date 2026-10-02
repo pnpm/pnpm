@@ -4,7 +4,7 @@ use super::{
     chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
     is_node_bin_name, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
     link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
-    symlink_already_points_at, target_requires_shim,
+    symlink_already_points_at, target_requires_shim, windows_shim_policy::WindowsShimPolicy,
 };
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
@@ -12,9 +12,8 @@ use super::{
 /// is Windows*. Idempotent on warm reinstalls via
 /// [`is_shim_pointing_at`].
 ///
-/// `make_powershell_shim` (see [`wants_powershell_shim`](super::wants_powershell_shim)) drops the
-/// `.ps1` sibling, and deletes any that an earlier install left
-/// behind.
+/// Without [`WindowsShimPolicy::powershell`] there is no `.ps1` sibling, and
+/// one an earlier install left is deleted.
 ///
 /// The chmod step (`set_executable` for the canonical shim and
 /// `ensure_executable_bits` for the target binary) is wired through the
@@ -36,7 +35,7 @@ pub(super) struct ShimSpec<'a> {
     pub(super) shim_path: &'a Path,
     pub(super) node_path: &'a [String],
     pub(super) options: &'a LinkBinsOptions,
-    pub(super) make_powershell_shim: bool,
+    pub(super) windows: WindowsShimPolicy,
     pub(super) paths: &'a LinkingPaths<'a>,
     /// Whether this run created the bin directory. Read by
     /// [`read_or_create_shim`], which documents what it is worth.
@@ -75,7 +74,7 @@ where
     // PowerShell keeps preferring it over the `.cmd` sibling. Delete
     // it up front, above the short-circuits below — they all return
     // without touching the Windows siblings.
-    if !spec.make_powershell_shim {
+    if !spec.windows.powershell {
         remove_stale_bin(&with_extension_appended(spec.shim_path, "ps1"))?;
     }
 
@@ -235,8 +234,14 @@ fn windows_shim_bodies(
 ) -> Option<WindowsShims> {
     cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(spec.shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(spec.target_path, &cmd_path, runtime, spec.node_path);
-        let powershell = spec.make_powershell_shim.then(|| {
+        let cmd_body = generate_cmd_shim(
+            spec.target_path,
+            &cmd_path,
+            runtime,
+            spec.node_path,
+            spec.windows.cmd_batch,
+        );
+        let powershell = spec.windows.powershell.then(|| {
             let ps1_path = with_extension_appended(spec.shim_path, "ps1");
             let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
             (ps1_path, ps1_body)
@@ -338,7 +343,7 @@ where
         probe_path,
         shim_path,
         node_path,
-        make_powershell_shim,
+        windows,
         ..
     } = spec;
     let runtime = cache
@@ -359,9 +364,15 @@ where
         // The Windows siblings keep the replace shape: a missing
         // canonical shim proves nothing about `.cmd`/`.ps1` leftovers.
         let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
+        let cmd_body = generate_cmd_shim(
+            target_path,
+            &cmd_path,
+            runtime.as_ref(),
+            node_path,
+            windows.cmd_batch,
+        );
         replace_shim::<Sys>(&cmd_path, cmd_body.as_bytes())?;
-        if make_powershell_shim {
+        if windows.powershell {
             let ps1_path = with_extension_appended(shim_path, "ps1");
             let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
             replace_shim::<Sys>(&ps1_path, ps1_body.as_bytes())?;

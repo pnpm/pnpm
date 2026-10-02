@@ -309,6 +309,11 @@ fn write_windows_alias_wrapper(
     // theirs. Through `call` the forwarded arguments would take a second round of
     // `%`-expansion, and the exit code is the shim's either way, since this is the
     // last command this script runs. `%~dp0` already ends in a backslash.
+    //
+    // Run without `call`, `pnpm.cmd` also takes over this script's batch context
+    // and ends it before pnpm starts (see `CmdShimBatch::EndedBeforeTarget`), so
+    // Ctrl+C leaves no batch job behind to ask about. Ending the context here
+    // instead would keep this script's `echo off` in an interactive cmd.exe.
     write_atomic(
         &target_dir.join(format!("{name}.cmd")),
         format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n").as_bytes(),

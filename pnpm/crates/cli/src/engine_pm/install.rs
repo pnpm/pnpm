@@ -141,9 +141,9 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     let package = registry_engine_packages(pm, version)?;
     let _store_lock =
         config.store_dir.lock_for_use().wrap_err("lock the package-manager engine store")?;
-    // An engine already in its slot skips both the signature check and the
-    // install.
-    if let Some(bin_dir) = cached_engine_bins(config, env, package, version) {
+    // An engine already in its slot, with its bins linked, skips both the
+    // signature check and the install.
+    if let Some(bin_dir) = linked_engine_bins(config, env, package, version) {
         return Ok(InstalledEngine::shared(bin_dir));
     }
 
@@ -156,11 +156,17 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     // looking for a binary that no longer exists.
     let lock = engine_install_lock::<Reporter>(config, package.wrapper, version);
     // The wait may have been for a process that installed the very engine
-    // we want, so ask the cache again before paying for the download.
-    if lock.is_some()
-        && let Some(bin_dir) = cached_engine_bins(config, env, package, version)
-    {
-        return Ok(InstalledEngine::shared(bin_dir));
+    // we want, so ask the cache again before paying for the download. A slot
+    // whose bins are missing or were linked by another pnpm is relinked here,
+    // under the lock, since other processes may be running the engine from it.
+    if lock.is_some() {
+        if let Some(bin_dir) = linked_engine_bins(config, env, package, version) {
+            return Ok(InstalledEngine::shared(bin_dir));
+        }
+        if let Some(slot) = populated_engine_slot(config, env, package, version) {
+            return link_engine_bins(&slot, package.wrapper, package.links_native_binary)
+                .map(InstalledEngine::shared);
+        }
     }
 
     verify_registry_engine::<Reporter>(config, pm, env, version, package).await?;
@@ -234,24 +240,6 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
     let bin_dir =
         link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)?;
     Ok(InstalledEngine { bin_dir, private_install: Some(private_install) })
-}
-
-/// The engine's already-linked bin directory, when its global-virtual-store
-/// slot is already populated. The slot is computed with the same hashing
-/// the install pipeline uses, so a stale or wrong computation merely misses
-/// the cache: the idempotent install then re-derives the slot from its own
-/// symlink.
-fn cached_engine_bins(
-    config: &Config,
-    env: &EnvLockfile,
-    package: EnginePackages,
-    version: &str,
-) -> Option<PathBuf> {
-    let slot = compute_engine_slot(config, env, package, version)?;
-    if !package_dir(&slot, package.wrapper).join("package.json").exists() {
-        return None;
-    }
-    link_engine_bins(&slot, package.wrapper, package.links_native_binary).ok()
 }
 
 /// Take the host-wide lock guarding this engine's slot, or `None` when
@@ -394,6 +382,9 @@ fn link_engine_bins(
         link_exe_platform_binary(install_root, package_name)?;
     }
     link_bins(&pkg_dir, &bin_dir)?;
+    linked_bins::mark_current(&bin_dir)
+        .into_diagnostic()
+        .wrap_err("record the linked package manager bins")?;
     Ok(bin_dir)
 }
 
@@ -511,6 +502,9 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
         Err(error) => Err(error),
     }
 }
+
+mod linked_bins;
+use linked_bins::{linked_engine_bins, populated_engine_slot};
 
 #[cfg(test)]
 mod tests;
