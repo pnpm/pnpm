@@ -67,6 +67,18 @@ setup as automatic publication. The generated website commit records the source
 SHA. This manual override leaves the last-release tracking in `docs-sync.json`
 unchanged; subsequent newer releases resume updating their respective docs.
 
+### Release pages
+
+Each stable v11 and v12 sync also writes the release's page on the pnpm.io blog,
+`blog/releases/<version>.md`. The page is the composed changelog section that
+the release PR curated (see the
+[release-notes skill](.agents/skills/release-notes/SKILL.md)), read at the
+release commit. Its lead paragraph becomes the blog excerpt. The sync never
+overwrites an existing page, so fix a published page in pnpm/pnpm.io directly.
+Pnpr releases get no page.
+
+### Corrections
+
 For a correction that should ship before the next package release, branch from
 the published release tag, change only the corresponding `pnpm/docs/` or
 `pnpm11/docs/` directory, or `pnpr/docs/` for registry documentation. Make the
