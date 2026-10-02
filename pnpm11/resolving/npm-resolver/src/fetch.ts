@@ -51,6 +51,8 @@ export interface FetchMetadataResult {
    */
   jsonText: string | undefined
   etag?: string
+  /** The request asked for the full document, not the abbreviated one. */
+  fullMetadata?: boolean
   /**
    * The response `Cache-Control` said this document is already stale
    * (`max-age=0`, `no-cache`, or `no-store`).
@@ -317,6 +319,7 @@ async function readMetadataResponse (
   return {
     ...normalizeAbbreviatedResponse({ fullMetadata: request.fullMetadata, meta, jsonText, response }),
     etag: response.headers.get('etag') ?? undefined,
+    fullMetadata: request.fullMetadata === true,
     uncacheable: metadataResponseIsUncacheable(response.headers.get('cache-control')),
   }
 }
