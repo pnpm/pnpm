@@ -1,5 +1,6 @@
 use super::{HoistedLinkerError, Lockfile, PackageKey, SymlinkPackageError};
 use crate::{DependenciesGraphNode, safe_join_modules_dir::safe_join_modules_dir, symlink_package};
+use std::{collections::HashSet, path::PathBuf};
 
 /// Link each `link:<root>/...` dependency of a hoisted package from that
 /// package's own `node_modules` to the directory inside the package. The
@@ -11,9 +12,12 @@ pub(crate) fn link_hoisted_package_root_links<'g>(
     lockfile: &Lockfile,
     nodes: impl IntoIterator<Item = &'g DependenciesGraphNode>,
     include_optional: bool,
-) -> Result<(), HoistedLinkerError> {
+) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
+    let mut changed_dirs = HashSet::new();
     for node in nodes {
-        let Ok(key) = node.package.dep_path.as_str().parse::<PackageKey>() else { continue };
+        let Ok(key) = node.package.dep_path.as_str().parse::<PackageKey>() else {
+            continue;
+        };
         let Some(snapshot) = lockfile.snapshots
             .as_ref()
             .and_then(|snapshots| snapshots.get(&key))
@@ -32,10 +36,11 @@ pub(crate) fn link_hoisted_package_root_links<'g>(
         for (alias, dep_ref) in deps {
             if let Some(target) = dep_ref.package_root_link_target() {
                 link_package_root_target(node, &alias.to_string(), target)?;
+                changed_dirs.insert(node.dir.join("node_modules"));
             }
         }
     }
-    Ok(())
+    Ok(changed_dirs)
 }
 
 fn link_package_root_target(

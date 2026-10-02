@@ -254,7 +254,7 @@ fn windows_temporary_path(parent: &PinnedDirectory, name: &OsStr) -> PathBuf {
     temporary.push(name);
     temporary.push(format!(
         ".pnpm-{}-{}",
-        std::process::id(),
+        pnpm_fs::process_id(),
         TEMPORARY_FILE_ID.fetch_add(1, Ordering::Relaxed),
     ));
     parent.path.join(temporary)
@@ -348,7 +348,7 @@ fn temporary_name(name: &OsStr) -> io::Result<std::ffi::CString> {
     temporary.push(name);
     temporary.push(format!(
         ".pnpm-{}-{}",
-        std::process::id(),
+        pnpm_fs::process_id(),
         TEMPORARY_FILE_ID.fetch_add(1, Ordering::Relaxed),
     ));
     Ok(std::ffi::CString::new(temporary.as_bytes())?)

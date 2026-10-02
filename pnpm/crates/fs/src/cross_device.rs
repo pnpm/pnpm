@@ -20,7 +20,9 @@ pub fn is_cross_device(error: &io::Error) -> bool {
     return error.raw_os_error() == Some(18);
     #[cfg(windows)]
     return error.raw_os_error() == Some(17);
-    #[cfg(not(any(unix, windows)))]
+    #[cfg(target_os = "wasi")]
+    return error.kind() == io::ErrorKind::CrossesDevices;
+    #[cfg(not(any(unix, windows, target_os = "wasi")))]
     return false;
 }
 

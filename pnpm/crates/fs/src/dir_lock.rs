@@ -208,7 +208,11 @@ impl HeldFile {
         let Some(file) = &self.file else {
             return Liveness::Unavailable;
         };
-        let identified = match file.try_lock() {
+        #[cfg(not(target_os = "wasi"))]
+        let lock = file.try_lock();
+        #[cfg(target_os = "wasi")]
+        let lock = crate::try_lock_file(file, true);
+        let identified = match lock {
             Ok(()) => held_file_id(file),
             Err(TryLockError::WouldBlock) => return Liveness::Busy,
             Err(TryLockError::Error(error)) => Err(error),
@@ -385,7 +389,7 @@ fn mint_token() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("{}-{nanos}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
+    format!("{}-{nanos}-{}", crate::process_id(), COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 /// Whether the lock directory at `path` belongs to nobody any more.

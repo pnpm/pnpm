@@ -26,6 +26,11 @@
 //! surfacing the map (today: from yaml; in the lockfile-only path,
 //! from `pnpm-lock.yaml`'s top-level `patchedDependencies` field).
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use apply::{
     MANIFEST_FILE_NAME, PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch,
 };

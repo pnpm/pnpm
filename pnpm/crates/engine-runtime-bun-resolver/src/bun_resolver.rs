@@ -188,6 +188,11 @@ fn bun_bin_for_current_os(platform: &str) -> &'static str {
 }
 
 fn current_platform() -> &'static str {
+    #[cfg(target_family = "wasm")]
+    {
+        pnpm_detect_libc::host_platform()
+    }
+    #[cfg(not(target_family = "wasm"))]
     match std::env::consts::OS {
         "windows" => "win32",
         other => other,

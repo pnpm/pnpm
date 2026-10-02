@@ -9,15 +9,13 @@ use std::{
 /// Content hash of a file.
 pub type FileHash = digest::Output<Sha512>;
 
-/// Major version of the pnpm store layout that pacquet writes to and reads
-/// from.
-///
-/// The constant is part of the public contract pnpm exposes to every
-/// project's `.modules.yaml` (the recorded `storeDir` is the
-/// [`STORE_VERSION`]-suffixed path), so changing it requires moving in
-/// lockstep with pnpm — otherwise both tools start refusing each
-/// other's stores with `ERR_PNPM_UNEXPECTED_STORE`.
+/// Store namespace recorded in each project's `.modules.yaml`.
+/// Native clients share the pnpm store layout. WASI uses a separate namespace
+/// because its host leases cannot coordinate native `SQLite` advisory locks.
+#[cfg(not(target_os = "wasi"))]
 pub const STORE_VERSION: &str = "v11";
+#[cfg(target_os = "wasi")]
+pub const STORE_VERSION: &str = "v11-wasm";
 
 /// Represent a store directory.
 ///
@@ -26,9 +24,8 @@ pub const STORE_VERSION: &str = "v11";
 /// * The store directory can and often act as a global shared cache of all installation of different workspaces.
 /// * The location of the store directory can be customized by `store-dir` field.
 /// * The on-disk layout matches pnpm v11 (`<root>/files/XX/…[-exec]` + `<root>/index.db`)
-///   where `<root>` already includes the `v11` suffix, so the two tools share both the
-///   physical layout *and* the user-visible `storeDir` string written to
-///   `.modules.yaml`.
+///   under the platform's [`STORE_VERSION`] namespace. WASI stores retain the
+///   file and index formats but do not share live files with native clients.
 //
 // `#[serde(from = "PathBuf", into = "PathBuf")]` routes both
 // directions through the `PathBuf` boundary so deserialization goes
@@ -85,9 +82,8 @@ impl Eq for StoreDir {}
 impl From<PathBuf> for StoreDir {
     /// Wrap a raw path into a [`StoreDir`], appending [`STORE_VERSION`]
     /// when the path doesn't already end with that segment — the same
-    /// rule pnpm applies, so both tools record the same `storeDir`
-    /// string in `.modules.yaml` and switching between them stops
-    /// tripping `ERR_PNPM_UNEXPECTED_STORE`.
+    /// rule used by pnpm's native clients. WASI appends its isolated namespace
+    /// even when the supplied path ends in the native `v11` namespace.
     fn from(root: PathBuf) -> Self {
         let root = if root.file_name().and_then(|name| name.to_str()) == Some(STORE_VERSION) {
             root
@@ -246,13 +242,16 @@ impl StoreDir {
 /// the group permission and setgid bits of `files`. One that already
 /// existed keeps its mode.
 fn create_shard_dir(
-    #[cfg_attr(not(unix), allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    #[cfg_attr(
+        not(any(unix, target_os = "wasi")),
+        allow(unused, reason = "POSIX mode bits are only applied on Unix and WASI")
+    )]
     files: &path::Path,
     shard_dir: &path::Path,
 ) -> std::io::Result<()> {
     match std::fs::create_dir(shard_dir) {
         Ok(()) => {
-            #[cfg(unix)]
+            #[cfg(any(unix, target_os = "wasi"))]
             pnpm_fs::file_mode::grant_inherited_dir_mode(shard_dir, files)?;
             Ok(())
         }
@@ -290,7 +289,7 @@ pub(crate) fn unique_dir_name(label: &str) -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos =
         SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
-    format!("{label}-{}-{nanos}", std::process::id())
+    format!("{label}-{}-{nanos}", pnpm_fs::process_id())
 }
 
 #[cfg(test)]

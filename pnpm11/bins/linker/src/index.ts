@@ -67,6 +67,43 @@ export async function linkBinsOfPkgsByAliases (
     warn: WarnFunction
   }
 ): Promise<string[]> {
+  return _linkBins(await getCommandsByAliases(depsAliases, binsDir, opts), binsDir, opts)
+}
+
+/** Return a function that refreshes launchers for completed package roots,
+ * including removing commands those packages no longer provide. */
+export async function createBinRefreshPlan (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<(pkgRoots: ReadonlySet<string>) => Promise<void>> {
+  const candidates = await readBinCandidates(modulesDir, binsDir, opts)
+  return async pkgRoots => {
+    const changedNames = new Set(Array.from(pkgRoots).flatMap(pkgRoot => (candidates.get(pkgRoot) ?? []).map(cmd => cmd.name)))
+    await Promise.all(Array.from(pkgRoots, async pkgRoot => {
+      const refreshed = await getPackageBins({ ...opts, allowExoticManifests: false }, normalizePath(pkgRoot))
+      for (const cmd of refreshed) changedNames.add(cmd.name)
+      candidates.set(pkgRoot, refreshed)
+    }))
+    const allWinners = deduplicateCommands(Array.from(candidates.values()).flat())
+    const winners = allWinners.filter(cmd => changedNames.has(cmd.name))
+    const retainedNames = new Set(winners.map(cmd => cmd.name))
+    const removedNames = Array.from(changedNames).filter(name => !retainedNames.has(name))
+    await Promise.all(removedNames.map(async name => removeBin(path.join(binsDir, name))))
+    await _linkBins(IS_WINDOWS && removedNames.length > 0 ? allWinners : winners, binsDir, { forceForPackages: pkgRoots })
+  }
+}
+
+async function readBinCandidates (modulesDir: string, binsDir: string, opts: { warn: WarnFunction }): Promise<Map<string, CommandInfo[]>> {
+  const aliases = await readModulesDir(modulesDir) ?? []
+  const candidates = new Map(aliases.map(alias => [path.normalize(path.resolve(modulesDir, alias)), [] as CommandInfo[]]))
+  for (const command of await getCommandsByAliases(aliases, binsDir, { ...opts, modulesDir })) {
+    candidates.get(path.normalize(command.pkgDir))!.push(command)
+  }
+  return candidates
+}
+
+async function getCommandsByAliases (
+  depsAliases: string[],
+  binsDir: string,
+  opts: Parameters<typeof linkBinsOfPkgsByAliases>[2]
+): Promise<CommandInfo[]> {
   const pkgBinOpts = {
     allowExoticManifests: false,
     ...opts,
@@ -92,7 +129,7 @@ export async function linkBinsOfPkgsByAliases (
   )
 
   const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
-  return _linkBins(cmdsToLink, binsDir, opts)
+  return cmdsToLink
 }
 
 function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {

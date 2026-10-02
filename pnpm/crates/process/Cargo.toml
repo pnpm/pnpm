@@ -1,0 +1,21 @@
+[package]
+name = "pnpm-process"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "process", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

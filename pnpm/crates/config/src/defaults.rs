@@ -70,7 +70,7 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// so unit tests can drive every branch — `PNPM_HOME` set,
 /// `XDG_DATA_HOME` set, neither set — without mutating the process
 /// environment. Production callers pass [`crate::Host`] for `Sys`,
-/// which threads `home::home_dir` and `env::current_dir` through the
+/// which threads `crate::home_dir` and `env::current_dir` through the
 /// capability impls — see the `SmartDefault` expression on
 /// [`crate::Config::store_dir`].
 ///
@@ -243,7 +243,7 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
 /// as `default_store_dir`: unit tests drive every branch without
 /// mutating the process environment. Production callers pass
-/// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
+/// [`crate::Host`] for `Sys`, which threads `crate::home_dir` through
 /// the [`GetHomeDir`] impl.
 #[must_use]
 pub fn default_cache_dir<Sys>() -> PathBuf

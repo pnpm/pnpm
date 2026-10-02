@@ -17,6 +17,11 @@
 //! base (a shallow clone, unrelated histories, or an invalid ref), it
 //! diffs against the ref itself.
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use filter::{
     FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredProjects,
     WorkspaceFilter, filter_projects, filter_projects_by_selector_objects,

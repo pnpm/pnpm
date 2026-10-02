@@ -14,6 +14,7 @@ repository.workspace = true
 pnpm-catalogs-types = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-config-parse-overrides = { workspace = true }
+pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-yaml-document-sync = { workspace = true }
 

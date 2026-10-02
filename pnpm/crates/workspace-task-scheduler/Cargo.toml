@@ -28,5 +28,8 @@ regex = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
 [lints]
 workspace = true

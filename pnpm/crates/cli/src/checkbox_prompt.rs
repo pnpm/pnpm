@@ -5,7 +5,13 @@
 //! header — that are drawn but never selected: the cursor skips them and
 //! they take no part in the answer.
 
-use console::{Key, Term, measure_text_width};
+#[cfg(any(target_family = "wasm", test))]
+mod wasm;
+#[cfg(target_family = "wasm")]
+use crate::checkbox_terminal_wasm::Term;
+#[cfg(not(target_family = "wasm"))]
+use console::Term;
+use console::{Key, measure_text_width};
 use owo_colors::{OwoColorize, Stream};
 use std::io;
 
@@ -61,6 +67,8 @@ pub(crate) struct CheckboxPrompt<Value> {
     theme: CheckboxTheme,
     error: Option<&'static str>,
     viewport: PromptViewport,
+    #[cfg(any(target_family = "wasm", test))]
+    mode: wasm::Mode,
 }
 
 struct PromptViewport {
@@ -102,6 +110,8 @@ impl<Value> CheckboxPrompt<Value> {
             theme: CheckboxTheme::default(),
             error: None,
             viewport: PromptViewport { active, top: 0, page_size: 0 },
+            #[cfg(any(target_family = "wasm", test))]
+            mode: wasm::Mode::Checkbox,
         }
     }
 
@@ -127,6 +137,9 @@ impl<Value> CheckboxPrompt<Value> {
                 "the checkbox prompt was given no choice to make",
             ));
         }
+        #[cfg(target_family = "wasm")]
+        let term = Term::open()?;
+        #[cfg(not(target_family = "wasm"))]
         let term = [Term::stdout(), Term::stderr()]
             .into_iter()
             .find(Term::is_term)
@@ -168,6 +181,10 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     pub(crate) fn handle_key(&mut self, key: &Key) -> KeyOutcome {
+        #[cfg(any(target_family = "wasm", test))]
+        if let Some(outcome) = self.handle_dialoguer_key(key) {
+            return outcome;
+        }
         // A refused Enter is answered by whatever the user does next.
         if *key != Key::Enter {
             self.error = None;
@@ -272,7 +289,10 @@ impl<Value> CheckboxPrompt<Value> {
             let error = format!("> {error}");
             lines.push(stdout_styled(&error, |text| text.red().to_string()));
         }
+        #[cfg(not(any(target_family = "wasm", test)))]
         lines.push(render_help_line());
+        #[cfg(any(target_family = "wasm", test))]
+        lines.push(self.render_host_help_line());
         lines.join("\n").trim_end().to_string()
     }
 

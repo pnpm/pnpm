@@ -21,6 +21,9 @@
 //! `R: Reporter` seam on pacquet's `pnpm:global` channel rather than a
 //! capability, matching pnpm's `globalInfo` / `globalWarn`.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use capabilities::{
     Clock, EnterKeyListener, Host, OpenUrl, OpenUrlAndWait, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchError,

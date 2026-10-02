@@ -1,3 +1,8 @@
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub mod build_graph;
 pub mod build_modules;
 pub mod create_symlink_layout;

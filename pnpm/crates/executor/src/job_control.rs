@@ -20,7 +20,7 @@
 //! [`arm_process_tree_cleanup`] returns a guard to bind for the lifetime of
 //! the process.
 
-use std::process::Child;
+use crate::process::Child;
 
 #[cfg(windows)]
 use std::sync::Mutex;

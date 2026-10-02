@@ -1,3 +1,11 @@
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use address_guard::{AddressGuard, GuardedDnsResolver, is_public_address};
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
@@ -36,9 +44,11 @@ use origin_gate::{OriginLimits, OriginPermit};
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
 use registry_limit::RegistryLimits;
+#[cfg(not(target_family = "wasm"))]
+use reqwest::dns::Addrs;
 use reqwest::{
     Certificate, Client, Identity, Proxy,
-    dns::{Addrs, Name, Resolve, Resolving},
+    dns::{Name, Resolve, Resolving},
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{
@@ -570,6 +580,11 @@ impl<Inner> Resolve for CappedDnsResolver<Inner>
 where
     Inner: Resolve + 'static,
 {
+    #[cfg(target_family = "wasm")]
+    fn uses_host_resolution(&self) -> bool {
+        self.inner.uses_host_resolution()
+    }
+
     fn resolve(&self, name: Name) -> Resolving {
         let inner = Arc::clone(&self.inner);
         let permits = Arc::clone(&self.permits);

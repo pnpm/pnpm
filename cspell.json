@@ -3,7 +3,8 @@
     "**/nodeReleaseKeys.ts",
     "**/nodeReleaseKeys.d.ts",
     "**/node_release_keys.rs",
-    "bench-work-env/**"
+    "bench-work-env/**",
+    "target/**"
   ],
   "words": [
     "abrt",
@@ -229,6 +230,7 @@
     "lowlink",
     "ltrim",
     "luca",
+    "malloc",
     "manylinux",
     "martensson",
     "maxsockets",
@@ -349,6 +351,7 @@
     "preinstall",
     "premajor",
     "preminor",
+    "preopens",
     "prepatch",
     "prepublish",
     "prereleases",
@@ -523,7 +526,11 @@
     "venv",
     "versionless",
     "vuln",
+    "wabt",
     "waitpid",
+    "wakeup",
+    "wasi",
+    "wasip",
     "wbem",
     "webauth",
     "webcontainer",

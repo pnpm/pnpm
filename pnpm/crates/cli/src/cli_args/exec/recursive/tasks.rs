@@ -199,7 +199,7 @@ pub(super) fn project_output(dep_path: Option<&str>, emit: fn(&LogEvent)) -> Scr
 
 fn project_execution(
     start: Instant,
-    outcome: Result<std::process::ExitStatus, ExecError>,
+    outcome: Result<crate::process::ExitStatus, ExecError>,
 ) -> ProjectExecution {
     let duration = start.elapsed().as_secs_f64() * 1e3;
     let message = match outcome {

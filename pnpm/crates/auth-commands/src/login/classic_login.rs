@@ -2,7 +2,7 @@ use std::future::Future;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_network::{ThrottledClient, encode_uri_component, redact_and_sanitize};
+use pnpm_network::{ThrottledClient, UNPRIORITIZED, encode_uri_component, redact_and_sanitize};
 use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, OtpChallenge, OtpError, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, SyntheticOtpError, WebAuthFetch, WebAuthFetchOptions,
@@ -115,7 +115,8 @@ async fn add_user(
     )
     .map_err(|error| AddUserError::Transport { reason: error.to_string() })?;
 
-    let guard = http_client.acquire_for_url(&url).await;
+    let guard =
+        http_client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED).await;
     let mut request = guard
         .put(&url)
         .header("content-type", "application/json")

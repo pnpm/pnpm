@@ -38,7 +38,10 @@ fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()>
         copy_dir_contents(src, dst)?;
         // After the contents, so a source directory the owner cannot
         // write to is still populated before it turns read-only.
+        #[cfg(not(target_os = "wasi"))]
         return fs::set_permissions(dst, metadata.permissions());
+        #[cfg(target_os = "wasi")]
+        return crate::file_mode::set_path_permissions(dst, crate::copy_permissions(src)?);
     }
     if !file_type.is_file() {
         return Err(io::Error::new(
@@ -46,7 +49,14 @@ fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()>
             format!("cannot copy {}: it is neither a file, a directory, nor a link", src.display()),
         ));
     }
-    fs::copy(src, dst).map(drop)
+    #[cfg(not(target_os = "wasi"))]
+    {
+        fs::copy(src, dst).map(drop)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        crate::copy_file_atomic(src, dst)
+    }
 }
 
 /// Create a symlink at `dst` pointing to `target`.
@@ -65,6 +75,11 @@ pub fn create_symlink(target: &Path, dst: &Path, is_dir: bool) -> io::Result<()>
         let _ = is_dir;
         std::os::unix::fs::symlink(target, dst)
     }
+    #[cfg(target_os = "wasi")]
+    {
+        let _ = is_dir;
+        crate::wasi_fs::symlink(target, dst)
+    }
 }
 
 /// Recreate `src`'s link at `dst`. Windows types its links at creation
@@ -78,7 +93,7 @@ fn copy_symlink(src: &Path, dst: &Path, file_type: fs::FileType) -> io::Result<(
         use std::os::windows::fs::FileTypeExt;
         create_symlink(&target, dst, file_type.is_symlink_dir())
     }
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     {
         let _ = file_type;
         create_symlink(&target, dst, false)

@@ -10,7 +10,9 @@ use crate::{
     error::PreparePackageError,
     pm_shims::{provide_running_pnpm, shim_names, write_pm_shims},
     preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
+    process::Command,
 };
+
 use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
@@ -20,7 +22,6 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    process::Command,
     sync::{LazyLock, Mutex, PoisonError},
 };
 

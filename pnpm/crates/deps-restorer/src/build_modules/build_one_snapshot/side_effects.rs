@@ -5,7 +5,6 @@ use super::{
     },
     BuildCandidate, BuildOneSnapshot, global_slot_carries_overlay, report_broken_slot,
 };
-use std::sync::atomic::Ordering;
 
 /// The side-effects cache key, computed once per snapshot before the
 /// `is_built` gate. The same value is later consumed by the WRITE-path
@@ -106,7 +105,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     };
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
-    context.progress.slot_mutations.store(true, Ordering::Relaxed);
+    super::dependency_bins::record_mutation(context, snapshot_key)?;
     for pkg_dir in context.pkg_roots().all(snapshot_key) {
         // No slot to materialize into (skipped / never linked) — nothing for
         // the build phase to do either.

@@ -7,6 +7,9 @@ codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --ex
 # Use Rust's bundled LLD while retaining the cross image's libc baseline.
 rustflags = ["-C", "link-arg=-B.github/scripts/rust-lld"]
 
+[target.wasm32-wasip1-threads]
+rustflags = ["--cfg", "tokio_unstable"]
+
 # >>> pnpm-managed cargo sources >>>
 [source.crates-io]
 replace-with = "pnpm-crates-io"

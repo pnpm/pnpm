@@ -325,7 +325,7 @@ fn dir_clone_supported(links_root: &Path, destination: &Path) -> bool {
     // Distinct basenames: were the two roots to resolve to one
     // directory, a shared name would have the destination pre-clean
     // remove the just-created source.
-    let pid = std::process::id();
+    let pid = pnpm_fs::process_id();
     let src = links_root.join(format!(".pacquet-dir-clone-probe-src-{pid}"));
     if fs::create_dir_all(&src).is_err() {
         return false;

@@ -238,9 +238,15 @@ fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<
                     format!("back up global bin symlink at {}", original.display())
                 })?;
         }
-        BinSlotKind::RegularFile => backup_regular_file(&original, &backup, metadata.permissions())
-            .into_diagnostic()
-            .wrap_err_with(|| format!("back up global bin file at {}", original.display()))?,
+        BinSlotKind::RegularFile => {
+            #[cfg(not(target_os = "wasi"))]
+            let permissions = metadata.permissions();
+            #[cfg(target_os = "wasi")]
+            let permissions = pnpm_fs::copy_permissions(&original).into_diagnostic()?;
+            backup_regular_file(&original, &backup, permissions)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("back up global bin file at {}", original.display()))?;
+        }
     }
     Ok(Some(SavedBinSlot { original, backup, kind }))
 }
@@ -248,7 +254,7 @@ fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<
 fn backup_regular_file(
     original: &Path,
     backup: &Path,
-    permissions: fs::Permissions,
+    permissions: pnpm_fs::CopyPermissions,
 ) -> io::Result<()> {
     if reflink_copy::reflink(original, backup).is_err() {
         match fs::remove_file(backup) {
@@ -258,10 +264,17 @@ fn backup_regular_file(
         }
         fs::copy(original, backup)?;
     }
-    fs::set_permissions(backup, permissions)
+    #[cfg(not(target_os = "wasi"))]
+    {
+        fs::set_permissions(backup, permissions)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        pnpm_fs::file_mode::set_path_permissions(backup, permissions)
+    }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
     if metadata.file_type().is_symlink() {
         Some(BinSlotKind::FileSymlink)
@@ -287,7 +300,7 @@ fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
     }
 }
 
-#[cfg(not(any(unix, windows)))]
+#[cfg(not(any(unix, windows, target_os = "wasi")))]
 fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
     metadata.is_file().then_some(BinSlotKind::RegularFile)
 }
@@ -295,6 +308,11 @@ fn bin_slot_kind(metadata: &fs::Metadata) -> Option<BinSlotKind> {
 #[cfg(unix)]
 fn backup_symlink(original: &Path, backup: &Path, _kind: BinSlotKind) -> io::Result<()> {
     std::os::unix::fs::symlink(fs::read_link(original)?, backup)
+}
+
+#[cfg(target_os = "wasi")]
+fn backup_symlink(original: &Path, backup: &Path, _kind: BinSlotKind) -> io::Result<()> {
+    pnpm_fs::create_symlink(&fs::read_link(original)?, backup, false)
 }
 
 #[cfg(windows)]

@@ -113,6 +113,7 @@ async fn read_license_file(path: &Path) -> Option<Vec<u8>> {
     (contents.len() <= MAX_LICENSE_FILE_SIZE).then_some(contents)
 }
 
+#[cfg(not(target_os = "wasi"))]
 async fn open_no_follow(path: &Path) -> std::io::Result<tokio::fs::File> {
     let mut options = tokio::fs::OpenOptions::new();
     options.read(true);
@@ -188,3 +189,8 @@ pub(super) fn extract_license_homepage(manifest: &serde_json::Value) -> Option<S
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_os = "wasi")]
+fn open_no_follow(path: &Path) -> std::future::Ready<std::io::Result<tokio::fs::File>> {
+    std::future::ready(pnpm_fs::open_file_without_following(path).map(tokio::fs::File::from_std))
+}

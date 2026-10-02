@@ -222,7 +222,7 @@ async function switchGlobalPnpm (
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
   const globalBinDir = path.join(opts.pnpmHomeDir, 'bin')
   const retiredFromGlobalBin = process.platform === 'win32' ? await retireStandaloneExecutable(globalBinDir) : undefined
-  await linkReplacingRetiredExecutable(retiredFromGlobalBin, () => linkBins(path.join(baseDir, 'node_modules'), globalBinDir, { warn: globalWarn }))
+  await linkReplacingRetiredExecutable(retiredFromGlobalBin, () => linkBins(path.join(baseDir, 'node_modules'), globalBinDir, { warn: globalWarn, force: true }))
   await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
   await refreshLegacyHomeDirShims(opts.pnpmHomeDir, baseDir)
 
@@ -241,7 +241,7 @@ async function refreshLegacyHomeDirShims (pnpmHomeDir: string, baseDir: string):
   // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
   const retiredFromHomeDir = process.platform === 'win32' ? await retireStandaloneExecutable(pnpmHomeDir) : undefined
   if (!hasLegacyHomeDirShim(pnpmHomeDir) && retiredFromHomeDir == null) return
-  await linkReplacingRetiredExecutable(retiredFromHomeDir, () => linkBins(path.join(baseDir, 'node_modules'), pnpmHomeDir, { warn: globalWarn }))
+  await linkReplacingRetiredExecutable(retiredFromHomeDir, () => linkBins(path.join(baseDir, 'node_modules'), pnpmHomeDir, { warn: globalWarn, force: true }))
   globalWarn(
     'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
     'at PNPM_HOME have been refreshed so the new version is active, but ' +

@@ -76,7 +76,6 @@ derive_more = { workspace = true }
 dialoguer = { workspace = true }
 dunce = { workspace = true }
 futures-util = { workspace = true }
-home = { workspace = true }
 httpdate = { workspace = true }
 indexmap = { workspace = true }
 node-semver = { workspace = true }
@@ -108,6 +107,13 @@ ssri = { workspace = true }
 tar = { workspace = true }
 text-block-macros = { workspace = true }
 walkdir = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+home = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]
 workspace = true

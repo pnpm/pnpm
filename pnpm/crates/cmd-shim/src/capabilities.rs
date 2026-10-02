@@ -11,8 +11,10 @@
 //! real filesystem can't reach portably (e.g. permission denied,
 //! ENOSPC).
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 mod executable;
+#[cfg(all(test, unix))]
+mod tests;
 
 use pipe_trait::Pipe;
 use std::{
@@ -167,8 +169,8 @@ pub trait FsWrite {
 
     /// Atomically replace whatever occupies `path` with a regular file
     /// holding `bytes`: written to a sibling temp file and renamed into
-    /// place. No reader observes a torn file, concurrent equivalent
-    /// writers converge on last-writer-wins, and a symlink at `path` is
+    /// place with executable permissions. No reader observes a torn file;
+    /// concurrent equivalent writers converge on last-writer-wins, and a symlink at `path` is
     /// replaced as a dirent rather than followed. The default impl opts
     /// a fake out (the shim writer then falls back to
     /// remove-then-[`write`]) rather than forcing fakes to model the
@@ -184,7 +186,7 @@ pub trait FsWrite {
 /// the freshly written shim file so it is executable.
 ///
 /// The method is always present so callers don't have to
-/// `#[cfg(unix)]` every chmod call site. On Windows the production
+/// `#[cfg(any(unix, target_os = "wasi"))]` every chmod call site. On Windows the production
 /// impl is a no-op (Windows has no equivalent permission concept).
 pub trait FsSetExecutable {
     fn set_executable(path: &Path) -> io::Result<()>;
@@ -302,7 +304,7 @@ impl FsWrite for Host {
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
             .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
-        let pid = std::process::id();
+        let pid = pnpm_fs::process_id();
         // The attempt counter only steps past temp names a crashed run
         // with this pid left behind, so the bound is never reached in
         // practice; it exists so a pathological directory cannot spin
@@ -318,7 +320,7 @@ impl FsWrite for Host {
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error),
             };
-            let written = tmp.write_all(bytes);
+            let written = tmp.write_all(bytes).and_then(|()| set_file_executable(&tmp));
             drop(tmp);
             let result = written.and_then(|()| pnpm_fs::rename_with_retry(&tmp_path, path));
             if result.is_err() {
@@ -330,29 +332,51 @@ impl FsWrite for Host {
     }
 }
 
-#[cfg(unix)]
-impl FsSetExecutable for Host {
-    fn set_executable(path: &Path) -> io::Result<()> {
+fn set_file_executable(file: &std::fs::File) -> io::Result<()> {
+    #[cfg(unix)]
+    {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+        pnpm_fs::set_file_permissions(file, &std::fs::Permissions::from_mode(0o755))
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        pnpm_fs::set_file_permissions(file, &0o755)
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
+    {
+        let _ = file;
+        Ok(())
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(any(unix, target_os = "wasi"))]
+impl FsSetExecutable for Host {
+    fn set_executable(path: &Path) -> io::Result<()> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+        }
+        #[cfg(target_os = "wasi")]
+        pnpm_fs::file_mode::set_path_permissions(path, 0o755)
+    }
+}
+
+#[cfg(not(any(unix, target_os = "wasi")))]
 impl FsSetExecutable for Host {
     fn set_executable(_path: &Path) -> io::Result<()> {
         Ok(())
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 impl FsEnsureExecutableBits for Host {
     fn ensure_executable_bits(path: &Path, installed_modules_dir: Option<&Path>) -> io::Result<()> {
         executable::ensure_executable_bits::<Host>(path, installed_modules_dir)
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 impl FsEnsureExecutableBits for Host {
     fn ensure_executable_bits(
         _path: &Path,

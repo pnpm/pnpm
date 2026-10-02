@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 #[test]
 fn home_relative_workspace_spec_satisfies_link_target() {
-    let home = home::home_dir().unwrap_or_default();
+    let home = pnpm_config::home_dir().unwrap_or_default();
     let workspace_root = PathBuf::from("/workspace");
     let lockfile_dir = workspace_root.clone();
     let local_dep_dir = workspace_root.join("packages/foo");

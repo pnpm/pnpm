@@ -5,16 +5,17 @@
 //! pair (real network + real `git` binary) or supply their own
 //! ports of the traits in tests.
 
-use std::{future::Future, path::PathBuf, pin::Pin, process::Command, sync::Arc, time::Duration};
-
-use pnpm_network::{AddressGuard, ThrottledClient};
-use reqwest::StatusCode;
-
 use crate::{
     git_resolver::{GitProbe, ProbeFuture},
     pinned_remote::pinned_git_config,
+    process::Command,
     resolve_ref::{GitCommandRunner, GitRunError},
 };
+
+use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc, time::Duration};
+
+use pnpm_network::{AddressGuard, ThrottledClient};
+use reqwest::StatusCode;
 
 /// Production [`GitProbe`]: issues the HEAD via the install-wide
 /// [`ThrottledClient`] (so concurrency-throttling, proxy, TLS, and

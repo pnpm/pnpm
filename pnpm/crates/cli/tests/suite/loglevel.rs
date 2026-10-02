@@ -18,7 +18,8 @@ fn set_loglevel(workspace: &Path, level: &str) {
 
 fn script_fixture() -> CommandTempCwd<()> {
     let fixture = CommandTempCwd::init();
-    fs::write(fixture.workspace.join("pnpm-workspace.yaml"), "").expect("write workspace settings");
+    fs::write(fixture.workspace.join("pnpm-workspace.yaml"), "storeDir: .pnpm-store\n")
+        .expect("write workspace settings");
     fs::write(
         fixture.workspace.join("package.json"),
         serde_json::json!({

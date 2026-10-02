@@ -299,6 +299,54 @@ fn links_the_host_platform_binary_into_scoped_exe_wrapper() {
     assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
 }
 
+#[cfg(unix)]
+#[test]
+fn links_rust_engine_aliases_without_node() {
+    for wrapper_pkg_name in [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME] {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fake_engine_install_for(temp.path(), wrapper_pkg_name, true);
+        let wrapper_dir = package_dir(temp.path(), wrapper_pkg_name);
+        fs::write(wrapper_dir.join("package.json"), r#"{"version":"12.99.0"}"#)
+            .expect("write Rust wrapper version");
+        for alias in ["pn", "pnpx", "pnx"] {
+            fs::write(wrapper_dir.join(alias), b"#!/usr/bin/env node\nprocess.exit(99)\n")
+                .expect("write Node fallback");
+        }
+
+        link_exe_platform_binary(temp.path(), wrapper_pkg_name).expect("link native aliases");
+
+        for alias in ["pnpm", "pn", "pnpx", "pnx"] {
+            let executable = wrapper_dir.join(alias);
+            assert_eq!(fs::read(&executable).expect("read alias"), b"#!/bin/sh\necho pnpm\n");
+            let output = crate::process::Command::new(executable)
+                .env("PATH", temp.path().join("no-node-on-path"))
+                .output()
+                .expect("run native alias");
+            assert!(output.status.success(), "{alias}");
+            assert_eq!(output.stdout, b"pnpm\n");
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn preserves_legacy_sea_unix_alias_scripts() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
+    let wrapper_dir = package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME);
+    fs::write(wrapper_dir.join("package.json"), r#"{"version":"11.28.3"}"#)
+        .expect("write legacy wrapper version");
+    for alias in ["pn", "pnpx", "pnx"] {
+        fs::write(wrapper_dir.join(alias), alias).expect("write legacy alias");
+    }
+
+    link_exe_platform_binary(temp.path(), PNPM_EXE_PACKAGE_NAME).expect("link legacy binary");
+
+    for alias in ["pn", "pnpx", "pnx"] {
+        assert_eq!(fs::read_to_string(wrapper_dir.join(alias)).expect("read alias"), alias);
+    }
+}
+
 /// Lay out the wrapper slot of a fake global-virtual-store engine install
 /// (`links/<scope-or-@>/<name>/<version>/<hash>`) and return the slot
 /// directory. The platform package is left to each test: the real installer

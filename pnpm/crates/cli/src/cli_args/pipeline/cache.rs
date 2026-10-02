@@ -10,6 +10,7 @@ use super::{
     capture::CapturedScript,
     paths::{check_ancestors, check_input_directories, validate_relative_path},
 };
+use crate::process::Command;
 use inputs::{HashedFile, compile_globs};
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
@@ -22,7 +23,6 @@ use std::{
     collections::HashMap,
     env, fs, io,
     path::{Path, PathBuf},
-    process::Command,
     sync::{Arc, Mutex},
 };
 use wax::{

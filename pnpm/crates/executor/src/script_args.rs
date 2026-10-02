@@ -1,4 +1,4 @@
-use std::{env, ffi::OsStr, iter, path::Path};
+use std::{ffi::OsStr, iter, path::Path};
 
 /// How the extra arguments of a script are quoted, chosen by the shell
 /// that parses the script.
@@ -104,8 +104,8 @@ fn quote_for_c_runtime(arg: &str) -> String {
 fn ends_with_batch_file(script: &str, search_path: &OsStr, cwd: &Path) -> bool {
     let command = first_word(last_command(script));
     // `cmd` searches the directory it runs in before `PATH`.
-    let dirs = iter::once(cwd.to_path_buf()).chain(env::split_paths(search_path));
-    let resolved = env::join_paths(dirs)
+    let dirs = iter::once(cwd.to_path_buf()).chain(pnpm_fs::split_paths(search_path));
+    let resolved = pnpm_fs::join_paths(dirs)
         .ok()
         .and_then(|dirs| which::which_in(&command, Some(dirs), cwd).ok())
         .map_or_else(|| command.to_lowercase(), |path| path.to_string_lossy().to_lowercase());

@@ -6,6 +6,9 @@
 //! optional `-musl` suffix — so the SHASUMS file alone has every
 //! integrity needed without per-asset SHA256 sidecar requests.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub use bun_resolver::{BunResolver, BunResolverError};
 pub use read_bun_assets::ReadBunAssetsError;
 

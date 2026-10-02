@@ -18,5 +18,8 @@ libc = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
+
 [lints]
 workspace = true

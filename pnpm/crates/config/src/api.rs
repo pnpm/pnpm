@@ -45,12 +45,12 @@ pub trait EnvVarOs {
 
 /// Capability: locate the user's home directory.
 ///
-/// Mirrors the [`home::home_dir`] crate function. Threaded through a
+/// Mirrors the [`crate::home_dir`] crate function. Threaded through a
 /// trait so tests don't have to consult the host's actual home
 /// directory.
 pub trait GetHomeDir {
     /// Return the user's home directory, or `None` when it can't be
-    /// determined. Mirrors [`home::home_dir`].
+    /// determined. Mirrors [`crate::home_dir`].
     fn home_dir() -> Option<PathBuf>;
 }
 
@@ -134,7 +134,7 @@ impl EnvVarOs for Host {
 
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
-        home::home_dir()
+        crate::home_dir()
     }
 }
 

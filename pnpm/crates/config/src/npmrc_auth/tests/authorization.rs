@@ -8,7 +8,7 @@ use super::{
 fn ignores_non_auth_keys() {
     // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via the
     // SmartDefault expression on `Config::store_dir` —
-    // `default_store_dir::<Host, _, _, _>(home::home_dir,
+    // `default_store_dir::<Host, _, _, _>(crate::home_dir,
     // env::current_dir)` — to compute `store_dir`. Both values come
     // from the real process environment, but no other test in this
     // crate mutates them anymore — the per-branch tests in

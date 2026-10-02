@@ -186,6 +186,7 @@ fn frozen_backstop_run(
             frozen_store,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout,
             pkg_roots_by_key: None,
             gather_ancestor_bin_paths: false,

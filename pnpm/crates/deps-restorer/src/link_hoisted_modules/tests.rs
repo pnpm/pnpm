@@ -936,3 +936,75 @@ fn bundled_bin_with_missing_target_is_held_back() {
     assert_eq!(held_back, vec![(bundled_modules.clone(), vec!["tool".to_string()])]);
     assert!(!bundled_modules.join(".bin/tool").exists(), "the missing bin is held back");
 }
+
+#[test]
+fn build_plan_reuses_initial_hoisted_manifests_before_refreshing_completed_providers() {
+    let temp = tempfile::tempdir().unwrap();
+    let project = temp.path().join("project");
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &project,
+        &temp.path().join("cas"),
+        &[
+            (
+                "tool",
+                "tool@1.0.0",
+                "tool@1.0.0",
+                &[
+                    ("package.json", br#"{"name":"tool","bin":{"tool":"cli"}}"#),
+                    ("cli", b"#!/usr/bin/env node\n"),
+                ],
+            ),
+            (
+                "stable",
+                "stable@1.0.0",
+                "stable@1.0.0",
+                &[("package.json", br#"{"name":"stable","bin":{"future":"future"}}"#)],
+            ),
+        ],
+    );
+    let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
+    let logged = AtomicU8::new(0);
+    let output =
+        super::link_hoisted_modules_with_sources::<SilentReporter>(&LinkHoistedModulesOpts {
+            import: crate::PackageImportOptions {
+                method: PackageImportMethod::Copy,
+                logged_methods: &logged,
+                requester: project.to_str().unwrap(),
+                isolate_mutable_sources: false,
+            },
+            dir_clone_cache: None,
+            graph: &graph,
+            prev_graph: None,
+            hierarchy: &hierarchy,
+            cas_paths_by_pkg_id: &cas_paths,
+            link_options: &options,
+            confine_root: &project,
+        })
+        .unwrap();
+    let modules = project.join("node_modules");
+    let tool = modules.join("tool");
+    let stable = modules.join("stable");
+    assert!(modules.join(".bin/tool").exists());
+    assert!(!modules.join(".bin/future").exists());
+    let plans = crate::build_options::HoistedBinPlans::default();
+    plans.seed(&output.sources);
+    let entry = plans.directory(&modules);
+    let mut entry = entry.lock().unwrap();
+    assert!(entry.plan.is_none(), "unbuilt directories do not parse a candidate index");
+    fs::write(stable.join("package.json"), "an unchanged provider must not be reread").unwrap();
+    entry.initialize(&modules).expect("seeded manifests avoid a second directory scan");
+    let plan = entry.plan.as_mut().unwrap();
+    assert!(plan.package_source(&stable).unwrap().build_pending);
+    fs::write(tool.join("package.json"), br#"{"name":"tool","bin":{"built":"cli"}}"#).unwrap();
+    fs::write(tool.join("cli"), "#!/bin/sh\nprintf built\n").unwrap();
+    plan.refresh::<pnpm_cmd_shim::Host>(
+        &std::collections::HashSet::from([tool.clone()]),
+        &modules.join(".bin"),
+        &options,
+    )
+    .unwrap();
+    assert!(!modules.join(".bin/tool").exists());
+    assert!(modules.join(".bin/built").exists());
+    assert!(!plan.package_source(&tool).unwrap().build_pending);
+    assert!(plan.package_source(&stable).unwrap().build_pending);
+}

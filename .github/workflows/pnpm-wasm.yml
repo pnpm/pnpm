@@ -1,0 +1,104 @@
+name: pnpm WebAssembly
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'pnpm/**'
+      - 'pnpr/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      - '__patches__/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/pnpm-wasm.yml'
+      - '.github/workflows/release.yml'
+      - '.github/actions/wasm-toolchain/**'
+  schedule:
+    - cron: '30 6 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webcontainer:
+    name: Build and run pnpm in WebContainers
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 90
+    env:
+      RUSTUP_TOOLCHAIN: nightly-2026-08-27
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
+      - name: Install pinned WebAssembly toolchain
+        id: wasm-toolchain
+        uses: $/.github/actions/wasm-toolchain
+
+      - name: Cache WASM compilation
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: pnpm-wasm-sdk34-wabt1042
+
+      - name: Install runtime and browser harness
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer
+
+      - name: Build pnpm and the shared-library probe
+        env:
+          WASI_SDK_PATH: ${{ steps.wasm-toolchain.outputs.wasi-sdk-path }}
+          WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
+        run: |
+          pnpm build:pnpm:wasm
+          pnpm build:wasm-runtime-probe
+
+      - name: Test the Node host and Rust runtime
+        env:
+          WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
+        run: pnpm --filter @pnpm-private/wasm-runtime test
+
+      - name: Test WASM store permissions on Node.js
+        run: |
+          pnpm_probe_dir=$(mktemp -d)
+          PROBE_DIR="$pnpm_probe_dir" PROBE_STORE=roundtrip node pnpm/wasm/run.mjs target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
+
+      - name: Install Chromium
+        run: pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --with-deps --only-shell chromium
+
+      - name: Test shared libraries in a WebContainer
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
+
+      - name: Package standalone WASM pnpm
+        run: pnpm pack:pnpm:wasm
+
+      - name: Test the packaged pnpm CLI in a WebContainer
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
+
+      - name: Package regular pnpm wrapper
+        run: node pnpm/wasm/pack-wrapper.mjs
+
+      - name: Test automatic runtime selection and core workflows
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wrapper-package target/pnpm-webcontainer-wrapper.tgz
+
+      - name: Upload WASM build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pnpm-wasm
+          path: |
+            target/pnpm-wasm.tgz
+            target/pnpm-webcontainer-wrapper.tgz
+          retention-days: 7
+          if-no-files-found: error

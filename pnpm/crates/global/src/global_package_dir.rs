@@ -39,7 +39,7 @@ pub fn resolve_install_dir(global_dir: &Path, hash: &str) -> io::Result<Option<P
 /// stay isolated. The parent `global_dir` must already exist.
 pub fn create_install_dir(global_dir: &Path) -> io::Result<PathBuf> {
     static COUNTER: AtomicU32 = AtomicU32::new(0);
-    let pid = std::process::id();
+    let pid = pnpm_fs::process_id();
     let mut last_err = None;
     for _ in 0..10 {
         let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());

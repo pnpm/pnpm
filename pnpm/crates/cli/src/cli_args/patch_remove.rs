@@ -1,6 +1,9 @@
 use crate::State;
+#[cfg(target_family = "wasm")]
+use crate::dialoguer_wasm::MultiSelect;
 use clap::Args;
 use derive_more::{Display, Error};
+#[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
 use indexmap::IndexMap;
 use miette::Diagnostic;

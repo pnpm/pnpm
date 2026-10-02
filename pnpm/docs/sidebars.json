@@ -3,6 +3,7 @@
     "motivation",
     "feature-comparison",
     "installation",
+    "webcontainers",
     {
       "type": "category",
       "label": "Usage",

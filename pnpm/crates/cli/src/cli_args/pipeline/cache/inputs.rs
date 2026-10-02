@@ -121,7 +121,7 @@ fn git_input_metadata(project: &Path, args: &[&str]) -> miette::Result<Vec<u8>> 
     Ok(output.stdout)
 }
 
-fn tracked_input_files(project: &Path) -> miette::Result<std::process::Output> {
+fn tracked_input_files(project: &Path) -> miette::Result<crate::process::Output> {
     let project_display = project.display();
     let output = Command::new("git")
         .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
@@ -171,7 +171,7 @@ impl TaskCache {
     pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<Option<String>> {
         let mut components: Vec<String> = vec![
             "pnpm-pipeline-task:v1".to_string(),
-            format!("platform:{}:{}", env::consts::OS, env::consts::ARCH),
+            platform_cache_component(),
             format!("outputs:{:?}", inputs.settings.and_then(|settings| settings.outputs.as_ref())),
             self.project_rel(&inputs.node.project),
             inputs.node.task_name.clone(),
@@ -303,5 +303,22 @@ fn git_work_tree(project: &Path) -> miette::Result<bool> {
         Ok(output) => Ok(output.status.success() && output.stdout.trim_ascii() == b"true"),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(miette::miette!("probing Git work tree in {project_display}: {error}")),
+    }
+}
+
+fn platform_cache_component() -> String {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        format!("platform:{}:{}", env::consts::OS, env::consts::ARCH)
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        let os = match pnpm_detect_libc::host_platform() {
+            "darwin" => "macos",
+            "win32" => "windows",
+            "sunos" => "solaris",
+            other => other,
+        };
+        format!("platform:{os}:{}", pnpm_detect_libc::host_target_arch())
     }
 }

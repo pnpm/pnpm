@@ -10,9 +10,9 @@
 //! `GIT_SSH`, or the `core.sshCommand` git setting in effect in the
 //! directory the invocation runs in.
 
-use std::{env, path::Path, process::Command};
+use crate::{RunCommand, process::Command};
 
-use crate::RunCommand;
+use std::{env, path::Path};
 
 /// Disable the terminal prompts of `cmd`, a git invocation that may reach a
 /// remote and runs in `cwd`, and of the ssh it spawns.

@@ -17,7 +17,6 @@ base64 = { workspace = true }
 derive_more = { workspace = true }
 miette = { workspace = true }
 pgp = { workspace = true }
-reqwest = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
@@ -27,6 +26,16 @@ mockito = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

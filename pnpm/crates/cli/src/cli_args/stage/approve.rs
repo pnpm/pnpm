@@ -11,7 +11,10 @@ use super::{
     stage_request_in_session, summarize_tarball::read_tarball_manifest,
 };
 use crate::cli_args::{recursive::sequence_graph, sanitize::sanitize_inline};
+#[cfg(target_family = "wasm")]
+use crate::dialoguer_wasm::MultiSelect;
 use derive_more::{Display, Error};
+#[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
 use miette::{Diagnostic, IntoDiagnostic};
 use node_semver::Version;

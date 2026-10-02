@@ -1,0 +1,1 @@
+export const RESPONSE_CAPACITY = 1024 * 1024

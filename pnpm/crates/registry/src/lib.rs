@@ -1,5 +1,9 @@
+#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
 
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};

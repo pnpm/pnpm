@@ -68,6 +68,7 @@ impl<'a> InstallFrozenLockfile<'a> {
 
                 skipped: phase.skipped,
                 held_back_bins_dirs: &phase.linked.held_back_bins_dirs,
+                hoisted_bin_sources: Some(&phase.linked.hoisted_bin_sources),
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)
         }

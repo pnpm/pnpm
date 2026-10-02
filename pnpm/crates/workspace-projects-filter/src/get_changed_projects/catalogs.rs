@@ -1,17 +1,16 @@
+use crate::{
+    filter::FilterError,
+    get_changed_projects::{ChangeType, GetChangedProjectsOptions, strip_final_newline},
+    process::Command,
+};
 use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-
-use crate::{
-    filter::FilterError,
-    get_changed_projects::{ChangeType, GetChangedProjectsOptions, strip_final_newline},
-};
 
 pub fn apply_changed_catalogs(
     project_change_types: &mut IndexMap<PathBuf, Option<ChangeType>>,

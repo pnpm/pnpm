@@ -27,6 +27,10 @@ walkdir = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+shell-words = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+shell-words = { workspace = true }
 
 [target.'cfg(windows)'.dev-dependencies]
 pnpm-fs = { workspace = true, features = ["test"] }

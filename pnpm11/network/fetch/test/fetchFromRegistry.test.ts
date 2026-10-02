@@ -119,6 +119,27 @@ test('authorization headers are not removed before redirection if the target is 
   }
 })
 
+test.each([307, 308])('request body is not replayed across origins after HTTP %s redirect', async status => {
+  setupMockAgent()
+  try {
+    const source = getMockAgent().get('http://registry.pnpm.io')
+    source.intercept({
+      path: '/login',
+      method: 'PUT',
+      body: JSON.stringify({ password: 'secret' }),
+    }).reply(status, '', { headers: { location: 'http://registry.other.org/login' } })
+
+    const fetchFromRegistry = createFetchFromRegistry({})
+    await expect(fetchFromRegistry('http://registry.pnpm.io/login', {
+      method: 'PUT',
+      body: JSON.stringify({ password: 'secret' }),
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_REDIRECT_BODY_CROSS_ORIGIN' })
+    getMockAgent().assertNoPendingInterceptors()
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
 test('authorization headers are removed before a same-host HTTPS downgrade', async () => {
   setupMockAgent()
   try {

@@ -166,7 +166,7 @@ fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
     info.nNumberOfLinks > 1
 }
 
-#[cfg(not(any(unix, windows)))]
+#[cfg(not(any(unix, windows, target_os = "wasi")))]
 fn is_hardlinked_metadata(_path: &Path, _metadata: &fs::Metadata) -> bool {
     true
 }
@@ -182,4 +182,12 @@ fn join_inside(dir: &Path, relative: &str) -> Option<PathBuf> {
         }
     }
     Some(joined)
+}
+
+#[cfg(target_os = "wasi")]
+fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
+    metadata.is_file()
+        && pnpm_fs::open_file_without_following(path)
+            .and_then(|file| pnpm_fs::file_link_count(&file))
+            .map_or(true, |count| count > 1)
 }

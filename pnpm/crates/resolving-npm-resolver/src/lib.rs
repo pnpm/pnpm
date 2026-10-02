@@ -15,6 +15,9 @@
 //!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every
 //!   npm-resolved lockfile entry the install loads.
 
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
 pub mod mirror;
 
 pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
@@ -99,3 +102,8 @@ mod trust_checks;
 mod violation_codes;
 mod warn_once;
 mod workspace_pref_to_npm;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_wasm_host::process_id;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process::id as process_id;

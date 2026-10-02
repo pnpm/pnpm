@@ -32,6 +32,8 @@ mod files;
 
 mod behavior;
 
+mod refresh;
+
 mod dependencies;
 
 mod manifests;

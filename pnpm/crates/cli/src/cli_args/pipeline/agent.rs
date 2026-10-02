@@ -9,11 +9,11 @@
 //! arbitrary workspace code. The child inherits the agent's permissions;
 //! process separation is not a sandbox.
 
+use crate::process::Command;
 use pnpm_crypto_hash::create_short_hash;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
     time::Duration,
 };
 

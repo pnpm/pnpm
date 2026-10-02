@@ -1,5 +1,42 @@
 use std::{fs, io, path::Path};
 
+/// File-copy permissions represented by the target filesystem.
+#[cfg(not(target_os = "wasi"))]
+pub type CopyPermissions = fs::Permissions;
+/// WASI metadata omits permission bits; the host supplies the POSIX mode.
+#[cfg(target_os = "wasi")]
+pub type CopyPermissions = u32;
+
+pub fn copy_permissions(source: &Path) -> io::Result<CopyPermissions> {
+    read_file_permissions(&fs::File::open(source)?)
+}
+
+/// Read permission bits from the same open file used for content access.
+#[inline]
+pub fn read_file_permissions(file: &fs::File) -> io::Result<CopyPermissions> {
+    #[cfg(not(target_os = "wasi"))]
+    {
+        file.metadata().map(|metadata| metadata.permissions())
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        crate::wasi_fs::file_mode(file).map(|mode| mode & 0o7777)
+    }
+}
+
+/// Set permissions through a live descriptor, without reopening a replaceable path.
+#[inline]
+pub fn set_file_permissions(file: &fs::File, permissions: &CopyPermissions) -> io::Result<()> {
+    #[cfg(not(target_os = "wasi"))]
+    {
+        file.set_permissions(permissions.clone())
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        crate::wasi_fs::set_file_mode(file, *permissions)
+    }
+}
+
 /// Copy `source_path` to `target_path`, a path nothing may occupy yet,
 /// with the permissions the copied file should carry.
 ///
@@ -30,13 +67,13 @@ use std::{fs, io, path::Path};
 pub fn copy_file_exclusive(
     source_path: &Path,
     target_path: &Path,
-    permissions: &fs::Permissions,
+    permissions: &CopyPermissions,
     finish: impl FnOnce(&fs::File) -> io::Result<()>,
 ) -> io::Result<()> {
     let mut source = fs::File::open(source_path)?;
     let mut target = create_new_with_permissions(target_path, permissions)?;
     io::copy(&mut source, &mut target)
-        .and_then(|_| target.set_permissions(permissions.clone()))
+        .and_then(|_| set_file_permissions(&target, permissions))
         .and_then(|()| finish(&target))
         .inspect_err(|_| {
             if path_still_names(&target, target_path) {
@@ -57,7 +94,7 @@ pub fn copy_file_exclusive(
 pub fn copy_file_atomic_with_permissions(
     source_path: &Path,
     target_path: &Path,
-    permissions: &fs::Permissions,
+    permissions: &CopyPermissions,
 ) -> io::Result<()> {
     let dir = target_path
         .parent()
@@ -88,7 +125,7 @@ pub fn copy_file_atomic_with_permissions(
 /// it. A failure removes the temp file; a crash can leave one behind,
 /// under a name nothing else uses.
 pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()> {
-    let permissions = fs::File::open(source_path)?.metadata()?.permissions();
+    let permissions = copy_permissions(source_path)?;
     copy_file_atomic_with_permissions(source_path, target_path, &permissions)
 }
 
@@ -116,7 +153,14 @@ fn path_still_names(created: &fs::File, path: &Path) -> bool {
         };
         same_file::Handle::from_file(clone).is_ok_and(|by_handle| by_handle == by_path)
     }
-    #[cfg(not(any(unix, windows)))]
+    #[cfg(target_os = "wasi")]
+    {
+        match (crate::wasi_fs::file_identity(created), crate::wasi_fs::path_identity(path)) {
+            (Ok(created), Ok(current)) => created == current,
+            _ => false,
+        }
+    }
+    #[cfg(not(any(unix, windows, target_os = "wasi")))]
     {
         let _ = (created, path);
         false
@@ -128,7 +172,7 @@ fn path_still_names(created: &fs::File, path: &Path) -> bool {
 /// [`copy_file_exclusive`] asserts the exact mode once the bytes are
 /// written.
 #[cfg(unix)]
-fn create_new_with_permissions(path: &Path, permissions: &fs::Permissions) -> io::Result<fs::File> {
+fn create_new_with_permissions(path: &Path, permissions: &CopyPermissions) -> io::Result<fs::File> {
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
     fs::OpenOptions::new()
         .write(true)
@@ -140,13 +184,19 @@ fn create_new_with_permissions(path: &Path, permissions: &fs::Permissions) -> io
 /// Windows carries no creation mode: the read-only attribute is the
 /// whole of [`fs::Permissions`] there, and [`copy_file_exclusive`]
 /// asserts it after the copy.
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 fn create_new_with_permissions(
     path: &Path,
-    _permissions: &fs::Permissions,
+    _permissions: &CopyPermissions,
 ) -> io::Result<fs::File> {
     fs::File::create_new(path)
 }
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_os = "wasi")]
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "Shares the native permissions signature")]
+fn create_new_with_permissions(path: &Path, permissions: &CopyPermissions) -> io::Result<fs::File> {
+    crate::wasi_fs::create_new(path, *permissions)
+}

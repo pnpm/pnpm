@@ -52,7 +52,7 @@ impl ImportArgs {
         // A backup of its own keeps overlapping imports from restoring each
         // other's copy.
         let lockfile_backup =
-            lockfile_path.with_extension(format!("yaml.{}.import.bak", std::process::id()));
+            lockfile_path.with_extension(format!("yaml.{}.import.bak", pnpm_fs::process_id()));
         let lockfile_existed = lockfile_path.exists();
         if lockfile_existed {
             std::fs::rename(&lockfile_path, &lockfile_backup)
