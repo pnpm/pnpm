@@ -3,26 +3,20 @@ import { appendFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export function prepareDocsSync ({ eventName, githubRef, githubSha, releaseTag: tag, docsRef: correction, git = runGit, publicationState = readPublicationState }) {
-  if (eventName === 'workflow_dispatch' && !tag) {
+export function prepareDocsSync ({ githubRef, releaseTag: tag, docsRef: correction, git = runGit, publicationState = readPublicationState }) {
+  if (!tag) {
     if (githubRef !== 'refs/heads/main') throw new Error('Manual publication without a release tag must run from main')
     if (correction) throw new Error('docs_commit requires a release_tag')
     return { publish: true, main_sync: true, docs_commit: git('rev-parse', 'HEAD') }
   }
-  const automatic = eventName === 'release'
   const match = /^(v|pnpr@)(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag ?? '')
-  if (!match) {
-    if (automatic) return undefined
-    throw new Error('Expected a pnpm or pnpr release tag such as v12.8.2 or pnpr@0.1.0-alpha.15')
-  }
+  if (!match) throw new Error('Expected a pnpm or pnpr release tag such as v12.8.2 or pnpr@0.1.0-alpha.15')
   const [, prefix, version] = match
   if (prefix === 'v' && !['11', '12'].includes(version.split('.')[0])) {
-    if (automatic) return undefined
     throw new Error('Only pnpm v11 and v12 documentation is maintained here')
   }
   if (prefix === 'v' && version.includes('-')) return undefined
   const releaseCommit = git('rev-parse', '--verify', `refs/tags/${tag}^{commit}`)
-  if (automatic && releaseCommit !== githubSha) throw new Error('Release tag does not match the published release')
   git('verify-tag', tag)
   const manifests = prefix === 'pnpr@' ? ['pnpr/npm/pnpr/package.json'] : ['pnpm/npm/pnpm/package.json', 'pnpm11/pnpm/package.json']
   if (!manifests.some(file => JSON.parse(git('show', `${releaseCommit}:${file}`)).version === version)) {
@@ -32,7 +26,7 @@ export function prepareDocsSync ({ eventName, githubRef, githubSha, releaseTag: 
   const publication = publicationState(`${packageName}@${version}`)
   if (publication !== 'published') throw new Error(`${packageName}@${version} has not been published`)
   const line = prefix === 'pnpr@' ? 'pnpr' : `${version.split('.')[0]}.x`
-  const docsRef = automatic ? releaseCommit : correction || releaseCommit
+  const docsRef = correction || releaseCommit
   if (!/^[a-f0-9]{40}$/.test(docsRef)) throw new Error('Documentation corrections require a full commit SHA')
   const docsCommit = git('rev-parse', '--verify', `${docsRef}^{commit}`)
   if (docsCommit !== releaseCommit) {
@@ -56,9 +50,7 @@ function runGit (...args) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const result = prepareDocsSync({
-    eventName: process.env.GITHUB_EVENT_NAME,
     githubRef: process.env.GITHUB_REF,
-    githubSha: process.env.GITHUB_SHA,
     releaseTag: process.env.RELEASE_TAG,
     docsRef: process.env.DOCS_COMMIT,
   })
