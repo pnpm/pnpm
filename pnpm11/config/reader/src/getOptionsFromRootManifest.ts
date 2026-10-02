@@ -362,13 +362,16 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
       assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
       settings.auditIgnorePrune = audit.ignorePrune
     }
-  } else {
+  }
+  if (audit?.level == null) {
     const rawAuditLevel = (pnpmSettings as { auditLevel?: unknown }).auditLevel
     if (rawAuditLevel != null) {
       if (typeof rawAuditLevel !== 'string' || !AUDIT_LEVELS.has(rawAuditLevel as AuditLevel)) {
         throw new PnpmError('INVALID_SETTING', `The "auditLevel" setting should be one of ${Array.from(AUDIT_LEVELS).join(', ')}, but got ${JSON.stringify(rawAuditLevel)}`)
       }
     }
+  }
+  if (audit?.ignore == null) {
     const rawAuditConfig = pnpmSettings.auditConfig
     if (rawAuditConfig != null) {
       assertObjectSetting(rawAuditConfig, 'auditConfig')

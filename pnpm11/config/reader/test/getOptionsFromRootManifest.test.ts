@@ -992,3 +992,34 @@ test('getOptionsFromPnpmSettings() accepts valid top-level auditLevel and auditC
   })
   expect(options.auditConfig).toStrictEqual({ ignoreGhsas: ['GHSA-1234'] })
 })
+
+test('getOptionsFromPnpmSettings() rejects invalid top-level auditConfig when audit supplies only level', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: { level: 'high' },
+    auditConfig: 'invalid' as unknown as PnpmSettings['auditConfig'],
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "auditConfig" setting should be an object, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects invalid top-level auditLevel when audit supplies only ignore', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: { ignore: ['GHSA-1234'] },
+    auditLevel: 'invalid' as unknown as AuditLevel,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expect.stringContaining('The "auditLevel" setting should be one of'),
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects invalid top-level auditLevel when audit is empty', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    audit: {},
+    auditLevel: 'invalid' as unknown as AuditLevel,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expect.stringContaining('The "auditLevel" setting should be one of'),
+  }))
+})
+
