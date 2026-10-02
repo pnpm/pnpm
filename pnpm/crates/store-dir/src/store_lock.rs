@@ -66,10 +66,26 @@ fn lock_files(store_dir: &StoreDir, exclusive: bool) -> Result<StoreOperationLoc
         let file = pnpm_fs::open_secure_lock_file(&path)
             .map_err(|error| StoreLockError::Open { path: path.clone(), error })?;
         let result = if exclusive { File::lock(&file) } else { File::lock_shared(&file) };
-        result.map_err(|error| StoreLockError::Acquire { path, error })?;
-        files.push(file);
+        match result {
+            Ok(()) => files.push(file),
+            Err(error) if locking_unsupported(&error) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    "file locking is not supported here; continuing without the store operation lock",
+                );
+            }
+            Err(error) => return Err(StoreLockError::Acquire { path, error }),
+        }
     }
     Ok(StoreOperationLock { _files: files })
+}
+
+/// Whether the platform cannot take file locks at all. Rust's `std` file
+/// locks are stubs on Android that always fail this way, and some
+/// filesystems report `flock` failures with the same kind. Callers degrade
+/// to running unguarded rather than refusing to run.
+fn locking_unsupported(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::Unsupported
 }
 
 fn global_operation_lock_path() -> Result<PathBuf, StoreLockError> {
