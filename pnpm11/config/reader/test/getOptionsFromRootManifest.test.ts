@@ -959,3 +959,28 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['scriptShell', 123, 'number'],
+  ['scriptShell', true, 'boolean'],
+  ['scriptShell', ['bash'], 'array'],
+  ['pnprServer', 8080, 'number'],
+  ['pnprServer', false, 'boolean'],
+  ['pnprServer', {}, 'object'],
+])('getOptionsFromPnpmSettings() rejects %s set to %p', (settingName, value, receivedType) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: `The "${settingName}" setting should be a string, but got ${receivedType}`,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid scriptShell and pnprServer', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    scriptShell: '/bin/bash',
+    pnprServer: 'https://pnpr.example.com',
+  })
+  expect(options.scriptShell).toBe('/bin/bash')
+  expect(options.pnprServer).toBe('https://pnpr.example.com')
+})
