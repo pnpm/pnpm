@@ -340,27 +340,42 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
   // top-level key of that name is not a setting in either CLI.
   delete settings.auditIgnorePrune
   const audit = pnpmSettings.audit
-  if (audit == null) return
-  assertObjectSetting(audit, 'audit')
-  if (audit.ignore != null) {
-    assertStringArray(audit.ignore, 'audit.ignore')
-    if (pnpmSettings.auditConfig != null) {
-      globalWarn('Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit".')
+  if (audit != null) {
+    assertObjectSetting(audit, 'audit')
+    if (audit.ignore != null) {
+      assertStringArray(audit.ignore, 'audit.ignore')
+      if (pnpmSettings.auditConfig != null) {
+        globalWarn('Both the "audit" and "auditConfig" settings are set. The deprecated "auditConfig" setting is ignored in favor of "audit".')
+      }
+      settings.auditConfig = { ...settings.auditConfig, ignoreGhsas: audit.ignore }
     }
-    settings.auditConfig = { ...settings.auditConfig, ignoreGhsas: audit.ignore }
-  }
-  if (audit.level != null) {
-    if (!AUDIT_LEVELS.has(audit.level)) {
-      throw new PnpmError('INVALID_SETTING', `The "audit.level" setting should be one of ${Array.from(AUDIT_LEVELS).join(', ')}, but got ${JSON.stringify(audit.level)}`)
+    if (audit.level != null) {
+      if (!AUDIT_LEVELS.has(audit.level)) {
+        throw new PnpmError('INVALID_SETTING', `The "audit.level" setting should be one of ${Array.from(AUDIT_LEVELS).join(', ')}, but got ${JSON.stringify(audit.level)}`)
+      }
+      if ((pnpmSettings as { auditLevel?: unknown }).auditLevel != null) {
+        globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
+      }
+      ;(settings as { auditLevel?: string }).auditLevel = audit.level
     }
-    if ((pnpmSettings as { auditLevel?: unknown }).auditLevel != null) {
-      globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
+    if (audit.ignorePrune != null) {
+      assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
+      settings.auditIgnorePrune = audit.ignorePrune
     }
-    ;(settings as { auditLevel?: string }).auditLevel = audit.level
-  }
-  if (audit.ignorePrune != null) {
-    assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
-    settings.auditIgnorePrune = audit.ignorePrune
+  } else {
+    const rawAuditLevel = (pnpmSettings as { auditLevel?: unknown }).auditLevel
+    if (rawAuditLevel != null) {
+      if (typeof rawAuditLevel !== 'string' || !AUDIT_LEVELS.has(rawAuditLevel as AuditLevel)) {
+        throw new PnpmError('INVALID_SETTING', `The "auditLevel" setting should be one of ${Array.from(AUDIT_LEVELS).join(', ')}, but got ${JSON.stringify(rawAuditLevel)}`)
+      }
+    }
+    const rawAuditConfig = pnpmSettings.auditConfig
+    if (rawAuditConfig != null) {
+      assertObjectSetting(rawAuditConfig, 'auditConfig')
+      if (rawAuditConfig.ignoreGhsas != null) {
+        assertStringArray(rawAuditConfig.ignoreGhsas, 'auditConfig.ignoreGhsas')
+      }
+    }
   }
 }
 
