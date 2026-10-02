@@ -179,9 +179,9 @@ fn matches_timestamp(string: &str) -> bool {
 
 /// A cursor over a candidate timestamp, matching js-yaml's timestamp regexp
 /// one field at a time.
-pub(super) struct TimestampScan<'a> {
-    pub(super) bytes: &'a [u8],
-    pub(super) index: usize,
+struct TimestampScan<'a> {
+    bytes: &'a [u8],
+    index: usize,
 }
 
 impl TimestampScan<'_> {
