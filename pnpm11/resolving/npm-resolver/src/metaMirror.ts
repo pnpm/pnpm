@@ -216,9 +216,20 @@ export function mirrorEtags (
   response: { etag?: string, fullMetadata?: boolean },
   mirrorFullMetadata: boolean
 ): Pick<MetaHeaders, 'etag' | 'fullEtag'> {
-  return response.fullMetadata === true && !mirrorFullMetadata
+  return holdsFullMetaInAbbreviatedMirror(response, mirrorFullMetadata)
     ? { fullEtag: response.etag }
     : { etag: response.etag }
+}
+
+/**
+ * Whether a response is a full document headed for the abbreviated mirror.
+ * Only `time` is needed from it there, so it is mirrored condensed.
+ */
+export function holdsFullMetaInAbbreviatedMirror (
+  response: { fullMetadata?: boolean },
+  mirrorFullMetadata: boolean
+): boolean {
+  return response.fullMetadata === true && !mirrorFullMetadata
 }
 
 /**

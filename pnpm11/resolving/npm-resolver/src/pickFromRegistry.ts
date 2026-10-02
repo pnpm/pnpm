@@ -7,6 +7,7 @@ import { type FetchMetadataResult, notModifiedWithoutCacheError } from './fetch.
 import {
   condenseMetaForCache,
   fullEtagOfAbbreviatedMirror,
+  holdsFullMetaInAbbreviatedMirror,
   loadMetaHeaders,
   type MetaHeaders,
   metaHeadersOf,
@@ -153,7 +154,7 @@ async function persistFreshMeta (request: PickRequest, fetched: FetchMetadataRes
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
   }
   if (!opts.dryRun) {
-    mirrorFreshMeta(request, { fetched, resultToSave, meta })
+    mirrorFreshMeta(request, { resultToSave, meta })
   }
   meta.etag = resultToSave.etag
   // only save meta to cache, when it is fresh
@@ -209,13 +210,14 @@ function freshMetaNeedsFullForReleaseAge ({ spec, opts, fullMetadata }: PickRequ
 
 function mirrorFreshMeta (
   request: PickRequest,
-  { fetched, resultToSave, meta }: { fetched: FetchMetadataResult, resultToSave: FetchMetadataResult, meta: PackageMeta }
+  { resultToSave, meta }: { resultToSave: FetchMetadataResult, meta: PackageMeta }
 ): void {
   // Mirror the raw registry body, unless the retained form is
   // deliberately narrower: `filterMetadata` always mirrors the stripped
-  // document, and an upgraded-to-full document mirrors the condensed
-  // form — `time` is all the next install needs from this slot.
-  const writeCondensed = request.ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
+  // document, and a full document in the abbreviated slot mirrors the
+  // condensed form — `time` is all the next install needs from this slot.
+  const writeCondensed = request.ctx.filterMetadata === true ||
+    (holdsFullMetaInAbbreviatedMirror(resultToSave, request.fullMetadata) && meta !== resultToSave.meta)
   const { etag, fullEtag } = mirrorEtags(resultToSave, request.fullMetadata)
   const jsonForDisk = writeCondensed
     ? prepareJsonForDisk(meta, etag, { uncacheable: resultToSave.uncacheable, fullEtag })

@@ -1087,6 +1087,43 @@ test('an abbreviated mirror holding an upgraded full document revalidates with t
   expect(fs.readFileSync(cachePath, 'utf8')).toBe(mirror)
 })
 
+test('a changed full document revalidating an abbreviated mirror is recorded condensed with its full etag', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+  const cacheHeaders = JSON.stringify({ fullEtag: '"old-full-etag"', modified: isPositiveMeta.time.modified })
+  fs.writeFileSync(cachePath, `${cacheHeaders}\n${JSON.stringify(isPositiveMeta)}`, 'utf8')
+  fs.utimesSync(cachePath, new Date(0), new Date(0))
+
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { accept: /^application\/json/, 'if-none-match': '"old-full-etag"' },
+    })
+    .reply(200, isPositiveMeta, { headers: { etag: '"new-full-etag"' } })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^1.0.0' }, {
+    publishedBy: new Date('2015-06-05T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(0)
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
+  const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.fullEtag === '"new-full-etag"')
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  expect(persistedMeta.etag).toBeUndefined()
+  expect(persistedMeta.time).toEqual(isPositiveMeta.time)
+  expect(persistedMeta.readme).toBeUndefined()
+  expect(persistedMeta.versions['1.0.0'].scripts).toBeUndefined()
+})
+
 /**
  * The abbreviated packument as a registry that reports publish times for only
  * some of the versions it serves would answer, with `modified` recent enough

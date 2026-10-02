@@ -2,12 +2,13 @@ import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
+import { clearMeta } from './clearMeta.js'
 import {
   fetchMetadataFromFromRegistry,
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { fullEtagOfAbbreviatedMirror, mirrorEtags } from './metaMirror.js'
+import { fullEtagOfAbbreviatedMirror, holdsFullMetaInAbbreviatedMirror, mirrorEtags } from './metaMirror.js'
 import {
   discardMirrorAfterFailedUncacheableWrite,
   getPkgMirrorPath,
@@ -147,7 +148,10 @@ async function refetchBypassingCache (
 function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {
   if (pkgMirror != null) {
     const { etag, fullEtag } = mirrorEtags(fetched, mirrorFullMetadata)
-    saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, etag, { ...fetched, fullEtag })).catch(() => {
+    const jsonForDisk = holdsFullMetaInAbbreviatedMirror(fetched, mirrorFullMetadata)
+      ? prepareJsonForDisk(clearMeta(fetched.meta), etag, { uncacheable: fetched.uncacheable, fullEtag })
+      : prepareJsonForDisk(fetched.meta, etag, fetched)
+    saveMeta(pkgMirror, jsonForDisk).catch(() => {
       return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
     })
   }
