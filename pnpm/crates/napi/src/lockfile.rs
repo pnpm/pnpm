@@ -50,8 +50,7 @@ impl LockfileKind {
     }
 }
 
-/// Inputs for [`read_lockfile`]. Mirrors [`ReadLockfileOptions`] in
-/// `index.d.ts`.
+/// Inputs for [`read_lockfile`].
 #[napi(object)]
 pub struct ReadLockfileOptions {
     /// Lockfile / workspace root directory.
@@ -63,8 +62,7 @@ pub struct ReadLockfileOptions {
     pub modules_dir: Option<String>,
 }
 
-/// Inputs for [`write_lockfile`]. Mirrors [`WriteLockfileOptions`] in
-/// `index.d.ts`.
+/// Inputs for [`write_lockfile`].
 #[napi(object)]
 pub struct WriteLockfileOptions {
     /// Lockfile / workspace root directory.
@@ -77,8 +75,7 @@ pub struct WriteLockfileOptions {
     pub modules_dir: Option<String>,
 }
 
-/// Inputs for [`filter_lockfile_by_importers`]. Mirrors
-/// [`FilterLockfileOptions`] in `index.d.ts`.
+/// Inputs for [`filter_lockfile_by_importers`].
 #[napi(object)]
 pub struct FilterLockfileOptions {
     /// Whether the listed importers keep their `dependencies`. Defaults to
@@ -198,8 +195,7 @@ pub fn filter_lockfile_by_importers(
 }
 
 /// The `.modules.yaml` state of an installed `node_modules`, or `null`
-/// when the directory has none. Same reader the engine uses, so a host
-/// needs no `@pnpm/installing.modules-yaml`.
+/// when the directory has none.
 #[napi]
 pub async fn read_modules_manifest(modules_dir: String) -> napi::Result<Option<serde_json::Value>> {
     let manifest = tokio::task::spawn_blocking(move || {

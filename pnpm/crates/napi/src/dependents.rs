@@ -39,7 +39,7 @@ use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependenci
 
 use crate::error::report_to_napi_error;
 
-/// Inputs for [`get_dependents`]. Mirrors [`DependentsOptions`] in `index.d.ts`.
+/// Inputs for [`get_dependents`].
 #[napi(object)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -85,8 +85,7 @@ pub struct DependentsOptions {
     pub resolve_peers_from_workspace_root: Option<bool>,
 }
 
-/// Inputs for [`render_dependents`]. Mirrors [`RenderDependentsOptions`]
-/// in `index.d.ts`.
+/// Inputs for [`render_dependents`].
 #[napi(object)]
 pub struct RenderDependentsInput {
     /// `"tree"` (the default), `"parseable"`, or `"json"`.

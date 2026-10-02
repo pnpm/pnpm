@@ -7,11 +7,6 @@
 //! `catalogs:` blocks of an existing `pnpm-workspace.yaml` (or create the
 //! file) while preserving the comments, blank lines, key order, and quote
 //! styles of everything it does not touch.
-//!
-//! The format-preserving edits are expressed as targeted text splices (for
-//! inserts) and [`yamlpatch`] `Op::Replace` (for value updates) — which
-//! suffices because the merge only ever *inserts* new entries/blocks or
-//! *updates* a single value, never reorders existing content.
 
 pub use build_settings::{
     LEGACY_BUILD_SETTINGS, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds, set_allow_builds,

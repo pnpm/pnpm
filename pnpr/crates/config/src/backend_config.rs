@@ -11,7 +11,7 @@ use super::{
 #[derive(Debug, Default, Clone)]
 pub enum BackendConfig {
     /// Local htpasswd users + `SQLite` tokens (or in-memory when no file
-    /// is configured). Today's behaviour.
+    /// is configured).
     #[default]
     Local,
     /// Networked `SQLite` (libsql / Turso): both records live in one

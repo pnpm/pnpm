@@ -16,13 +16,7 @@
 //!   synthesize the prepared row directly from the input `cas_paths`
 //!   (no `fs::read`, no re-hash). When fast-path triggers and
 //!   `should_be_built` is false, the synthesized row lands at the
-//!   final key. The skipped re-import is the perf win; the orphan raw
-//!   row (if pnpm-tarball ever starts writing one) is a separate
-//!   cleanup follow-up.
-//! - **Warnings route through `tracing::warn!`.** When `ignore_scripts`
-//!   suppresses a needed build, pacquet logs a warning through
-//!   `tracing` since pacquet's reporter model doesn't have a global
-//!   warn channel.
+//!   final key.
 
 use crate::{
     cas_io::{ImportedFiles, import_into_cas, materialize_into, synthesize_files_index},
@@ -72,22 +66,12 @@ impl GitHostedTarballFetcher<'_> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
 
-        // Step 1: Materialize the CAS-resident files into a writable
-        // working tree, through a per-file `fs::copy` because the
-        // tarball download has already settled the CAS write side.
         materialize_into(&self.cas_paths, temp_location)?;
 
-        // Step 2: Run `preparePackage` on the materialized tree. This
-        // honors `allow_build`, runs `<pm>-install` + `prepublish` /
-        // `prepack` / `publish` lifecycle scripts when needed, and
-        // returns `pkg_dir` (which respects `self.path`) plus the
-        // `should_be_built` flag.
         let prepared =
             prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.path)
                 .map_err(GitFetcherError::Prepare)?;
 
-        // Warn when scripts were ignored on a package that needs
-        // building.
         if prepared.ignored_build {
             tracing::warn!(
                 target: "pacquet::git_hosted_tarball_fetcher",
@@ -96,14 +80,13 @@ impl GitHostedTarballFetcher<'_> {
             );
         }
 
-        // Step 3: Compute the packlist over the prepared tree. The
-        // raw tarball typically ships everything from the git
+        // The raw tarball typically ships everything from the git
         // checkout (build artifacts, source maps, test fixtures);
         // applying the packlist filter on the way back into CAS
         // matches the file set the package would publish.
         let files = packlist_of(&prepared.pkg_dir)?;
 
-        // Step 4: Fast path — when nothing got filtered out AND
+        // Fast path — when nothing got filtered out AND
         // prepare didn't mutate the tree (no build needed, or scripts
         // ignored), the materialized files are byte-identical to the
         // CAS source. Re-hashing every entry through `import_into_cas`
@@ -146,16 +129,9 @@ impl GitHostedTarballFetcher<'_> {
         prepared: &PreparedPackage,
         files: &[String],
     ) -> Result<GitFetchOutput, GitFetcherError> {
-        // Step 5: Slow path — re-import the filtered file set back
-        // into CAS and hand the resulting map to the install dispatcher.
         let ImportedFiles { cas_paths, files_index } =
             import_into_cas(self.store.dir, &prepared.pkg_dir, files)?;
 
-        // Step 6: Queue a `PackageFilesIndex` row so a future install's
-        // warm prefetch skips the materialize+prepare+packlist+re-import
-        // pass entirely. The final row lands at the git-hosted
-        // store-index key; the dispatcher already builds that key and
-        // passes it via `files_index_file`.
         let files_index_file = prepared.store_index_key(
             self.store.files_index_file,
             self.package_id,

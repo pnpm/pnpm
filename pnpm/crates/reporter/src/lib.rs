@@ -31,7 +31,7 @@ use std::{
 
 /// One log channel from `@pnpm/core-loggers`.
 ///
-/// Variants are added as pacquet starts emitting them. The `name` tag in
+/// The `name` tag in
 /// the serialized JSON identifies the channel; consumers (notably
 /// `@pnpm/cli.default-reporter`) dispatch on this value.
 #[derive(Debug, Clone, Serialize)]
@@ -70,11 +70,7 @@ pub enum LogEvent {
     /// The import method used to materialise files from the store
     /// (`pnpm:package-import-method`). Fires the first time each
     /// resolved method (`clone` / `hardlink` / `copy`) actually
-    /// succeeds during an install — so for the `auto` and
-    /// `clone-or-copy` config values, the wire value reflects the
-    /// post-fallback method rather than the optimistic configured
-    /// one. Up to three events per install (one per resolved method)
-    /// gated by an install-scoped atomic in `pnpm-package-manager`.
+    /// succeeds during an install.
     #[serde(rename = "pnpm:package-import-method")]
     PackageImportMethod(PackageImportMethodLog),
 
@@ -84,9 +80,7 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:progress")]
     Progress(ProgressLog),
 
-    /// Per-tarball download progress (`pnpm:fetching-progress`). The
-    /// `in_progress` events are throttled to ~200ms while the body
-    /// streams.
+    /// Per-tarball download progress (`pnpm:fetching-progress`).
     #[serde(rename = "pnpm:fetching-progress")]
     FetchingProgress(FetchingProgressLog),
 
@@ -105,10 +99,7 @@ pub enum LogEvent {
     Root(RootLog),
 
     /// Aggregate add / remove counts emitted once per project after
-    /// the link phase (`pnpm:stats`). Pnpm emits `added` and
-    /// `removed` from separate sites; pacquet currently emits both
-    /// together because pruning hasn't landed yet — see
-    /// [`StatsMessage::Removed`].
+    /// the link phase (`pnpm:stats`).
     #[serde(rename = "pnpm:stats")]
     Stats(StatsLog),
 
@@ -142,12 +133,7 @@ pub enum LogEvent {
     UpdateCheck(UpdateCheckLog),
 
     /// One per optional-dependency pacquet decided to skip rather
-    /// than fail the install over. Reason discriminates the cause —
-    /// pacquet currently only emits `build_failure` (from
-    /// `BuildModules` when a postinstall fails on an optional dep);
-    /// the `unsupported_engine` / `unsupported_platform` /
-    /// `resolution_failure` reasons come from earlier phases that
-    /// haven't landed in pacquet yet.
+    /// than fail the install over.
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
 
@@ -201,10 +187,8 @@ pub enum LogEvent {
 
     /// Global-logger message (`name: "pnpm:global"`). Written to a
     /// `bole('pnpm:global')` logger with just a message string — no
-    /// `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
-    /// web-authentication flow (`pnpm-network-web-auth`) emits on this
-    /// channel to surface the auth URL / QR code and the browser-open
-    /// prompts. `@pnpm/cli.default-reporter` routes these into the "other"
+    /// `prefix`, unlike [`LogEvent::Pnpm`].
+    /// `@pnpm/cli.default-reporter` routes these into the "other"
     /// log stream.
     #[serde(rename = "pnpm:global")]
     Global(GlobalLog),
@@ -629,16 +613,12 @@ pub enum LogLevel {
 /// rayon `par_iter`, and tarball download / store-index work runs
 /// across tokio workers, all of which can fire reporter events at
 /// once. Implementations must therefore guard any shared state they
-/// touch (`Mutex`, atomic, or write-once initialization). Both
-/// production sinks satisfy this: [`SilentReporter`] is a no-op, and
-/// [`NdjsonReporter`] serializes per-event then writes under
-/// `std::io::stderr().lock()`.
+/// touch (`Mutex`, atomic, or write-once initialization).
 ///
 /// The `Send + Sync + 'static` supertraits state the same contract in
 /// the type system, so emitting code can hand `R` to a spawned task
 /// (the concurrent lockfile-verification gate) without re-declaring the
-/// bounds at every generic hop. Implementations are unit structs, which
-/// satisfy them automatically.
+/// bounds at every generic hop.
 pub trait Reporter: Send + Sync + 'static {
     fn emit(event: &LogEvent);
 
@@ -670,10 +650,6 @@ impl Reporter for SilentReporter {
 /// stderr, terminated by `\n`. The wire format matches what pnpm itself
 /// produces under `--reporter=ndjson`, so the same consumers work
 /// unmodified.
-///
-/// Today this writes synchronously under the stderr lock. When the volume
-/// of emit sites grows past coarse start/end markers, the writer should
-/// move behind an MPSC channel.
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
 pub struct NdjsonReporter;
@@ -722,10 +698,7 @@ fn now_millis() -> u128 {
 /// trait. The trait therefore exists for two narrow reasons: to keep the
 /// `gethostname` syscall behind a named seam (so the production call site
 /// is consistent with the rest of `Host`'s capability surface), and so the
-/// capability can be exercised in isolation by unit tests. Substituting a
-/// hostname per-test in the rendered envelope would require plumbing a
-/// `Sys: GetHostName` generic through the emission site, which has not
-/// been done.
+/// capability can be exercised in isolation by unit tests.
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
 pub trait GetHostName {

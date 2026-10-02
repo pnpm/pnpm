@@ -14,9 +14,7 @@
 //! leaked memory cannot be reclaimed). Retained configs therefore grow with the
 //! number of unique `(dir, overlay, config sources)` combinations the process
 //! observes, which is bounded in practice for the trusted embedder this binding
-//! targets. Removing the leak entirely requires the engine to accept a borrowed
-//! or `Arc` config instead of `&'static Config`; that is a pacquet-core change
-//! tracked as a follow-up.
+//! targets.
 //!
 //! The base is [`Config::current`] over `dir` — it reads the `.npmrc`
 //! auth/registry/network subset and `pnpm-workspace.yaml` exactly as the CLI
@@ -129,8 +127,10 @@ pub struct ConfigOverlay {
     pub strict_dep_builds: Option<bool>,
     /// Per-package build-script allow-list: `name -> allowed`. A package must
     /// be `true` here (or covered by `dangerously_allow_all_builds`) for its
-    /// lifecycle scripts to run. `BTreeMap` (not `HashMap`) so the overlay's
-    /// `Debug` output — which feeds the config intern cache key — is stable.
+    /// lifecycle scripts to run.
+    // `BTreeMap` (not `HashMap`) here and on `auth_header_by_uri`: the overlay's
+    // `Debug` output feeds the config intern cache key, so iteration order must
+    // be stable.
     pub allow_builds: Option<BTreeMap<String, bool>>,
     /// Allow every dependency's build scripts to run.
     pub dangerously_allow_all_builds: Option<bool>,
@@ -155,8 +155,7 @@ pub struct ConfigOverlay {
     /// registry. When present, replaces the `.npmrc`-derived `auth_headers` —
     /// the host (which owns the raw `.npmrc`/config credentials) resolves the
     /// `Bearer ...` / `Basic ...` values and passes them in, so the binding never
-    /// reparses npmrc auth. `BTreeMap` (not `HashMap`) so the overlay's `Debug`
-    /// output — which feeds the config intern cache key — is stable.
+    /// reparses npmrc auth.
     pub auth_header_by_uri: Option<BTreeMap<String, String>>,
 }
 

@@ -55,8 +55,8 @@ mod specifier;
 
 use napi_derive::napi;
 
-/// Version of the underlying Rust engine (pacquet). Exposed as a function
-/// rather than a const so napi maps it to a stable `engineVersion()` export.
+/// Version of the pnpm engine.
+// A function rather than a const so napi maps it to a stable export.
 #[napi(js_name = "engineVersion")]
 #[must_use]
 pub fn engine_version() -> &'static str {

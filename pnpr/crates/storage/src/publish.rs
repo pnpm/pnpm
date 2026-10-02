@@ -345,18 +345,6 @@ fn merge_objects(existing: Option<&Value>, incoming: &Value) -> Value {
     Value::Object(merged)
 }
 
-/// Merge the `versions` map onto the seed `existing`. A version that is
-/// already **hosted** is immutable except for its `deprecated` flag: the
-/// hosted manifest is kept and only `deprecated` is applied from the body
-/// (set it, or remove it for undeprecate), so `dist`, `dependencies`, `bin`,
-/// `engines` and every other resolution-relevant field stay as published. A
-/// malformed incoming entry for a hosted version is ignored. Any other
-/// version — brand-new, or one that exists only upstream in the seed — is
-/// taken from the body, so its manifest matches the tarball being published.
-///
-/// Immutability keys off `hosted` (the locally hosted packument), not the
-/// seed: `existing` may be the upstream packument, and upstream versions are
-/// not immutable here — a first local publish of one must win.
 /// Merge one top-level packument field into the document being written.
 fn merge_manifest_field(
     out: &mut Map<String, Value>,
@@ -398,6 +386,18 @@ fn stamp_time_entries(out: &mut Map<String, Value>, now_iso: &str) {
     }
 }
 
+/// Merge the `versions` map onto the seed `existing`. A version that is
+/// already **hosted** is immutable except for its `deprecated` flag: the
+/// hosted manifest is kept and only `deprecated` is applied from the body
+/// (set it, or remove it for undeprecate), so `dist`, `dependencies`, `bin`,
+/// `engines` and every other resolution-relevant field stay as published. A
+/// malformed incoming entry for a hosted version is ignored. Any other
+/// version — brand-new, or one that exists only upstream in the seed — is
+/// taken from the body, so its manifest matches the tarball being published.
+///
+/// Immutability keys off `hosted` (the locally hosted packument), not the
+/// seed: `existing` may be the upstream packument, and upstream versions are
+/// not immutable here — a first local publish of one must win.
 fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Value>) -> Value {
     let hosted_versions = hosted
         .and_then(|h| h.get("versions"))

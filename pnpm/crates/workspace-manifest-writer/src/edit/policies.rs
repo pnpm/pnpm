@@ -12,9 +12,7 @@ use super::{
 /// both spellings are present, the shadowed deprecated list is removed as
 /// part of the write. `auditConfig.ignoreGhsas` is created when neither is
 /// present. An empty `ghsas` removes the list, dropping its block when
-/// nothing else remains in it. `pnpm audit --ignore` and `audit.ignorePrune`
-/// call this with the complete desired list. Returns whether anything
-/// changed.
+/// nothing else remains in it. Returns whether anything changed.
 pub(crate) fn set_audit_ignore_ghsas(
     manifest: &mut Manifest,
     ghsas: &[String],
