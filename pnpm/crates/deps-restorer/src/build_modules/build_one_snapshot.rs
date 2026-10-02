@@ -164,11 +164,7 @@ struct BuildCandidate<'c> {
     /// gate. The selection holds allow-build keys (the package name for
     /// registry deps, the full pkgId for git/tarball artifacts), so
     /// either form matches — a selected non-registry artifact is forced
-    /// past the gate too. The allow-policy gate still applies — a
-    /// rebuild never builds a disallowed package. Non-selected packages
-    /// still run the allow-policy gate (so their `.modules.yaml`
-    /// ignored-builds record stays intact), but their scripts are
-    /// suppressed by the rebuild-selection gate after it.
+    /// past the gate too.
     force_rebuild: bool,
     should_run_scripts: bool,
     /// `--ignore-scripts` left the build scripts for a later install to run

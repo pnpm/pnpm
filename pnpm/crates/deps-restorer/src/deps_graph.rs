@@ -64,9 +64,6 @@ pub fn build_deps_graph_for_platform(
 /// closure, so the bounded graph produces the exact same cache
 /// keys as the full graph for every root — observable behavior
 /// matches [`build_deps_graph`] for the inputs we care about.
-///
-/// Pacquet only uses the graph for cache hashing today, so the
-/// trimmed walk is sound here — same cache keys, fewer cycles spent.
 pub fn build_deps_subgraph<Iter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,

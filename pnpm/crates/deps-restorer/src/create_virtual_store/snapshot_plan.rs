@@ -82,11 +82,6 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
 
 /// The snapshots this install materializes, and whether any of them is
 /// git-hosted.
-///
-/// The slot probe goes through `layout.slot_dir` because under GVS the
-/// slot lives at `<global_virtual_store_dir>/...`, and probing
-/// `<virtual_store_dir>/<flat-name>` would find nothing and report
-/// every warm slot as broken.
 fn survivors<'a, Reporter: self::Reporter>(
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     probe: &WarmSlotProbe<'a, '_>,

@@ -6,22 +6,6 @@ use pnpm_package_manifest::{
 use pnpm_patching::{ExtendedPatchInfo, MANIFEST_FILE_NAME, preview_patch};
 use std::collections::{HashMap, HashSet};
 
-/// Whether each configured patch adds build work its package's published
-/// manifest does not declare, keyed by the peer-stripped package key.
-///
-/// Everything keyed off `requiresBuild` — the allow-build gate, the build
-/// graph, the side-effects cache key — is decided before the build phase
-/// applies the patch, so build work a patch introduces would otherwise
-/// stay invisible until after the decisions that need it. Previewing the
-/// patch keeps all three describing the package that ends up on disk.
-///
-/// Answered once per patch rather than once per snapshot, and only for a
-/// package `published_requires_build` does not already answer `true` for:
-/// peer variants share both the extracted manifest and the patch, and each
-/// preview reads and parses two files.
-///
-/// A patch that fails to preview is left to the build phase, which
-/// applies it for real and surfaces the failure.
 /// Whether a configured patch adds build work to a snapshot the published
 /// manifest did not already bind. [`PkgRoots::canonical`] is asked second: a
 /// snapshot the walker dropped has nothing to build, and this way the lookup
@@ -111,6 +95,22 @@ pub(super) fn side_effects_cache_gate_active(gate: &SideEffectsCacheGate) -> boo
         && gate.can_write_store;
     read_gate_active || write_gate_active
 }
+/// Whether each configured patch adds build work its package's published
+/// manifest does not declare, keyed by the peer-stripped package key.
+///
+/// Everything keyed off `requiresBuild` — the allow-build gate, the build
+/// graph, the side-effects cache key — is decided before the build phase
+/// applies the patch, so build work a patch introduces would otherwise
+/// stay invisible until after the decisions that need it. Previewing the
+/// patch keeps all three describing the package that ends up on disk.
+///
+/// Answered once per patch rather than once per snapshot, and only for a
+/// package `published_requires_build` does not already answer `true` for:
+/// peer variants share both the extracted manifest and the patch, and each
+/// preview reads and parses two files.
+///
+/// A patch that fails to preview is left to the build phase, which
+/// applies it for real and surfaces the failure.
 pub(super) fn patch_added_build_by_package(
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
     published_requires_build: &HashMap<PackageKey, bool>,

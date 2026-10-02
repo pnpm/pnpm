@@ -113,13 +113,11 @@ pub fn build_hoist_graph_with_max_length(
 
 /// Per-importer direct-dependency map.
 ///
-/// Outer key is the importer id (`"."` for the root project; workspace
-/// projects extend this in [#431]). Inner map is alias → snapshot key,
+/// Outer key is the importer id (`"."` for the root project). Inner
+/// map is alias → snapshot key,
 /// preserving npm-alias semantics — the alias is the directory name
 /// linked under the project's `node_modules`, and the snapshot key
 /// resolves where the link points.
-///
-/// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub type DirectDepsByImporter = IndexMap<String, IndexMap<String, PackageKey>>;
 
 /// Build a [`DirectDepsByImporter`] from the lockfile's `importers:`
@@ -132,15 +130,12 @@ pub type DirectDepsByImporter = IndexMap<String, IndexMap<String, PackageKey>>;
 /// rather than the lockfile's full `&HashMap` so the caller can
 /// restrict the input to the importer set actually being installed.
 /// Today the frozen-lockfile call site passes the full `importers`
-/// map — workspace install (pnpm/pacquet#431) landed in [#443] and
-/// pacquet now installs every entry — so the iterator-shaped
+/// map, so the iterator-shaped
 /// signature lets future selected-projects (`--filter`) installs
 /// pass a filtered iterator without touching this function. The
 /// `link:` workspace-sibling entries are skipped via
 /// [`pnpm_lockfile::ImporterDepVersion::as_regular`] inside the
 /// loop.
-///
-/// [#443]: https://github.com/pnpm/pacquet/pull/443
 pub fn build_direct_deps_by_importer<'a, Iter>(
     importers: Iter,
     dependency_groups: impl IntoIterator<Item = pnpm_package_manifest::DependencyGroup>,
@@ -248,9 +243,7 @@ pub struct HoistResult {
     pub hoisted_aliases_with_bins: Vec<(String, PackageKey)>,
     /// Aliases whose target package declares a bin and were hoisted
     /// publicly. Public-hoist bins land alongside the project's
-    /// direct-dep bins in `<root>/node_modules/.bin` — the bins of the
-    /// publicly hoisted modules are linked together with the bins of
-    /// the project's direct dependencies.
+    /// direct-dep bins in `<root>/node_modules/.bin`.
     /// In pacquet's pipeline ordering, `SymlinkDirectDependencies`
     /// runs *before* `hoist`, so the install pipeline does an
     /// additional `link_direct_dep_bins` pass over this list after

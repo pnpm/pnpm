@@ -137,10 +137,6 @@ pub struct DirectLinkPolicy<'a> {
     /// `<importer>/node_modules/<alias>/` as real directories
     /// from the hoisted linker, and re-symlinking them would
     /// either no-op or corrupt the layout.
-    ///
-    /// In the hoisted branch this runs after
-    /// `linkHoistedModules` with the direct-dependency map filtered to
-    /// only `link:`-shaped entries.
     pub link_only: bool,
 }
 

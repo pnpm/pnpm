@@ -314,14 +314,6 @@ fn root_dedupe_targets(
     targets
 }
 
-/// Reject importer keys that would resolve outside the workspace root.
-///
-/// Pnpm's lockfile spec writes importer keys as POSIX paths relative
-/// to the workspace root (`.` for the root, `packages/web` for a
-/// subproject). Anything else — an absolute POSIX path, a Windows
-/// drive prefix, a `..` segment — is either malformed or hostile, so
-/// surface it as a typed error rather than silently letting
-/// `Path::join` produce an off-workspace path.
 /// Reject a lockfile importer key that cannot be safely joined onto the
 /// lockfile dir: absolute paths, Windows drive prefixes, backslash
 /// separators, and `..` traversal segments. `.` (the root importer) and any
@@ -432,8 +424,6 @@ where
 /// keeps lockfiles written by pacquet and pnpm interchangeable. The
 /// returned path is platform-native (`Path::join` handles the
 /// conversion on Windows).
-/// The on-disk root of the project a lockfile importer ID names, relative
-/// to `workspace_root` (which is normally the lockfile directory).
 #[must_use]
 pub fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> PathBuf {
     if importer_id == "." {

@@ -156,9 +156,7 @@ pub struct BuildLayout<'a> {
     /// the snapshot didn't make it into the hoisted graph (skipped
     /// optional, etc.) and the build phase silently passes over it.
     /// `None` for the isolated linker — its slot directories are
-    /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
-    /// two-mode `pkgRoot` selection (override map vs. layout slot)
-    /// is handled by `PkgRoots`.
+    /// recovered from [`crate::VirtualStoreLayout::slot_dir`].
     ///
     /// One snapshot can occupy several directories: the walker nests a
     /// second copy of a package under a sibling when a version conflict

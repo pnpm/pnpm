@@ -165,9 +165,7 @@ struct GetSubgraphCtx<'a> {
 /// A node is a candidate when `requires_build` is set OR when an entry
 /// for the peer-stripped key is present in `patches` — *unless* the
 /// node is in `skipped`, in which case its virtual-store slot was never
-/// created so neither the requires-build nor patch path can run. A
-/// skipped snapshot never enters the build graph, so a child reachable
-/// only through a skipped edge is excluded too.
+/// created so neither the requires-build nor patch path can run.
 ///
 /// Returns whether *any* of the entry nodes (or their subtrees) needs to build.
 fn get_subgraph_to_build(
