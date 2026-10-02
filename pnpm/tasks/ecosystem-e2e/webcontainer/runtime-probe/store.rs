@@ -38,6 +38,7 @@ pub fn check(directory: &Path, mode: &str) {
 
 fn check_cas(directory: &Path) {
     check_unreadable_parent(directory);
+    check_unreadable_directory_grant(directory);
     let root = directory.join("cas-probe");
     std::fs::create_dir_all(&root).unwrap();
     pnpm_fs::file_mode::set_path_permissions(&root, 0o2770).unwrap();
@@ -57,6 +58,22 @@ fn check_cas(directory: &Path) {
     std::fs::remove_file(installed).unwrap();
     std::fs::remove_dir_all(root).unwrap();
     println!("Content-addressable store inherits directory and executable file permissions");
+}
+
+fn check_unreadable_directory_grant(directory: &Path) {
+    let template = directory.join("unreadable-directory-grant");
+    std::fs::create_dir(&template).unwrap();
+    pnpm_fs::file_mode::set_path_permissions(&template, 0o2770).unwrap();
+    let child = template.join("child");
+    std::fs::create_dir(&child).unwrap();
+    let opened = std::fs::File::open(&child).unwrap();
+    pnpm_fs::set_file_permissions(&opened, &0o300).unwrap();
+    pnpm_fs::file_mode::grant_inherited_dir_mode(&child, &template)
+        .expect("grant inherited mode to a write-and-search-only directory");
+    assert_eq!(pnpm_fs::read_file_permissions(&opened).unwrap() & 0o7777, 0o2370);
+    pnpm_fs::set_file_permissions(&opened, &0o700).unwrap();
+    drop(opened);
+    std::fs::remove_dir_all(template).unwrap();
 }
 
 fn check_unreadable_parent(directory: &Path) {

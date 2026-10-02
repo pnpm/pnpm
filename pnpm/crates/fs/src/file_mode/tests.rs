@@ -409,6 +409,27 @@ fn create_dir_all_inheriting_mode_rejects_parent_traversal_before_creation() {
 
 #[cfg(unix)]
 #[test]
+fn create_dir_all_inheriting_mode_accepts_existing_parent_traversal() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let temporary = tempfile::tempdir().unwrap();
+    fs::create_dir(temporary.path().join("workspace")).unwrap();
+    fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let directory = temporary.path().join("workspace/../store/files");
+
+    super::create_dir_all_inheriting_mode(&directory).unwrap();
+    assert_eq!(
+        fs::metadata(&directory)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o7777,
+        0o2775,
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn grant_inherited_dir_mode_accepts_relative_dot_template() {
     use std::{fs, os::unix::fs::PermissionsExt};
 

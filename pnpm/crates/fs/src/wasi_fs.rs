@@ -95,7 +95,8 @@ pub fn open_nofollow(path: &Path) -> io::Result<std::fs::File> {
 
 /// Open a descendant directory after rejecting symlinks below `template`.
 /// The template itself may be a symlink. The host's path walk and final open
-/// are separate operations because WebContainers do not expose `openat`.
+/// are separate operations because the WebContainer host does not provide
+/// descriptor-stable `openat`.
 pub fn open_directory_nofollow_beneath(path: &Path, template: &Path) -> io::Result<std::fs::File> {
     with_absolute_path(path, |path| {
         with_absolute_path(template, |template| {

@@ -13,15 +13,6 @@ pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
     let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir) };
     #[cfg(any(unix, target_os = "wasi"))]
     if let Some(template) = template.as_deref() {
-        if std::path::absolute(dir)?
-            .components()
-            .any(|component| component == std::path::Component::ParentDir)
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Permission inheritance cannot traverse a parent directory",
-            ));
-        }
         validate_permission_boundary(dir, template)?;
     }
     std::fs::create_dir_all(dir)?;
@@ -68,6 +59,8 @@ pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
 #[cfg(any(unix, target_os = "wasi"))]
 pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
     let (_current, template, descendant) = validate_permission_boundary(dir, template)?;
+    #[cfg(target_os = "wasi")]
+    let _ = &descendant;
     let Some(template_mode) = reachable_mode(&template)? else {
         return Ok(());
     };
