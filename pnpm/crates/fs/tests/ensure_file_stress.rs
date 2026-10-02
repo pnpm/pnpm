@@ -1,18 +1,5 @@
 //! Cross-process stress tests for [`pnpm_fs::ensure_file`].
 //!
-//! Covers three multi-process scenarios:
-//!
-//! 1. Concurrent writes of the same content from many processes all
-//!    succeed and converge on a byte-identical CAS file.
-//! 2. The same scenario after a previous (crashed) writer has left
-//!    a corrupt blob at the target path — recovery via
-//!    `verify_or_rewrite` + `write_atomic` rewrites the blob and
-//!    every concurrent writer still returns success.
-//! 3. The same scenario after a previous (crashed) writer has left
-//!    a truncated prefix of the correct content — the size-mismatch
-//!    fast path inside `verify_or_rewrite` kicks in and the
-//!    overwrite-via-rename heals the store.
-//!
 //! Pacquet's [`cas_write_lock`](pnpm_fs::ensure_file) is
 //! process-local (a static array of [`std::sync::Mutex<()>`] stripes
 //! keyed by hashed path), so the cross-process safety contract lives

@@ -5,8 +5,6 @@ use super::{Deserialize, Serialize};
 /// local copy, or to a registry copy with the same name, or be
 /// matched only when the user explicitly opts in with a `workspace:`
 /// prefix.
-///
-/// The setting is `linkWorkspacePackages: boolean | 'deep'`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum LinkWorkspacePackages {
     /// `false`. Workspace packages are matched only when the user
@@ -83,8 +81,6 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
 
 /// `saveWorkspaceProtocol`. How a dependency linked to a workspace
 /// package is written back to `package.json`.
-///
-/// The setting is `saveWorkspaceProtocol: boolean | 'rolling'`.
 ///
 /// [`SaveWorkspaceProtocol::Off`] only suppresses the `workspace:`
 /// prefix for a dependency that did not already declare one; a

@@ -1,9 +1,7 @@
 //! `pacquet bugs` / `pacquet issues` — open the bug tracker URL of a package
 //! in the browser.
 //!
-//! Covers the error paths that never reach the browser: no `package.json`,
-//! no derivable bugs URL, and a registry package without one. The
-//! URL-opening happy paths are covered by the unit tests in
+//! The URL-opening happy paths are covered by the unit tests in
 //! `src/cli_args/bugs/tests.rs` through the `OpenUrl` seam — running them
 //! against the real binary would launch the developer's browser.
 

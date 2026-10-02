@@ -94,9 +94,6 @@ pub enum GlobalShimsSetting {
 /// installed packages get context-aware shims and under which trust
 /// policy, keyed by the providing package's manifest name (so an entry
 /// for `typescript` covers its `tsc` bin).
-///
-/// The built-in default enables the managed runtimes — `node`, `deno`,
-/// and `bun` — with the [`ShimPolicy::Auto`] policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalShims {
     pub(super) entries: std::collections::HashMap<String, ShimPolicy>,

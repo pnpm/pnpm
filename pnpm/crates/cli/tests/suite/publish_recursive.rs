@@ -1,11 +1,7 @@
-//! Recursive-publish integration tests. The no-registry tests exercise the
-//! `publish --recursive` dispatch, `--filter` selection, the private-package
-//! skip, the empty-selection no-op, the `--report-summary` output, and batch
-//! publishing. The registry tests drive the real binary against
-//! a `mockito` registry (pnpr's `TestRegistry` is proxy-mode and rejects
-//! path-less publishes) to cover the actual publish loop: the not-yet-published
-//! probe, the per-package `PUT`, `--force`, and the summary / `--json` shapes —
-//! porting the plain token-auth scenarios from pnpm's `recursivePublish.ts`.
+//! Recursive-publish integration tests. The registry tests drive the real
+//! binary against a `mockito` registry (pnpr's `TestRegistry` is proxy-mode
+//! and rejects path-less publishes), porting the plain token-auth scenarios
+//! from pnpm's `recursivePublish.ts`.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

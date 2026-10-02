@@ -1,7 +1,7 @@
 //! The `globalShims` record: what it says, and what writing to it must
 //! never do.
 //!
-//! The record in the global `config.yaml` is one of three layers the
+//! The record in the global `config.yaml` is one of the layers the
 //! dispatcher reads — the pnpm home's `pnpm-workspace.yaml` and the
 //! environment both outrank it — so a command that edits it has to ask
 //! what the *resolved* setting would be, not what its own file says. Two

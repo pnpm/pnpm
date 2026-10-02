@@ -1,6 +1,6 @@
 //! Ports of the TypeScript `optionalDependencies` install suite
 //! (`installing/deps-installer/test/install/optionalDependencies.ts`) —
-//! see `plans/TEST_PORTING.md` § "Proper Support Of `optionalDependencies`".
+//! see `plans/TEST_PORTING.md`.
 
 pub use _utils::*;
 

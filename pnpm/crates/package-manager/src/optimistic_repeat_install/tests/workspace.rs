@@ -537,8 +537,7 @@ fn a_moved_production_install_passes_the_run_gate() {
 /// Toggling the flag changes whether workspace resolutions land as
 /// `link:` symlinks or `file:` hard-linked copies, so the previous
 /// install's virtual store no longer matches what a fresh resolution
-/// would produce. The assertion lives here so the wiring stays in
-/// place.
+/// would produce.
 #[test]
 fn returns_skipped_when_inject_workspace_packages_drifts() {
     let dir = tempdir().unwrap();

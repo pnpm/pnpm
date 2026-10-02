@@ -123,11 +123,6 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
 /// but pinning the absence here documents the contract so a
 /// future regression that re-enables slot writes under hoisted
 /// surfaces immediately.
-///
-/// `node_modules/.pacquet/` not being present is the proof: the
-/// virtual-store root only gets created on demand by
-/// [`CreateVirtualDirBySnapshot::run`]; under hoisted that helper
-/// is never called, so the directory is never materialized.
 #[tokio::test]
 async fn hoisted_node_linker_does_not_create_virtual_store_root() {
     let dirs = InstallDirs::new();

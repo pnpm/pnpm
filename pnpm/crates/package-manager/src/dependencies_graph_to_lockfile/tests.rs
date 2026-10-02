@@ -271,8 +271,7 @@ fn error_from_single_node_graph(alias: &str, dep_path: &str) -> DependenciesGrap
 
 /// Build a fake `DependenciesGraphNode` whose id is a `link:` workspace
 /// reference. The local resolver produces these for `workspace:` specs
-/// and leaves `name_ver` as `None`. Used in the link-shape lockfile
-/// tests below.
+/// and leaves `name_ver` as `None`.
 fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGraphNode {
     let id_text = format!("link:{target}");
     let resolve_result = ResolveResult {
@@ -375,7 +374,6 @@ fn previous_importers_with_link(
 
 /// A `consumer -> n` edge whose fresh resolution is a divergent `file:`
 /// injection, with a previous lockfile that recorded it as `link:`.
-/// Shared by the guard tests below.
 fn injected_link_fixture()
 -> (TempDir, PackageManifest, DependenciesGraph, BTreeMap<String, DepPath>) {
     let (tmp, manifest) = write_manifest(json!({

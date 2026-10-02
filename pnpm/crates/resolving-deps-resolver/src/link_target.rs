@@ -20,10 +20,9 @@
 //! `diff_paths` and `lexical_normalize` are lexical: prefixing both
 //! arguments with the same clean root never changes the outcome.
 //!
-//! Each rendering returns the final `link:`-body string — the
-//! forward-slashed form every caller previously produced from the
-//! `PathBuf` via `display` + `replace` — so the per-edge cost is one
-//! pass over the target's components and a single allocation.
+//! Each rendering returns the final `link:`-body string, so the
+//! per-edge cost is one pass over the target's components and a single
+//! allocation.
 
 use std::path::{Component, Path};
 
@@ -258,8 +257,7 @@ fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str> + Clone>
     )
 }
 
-/// Join components with `/` and normalize any backslash inside one, the
-/// way the callers' former `display` + `replace('\\', "/")` pass did.
+/// Join components with `/` and normalize any backslash inside one.
 fn render<'component>(
     components: impl Iterator<Item = &'component str>,
     capacity: usize,

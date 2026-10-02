@@ -38,10 +38,9 @@ pub struct WhyArgs {
     #[clap(long)]
     pub depth: Option<usize>,
     /// Exclude peer dependencies.
-    ///
-    /// Accepted but not applied, matching the TypeScript CLI: its `why`
-    /// command declares the flag without forwarding it to the
-    /// dependents-tree builder.
+    // Accepted but not applied, matching the TypeScript CLI: its `why`
+    // command declares the flag without forwarding it to the
+    // dependents-tree builder.
     #[clap(long)]
     pub exclude_peers: bool,
     /// Search by a finder function declared in `.pnpmfile.cjs`.

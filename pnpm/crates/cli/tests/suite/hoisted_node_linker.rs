@@ -1,12 +1,6 @@
 //! End-to-end coverage for `nodeLinker: hoisted` on the
 //! **fresh-lockfile** install path (no checked-in lockfile, not
 //! `--frozen-lockfile`). Covers pnpm/pnpm#11871.
-//!
-//! Each test writes a `package.json` (and a `pnpm-workspace.yaml`
-//! carrying `nodeLinker: hoisted` plus any feature knob under test),
-//! then runs `pacquet install` so the fresh resolver builds the
-//! lockfile in memory and the hoisted linker materializes a flat
-//! `node_modules/` of **real directories**.
 
 pub use _utils::*;
 

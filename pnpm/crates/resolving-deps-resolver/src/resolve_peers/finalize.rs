@@ -36,12 +36,6 @@ use std::{
 /// [`Walker::build_final_dep_paths`] pass can recompute each node's
 /// depPath with its resolved peers' *full* suffixes, collapsing to
 /// `name@version` only for genuinely detected cycles.
-///
-/// The walk itself is left untouched: it still computes the provisional
-/// depPaths that [`Walker::find_hit`] reads, so peer-resolution and
-/// cache decisions are byte-for-byte identical. Only the rendered
-/// depPaths change, which is why a node whose suffix was previously
-/// collapsed by the cycle fallback now splits into its own graph entry.
 pub(super) struct NodeRecord {
     /// `alias → child/peer NodeId` edges, in the same shape the inline
     /// `graph_children` map carries (children overlaid with resolved-peer
@@ -312,9 +306,7 @@ impl Walker<'_> {
     /// Rebuild the depPath-keyed graph from the per-`NodeId`
     /// [`NodeRecord`]s using the corrected `final_dep_paths`. Nodes that
     /// resolve to the same final depPath merge (taking the smallest
-    /// `depth`, like the inline build); nodes whose suffix was
-    /// previously collapsed by the cycle fallback now split into
-    /// distinct entries.
+    /// `depth`, like the inline build).
     ///
     /// Every edge — a regular child or a resolved peer — points at the
     /// depPath the edge's own node resolved to, matching upstream's

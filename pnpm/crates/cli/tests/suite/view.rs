@@ -2,12 +2,6 @@
 //! from the registry: a formatted summary, a JSON dump (`--json`), or
 //! selected fields.
 //!
-//! Covered here: command structure, the missing-name / non-registry /
-//! not-found / no-matching-version errors, field selection (single, nested,
-//! multiple, JSON), the summary sections (header, bin, dist, dist-tags, deps
-//! count, deprecation, published-by), and the nearest-manifest fallback when
-//! the package name is omitted.
-//!
 //! The registry is a `mockito` server the spawned `pacquet` connects to over
 //! loopback, so each test serves a crafted packument and asserts on the exact
 //! rendered output. An empty `--npmrc-auth-file` replaces the developer's real

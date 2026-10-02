@@ -3,7 +3,7 @@
 //!
 //! The detection half — [`collect_outdated`] — is shared with
 //! `update --interactive`, which gathers the same "what has a newer
-//! version" list before prompting. The two callers differ only in which
+//! version" list before prompting. The callers differ only in which
 //! registry version counts as the comparison [`TargetVersion`]: `outdated`
 //! compares against the absolute newest (`latest` tag, or the highest
 //! in-range version under `--compatible`), while `update` compares against

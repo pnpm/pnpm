@@ -232,9 +232,9 @@ pub struct PresentationArgs {
     // duplicate-argument error.
     #[clap(long, value_enum, global = true, overrides_with = "reporter")]
     pub reporter: Option<ReporterType>,
-    /// What level of logs to print. Mirrors pnpm's universal `--loglevel`
-    /// option: `silent` selects the silent reporter over any `--reporter`
-    /// choice; the other levels cap the default reporter's output.
+    /// What level of logs to print. `silent` selects the silent reporter
+    /// over any `--reporter` choice; the other levels cap the default
+    /// reporter's output.
     #[clap(long, value_enum, global = true)]
     pub loglevel: Option<LogLevelSetting>,
     /// Enable dependency and download progress output.
