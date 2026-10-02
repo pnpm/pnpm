@@ -8,6 +8,7 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
+use rayon::prelude::*;
 use std::{
     collections::HashSet,
     fs,
@@ -195,7 +196,7 @@ fn first_project_without_modules_dir(
 pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
     let groups = included_groups(check.layout.included);
     check.project_manifests
-        .iter()
+        .par_iter()
         .any(|(root_dir, manifest)| {
             project_modules_dirs(check, root_dir, manifest)
                 .iter()

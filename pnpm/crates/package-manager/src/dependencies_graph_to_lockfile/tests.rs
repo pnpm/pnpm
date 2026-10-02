@@ -164,7 +164,6 @@ fn make_node_with_optional(
         resolved_package_id: format!("{name}@{version}"),
         resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
         depth: 1,
-        installable: true,
         is_pure: true,
         optional,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
@@ -226,7 +225,6 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),
         depth: 1,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
@@ -297,7 +295,6 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         resolved_package_id: id_text,
         resolve_result: std::sync::Arc::new(resolve_result),
         depth: 0,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
@@ -339,7 +336,6 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
         dep_path,
         resolve_result: Arc::new(resolve_result),
         depth: 1,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
@@ -428,7 +424,6 @@ fn make_named_registry_node(
         resolved_package_id: format!("{name}@{registry_name}:{version}"),
         resolve_result: std::sync::Arc::new(resolve_result),
         depth: 1,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {

@@ -727,6 +727,49 @@ test('filtered exec installs only the selected projects', async () => {
   expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
 })
 
+test('filtered exec keeps the packages of the other projects in a hoisted layout', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/bar': '=100.0.0',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'], nodeLinker: 'hoisted' })
+  await execPnpm(['install'])
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/bar'))).toBeTruthy()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'], nodeLinker: 'hoisted', dedupePeerDependents: false })
+  const result = execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', 'exec', 'node', '-e', "console.log('exec-ok')"], { expectSuccess: true })
+
+  expect(result.stdout.toString()).toContain('exec-ok')
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/bar'))).toBeTruthy()
+})
+
 test('filtered exec installs the workspace dependencies of the selected projects', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {

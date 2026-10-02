@@ -484,7 +484,7 @@ Added in: v11.0.0
 * Default: **undefined**
 * Type: **Record&lt;string, RegistryDeclaration&gt;** or **Record&lt;string, string&gt;**
 
-Declares the registries the project installs from. Since v11.23.0, each registry is declared once, keyed by its URL, with everything pnpm knows about it in the entry: the `scopes` routed to it, the bare-specifier `prefix` it answers to, and how the server lays out tarball URLs (`serverType`, `supportsTimeField`). The full description of each field is on the dedicated [Registries](../registries.md) page.
+Declares the registries the project installs from. Since v11.23.0, each registry is declared once, keyed by its URL, with everything pnpm knows about it in the entry: the `scopes` routed to it, the bare-specifier `prefix` it answers to, how the server lays out tarball URLs (`serverType`, `supportsTimeField`), and how many requests pnpm keeps in flight to it (`networkConcurrency`). The full description of each field is on the dedicated [Registries](../registries.md) page.
 
 ```yaml
 registries:
@@ -505,7 +505,7 @@ registries:
 
 The two shapes cannot be mixed in one map.
 
-Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes and routes (`scopes` and `prefix`) are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml` — see [where the setting may live](../registries.md#where-the-setting-may-live).
+Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml` — see [where the setting may live](../registries.md#where-the-setting-may-live).
 
 ### namedRegistries
 

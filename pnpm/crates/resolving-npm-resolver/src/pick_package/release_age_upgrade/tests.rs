@@ -1,31 +1,36 @@
-use super::{Package, persist_upgraded_to_mirror};
+use super::{Arc, Package, UpgradeOutcome, persist_upgraded_to_mirror};
 use crate::mirror::{load_meta_headers, save_fail::fail_next_mirror_save};
 use tempfile::tempdir;
 
 const FULL_ETAG: &str = r#""full-etag""#;
 const MODIFIED: &str = "2015-06-10T00:00:00.000Z";
 
-fn upgraded_meta() -> Package {
-    let mut meta: Package = serde_json::from_value(serde_json::json!({
+fn upgrade_outcome(uncacheable: bool) -> UpgradeOutcome {
+    let meta: Package = serde_json::from_value(serde_json::json!({
         "name": "is-positive",
         "dist-tags": { "latest": "1.0.0" },
         "modified": MODIFIED,
         "versions": {},
     }))
     .expect("deserialize Package");
-    meta.etag = Some(FULL_ETAG.to_string());
-    meta
+    UpgradeOutcome {
+        meta: Arc::new(meta),
+        upgraded: true,
+        full_etag: Some(FULL_ETAG.to_string()),
+        uncacheable,
+    }
 }
 
 #[test]
-fn persist_upgraded_to_mirror_writes_no_etag_to_the_indexed_mirror() {
+fn persist_upgraded_to_mirror_records_the_full_etag_in_the_indexed_mirror() {
     let dir = tempdir().expect("tempdir");
     let pkg_mirror = dir.path().join("is-positive.jsonl");
 
-    persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, false);
+    persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(false), false);
 
     let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
     assert_eq!(headers.etag, None);
+    assert_eq!(headers.full_etag.as_deref(), Some(FULL_ETAG));
     assert_eq!(headers.modified.as_deref(), Some(MODIFIED));
     assert!(!headers.uncacheable);
 }
@@ -35,7 +40,7 @@ fn persist_upgraded_to_mirror_records_an_uncacheable_full_response() {
     let dir = tempdir().expect("tempdir");
     let pkg_mirror = dir.path().join("is-positive.jsonl");
 
-    persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, true);
+    persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(true), false);
 
     let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
     assert!(headers.uncacheable);
@@ -46,12 +51,12 @@ fn persist_upgraded_to_mirror_records_an_uncacheable_full_response() {
 fn failed_uncacheable_upgrade_persist_removes_the_previous_mirror() {
     let dir = tempdir().expect("tempdir");
     let pkg_mirror = dir.path().join("is-positive.jsonl");
-    persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, false);
+    persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(false), false);
     let before = load_meta_headers(&pkg_mirror).expect("seeded headers");
     assert!(!before.uncacheable);
 
     fail_next_mirror_save();
-    assert!(persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, true).is_none());
+    assert!(persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(true), false).is_none());
     assert!(!pkg_mirror.exists());
 }
 
@@ -59,10 +64,10 @@ fn failed_uncacheable_upgrade_persist_removes_the_previous_mirror() {
 fn failed_cacheable_upgrade_persist_keeps_the_previous_mirror() {
     let dir = tempdir().expect("tempdir");
     let pkg_mirror = dir.path().join("is-positive.jsonl");
-    persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, false);
+    persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(false), false);
 
     fail_next_mirror_save();
-    assert!(persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, false).is_none());
+    assert!(persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(false), false).is_none());
 
     let headers = load_meta_headers(&pkg_mirror).expect("previous mirror remains");
     assert!(!headers.uncacheable);
@@ -70,13 +75,14 @@ fn failed_cacheable_upgrade_persist_keeps_the_previous_mirror() {
 }
 
 #[test]
-fn persist_upgraded_to_mirror_writes_no_etag_to_the_filtered_mirror() {
+fn persist_upgraded_to_mirror_records_the_full_etag_in_the_filtered_mirror() {
     let dir = tempdir().expect("tempdir");
     let pkg_mirror = dir.path().join("is-positive.jsonl");
 
-    persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), true, false);
+    persist_upgraded_to_mirror(&pkg_mirror, &upgrade_outcome(false), true);
 
     let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
     assert_eq!(headers.etag, None);
+    assert_eq!(headers.full_etag.as_deref(), Some(FULL_ETAG));
     assert_eq!(headers.modified.as_deref(), Some(MODIFIED));
 }

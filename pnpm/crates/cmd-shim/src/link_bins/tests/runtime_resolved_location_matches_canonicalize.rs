@@ -115,7 +115,7 @@ fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position
 }
 
 /// The pnpm CLI's own package opts out of the PowerShell shim
-/// ([`super::super::wants_powershell_shim`]), and a `.ps1` an earlier install
+/// ([`super::super::windows_shim_policy::wants_powershell_shim`]), and a `.ps1` an earlier install
 /// wrote has to be deleted, not merely left unwritten: PowerShell would keep
 /// preferring it over the `.cmd` shim and run the version it points at.
 #[test]
@@ -179,6 +179,39 @@ fn assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim(pkg_name: &str) {
     write_file(bins_dir.join("pnpm.ps1"), "planted after the first link").unwrap();
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
     assert!(!bins_dir.join("pnpm.ps1").exists());
+}
+
+/// The pnpm CLI's `.cmd` shims end their batch context before the CLI starts
+/// ([`super::super::windows_shim_policy::cmd_shim_batch`]). Every other package keeps the ordinary
+/// shim.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn only_the_pnpm_cli_cmd_shims_end_their_batch_context() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let mut packages = Vec::new();
+    for (pkg_name, bin_name) in [("pnpm", "pnpm"), ("@pnpm/exe", "pnpm-exe"), ("other", "other")] {
+        let pkg_dir = tmp
+            .path()
+            .join("node_modules")
+            .join(pkg_name);
+        create_dir_all(&pkg_dir).unwrap();
+        let manifest =
+            json!({"name": pkg_name, "version": "1.0.0", "bin": {bin_name: "native-binary"}});
+        write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+        write_file(pkg_dir.join("native-binary"), "MZ").unwrap();
+        packages.push(PackageBinSource::new(pkg_dir, Arc::new(manifest)));
+    }
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+
+    for (bin_name, ends_batch) in [("pnpm", true), ("pnpm-exe", true), ("other", false)] {
+        let cmd = read_to_string(bins_dir.join(format!("{bin_name}.cmd"))).unwrap();
+        assert_eq!(
+            cmd.contains("@GOTO #_undefined_# 2>NUL || "),
+            ends_batch,
+            "{bin_name}.cmd:\n{cmd}",
+        );
+    }
 }
 
 /// A bin directory this run created holds nothing, so the shim goes

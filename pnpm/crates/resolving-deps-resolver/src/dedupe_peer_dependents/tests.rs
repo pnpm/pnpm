@@ -62,7 +62,6 @@ fn make_node(
             },
         }),
         depth: 0,
-        installable: true,
         is_pure: resolved_peers.is_empty(),
         optional: false,
         edges: crate::ResolvedDependencyEdges {

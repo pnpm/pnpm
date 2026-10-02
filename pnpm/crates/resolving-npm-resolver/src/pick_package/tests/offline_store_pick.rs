@@ -8,9 +8,13 @@ use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
 use pretty_assertions::assert_eq;
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 use tempfile::TempDir;
+use tracing_subscriber::layer::SubscriberExt;
 
 /// Offline mode resolves against the store: when the packument offers several
 /// versions but the store holds only an older one, the pick must land on the
@@ -387,4 +391,75 @@ async fn offline_pick_finds_a_stored_version_that_only_has_a_shasum() {
     .await
     .expect("offline pick succeeds");
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+}
+
+/// Counts the events `pnpm_registry` emits, which include one warning per
+/// version manifest that fails to decode when something hydrates it.
+struct RegistryEventCount(Arc<AtomicUsize>);
+
+impl<Subscriber: tracing::Subscriber> tracing_subscriber::Layer<Subscriber> for RegistryEventCount {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _: tracing_subscriber::layer::Context<'_, Subscriber>,
+    ) {
+        if event.metadata().target() == "pnpm_registry" {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+/// The offline narrowing builds a store key only for versions the range
+/// admits. Building a key hydrates the version's manifest, and a packument
+/// can list thousands of versions outside the range. 2.0.0's manifest here
+/// does not decode, so hydrating it would log a warning.
+#[tokio::test]
+async fn offline_pick_does_not_hydrate_versions_outside_the_range() {
+    let mut body: serde_json::Value =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument body");
+    let integrity = body["versions"]["1.0.0"]["dist"]["integrity"]
+        .as_str()
+        .expect("1.0.0 integrity")
+        .to_string();
+    body["versions"]["2.0.0"] = serde_json::json!({ "name": "acme", "version": 2 });
+    let preloaded: pnpm_registry::Package = serde_json::from_value(body).expect("parse packument");
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    persist_meta_to_mirror(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        "https://registry.invalid/",
+        &preloaded,
+    )
+    .expect("warm mirror");
+
+    let store_dir = TempDir::new().expect("tempdir");
+    let store_view = seed_store(&store_dir, "acme@1.0.0", &integrity);
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = offline_ctx(
+        &cache_dir,
+        Some(&store_view),
+        &meta_cache,
+        &fetch_locker,
+        &http_client,
+        &auth_headers,
+    );
+
+    let registry_events = Arc::new(AtomicUsize::new(0));
+    let _subscriber = tracing::subscriber::set_default(
+        tracing_subscriber::registry().with(RegistryEventCount(Arc::clone(&registry_events))),
+    );
+    let result = pick_package(
+        &ctx,
+        &range_spec("acme", "^1.0.0"),
+        &default_opts("https://registry.invalid/"),
+    )
+    .await
+    .expect("offline pick succeeds");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    assert_eq!(registry_events.load(Ordering::Relaxed), 0, "2.0.0 was hydrated");
 }

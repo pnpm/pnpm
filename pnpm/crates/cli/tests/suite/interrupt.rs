@@ -487,6 +487,47 @@ fn killing_the_process_group_of_pnpm_kills_the_script_behind_its_shell_too() {
     drop(root);
 }
 
+/// Every script of a parallel run leads a group of its own, and one
+/// watchdog watches them all, so killing pnpm's group ends every one.
+#[test]
+fn killing_the_process_group_of_pnpm_kills_every_script_of_a_parallel_run() {
+    const PROJECTS: [&str; 3] = ["project-1", "project-2", "project-3"];
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &PROJECTS, LINGERING_SCRIPT);
+
+    // The scripts outlive pnpm for a moment, so their stdio is discarded
+    // rather than left holding the test harness's pipes open should they
+    // outlive pnpm for good.
+    let mut process = spawn_without_terminal(
+        pacquet
+            .with_args(["-r", "--filter=./project-*", "--parallel", "run", "dev"])
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null()),
+    );
+    let started = PROJECTS.map(|project| workspace.join(project).join("started.txt"));
+    for marker in &started {
+        wait_for_file(marker, &mut process);
+    }
+    let scripts = started.map(|marker| read_pid(&marker));
+    signal_group(&process, libc::SIGKILL);
+    wait_for_shutdown(&mut process);
+
+    let survivors: Vec<_> = scripts
+        .into_iter()
+        .filter(|&script| !ends_within(script, SHUTDOWN_DEADLINE))
+        .collect();
+    for &script in &survivors {
+        // SAFETY: `script` is a process the test's own fixture recorded.
+        unsafe {
+            libc::kill(script, libc::SIGKILL);
+        }
+    }
+    assert!(survivors.is_empty(), "no script should outlive pnpm: {survivors:?}");
+
+    drop(root);
+}
+
 /// pnpm's own exit is not its death. A process the script started and
 /// left behind in its group runs on afterwards, as it does when the
 /// script shares pnpm's group.

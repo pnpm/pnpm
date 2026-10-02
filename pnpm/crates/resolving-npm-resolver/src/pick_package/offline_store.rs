@@ -7,15 +7,18 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-/// The per-route memo: the packument snapshot the narrowing was derived
-/// from, plus the narrowed packument itself.
-type NarrowedMemo = HashMap<String, (Arc<Package>, Option<Arc<Package>>)>;
+/// The memo per packument route and scan range: the packument snapshot the
+/// narrowing was derived from, plus the narrowed packument itself.
+type NarrowedMemo = HashMap<(String, String), (Arc<Package>, Option<Arc<Package>>)>;
 
 use pnpm_registry::PackageDistribution;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreDir, StoreIndex, store_index_key};
 
 use super::Package;
-use crate::{npm_resolver::dist_integrity, pick_package_from_meta::filter_pkg_metadata_versions};
+use crate::{
+    npm_resolver::dist_integrity,
+    pick_package_from_meta::{filter_pkg_metadata_versions, semver_range::semver_satisfies_loose},
+};
 
 /// The install's store index plus a memo of what it holds. Offline installs
 /// never fetch, so the store cannot gain rows while the resolve runs: once a
@@ -24,7 +27,8 @@ pub struct OfflineStoreView {
     index: SharedReadonlyStoreIndex,
     /// Store-index key → whether the index holds it.
     presence: Mutex<HashMap<String, bool>>,
-    /// Packument route → the packument narrowed to its in-store versions.
+    /// (Packument route, scan range) → the packument narrowed to its in-store
+    /// versions within that range.
     narrowed: Mutex<NarrowedMemo>,
 }
 
@@ -84,19 +88,22 @@ impl OfflineStoreView {
         present
     }
 
-    /// The packument narrowed to the versions whose tarball the store already
-    /// holds, or `None` when no version qualifies so the caller keeps the
-    /// unrestricted pick. `route_key` identifies the packument (registry,
-    /// name, metadata kind), so picks of one document share a single
-    /// decision, computed in one trip to the index.
+    /// The packument narrowed to the versions within `scan_range` whose
+    /// tarball the store already holds, or `None` when no version qualifies
+    /// so the caller keeps the unrestricted pick. `route_key` identifies the
+    /// packument (registry, name, metadata kind), so picks of one document
+    /// and range share a single decision, computed in one trip to the index.
+    /// A `scan_range` of `*` considers every version.
     pub(super) async fn narrowed(
         &self,
         route_key: &str,
+        scan_range: &str,
         meta: &Arc<Package>,
     ) -> Option<Arc<Package>> {
+        let memo_key = (route_key.to_string(), scan_range.to_string());
         if let Some(cached) = self
             .locked()
-            .and_then(|guard| guard.get(route_key).cloned())
+            .and_then(|guard| guard.get(&memo_key).cloned())
         {
             // `update_checksums` bypasses the metadata cache, so the same
             // route can present a different packument snapshot: reuse the
@@ -105,9 +112,9 @@ impl OfflineStoreView {
                 return cached.1;
             }
         }
-        let computed = self.compute(meta).await;
+        let computed = self.compute(meta, scan_range).await;
         if let Some(mut guard) = self.locked() {
-            guard.insert(route_key.to_string(), (Arc::clone(meta), computed.clone()));
+            guard.insert(memo_key, (Arc::clone(meta), computed.clone()));
         }
         computed
     }
@@ -116,17 +123,22 @@ impl OfflineStoreView {
         self.narrowed.lock().ok()
     }
 
-    /// One trip to the store index for every version of `meta` that has a
-    /// [`tarball_key`]. The store decides membership; the pick applies the range and
-    /// every other preference over what remains, so no version parsing happens
-    /// here.
-    async fn compute(&self, meta: &Package) -> Option<Arc<Package>> {
+    /// One trip to the store index for every version of `meta` within
+    /// `scan_range` that has a [`tarball_key`]. Building a key hydrates the
+    /// version's manifest, so the range is checked on the version string
+    /// first, the same way the re-pick applies it.
+    async fn compute(&self, meta: &Package, scan_range: &str) -> Option<Arc<Package>> {
         let keys_by_version: HashMap<String, String> = meta.versions
-            .iter()
-            .filter_map(|(version, pkg_version)| {
+            .keys()
+            .filter(|version| scan_range == "*" || semver_satisfies_loose(version, scan_range))
+            .filter_map(|version| {
+                let pkg_version = meta.versions.get(version)?;
                 Some((version.clone(), tarball_key(&meta.name, version, &pkg_version.dist)?))
             })
             .collect();
+        if keys_by_version.is_empty() {
+            return None;
+        }
         let keys: Vec<String> = keys_by_version
             .values()
             .cloned()

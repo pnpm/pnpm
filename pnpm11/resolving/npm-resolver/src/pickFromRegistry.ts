@@ -6,9 +6,12 @@ import type { PackageMeta } from '@pnpm/resolving.registry.types'
 import { type FetchMetadataResult, notModifiedWithoutCacheError } from './fetch.js'
 import {
   condenseMetaForCache,
+  fullEtagOfAbbreviatedMirror,
+  holdsFullMetaInAbbreviatedMirror,
   loadMetaHeaders,
   type MetaHeaders,
   metaHeadersOf,
+  mirrorEtags,
   prepareJsonForDisk,
   saveMetaBestEffort,
 } from './metaMirror.js'
@@ -65,11 +68,12 @@ async function fetchConditionally (
   cacheHeaders: MetaHeaders | null
 ): ReturnType<PickRequest['ctx']['fetch']> {
   const uncacheable = cacheHeaders?.uncacheable === true
+  const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, fullMetadata)
   return ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
     cacheBypass: uncacheable,
-    fullMetadata,
-    etag: uncacheable ? undefined : cacheHeaders?.etag,
+    fullMetadata: fullMetadata || fullEtag != null,
+    etag: uncacheable ? undefined : (fullEtag ?? cacheHeaders?.etag),
     modified: uncacheable ? undefined : cacheHeaders?.modified,
     registry: opts.registry,
   })
@@ -150,7 +154,7 @@ async function persistFreshMeta (request: PickRequest, fetched: FetchMetadataRes
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
   }
   if (!opts.dryRun) {
-    mirrorFreshMeta(request, { fetched, resultToSave, meta })
+    mirrorFreshMeta(request, { resultToSave, meta })
   }
   meta.etag = resultToSave.etag
   // only save meta to cache, when it is fresh
@@ -172,7 +176,8 @@ async function upgradeFreshMetaForReleaseAge (request: PickRequest, fetched: Fet
   }
   // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
   if (!opts.dryRun) {
-    saveMetaBestEffort(request.pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched), fetched.uncacheable === true)
+    const { etag, fullEtag } = mirrorEtags(fetched, request.fullMetadata)
+    saveMetaBestEffort(request.pkgMirror, prepareJsonForDisk(fetched.meta, etag, { ...fetched, fullEtag }), fetched.uncacheable === true)
   }
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
@@ -205,19 +210,17 @@ function freshMetaNeedsFullForReleaseAge ({ spec, opts, fullMetadata }: PickRequ
 
 function mirrorFreshMeta (
   request: PickRequest,
-  { fetched, resultToSave, meta }: { fetched: FetchMetadataResult, resultToSave: FetchMetadataResult, meta: PackageMeta }
+  { resultToSave, meta }: { resultToSave: FetchMetadataResult, meta: PackageMeta }
 ): void {
   // Mirror the raw registry body, unless the retained form is
   // deliberately narrower: `filterMetadata` always mirrors the stripped
-  // document, and an upgraded-to-full document mirrors the condensed
-  // form — `time` is all the next install needs from this slot.
-  const writeCondensed = request.ctx.filterMetadata === true || (resultToSave !== fetched && meta !== resultToSave.meta)
-  // An upgrade replaced the abbreviated response with the full one while
-  // `pkgMirror` stayed the abbreviated slot, so its ETag no longer
-  // describes what is written — see `prepareJsonForDisk`.
-  const etagForDisk = resultToSave === fetched ? fetched.etag : undefined
+  // document, and a full document in the abbreviated slot mirrors the
+  // condensed form — `time` is all the next install needs from this slot.
+  const writeCondensed = request.ctx.filterMetadata === true ||
+    (holdsFullMetaInAbbreviatedMirror(resultToSave, request.fullMetadata) && meta !== resultToSave.meta)
+  const { etag, fullEtag } = mirrorEtags(resultToSave, request.fullMetadata)
   const jsonForDisk = writeCondensed
-    ? prepareJsonForDisk(meta, etagForDisk, { uncacheable: resultToSave.uncacheable })
-    : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave)
+    ? prepareJsonForDisk(meta, etag, { uncacheable: resultToSave.uncacheable, fullEtag })
+    : prepareJsonForDisk(resultToSave.meta, etag, { ...resultToSave, fullEtag })
   saveMetaBestEffort(request.pkgMirror, jsonForDisk, resultToSave.uncacheable === true)
 }

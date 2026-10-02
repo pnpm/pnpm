@@ -171,23 +171,18 @@ impl<'a> PickState<'a> {
             meta,
         )
         .await?;
-        let mut meta = upgrade.meta;
         if !upgrade.upgraded {
             // A cache hit re-runs the release-age upgrade check, so serving
             // this meta from memory can't bypass the upgrade.
-            self.promote_unverified(ctx, opts, &meta);
-            return Ok(meta);
+            self.promote_unverified(ctx, opts, &upgrade.meta);
+            return Ok(upgrade.meta);
         }
+        let mut meta = Arc::clone(&upgrade.meta);
         if !opts.request.dry_run {
             if let Some(reloaded) = self.pkg_mirror
                 .as_deref()
                 .and_then(|path| {
-                    persist_upgraded_to_mirror(
-                        path,
-                        &meta,
-                        self.use_filtered_full_metadata,
-                        upgrade.uncacheable,
-                    )
+                    persist_upgraded_to_mirror(path, &upgrade, self.use_filtered_full_metadata)
                 })
             {
                 meta = Arc::new(reloaded);
@@ -239,7 +234,7 @@ impl<'a> PickState<'a> {
             meta,
         )
         .await?;
-        let meta = self.persist_release_age_upgrade(ctx, opts, upgrade);
+        let meta = self.persist_release_age_upgrade(ctx, opts, &upgrade);
 
         // Worth flagging: a dry-run is meant to gate the on-disk save, but
         // `fetch_full_metadata_cached` already wrote the response body to
@@ -258,20 +253,15 @@ impl<'a> PickState<'a> {
         &self,
         ctx: &PickPackageContext<'_, Cache>,
         opts: &PickPackageOptions<'_>,
-        upgrade: UpgradeOutcome,
+        upgrade: &UpgradeOutcome,
     ) -> Arc<Package> {
-        let mut meta = upgrade.meta;
+        let mut meta = Arc::clone(&upgrade.meta);
         if upgrade.upgraded {
             if !opts.request.dry_run
                 && let Some(reloaded) = self.pkg_mirror
                     .as_deref()
                     .and_then(|path| {
-                        persist_upgraded_to_mirror(
-                            path,
-                            &meta,
-                            self.use_filtered_full_metadata,
-                            upgrade.uncacheable,
-                        )
+                        persist_upgraded_to_mirror(path, upgrade, self.use_filtered_full_metadata)
                     })
             {
                 meta = Arc::new(reloaded);

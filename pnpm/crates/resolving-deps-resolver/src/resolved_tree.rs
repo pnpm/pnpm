@@ -198,10 +198,6 @@ pub struct DependenciesTreeNode {
     /// linked / pruned nodes; pacquet doesn't emit `-1` today because
     /// workspace-link resolution hasn't been implemented.
     pub depth: i32,
-    /// Whether the package may be skipped when an optional dep fails
-    /// for its host platform. Always `true` for the npm-shaped slice
-    /// pacquet currently exposes.
-    pub installable: bool,
     /// Wanted-lockfile carry-over for this occurrence, boxed because it
     /// is `None` for every fresh resolution — which is every node the
     /// resolver produces today. Inline, its three rarely-set fields cost
@@ -213,13 +209,7 @@ impl DependenciesTreeNode {
     /// Node with no wanted-lockfile carry-over (a fresh resolution).
     #[must_use]
     pub fn new(resolved_package_id: Arc<str>, children: TreeChildren, depth: i32) -> Self {
-        DependenciesTreeNode {
-            resolved_package_id,
-            children,
-            depth,
-            installable: true,
-            locked: None,
-        }
+        DependenciesTreeNode { resolved_package_id, children, depth, locked: None }
     }
 
     /// Wanted-lockfile `DepPath` for this occurrence, if it carried one.

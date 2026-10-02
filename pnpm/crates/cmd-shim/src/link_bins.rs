@@ -475,7 +475,7 @@ where
                     shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
                     options,
-                    make_powershell_shim: wants_powershell_shim(pkg_name),
+                    windows: WindowsShimPolicy::for_package(pkg_name),
                     paths: &paths,
                     bin_dir,
                 },
@@ -508,16 +508,6 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
     let excluded = ExcludedBins::new(exclude_bins);
     chosen.retain(|name, _| !excluded.contains(name));
     chosen.into_values().collect()
-}
-
-/// Whether the bins of `pkg_name` get a PowerShell shim next to the `.cmd`
-/// one. The pnpm CLI opts out, because PowerShell resolves `pnpm.ps1` ahead of
-/// `pnpm.cmd`: a shim written for one installation of the CLI would keep
-/// shadowing every later one, including an upgrade that ships a different
-/// executable. `@pnpm/exe` is that same CLI under the name earlier
-/// installs used, so it opts out too.
-fn wants_powershell_shim(pkg_name: &str) -> bool {
-    !matches!(pkg_name, "pnpm" | "@pnpm/exe")
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
@@ -582,3 +572,6 @@ mod linking_paths;
 use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;
+
+mod windows_shim_policy;
+use windows_shim_policy::WindowsShimPolicy;

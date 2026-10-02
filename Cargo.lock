@@ -5477,6 +5477,9 @@ dependencies = [
 [[package]]
 name = "pnpm-matcher"
 version = "0.0.1"
+dependencies = [
+ "regex",
+]
 
 [[package]]
 name = "pnpm-micro-benchmark"
@@ -6161,6 +6164,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

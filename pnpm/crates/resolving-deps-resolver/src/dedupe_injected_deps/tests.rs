@@ -28,7 +28,6 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
             },
         }),
         depth: 0,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: crate::ResolvedDependencyEdges {

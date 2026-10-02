@@ -2,9 +2,9 @@ use super::{
     Arc, Client, ClientBuildInputs, ClientPair, DEFAULT_FETCH_MIN_SPEED_KI_BPS,
     DEFAULT_FETCH_WARN_TIMEOUT_MS, Duration, ForInstallsError, HostSocketLimit, NetworkSettings,
     NoProxyMatcher, OriginLimits, PerRegistryTls, PrioritySemaphore, ProxyConfig, ProxyRouting,
-    RedirectGuard, Resolve, ThrottledClient, TlsConfig, build_client_with_root_fallback,
-    configured_proxy, default_network_concurrency, ignore_warning, load_node_extra_ca_certs,
-    merge_tls, native_dns_resolver, tls,
+    RedirectGuard, RegistryLimits, Resolve, ThrottledClient, TlsConfig,
+    build_client_with_root_fallback, configured_proxy, default_network_concurrency, ignore_warning,
+    load_node_extra_ca_certs, merge_tls, native_dns_resolver, tls,
 };
 
 impl ThrottledClient {
@@ -233,7 +233,13 @@ impl ThrottledClient {
             semaphore: PrioritySemaphore::new(settings.network_concurrency),
             default_clients,
             per_registry,
-            origin_limits: OriginLimits::new(HostSocketLimit::new(None)),
+            origin_limits: OriginLimits::new(
+                RegistryLimits::new(
+                    &settings.network_concurrency_by_registry,
+                    settings.network_concurrency,
+                ),
+                HostSocketLimit::new(None),
+            ),
             proxy_routing,
             fetch_warn_timeout: settings.fetch_warn_timeout,
             fetch_min_speed_ki_bps: settings.fetch_min_speed_ki_bps,
@@ -255,7 +261,7 @@ impl ThrottledClient {
                 no_redirects: client_without_redirects,
             },
             per_registry: tls::PerRegistryMap::default(),
-            origin_limits: OriginLimits::new(HostSocketLimit::new(None)),
+            origin_limits: OriginLimits::new(RegistryLimits::default(), HostSocketLimit::new(None)),
             proxy_routing: ProxyRouting::default(),
             fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
             fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,

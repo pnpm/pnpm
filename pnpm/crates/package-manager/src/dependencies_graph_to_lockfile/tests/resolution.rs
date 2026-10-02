@@ -54,7 +54,6 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
             }),
         )),
         depth: 1,
-        installable: true,
         is_pure: false,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {

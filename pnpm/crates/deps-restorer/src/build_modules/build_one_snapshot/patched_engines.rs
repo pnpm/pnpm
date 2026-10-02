@@ -1,4 +1,8 @@
-use super::{super::BuildModulesError, BuildCandidate, BuildOneSnapshot, PackageKey};
+use super::{
+    super::BuildModulesError,
+    BuildCandidate, BuildOneSnapshot, PackageKey,
+    linked_copies::{LinkTargets, unlink_children, unlink_project_links},
+};
 use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
@@ -29,15 +33,14 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
     Ok(true)
 }
 
+/// Remove an engine-incompatible optional dependency and every link to it.
+/// Cleanup failures leave a stale entry for the next install to repair, so
+/// they are not reported.
 fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey) {
     let dirs = context.pkg_roots().all(snapshot_key);
+    let targets = LinkTargets::resolve(&dirs);
     let layout = context.directories.layout;
-    let store = layout.package_store_dir();
-    for modules_dir in project_modules_dirs(context) {
-        unlink_children(&modules_dir, &dirs);
-    }
-    let install_state_dir = context.scripts.patched_engines.install_state_dir.unwrap_or(store);
-    unlink_children(&install_state_dir.join("node_modules"), &dirs);
+    let _ = unlink_project_links(context, &targets);
     // A global virtual store slot, and the links between slots, are shared
     // with every other project that resolves to them.
     if layout.enable_global_virtual_store()
@@ -45,71 +48,14 @@ fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKe
     {
         return;
     }
-    if let Ok(entries) = std::fs::read_dir(store) {
+    if let Ok(entries) = std::fs::read_dir(layout.package_store_dir()) {
         for entry in entries.flatten() {
-            unlink_children(&entry.path().join("node_modules"), &dirs);
+            let _ = unlink_children(&entry.path().join("node_modules"), &targets);
         }
     }
     for dir in &dirs {
         let _ = std::fs::remove_dir_all(dir);
     }
-}
-
-/// The `node_modules` directory of every project in the lockfile. An importer
-/// key that would escape the lockfile directory is left out.
-fn project_modules_dirs(context: &BuildOneSnapshot<'_>) -> Vec<std::path::PathBuf> {
-    let root = context.directories.modules_dir;
-    let lockfile_dir = context.directories.lockfile_dir;
-    let mut dirs = vec![root.to_path_buf()];
-    let Ok(modules_dir_name) = root.strip_prefix(lockfile_dir) else { return dirs };
-    dirs.extend(
-        context.graph.importers
-            .keys()
-            .filter(|importer_id| importer_id.as_str() != ".")
-            .filter(|importer_id| crate::validate_importer_id(importer_id).is_ok())
-            .map(|importer_id| lockfile_dir.join(importer_id).join(modules_dir_name)),
-    );
-    dirs
-}
-
-fn unlink_children(dir: &std::path::Path, dirs: &[std::path::PathBuf]) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if unlink_if_points(&path, dirs) {
-            continue;
-        }
-        unlink_scope(&path, dirs);
-    }
-}
-
-fn unlink_scope(path: &std::path::Path, dirs: &[std::path::PathBuf]) {
-    let Some(name) = path.file_name().and_then(|name| name.to_str()) else { return };
-    let is_real_dir = std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_dir())
-        && pnpm_fs::is_symlink_or_junction(path).is_ok_and(|linked| !linked);
-    if !name.starts_with('@') || !is_real_dir {
-        return;
-    }
-    let Ok(entries) = std::fs::read_dir(path) else { return };
-    for entry in entries.flatten() {
-        let _ = unlink_if_points(&entry.path(), dirs);
-    }
-}
-
-fn unlink_if_points(link: &std::path::Path, dirs: &[std::path::PathBuf]) -> bool {
-    let Ok(pointed) = std::fs::read_link(link) else { return false };
-    let pointed = link
-        .parent()
-        .unwrap_or(link)
-        .join(pointed);
-    let pointed = std::fs::canonicalize(&pointed).unwrap_or(pointed);
-    let hits = dirs
-        .iter()
-        .any(|dir| std::fs::canonicalize(dir).unwrap_or_else(|_| dir.clone()) == pointed);
-    if hits {
-        let _ = std::fs::remove_file(link).or_else(|_| std::fs::remove_dir(link));
-    }
-    hits
 }
 
 /// Evaluates `engineStrict` against the patched manifest.
@@ -199,6 +145,3 @@ fn installability_options(
         supported_architectures: None,
     }
 }
-
-#[cfg(test)]
-mod tests;

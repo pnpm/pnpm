@@ -17,6 +17,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitectures } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 
+import { pickResolvableImporterIds } from './currentLockfileImporters.js'
 import { fetchDeps, type FetchDepsOptions, type SkipFetchingOption } from './fetchHoistedDeps.js'
 
 export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
@@ -72,6 +73,7 @@ export async function lockfileToHoistedDepGraph (
   if (currentLockfile?.packages != null) {
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
+      importerIds: pickResolvableImporterIds(currentLockfile, opts.importerIds),
       force: true,
       includeIncompatiblePackages: true,
       skipFetching: true,

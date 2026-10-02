@@ -292,9 +292,11 @@ fn to_http_date(value: &str) -> Option<String> {
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
-/// A metadata document plus whether that response forbade caching.
+/// A metadata document plus the response's entity tag and whether it
+/// forbade caching.
 pub(crate) struct MetadataDocument {
     pub outcome: FetchFullMetadataOutcome,
+    pub etag: Option<String>,
     pub uncacheable: bool,
 }
 
@@ -338,6 +340,7 @@ async fn one_metadata_attempt(
     if response.status() == StatusCode::NOT_MODIFIED {
         return Ok(MetadataDocument {
             outcome: FetchFullMetadataOutcome::NotModified,
+            etag: None,
             uncacheable: false,
         });
     }
@@ -352,6 +355,7 @@ async fn document_from_response(
     started_at: Instant,
 ) -> Result<MetadataDocument, FetchMetadataError> {
     let uncacheable = metadata_response_is_uncacheable(response.headers());
+    let etag = response_etag(&response);
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network {
@@ -376,8 +380,17 @@ async fn document_from_response(
     warn_if_request_is_slow(opts.http.http_client, elapsed, url);
     Ok(MetadataDocument {
         outcome: FetchFullMetadataOutcome::Modified(Box::new(meta)),
+        etag,
         uncacheable,
     })
+}
+
+pub(crate) fn response_etag(response: &reqwest::Response) -> Option<String> {
+    response
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
 }
 
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {

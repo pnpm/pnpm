@@ -6,7 +6,9 @@
 //! keeps the configured `networkConcurrency`. The cap never rises again
 //! within the client's lifetime.
 
-use crate::{HostSocketLimit, ThrottledClient};
+use crate::{
+    HostSocketLimit, ThrottledClient, priority_semaphore::Permit, registry_limit::RegistryLimits,
+};
 use std::{
     collections::HashMap,
     sync::{
@@ -16,27 +18,39 @@ use std::{
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-/// The caps a request takes for its socket origin before the global
-/// concurrency permit.
+/// The caps a request takes for its origin before the global concurrency
+/// permit.
 #[derive(Debug)]
 pub(crate) struct OriginLimits {
+    registries: RegistryLimits,
     pub(crate) sockets: HostSocketLimit,
     timeouts: OriginGates,
 }
 
 impl OriginLimits {
-    pub(crate) fn new(sockets: HostSocketLimit) -> Self {
-        OriginLimits { sockets, timeouts: OriginGates::default() }
+    pub(crate) fn new(registries: RegistryLimits, sockets: HostSocketLimit) -> Self {
+        OriginLimits { registries, sockets, timeouts: OriginGates::default() }
     }
 
-    /// The timeout cap is taken first, so a request waiting on a lowered
-    /// origin holds no `maxSockets` slot either.
+    #[cfg(test)]
+    pub(crate) fn registries(&self) -> &RegistryLimits {
+        &self.registries
+    }
+
+    /// The registry cap is taken first, then the timeout gate, then the
+    /// `maxSockets` slot, so a request waiting on one holds none of the later
+    /// ones. The registry cap is keyed by `url`'s own origin, the others by
+    /// `origin`, the connection's.
     pub(crate) async fn acquire(
         &self,
+        url: &str,
         origin: &str,
         is_proxied: bool,
+        priority: u64,
     ) -> (OriginPermit, Option<OwnedSemaphorePermit>) {
-        let origin_permit = self.timeouts.acquire(origin).await;
+        let registry_slot = self.registries.acquire(url, priority).await;
+        let mut origin_permit = self.timeouts.acquire(origin).await;
+        origin_permit.registry_slot = registry_slot;
         (origin_permit, self.sockets.acquire(origin, is_proxied).await)
     }
 }
@@ -75,6 +89,8 @@ pub(crate) struct OriginPermit {
     gate: Arc<OriginGate>,
     permit: Option<OwnedSemaphorePermit>,
     active: bool,
+    /// The slot of the `registries` entry capping this request's origin.
+    registry_slot: Option<Permit>,
 }
 
 impl OriginGates {
@@ -90,7 +106,7 @@ impl OriginGates {
             .acquire_owned()
             .await
             .expect("origin gate semaphore is never closed");
-        OriginPermit { gate, permit: Some(permit), active: false }
+        OriginPermit { gate, permit: Some(permit), active: false, registry_slot: None }
     }
 
     fn get(&self, origin: &str) -> Option<Arc<OriginGate>> {

@@ -1,4 +1,4 @@
-use super::unlink_children;
+use super::{LinkTargets, unlink_children};
 use std::fs;
 
 #[test]
@@ -11,7 +11,7 @@ fn unlinks_a_scoped_link_to_the_skipped_package() {
     let link = modules.join("@scope/pkg");
     pnpm_fs::symlink_dir(&target, &link).expect("link package");
 
-    unlink_children(&modules, &[target]);
+    unlink_children(&modules, &LinkTargets::resolve(&[target])).expect("unlink");
 
     assert!(fs::symlink_metadata(&link).is_err(), "the scoped link must be removed");
 }
@@ -29,7 +29,7 @@ fn does_not_follow_a_linked_scope_directory() {
     fs::create_dir_all(&modules).expect("create modules dir");
     pnpm_fs::symlink_dir(&outside, &modules.join("@scope")).expect("link scope");
 
-    unlink_children(&modules, &[target]);
+    unlink_children(&modules, &LinkTargets::resolve(&[target])).expect("unlink");
 
     assert!(
         fs::symlink_metadata(&outside_link).is_ok(),
@@ -53,7 +53,7 @@ fn does_not_follow_a_junction_scope_directory() {
     let direct_link = modules.join("pkg");
     junction::create(&target, &direct_link).expect("junction package");
 
-    unlink_children(&modules, &[target]);
+    unlink_children(&modules, &LinkTargets::resolve(&[target])).expect("unlink");
 
     assert!(
         fs::symlink_metadata(&direct_link).is_err(),

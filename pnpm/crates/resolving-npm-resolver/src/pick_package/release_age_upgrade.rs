@@ -2,9 +2,12 @@ use super::{
     Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
     PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
     PickPackageOptions, RegistryPackageSpec, Semaphore, clear_meta, load_meta,
-    parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
+    parse_packument_timestamp,
 };
-use crate::fetch_full_metadata::fetch_metadata_document;
+use crate::{
+    fetch_full_metadata::fetch_metadata_document,
+    mirror::{MetaHeaders, save_meta_indexed_with_headers, save_meta_ndjson_with_headers},
+};
 
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].
 pub(super) struct UpgradeOutcome {
@@ -15,10 +18,19 @@ pub(super) struct UpgradeOutcome {
     /// `true` when the orchestrator should persist `meta` to the
     /// abbreviated mirror and write it back to the in-memory cache.
     pub(super) upgraded: bool,
+    /// The upgraded response's entity tag. Meaningless unless `upgraded`
+    /// is set.
+    pub(super) full_etag: Option<String>,
     /// `true` when the upgraded response forbade caching. Meaningless
     /// unless `upgraded` is set; the caller already knows the
     /// abbreviated response's policy.
     pub(super) uncacheable: bool,
+}
+
+impl UpgradeOutcome {
+    fn unchanged(meta: Arc<Package>) -> Self {
+        UpgradeOutcome { meta, upgraded: false, full_etag: None, uncacheable: false }
+    }
 }
 
 pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
@@ -30,7 +42,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     mut meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
     if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
-        return Ok(UpgradeOutcome { meta, upgraded: false, uncacheable: false });
+        return Ok(UpgradeOutcome::unchanged(meta));
     }
     let limit = release_age_upgrade_limit(ctx.metadata.fetch_locker, cache_key);
     let _permit =
@@ -47,7 +59,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     if ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
         || meta.time.is_some()
     {
-        return Ok(UpgradeOutcome { meta, upgraded: false, uncacheable: false });
+        return Ok(UpgradeOutcome::unchanged(meta));
     }
     // An entity tag and a `Last-Modified` date describe one representation, and
     // `meta` holds the abbreviated one. A registry that reuses them across both
@@ -64,6 +76,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
             FetchFullMetadataOutcome::Modified(upgraded) => Ok(UpgradeOutcome {
                 meta: Arc::new(*upgraded),
                 upgraded: true,
+                full_etag: fetched.etag,
                 uncacheable: fetched.uncacheable,
             }),
             FetchFullMetadataOutcome::NotModified => declined_upgrade(ctx, opts, cache_key, meta),
@@ -99,7 +112,7 @@ fn declined_upgrade<Cache: PackageMetaCache>(
     if !opts.request.dry_run {
         ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
-    Ok(UpgradeOutcome { meta, upgraded: false, uncacheable: false })
+    Ok(UpgradeOutcome::unchanged(meta))
 }
 
 /// Upgrade abbreviated metadata to full when the maturity check needs
@@ -173,11 +186,11 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
 /// proceeds. An uncacheable failure also deletes the previous mirror,
 /// so the next lookup cannot revalidate that older header.
 ///
-/// An `ETag` identifies one representation, so the full document's tag
-/// cannot describe the abbreviated slot this writes into and is dropped.
-/// `modified` is kept: it comes from the packument's own `time.modified`,
-/// which both representations report identically, so the next abbreviated
-/// request is still conditional through `If-Modified-Since`.
+/// An `ETag` identifies one representation, so the full document's tag is
+/// recorded as [`MetaHeaders::full_etag`], never as the abbreviated slot's
+/// own tag. The next fetch of this mirror then asks for the full document
+/// with that tag, which a registry with per-representation tags (such as
+/// npmjs.org, which ignores `If-Modified-Since`) can answer with `304`.
 ///
 /// On a successful indexed save, returns the just-persisted mirror
 /// reloaded in its file-backed form so the caller can cache *it*
@@ -187,19 +200,24 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
 /// resolution.
 pub(super) fn persist_upgraded_to_mirror(
     pkg_mirror: &Path,
-    meta: &Package,
+    upgrade: &UpgradeOutcome,
     filter_metadata: bool,
-    uncacheable: bool,
 ) -> Option<Package> {
+    let UpgradeOutcome { meta, full_etag, uncacheable, .. } = upgrade;
+    let uncacheable = *uncacheable;
+    let headers =
+        MetaHeaders::for_full_meta_in_abbreviated_mirror(meta, full_etag.as_deref(), uncacheable);
     let save_result = if filter_metadata {
         match clear_meta(meta) {
-            Ok(meta_for_cache) => save_meta_ndjson(pkg_mirror, &meta_for_cache, None, uncacheable),
+            Ok(meta_for_cache) => {
+                save_meta_ndjson_with_headers(pkg_mirror, &meta_for_cache, &headers)
+            }
             Err(error) => {
                 return failed_uncacheable_upgrade_persist(pkg_mirror, uncacheable, &error);
             }
         }
     } else {
-        save_meta_indexed(pkg_mirror, meta, None, uncacheable)
+        save_meta_indexed_with_headers(pkg_mirror, meta, &headers)
     };
     match save_result {
         Ok(()) if !filter_metadata => load_meta(pkg_mirror),

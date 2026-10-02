@@ -108,10 +108,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError,
-    mirror::{
-        clear_meta, get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed,
-        save_meta_ndjson,
-    },
+    mirror::{clear_meta, get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed},
     pick_package_from_meta::{
         PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
         cached_meta_misses_preferred_version, dominant_lockfile_version,

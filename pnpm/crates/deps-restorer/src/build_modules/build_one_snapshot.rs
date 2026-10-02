@@ -1,5 +1,6 @@
 //! Running one package's build scripts.
 
+mod linked_copies;
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
@@ -367,11 +368,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !context.directories.layout.enable_global_virtual_store()
                 || (context.rebuild.is_none() && slot_lock.is_some())
             {
-                discard_skipped_optional_dependency(
-                    context.pkg_roots(),
-                    context.directories.lockfile_dir,
-                    snapshot_key,
-                )?;
+                linked_copies::discard_failed_optional(context, snapshot_key)?;
             }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
