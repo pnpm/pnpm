@@ -1,7 +1,7 @@
 use super::{
-    COMPLETE_FILE, build_storage_at, build_storage_at_with_substitutions, discard_unusable_storage,
-    ensure_storage, latest_version, packages_dir, publish_storage, restore_claimed_storage,
-    set_dist_tag,
+    COMPLETE_FILE, build_storage_at, build_storage_at_with_substitutions, current,
+    discard_unusable_storage, latest_version, packages_dir, publish_storage,
+    restore_claimed_storage, set_dist_tag,
 };
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
@@ -46,8 +46,8 @@ fn latest_version_uses_semver_prerelease_order() {
 }
 
 #[test]
-fn ensure_storage_generates_packuments_and_tarballs() {
-    let storage = ensure_storage();
+fn fixture_storage_generates_packuments_and_tarballs() {
+    let storage = current().storage();
     assert!(packages_dir().join("@pnpm.e2e/abc/1.0.0/package.json").exists());
     assert!(storage.join("@pnpm.e2e/abc/package.json").exists());
     assert!(storage.join("@pnpm.e2e/abc/abc-1.0.0.tgz").exists());
@@ -79,7 +79,7 @@ fn per_run_substitutions_update_packuments_and_tarballs() {
 // working tree cannot hold `Foo.js` and `foo.js` side by side on disk.
 #[test]
 fn case_colliding_files_are_composed_in_memory() {
-    let storage = ensure_storage();
+    let storage = current().storage();
     let entries = tarball_entries(&storage.join(
         "@pnpm.e2e/with-same-file-in-different-cases/with-same-file-in-different-cases-1.0.0.tgz",
     ));
@@ -92,7 +92,7 @@ fn case_colliding_files_are_composed_in_memory() {
 // `node_modules` never needs to be committed.
 #[test]
 fn bundle_dependencies_embed_node_modules() {
-    let storage = ensure_storage();
+    let storage = current().storage();
     let bundled = tarball_entries(&storage.join(
         "@pnpm.e2e/pkg-with-bundle-dependencies/pkg-with-bundle-dependencies-1.0.0.tgz",
     ));
@@ -116,7 +116,7 @@ fn bundle_dependencies_embed_node_modules() {
 // self-contained-workspace fixtures that ship without one.
 #[test]
 fn root_license_is_injected_except_for_self_contained_workspaces() {
-    let storage = ensure_storage();
+    let storage = current().storage();
     let abc = tarball_entries(&storage.join("@pnpm.e2e/abc/abc-1.0.0.tgz"));
     assert!(abc.contains("package/LICENSE"), "{abc:?}");
 
