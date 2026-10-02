@@ -113,8 +113,8 @@ pub(super) async fn serve_get_pipeline_run(
     })
 }
 
-/// Which grant on a pipeline workspace a request needs. Both read the
-/// workspace's access grant; `Publish` reads the publish grant as well.
+/// Which grant on a pipeline workspace a request needs. Reading takes the
+/// workspace's access grant; `Publish` takes the publish grant too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PipelineRunAccess {
     Read,

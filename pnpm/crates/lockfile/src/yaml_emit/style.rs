@@ -17,10 +17,7 @@ pub(super) enum FirstEntry {
     OnOwnLine,
 }
 
-/// Whether a blank line separates the entries of a block mapping. The
-/// lockfile separates its top-level sections and the entries of
-/// `packages`, `importers` and `snapshots`; everything nested inside them
-/// is tight.
+/// Whether a blank line separates the entries of a block mapping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum EntrySpacing {
     Tight,

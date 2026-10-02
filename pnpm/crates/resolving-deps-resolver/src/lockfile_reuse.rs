@@ -437,8 +437,7 @@ fn reused_registry_identity(
 }
 
 /// The lockfile resolutions the walk reuses without the resolver that
-/// produced them. A tarball with an integrity that is not git-hosted
-/// reuses as a registry package.
+/// produced them.
 #[derive(Debug, Clone, Copy)]
 enum ReusableResolution {
     Registry,

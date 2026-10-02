@@ -159,9 +159,7 @@ impl Default for ResolvePeersOptions {
     }
 }
 
-/// The workspace-wide switches of [`fn@resolve_peers_workspace`]: which
-/// dedupe passes run after the walk, and whether a non-root importer may
-/// resolve peers from the root importer's direct dependencies.
+/// The workspace-wide switches of [`fn@resolve_peers_workspace`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkspacePeerSettings {
     pub dedupe_injected_deps: bool,

@@ -300,9 +300,7 @@ pub(super) fn seed_pending(
     })))
 }
 
-/// What a fresh resolve decides about a package before registering it:
-/// its [`NodeKind`], whether its children go through catalogs, and its
-/// [`NodeId`].
+/// What a fresh resolve decides about a package before registering it.
 pub(super) struct NodeIdentity {
     /// Computed before the dedup insert so it can be persisted on
     /// [`ResolvedPackage::is_leaf`] for the lazy realisation path to
@@ -345,9 +343,9 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> boo
 }
 
 /// Build (or look up) the [`ResolvedPackage`] envelope, answering with the
-/// package table's `Arc` of the id as a created or an existing entry. The first visitor populates it; later
-/// visitors AND-fold the `optional` flag so a single non-optional path
-/// flips it back to `false`.
+/// package table's `Arc` of the id as a created or an existing entry. The
+/// first visitor populates it; later visitors AND-fold the `optional` flag
+/// so a single non-optional path flips it back to `false`.
 ///
 /// The envelope's peer split follows the occurrence that owns the package's
 /// children, which this level's settlement decides — see

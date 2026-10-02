@@ -455,22 +455,17 @@ fn dependency_meta_is_injected(meta: &Value) -> bool {
         .unwrap_or(false)
 }
 
-/// One declared dependency as [`extend_tree`] and the importer-side
-/// orchestrator carry it.
+/// One dependency as a manifest declares it, before resolution.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DependencySpec {
     pub alias: String,
     pub range: String,
     /// Declared under `optionalDependencies`.
     pub optional: bool,
-    /// The importer manifest's `dependenciesMeta[alias].injected` flag,
-    /// threaded onto [`WantedDependency::injected`] so the workspace
-    /// resolver branch picks the `file:` resolution shape for that one
-    /// dep even when the global [`pnpm_resolving_resolver_base::ResolverProjectOptions::inject_workspace_packages`]
-    /// is off. Hoisted-peer arms in
-    /// [`fn@crate::resolve_importer::resolve_importer`] default this to
-    /// `false` — peers picked up via auto-install don't carry per-dep
-    /// meta from any manifest.
+    /// The importer manifest's `dependenciesMeta[alias].injected` flag. It
+    /// picks the `file:` resolution shape for this one dependency even when
+    /// [`pnpm_resolving_resolver_base::ResolverProjectOptions::inject_workspace_packages`]
+    /// is off.
     pub injected: bool,
 }
 

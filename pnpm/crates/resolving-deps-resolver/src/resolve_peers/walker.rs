@@ -138,8 +138,8 @@ pub(super) struct PeerWalkTraversal {
     in_canonical_drain: bool,
 }
 
-/// Which of the two peer walks a [`Walker`] runs. Both decide the same
-/// resolved and missing peers; they differ in what they record.
+/// Which peer walk a [`Walker`] runs. The modes decide the same resolved
+/// and missing peers and differ in what they record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PeerWalkMode {
     /// A peer-hoist discovery pass: no graph entries, node records or
