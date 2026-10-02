@@ -208,14 +208,18 @@ impl CrateDocument {
     /// is yanked. `None` for a document with no parsable version.
     #[must_use]
     pub fn max_version(&self) -> Option<String> {
-        let highest = |yanked_allowed: bool| {
-            self.versions
-                .iter()
-                .filter(|entry| yanked_allowed || !entry.yanked)
-                .filter_map(|entry| semver::Version::parse(&entry.vers).ok())
-                .max()
-        };
-        highest(false).or_else(|| highest(true)).map(|version| version.to_string())
+        let parsed = |entry: &IndexEntry| semver::Version::parse(&entry.vers).ok();
+        let unyanked = self.versions.iter().filter(|entry| !entry.yanked);
+        unyanked
+            .filter_map(parsed)
+            .max()
+            .or_else(|| {
+                self.versions
+                    .iter()
+                    .filter_map(parsed)
+                    .max()
+            })
+            .map(|version| version.to_string())
     }
 
     /// This crate as one row of a search response.
