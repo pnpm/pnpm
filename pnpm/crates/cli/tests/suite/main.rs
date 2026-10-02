@@ -102,6 +102,7 @@ mod multiple_importers;
 mod named_registry_install;
 mod nested_file_dependencies;
 mod nested_workspace_manifests;
+mod node_options;
 mod not_implemented;
 mod offline_store_pick;
 mod optional_dependencies;

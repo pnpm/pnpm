@@ -113,6 +113,35 @@ fn empty_env_var_is_treated_as_unset() {
     assert_eq!(settings.store_dir, None);
 }
 
+#[test]
+fn empty_node_options_env_vars_override_lower_layers() {
+    struct UppercaseEmptyNodeOptions;
+    impl EnvVar for UppercaseEmptyNodeOptions {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_NODE_OPTIONS").then(String::new)
+        }
+    }
+    struct LowercaseEmptyNodeOptions;
+    impl EnvVar for LowercaseEmptyNodeOptions {
+        fn var(name: &str) -> Option<String> {
+            (name == "pnpm_config_node_options").then(String::new)
+        }
+    }
+
+    for settings in [
+        WorkspaceSettings::from_pnpm_config_env::<UppercaseEmptyNodeOptions>(),
+        WorkspaceSettings::from_pnpm_config_env::<LowercaseEmptyNodeOptions>(),
+    ] {
+        assert_eq!(settings.node_options.as_ref().map(Option::as_deref), Some(Some("")));
+        let mut config =
+            Config { node_options: Some("--trace-warnings".to_string()), ..Config::default() };
+
+        settings.apply_to(&mut config, Path::new("/workspace"));
+
+        assert_eq!(config.node_options.as_deref(), Some(""));
+    }
+}
+
 /// `savePrefix` is the exception to [`empty_env_var_is_treated_as_unset`]:
 /// `""` is the value that pins an exact version, so
 /// `PNPM_CONFIG_SAVE_PREFIX=` must reach the config as `Some("")` — the
