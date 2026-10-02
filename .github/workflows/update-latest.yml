@@ -227,7 +227,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
+      - uses: vedantmgoyal9/winget-releaser@a8fff44b123f115ce4c21543edf8b677376fc7e0 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
@@ -256,7 +256,7 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@9ba8763f1daa436d73fb76abbc3e8b2ac8dfa943 # v2.2.4
+        uses: cbrgm/mastodon-github-action@5939c6e084a12d79415a1e7637a6dbf6de241ab1 # v2.2.5
         with:
           message: |
             pnpm@${{ github.event.inputs.version }} is out!
