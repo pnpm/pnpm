@@ -987,3 +987,17 @@ test('getOptionsFromPnpmSettings() accepts valid supportedArchitectures', () => 
   const options = getOptionsFromPnpmSettings(process.cwd(), { supportedArchitectures })
   expect(options.supportedArchitectures).toStrictEqual(supportedArchitectures)
 })
+
+test.each([
+  ['supportedArchitectures', null, 'The "supportedArchitectures" setting should be an object, but got null'],
+  ['supportedArchitectures', { os: null }, 'The "supportedArchitectures.os" setting should be an array of strings, but got null'],
+  ['supportedArchitectures', { cpu: null }, 'The "supportedArchitectures.cpu" setting should be an array of strings, but got null'],
+  ['supportedArchitectures', { libc: null }, 'The "supportedArchitectures.libc" setting should be an array of strings, but got null'],
+])('getOptionsFromPnpmSettings() rejects explicit null in %s', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})

@@ -92,7 +92,7 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
-  if (settings.supportedArchitectures != null) {
+  if (Object.hasOwn(settings, 'supportedArchitectures')) {
     assertValidSupportedArchitectures(settings.supportedArchitectures)
   }
   translateRegistrySettings(settings)
@@ -463,13 +463,13 @@ function assertValidAllowBuilds (allowBuilds: unknown): asserts allowBuilds is R
 function assertValidSupportedArchitectures (supportedArchitectures: unknown): asserts supportedArchitectures is SupportedArchitectures {
   assertObjectSetting(supportedArchitectures, 'supportedArchitectures')
   const archs = supportedArchitectures as Record<string, unknown>
-  if (archs.os != null) {
+  if (Object.hasOwn(archs, 'os')) {
     assertStringArray(archs.os, 'supportedArchitectures.os')
   }
-  if (archs.cpu != null) {
+  if (Object.hasOwn(archs, 'cpu')) {
     assertStringArray(archs.cpu, 'supportedArchitectures.cpu')
   }
-  if (archs.libc != null) {
+  if (Object.hasOwn(archs, 'libc')) {
     assertStringArray(archs.libc, 'supportedArchitectures.libc')
   }
 }
