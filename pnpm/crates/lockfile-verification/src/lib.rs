@@ -10,17 +10,6 @@
 //! This crate is built from two parts: the fan-out runner and the
 //! JSONL stat-and-skip cache.
 //!
-//! Public surface today: [`verify_lockfile_resolutions()`],
-//! [`lockfile_verification_is_cached()`],
-//! [`lockfile_verification_is_cached_by_content()`],
-//! [`verify_lockfile_dependency_names()`],
-//! [`verify_lockfile_importer_snapshot_links()`],
-//! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],
-//! [`VerifyError`], and [`RenderedViolation`] — the last lets a caller
-//! that resolved violations out-of-process (e.g. the pnpr client
-//! reconstructing them from the server's response) rebuild the same
-//! [`VerifyError`] via [`VerifyError::from_rendered`].
-//!
 //! [`ResolutionVerifier`]: pnpm_resolving_resolver_base::ResolutionVerifier
 
 pub use cache::{

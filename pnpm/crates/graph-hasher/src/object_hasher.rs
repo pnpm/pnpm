@@ -6,9 +6,7 @@ use sha2::{Digest, Sha256};
 /// Hash a JSON value with sorted keys, sha256, and base64 encoding.
 ///
 /// The bytestream the library writes before hashing is described in
-/// the (private) `serialize` helper below — it must match pnpm's
-/// byte-for-byte because the result is persisted on disk and shared
-/// with pnpm.
+/// the (private) `serialize` helper below.
 ///
 /// `undefined` in JS maps to no Rust value here; the `hashUnknown`
 /// short-circuit for `undefined` returns 44 zero characters

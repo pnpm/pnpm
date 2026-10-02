@@ -1,6 +1,6 @@
 //! Workspace discovery and project enumeration.
 //!
-//! Three responsibilities, kept in separate private modules while
+//! Responsibilities, kept in separate private modules while
 //! keeping the public surface flat:
 //!
 //! - `root_finder` — locate the workspace dir (`pnpm-workspace.yaml`).

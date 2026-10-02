@@ -6,9 +6,7 @@ use super::{BTreeSet, Digest, HeaderMap, Identity, RouteContext, Sha256};
 /// callers who share the same access collapse to one shared entry.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrivateAccessDescriptor {
-    /// Proxied route via a pnpr-managed upstream alias. [`credential_digest`]
-    /// hashes the upstream's `Authorization`, so rotating the credential moves
-    /// future hits to a new namespace — no manual epoch counter to bump.
+    /// Proxied route via a pnpr-managed upstream alias.
     /// `package` is set only when the upstream's rules **explicitly refine**
     /// this name's `access`: the descriptor then re-checks that per-package
     /// gate on cache replay, so a caller the refinement denies cannot obtain

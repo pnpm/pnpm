@@ -67,13 +67,6 @@ fn correct_filename_wins_over_misnamed_sibling() {
 /// variable would short-circuit discovery and force the install into
 /// `PathBuf::from("")`. Mirrors upstream's truthy `if (workspaceDir)`
 /// check.
-///
-/// `std::env::set_var` has documented UB when other threads access
-/// the process environment concurrently (and Rust tests default to
-/// multi-threaded). Routing the env lookup through the [`EnvVarOs`]
-/// DI seam on [`find_workspace_dir_from_env_with`] lets this test
-/// exercise the fall-through branch without touching the process
-/// env at all.
 #[test]
 fn empty_env_var_is_treated_as_unset() {
     struct EnvWithEmptyWorkspaceDir;

@@ -1,14 +1,5 @@
 //! Global-virtual-store directory naming — the GVS hash computation
 //! and path formatting.
-//!
-//! The engine string contribution is gated by a precomputed
-//! `build_required_dep_paths` set: only snapshots that themselves run
-//! a build script — or that transitively depend on one — keep the
-//! engine in the GVS hash payload.
-//! Pure-JS leaves and their pure-JS ancestors hash with
-//! `engine = null`, so their GVS directories survive Node.js
-//! upgrades and architecture moves. Passing `None` for
-//! `build_required_dep_paths` reproduces the always-include behaviour.
 
 use crate::{
     HashEncoding,

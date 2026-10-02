@@ -113,7 +113,7 @@ pub(crate) fn escaped_package_name(name: &str) -> String {
 }
 
 /// The fetch-retry / timeout knobs the OIDC requests forward, sourced from the
-/// publish options, shared by all three OIDC steps.
+/// publish options.
 #[derive(Debug, Default, Clone)]
 pub struct OidcHttpOptions {
     pub fetch_retries: Option<u32>,

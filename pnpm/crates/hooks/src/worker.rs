@@ -397,9 +397,6 @@ impl NodeWorker {
     }
 }
 
-/// Route one line from the worker to its pending request: forward `log` lines
-/// to the call's logger (the entry stays until the result arrives) and resolve
-/// the call on `ok`/`err`.
 /// Dispatch every line the worker writes; once it exits, fail every
 /// still-pending request so callers don't hang waiting for a response
 /// that will never arrive.
@@ -517,8 +514,7 @@ async fn write_worker_line(stdin: &Mutex<ChildStdin>, reply: &Value) {
 }
 
 /// Build the worker's Node script. `file_escaped` is the JSON-encoded pnpmfile
-/// path; the worker loads it once and replays the `readPackage` validation and
-/// normalization that [`crate::node_runtime`] documents.
+/// path.
 fn build_runner(file_escaped: &str) -> String {
     format!(
         "{}\nconst pnpmfilePath = {file_escaped};\n{}",

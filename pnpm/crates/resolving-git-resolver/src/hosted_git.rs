@@ -23,7 +23,7 @@ use url_parse::{
 use pnpm_network::encode_uri_component;
 use std::fmt;
 
-/// Three host families pacquet recognises. Mirrors upstream's
+/// The host families pacquet recognises. Mirrors upstream's
 /// `gitHosts` keys at
 /// <https://github.com/npm/hosted-git-info/blob/v4.1.0/git-host-info.js>.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

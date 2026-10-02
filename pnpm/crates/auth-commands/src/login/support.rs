@@ -1,8 +1,8 @@
 //! Shared fixtures for the `login` tests.
 //!
 //! Holds the credential and `config.yaml` fake (`login_fake!`), its
-//! scripted-response type aliases, and the helper constructors the three
-//! scenario modules — non-interactive, web-login, and classic-login — build on.
+//! scripted-response type aliases, and the helper constructors the scenario
+//! modules build on.
 
 pub(crate) use crate::login_fake;
 

@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-/// Shared by the three renderers below; each ignores what does not apply
+/// Shared by the renderers below; each ignores what does not apply
 /// to its format (`long` reads each root's `package.json`, which the
 /// parseable and JSON formats do not render).
 pub struct RenderDependentsOptions {

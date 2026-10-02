@@ -74,9 +74,6 @@ pub(super) fn serialize_with_indent(
 
 /// Read `<dir>/package.json` if it exists, returning `Ok(None)` when the file
 /// is absent. Other IO errors and JSON parse errors propagate.
-///
-/// A missing file is the only case that maps to `Ok(None)`; malformed JSON
-/// surfaces as a `BAD_PACKAGE_JSON` error and other IO errors propagate.
 pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, PackageManifestError> {
     let path = dir.join("package.json");
     let text = match fs::read_to_string(&path) {

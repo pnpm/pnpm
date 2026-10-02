@@ -356,7 +356,7 @@ impl PackageManifest {
     /// generates under `node_modules/.bit_roots/<id>`; the isolated
     /// linker keys root-component member reachability off that value.
     /// Returned verbatim so callers can match whichever mode they care
-    /// about (today only `"workspaces"` is acted on).
+    /// about.
     #[must_use]
     pub fn install_config_hoisting_limits(&self) -> Option<&str> {
         self.value

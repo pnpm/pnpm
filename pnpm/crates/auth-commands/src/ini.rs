@@ -13,11 +13,9 @@
 //! (no `=`), and comment lines (`;` / `#`) are not part of `auth.ini`'s
 //! shape and are skipped on read.
 //!
-//! A key or value that would be misread on the way back — one containing
-//! `=`, CR, or LF, one already `"`-wrapped, one padded with whitespace, or
-//! one starting with `[` — is written as a JSON string (the same quoting
-//! the `ini` package's `write-ini-file` applies) and decoded on read, so
-//! that removing one entry leaves every other entry saying what it said.
+//! A key or value that would be misread on the way back is written as a JSON
+//! string and decoded on read, so that removing one entry leaves every other
+//! entry saying what it said.
 //!
 //! The `ini` package additionally backslash-escapes inline `;` / `#` (which
 //! it reads as comment starts) and unwraps single-quoted values. That is

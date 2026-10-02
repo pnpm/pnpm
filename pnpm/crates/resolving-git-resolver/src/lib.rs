@@ -8,7 +8,7 @@
 //! Specs of known hosts are identities, not transport choices —
 //! `parse_bare_specifier`'s module doc states the rule.
 //!
-//! Three pieces:
+//! Pieces:
 //!
 //! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
 //! - [`parse_bare_specifier()`] — recognise + normalise the input
