@@ -25,7 +25,9 @@ pub(super) async fn serve_publish_pipeline_run(
             );
         }
     };
-    if let Err(error) = authorize_pipeline_workspace(&state, &identity, &run.workspace, true) {
+    if let Err(error) =
+        authorize_pipeline_workspace(&state, &identity, &run.workspace, PipelineRunAccess::Publish)
+    {
         return private_no_cache(error.into_response());
     }
     private_no_cache(
@@ -51,7 +53,8 @@ pub(super) async fn serve_list_pipeline_runs(
     }
     let (workspace, limit) = parse_pipeline_run_query(uri.query().unwrap_or_default());
     if let Some(workspace) = &workspace
-        && let Err(error) = authorize_pipeline_workspace(&state, &identity, workspace, false)
+        && let Err(error) =
+            authorize_pipeline_workspace(&state, &identity, workspace, PipelineRunAccess::Read)
     {
         return private_no_cache(error.into_response());
     }
@@ -96,7 +99,9 @@ pub(super) async fn serve_get_pipeline_run(
     AuthedCaller(identity): AuthedCaller,
     Path((workspace, run_id)): Path<(String, String)>,
 ) -> Response {
-    if let Err(error) = authorize_pipeline_workspace(&state, &identity, &workspace, false) {
+    if let Err(error) =
+        authorize_pipeline_workspace(&state, &identity, &workspace, PipelineRunAccess::Read)
+    {
         return private_no_cache(error.into_response());
     }
     let store =
@@ -108,25 +113,37 @@ pub(super) async fn serve_get_pipeline_run(
     })
 }
 
+/// Which grant on a pipeline workspace a request needs. Both read the
+/// workspace's access grant; `Publish` reads the publish grant as well.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PipelineRunAccess {
+    Read,
+    Publish,
+}
+
 pub(super) fn authorize_pipeline_workspace(
     state: &AppState,
     identity: &Identity,
     workspace: &str,
-    publish: bool,
+    access: PipelineRunAccess,
 ) -> Result<(), RegistryError> {
     let username = require_caller(identity, "pipeline runs")?;
     let policy = state.inner.config.features.pipeline.workspaces.get(workspace);
     if !policy.is_some_and(|policy| policy.access.allows(identity)) {
         return Err(RegistryError::NotFound);
     }
-    if publish && !policy.is_some_and(|policy| policy.publish.allows(identity)) {
-        return Err(RegistryError::Forbidden {
-            user: username,
-            action: "publish pipeline runs",
-            resource: workspace.to_string(),
-        });
+    match access {
+        PipelineRunAccess::Publish
+            if !policy.is_some_and(|policy| policy.publish.allows(identity)) =>
+        {
+            Err(RegistryError::Forbidden {
+                user: username,
+                action: "publish pipeline runs",
+                resource: workspace.to_string(),
+            })
+        }
+        PipelineRunAccess::Publish | PipelineRunAccess::Read => Ok(()),
     }
-    Ok(())
 }
 
 /// `GET /-/pnpr/v0/pipeline` — a self-contained viewer over the run
