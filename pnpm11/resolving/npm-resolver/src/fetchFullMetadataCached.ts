@@ -81,15 +81,14 @@ async function fetchMetadataCached (
   if (opts.offline === true) return loadOfflineMeta(pkgMirror, pkgName, opts)
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  const uncacheable = cacheHeaders?.uncacheable === true
   const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, opts.fullMetadata)
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: uncacheable,
+    cacheBypass: cacheHeaders?.uncacheable === true,
     fullMetadata: opts.fullMetadata || fullEtag != null,
-    etag: uncacheable ? undefined : (fullEtag ?? cacheHeaders?.etag),
-    modified: uncacheable ? undefined : cacheHeaders?.modified,
+    etag: fullEtag ?? cacheHeaders?.etag,
+    modified: cacheHeaders?.modified,
   })
   if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional, opts.fullMetadata)
 

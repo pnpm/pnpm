@@ -200,10 +200,10 @@ function createMetadataRequest (
   }: FetchMetadataOptions
 ): MetadataRequest {
   const uri = toUri(pkgName, registry)
-  const ifNoneMatch = cacheBypass ? undefined : cachedEtag
-  const ifModifiedSince = cacheBypass || !cachedModified
-    ? undefined
-    : new Date(cachedModified).toUTCString()
+  const ifNoneMatch = cachedEtag
+  const ifModifiedSince = cachedModified
+    ? new Date(cachedModified).toUTCString()
+    : undefined
   return {
     fetchOpts,
     pkgName,
@@ -270,10 +270,10 @@ async function requestMetadata (request: MetadataRequest): Promise<RegistryRespo
       },
     }) as RegistryResponse
   }
-  if (hasValidator && metadataResponseIsUncacheable(response.headers.get('cache-control'))) {
-    // A mirror without the uncacheable flag still sends validators, and
-    // a stale intermediary can answer them with a 304. Ask once without
-    // validators; a second 304 still serves the mirror.
+  if (hasValidator && !cacheBypass && metadataResponseIsUncacheable(response.headers.get('cache-control'))) {
+    // A mirror without the uncacheable flag revalidates without
+    // `no-cache`, and a stale intermediary can answer that with a 304.
+    // Ask once without validators; a second 304 still serves the mirror.
     return await fetchOpts.fetch(uri, {
       ...requestOptions,
       ifNoneMatch: undefined,
@@ -363,9 +363,9 @@ function describeRetriedError (error: any) { // eslint-disable-line
 
 /**
  * A 304 answers a validator with "the body you already have is current". Sent
- * without one — either because nothing was cached or because `cacheBypass`
- * dropped the validators to recover a lost cache entry — it refers to a body
- * nobody holds, so there is nothing to serve and nothing left to retry.
+ * without one, because nothing was cached or the cache entry was lost, it
+ * refers to a body nobody holds, so there is nothing to serve and nothing left
+ * to retry.
  */
 export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
   return new PnpmError(

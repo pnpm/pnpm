@@ -336,8 +336,7 @@ async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror
 
     let refetch = server
         .mock("GET", "/acme")
-        .match_header("if-none-match", mockito::Matcher::Missing)
-        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .match_header("if-none-match", r#"W/"old""#)
         .match_header("cache-control", "no-cache")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -355,7 +354,8 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
-        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-none-match", r#"W/"old""#)
+        .match_header("cache-control", "no-cache")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_header("cache-control", "public, max-age=300")
