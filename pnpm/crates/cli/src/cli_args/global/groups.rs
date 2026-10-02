@@ -1,17 +1,16 @@
 use super::{
     ActivationBinSets, ArtifactCleanupError, CmdShimHost, Config, Context, GlobalInstallTarget,
-    GlobalPackageInfo, GlobalUpdateMaterializationReporter, GlobalUpdateResolutionReporter,
-    GroupActivation, GroupInstall, HashSet, IntoDiagnostic, Lockfile, PackageBinSource, Path,
-    PathBuf, RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
+    GlobalPackageInfo, GlobalUpdateMaterializationReporter, GlobalVersionTarget, GroupActivation,
+    GroupInstall, HashSet, IntoDiagnostic, Lockfile, PackageBinSource, Path, PathBuf,
+    RangeSpecStyle, ReplacedGlobalBinPlan, Reporter, SupportedArchitectures,
     acquire_global_bin_lock, activate_global_install_with_extra_bin_names,
     bin_names_of_other_groups, check_global_bin_conflicts, check_virtual_shim_conflicts,
     cleanup_replaced_global_installs, collect_existing_global_installs, create_global_cache_key,
     create_install_dir, discard_install_dir_on_error, fs, get_actual_bin_names, get_hash_link,
     global_group_config, hash_linked_packages, link_global_bins, missing_file_source_warning,
-    pins_for_downgrades, plan_replaced_global_bins, prompt_approve_install_builds,
-    read_direct_dependencies, read_installed_packages, registries_with_default,
-    replacement_aliases, restore_virtual_shims, run_group_install, should_replace_existing_package,
-    snapshot_global_package, update_selectors, warn_global,
+    plan_replaced_global_bins, prompt_approve_install_builds, read_direct_dependencies,
+    read_installed_packages, registries_with_default, replacement_aliases, restore_virtual_shims,
+    run_group_install, should_replace_existing_package, snapshot_global_package, warn_global,
 };
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 
@@ -94,7 +93,7 @@ impl GlobalInstallTarget<'_> {
     pub(super) async fn update_groups<Reporter: self::Reporter + 'static>(
         &self,
         groups: &[GlobalPackageInfo],
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
@@ -108,7 +107,7 @@ impl GlobalInstallTarget<'_> {
             checked = true;
             changed |= self.update_group::<Reporter>(
                 pkg,
-                latest,
+                version_target,
                 range_spec_style,
                 supported_architectures.clone(),
             )
@@ -122,13 +121,13 @@ impl GlobalInstallTarget<'_> {
     async fn update_group<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<bool> {
         let (install_dir, selectors) = self.prepare_update_candidate::<Reporter>(
             pkg,
-            latest,
+            version_target,
             range_spec_style,
             supported_architectures.clone(),
         )
@@ -158,7 +157,7 @@ impl GlobalInstallTarget<'_> {
     async fn prepare_update_candidate<Reporter: self::Reporter + 'static>(
         &self,
         pkg: &GlobalPackageInfo,
-        latest: bool,
+        version_target: GlobalVersionTarget<'_>,
         range_spec_style: RangeSpecStyle,
         supported_architectures: Option<SupportedArchitectures>,
     ) -> miette::Result<(PathBuf, Vec<String>)> {
@@ -168,55 +167,13 @@ impl GlobalInstallTarget<'_> {
         let resolved = Box::pin(self.resolve_update_candidate::<Reporter>(
             pkg,
             &install_dir,
-            latest,
+            version_target,
             range_spec_style,
             supported_architectures,
         ))
         .await;
         let selectors = discard_install_dir_on_error(&install_dir, resolved)?;
         Ok((install_dir, selectors))
-    }
-
-    /// Seed the candidate with the group's manifest and resolve the update into
-    /// its lockfile, leaving `node_modules` absent. The selectors it returns are
-    /// the ones the materializing install repeats.
-    async fn resolve_update_candidate<Reporter: self::Reporter + 'static>(
-        &self,
-        pkg: &GlobalPackageInfo,
-        install_dir: &Path,
-        latest: bool,
-        range_spec_style: RangeSpecStyle,
-        supported_architectures: Option<SupportedArchitectures>,
-    ) -> miette::Result<Vec<String>> {
-        fs::copy(pkg.install_dir.join("package.json"), install_dir.join("package.json"))
-            .into_diagnostic()
-            .wrap_err("seed global update manifest")?;
-        let downgrade_check =
-            Box::pin(pins_for_downgrades::<GlobalUpdateResolutionReporter<Reporter>>(
-                self.base_config,
-                self.global_pkg_dir,
-                install_dir,
-                pkg,
-                latest,
-                range_spec_style,
-                supported_architectures.clone(),
-            ))
-            .await?;
-        let selectors = update_selectors(&pkg.dependencies, latest, &downgrade_check.pins);
-        if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
-            Box::pin(run_group_install::<GlobalUpdateResolutionReporter<Reporter>>(GroupInstall {
-                base_config: self.base_config,
-                global_pkg_dir: self.global_pkg_dir,
-                install_dir,
-                selectors: &selectors,
-                range_spec_style,
-                supported_architectures,
-                allow_build: &[],
-                lockfile_only: true,
-            }))
-            .await?;
-        }
-        Ok(selectors)
     }
 
     async fn discard_unchanged_update<Reporter: self::Reporter + 'static>(
