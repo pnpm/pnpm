@@ -383,6 +383,8 @@ pub struct WorkspaceSettings {
     pub side_effects_cache: Option<SideEffectsCacheSetting>,
     /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
+    /// See [`Config::side_effects_cache_exclude`](crate::settings::Config::side_effects_cache_exclude).
+    pub side_effects_cache_exclude: Option<Vec<String>>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
     pub fetch_retry_mintimeout: Option<u64>,

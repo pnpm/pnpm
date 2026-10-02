@@ -66,7 +66,10 @@ impl<'a> CreateVirtualStore<'a> {
             &plan.survivors,
             &plan.skipped_entries,
             prefetched,
-            &plan.marker_rebuilds,
+            &partition::Rebuilds {
+                marker_rebuilds: &plan.marker_rebuilds,
+                allow_build_policy: self.ctx.allow_build_policy,
+            },
             self.ctx.linker.kind,
         );
 

@@ -163,6 +163,7 @@ impl WorkspaceSettings {
             trust_lockfile: Some(config.trust_lockfile),
             trust_policy: Some(config.trust_policy),
             trust_policy_exclude: config.trust_policy_exclude.clone(),
+            side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
             trust_policy_exclude_prune: Some(config.trust_policy_exclude_prune),
             trust_policy_ignore_after: config.trust_policy_ignore_after,
             init_author_name: config.init_author_name.clone(),
