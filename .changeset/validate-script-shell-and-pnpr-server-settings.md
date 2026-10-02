@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-pnpm now reports an `INVALID_SETTING` error when `scriptShell` or `pnprServer` in `pnpm-workspace.yaml` is not a string.
+pnpm now reports an `INVALID_SETTING` error when `scriptShell` or `pnprServer` in `pnpm-workspace.yaml` or global config is not a string.
