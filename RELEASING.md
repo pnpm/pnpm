@@ -88,6 +88,11 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    `@pnpm/napi`, and their platform packages must allow staged publishing only,
    so CI can stage a release but cannot approve or publish it directly.
 
+7. Publish the draft GitHub release the workflow created for each product.
+   Publishing it starts Sync documentation for that version, and the sync fails
+   while the version is still staged on npm. So publish a draft only after its
+   packages are approved.
+
 ## Reruns and partial releases
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is
@@ -188,8 +193,8 @@ yet maintainer-signed end to end.
 
 ## Website documentation
 
-After a successful Release workflow, the separate Sync documentation
-workflow copies the tagged pnpm v11, v12, or pnpr documentation to pnpm/pnpm.io, plus the release page for a stable v11 or v12 release, and checks the
+Publishing a GitHub release starts the separate Sync documentation
+workflow, which copies the tagged pnpm v11, v12, or pnpr documentation to pnpm/pnpm.io, plus the release page for a stable v11 or v12 release, and checks the
 website build before pushing it. Check that workflow as part of finishing a
 release. A failed docs sync can be retried independently of package publication.
 See [DOCUMENTATION.md](DOCUMENTATION.md#publication) for retries, documentation-only

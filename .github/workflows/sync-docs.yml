@@ -1,11 +1,10 @@
 name: Sync documentation
 
 on:
-  # Automatic runs use signed, published release tags; no code or artifacts
-  # from the triggering run execute here. The token is limited to the push step.
-  workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [Release]
-    types: [completed]
+  # A maintainer publishes the draft GitHub release after approving the staged
+  # npm packages. The token is limited to the push step.
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -21,10 +20,7 @@ permissions:
 
 jobs:
   sync:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
     runs-on: ubuntu-latest
     outputs:
       publish: ${{ steps.source.outputs.publish }}
@@ -41,7 +37,7 @@ jobs:
       - name: Select the main or released documentation snapshot
         id: source
         env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
           DOCS_COMMIT: ${{ inputs.docs_commit }}
         run: |
           export GNUPGHOME="$(mktemp -d)"
