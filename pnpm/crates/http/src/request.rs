@@ -191,17 +191,6 @@ impl Request {
         if !matches!(target.scheme(), "http" | "https") {
             return Err(Error::new(Kind::Redirect, "Unsupported redirect scheme"));
         }
-        if self.url.origin() != target.origin() {
-            for name in [
-                AUTHORIZATION,
-                COOKIE,
-                PROXY_AUTHORIZATION,
-                WWW_AUTHENTICATE,
-                HeaderName::from_static("cookie2"),
-            ] {
-                self.headers.remove(name);
-            }
-        }
         if status == 303 && self.method != Method::HEAD
             || matches!(status, 301 | 302) && self.method == Method::POST
         {
@@ -209,6 +198,24 @@ impl Request {
             self.body = None;
             self.headers.remove(CONTENT_TYPE);
             self.headers.remove(CONTENT_LENGTH);
+        }
+        if self.url.origin() != target.origin() {
+            if self.body.is_some() {
+                return Err(Error::new(
+                    Kind::Redirect,
+                    "Cannot replay request body across origins",
+                ));
+            }
+            for name in [
+                AUTHORIZATION,
+                COOKIE,
+                PROXY_AUTHORIZATION,
+                WWW_AUTHENTICATE,
+                HeaderName::from_static("cookie2"),
+                HeaderName::from_static("npm-otp"),
+            ] {
+                self.headers.remove(name);
+            }
         }
         target.set_username("").map_err(|()| Error::new(Kind::Redirect, "Invalid redirect URL"))?;
         target
@@ -247,3 +254,6 @@ fn remove_url_credentials(url: &mut Url, headers: &mut HeaderMap) -> Result<()> 
     url.set_password(None).map_err(|()| invalid())?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

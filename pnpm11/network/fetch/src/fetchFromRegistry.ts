@@ -1,6 +1,6 @@
 import { URL } from 'node:url'
 
-import { redactUrlCredentials } from '@pnpm/error'
+import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
@@ -156,6 +156,9 @@ async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clien
     // redirect chain cannot pin a connection slot.
     await response.body?.cancel()
     if (originalOrigin !== urlObject.origin) {
+      if (opts?.body != null) {
+        throw new PnpmError('REDIRECT_BODY_CROSS_ORIGIN', `Cannot replay request body across origins: ${redactUrlCredentials(urlObject.toString())}`)
+      }
       removeCredentialHeaders(headers)
     }
   }
