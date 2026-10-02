@@ -211,10 +211,13 @@ impl FetchAttempt<'_> {
             .filter(|etag| !etag.is_empty())
     }
 
+    /// A mirror the registry marked uncacheable is revalidated with the
+    /// origin: its validators go out with `Cache-Control: no-cache`.
     fn metadata_request(&self) -> MetadataRequestOptions<'_> {
         let opts = self.opts;
-        let stored_uncacheable =
-            self.cache_headers.as_ref().is_some_and(|headers| headers.uncacheable);
+        let mirror_lost = self.cache_bypass.load(Ordering::Relaxed);
+        let cache_headers = self.cache_headers.as_ref().filter(|_| !mirror_lost);
+        let stored_uncacheable = cache_headers.is_some_and(|headers| headers.uncacheable);
         let full_etag = self.stored_full_etag();
         let requests_full = opts.full_metadata || full_etag.is_some();
         MetadataRequestOptions {
@@ -222,13 +225,9 @@ impl FetchAttempt<'_> {
             url: self.url,
             accept: if requests_full { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
             priority: opts.priority,
-            etag: full_etag.or_else(|| {
-                self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref())
-            }),
-            modified: self.cache_headers
-                .as_ref()
-                .and_then(|headers| headers.modified.as_deref()),
-            bypass_cache: stored_uncacheable || self.cache_bypass.load(Ordering::Relaxed),
+            etag: cache_headers.and_then(|headers| full_etag.or(headers.etag.as_deref())),
+            modified: cache_headers.and_then(|headers| headers.modified.as_deref()),
+            bypass_cache: stored_uncacheable || mirror_lost,
             http: opts.http.one_attempt(),
         }
     }
