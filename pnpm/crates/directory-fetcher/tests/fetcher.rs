@@ -34,8 +34,6 @@ fn run_in_all_files_mode_returns_manifest_and_filesmap() {
     .run()
     .unwrap();
 
-    // node_modules dropped; manifest read; no install scripts ↔
-    // requires_build = false.
     let mut rels: Vec<_> = out.files_map.keys().cloned().collect();
     rels.sort();
     assert_eq!(rels, vec!["package.json".to_string(), "src/index.ts".into()]);
@@ -69,8 +67,6 @@ fn run_flags_requires_build_when_install_script_present() {
     .run()
     .unwrap();
 
-    // `pkg_requires_build` sees the install script in the manifest
-    // and flips the bit.
     assert!(out.requires_build);
 }
 

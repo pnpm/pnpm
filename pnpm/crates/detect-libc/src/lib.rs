@@ -35,16 +35,6 @@ impl Implementation {
 /// can be determined, or `None` on non-Linux hosts or when all
 /// detection methods fail.
 ///
-/// Detection order:
-/// 1. **ELF interpreter** — read `PT_INTERP` from `/proc/self/exe`.
-///    If the dynamic linker path contains `"/ld-musl-"` → musl;
-///    if it contains `"/ld-linux-"` → glibc.
-/// 2. **Filesystem** — read first 2048 bytes of `/usr/bin/ldd`.
-///    If content contains `"musl"` → musl; if it contains
-///    `"GNU C Library"` or `"GNU libc"` → glibc.
-/// 3. **Command** — run `getconf GNU_LIBC_VERSION`; if that
-///    fails, fall back to `ldd --version`.
-///
 /// Methods are ordered by cost: the ELF interpreter check avoids
 /// spawning any process, the filesystem read avoids PATH lookup,
 /// and the command fallback is only reached when cheaper methods
@@ -78,10 +68,7 @@ fn detect_implementation() -> Option<Implementation> {
 }
 
 /// Map `std::env::consts::OS` to Node's `process.platform` naming.
-/// Node uses `darwin` / `linux` / `win32` / `freebsd` / `openbsd` /
-/// `sunos` / `aix` / `android`. Rust uses `macos` / `linux` /
-/// `windows` / `freebsd` / `openbsd` / `solaris` / `aix` /
-/// `android`. Only `macos`, `windows`, and `solaris` differ.
+/// Only `macos`, `windows`, and `solaris` differ.
 #[must_use]
 pub fn host_platform() -> &'static str {
     #[cfg(target_family = "wasm")]
@@ -101,13 +88,9 @@ pub fn host_platform() -> &'static str {
 }
 
 /// Map `std::env::consts::ARCH` to Node's `process.arch` naming.
-/// Node uses `x64` / `arm64` / `ia32` / `arm` / `s390x` / `ppc64`
-/// / `ppc64` (LE, same string) / `loong64` / `riscv64`. Rust uses
-/// `x86_64` / `aarch64` / `x86` / `arm` / `s390x` / `powerpc64` /
-/// `powerpc64le` / `loongarch64` / `riscv64`. Mappings below mirror
-/// what Node itself emits on each target — anything left as
-/// passthrough (e.g. `arm`, `s390x`, `riscv64`) already matches
-/// between the two naming schemes.
+/// Mappings below mirror what Node itself emits on each target —
+/// anything left as passthrough (e.g. `arm`, `s390x`, `riscv64`)
+/// already matches between the two naming schemes.
 #[must_use]
 pub fn host_arch() -> &'static str {
     #[cfg(target_family = "wasm")]

@@ -20,11 +20,6 @@ pub(crate) struct AddGroups<DependencyGroupList> {
 }
 
 /// Add a single package to `state`'s manifest and install it.
-///
-/// Shared by `pacquet dlx`, `pacquet runtime`, and the self-updater. dlx
-/// points `state` at a cache directory (via a [`Config`] whose `modules_dir`
-/// is anchored there) and saves to `dependencies` so the package's bin lands
-/// in `<cacheDir>/node_modules/.bin`.
 pub(crate) async fn add_package<Reporter, DependencyGroupList>(
     state: State,
     package_name: &str,
@@ -231,18 +226,10 @@ impl AddArgs {
             return add_workspace_config_dependencies::<Reporter>(&state, &added).await;
         }
 
-        // Merge CLI overrides with the yaml-derived value before
-        // handing off to the install pipeline. See
-        // `cli_args::install.rs` for the parallel comment — the
-        // pattern is identical (clone from `&'static Config`, merge,
-        // pass merged value through).
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
 
-        // `--save-catalog-name=<name>` wins; `--save-catalog` is the
-        // shorthand for the default catalog; otherwise fall back to the
-        // `saveCatalogName` config default (`None`). Mirrors pnpm's
-        // `save-catalog` → `--save-catalog-name=default` shorthand.
+        // Mirrors pnpm's `save-catalog` → `--save-catalog-name=default` shorthand.
         let save_catalog_name = self.effective_save_catalog_name(state.config);
 
         let mut state = state;
@@ -364,8 +351,7 @@ impl AddArgs {
     }
 
     /// `pnpm add -g`: install the package into the global packages
-    /// directory and link its bins. Delegates to
-    /// [`crate::cli_args::global::handle_global_add`].
+    /// directory and link its bins.
     pub async fn run_global<Reporter: self::Reporter + 'static>(
         self,
         config: &'static Config,

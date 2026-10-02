@@ -11,10 +11,6 @@ impl AuthHeaders {
         if self.require_secure_transport && !is_url_secure_for_credentials(url) {
             return None;
         }
-        // A server route hook owns the decision: ignore the
-        // client-forwarded credentials entirely (including any inline
-        // `user:pass@` in `url`) and let the deployment's policy pick the
-        // credential and record the route.
         if let Some(hook) = &self.route_hook {
             return hook.authorize(url, pkg_name);
         }
@@ -100,8 +96,7 @@ impl AuthHeaders {
         let upper = parts.len().min(self.max_parts);
         // Walk from the longest meaningful prefix down to `//host/`.
         // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
-        // `//host`; the loop slices through `parts[..i]` and re-joins,
-        // then appends a trailing slash. The exclusive upper bound at
+        // `//host`. The exclusive upper bound at
         // `min(parts.len(), max_parts)` drops the extra iteration that
         // would always build a key ending in `//` (the trailing empty
         // segment from `nerfed.split('/')` plus the appended `/`) and
@@ -133,11 +128,7 @@ impl TokenHelpers {
             AuthEntry::TokenHelper(command) => {
                 let cache_key = format!("{scope}\u{0}{key}");
                 // Take the per-key cell out under the global lock, then
-                // release it *before* running the helper. Holding the lock
-                // across the (up to `TOKEN_HELPER_TIMEOUT`) subprocess would
-                // block every other registry's lookup on one slow helper.
-                // `OnceLock` still serializes concurrent first-lookups of the
-                // *same* key, so the command runs at most once.
+                // release it *before* running the helper.
                 let cell = {
                     let mut cache = self.resolved_token_helpers
                         .lock()

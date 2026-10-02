@@ -60,9 +60,7 @@ fn configured_relative_state_dir_rejects_a_symlink_escape() {
 
 /// The `home_dir` and `current_dir` capability impls call
 /// `unreachable!` because the early `PNPM_HOME` return short-circuits
-/// before either is consumed. Matches the worked example in
-/// `pnpm/CODE_STYLE_GUIDE.md` (Dependency injection for tests):
-/// satisfy the bound, document the precondition.
+/// before either is consumed.
 #[test]
 fn test_default_store_dir_with_pnpm_home_env() {
     struct EnvWithPnpmHome;
@@ -385,9 +383,7 @@ fn resolve_child_concurrency_positive_amount() {
 }
 
 /// `resolve_child_concurrency(Some(i32::MIN))` must not panic.
-/// A naive `(-n) as u32` overflows in debug builds when
-/// `n == i32::MIN` because the negation itself overflows;
-/// `unsigned_abs` is the safe path. `i32::MIN.unsigned_abs()`
+/// `i32::MIN.unsigned_abs()`
 /// is `2_147_483_648`, well above any plausible host
 /// parallelism, so `saturating_sub` produces `0` and `.max(1)`
 /// lifts to exactly `1` — assert that precise value so a wrong

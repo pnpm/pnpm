@@ -29,10 +29,6 @@ pub fn default_git_shallow_hosts() -> Vec<String> {
 }
 
 /// Default for `public-hoist-pattern`: an empty list.
-/// Writing a non-empty list on a fresh install would record a
-/// `publicHoistPattern` in `.modules.yaml` that the next `pnpm`
-/// invocation in the same project rejects with
-/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`.
 pub fn default_public_hoist_pattern() -> Vec<String> {
     Vec::new()
 }
@@ -66,24 +62,12 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
 }
 
-/// Generic over [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
-/// so unit tests can drive every branch — `PNPM_HOME` set,
-/// `XDG_DATA_HOME` set, neither set — without mutating the process
-/// environment. Production callers pass [`crate::Host`] for `Sys`,
-/// which threads `crate::home_dir` and `env::current_dir` through the
-/// capability impls — see the `SmartDefault` expression on
-/// [`crate::Config::store_dir`].
-///
 /// On non-Windows hosts, this is only the **initial** default. After
 /// [`crate::Config::current`] has applied global config, workspace
 /// yaml, and `PNPM_CONFIG_*` env vars, the store is re-resolved
 /// against the project's volume via
 /// [`crate::store_path::resolve_store_dir`] when none of those
-/// sources pinned `storeDir`, falling back to `<mountpoint>/.pnpm-store`
-/// when the home volume can't be hardlinked from the project. Without that
-/// re-resolution a workspace on a separate case-sensitive volume
-/// would land in the case-insensitive home store, breaking tools
-/// that compare canonicalised file paths (typescript-eslint, for one).
+/// sources pinned `storeDir`.
 ///
 /// Like [`default_pnpm_home_dir`] and [`default_cache_dir`], every
 /// non-Windows platform is treated as Unix here: the default is
@@ -239,12 +223,6 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
 }
 
 /// Resolve the default packument-cache directory.
-///
-/// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
-/// as `default_store_dir`: unit tests drive every branch without
-/// mutating the process environment. Production callers pass
-/// [`crate::Host`] for `Sys`, which threads `crate::home_dir` through
-/// the [`GetHomeDir`] impl.
 #[must_use]
 pub fn default_cache_dir<Sys>() -> PathBuf
 where
@@ -273,13 +251,7 @@ pub fn default_install_state_dir() -> PathBuf {
         .join(".pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `false` — every project keeps
-/// its own virtual store at `<project>/node_modules/.pnpm`.
-///
-/// The TypeScript CLI defaults it off too, so the shared store stays an
-/// opt-in on both stacks. The flows that always want it — the engine's
-/// own package-manager installs and the runtime shims — turn it on
-/// explicitly rather than relying on the default.
+/// Default for `enableGlobalVirtualStore`: `false`.
 pub fn default_enable_global_virtual_store() -> bool {
     false
 }
@@ -423,8 +395,7 @@ pub fn default_child_concurrency() -> u32 {
     5
 }
 
-/// Default `workspaceConcurrency`, the default for `workspace-concurrency`:
-/// `min(4, availableParallelism())`.
+/// Default `workspaceConcurrency`: `min(4, availableParallelism())`.
 ///
 /// Read at runtime so `cargo test` and overrides via yaml still resolve to a
 /// usable value on 1-core sandboxes.
@@ -458,8 +429,7 @@ pub fn resolve_child_concurrency(option: Option<i32>) -> u32 {
 }
 
 /// Internal helper exposed for tests so they can pin the
-/// `parallelism` input — the resolver logic itself, with the
-/// parallelism input injected rather than read from the OS.
+/// `parallelism` input.
 pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, parallelism: u32) -> u32 {
     match option {
         None => default_workspace_concurrency_with_parallelism(parallelism),
@@ -474,10 +444,6 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
 
 /// Default `unsafePerm`: `true` on Windows and Cygwin, and on POSIX
 /// whenever the process is not running as root (uid != 0).
-///
-/// Pacquet's executor doesn't currently consume `unsafe_perm` to
-/// actually drop uid/gid, but the TMPDIR-isolation side of the flag is
-/// honored — see `pnpm_executor::make_env`.
 ///
 /// Cygwin needs explicit handling because Rust's
 /// [`x86_64-pc-cygwin` target](https://doc.rust-lang.org/rustc/platform-support/x86_64-pc-cygwin.html)
@@ -521,10 +487,7 @@ pub fn is_unsafe_perm_posix(uid: u32) -> bool {
 
 /// Safe wrapper around `libc::getuid` — contains the `unsafe`
 /// FFI block internally so the caller doesn't need to propagate
-/// `unsafe`. `libc::getuid` is documented as always-safe: it
-/// reads a kernel field, has no side effects, and cannot fail.
-/// Only compiled on POSIX-excluding-Cygwin since that's the only
-/// branch that actually calls it.
+/// `unsafe`.
 #[cfg(all(unix, not(target_os = "cygwin")))]
 fn posix_getuid() -> u32 {
     // SAFETY: `libc::getuid` has no preconditions; it reads a

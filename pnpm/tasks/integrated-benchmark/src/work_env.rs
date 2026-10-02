@@ -209,11 +209,7 @@ impl WorkEnv {
 
     fn bash_command(&self, id: BenchId) -> String {
         // Hyperfine runs each command through a shell, so the script
-        // path needs to survive shell-tokenization. `maybe_quote()`
-        // wraps the path in single quotes (and escapes any embedded
-        // quotes) when it contains a metacharacter — leaves it bare
-        // when the path is alphanumeric/slash/dash only, which is the
-        // common case.
+        // path needs to survive shell-tokenization.
         format!("bash {}", self.script_path(id).maybe_quote())
     }
 
@@ -251,10 +247,7 @@ impl WorkEnv {
                 // `pnpm.cjs`, and the `pnpm11/` layout (where the
                 // TypeScript CLI lives) over the pre-move root layout
                 // (still produced by revisions that predate the move,
-                // e.g. a `pnpm@v10` target). Resolved at script runtime
-                // so the existence check sees the bundle produced by
-                // `pnpm run compile-only`, not the empty tree visible
-                // during `init()`.
+                // e.g. a `pnpm@v10` target).
                 let candidates = PNPM_BUNDLE_PATHS
                     .map(|path| format!("./pnpm-source/{path}"))
                     .join(" ");
@@ -321,8 +314,6 @@ impl WorkEnv {
         let scenario =
             self.options.selection.scenario.expect("scenario set when benchmark() is reached");
 
-        // Pre-benchmark wipe of `node_modules`, `store-dir`, and
-        // `cache-dir` for every benchmark target, regardless of scenario.
         // The hot-cache scenario's per-iteration `--prepare` intentionally
         // preserves `store-dir` / `cache-dir` so subsequent iterations can
         // reuse them, which means whatever a previous run / scenario /
@@ -332,9 +323,7 @@ impl WorkEnv {
         // what state the work-env was in. For cold-cache scenarios this is
         // redundant with the per-iteration wipe but harmless (Copilot
         // review on <https://github.com/pnpm/pacquet/pull/296>).
-        // `cache-dir` is the client's packument-metadata mirror; wiping it
-        // keeps cold-cache scenarios genuinely cold for *resolution*, not
-        // just for the CAS. `pnpr-storage` is the per-target pnpr server's
+        // `pnpr-storage` is the per-target pnpr server's
         // store + cache (only present for `pnpr@<rev>` targets) — wiping it
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
@@ -348,55 +337,25 @@ impl WorkEnv {
             wipe_bench_dir(&dir);
         }
 
-        // Spawn each revision's own tarball-serving mock (see
-        // `plan_revision_mocks`). Done after `build()` produced the
+        // Done after `build()` produced the
         // per-revision binaries and after `init()` warmed the shared storage
-        // they serve from; the guards kill the mocks (and their latency
-        // proxies) on drop at the end of this method.
+        // they serve from.
         let _revision_mocks = self.start_revision_mocks(revision_mocks);
 
-        // Start a pnpr server per `pnpr@<rev>` target and keep the guards
-        // alive for the whole benchmark; they kill the servers on drop at
-        // the end of this method. Empty (no-op) when there are no pnpr
-        // targets. Spawned before the GVS pre-warm below so a pnpr target
+        // Spawned before the GVS pre-warm below so a pnpr target
         // would have its server up if a scenario ever combines the two.
         let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
 
-        // For GVS-warm and repeat-install scenarios we need a pre-warm
-        // pass: hyperfine's `--warmup` would otherwise time-from-empty
-        // for the first run since the pre-benchmark wipe above just
-        // emptied `store-dir` (and `node_modules`). Their contracts are
-        // "GVS already populated" / "`node_modules` already up to date",
-        // so prime them by running the install once per target before
-        // hyperfine starts measuring.
         if scenario.enables_gvs() || scenario.prewarms_node_modules() {
             self.prewarm_install_state();
         }
 
         // hyperfine runs `--prepare` before *each* timed invocation, so
         // cleanup must cover every bench dir we're about to measure.
-        //
-        // Per-iteration cleanup paths come from the scenario: cold-cache
-        // scenarios wipe `node_modules` and `store-dir`, hot-cache wipes
-        // only `node_modules` so the warmup-populated store survives
-        // into the timed runs. Scenarios that mutate `package.json` or
-        // the lockfile (the add-dep variant and the no-lockfile install
-        // variants) restore a pristine copy saved during `init()` so the
-        // next iteration sees the same starting state.
         let cleanup = scenario.cleanup();
         let cleanup_command =
             build_cleanup_command(&cleanup, self.benchmarked_ids(), |id| self.bench_dir(id));
 
-        // Offline scenarios can't let hyperfine's warmup prime the caches —
-        // the measured `--offline` command fails against the mirror the
-        // pre-benchmark wipe above just emptied — so run the online priming
-        // script once per target first. The per-iteration cleanup runs
-        // before the priming too: a reused work-env can carry a lockfile or
-        // `node_modules` from a previous scenario, and either would let the
-        // priming install skip the full resolution that populates the
-        // metadata mirror (a locked install fetches tarballs, not
-        // packuments; an up-to-date `node_modules` short-circuits the
-        // install outright).
         if scenario.prewarm_install_args().is_some() {
             self.prewarm_caches(&cleanup_command);
         }
@@ -489,11 +448,6 @@ impl WorkEnv {
 }
 impl WorkEnv {
     pub fn run(&self) {
-        // The client registry URL is baked into every target's config
-        // during `init`. Direct pnpm/pnpm and the pnpr client tarball
-        // materialization go through this URL. The pnpr server receives a
-        // separate resolve-registry URL so server-side metadata access can
-        // be measured independently.
         let registry_proxy = self.start_client_registry_proxy();
         let client_registry = registry_proxy
             .as_ref()

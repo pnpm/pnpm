@@ -1,9 +1,6 @@
 //! Final normalization pass applied to a publish manifest. The four
 //! steps run in order: required-field validation, `bin` normalization,
 //! `peerDependenciesMeta` defaulting, then `repository` normalization.
-//!
-//! The pass is a straight sequence of in-place mutations on the
-//! manifest object — no closure composition.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

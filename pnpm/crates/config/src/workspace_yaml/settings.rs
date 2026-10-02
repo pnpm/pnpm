@@ -374,7 +374,7 @@ pub struct WorkspaceSettings {
     pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
     /// read-only and suppresses every store write — see
-    /// [`Config::frozen_store`]. Default `false`.
+    /// [`Config::frozen_store`].
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
     pub frozen_store: Option<bool>,
@@ -389,7 +389,7 @@ pub struct WorkspaceSettings {
     pub fetch_retry_maxtimeout: Option<u64>,
     pub network_concurrency: Option<usize>,
     /// `maxSockets` — per-origin concurrent-connection cap. See
-    /// [`Config::max_sockets`](crate::settings::Config::max_sockets). Default unset (no per-origin cap).
+    /// [`Config::max_sockets`](crate::settings::Config::max_sockets).
     pub max_sockets: Option<usize>,
     /// `maxsockets` — npm's spelling of [`Self::max_sockets`], which pnpm
     /// reads too. A field of its own rather than a serde alias, because a
@@ -418,18 +418,9 @@ pub struct WorkspaceSettings {
     /// [`pnpm_patching::resolve_and_group`] so the yaml layer
     /// stays pure data.
     ///
-    /// [`IndexMap`] (not [`BTreeMap`]) — pnpm's JS-object iteration
-    /// preserves the user's order, and that order leaks into
-    /// `PATCH_KEY_CONFLICT` diagnostics that list matched ranges.
-    /// Sorting the keys here would surface as a divergence in
-    /// error messages.
-    ///
     /// pnpm 10+ moved `patchedDependencies` out of
     /// `package.json#pnpm` into `pnpm-workspace.yaml`; pacquet
-    /// matches that. The legacy `package.json#pnpm.patchedDependencies`
-    /// shape is no longer consulted.
-    ///
-    /// [`BTreeMap`]: std::collections::BTreeMap
+    /// matches that.
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
     pub patches_dir: Option<String>,
@@ -489,26 +480,25 @@ pub struct WorkspaceSettings {
 
     /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
     /// default), an install that ignored any dependency build script
-    /// fails instead of only warning. Default `true`.
+    /// fails instead of only warning.
     pub strict_dep_builds: Option<bool>,
 
     /// `ignoreScripts` from `pnpm-workspace.yaml`. When `true`, no
     /// lifecycle scripts run and ignored dependency builds aren't
     /// collected. See [`Config::ignore_scripts`](crate::settings::Config::ignore_scripts). The `--ignore-scripts`
-    /// CLI flag ORs on top of this. Default `false`.
+    /// CLI flag ORs on top of this.
     pub ignore_scripts: Option<bool>,
 
     /// `ignorePnpmfile` from `pnpm-workspace.yaml`. When `true`, no pnpmfile
     /// hooks run. See [`Config::ignore_pnpmfile`](crate::settings::Config::ignore_pnpmfile). The `--ignore-pnpmfile` CLI
     /// flag ORs on top of this. Cleared by
     /// [`Self::clear_workspace_only_fields`], so the global `config.yaml`
-    /// cannot set it. Default `false`.
+    /// cannot set it.
     pub ignore_pnpmfile: Option<bool>,
 
     /// `gitChecks` from `pnpm-workspace.yaml`. When `false`, `pnpm publish`
     /// skips its git working-tree checks. See [`Config::git_checks`](crate::settings::Config::git_checks). The
-    /// `--no-git-checks` CLI flag forces it off on top of this. Default
-    /// `true`.
+    /// `--no-git-checks` CLI flag forces it off on top of this.
     pub git_checks: Option<bool>,
 
     /// See [`Config::publish_wait_timeout`](crate::settings::Config::publish_wait_timeout).
@@ -521,17 +511,16 @@ pub struct WorkspaceSettings {
     pub tag_version_prefix: Option<String>,
 
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
-    /// See [`Config::engine_strict`](crate::settings::Config::engine_strict). Default `false`.
+    /// See [`Config::engine_strict`](crate::settings::Config::engine_strict).
     pub engine_strict: Option<bool>,
 
     /// `forceIgnoresPlatform` from `pnpm-workspace.yaml` / global
     /// `config.yaml`. See
     /// [`Config::force_ignores_platform`](crate::settings::Config::force_ignores_platform).
-    /// Default `false`.
     pub force_ignores_platform: Option<bool>,
 
     /// `nodeVersion` from `pnpm-workspace.yaml` / global `config.yaml`.
-    /// See [`Config::node_version`](crate::settings::Config::node_version). Default unset (auto-detect).
+    /// See [`Config::node_version`](crate::settings::Config::node_version).
     pub node_version: Option<String>,
 
     /// `runtimeOnFail` from `pnpm-workspace.yaml` / global `config.yaml`.
@@ -581,8 +570,7 @@ pub struct WorkspaceSettings {
     /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
     /// `config.yaml`. Resolved through
     /// [`crate::resolve_child_concurrency`] in `apply_to`, the same
-    /// way `childConcurrency` is. Signed `i32` so negative values
-    /// (interpreted as `parallelism - |value|`) round-trip cleanly.
+    /// way `childConcurrency` is.
     /// A genuine config-file key (so it is kept, not cleared, in
     /// [`Self::clear_workspace_only_fields`]).
     pub workspace_concurrency: Option<i32>,
@@ -651,14 +639,7 @@ pub struct WorkspaceSettings {
     /// `None` so the overrides key is dropped entirely.
     ///
     /// pnpm 10+ moved `overrides` out of `package.json#pnpm` into
-    /// `pnpm-workspace.yaml`. Pacquet matches that — the legacy
-    /// `package.json#pnpm.overrides` shape is no longer consulted.
-    ///
-    /// Lockfile drift: the raw map is recorded in `pnpm-lock.yaml`'s
-    /// `overrides:` field. On a subsequent install,
-    /// `pnpm_lockfile::check_lockfile_settings` compares this
-    /// against `lockfile.overrides` and raises `OverridesChanged`
-    /// on mismatch.
+    /// `pnpm-workspace.yaml`. Pacquet matches that.
     pub overrides: Option<IndexMap<String, String>>,
 
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
@@ -679,8 +660,7 @@ pub struct WorkspaceSettings {
     pub minimum_release_age_exclude: Option<Vec<String>>,
 
     /// `minimumReleaseAgeExcludePrune` from `pnpm-workspace.yaml`.
-    /// See [`Config::minimum_release_age_exclude_prune`](crate::settings::Config::minimum_release_age_exclude_prune). Default
-    /// `false`.
+    /// See [`Config::minimum_release_age_exclude_prune`](crate::settings::Config::minimum_release_age_exclude_prune).
     pub minimum_release_age_exclude_prune: Option<bool>,
 
     /// `minimumReleaseAgeIgnoreMissingTime` from `pnpm-workspace.yaml`.
@@ -775,7 +755,7 @@ pub struct WorkspaceSettings {
     pub trust_policy_exclude: Option<Vec<String>>,
 
     /// `trustPolicyExcludePrune` from `pnpm-workspace.yaml`.
-    /// See [`Config::trust_policy_exclude_prune`](crate::settings::Config::trust_policy_exclude_prune). Default `false`.
+    /// See [`Config::trust_policy_exclude_prune`](crate::settings::Config::trust_policy_exclude_prune).
     pub trust_policy_exclude_prune: Option<bool>,
 
     /// `trustPolicyIgnoreAfter` from `pnpm-workspace.yaml`. Minutes.
@@ -809,7 +789,7 @@ pub struct WorkspaceSettings {
     pub catalog_mode: Option<CatalogMode>,
 
     /// `catalogPrune` from `pnpm-workspace.yaml`. See
-    /// [`Config::catalog_prune`](crate::settings::Config::catalog_prune). Default `false`.
+    /// [`Config::catalog_prune`](crate::settings::Config::catalog_prune).
     pub catalog_prune: Option<bool>,
 
     /// `catalogPrune`'s former name, still accepted. [`Self::catalog_prune`]
@@ -829,13 +809,13 @@ pub struct WorkspaceSettings {
     pub save_prefix: Option<String>,
 
     /// `saveExact` from `pnpm-workspace.yaml`. See
-    /// [`Config::save_exact`]. Default `false`.
+    /// [`Config::save_exact`].
     ///
     /// [`Config::save_exact`]: crate::Config::save_exact
     pub save_exact: Option<bool>,
 
     /// `savePeer` from `pnpm-workspace.yaml`. See
-    /// [`Config::save_peer`]. Default `false`.
+    /// [`Config::save_peer`].
     ///
     /// [`Config::save_peer`]: crate::Config::save_peer
     pub save_peer: Option<bool>,
@@ -922,7 +902,7 @@ impl WorkspaceSettings {
     }
 
     /// Warn about the keys of the global `config.yaml` that never reach the
-    /// settings, in the three messages pnpm emits for that file.
+    /// settings, in the messages pnpm emits for that file.
     ///
     /// What survived is read back off `self` rather than off a second list of
     /// key names, which would drift from the struct: a key serde did not

@@ -99,7 +99,7 @@ function parseVersionLine (versionSpec: string): VersionLine | undefined {
  *
  * A range or a tag is not held to the same standard: it names no single
  * version to record, and updating within the dependents' ranges is a
- * reasonable reading of it. Those keep the warning they have always had.
+ * reasonable reading of it. Those keep the warning.
  *
  * The override the hint recommends is scoped to the dependents' declared range
  * so it cannot violate any consumer's range; that range lives in the

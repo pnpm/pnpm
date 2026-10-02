@@ -327,7 +327,7 @@ impl Read for EndlessReader {
 /// Pacquet's [`normalize_bundled_manifest`] picks the subset of
 /// `package.json` fields downstream install code reads (bin lookup,
 /// peer extraction, build-script detection) and narrows `scripts` to
-/// the three lifecycle hooks. Two cases are intentionally NOT covered:
+/// the lifecycle hooks. Two cases are intentionally NOT covered:
 /// `semver.clean` normalization (pacquet keeps version verbatim, per
 /// the function's doc comment) and the missing-version default of
 /// `0.0.0` (pacquet leaves the field absent rather than synthesizing

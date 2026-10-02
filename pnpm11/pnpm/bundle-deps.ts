@@ -23,9 +23,7 @@ import { execSync } from 'node:child_process'
 //
 // Note that most pnpm dependencies are baked into the large pnpm.mjs file by
 // esbuild. This script handles other dependencies the pnpm bundle config
-// declares as "external" and resolved at runtime — node-gyp, v8-compile-cache,
-// and @reflink/reflink (all platform variants, installed via --force under
-// forceIgnoresPlatform).
+// declares as "external" and resolved at runtime.
 //
 // Strategy
 // --------

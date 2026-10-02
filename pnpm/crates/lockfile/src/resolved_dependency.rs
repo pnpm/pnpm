@@ -33,10 +33,6 @@ pub struct ResolvedDependencySpec {
 ///   peer suffix), meaning the dependency resolves to a snapshot whose
 ///   package name differs from the importer-map key. Pnpm writes this
 ///   shape when a `catalog:` (or other) specifier resolves to an alias.
-///   Detection mirrors upstream's `refToRelative`
-///   (`deps/path/src/index.ts` at `pnpm/pnpm@8a80235c7b`): a reference
-///   is an alias when it begins with `@` or when the first `@` occurs
-///   before any `(` and `:`.
 /// - A `link:<path>` value, meaning the dependency is a workspace
 ///   sibling at `<path>` relative to the importer's `rootDir`. The
 ///   workspace project is not duplicated in the virtual store — pnpm
@@ -48,8 +44,7 @@ pub struct ResolvedDependencySpec {
 ///   `file:` prefix; the peer suffix, when present, identifies a
 ///   peer-specific snapshot variant in `snapshots:`.
 ///
-/// [`ImporterDepVersion`] encodes the distinction so consumers (the
-/// installer, the build-sequence builder, the reporter) can branch on
+/// [`ImporterDepVersion`] encodes the distinction so consumers can branch on
 /// shape without re-parsing the raw string at every call site.
 ///
 /// Snapshot-level dependencies (the values inside `snapshots.*.dependencies`)
@@ -228,9 +223,7 @@ fn looks_like_alias(value: &str) -> bool {
 impl FromStr for ImporterDepVersion {
     type Err = ParseImporterDepVersionError;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        // `link:` keeps the path verbatim; the alias shape parses to
-        // `PkgNameVerPeer`; everything else parses as a bare
-        // semver-with-peer. The `link:` discriminator is upstream's
+        // The `link:` discriminator is upstream's
         // own — pnpm itself looks for the literal `link:` prefix at
         // install time (see `installDepsResolve` / `lockfileToDepGraph`).
         if let Some(target) = value.strip_prefix("link:") {

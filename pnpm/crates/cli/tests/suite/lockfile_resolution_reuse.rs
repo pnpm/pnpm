@@ -114,9 +114,9 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 
     // Trust the lockfile so the post-resolution verifier doesn't fetch
     // each entry's metadata from the registry — that verification is a
-    // separate concern from resolution reuse, and (now that it always runs
-    // and fails closed) it would hit the dead registry regardless of
-    // whether resolution was reused, masking what this test proves.
+    // separate concern from resolution reuse, and it would hit the dead
+    // registry regardless of whether resolution was reused, masking what
+    // this test proves.
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     fs::write(&workspace_yaml, format!("{existing}trustLockfile: true\n"))
@@ -188,7 +188,7 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 /// fresh resolve would, so reuse can never silently drift the resolution.
 ///
 /// Compared **byte-for-byte**: the writer sorts every lockfile map by its
-/// rendered key, so build-insertion order no longer leaks into the file. A
+/// rendered key, so build-insertion order cannot leak into the file. A
 /// reuse build and a fresh build of the same manifest therefore emit
 /// identical bytes — this is the byte-stability guarantee from
 /// [#12117](https://github.com/pnpm/pnpm/issues/12117).
@@ -249,8 +249,7 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
 /// When that leaf occurrence sits at a shallower depth than the healthy
 /// reused occurrence it wins children ownership, so the package's
 /// snapshot collapses to `{}`, its peer suffix is dropped, and its
-/// dependents re-point at the bare instance
-/// (`'@yarnpkg/shell@4.0.0': {}` in the original report).
+/// dependents re-point at the bare instance.
 ///
 /// Scenario, driven by the `@pnpm.e2e/reuse-chain-*` fixtures
 /// (`grand → parent → target`, where `target` deps `@pnpm.e2e/abc` +
@@ -267,8 +266,8 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
 ///
 /// Importers resolve in order, so pkg-a's cache entry exists when
 /// pkg-b's denied edge looks up; the depth-1 occurrence out-ranks the
-/// depth-2 one for children ownership, making the corruption (before
-/// the fix) deterministic rather than a race.
+/// depth-2 one for children ownership, making the corruption
+/// deterministic rather than a race.
 ///
 /// `target`'s dep `@pnpm.e2e/abc` wants peers nothing in the subtree
 /// provides, so auto-install-peers suffixes `target` — the corrupted

@@ -344,8 +344,7 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
 /// The resolution comparison is not frozen-path-only: `pnpm add` builds
 /// a fresh lockfile and is handed the current one too, so a package
 /// whose recorded resolution no longer matches is imported again there
-/// as well. Pins the claim, which a stale comment on
-/// `HoistedLinkerInputs::current_lockfile` used to contradict.
+/// as well.
 #[test]
 fn adding_a_dependency_reimports_a_hoisted_package_whose_resolution_changed() {
     let CommandTempCwd {

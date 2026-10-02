@@ -32,9 +32,8 @@ const PATH_SEPARATOR: &str = if cfg!(windows) { ";" } else { ":" };
 /// A directory holding the platform path delimiter is rejected rather than
 /// written: it would silently split into several entries, and one of the
 /// halves could name a directory somebody else can write to. Every command
-/// that puts a directory of its own in front of the user's `PATH` — `exec`,
-/// `dlx`, `with`, and the shim dispatcher — goes through here, so they
-/// cannot drift apart on that.
+/// that puts a directory of its own in front of the user's `PATH` goes
+/// through here, so they cannot drift apart on that.
 pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPathDir> {
     let mut path = OsString::new();
     for dir in dirs {

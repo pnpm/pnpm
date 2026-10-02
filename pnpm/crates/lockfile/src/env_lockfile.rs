@@ -88,7 +88,6 @@ impl EnvLockfile {
         let mut importers = HashMap::new();
         importers.insert(Self::ROOT_IMPORTER_KEY.to_string(), EnvImporterSnapshot::default());
         EnvLockfile {
-            // Seeds the `lockfileVersion` "9.0" string.
             lockfile_version: "9.0".to_string(),
             importers,
             packages: HashMap::new(),

@@ -6,8 +6,7 @@
 //! `full_metadata`. It issues a conditional GET against the upstream
 //! registry, and either reads the cached body (304) or writes the
 //! new body back (2xx). Without a cache directory it falls through
-//! to a plain GET — the same behavior callers got before Phase 5
-//! from [`crate::fetch_full_metadata()`].
+//! to a plain GET.
 //!
 //! The directory layout matches pnpm's; the file format is pacquet's
 //! own indexed shape (see [`crate::mirror`]) so warm loads hydrate
@@ -169,9 +168,7 @@ impl FetchAttempt<'_> {
         // run to several megabytes for high-release-cadence packages
         // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
         // tokio worker for hundreds of milliseconds and stalls every
-        // socket that worker pumps — on a cold babylon install the
-        // inline parses held the metadata phase to a third of pnpm's
-        // throughput.
+        // socket that worker pumps.
         let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
             .await
             .map_err(|error| FetchMetadataError::ParseTask {

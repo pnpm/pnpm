@@ -22,11 +22,6 @@ use std::sync::Mutex;
 /// — the install isn't a workspace install, so the caller should use
 /// the top-level `Install.manifest` as its only importer and pass
 /// `None` for the `workspace:`-spec lookup.
-///
-/// One walk feeds both [`super::build_workspace_packages_map`] (the npm
-/// resolver's `workspace:` lookup) and the per-importer manifest list
-/// the fresh-resolve path iterates over, so the manifests are read
-/// from disk exactly once.
 pub(super) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,

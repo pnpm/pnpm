@@ -70,7 +70,7 @@ test('updateWorkspaceManifest updates an existing setting', async () => {
 // of comment preservation in pnpm-workspace.yaml.
 //
 // The tests in @pnpm/yaml.document-sync should cover more cases and be
-// sufficient. It's likely not necessary to duplicate the tests in that package.
+// sufficient.
 test('updateWorkspaceManifest preserves comments', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)

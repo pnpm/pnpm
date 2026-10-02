@@ -274,7 +274,6 @@ function addGraphNode (opts: FetchDepsOptions, placedDep: PlacedDep, fetchRespon
     resolution: pkgSnapshot.resolution,
   }
   pushLocation(opts.pkgLocationsByPkgId, getHoisterPkgId(depPath, pkgSnapshot), dir)
-  // Track directory deps for injected workspace packages
   if ('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) {
     const locations = opts.injectionTargetsByDepPath.get(depPath)
     if (locations) {

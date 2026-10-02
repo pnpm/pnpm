@@ -155,16 +155,14 @@ pub struct BuildLayout<'a> {
     pub layout: &'a crate::VirtualStoreLayout,
 
     /// Per-snapshot `pkgRoot` override, populated by the hoisted
-    /// linker with the slice 4 walker's
+    /// linker with the walker's
     /// [`crate::DependenciesGraphNode::dir`] values. When `Some`,
     /// every `pkgRoot` lookup goes through this map instead of the
     /// virtual-store-layout slot computation; a missing entry means
     /// the snapshot didn't make it into the hoisted graph (skipped
     /// optional, etc.) and the build phase silently passes over it.
     /// `None` for the isolated linker — its slot directories are
-    /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
-    /// two-mode `pkgRoot` selection (override map vs. layout slot)
-    /// is handled by `PkgRoots`.
+    /// recovered from [`crate::VirtualStoreLayout::slot_dir`].
     ///
     /// One snapshot can occupy several directories: the walker nests a
     /// second copy of a package under a sibling when a version conflict

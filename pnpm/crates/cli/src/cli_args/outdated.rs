@@ -3,7 +3,7 @@
 //!
 //! The detection half — [`collect_outdated`] — is shared with
 //! `update --interactive`, which gathers the same "what has a newer
-//! version" list before prompting. The two callers differ only in which
+//! version" list before prompting. The callers differ only in which
 //! registry version counts as the comparison [`TargetVersion`]: `outdated`
 //! compares against the absolute newest (`latest` tag, or the highest
 //! in-range version under `--compatible`), while `update` compares against
@@ -66,7 +66,7 @@ use workspace::{
     no_lockfile_error, project_dir, recursive_workspace_outdated, validate_package_patterns,
 };
 
-/// Output format for `pacquet outdated`.
+/// Output format for `pnpm outdated`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutdatedFormat {
     Table,
@@ -74,7 +74,7 @@ pub enum OutdatedFormat {
     Json,
 }
 
-/// `--prod` / `--dev` / `--no-optional` for `pacquet outdated`.
+/// `--prod` / `--dev` / `--no-optional` for `pnpm outdated`.
 #[derive(Debug, Args)]
 pub struct OutdatedDependencyOptions {
     /// Check only "dependencies" and "optionalDependencies".
@@ -110,7 +110,7 @@ impl OutdatedDependencyOptions {
     }
 }
 
-/// `pacquet outdated [<pkg> ...]`.
+/// `pnpm outdated [<pkg> ...]`.
 #[derive(Debug, Args)]
 pub struct OutdatedArgs {
     /// Restrict the check to dependencies whose name matches one of these

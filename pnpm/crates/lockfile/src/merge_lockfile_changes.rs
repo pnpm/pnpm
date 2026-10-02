@@ -1,11 +1,6 @@
 //! Fold one lockfile's changes into another — how an install under
 //! `mergeGitBranchLockfiles` combines the per-branch lockfiles with the
 //! shared `pnpm-lock.yaml`.
-//!
-//! Merges top-level recorded config fields (settings, catalogs, overrides,
-//! packageExtensionsChecksum, patchedDependencies, time) as well as
-//! importers, packages, snapshots, lockfile version, pnpmfile checksum,
-//! and ignored optional dependencies.
 
 pub use env::merge_env_lockfile_changes;
 

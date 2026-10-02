@@ -12,7 +12,6 @@ fn install_test() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
 
-    // Create a package.json with a test script and a dependency
     std::fs::write(
         workspace.join("package.json"),
         r#"{

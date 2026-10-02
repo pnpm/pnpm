@@ -91,9 +91,7 @@ fn format_list_item(summary: &str) -> String {
 
 /// Places `section` at the top of a package's changelog: under the existing
 /// `# <name>` title when `existing` is `Some`, or under a freshly created
-/// title when `existing` is `None`. Used both to write a committed
-/// CHANGELOG.md (`repository` storage) and to build the changelog packed into
-/// a published tarball on top of the previous version's (`registry` storage).
+/// title when `existing` is `None`.
 #[must_use]
 pub fn render_changelog(existing: Option<&str>, pkg_name: &str, section: &str) -> String {
     let Some(existing) = existing else {

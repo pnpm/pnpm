@@ -40,7 +40,7 @@ fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
 }
 /// With several unkeyable nodes, the reported failure must be the first
 /// one in the graph's own iteration order — the parallel node fan-out
-/// folds its results in that order, like the serial loop it replaced.
+/// folds its results in that order.
 #[test]
 fn the_first_unkeyable_node_in_graph_order_is_the_reported_one() {
     let mut graph: DependenciesGraph = HashMap::default();

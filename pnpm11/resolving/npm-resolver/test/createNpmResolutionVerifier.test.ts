@@ -910,7 +910,7 @@ test('createNpmResolutionVerifier() propagates the registry fetch error instead 
 test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {
   // The metadata fetch succeeds but does not list the pinned version. That is a
   // genuine verification failure (not a transport error), so it must stay
-  // TARBALL_URL_MISMATCH — distinct from the new TARBALL_URL_FETCH_FAILED.
+  // TARBALL_URL_MISMATCH — distinct from TARBALL_URL_FETCH_FAILED.
   const meta = {
     name: 'present-pkg',
     'dist-tags': { latest: '1.0.0' },

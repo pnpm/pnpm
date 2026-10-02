@@ -95,11 +95,7 @@ export interface ResolveDependenciesResult {
   /**
    * Policy violations collected inline during resolution — each
    * resolver pushes to the list whenever it picks a version that
-   * trips one of its own checks (today: `minimumReleaseAge`). The
-   * install command reacts via `handleResolutionPolicyViolations`
-   * (prompt / abort) and `mutateModules` forwards the array out so
-   * the auto-persist path at the install's tail can drain it into
-   * the workspace manifest. Empty when no policy is active or no
+   * trips one of its own checks. Empty when no policy is active or no
    * pick violates.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
@@ -208,9 +204,7 @@ async function toResolveImporters (
  * inline as it picks each version, and we hand the accumulated
  * list to the install command's hook. The hook throws to abort
  * cleanly — nothing on disk has changed yet, and we haven't paid
- * the cost of peer resolution. Dispatch stays policy-neutral: each
- * resolver owns its violation codes, and the hook implementer
- * decides what to do with them.
+ * the cost of peer resolution.
  *
  * If violations fired but no hook was wired, throw rather than
  * silently dropping them — the resolver-policy contract is "every

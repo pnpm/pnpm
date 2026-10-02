@@ -231,11 +231,7 @@ impl CacheCommand {
     /// Remove the mirror directories left behind by a pnpm that keyed them on
     /// the registry's host alone.
     ///
-    /// Changing the key to carry the scheme and path stranded every directory
-    /// written before it: the same registry now resolves to a different name,
-    /// so the old one is never read and no per-package command reaches it,
-    /// because those all scope their glob to the configured registry's current
-    /// key. Only [`is_unreadable_registry_key`] decides what goes, so a mirror
+    /// Only [`is_unreadable_registry_key`] decides what goes, so a mirror
     /// this version could still read is never a candidate.
     ///
     /// Prints each removed directory as `<meta-dir>/<registry-key>`, the name

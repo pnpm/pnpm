@@ -5,7 +5,7 @@ use super::{
 
 /// Pick the `package.json` fields downstream code actually reads — bin
 /// linking, dependency resolution, build-script detection — and discard
-/// the rest, keeping only the three lifecycle hooks pnpm executes out
+/// the rest, keeping only the lifecycle hooks pnpm executes out
 /// of `scripts`.
 ///
 /// The subset exists to bound what lands in `index.db`: a full manifest
@@ -47,8 +47,7 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
     let mut picked = serde_json::Map::new();
 
     // pnpm emits `version` first regardless of whether it was first
-    // in the source object. Keep the same ordering so a byte diff
-    // against a pnpm-written row stays minimal. Version normalization
+    // in the source object. Version normalization
     // via `semver.clean(...)` (pnpm only loose-cleans for the bundled
     // row, not for resolution) is intentionally skipped: the inputs
     // from a real npm tarball are already semver-clean in practice,
@@ -183,9 +182,7 @@ pub(crate) fn write_synthesized_package_json(
 /// The narrowed manifest is stashed in `pkgFilesIndex.manifest` so
 /// install-side consumers (notably bin linking) can avoid re-reading
 /// the file from disk — the same place pnpm keeps it, so the shared
-/// `index.db` row carries it for both tools. The
-/// [`normalize_bundled_manifest`] pick drops fields downstream code
-/// doesn't use, keeping `index.db` rows tight.
+/// `index.db` row carries it for both tools.
 ///
 /// Callers apply this to every `package.json` entry they see, so a
 /// duplicate entry overwrites any earlier one and the final entry is

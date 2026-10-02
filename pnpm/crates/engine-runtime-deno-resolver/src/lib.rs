@@ -9,11 +9,6 @@
 //!    that tag, downloads each artifact's per-file `.sha256sum`, and
 //!    emits one [`PlatformAssetResolution`](pnpm_lockfile::PlatformAssetResolution)
 //!    per `(os, cpu)` triple.
-//!
-//! The resolver trait owns an [`Arc<dyn Resolver>`](pnpm_resolving_resolver_base::Resolver)
-//! for the npm side rather than taking a function reference, so the
-//! same instance can plug into the default-resolver chain both
-//! directly and as the version-selection dependency of this resolver.
 
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;

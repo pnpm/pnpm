@@ -22,9 +22,6 @@ const NON_SETTING_CONFIG_KEYS = new Set([
  * not default values. Auth/registry keys from authConfig are always included,
  * and so is `registries` — the registries the CLI resolves from, merged
  * across every source.
- *
- * Accepts a clean Config object (without ConfigContext fields mixed in),
- * so no INTERNAL_CONFIG_KEYS exclusion list is needed.
  */
 export function configToRecord (config: Config, explicitlySetKeys: Set<string>): Record<string, unknown> {
   const result: Record<string, unknown> = {}

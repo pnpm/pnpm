@@ -272,10 +272,7 @@ impl<'a> MaterializationInputs<'a, '_> {
     /// Re-verify the existing lockfile alongside the fresh resolve,
     /// matching the pre-resolution gate: a committed lockfile that
     /// bypassed the policy locally is caught even though the resolver
-    /// re-resolves from it. The fan-out's registry round trips overlap
-    /// the resolve and the materialization; the verdict still gates
-    /// bin linking, dependency builds, and the lockfile save inside
-    /// [`InstallWithFreshLockfile`]. No-op when there's no lockfile
+    /// re-resolves from it. No-op when there's no lockfile
     /// (state 4) or verification is disabled. The pnpr override stays
     /// a blocking gate — it is a single round trip with nothing
     /// substantial to overlap.

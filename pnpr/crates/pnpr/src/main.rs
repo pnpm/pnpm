@@ -46,8 +46,7 @@ struct Args {
 #[derive(Debug, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
-    /// `-c`). Useful for tests and benchmarks that want their own
-    /// storage directory without writing a custom YAML. Unless
+    /// `-c`). Unless
     /// `--cache` is also given, the disposable proxy cache is
     /// re-derived as a subdirectory of this path.
     #[arg(long, env = "PNPR_STORAGE")]

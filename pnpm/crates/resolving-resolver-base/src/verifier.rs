@@ -76,8 +76,7 @@ pub struct VerifyCtx<'a> {
 /// trait that returns `impl Future` is not yet ergonomic without
 /// `#[async_trait]` or a manual boxed-future. The runner stores
 /// verifiers as `&dyn ResolutionVerifier` so it can fan out across a
-/// heterogeneous list (the npm verifier today, future custom
-/// verifiers tomorrow); the boxed-future return is the minimal cost
+/// heterogeneous list; the boxed-future return is the minimal cost
 /// for keeping that flexibility while staying off `async-trait`.
 pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> + Send + 'a>>;
 

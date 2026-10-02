@@ -273,11 +273,6 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
 /// Only regular files are stored; a published npm tarball carries
 /// nothing else that pacquet can represent.
 ///
-/// The archive is already fully buffered in memory by the download
-/// pipeline. Use `entries_with_seek` + `raw_file_position` to borrow
-/// each file payload as a slice of that buffer instead of allocating a
-/// fresh `Vec<u8>` and `read_to_end`-ing every entry.
-///
 /// Every tar-side failure comes back as
 /// [`TarballError::ReadTarballEntries`] instead of panicking, and a
 /// non-UTF-8 entry path is coerced via
@@ -301,12 +296,9 @@ pub(crate) fn extract_tarball_entries(
 
     let ((_, Some(capacity)) | (capacity, None)) = entries.size_hint();
 
-    // Phase 1 (serial): walk the seekable tar stream, validate and clean
-    // each regular-file path, and capture the byte slice of its payload.
     // Header parsing has to run sequentially against the single archive
     // stream, but it's cheap; the expensive per-file hashing + CAS write
-    // is deferred to the parallel phase below. The bundled `package.json`
-    // manifest is captured here too, off the raw payload slice.
+    // is deferred to the parallel phase below.
     let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
     let mut manifest = None;
     let mut triggers = BuildTriggers::default();

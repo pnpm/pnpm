@@ -15,12 +15,7 @@ use std::collections::{HashMap, HashSet};
 /// `binding.gyp` / `.hooks/`).
 ///
 /// `patches` is the per-snapshot lookup map produced by
-/// `InstallFrozenLockfile::run` from
-/// [`pnpm_patching::resolve_and_group`] + per-snapshot
-/// [`pnpm_patching::get_patch_info`]: keys are peer-stripped
-/// [`PackageKey`]s, values are the matched
-/// [`pnpm_patching::ExtendedPatchInfo`]. `None` when no
-/// `patchedDependencies` is configured. Presence of a key here makes
+/// `InstallFrozenLockfile::run`. Presence of a key here makes
 /// the snapshot a build candidate even when `requires_build` is false.
 ///
 /// `dependency_groups` are the groups this install includes — the
@@ -165,9 +160,7 @@ struct GetSubgraphCtx<'a> {
 /// A node is a candidate when `requires_build` is set OR when an entry
 /// for the peer-stripped key is present in `patches` — *unless* the
 /// node is in `skipped`, in which case its virtual-store slot was never
-/// created so neither the requires-build nor patch path can run. A
-/// skipped snapshot never enters the build graph, so a child reachable
-/// only through a skipped edge is excluded too.
+/// created so neither the requires-build nor patch path can run.
 ///
 /// Returns whether *any* of the entry nodes (or their subtrees) needs to build.
 fn get_subgraph_to_build(

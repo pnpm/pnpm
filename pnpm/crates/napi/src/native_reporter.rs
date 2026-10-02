@@ -38,9 +38,7 @@ use pnpm_reporter::{FetchingProgressMessage, LogEvent};
 /// `CalleeHandled = false`, return value discarded, never blocking.
 pub type OutputSink = ThreadsafeFunction<String, UnknownReturnValue, String, Status, false>;
 
-/// pnpm's default terminal output, rendered by the engine. Mirrors
-/// [`ReporterOptions`] in `index.d.ts`; every field maps onto the option of
-/// the same name in `@pnpm/cli.default-reporter`'s `reportingOptions`.
+/// pnpm's default terminal output, rendered by the engine.
 #[napi(object)]
 #[derive(Default)]
 #[cfg_attr(

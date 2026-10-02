@@ -72,7 +72,6 @@ describe('custom fetcher support', () => {
 
     expect(typeof fetcher).toBe('function')
 
-    // Call the fetcher and verify it uses the custom fetch function
     const mockCafs = {} as any
     const mockResolution = { tarball: 'http://example.com/package.tgz' } as any
     const mockFetchOpts = {} as any
@@ -252,7 +251,6 @@ describe('custom fetcher support', () => {
   })
 
   test('throws error for custom resolution type with no custom fetcher', async () => {
-    // Custom resolution type without a matching custom fetcher
     const customResolution = {
       type: 'custom:cdn',
       cdnUrl: 'https://cdn.company.com/package.tgz',

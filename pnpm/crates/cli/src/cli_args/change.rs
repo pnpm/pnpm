@@ -102,9 +102,6 @@ impl ChangeArgs {
             })
             .transpose()?;
 
-        // For a name shared by several projects the interactive picker offers
-        // each project under its directory reference, so the written intent
-        // stays unambiguous without the contributor knowing the rule exists.
         let pkg_refs = if self.params.is_empty() {
             let changed_dirs =
                 detect_changed_dirs(&releasable, &engine_projects, &workspace_dir, config);

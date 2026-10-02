@@ -43,8 +43,7 @@ impl ReporterState {
         }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
-        // only duplicate the error. The box is gated on
-        // `!strictDepBuilds`; the structured event still carries the
+        // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
         if log.strict_dep_builds {
             return;

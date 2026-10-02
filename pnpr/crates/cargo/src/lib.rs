@@ -267,8 +267,7 @@ impl CrateDocument {
 pub const MAX_DESCRIPTION_LEN: usize = 1_000;
 
 /// A publish's description, cut to [`MAX_DESCRIPTION_LEN`] characters. Cut
-/// rather than refused: the description was accepted and discarded before
-/// crate documents kept one, and a publish that worked should keep working.
+/// rather than refused: a publish that worked should keep working.
 #[must_use]
 pub fn bounded_description(description: Option<&str>) -> Option<String> {
     description.map(|description| {
@@ -279,7 +278,7 @@ pub fn bounded_description(description: Option<&str>) -> Option<String> {
     })
 }
 
-/// One row of `GET api/v1/crates`. `cargo search` reads exactly these three
+/// One row of `GET api/v1/crates`. `cargo search` reads exactly these
 /// fields, so the response stays that narrow rather than modelling all of
 /// what crates.io returns.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

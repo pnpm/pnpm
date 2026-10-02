@@ -100,12 +100,10 @@ pub trait UpstreamRouteHook: Send + Sync {
 /// how the route decision reaches the npm resolver's mirror path, in-memory
 /// cache key, and fetch-lock key.
 ///
-/// The pnpm CLI has no route hook, so every fetch is [`Self::Public`] and the
-/// global mirror behaves exactly as before.
+/// The pnpm CLI has no route hook, so every fetch is [`Self::Public`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetadataCacheScope {
-    /// Public route: the shared, global metadata mirror — current behavior,
-    /// shared by every caller.
+    /// Public route: the shared, global metadata mirror.
     Public,
     /// Private route keyed by a private access descriptor. `descriptor_id`
     /// is a filesystem-safe, server-secret-keyed digest that namespaces the
@@ -123,9 +121,7 @@ pub enum MetadataCacheScope {
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
 /// [`AuthHeaders::for_url`].
-/// Memo of resolved `tokenHelper` results keyed by `scope + map key`. Each
-/// entry is a per-key [`OnceLock`] so a resolving subprocess runs without the
-/// shared [`Mutex`] held. Cloning the headers shares the cache.
+/// Memo of resolved `tokenHelper` results keyed by `scope + map key`.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
 
 #[derive(Default, Clone)]
@@ -388,9 +384,7 @@ impl AuthHeaders {
         }
     }
 
-    /// Override the runner used to execute `tokenHelper` commands. The
-    /// dependency-injection seam for tests: production leaves it unset
-    /// and spawns real processes.
+    /// Override the runner used to execute `tokenHelper` commands.
     #[must_use]
     pub fn with_token_helper_runner(mut self, runner: TokenHelperRunner) -> Self {
         self.token_helpers.token_helper_runner = Some(runner);

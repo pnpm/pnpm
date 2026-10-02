@@ -19,11 +19,6 @@ pub struct HoistPlan {
     pub result: crate::HoistResult,
     pub skipped: HashSet<PackageKey>,
 }
-/// Compute the in-memory hoist plan. Returns `None` when nothing
-/// should be hoisted today (no patterns, nothing to hoist, or the
-/// install is going through the hoisted linker). Side-effect-free:
-/// the on-disk symlinks happen later in the pipeline. Same input
-/// gating as the legacy in-place block in [`crate::install_frozen_lockfile::InstallFrozenLockfile::run`].
 /// `hoist-workspace-packages` input: every named non-root project's
 /// `name → (project id, absolute project dir)`, the shape v11 builds from
 /// `allProjects` for its `hoistedWorkspacePackages` map. The root
@@ -69,6 +64,11 @@ fn hoist_graph_inputs<'a>(
         _ => None,
     }
 }
+/// Compute the in-memory hoist plan. Returns `None` when nothing
+/// should be hoisted today (no patterns, nothing to hoist, or the
+/// install is going through the hoisted linker). Side-effect-free:
+/// the on-disk symlinks happen later in the pipeline. Same input
+/// gating as the in-place block in [`crate::install_frozen_lockfile::InstallFrozenLockfile::run`].
 #[expect(
     clippy::too_many_arguments,
     reason = "bundles every lockfile/config axis one hoist plan needs; both call sites pass the same shapes"

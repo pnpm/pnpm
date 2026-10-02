@@ -197,13 +197,6 @@ fn collect_own_files(
 
     // Pass 1: walk with ignore-file filtering.  The three-tier
     // priority (see module doc) decides which ignore files apply.
-    //
-    // `standard_filters(false)` turns off `ignore`'s opinionated
-    // defaults (hidden-file skip, `.git`-dir skip, etc.) so we control
-    // every filter explicitly. `require_git(false)` makes `ignore`
-    // honor `.gitignore` even though a git-hosted snapshot's `.git/`
-    // has already been deleted by [`crate::GitFetcher`] before this
-    // point.
     let selection = FileSelection {
         files_matcher: files_matcher.as_ref(),
         named_files: &named_files,
@@ -481,15 +474,9 @@ fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
 
 fn should_always_exclude(rel: &str) -> bool {
     let basename = rel.rsplit('/').next().unwrap_or(rel);
-    // Basename-cruft check: per-file entries (`.npmrc`, lockfiles,
-    // debug logs, OS junk) are excluded at any depth.
     if ALWAYS_EXCLUDED_BASENAMES.contains(&basename) {
         return true;
     }
-    // VCS dir check: a path is excluded if any segment is literally
-    // `.git` / `.svn` / `.hg` / `CVS`. Exact-segment match (not
-    // prefix) so a regular file `lib/foo.hg-stub` isn't accidentally
-    // dropped just because its basename mentions `.hg`.
     if rel
         .split('/')
         .any(|seg| ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&seg))

@@ -11,7 +11,6 @@ import { pickBy } from 'ramda'
  * could not be resolved when the lockfile was written so they can be skipped
  * rather than reported as added.
  *
- * Returns an empty record if `pkg.optionalDependencies` is absent or empty.
  * Dependencies matching configured `ignoredOptionalDependencies` or starting
  * with `link:` when `excludeLinksFromLockfile` is enabled are omitted from
  * the result.

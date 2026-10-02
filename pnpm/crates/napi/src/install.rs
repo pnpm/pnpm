@@ -53,9 +53,8 @@ use crate::{
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
-/// Per-project add/remove counts. `linkedToRoot` mirrors pnpm's field; pacquet
-/// does not emit it separately, so it stays 0 and consumers use
-/// `added + removed` for "did anything change".
+/// Per-project add/remove counts. `linkedToRoot` mirrors pnpm's field; it
+/// stays 0, so consumers use `added + removed` for "did anything change".
 #[napi(object)]
 pub struct InstallStatsResult {
     pub added: f64,
@@ -63,7 +62,7 @@ pub struct InstallStatsResult {
     pub linked_to_root: f64,
 }
 
-/// Result of [`install`]. Mirrors [`InstallResult`] in `index.d.ts`.
+/// Result of [`install`].
 #[napi(object)]
 pub struct InstallResult {
     pub stats: InstallStatsResult,

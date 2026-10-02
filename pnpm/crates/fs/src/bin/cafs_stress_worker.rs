@@ -6,11 +6,10 @@
 //! Exits `0` on success, `1` on error (with the error printed to
 //! stderr).
 //!
-//! Each worker is a separate process so the cross-process tests can
-//! exercise real subprocesses. `cas_write_lock` is process-local, so
-//! the OS-level mutex tests need real subprocesses to exercise the
-//! `O_CREAT | O_EXCL` + `verify_or_rewrite` recovery path that holds the
-//! store together when N processes race on the same blob.
+//! `cas_write_lock` is process-local, so the OS-level mutex tests need
+//! real subprocesses to exercise the `O_CREAT | O_EXCL` +
+//! `verify_or_rewrite` recovery path that holds the store together when
+//! N processes race on the same blob.
 
 use pnpm_fs::ensure_file;
 use std::{fs, path::PathBuf, process::ExitCode};

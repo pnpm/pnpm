@@ -166,8 +166,7 @@ pub struct EnginePolicyViolation {
 /// (via [`EnvInstallerContext`]), so under `trustPolicy=no-downgrade` or
 /// `resolutionMode=time-based` the probe fetches the full packument the
 /// trust and maturity checks need — the same resolver behaviour as a
-/// regular install, rather than a self-update-specific abbreviated-metadata
-/// path that would fail closed with "missing time".
+/// regular install.
 pub async fn resolve_engine_version(
     config: &Config,
     package: &str,
@@ -268,8 +267,7 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
 }
 
 /// Build the resolver + install options from `config` and resolve +
-/// install `config_dependencies`. Shared by [`install_config_deps`] and
-/// [`add_config_dependencies`].
+/// install `config_dependencies`.
 async fn resolve_and_install<Reporter: self::Reporter>(
     config: &Config,
     config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,

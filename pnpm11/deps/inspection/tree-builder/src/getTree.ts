@@ -86,11 +86,6 @@ export function getTree (
 
   const result = materializeChildren(ctx, parentId, opts.maxDepth, opts.parentDir)
 
-  // Mark circular back-edges.  materializeChildren truncates dependencies
-  // at cycle boundaries but does not set the `circular` flag, so that cached
-  // subtrees stay context-independent.  fixCircularRefs walks the final tree
-  // and adds `circular: true` wherever a node's path matches an ancestor.
-  //
   // Seed the ancestors with parentDir (the filesystem path of parentId) so
   // that back-edges to the root of this subtree are detected — the root
   // itself does not appear as a node in the tree, only its children do.
@@ -298,7 +293,6 @@ function materializeTarget (
   const childResult = materializeChildren(ctx, target.nodeId, maxDepth, dir)
   ctx.ancestors.delete(target.id)
 
-  // Always cache — even results with circular truncations.
   ctx.materializationCache.set(cacheKey, {
     count: childResult.count,
     hasSearchMatch: childResult.hasSearchMatch,
@@ -397,7 +391,6 @@ function fixCircularRefs (
 ): DependencyNode[] {
   let changed = false
   const result = nodes.map(node => {
-    // A node whose path matches an ancestor is a circular back-edge.
     if (node.path && ancestors.has(node.path)) {
       changed = true
       const { dependencies: _, deduped: _d, dedupedDependenciesCount: _c, ...rest } = node

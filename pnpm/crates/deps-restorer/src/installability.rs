@@ -42,7 +42,7 @@ use pnpm_reporter::{
 
 /// The set of snapshot keys skipped on this host.
 ///
-/// Three disjoint origin classes are tracked separately because
+/// Disjoint origin classes are tracked separately because
 /// they behave differently across installs:
 ///
 /// - **Installability skips** (`installability`) — engine, platform,
@@ -65,7 +65,7 @@ use pnpm_reporter::{
 ///   directly rather than a pre-pruned graph, so a separate filter
 ///   is needed here.
 ///
-/// All three subsets contribute to [`contains`] and [`iter`] —
+/// All subsets contribute to [`contains`] and [`iter`] —
 /// downstream walkers treat skipped-for-any-reason uniformly. Only
 /// the `installability` subset survives [`iter_installability`],
 /// which is what `.modules.yaml.skipped` writes.
@@ -115,8 +115,7 @@ impl SkippedSnapshots {
     }
 
     /// Record an `optional: true` snapshot whose fetch / extract
-    /// failed during this install. Slice 4 wire-up — call site is
-    /// inside [`crate::CreateVirtualStore`]'s cold-batch dispatch.
+    /// failed during this install.
     ///
     /// Disjoint-subset guard: if `key` is already in any other
     /// subset, the insert is a no-op so [`len`] / [`iter`] stay
@@ -146,10 +145,7 @@ impl SkippedSnapshots {
 
     /// Record a snapshot dropped because the user passed
     /// `--no-optional` (or the matching config / `IncludedDependencies`
-    /// flag is false). Slice 5 wire-up — call site is inside
-    /// `InstallFrozenLockfile::run`, which iterates the lockfile
-    /// snapshots once and inserts every `snap.optional == true`
-    /// entry. Downstream gates then drop the snapshot from
+    /// flag is false). Downstream gates then drop the snapshot from
     /// extraction, symlinking, building, and hoisting through the
     /// same skip-set check they use for installability skips.
     ///
@@ -296,8 +292,7 @@ impl SkippedSnapshots {
 ///   install error when `engine_strict` is set, and otherwise emits
 ///   `tracing::warn!` and proceeds — even when the snapshot is also
 ///   optionally reachable. (The warn should emit `pnpm:install-check`,
-///   which pacquet's reporter does not yet expose — slice 1
-///   follow-up.)
+///   which pacquet's reporter does not expose.)
 /// - A snapshot the walk cannot reach from any importer applies the
 ///   same dispatch to its lockfile-propagated
 ///   [`SnapshotEntry::optional`] flag instead.

@@ -117,7 +117,6 @@ pub struct ArtifactBlob {
     pub stream: BoxStream<'static, object_store::Result<Bytes>>,
 }
 
-/// What the slot a publication is claiming already holds.
 /// The reserved scope key for an artifact that reaches every machine. No tag
 /// yields it: every tag key carries an architecture, which this does not.
 const UNIVERSAL_SCOPE: &str = "universal";

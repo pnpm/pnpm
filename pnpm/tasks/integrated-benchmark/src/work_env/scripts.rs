@@ -31,8 +31,7 @@ pub(super) fn wipe_bench_dir(dir: &Path) {
         fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
     }
 }
-/// Whether `dir` contains at least one regular file, recursively. Used to
-/// confirm a pnpr server actually wrote something (i.e. served a resolve).
+/// Whether `dir` contains at least one regular file, recursively.
 /// A missing/unreadable dir counts as empty.
 pub(super) fn dir_contains_file(dir: &Path) -> bool {
     let Ok(entries) = fs::read_dir(dir) else {
@@ -50,11 +49,7 @@ pub(super) fn dir_contains_file(dir: &Path) -> bool {
     false
 }
 /// Fetch `commit` into `revision_repo`, creating it if missing, and
-/// check the commit out. Shared between the pacquet and pnpm build
-/// paths — both follow the same fetch-by-SHA discipline that PR [#321]
-/// established for pacquet revisions.
-///
-/// [#321]: https://github.com/pnpm/pacquet/pull/321
+/// check the commit out.
 pub(super) fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
     let had_existing_git = prepare_bench_repo(repository, revision_repo, commit);
 
@@ -128,10 +123,6 @@ pub(super) fn remove_dir_all_with_retry(path: &Path) -> std::io::Result<()> {
         match fs::remove_dir_all(path) {
             Ok(()) => return Ok(()),
             Err(_) if !path.exists() => return Ok(()),
-            // Only the transient "Directory not empty" that APFS raises while a
-            // just-finished install's store writes settle is worth retrying;
-            // fail fast on anything else (permissions, I/O) instead of sleeping
-            // ~4s first.
             Err(err) if err.kind() != ErrorKind::DirectoryNotEmpty => return Err(err),
             Err(err) if attempt == MAX_ATTEMPTS - 1 => return Err(err),
             Err(_) => thread::sleep(Duration::from_millis(200 * u64::from(attempt + 1))),

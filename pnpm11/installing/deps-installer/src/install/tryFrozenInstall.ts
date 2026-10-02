@@ -48,8 +48,7 @@ export interface FrozenInstallArgs {
  * A frozen install is significantly faster since the pnpm-lock.yaml file
  * can treated as immutable, skipping expensive lookups to acquire new
  * dependencies. For this reason, a frozen install should be performed even
- * if --frozen-lockfile wasn't explicitly specified. This allows users to
- * benefit from the increased performance of a frozen install automatically.
+ * if --frozen-lockfile wasn't explicitly specified.
  *
  * If a frozen install is not possible, this function will return null.
  * This indicates a standard mutable install needs to be performed.
@@ -110,7 +109,6 @@ Note that in CI environments, this setting is enabled by default.`,
 
 async function isFrozenInstallPossible (run: MutationRun, args: FrozenInstallArgs): Promise<boolean> {
   const { ctx, installsAndUninstallsOnly, installsOnly, opts } = run
-  // A frozen install is never possible when any of these are true:
   if (ctx.lockfileHadConflicts || opts.fixLockfile || opts.dedupe) return false
   // A check-only install (`lockfileCheck`, used by `--dry-run` and
   // `dedupe --check`) must always run a full resolution so the wanted
@@ -118,11 +116,7 @@ async function isFrozenInstallPossible (run: MutationRun, args: FrozenInstallArg
   // frozen path would skip resolution and/or perform a real install.
   if (isCheckOnlyInstall(opts)) return false
   if (!installsOnly && !(installsAndUninstallsOnly && args.addedManifestsAreCommitted && !args.frozenLockfile)) return false
-  // If the user explicitly requested a frozen lockfile install, attempt
-  // to perform one. An error will be thrown if updates are required.
   if (args.frozenLockfile) return true
-  // Otherwise, check if a frozen-like install is possible for
-  // performance. This will be the case if all projects are up-to-date.
   return opts.ignorePackageManifest || lockfileIsUpToDateWithProjects(run, args)
 }
 

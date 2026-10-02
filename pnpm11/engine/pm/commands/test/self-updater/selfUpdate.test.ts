@@ -1401,10 +1401,8 @@ test('self-update works globally without package.json', async () => {
 
   await selfUpdate.handler(opts, [])
 
-  // Verify no package.json was created
   expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(false)
 
-  // Verify pnpm-lock.yaml was written to pnpmHomeDir
   expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-lock.yaml'))).toBe(true)
 
   // Verify the package was installed in the global dir
@@ -1551,7 +1549,6 @@ describe('linkExePlatformBinary', () => {
     const topLevelExeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
     const topLevelPlatformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
 
-    // Create the virtual store directories
     fs.mkdirSync(vsExeDir, { recursive: true })
     fs.mkdirSync(vsPlatformDir, { recursive: true })
 
@@ -1560,7 +1557,6 @@ describe('linkExePlatformBinary', () => {
     // Write a package.json (needed on Windows where bin.pnpm is rewritten to pnpm.exe)
     fs.writeFileSync(path.join(vsExeDir, 'package.json'), JSON.stringify({ bin: { pnpm: 'pnpm' } }))
 
-    // Write a fake platform binary
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
     fs.writeFileSync(path.join(vsPlatformDir, executable), fakeBinaryContent)
 
@@ -1570,7 +1566,6 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(topLevelPlatformDir)
     fs.writeFileSync(path.join(topLevelPlatformDir, executable), 'wrong platform binary')
 
-    // Run the function
     linkExePlatformBinary(dir)
 
     // The placeholder should be replaced with the platform binary content
@@ -1606,7 +1601,6 @@ describe('linkExePlatformBinary', () => {
     const dir = tempDir(false)
     fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true })
 
-    // Should not throw
     linkExePlatformBinary(dir)
   })
 

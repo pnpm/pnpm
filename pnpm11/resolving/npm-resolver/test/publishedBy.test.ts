@@ -123,7 +123,7 @@ test('reports an immature pick via policyViolation even when loaded from cache a
     .intercept({ path: '/foo', method: 'GET' })
     .reply(200, fooMeta)
 
-  // The resolver no longer throws on immature picks — it falls back to the
+  // On immature picks the resolver falls back to the
   // lowest match in range and flags the result with `policyViolation`. The
   // outer caller (install / dlx / self-update) decides what to do with it.
   const { resolveFromNpm } = createResolveFromNpm({
@@ -495,13 +495,6 @@ test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata
 })
 
 test('falls through to the registry fetch when cached abbreviated meta lacks time on the version-spec cache path', async () => {
-  // Regression test for the bug where the version-spec cache fast path
-  // (`!opts.includeLatestTag && spec.type === 'version'`) in pickPackage
-  // would rethrow ERR_PNPM_MISSING_TIME under what used to be
-  // strictPublishedByCheck, instead of falling through to the registry-fetch
-  // path like the adjacent mtime-gated cache block does. The fix makes the
-  // two catch blocks consistent — both now always swallow and fall through.
-  //
   // Setup: cache abbreviated metadata (no per-version `time` field) for the
   // package, then request an exact-version pin that IS present in the cached
   // meta.versions. The version-spec fast path will try pickMatchingVersionFast

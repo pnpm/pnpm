@@ -70,15 +70,11 @@
 //!
 //! **Write side** ([`encode_package_files_index`]): a hand-written
 //! emitter that allocates slots lazily per distinct *record shape*
-//! for `PackageFilesIndex`, `CafsFileInfo`, and `SideEffectsDiff` —
-//! `0x40` is reserved for the top-level `PackageFilesIndex`, and
-//! inner slots in `0x41..=0x7f` are handed out in first-seen order,
-//! so a single Rust type can consume more than one slot when its
-//! optional-field presence varies within the same row. `HashMap`
-//! fields (`files`, `sideEffects`, `added`) stay as plain msgpack
-//! maps. That shape matches what msgpackr itself emits for a JS
-//! object containing `Map` fields, so pnpm's reader round-trips the
-//! bytes correctly.
+//! for `PackageFilesIndex`, `CafsFileInfo`, and `SideEffectsDiff`.
+//! `HashMap` fields (`files`, `sideEffects`, `added`) stay as plain
+//! msgpack maps. That shape matches what msgpackr itself emits for a
+//! JS object containing `Map` fields, so pnpm's reader round-trips
+//! the bytes correctly.
 
 pub use encoding::{EncodeError, encode_package_files_index};
 

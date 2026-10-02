@@ -3,12 +3,7 @@
 //! references, together with the throttle that decides whether the
 //! sweep runs this install.
 //!
-//! Only the virtual-store sweep happens here. The rest of `prune` —
-//! removing changed direct dependencies from importer
-//! `node_modules`, the hoisted-dependency removal (pacquet handles that
-//! in [`crate::link_hoisted_modules()`]), and the `pnpm:stats` `removed`
-//! count derived from the current-vs-wanted orphan diff — is not part
-//! of this slice.
+//! Only the virtual-store sweep happens here.
 
 use std::{
     collections::HashSet,

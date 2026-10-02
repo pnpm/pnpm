@@ -72,13 +72,8 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
 /// - `main_body` is not `"npx only-allow pnpm"` when `args` is empty
 ///   (otherwise the main stage's [`run_stage`] would no-op).
 ///
-/// Both callers — single-project [`RunArgs::run`](super::RunArgs::run) and the recursive
-/// runner — validate these conditions before calling: single-project
-/// via [`resolve_main_script`] plus an inline npx-only-allow skip,
-/// recursive via its outer per-project filter. Given that, the main
-/// stage is guaranteed to actually run, so this function returns a
-/// plain [`ScriptExit`] instead of `Option<ScriptExit>` and the callers
-/// don't need to defensively handle a "nothing ran" case.
+/// Given that, the main stage is guaranteed to actually run, so this
+/// function returns a plain [`ScriptExit`] instead of `Option<ScriptExit>`.
 ///
 /// On the first non-success stage (pre / main / post) the function
 /// short-circuits and returns that stage's status; the caller decides

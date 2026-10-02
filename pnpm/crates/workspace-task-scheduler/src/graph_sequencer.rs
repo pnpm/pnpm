@@ -53,11 +53,7 @@ pub struct GraphSequencerResult<Node> {
 /// The nodes are interned to indices up front and each ready set is gathered
 /// from nodes whose degree a removal drops to zero, so a workspace-scale graph
 /// sorts in `O(V log V + E)` instead of repeatedly scanning and hashing every
-/// node. Cycle discovery is confined to each strongly connected component:
-/// nodes that merely lead into a cycle cost nothing extra, and only
-/// enumerating the cycles *inside* one component pays that component's size
-/// per reported cycle (the price of the established cycle-reporting
-/// semantics).
+/// node.
 pub fn graph_sequencer<Node>(
     graph: &HashMap<Node, Vec<Node>>,
     included: &[Node],

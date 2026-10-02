@@ -21,8 +21,6 @@ export function getConfigFileInfo (key: string, opts: Pick<ConfigCommandOptions,
   const configDir = opts.global ? opts.configDir : opts.dir
 
   if (isIniConfigKey(key)) {
-    // NOTE: The following code no longer does what the merged PR at <https://github.com/pnpm/pnpm/pull/10073> wants to do,
-    //       but considering the settings are now clearly divided into 2 separate categories, it should no longer be relevant.
     // TODO: Auth, network, and proxy settings should belong only to INI files.
     //       Add more settings to `isIniConfigKey` to make it complete.
     const configFileName = opts.global ? 'auth.ini' : '.npmrc'

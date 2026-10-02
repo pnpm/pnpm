@@ -44,8 +44,6 @@ export interface LicensePackage {
 /**
  * @private
  * Returns an array of LicensePackages from the given LicenseNode
- * @param licenseNode the license node
- * @returns LicensePackage[]
  */
 function getDependenciesFromLicenseNode (
   licenseNode: LicenseNode

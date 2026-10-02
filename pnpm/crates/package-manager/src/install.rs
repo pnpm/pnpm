@@ -455,11 +455,7 @@ pub struct InstallFetching<'a> {
     pub resolved_packages: &'a ResolvedPackages,
     /// Same client behind an [`Arc`] for the lockfile-verification
     /// gate (which owns its `ThrottledClient` to outlive the
-    /// per-call lifetime of [`InstallInvocation::http_client`]). The CLI builds
-    /// both from a single source; the duplicate is the smallest
-    /// change that bridges the borrowed `&` shape every existing
-    /// sub-installer expects with the owned `Arc` the verifier
-    /// needs.
+    /// per-call lifetime of [`InstallInvocation::http_client`]).
     pub http_client_arc: Arc<ThrottledClient>,
 }
 

@@ -171,8 +171,7 @@ pub fn run_postinstall_hooks<Reporter: self::Reporter>(
 }
 
 /// Run a workspace project's own lifecycle scripts during
-/// `pnpm install` — preinstall, install, postinstall, preprepare,
-/// prepare, postprepare, in that order.
+/// `pnpm install`.
 ///
 /// The caller fans this out across projects (and is responsible for
 /// linking each project's bins beforehand so a later project's scripts
@@ -229,13 +228,8 @@ pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
 }
 
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
-/// script is present, in order. Shared by [`run_postinstall_hooks`],
-/// [`run_project_lifecycle_stages`], and [`run_dev_preinstall_hook`].
+/// script is present, in order.
 ///
-/// The `install` stage falls back to `node-gyp rebuild` when neither
-/// `install` nor `preinstall` is defined, a `binding.gyp` exists, and the
-/// manifest does not opt out with `gypfile: false`
-/// ([`manifest_opts_out_of_gyp_build`]).
 /// The `npx only-allow pnpm` guard script is skipped — it does nothing
 /// under pnpm/pacquet.
 fn run_lifecycle_stages<Reporter: self::Reporter>(
@@ -251,10 +245,6 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
             .and_then(|v| v.as_str())
     };
 
-    // Snapshot the process env once for this package. Every stage reads
-    // from this snapshot, which keeps the runs observably consistent
-    // and avoids one call to `env::vars()` per stage over a
-    // thread-shared global.
     let parent_env: HashMap<String, String> = env::vars().collect();
 
     let mut ran_any = false;
@@ -312,11 +302,10 @@ fn install_stage_script(manifest: &Value, pkg_root: &Path) -> Option<String> {
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
 ///
-/// `parent_env` is captured by the caller so multi-stage callers (the
-/// [`run_postinstall_hooks`] wrapper and `pnpm-git-fetcher`'s
-/// package-preparation step) can snapshot once and reuse across stages,
-/// so each stage sees the same parent env regardless of what siblings
-/// wrote into the process's own env.
+/// `parent_env` is captured by the caller so multi-stage callers can
+/// snapshot once and reuse across stages, so each stage sees the same
+/// parent env regardless of what siblings wrote into the process's own
+/// env.
 pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     stage: &str,
     script: &str,
@@ -445,8 +434,6 @@ fn prepare_lifecycle_path(
             })?;
     }
 
-    // Set PATH via `extend_path`, with the original PATH coming from
-    // the (already-filtered) parent env captured during `build_env`.
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,
@@ -519,10 +506,6 @@ fn run_in_shell<Reporter: self::Reporter>(
     let pkg_root = script_working_dir(opts.pkg_root);
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    // Append the script body. The chain is broken here because the
-    // Windows `cmd /d /s /c` path needs `raw_arg` rather than `arg`
-    // (see [`push_script_arg`]) — a branch the method chain can't
-    // express.
     push_script_arg(&mut cmd, &script_body(shell, script), shell.windows_verbatim_args);
     // Stripping inherited env so leftover npm_* keys from a wrapping
     // invocation cannot leak in. `build_env` already folded the

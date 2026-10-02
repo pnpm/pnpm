@@ -101,16 +101,13 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
 })
 
 test('writeWantedLockfile() returns the canonical lockfile — matches what readWantedLockfile produces, even when the input carries undefined optional fields', async () => {
-  // Cache-key contract: callers (today, the verification cache) need a
-  // hash of the *as-saved* lockfile, not the in-memory write object.
-  // Those two diverge specifically because YAML drops `undefined` on
-  // serialize. To exercise that drop, the fixture has to actually
-  // carry an explicit `undefined` — `settings.dedupePeers` here, the
-  // same field install-time code produces (see
-  // installing/deps-installer/src/install/index.ts where it's set to
-  // `opts.dedupePeers || undefined`). Without this, the test would
-  // happily pass against a writer that returned a near-canonical-but-
-  // still-divergent object.
+  // Cache-key contract: callers need a hash of the *as-saved* lockfile,
+  // not the in-memory write object. Those two diverge specifically
+  // because YAML drops `undefined` on serialize. To exercise that drop,
+  // the fixture has to actually carry an explicit `undefined` —
+  // `settings.dedupePeers` here, the same field install-time code
+  // produces. Without this, the test would happily pass against a writer
+  // that returned a near-canonical-but-still-divergent object.
   const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {

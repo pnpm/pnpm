@@ -26,7 +26,7 @@ mod stale;
 /// `private_hoisted_modules_dir`), the stale symlink is replaced.
 /// External symlinks (or non-symlink occupants) are left in place.
 ///
-/// Two-phase to amortize directory creation:
+/// Phased to amortize directory creation:
 ///
 /// 1. Walk the input once to collect every `(target, dest)` symlink
 ///    pair plus the set of scope-dir parents (`<root>/@scope`)

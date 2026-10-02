@@ -37,11 +37,9 @@ pub struct WhyArgs {
     /// Max display depth of the reverse dependency tree.
     #[clap(long)]
     pub depth: Option<usize>,
-    /// Exclude peer dependencies.
-    ///
-    /// Accepted but not applied, matching the TypeScript CLI: its `why`
-    /// command declares the flag without forwarding it to the
-    /// dependents-tree builder.
+    /// Exclude peer dependencies. Ignored: `pnpm why` always includes them.
+    // The flag is there for parity: pnpm 11's `why` declares it and never
+    // forwards it either.
     #[clap(long)]
     pub exclude_peers: bool,
     /// Search by a finder function declared in `.pnpmfile.cjs`.

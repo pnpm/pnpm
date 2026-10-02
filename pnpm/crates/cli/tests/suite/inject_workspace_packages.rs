@@ -1,7 +1,7 @@
 //! End-to-end coverage for `injectWorkspacePackages: true` in a
 //! `pnpm-workspace.yaml` monorepo.
 //!
-//! Asserts the three behavioral consequences of the global flag:
+//! Asserts the behavioral consequences of the global flag:
 //! workspace packages materialise as `file:` snapshots (not `link:`)
 //! with peer-dep hash suffixes; `dependenciesMeta` on the importer is
 //! **not** populated (the global flag flips the resolution scheme
@@ -21,9 +21,7 @@ use std::fs;
 /// version. The peer-resolver produces a peer-suffixed `file:`
 /// resolution for each project-1 occurrence.
 ///
-/// Assertions (a strict subset of the upstream test's — pacquet
-/// doesn't yet write `injectedDeps` into `.modules.yaml`, so the
-/// modules-state side is skipped; tracked separately):
+/// Assertions:
 ///
 /// - install succeeds.
 /// - `pnpm-lock.yaml` carries `settings.injectWorkspacePackages: true`.
@@ -192,9 +190,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // privately hoists every transitive to `<vs>/node_modules/`).
     // Empirically matches pnpm v11.4.0 with the same
     // `enableGlobalVirtualStore: false` config — pnpm produces the
-    // same nine entries on the equivalent fixture. (An earlier
-    // pre-private-hoist snapshot had eight entries; current pnpm
-    // matches the count below.)
+    // same nine entries on the equivalent fixture.
     let dot_pnpm = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&dot_pnpm)
         .expect("read node_modules/.pnpm")

@@ -50,11 +50,6 @@ impl Matcher {
     /// match any input — i.e. compiled from an empty pattern list.
     /// Lets callers short-circuit before they walk a graph and call
     /// [`Self::matches`] for every alias.
-    ///
-    /// A matcher built from non-empty patterns returns `false` here
-    /// even when no realistic input would match (e.g. `["nonexistent-prefix-*"]`)
-    /// — the fast path is a static check on the pattern list, not a
-    /// runtime analysis of the compiled regex shape.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         matches!(self.0.0, MatcherImpl::Never)

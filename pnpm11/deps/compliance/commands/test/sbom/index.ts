@@ -379,8 +379,7 @@ test('pnpm sbom --workspace-root covers only the root project', async () => {
 
   // What `-w` produces: the `{<workspace-root>}` selector main.ts appends
   // selects the root project alone, even though the workspace package
-  // patterns name only `packages/*`. Mirrors pacquet's
-  // `sbom_workspace_root_selects_only_the_root`.
+  // patterns name only `packages/*`.
   const { allProjectsGraph, selectedProjectsGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
   const rootOnlyGraph = Object.fromEntries(

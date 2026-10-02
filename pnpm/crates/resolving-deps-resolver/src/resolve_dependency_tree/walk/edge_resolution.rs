@@ -252,9 +252,7 @@ pub(super) struct ResolvedEdge {
     pub(super) current_is_optional: bool,
 }
 
-/// Build (or look up) the `ResolvedPackage` envelope. The first visitor
-/// populates it; later visitors AND-fold the `optional` flag so a single
-/// non-optional path flips it back to `false`. Child traversal is
+/// Build (or look up) the `ResolvedPackage` envelope. Child traversal is
 /// claimed first, and a later deterministically-better occurrence
 /// replaces the shared `children_by_id` entry — plus, since the two are
 /// two halves of one manifest reading, the envelope's peer dependencies.
@@ -272,10 +270,6 @@ pub(super) fn seed_pending(
         edge.parent_pkg_aliases,
         ctx.workspace.policy.auto_install_peers,
     );
-    // The envelope's peer split follows the occurrence that owns the
-    // package's children, which this level's settlement decides — see
-    // [`fn@super::level_walk::install_owner_peer_dependencies`]. Seeding only has to fill
-    // a package nothing has resolved yet.
     let seeded = SeededPackage {
         id: &resolved.id,
         result: &result,

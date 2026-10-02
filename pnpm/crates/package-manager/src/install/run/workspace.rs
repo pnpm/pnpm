@@ -137,18 +137,6 @@ impl<'a> InstallWorkspace<'a> {
             owned.projects.catalogs_override.take(),
             workspace_manifest.as_ref(),
         )?;
-        // Walk every workspace project's `package.json` once. The
-        // resulting `Vec` feeds both the up-to-date short-circuit
-        // below and the fresh-install path's `workspace:`-spec lookup
-        // / per-importer manifest list further down. `None` when no
-        // `pnpm-workspace.yaml` exists in or above `workspace_root` —
-        // single-project installs only have the root manifest, which
-        // the short-circuit and the install paths both reach via
-        // `manifest` directly.
-        //
-        // An embedder that supplies its importers in memory
-        // (`workspace_projects_override`) bypasses the on-disk walk
-        // entirely; the override's `Vec` is used verbatim.
         let workspace_projects_are_overridden = owned.projects
             .workspace_projects_override
             .is_some();
@@ -261,16 +249,6 @@ impl<'w> InstallScope<'w> {
             workspace_root,
             &project_manifests,
         );
-        // Only an install that covers a whole workspace sees the complete
-        // project list, so only it may conclude that an importer the
-        // lockfile records belongs to a project that is gone. This is
-        // pnpm's `pruneLockfileImporters`, which its recursive install
-        // defaults to the same condition (`pkgs.length ===
-        // allProjects.length`) — outside a workspace there is no project
-        // list to compare against.
-        // A `NodeApiProject[]` handed in by an API consumer carries no
-        // promise of listing every workspace project, so it cannot stand
-        // in for the project list either.
         let prune_stale_importers = may_prune_stale_importers(&StaleImporterPrune {
             filtered_install: importers.filtered_install,
             mutation: install.execution.mutation,
@@ -281,34 +259,6 @@ impl<'w> InstallScope<'w> {
         Self { project_manifests, importers, prune_stale_importers }
     }
 
-    // Optimistic repeat-install short-circuit. When nothing has
-    // changed since the previous successful install (settings,
-    // workspace structure, manifest mtimes), skip the entire
-    // install pipeline and emit pnpm's "Already up to date" log.
-    // The fast path runs before any of the install setup (no
-    // lockfile reads, no verifier fan-out, no `getContext`).
-    //
-    // Disabled when `--frozen-lockfile` is requested: an explicit
-    // headless install should always go through the dispatch so a
-    // `NoLockfile` or `OutdatedLockfile` error still fires when
-    // the lockfile is missing or stale.
-
-    // Only a full `pacquet install` may short-circuit. `add` and
-    // `remove` mutate the manifest in memory and persist it after
-    // this run returns, so the on-disk mtimes the check reads still
-    // describe the pre-mutation project — without this gate a fresh
-    // workspace state would read as "nothing changed → already up
-    // to date" and the mutation would never be resolved or
-    // materialized. `pacquet update` is
-    // excluded through its seed policy: a compatible bump leaves
-    // the manifest byte-identical, which the check would likewise
-    // read as up to date and skip the registry re-resolution.
-    //
-    // A `--filter` narrowing does not disqualify the run: the check
-    // validates the whole workspace (`project_manifests` covers every
-    // project even when only a subset is selected), and it refuses a
-    // workspace state a filtered install wrote, so "nothing changed"
-    // still means every selected project is materialized.
     pub(super) fn is_already_up_to_date(
         &self,
         install: InstallView<'_>,

@@ -877,7 +877,6 @@ async function getFileIntegrity (filename: string) {
 
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
 test('fetch a big repository', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -894,7 +893,6 @@ test('fetch a big repository', async () => {
 })
 
 test('fail when preparing a git-hosted package', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -912,7 +910,6 @@ test('fail when preparing a git-hosted package', async () => {
 })
 
 test('take only the files included in the package, when fetching a git-hosted package', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -936,7 +933,6 @@ test('take only the files included in the package, when fetching a git-hosted pa
 })
 
 test('verify integrity of git-hosted tarball against the resolution', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -979,7 +975,6 @@ test('fail when extracting a broken tarball', async () => {
 })
 
 test.each([true, false])('do not prepare a git tarball when scripts are ignored or explicitly denied (ignoreScripts=%s)', async (ignoreScripts) => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -1031,7 +1026,6 @@ test('when extracting files with the same name, pick the last ones', async () =>
 })
 
 test('use the subfolder when path is present', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -1061,7 +1055,6 @@ test('use the subfolder when path is present', async () => {
 })
 
 test('prevent directory traversal attack when path is present', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())
@@ -1088,7 +1081,6 @@ test('prevent directory traversal attack when path is present', async () => {
 })
 
 test('fail when path is not exists', async () => {
-  // Enable network for this test
   mockAgent.enableNetConnect(/codeload\.github\.com/)
 
   process.chdir(temporaryDirectory())

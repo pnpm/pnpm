@@ -44,9 +44,6 @@ enum CachedRow {
 /// rejects an identity mismatch, [`PackageContentCheck::Warn`] reports
 /// and uses the row, and [`PackageContentCheck::Skip`] omits this
 /// npm-specific check for a raw archive projection.
-///
-/// `index` is opened once per install and passed in repeatedly, so the
-/// `Connection::open` + PRAGMA cost is not paid per package.
 pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     index: Option<SharedReadonlyStoreIndex>,
     store_dir: &'static StoreDir,
@@ -56,8 +53,6 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     verified_files_cache: SharedVerifiedFilesCache,
 ) -> Result<Option<CachedCasPaths>, TarballError> {
     let Some(index) = index else { return Ok(None) };
-    // Hold on to a copy of the cache key for the outer `JoinError` log,
-    // since the task body moves the original in.
     let outer_cache_key = cache_key.clone();
     let result = tokio::task::spawn_blocking(move || {
         cached_row(

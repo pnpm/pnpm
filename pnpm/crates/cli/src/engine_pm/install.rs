@@ -147,13 +147,10 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
         return Ok(InstalledEngine::shared(bin_dir));
     }
 
-    // The engine's global-virtual-store slot is shared by every process on
-    // the host, and materializing it is destructive: a slot left carrying
-    // an interrupted-build marker is removed and re-staged. A task runner
-    // that pins `packageManager` spawns many `pnpm run` children at once,
-    // all of which reach this point together on a cold cache; without the
-    // lock, one clears the slot out from under another and the loser dies
-    // looking for a binary that no longer exists.
+    // A task runner that pins `packageManager` spawns many `pnpm run`
+    // children at once, all of which reach this point together on a cold
+    // cache; without the lock, one clears the slot out from under another
+    // and the loser dies looking for a binary that no longer exists.
     let lock = engine_install_lock::<Reporter>(config, package.wrapper, version);
     // The wait may have been for a process that installed the very engine
     // we want, so ask the cache again before paying for the download. A slot

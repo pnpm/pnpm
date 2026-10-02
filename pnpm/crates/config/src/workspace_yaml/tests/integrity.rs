@@ -2,8 +2,7 @@ use super::{Config, Path, WorkspaceSettings, assert_eq};
 
 /// `verifyStoreIntegrity` is a camelCase key that serde's rename
 /// has to pick up, and the `apply_to` wiring has to thread it onto
-/// the `Config` field. Parse a yaml that flips the default-true
-/// setting to false and assert both steps. Guards against silent
+/// the `Config` field. Guards against silent
 /// regressions in the key mapping or the apply step (a copy-paste
 /// omission in `apply_to` would leave `config.verify_store_integrity`
 /// at its default).

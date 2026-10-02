@@ -7,9 +7,9 @@
 //! tarball resolver read a fetched `package.json`. A caller that wants a
 //! single answer for a single specifier — `pnpm store add`, the NAPI
 //! `resolveDependency` — has none of that, and would otherwise each grow
-//! its own copy of the ten-resolver chain.
+//! its own copy of the resolver chain.
 //!
-//! Two deliberate deviations from the install chain follow from having no
+//! Deliberate deviations from the install chain follow from having no
 //! install to hang off:
 //!
 //! - The tarball resolver runs without a fetch context, so an `http(s)`
@@ -54,8 +54,7 @@ pub struct StandaloneChainOptions<'a> {
 
 /// Build the chain a single resolve dispatches through.
 ///
-/// Order mirrors the install path: npm → git → tarball → localScheme →
-/// node → deno → bun → yarn → namedRegistry → localPath. The local-resolver
+/// Order mirrors the install path. The local-resolver
 /// split (scheme before the runtimes, path last) lets a
 /// `<alias>:@scope/pkg` named-registry specifier reach the named-registry
 /// resolver instead of being claimed by the path-shape detector on the

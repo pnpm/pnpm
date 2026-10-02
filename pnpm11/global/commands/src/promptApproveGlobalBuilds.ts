@@ -64,8 +64,6 @@ export async function promptApproveGlobalBuilds (
     global: false,
     pending: false,
     allowBuilds: opts.allowBuilds,
-    // When set, makes `approve-builds` skip both its multiselect and
-    // confirm prompts and approve every pending build.
     all: autoApproveForTests ? true : undefined,
   }, [], commands)
 }

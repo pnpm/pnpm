@@ -103,9 +103,7 @@ pub enum FindWorkspaceProjectsError {
 /// Find every project under `workspace_root` matching `opts.patterns`.
 ///
 /// The per-project installability and non-root-manifest validations are
-/// explicitly deferred by [#431]. When validation lands, this entry
-/// point grows the filter; today it's a thin wrapper over
-/// [`find_workspace_projects_no_check`].
+/// explicitly deferred by [#431].
 ///
 /// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub fn find_workspace_projects(
@@ -142,11 +140,6 @@ pub fn find_workspace_projects_no_check(
     let ignored_directories =
         resolve_ignored_directories(workspace_root, &opts.ignored_directories);
 
-    // Each pattern's set folds into the shared merge as it completes,
-    // so peak memory stays one merged set plus the in-flight patterns —
-    // overlapping patterns don't multiply it. Set union commutes and
-    // the first error *in pattern-list order* wins, keeping the result
-    // and the reported failure a function of the pattern list alone.
     let mut manifest_paths = merge_pattern_manifests(&MergePatterns {
         include_patterns: &include_patterns,
         workspace_root,
@@ -383,10 +376,7 @@ fn group_manifests_by_root(
     root_groups
 }
 
-/// Expand one include pattern into the manifest paths it matches. The
-/// contract [`find_workspace_projects_no_check`] states — which error
-/// kinds are absorbed, how the fast paths and the generic walk divide
-/// the pattern space — lives there; this is its per-pattern body.
+/// Expand one include pattern into the manifest paths it matches.
 fn collect_pattern_manifests(
     pattern: &WorkspacePattern<'_>,
     workspace_root: &Path,

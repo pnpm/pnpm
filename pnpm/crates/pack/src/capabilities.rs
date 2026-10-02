@@ -108,12 +108,9 @@ impl FsCreateDirAll for Host {
 }
 
 impl FsAtomicWrite for Host {
-    /// Stream the tarball atomically: `write_body` writes into a sibling
-    /// temp file that is fsynced, then renamed over `dest`. The rename
-    /// replaces a symlink sitting at the output path rather than following
-    /// it — so a repo-controlled symlink can't redirect the write to
-    /// clobber an arbitrary file — and a crash never leaves a partial
-    /// `.tgz` behind. Mirrors the `write-file-atomic` pattern
+    /// The rename replaces a symlink sitting at the output path rather than
+    /// following it, so a repo-controlled symlink can't redirect the write to
+    /// clobber an arbitrary file. Mirrors the `write-file-atomic` pattern
     /// `pnpm-package-manifest` uses for `package.json`.
     fn atomic_write(
         dest: &Path,

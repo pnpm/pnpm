@@ -155,8 +155,6 @@ struct ResolverCache {
     /// every time (uncached) rather than failing the server.
     verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
-    /// Part 1 uses it only to label each resolve's cache class in the
-    /// operator debug log; Part 2 keys private cache entries by it.
     secret: Arc<[u8]>,
 }
 
@@ -360,6 +358,9 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
     resolve_npm_request(runtime, identity, request).await
 }
 
+/// Resolve an npm project: verify the client's input lockfile under the
+/// client's policy, resolve against the client's registries, and stream
+/// the result back as NDJSON.
 async fn resolve_npm_request(
     runtime: &Resolver,
     identity: Identity,
@@ -381,15 +382,6 @@ async fn resolve_npm_request(
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
     let tarball_router = request_tarball_router(runtime, &identity, config);
 
-    // Verify the *input* lockfile under the client's policy before any
-    // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
-    // The client skips its own `verifyLockfileResolutions` whenever a
-    // pnpr server is configured, so this is the only place the
-    // committed/reused entries get checked. A true first install sends
-    // no lockfile — nothing to verify. `trustLockfile` is the client's
-    // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
-    // resolved entries are held to the same policy by the resolver's
-    // pick-time gate (the policy is wired into `config`).
     let verified_dist_stats =
         match verify_request_lockfile(runtime, config, &request, &request_auth, &tarball_router)
             .await
@@ -399,12 +391,7 @@ async fn resolve_npm_request(
         };
 
     // Short-circuit paths that produce the whole lockfile without an
-    // incremental tree walk. A verified frozen lockfile still announces
-    // its tarballs as `package` frames when the verification fan-out
-    // just fetched their metadata — the sizes let the client start the
-    // largest downloads first. On a verdict-cache hit no metadata was
-    // fetched, so there's nothing to add and the response is the bare
-    // `done` frame.
+    // incremental tree walk.
     if let Some(response) =
         frozen_lockfile_response(runtime, config, &request, &tarball_router, verified_dist_stats)
     {
@@ -465,20 +452,6 @@ async fn verify_request_lockfile(
     }
 }
 
-/// Resolve an npm project: verify the client's input lockfile under the
-/// client's policy, resolve against the client's registries, and stream
-/// the result back as NDJSON.
-///
-/// The response is `application/x-ndjson`: one `package` frame per
-/// resolved tarball as the server's tree walk yields it (so the client
-/// fetches tarballs while the server is still resolving —
-/// [pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
-/// followed by exactly one terminal frame: `done` carrying the full
-/// lockfile + stats, `error` if resolution aborts mid-stream, or
-/// `violations` if the input lockfile failed the client's policy. The
-/// short-circuit paths (frozen reuse, cache hit) emit only the terminal
-/// `done` frame. A private proxied tarball is announced through its
-/// upstream's `/~<name>/` registry endpoint rather than its upstream URL.
 /// The request-level refusals a resolve is held to before any fetch.
 fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> Option<Response> {
     reject_invalid_registries(request)

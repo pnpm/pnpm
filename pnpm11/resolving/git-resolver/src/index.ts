@@ -148,7 +148,7 @@ function resolveVTags (vTags: string[], range: string): string | null {
 
 export async function getRepoRefs (repo: string, ref: string | null): Promise<Record<string, string>> {
   // `--` keeps a repo URL that starts with a dash (e.g. from a malicious
-  // config value) from being parsed as a git flag, matching the Rust runner.
+  // config value) from being parsed as a git flag.
   const gitArgs = ['--', repo]
   if (ref) {
     gitArgs.push(ref)

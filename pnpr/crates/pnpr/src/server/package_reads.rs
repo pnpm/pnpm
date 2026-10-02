@@ -45,6 +45,10 @@ pub(super) async fn serve_version_manifest(
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
+/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
+/// through the registry graph. Resolves the package to its one concrete origin,
+/// loads that origin's packument, and extracts the requested version with its
+/// `dist.tarball` rewritten onto the same origin's base.
 pub(super) async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
@@ -141,8 +145,7 @@ pub(super) enum RegistrySource {
 /// The registry the path-less base (`https://<pnpr>/`) aliases, owned so it can be
 /// held across an `await`. `None` disables the path-less base entirely — the
 /// bare host has no registry and every request is a not-found, so clients must
-/// address a `/~<name>/`. There is no legacy hosted-then-proxy path: a
-/// path-less request resolves through the registry graph or it does not resolve.
+/// address a `/~<name>/`.
 pub(super) fn default_registry_target(state: &AppState, ecosystem: Ecosystem) -> Option<String> {
     state.inner.config.routing.registries.default_for(ecosystem).map(str::to_string)
 }

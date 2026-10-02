@@ -2019,10 +2019,7 @@ test('injected local packages are deduped', async () => {
 // `ENOENT: copyfile '...node_modules/.bin/<tool>'`. `runLifecycleHooksConcurrently`
 // scanned the existing injected node_modules and added absolute paths under
 // it to the filesMap; the importer's fast path then wiped the target before
-// reading from those paths. Fixed by keeping storeController.importPackage
-// but passing keepModulesDir: true, so importIndexedDir skips the
-// destructive makeEmptyDir fast path (pnpm/pnpm#11088) and preserves the target's
-// existing node_modules (bin links + transitive deps) instead.
+// reading from those paths (pnpm/pnpm#11088).
 test('inject local package with prepare script + bin-having dep does not crash on re-import', async () => {
   const project1Manifest = {
     name: 'project-1',

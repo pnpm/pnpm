@@ -419,7 +419,7 @@ The delegated resolution must be a complete, fetchable shape (for example `{ tar
 
 :::tip Prefer the envelope for portability
 
-The `{ delegate }` envelope is the only delegation form that works in both pnpm and [pacquet](/blog/releases/12.0) (the Rust port of pnpm). pacquet invokes pnpmfile fetchers over IPC, where `cafs` and `fetchers` cannot exist and both arrive as `null`. A fetcher that should run on either stack must return the envelope rather than calling `fetchers.*`.
+The `{ delegate }` envelope is the only delegation form that works in every pnpm version. From [pnpm 12](/blog/releases/12.0), `cafs` and `fetchers` arrive as `null`, so a fetcher that should run on pnpm 11 and 12 must return the envelope rather than calling `fetchers.*`.
 
 :::
 

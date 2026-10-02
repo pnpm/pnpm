@@ -448,9 +448,7 @@ fn directories_bin_handles_curdir_in_relative_path() {
 /// ever reaches (`file_name()` returns None only for paths ending in
 /// `..`, and `to_str()` fails only on non-UTF-8 bytes which are rare on
 /// Unix and impossible on Windows). A fake [`FsWalkFiles`] hands back one
-/// such path so the `continue` arm gets exercised directly. The
-/// regular `cli` entry alongside it confirms that the well-formed
-/// path still flows through and emits a [`Command`](super::Command).
+/// such path so the `continue` arm gets exercised directly.
 #[test]
 fn directories_bin_skips_path_without_usable_file_name() {
     use crate::capabilities::FsWalkFiles;

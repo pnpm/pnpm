@@ -5,7 +5,7 @@ use std::path::Path;
 ///
 /// `add`, `remove` and `update` read the lockfile themselves — for
 /// preferred versions, catalog requests, drop targets — and then run an
-/// install over it, so all three views travel together.
+/// install over it, so the views travel together.
 #[derive(Clone, Copy)]
 pub struct CommandLockfile<'a> {
     /// The document the command reads, resolved out of [`Self::source`]

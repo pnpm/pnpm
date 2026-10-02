@@ -126,7 +126,6 @@ async function findExistingWithUpdatedDeps (
   const wantedPackages = context.lockfiles.wantedLockfile.packages
   if (currentPackages == null || wantedPackages == null) return []
   const existingWithUpdatedDeps: ModulesLinkJob[] = []
-  // add subdependencies that have been updated
   await Promise.all(wantedRelDepPaths.map((depPath) => limitModulesDirReads(async () => {
     const currentSnapshot = currentPackages[depPath]
     if (!currentSnapshot || !childrenMayHaveChanged(currentSnapshot, wantedPackages[depPath])) return

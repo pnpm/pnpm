@@ -277,10 +277,7 @@ pub(super) struct PreservedLinkLookup<'a> {
 /// scope is `None` (a scope-wide bare `update` / forced re-resolve), or when
 /// its specifier changed (a new or edited manifest entry). `KeepAll` (plain
 /// install / add) never targets on its own, so an untouched workspace dep is
-/// preserved. `update_reuse_scope` here is already resolved for this importer
-/// (see `update_reuse_scope_for` in the caller), so `pacquet update <name>
-/// --recursive` targets the named dep in the importer that declares it while
-/// untouched importers keep their `link:`. Matches the TS resolver's
+/// preserved. Matches the TS resolver's
 /// `updateTargetedAliases` / `updateMatching` guard, where a plain install's
 /// blanket spec re-check must not count as targeting.
 pub(super) fn preserved_link_version(
@@ -440,9 +437,7 @@ pub(super) fn self_aliased_file_ver<'a>(
 /// The previous importer's recorded entry for `name`, searched across
 /// its `dependencies` / `optionalDependencies` / `devDependencies` maps
 /// (mirrors the lookup order in
-/// [`pnpm_resolving_deps_resolver`]'s `lockfile_reuse`). Used by the
-/// pnpm/pnpm#10433 guard in [`build_importer`] to recover a workspace
-/// dependency's prior `link:` entry.
+/// [`pnpm_resolving_deps_resolver`]'s `lockfile_reuse`).
 pub(super) fn previous_importer_dep<'a>(
     importer: &'a ProjectSnapshot,
     name: &PkgName,
@@ -464,8 +459,7 @@ pub(super) fn previous_importer_dep<'a>(
 /// The resolved package name for a graph node — the structured
 /// `name_ver` when the resolver produced one, otherwise the `name` from
 /// the fetched manifest (the case for a directory/workspace resolution,
-/// whose `name_ver` is unset). Used to match a workspace dependency
-/// against an `update <name>` scope in [`build_importer`].
+/// whose `name_ver` is unset).
 pub(super) fn node_pkg_name(node: &DependenciesGraphNode) -> Option<String> {
     if let Some(name_ver) = node.resolve_result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());

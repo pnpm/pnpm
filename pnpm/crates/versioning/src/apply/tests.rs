@@ -16,8 +16,7 @@ use crate::{
     settings::{ChangelogSettings, ChangelogStorage, VersioningSettings},
 };
 
-/// The existing changelog assertions predate the `registry`-storage default,
-/// so they opt back into committed CHANGELOG.md files.
+/// The changelog assertions opt into committed CHANGELOG.md files.
 fn repository() -> VersioningSettings {
     VersioningSettings {
         changelog: Some(ChangelogSettings {

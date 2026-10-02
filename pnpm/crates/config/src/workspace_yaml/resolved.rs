@@ -18,10 +18,7 @@ impl WorkspaceSettings {
     ///   `registriesByScope` / `registriesByPrefix` lookups, `catalog`
     ///   becomes the `default` entry of [`Self::catalogs`], and the build
     ///   allow-lists become one `allowBuilds` record.
-    /// - Deprecated spellings, which report under the canonical one:
-    ///   `maxsockets`, `noproxy`, `updateConfig`, `auditLevel`,
-    ///   `auditConfig`, `cleanupUnusedCatalogs`, `namedRegistries`, and
-    ///   `virtualStoreType`.
+    /// - Deprecated spellings, which report under the canonical one.
     ///
     /// `_auth` stays `None` because a project file may not carry it, and
     /// [`Self::key_issues`] is diagnostics about one file rather than a

@@ -36,12 +36,6 @@ pub struct PackageSpecObject {
 
 /// Apply `specs` to `manifest` in memory.
 ///
-/// Each entry either upserts a dependency into its `save_type` field (removing
-/// the alias from the other dependency fields and, when `peer` is set, also
-/// recording a peer range), or — with no `save_type` — rewrites the spec in
-/// whichever field already declares the alias. Empty specifiers are treated as
-/// absent.
-///
 /// Errors when a dependency field that must be written is present but is not a
 /// JSON object (e.g. `"dependencies": "oops"`), as does
 /// [`PackageManifest::add_dependency`]. The mutation is applied

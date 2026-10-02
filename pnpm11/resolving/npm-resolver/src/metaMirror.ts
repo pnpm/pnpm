@@ -295,8 +295,6 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
 
 /**
  * Reads the full metadata from the cached NDJSON file.
- * Line 1: cache headers (etag, modified)
- * Line 2: registry metadata JSON
  */
 export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {

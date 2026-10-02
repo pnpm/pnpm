@@ -135,8 +135,6 @@ fn from_local(
     let (fetch_spec, normalized_bare_specifier) =
         fetched_and_normalized(&spec, project_dir, protocol);
 
-    // Once the protocol is chosen, "copy-shaped" (`protocol == "file:"`)
-    // drives the dependencyPath / id calculations below.
     let copy_shaped = protocol == "file:";
 
     let dependency_path = if copy_shaped {

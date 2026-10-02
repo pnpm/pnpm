@@ -94,25 +94,18 @@ const CHAR_SPACE: u32 = 0x20;
 
 const CHAR_SHARP: u32 = 0x23;
 
-// #
 const CHAR_COLON: u32 = 0x3A;
 
-// :
 const CHAR_COMMA: u32 = 0x2C;
 
-// ,
 const CHAR_LEFT_SQUARE_BRACKET: u32 = 0x5B;
 
-// [
 const CHAR_RIGHT_SQUARE_BRACKET: u32 = 0x5D;
 
-// ]
 const CHAR_LEFT_CURLY_BRACKET: u32 = 0x7B;
 
-// {
 const CHAR_RIGHT_CURLY_BRACKET: u32 = 0x7D;
 
-// }
 const CHAR_BOM: u32 = 0xFEFF;
 
 fn is_whitespace(code: u32) -> bool {

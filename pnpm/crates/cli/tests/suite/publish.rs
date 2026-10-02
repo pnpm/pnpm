@@ -283,7 +283,6 @@ fn publish_from_a_prebuilt_tarball() {
         &json!({ "name": "test-publish-tgz", "version": "1.0.0" }),
     );
 
-    // Build a tarball with `pacquet pack`, then publish it by path.
     let pack = pacquet(dir.path())
         .with_arg("pack")
         .output()

@@ -150,11 +150,6 @@ pub struct Modules {
     /// by rebuild (which throws `MISSING_HOISTED_LOCATIONS` when
     /// absent) and consulted by the hoisted dep-graph's skip-fetch
     /// optimization to decide whether the package is already on disk.
-    /// An optional `Record<string, string[]>` on the on-disk shape.
-    /// Pacquet's install pipeline does not populate this yet; the
-    /// field is wired into the schema so a future hoisted-linker
-    /// implementation can write it without changing the on-disk
-    /// shape.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoisted_locations: Option<BTreeMap<String, Vec<String>>>,
 
@@ -405,9 +400,6 @@ where
 /// `null` document.
 ///
 /// Production callers turbofish [`Host`]: `read_modules_manifest::<Host>(dir)`.
-/// The bounds list the minimal capabilities ([`FsReadToString`] +
-/// [`Clock`]) so test fakes only need to implement the methods that are
-/// actually called.
 pub fn read_modules_manifest<Sys>(modules_dir: &Path) -> Result<Option<Modules>, ReadModulesError>
 where
     Sys: FsReadToString + Clock,
@@ -497,15 +489,7 @@ fn normalize_modules_layout<Sys: Clock>(manifest: &mut ModulesLayout, modules_di
 /// Write `manifest` to `<modules_dir>/.modules.yaml`, creating `modules_dir`
 /// if it does not already exist.
 ///
-/// Takes `manifest` by value because the body unconditionally rewrites
-/// fields (sort `skipped`, drop legacy `hoistedAliases`, relativize
-/// `virtualStoreDir`); making the caller hand over ownership keeps the
-/// in-place mutation visible at the call site instead of forcing a hidden
-/// `clone()` inside the function. Per the `CODE_STYLE_GUIDE` rule that
-/// owned-vs-borrowed parameter choice should minimize copies.
-///
 /// Production callers turbofish [`Host`]: `write_modules_manifest::<Host>(dir, m)`.
-/// Bounds are minimal: only [`FsCreateDirAll`] and [`FsWrite`] are required.
 pub fn write_modules_manifest<Sys>(
     modules_dir: &Path,
     mut manifest: Modules,

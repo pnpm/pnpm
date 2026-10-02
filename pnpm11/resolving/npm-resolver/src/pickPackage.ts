@@ -186,10 +186,6 @@ function createPickRequest (
     pickerOpts,
     fullMetadata,
     metaDir,
-    // Cache key includes the registry so a package of the same name served by two
-    // registries in one install can't share a slot (which would resolve the wrong
-    // tarball/integrity), plus fullMetadata/filterMetadata so a request is never
-    // served a less-detailed or differently-stripped document than it asked for.
     cacheKey: getPkgMetaCacheKey(opts.registry, spec.name, fullMetadata, ctx.filterMetadata === true),
     pkgMirror: getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name),
   }

@@ -250,11 +250,6 @@ pub(super) fn apply_decision(
 ///   ident for `P` (or none at all), promoting the candidate
 ///   would silently re-resolve its peer to the wrong package, so
 ///   we leave it nested.
-///
-/// The ancestor chain is per-path by construction: the DFS
-/// decouples every node it descends into (see [`decouple_child`](crate::decouple_child)),
-/// so a package shared by several parents gets a fresh peer ruling
-/// on each path, matching upstream's per-path work tree.
 fn would_shadow_peer(
     candidate: &HoisterResult,
     ancestor_path: &[Rc<HoisterResult>],

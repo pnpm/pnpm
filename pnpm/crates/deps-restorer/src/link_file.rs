@@ -508,16 +508,6 @@ fn is_call_error(err: &io::Error) -> bool {
     }
 }
 
-/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,
-/// clone → hardlink → copy elsewhere (see [`next_auto_tier`] for the
-/// why) — using `state` to skip tiers that have already failed in this
-/// process. Factored out so tests can
-/// pass their own `AtomicU8` and exercise the downgrade logic in
-/// isolation — the production path uses a `static` declared inside
-/// [`link_file`]. Only capability / cross-device style failures
-/// downgrade the cached state; other errors propagate immediately so a
-/// one-off `NotFound` on a single file doesn't permanently disable a
-/// tier for the rest of the process.
 fn copy_and_log<Reporter: self::Reporter>(
     logged: &AtomicU8,
     source: &Path,
@@ -528,6 +518,16 @@ fn copy_and_log<Reporter: self::Reporter>(
     Ok(WireImportMethod::Copy)
 }
 
+/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,
+/// clone → hardlink → copy elsewhere (see [`next_auto_tier`] for the
+/// why) — using `state` to skip tiers that have already failed in this
+/// process. Factored out so tests can
+/// pass their own `AtomicU8` and exercise the downgrade logic in
+/// isolation — the production path uses a `static` declared inside
+/// [`link_file`]. Only capability / cross-device style failures
+/// downgrade the cached state; other errors propagate immediately so a
+/// one-off `NotFound` on a single file doesn't permanently disable a
+/// tier for the rest of the process.
 fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     logged: &AtomicU8,
     state: &AtomicU8,

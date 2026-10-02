@@ -328,7 +328,6 @@ fn open_url<Sys: OpenUrl>(url: &str) {
     let redacted = pnpm_network::redact_url_credentials(&sanitized);
     println!("{redacted}");
 
-    // Clear username/password before passing to the browser:
     let clean_url_for_browser = if let Ok(mut parsed) = Url::parse(url) {
         if !parsed.username().is_empty() || parsed.password().is_some() {
             let _ = parsed.set_username("");

@@ -11,7 +11,7 @@
 //! `dedupeDirectDeps` regression that broke the v11.5.1 release) fails
 //! here instead of in a release pipeline.
 //!
-//! Three buckets classify every key in `defaultOptions`:
+//! Buckets classify every key in `defaultOptions`:
 //!
 //! - **mapped** — pacquet implements the setting with a directly
 //!   comparable literal default; the value is asserted equal.
@@ -20,7 +20,7 @@
 //!   `workspace-concurrency`, ...) with no source literal to compare.
 //! - **not ported** — pacquet has no `Config` field for it yet.
 //!
-//! The completeness guard asserts the three buckets exactly partition
+//! The completeness guard asserts the buckets exactly partition
 //! pnpm's key set, so a *new* pnpm setting (neither mapped nor skipped)
 //! fails the test until someone classifies it — which is how this test
 //! keeps catching the next default that needs porting.

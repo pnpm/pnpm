@@ -107,7 +107,6 @@ describe('extractZipToTarget security', () => {
         code: 'ERR_PNPM_PATH_TRAVERSAL',
       })
 
-      // Verify no files were written outside target
       const parentDir = path.dirname(targetDir)
       expect(fs.existsSync(path.join(parentDir, '.npmrc'))).toBe(false)
     })
@@ -269,7 +268,6 @@ describe('extractZipToTarget security', () => {
         targetDir
       )
 
-      // Verify files were extracted correctly
       expect(fs.existsSync(path.join(targetDir, 'bin/node'))).toBe(true)
       expect(fs.existsSync(path.join(targetDir, 'README.md'))).toBe(true)
     })
@@ -378,9 +376,7 @@ describe('extractZipToTarget security', () => {
 
     it('still honors ignoreEntry when the archive contains directory entries (regression for #11325)', async () => {
       // Real Node.js Windows zips include directory entries in addition to file
-      // entries. AdmZip's extractEntryTo(dirEntry, ...) expands to every descendant
-      // via getEntryChildren, which previously bypassed the ignoreEntry filter.
-      // Covering that path explicitly here.
+      // entries.
       const targetDir = temporaryDirectory()
       const zip = new AdmZip()
       zip.addFile('node-v20.0.0/', Buffer.alloc(0))

@@ -27,11 +27,6 @@ use std::borrow::Cow;
 /// as unverifiable ("Cannot check whether dependencies are outdated"),
 /// matching pnpm's catch-all: in the worst case the configured action
 /// runs a redundant install.
-///
-/// `selected_project_dirs` are the project directories the gated command
-/// selected: a state that records a filtered install exempts the projects
-/// that install did not select from the modules-directory requirement, but
-/// the selected ones are still held to it.
 #[must_use]
 pub fn check_deps_status_before_run_at(
     dir: &Path,

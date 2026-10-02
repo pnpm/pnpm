@@ -3,7 +3,7 @@
 //! `installing/deps-installer/test/install/multipleImporters.ts`, the
 //! workspace cases of `installing/deps-restorer/test/index.ts`, and the
 //! CLI-level `pnpm/test/monorepo/index.ts` items. See
-//! `plans/TEST_PORTING.md` § "Support Workspaces".
+//! `plans/TEST_PORTING.md`.
 //!
 //! Upstream drives subset installs through `mutateModules` /
 //! `mutateModulesInSingleProject` with a shared lockfile dir; the CLI

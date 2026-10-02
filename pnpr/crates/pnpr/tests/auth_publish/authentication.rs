@@ -67,7 +67,7 @@ async fn basic_auth_is_rejected_for_protected_package() {
     let app = router(static_config(storage.path().to_path_buf()));
     let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
 
-    // pnpr no longer accepts Basic credentials on requests: the header is
+    // pnpr does not accept Basic credentials on requests: the header is
     // ignored (treated as anonymous), so a protected package is rejected.
     // Clients must authenticate with a bearer token.
     let basic = BASE64.encode(b"alice:secret");

@@ -210,10 +210,6 @@ where
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
 
-    // Provenance is requested either explicitly (`--provenance`) or by OIDC
-    // auto-detection for a public repo; `resolved.provenance` carries the merged
-    // result. Sign an SLSA attestation with sigstore and splice it into the
-    // document's `_attachments`.
     if resolved.provenance == Some(true) {
         attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
             .await?;

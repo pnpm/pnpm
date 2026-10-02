@@ -6,11 +6,6 @@
 //! [`replace_workspace_protocol`] / [`replace_workspace_protocol_peer_dependency`]
 //! helpers are also exposed directly for callers that only need the
 //! workspace-protocol rewrite.
-//!
-//! The one step not yet applied is the `beforePacking`
-//! pnpmfile hook — pacquet's pnpmfile bridge does not expose it yet, so
-//! there is no source to feed the hook. See the `create` module for the
-//! gap note.
 
 pub use create::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,

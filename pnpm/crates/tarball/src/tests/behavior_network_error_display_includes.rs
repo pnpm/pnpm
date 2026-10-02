@@ -13,9 +13,7 @@ use super::{
 /// from a real reqwest connect failure must surface the leaf
 /// reason (e.g. `Connection refused`) appended to the wrapper
 /// message, not stop at reqwest's `error sending request for url
-/// (URL)`. Without the helper, the user sees only the wrapper —
-/// which is what triggered the original "what's actually failing?"
-/// debugging round on this branch.
+/// (URL)`. Without the helper, the user sees only the wrapper.
 ///
 /// Uses `127.0.0.1:1`, which Linux and macOS refuse at once. Windows
 /// and a firewalled runner report no refusal within the 100 ms connect

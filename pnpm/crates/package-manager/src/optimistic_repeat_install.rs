@@ -9,54 +9,6 @@
 //! resolver state. A lockfile modified after the last validation is
 //! scanned with a bounded buffer for merge conflict markers before the
 //! shortcut may continue.
-//!
-//! Scope: the mtime-vs-`lastValidatedTimestamp` branch (the
-//! up-to-date exit when no project is modified), the patch-file branch
-//! (a configured patch file whose mtime is newer than
-//! `lastValidatedTimestamp` invalidates the fast path even when its
-//! `patchedDependencies` config entry is unchanged — a content edit the
-//! key→path settings comparison can't see), and the modified-manifests
-//! content re-check: when a manifest's mtime is newer but its
-//! dependency-relevant content still matches the lockfile, the install
-//! still reports up-to-date (a `touch package.json`, a `scripts` edit, or
-//! an `npm pkg set/delete` rewrite must not trigger a full install), and
-//! the pnpmfile branch (an added, removed, or edited workspace pnpmfile
-//! invalidates the fast path; plugin pnpmfiles from config dependencies
-//! are covered by the `config_dependencies` comparison instead of the
-//! mtime check), and the local-file-dependency bail: mutable directory
-//! dependencies always take the full install path. Local tarballs stay on the
-//! fast path only when their bytes match the integrity in the lockfile.
-//! Local specs introduced through `pnpm.overrides` or package extensions
-//! remain on the full path because their resolution base is graph-dependent.
-//! A direct dependency whose link in its project's modules directory points
-//! to a missing target also takes the full path, which relinks it; nothing
-//! the timestamps cover moves when a link is broken outside pnpm.
-//!
-//! An embedder that hands the engine its project manifests in memory (the
-//! Node-API binding) has no `package.json` mtimes to key the check off: the
-//! manifests may not exist on disk at all, and can change without any file
-//! moving. Such a caller selects [`ManifestFreshness::Content`], which skips
-//! the mtime shortcut and puts every project through the content re-check
-//! against the wanted lockfile on every run; everything else the check
-//! consults (settings, workspace structure, the lockfile itself) is on disk
-//! for both kinds of caller.
-//!
-//! The local-file-dependency freshness branch of linked-package
-//! verification is NOT ported here. When this function returns
-//! `Decision::Skipped` the caller proceeds with the full install path,
-//! which has its own
-//! freshness guards (`check_lockfile_freshness`, the no-op
-//! short-circuit).
-//!
-//! ## Why a separate module
-//!
-//! Lives in `pnpm-package-manager` rather than a new
-//! `pnpm-deps-status` crate because both consumers — `Install::run`
-//! and the verify-deps-before-run gate ([`check_deps_status_before_run`])
-//! — lean on install internals (`check_lockfile_settings_drift`,
-//! `check_importer_satisfies`, `build_workspace_state`) that a separate
-//! crate would have to re-export wholesale. Extract it only if a
-//! consumer outside this crate's dependents appears.
 
 pub(crate) mod conflict_markers;
 pub(crate) mod deps_status;
@@ -481,14 +433,7 @@ fn lockfile_inputs_block_fast_path(
     // Single-project installs require a lockfile to even attempt the
     // fast path. The single-project branch raises
     // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
-    // stat is absent, which resolves to not-up-to-date. Pacquet
-    // additionally accepts the *current* lockfile
-    // (`<install_state_dir>/lock.yaml`) as a stand-in when
-    // `pnpm-lock.yaml` is missing: it records exactly what the
-    // previous install materialized, so the content checks can run
-    // against it and `pnpm-lock.yaml` is regenerated from it on
-    // success — the same substitution the full install path makes
-    // when it synthesizes the wanted lockfile from the current one.
+    // stat is absent, which resolves to not-up-to-date.
     // Workspace installs skip this existence gate — the workspace
     // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
     // scan `continue`s on ENOENT, and the missing lockfile is restored

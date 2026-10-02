@@ -502,9 +502,7 @@ fn for_installs_strict_ssl_false_relaxes_verification() {
     // `danger_accept_invalid_certs(true)` is a builder-level toggle —
     // we can't observe it directly without a self-signed-cert HTTPS
     // server, and mockito speaks plain HTTP only. Asserting the
-    // client builds is the best we can do here; a live-traffic
-    // integration test would need a TLS-capable mock server (e.g.
-    // `wiremock` with rustls) and is left as a future enhancement.
+    // client builds is the best we can do here.
     let tls = TlsConfig { strict_ssl: Some(false), ..TlsConfig::default() };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
@@ -735,13 +733,10 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
 
 #[test]
 fn for_installs_with_pkcs1_client_key_builds() {
-    // The whole reason we switched reqwest's TLS backend from
-    // native-tls to rustls: native-tls's `Identity::from_pkcs8_pem`
-    // rejected `-----BEGIN RSA PRIVATE KEY-----`; rustls's
-    // `Identity::from_pem` accepts PKCS#1, PKCS#8, and EC keys.
-    // This test pins the new contract — if a future change reverts
-    // the backend or otherwise narrows the accepted key formats,
-    // this build will fail with a clear `InvalidClientIdentity`.
+    // rustls's `Identity::from_pem` accepts PKCS#1, PKCS#8, and EC keys.
+    // This test pins that contract — if a future change narrows the
+    // accepted key formats, this build will fail with a clear
+    // `InvalidClientIdentity`.
     let tls = TlsConfig {
         cert: Some(TEST_CLIENT_PKCS1_CERT.to_string()),
         key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),

@@ -16,13 +16,9 @@ pub(super) struct HookedManifests {
     hooked: Vec<(PathBuf, PackageManifest)>,
 }
 impl HookedManifests {
-    // pnpm's `getContext` runs `readPackage` over every project
-    // manifest before anything reads it, so a hook that rewrites a
-    // project's own specifier steers the resolution, the freshness
-    // gates, and the importer entries the lockfile records alike.
-    // The optimistic repeat-install check above stays on the on-disk
-    // manifests on purpose: it is the one gate that must not spawn
-    // the Node worker.
+    // The optimistic repeat-install gate runs before this and stays on
+    // the on-disk manifests on purpose: it is the one gate that must not
+    // spawn the Node worker.
     // `packageExtensions` runs ahead of the pnpmfile's `readPackage`,
     // the order the resolver applies them in. The freshness gates below
     // compare against these, because the lockfile they check was written

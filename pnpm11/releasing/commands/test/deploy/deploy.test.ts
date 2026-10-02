@@ -1040,8 +1040,6 @@ test('legacy deploy with node-linker=hoisted puts the direct dependency versions
 // Similar to the test above making sure pnpm deploy works with
 // node-linker=hoisted, but we should also make sure not to link projects not in
 // the dependency graph of the deployed package.
-//
-// Let's check node-linker=isolated as well for good measure.
 test.each(['isolated', 'hoisted'] as const)(
   'deploy does not link unnecessary workspace packages when node-linker=%p',
   async (nodeLinker) => {

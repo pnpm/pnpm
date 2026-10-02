@@ -175,11 +175,7 @@ pub(crate) fn resolve_bool_override(force_on: bool, force_off: bool, config: boo
 
 impl InstallArgs {
     /// The install args for a reinstall triggered by an out-of-band change to
-    /// the install inputs: `patch-commit` / `patch-remove` (which rewrite the
-    /// manifest's `patchedDependencies`) and `unlink` (which removes `link:`
-    /// overrides from `pnpm-workspace.yaml`). Forces a fresh resolution
-    /// (`preferFrozenLockfile: false`, via `no_prefer_frozen_lockfile`, and
-    /// `frozenLockfile: false`, via `no_frozen_lockfile`) so the changed
+    /// the install inputs. Forces a fresh resolution so the changed
     /// inputs re-resolve rather than reusing — or failing against — the
     /// stale lockfile.
     pub(crate) fn for_reresolving_install() -> Self {

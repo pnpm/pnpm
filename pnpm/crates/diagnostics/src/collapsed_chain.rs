@@ -20,8 +20,7 @@ use std::{error::Error, fmt};
 ///
 /// A [`miette::Report`] captures the installed hook when it is built,
 /// so this has to run before the first one is created. A hook that is
-/// already installed is left alone — the first caller wins, and the
-/// only caller is the CLI entry point.
+/// already installed is left alone — the first caller wins.
 pub fn install_report_handler() {
     let _ = miette::set_hook(Box::new(|_| {
         Box::new(CollapsingHandler { inner: MietteHandlerOpts::new().build() })

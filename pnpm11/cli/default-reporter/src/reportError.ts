@@ -71,11 +71,6 @@ const ERROR_INFO_REPORTERS = new Map<string, ErrorInfoReporter>([
   ['ERR_PNPM_LOCKFILE_BREAKING_CHANGE', (err, logObj) => reportLockfileBreakingChange(err, logObj)],
   ['ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT', (err) => ({ title: err.message })],
   ['ERR_PNPM_MISSING_TIME', (err) => ({ title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' })],
-  // ERR_PNPM_NO_MATURE_MATCHING_VERSION used to come from the resolver
-  // with `packageMeta` attached; it now comes from the install / dlx /
-  // self-update callers as a plain PnpmError once the resolver has
-  // surfaced the violations. `packageMeta` may be undefined, in which
-  // case the formatter falls back to the bare title+message.
   ['ERR_PNPM_NO_MATCHING_VERSION', (err, logObj) => formatNoMatchingVersion(err, logObj)],
   ['ERR_PNPM_NO_MATURE_MATCHING_VERSION', (err, logObj) => formatNoMatchingVersion(err, logObj)],
   ['ERR_PNPM_RECURSIVE_FAIL', (_err, logObj) => formatRecursiveCommandSummary(logObj)],

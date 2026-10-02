@@ -11,12 +11,6 @@ use std::fmt::Write as _;
 
 use crate::format::visible_width;
 
-// `visible_width` counts one column per char (matching `string-length` in the
-// TS reporter), not `wcwidth` (which counts CJK/wide chars as 2). This
-// matches the TS `ansi-diff` usage where `string-length` is the width source.
-// ASCII-dominant progress output is unaffected; CJK package names would be
-// undercounted, same as the pre-pnpm/pnpm#12351 behavior.
-
 /// Renders the differential between successive frames.
 pub struct Diff {
     col: usize,
@@ -201,9 +195,6 @@ impl Line {
             .collect()
     }
 
-    /// Inline diff: if only a few characters changed, write just those
-    /// instead of the whole line. Only attempted on lines without ANSI
-    /// escape codes (plain text like progress lines).
     /// Whether this line renders exactly as `other` did at the same row.
     fn same_text_at(&self, other: &Line) -> bool {
         self.raw == other.raw && self.row == other.row && self.newline == other.newline

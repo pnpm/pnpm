@@ -340,9 +340,8 @@ async fn install_prunes_surplus_virtual_store_dir() {
     drop((dirs.dir, mock_instance));
 }
 /// Issue [#312](https://github.com/pnpm/pacquet/issues/312): an npm-alias dependency
-/// (`"<key>": "npm:<real>@<range>"`) used to panic during install
-/// because the whole `npm:...` spec was fed to
-/// `node_semver::Range::parse`. Assert that:
+/// (`"<key>": "npm:<real>@<range>"`) must not panic during install.
+/// Assert that:
 ///
 /// * the install completes,
 /// * the virtual-store directory uses the *real* package name, and
@@ -443,12 +442,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     drop((dirs.dir, mock_instance));
 }
 /// Issue [#312], unversioned variant: `"foo": "npm:bar"` (no `@<range>`)
-/// must default to `latest` without panicking. `resolve_registry_dependency`
-/// turns `"npm:bar"` into `("bar", "latest")`; the previous code then
-/// fed `"latest"` to `package.pinned_version()` which panics because
-/// `node_semver::Range` cannot parse the string. The fix is to route
-/// `"latest"` (and any `PackageTag`-parseable value) through
-/// `PackageVersion::fetch_from_registry` directly.
+/// must default to `latest` without panicking.
 ///
 /// We use the same scoped test package as the pinned-version test above
 /// but omit the `@1.0.0` suffix to trigger the default-to-`latest` path.

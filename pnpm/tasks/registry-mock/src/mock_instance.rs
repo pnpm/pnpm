@@ -87,11 +87,6 @@ impl MockInstanceOptions<'_> {
         let stderr = stderr.map_or_else(Stdio::null, |stderr| {
             File::create(stderr).expect("create file for stderr").into()
         });
-        // Storage is built from the in-repo fixtures (see
-        // `registry_mock_storage`) and seeded into runtime storage by
-        // `pnpr_command`. pnpr runs in proxy mode
-        // against npmjs.org so off-fixture packages fall through to
-        // npm; see `pnpr_command` for the rationale.
         let process = pnpr_command(port, public_url)
             .stdin(Stdio::null())
             .stdout(stdout)
@@ -120,9 +115,6 @@ impl MockInstanceOptions<'_> {
 }
 
 /// Manage a single mocked registry server instance that is shared between multiple different tests.
-///
-/// This instance can either be automatically be spawned by the first test and tracked by a reference counter
-/// or be prepared by the CLI command.
 #[derive(Debug)]
 #[must_use]
 pub enum AutoMockInstance {

@@ -1,7 +1,6 @@
 //! `pacquet repo` — open the repository URL of a package in the browser.
 //!
-//! Covers the missing-repository-field error, the missing-package.json error,
-//! and the command structure checks. The URL-normalization logic is covered by
+//! The URL-normalization logic is covered by
 //! the unit tests on `repository_to_web_url` / `pick_repo_url`; the full
 //! integration path (mock registry + URL open) requires platform-specific
 //! browser launcher mocking and follows the `whoami` pattern.

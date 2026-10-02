@@ -58,12 +58,7 @@ use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
-/// the wrapper needs to drive a background tarball download:
-/// network/store handles, the shared mem cache, the
-/// `verifiedFilesCache`, retry/offline knobs, and the install's
-/// `requester` prefix for reporter events. The wrapper clones each
-/// field into the form a `tokio::spawn`ed task can capture (`Arc` for
-/// shared refs, `&'static` passes through, primitive copies).
+/// the wrapper needs to drive a background tarball download.
 #[derive(Clone, Copy)]
 pub struct PrefetchContext<'a> {
     pub http_client: &'a Arc<ThrottledClient>,
@@ -218,18 +213,6 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // behaviour without adding a divergence.
         let Some(name_ver) = result.package.name_ver.as_ref() else { return };
 
-        // Per-occurrence atomic dedup: the deps resolver calls
-        // `resolve()` once per (parent, child) edge. Concurrent calls
-        // for the same tarball must collapse to a single spawn —
-        // `MemCache` would dedup correctness-wise via its `InProgress`
-        // slot, but two losers would still both `tokio::spawn` and
-        // both `await` the `Notify`, contributing only scheduler /
-        // lock churn. Use [`DashSet::insert`] as a check-and-claim
-        // primitive: only the caller that flips the membership from
-        // absent → present spawns; everyone else returns. The
-        // `MemCache` is *not* atomic for this purpose — its
-        // `contains_key` + `insert` is a TOCTOU pair under racing
-        // resolvers.
         if !self.claim_download(package_url, &integrity, revision_addressed) {
             return;
         }
@@ -245,13 +228,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             // soon as the fetch/cache-hit outcome is known. pnpm can
             // likewise start package fetching before the dependency
             // resolver emits `resolved`; the default reporter counts
-            // progress events independently. The shared
-            // `progress_reported` set lets the later warm/cold install
-            // pass skip a duplicate package-status event for this cache
-            // key while still emitting `resolved`.
-            //
-            // Result is intentionally discarded — the `MemCache`
-            // carries success / failure state to the install path.
+            // progress events independently.
             let download = ctx.tarball_download(
                 &package_url,
                 &package_id,

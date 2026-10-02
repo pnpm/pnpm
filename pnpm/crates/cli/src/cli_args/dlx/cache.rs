@@ -161,8 +161,8 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
 
 /// Build the dlx cache key from the sorted package specs, sorted
 /// registries, the optional `allow_build` list, each non-empty
-/// `supportedArchitectures` axis (deduped + sorted, in `cpu` / `libc` /
-/// `os` order), and the Node.js engine name, all hashed together. pacquet keys on the raw specs (not
+/// `supportedArchitectures` axis, and the Node.js engine name, all hashed
+/// together. pacquet keys on the raw specs (not
 /// resolved ids) and uses [`create_short_hash`] rather than a full-length
 /// hex digest; the dlx caches are not shared between the two
 /// implementations, so the key format is not a cross-tool contract.

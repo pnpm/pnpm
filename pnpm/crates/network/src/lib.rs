@@ -84,7 +84,7 @@ pub const DEFAULT_USER_AGENT: &str = "pnpm";
 /// other metadata fetches that gate resolution progress — served FIFO
 /// and preferred over size-prioritized downloads beyond the downloads'
 /// reserved share of the pool (see the `priority_semaphore` module
-/// docs for the two-class grant policy).
+/// docs for the grant policy).
 pub const UNPRIORITIZED: u64 = u64::MAX;
 
 /// Priority sentinel for the background class: metadata fetches whose
@@ -181,16 +181,8 @@ impl Default for NetworkSettings {
 /// concurrent socket count regardless of which registry a request
 /// targets.
 ///
-/// When the pool saturates, freed slots are granted by a two-class
-/// policy (see the `priority_semaphore` module docs): requests
-/// acquired without an explicit priority ([`Self::acquire`],
-/// [`Self::acquire_for_url`]) form the FIFO latency class (typically
-/// metadata fetches gating resolution progress), while downloads pass
-/// their estimated pipeline work through
-/// [`Self::acquire_for_url_with_priority`] and are guaranteed a
-/// reserved share of the pool, granted most-expensive-first — so the
-/// longest download jobs start early and neither class starves the
-/// other.
+/// When the pool saturates, freed slots are granted by the class policy
+/// in the `priority_semaphore` module docs.
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,
@@ -224,13 +216,6 @@ impl ClientPair {
 }
 
 /// How the `maxSockets` configuration maps to a per-origin cap.
-///
-/// - [`Default`](Self::Default) — no explicit setting; direct origins
-///   are uncapped, proxied origins are capped at [`DEFAULT_MAX_SOCKETS`].
-/// - [`Disabled`](Self::Disabled) — explicitly `Some(0)`; all origins
-///   are uncapped.
-/// - [`Explicit`](Self::Explicit) — `Some(n)`; all origins are capped
-///   at `n`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HostSocketCap {
     Default,
@@ -485,10 +470,7 @@ impl ThrottledClient {
     }
 
     /// Acquire a permit and return a guard granting access to the
-    /// underlying [`Client`]. The permit is released when the guard
-    /// is dropped, so callers control how long the request "counts"
-    /// against [`default_network_concurrency`] — typically the full
-    /// `send + body-consume` lifetime, not just `.send()`.
+    /// underlying [`Client`].
     pub async fn acquire(&self) -> ThrottledClientGuard<'_> {
         let permit = self.semaphore.acquire(UNPRIORITIZED).await;
         ThrottledClientGuard {
@@ -515,15 +497,6 @@ impl ThrottledClient {
     /// Acquire a permit and return a guard granting access to the
     /// per-registry [`Client`] that matches `url`'s nerf-darted form
     /// (falling back to the default client when no override matches).
-    /// The semaphore is shared across all clients, so total concurrent
-    /// socket count stays bounded by [`default_network_concurrency`]
-    /// regardless of which registry the request targets.
-    ///
-    /// Per-URL routing uses a 5-step fallback: exact, then nerf-darted,
-    /// then host without port, then progressively shorter path prefixes,
-    /// then a recursive retry without port. When no per-registry overrides
-    /// are configured (the common case), the routing table is empty
-    /// and the lookup short-circuits to the default client.
     ///
     /// Takes `url` as `&str` so callers don't have to round-trip
     /// `format!("{registry}{name}")` strings through `Url::parse`
@@ -537,11 +510,6 @@ impl ThrottledClient {
     /// pool at an explicit `priority` instead of [`UNPRIORITIZED`].
     /// [`BACKGROUND`] selects the background class (bulk verification
     /// metadata); any other value selects the throughput class.
-    /// Tarball downloads pass their estimated pipeline work (0 when
-    /// unknown) so that freed slots go to the most expensive pending
-    /// archive first — the longest download+extract jobs start
-    /// earliest and never end up running alone after the small ones
-    /// drained.
     pub async fn acquire_for_url_with_priority(
         &self,
         url: &str,

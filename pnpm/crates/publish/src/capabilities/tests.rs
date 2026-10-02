@@ -1,6 +1,6 @@
 //! Tests for the production [`Host`] capability impls.
 //!
-//! These cover only the two impls that carry real branching and can be
+//! These cover only the impls that carry real branching and can be
 //! exercised portably without mutating process-global state: [`OidcFetch`]
 //! (driven against a `mockito` server) and [`super::RunCommand`] (a real
 //! subprocess). The remaining impls are deliberately untested here — `EnvVar`

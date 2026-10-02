@@ -76,8 +76,7 @@ pub struct CatalogResolutionMisconfiguration {
     pub error: CatalogResolutionError,
 }
 
-/// The ways a `catalog:` lookup can fail. Each variant carries the
-/// `pnpm` error code reported for that failure.
+/// The ways a `catalog:` lookup can fail.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CatalogResolutionError {

@@ -5,9 +5,7 @@
 //! local_address)` quadruple. Built by `pnpm-config` from the
 //! `.npmrc` keys `ca`, `cafile`, `cert`, `key`, `strict-ssl`, and
 //! `local-address`. Lives in `pnpm-network` for the same reason
-//! [`crate::ProxyConfig`] does — `pnpm-config` depends on
-//! `pnpm-network` for `AuthHeaders`, so the inverse direction
-//! would form a cycle.
+//! [`crate::ProxyConfig`] does.
 //!
 //! Parity policy: pnpm performs no PEM parsing in user-space (PEM
 //! strings are handed directly to Node `tls` / undici, which parse
@@ -41,8 +39,7 @@ use std::{collections::HashMap, net::IpAddr};
 /// `true` default is applied at client-build time rather than baked
 /// into the config layer, so a user that explicitly sets
 /// `strict-ssl=false` stays
-/// distinguishable from "unset". The default value is applied at
-/// client-build time by [`crate::ThrottledClient::for_installs`].
+/// distinguishable from "unset".
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TlsConfig {
     /// CA certificate chain to trust for TLS verification. Each
@@ -79,9 +76,7 @@ pub struct TlsConfig {
     /// [`IpAddr`] in the config layer and silently drops anything
     /// that doesn't parse — mirroring pnpm's parity policy of letting
     /// the network layer surface the failure when (and if) the value
-    /// actually gets used at connect time. A future enhancement could
-    /// emit a warning at parse time; tracked alongside the rest of
-    /// the TLS error-surface work.
+    /// actually gets used at connect time.
     pub local_address: Option<IpAddr>,
 }
 
@@ -117,10 +112,6 @@ pub enum TlsError {
 /// registry should use *instead of* the corresponding top-level fields,
 /// with per-registry values overriding the top-level ones
 /// **field-by-field**.
-///
-/// Lookup is via [`PerRegistryTls::pick_for_url`] with the 5-step
-/// fallback chain pnpm uses (exact > nerf-dart > no-port > shorter
-/// prefix > recursive no-port retry).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PerRegistryTls {
     by_uri: PerRegistryMap<RegistryTls>,
@@ -159,17 +150,11 @@ impl<Value> Default for PerRegistryMap<Value> {
 /// which `reqwest::Certificate::from_pem` accepts.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct RegistryTls {
-    /// Per-registry CA override. May contain multiple
-    /// `-----END CERTIFICATE-----`-delimited PEMs in one string when
-    /// sourced from `:cafile=<path>`, or a single PEM (with `\n`
-    /// escapes expanded) when sourced from `:ca=...`.
+    /// Per-registry CA override.
     pub ca: Option<String>,
     /// Per-registry client certificate PEM.
     pub cert: Option<String>,
-    /// Per-registry client private key PEM. Accepts PKCS#1, PKCS#8,
-    /// and EC keys (handed to reqwest's `Identity::from_pem` on the
-    /// rustls backend — see the comment on `apply_tls` in
-    /// `crates/network/src/lib.rs`).
+    /// Per-registry client private key PEM.
     pub key: Option<String>,
 }
 
@@ -326,9 +311,7 @@ impl<Value> PerRegistryMap<Value> {
 /// the input had one. Returns the original string when there's no
 /// port to strip.
 ///
-/// Hand-rolled instead of pulling in the `url` crate as a direct dep
-/// (mirrors the `ParsedUrl` approach for the auth nerf-darting). The
-/// contract: only HTTP-family URLs flow through here, ports are
+/// The contract: only HTTP-family URLs flow through here, ports are
 /// always numeric, and authority is the `[user@]host[:port]` segment
 /// before the first `/`.
 fn strip_port(url: &str) -> String {

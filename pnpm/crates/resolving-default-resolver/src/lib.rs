@@ -114,8 +114,7 @@ pub struct SpecNotSupportedByAnyResolverError {
     /// halves of the wanted dependency are absent (the quotes are
     /// dropped for the empty case).
     pub quoted: String,
-    /// Unquoted form of the same specifier — `<alias>@<bareSpecifier>`
-    /// with either half omitted when absent. Kept separately so
+    /// Unquoted form of the same specifier. Kept separately so
     /// callers and tests can read the bare value without re-parsing
     /// the formatted message.
     pub specifier: String,

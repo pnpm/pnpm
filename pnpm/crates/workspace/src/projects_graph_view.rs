@@ -3,8 +3,7 @@
 //! The graph crate reads projects through the [`BaseProject`] /
 //! [`GraphProject`] traits so it stays free of manifest parsing. This is
 //! the one place that bridges the two, shared by every caller that builds
-//! a workspace graph — the `--filter` selection, and the workspace-cycle
-//! report a full install makes.
+//! a workspace graph.
 
 use crate::Project;
 use indexmap::IndexMap;

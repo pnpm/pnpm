@@ -67,6 +67,15 @@ impl ShimSpec<'_> {
     }
 }
 
+/// Write the canonical bin shim for `target_path` at `shim_path`,
+/// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
+/// is Windows*. Idempotent on warm reinstalls via
+/// [`is_shim_pointing_at`].
+///
+/// `make_powershell_shim` (see
+/// [`wants_powershell_shim`](super::windows_shim_policy::wants_powershell_shim)) drops the
+/// `.ps1` sibling, and deletes any that an earlier install left
+/// behind.
 pub(super) fn write_shim<Sys>(
     spec: ShimSpec<'_>,
     cache: &ShimTargetCache,

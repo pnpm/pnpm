@@ -4,10 +4,7 @@
 //!
 //! Catalog protocol: when the override value uses the `catalog:` form
 //! it is resolved against the workspace's named catalogs before being
-//! stored on the parsed entry. A `catalog:` value
-//! that misses (no entry, recursive, or uses a forbidden inner protocol)
-//! surfaces as [`ParseOverridesError::CatalogInOverrides`]
-//! (`ERR_PNPM_CATALOG_IN_OVERRIDES`). Pass an empty
+//! stored on the parsed entry. Pass an empty
 //! [`Catalogs`] map when the caller has no catalogs configured — any
 //! `catalog:` value will then fall through to the missing-entry branch.
 
@@ -62,7 +59,7 @@ pub struct PackageSelector {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 pub enum ParseOverridesError {
     /// The selector half (either the parent or the target) doesn't
-    /// resolve to a package name (`ERR_PNPM_INVALID_SELECTOR`).
+    /// resolve to a package name.
     #[display(r#"Cannot parse the "{selector}" selector"#)]
     #[diagnostic(code(ERR_PNPM_INVALID_SELECTOR))]
     InvalidSelector {
@@ -72,8 +69,7 @@ pub enum ParseOverridesError {
 
     /// The override value uses the `catalog:` protocol but the
     /// configured catalogs can't resolve it (missing entry, recursive
-    /// definition, or forbidden inner protocol)
-    /// (`ERR_PNPM_CATALOG_IN_OVERRIDES`).
+    /// definition, or forbidden inner protocol).
     #[display("Could not resolve a catalog in the overrides: {message}")]
     #[diagnostic(code(ERR_PNPM_CATALOG_IN_OVERRIDES))]
     CatalogInOverrides {
@@ -83,7 +79,7 @@ pub enum ParseOverridesError {
 
     /// A `parent>child` selector uses an empty range on either side.
     /// The empty-range form is reserved for standalone convergence
-    /// overrides (`ERR_PNPM_INVALID_CONVERGENCE_OVERRIDE`).
+    /// overrides.
     #[display(
         r#"Cannot use an empty range in the "{selector}" selector: convergence overrides ("pkg@") cannot be combined with parent>child selectors"#
     )]
@@ -96,7 +92,7 @@ pub enum ParseOverridesError {
     /// A convergence override's (catalog-resolved) value is not an
     /// exact semver version. Ranges, dist-tags, `-`, and protocol
     /// specs have no defined "satisfies" relation against a declared
-    /// range (`ERR_PNPM_INVALID_CONVERGENCE_OVERRIDE`).
+    /// range.
     #[display(
         r#"The value of the convergence override "{selector}" must be an exact version, but got "{value}""#
     )]
@@ -115,9 +111,7 @@ pub enum ParseOverridesError {
 /// unordered, so the returned `Vec` is *not* guaranteed to match
 /// the input's insertion order — for that, use
 /// [`parse_overrides_iter`] with an ordered map (e.g. `IndexMap`)
-/// or pre-sort by key. The functional behavior of each entry —
-/// selector splitting via [`parse_pkg_and_parent_selector`] and
-/// `catalog:` resolution — is independent of order.
+/// or pre-sort by key.
 pub fn parse_overrides(
     overrides: &HashMap<String, String>,
     catalogs: &Catalogs,
@@ -127,8 +121,7 @@ pub fn parse_overrides(
 
 /// Stable-ordered variant of [`parse_overrides`] for callers that
 /// drive their input through an ordered map (e.g. `IndexMap`) and want
-/// the same ordering preserved on the output. Functionally identical
-/// to [`parse_overrides`]; only the input iterator differs.
+/// the same ordering preserved on the output.
 pub fn parse_overrides_iter<'a, Iter>(
     overrides: Iter,
     catalogs: &Catalogs,
@@ -253,12 +246,7 @@ fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesE
     Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier })
 }
 
-/// Run the override value through the catalog resolver:
-/// `found` returns the resolved specifier, `unused` (non-`catalog:`)
-/// returns the value verbatim, and `misconfiguration` (missing entry
-/// or a recursive one) raises
-/// [`ParseOverridesError::CatalogInOverrides`] with the resolver's
-/// error message.
+/// Run the override value through the catalog resolver.
 ///
 /// A `file:` / `link:` entry keeps the path as the catalog wrote it.
 /// The overrider that applies the result anchors a local target itself,

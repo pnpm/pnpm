@@ -232,8 +232,7 @@ fn arguments_reach_pnpm_as_they_do_without_the_shim() {
 
 /// PowerShell builds the command line for a batch file itself, and quotes an
 /// argument only when it has whitespace. The arguments here are the ones that
-/// survive that unchanged, which they did before the shim ended its batch
-/// context too.
+/// survive that unchanged.
 #[test]
 fn arguments_from_powershell_reach_pnpm() {
     let cli = GlobalCli::install();

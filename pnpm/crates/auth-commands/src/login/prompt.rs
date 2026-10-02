@@ -6,11 +6,9 @@ use pnpm_network_web_auth::PromptError;
 /// username and email prompts). This is the blocking terminal read behind the
 /// capability seam, and nothing more: the production impl is that bare chain.
 ///
-/// The surrounding algorithm — running the blocking read off the async runtime,
-/// selecting the visible or masked read by masking, and classifying a
-/// [`dialoguer::Error`] into a [`PromptError`] — deliberately does *not* live
-/// here or in [`PromptPassword`]. It lives in `prompt_line`, so each provider
-/// stays a bare builder chain while a test fakes only the read and that real
+/// The surrounding algorithm deliberately does *not* live here or in
+/// [`PromptPassword`]. It lives in `prompt_line`, so each provider stays a
+/// bare builder chain while a test fakes only the read and that real
 /// algorithm still runs.
 pub trait PromptInput {
     fn prompt_input(message: &str) -> Result<String, dialoguer::Error>;

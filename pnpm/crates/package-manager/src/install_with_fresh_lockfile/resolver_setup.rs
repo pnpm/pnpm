@@ -126,7 +126,7 @@ pub(super) fn resolve_registries(
 /// so the [`TarballResolver`] can reuse a warm store entry instead of
 /// re-downloading on re-resolution. Git-hosted tarballs are skipped
 /// (they key by `gitHostedStoreIndexKey`, not the integrity) and just
-/// re-fetch as before. Empty on a first install.
+/// re-fetch. Empty on a first install.
 ///
 /// Keyed by `pkg_id` — the bare specifier — rather than
 /// `resolution.tarball`, because that is what the resolver looks a

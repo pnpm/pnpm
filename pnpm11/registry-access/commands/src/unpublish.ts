@@ -161,7 +161,6 @@ async function unpublishPackage (
     throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
   }
 
-  // If removing all matched versions leaves none, treat as full unpublish
   if (versionsToUnpublish.length === Object.keys(allVersions).length) {
     return unpublishAll(ctx, pkg, opts.cliOptions)
   }
@@ -217,7 +216,6 @@ async function unpublishVersions (
  * metadata from the packument. Returns the tarball URLs of the removed versions.
  */
 function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]): string[] {
-  // Collect tarball URLs before mutating
   const tarballs: string[] = []
   for (const version of versions) {
     const versionData = pkg.versions[version]
@@ -227,7 +225,6 @@ function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]
     delete pkg.versions[version]
   }
 
-  // Update dist-tags: remove any tag pointing to removed versions
   const removedSet = new Set(versions)
   const latestVer = pkg['dist-tags'].latest
   for (const tag of Object.keys(pkg['dist-tags'])) {
@@ -244,7 +241,6 @@ function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]
     }
   }
 
-  // Clean up internal metadata
   delete pkg._revisions
   delete pkg._attachments
   return tarballs

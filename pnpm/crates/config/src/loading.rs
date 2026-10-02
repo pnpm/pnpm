@@ -13,11 +13,6 @@ impl Config {
     /// project `pnpm-workspace.yaml`, `PNPM_CONFIG_*` env, then
     /// [`Config::cli_setting_values`].
     ///
-    /// Pacquet currently applies `registry`, scoped registry routes,
-    /// npm-auth credentials, the
-    /// proxy keys (`https-proxy`, `http-proxy`, `proxy`, `no-proxy` /
-    /// `noproxy`), and the TLS + local-address keys (`ca`, `cafile`,
-    /// `cert`, `key`, `strict-ssl`, `local-address`) from `.npmrc`.
     /// Other `.npmrc` entries — project-structural settings like
     /// `storeDir`, `lockfile` and `hoist-pattern` — are silently
     /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
@@ -60,17 +55,6 @@ impl Config {
 
         self.anchor_default_module_dirs(start_dir);
 
-        // Read the project/workspace .npmrc plus trusted user-level sources
-        // and apply only the auth/network subset. Everything else is
-        // intentionally ignored.
-        //
-        // pnpm reads several `.npmrc` sources and merges them
-        // (`user < auth.ini < workspace`), pinning each file's *unscoped*
-        // credentials to that file's own registry *before* the merge so
-        // a higher-priority file (or `pnpm-workspace.yaml`) can never
-        // pull them to a different host. See
-        // [`NpmrcAuth::rescope_unscoped`].
-        //
         // The global `config.yaml` is loaded up front: its `npmrcAuthFile`
         // participates in the user-level path resolution below, and its
         // directory is where `auth.ini` lives.
@@ -164,10 +148,7 @@ impl Config {
         // TLS + local-address are sourced from `.npmrc` only — pnpm
         // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
         // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
-        // (Node's runtime does, but pnpm's reader does not). When
-        // there is no `.npmrc`, `npmrc_auth` is the default value and
-        // this is a no-op write of `TlsConfig::default()` onto the
-        // already-default `self.tls`.
+        // (Node's runtime does, but pnpm's reader does not).
         npmrc_auth.tls.apply_tls_and_local_address(self);
     }
 
@@ -187,12 +168,7 @@ impl Config {
     }
 
     /// Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
-    /// env vars override yaml. The `WorkspaceSettings::apply_to`
-    /// call also runs the post-processing (Windows `unsafe_perm`
-    /// override, `hoist: false` short-circuit on `hoist_pattern`)
-    /// regardless of where the values came from, so env-var-set
-    /// values still go through the same hardening yaml-set values
-    /// do.
+    /// env vars override yaml.
     ///
     /// `workspace_dir` save/restore is the same trick used for the
     /// global config above — `apply_to` would otherwise clobber

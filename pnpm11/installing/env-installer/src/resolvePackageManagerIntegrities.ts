@@ -127,11 +127,7 @@ function packageManagerDeps (pnpmVersion: string): readonly string[] {
 /**
  * Resolves integrity checksums for the pnpm packages of the wanted version
  * (see {@link packageManagerDeps}) and their dependencies by calling
- * resolveManifestDependencies. When `opts.save` is true (the default) the
- * results are written to the `packageManagerDependencies` section of
- * `pnpm-lock.yaml`; when false, resolution happens purely in memory and the
- * returned `EnvLockfile` is never persisted to disk. Under
- * `opts.frozenLockfile` a write the lockfile still needs is an error instead.
+ * resolveManifestDependencies.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
@@ -168,7 +164,6 @@ function mergeResolvedPackageManagerDeps (
   envLockfile: EnvLockfile,
   lockfile: LockfileObject & Required<Pick<LockfileObject, 'packages'>>
 ): void {
-  // Build packageManagerDependencies from the resolved lockfile importers
   const importer = lockfile.importers['.' as ProjectId]
   const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
   for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
@@ -179,7 +174,6 @@ function mergeResolvedPackageManagerDeps (
   }
   envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
 
-  // Merge new packages into the env lockfile object, then prune stale entries
   const merged = convertToLockfileEnvObject(envLockfile)
   for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
     merged.packages![depPath as DepPath] = pkg

@@ -48,10 +48,10 @@ async function waitFor (
   }
 }
 
-// Regression test for the duplication bug introduced by pnpm/pnpm#12351 and
-// fixed by restoring `ansi-diff`. The reporter must write only the
-// *differential* between frames — unchanged sticky blocks like the lockfile
-// verdict must not be re-written on any subsequent progress tick.
+// Regression test for the duplication bug introduced by pnpm/pnpm#12351. The
+// reporter must write only the *differential* between frames — unchanged sticky
+// blocks like the lockfile verdict must not be re-written on any subsequent
+// progress tick.
 test('differential renderer does not reprint unchanged sticky blocks', async () => {
   const writes: string[] = []
   const mockProcess = {
@@ -112,9 +112,7 @@ test('differential renderer does not reprint unchanged sticky blocks', async () 
 
 // Each write must end with the erase-to-end-of-display sequence so that
 // anything an external process (e.g. an SSH passphrase prompt) wrote below
-// the rendered frame is cleared. This was the reason pnpm/pnpm#12351 replaced
-// `ansi-diff` in the first place; the fix keeps the erase but wraps it
-// around the differential output.
+// the rendered frame is cleared.
 test('each write clears external output below the frame', async () => {
   const writes: string[] = []
   const mockProcess = {

@@ -20,17 +20,6 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrus
  * the per-package registry round trips entirely — including across git
  * worktrees, where the same lockfile content lives at different paths.
  *
- * Two indexes share the same JSONL records:
- *
- * - **by content hash** — the primary index. Recognizing the same
- *   lockfile content regardless of where it sits on disk is what makes
- *   worktrees and lockfile copies hit.
- * - **by absolute path** — a same-machine stat shortcut. When we've
- *   seen this exact path before with these exact stat values, we
- *   trust the cached hash and skip reading the lockfile entirely
- *   (microseconds vs. ms-per-MB). Worktrees that get reinstalled in
- *   pay the hash cost once, then hit the stat fast path.
- *
  * All filesystem operations are synchronous: the cache is consulted
  * once before verification fan-out and recorded once after — there's
  * no concurrent install work to overlap with, so blocking the event
@@ -59,9 +48,7 @@ const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
 const MAX_CACHE_ENTRIES = 1000
 
 // Records cluster around 250–400 bytes; budget 1 KiB per entry as a
-// conservative upper bound. The compaction check uses `stat().size` to
-// decide whether to read+rewrite, so we never parse the file unless it
-// has actually grown past the cap.
+// conservative upper bound.
 const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
 
 interface CacheRecord {
@@ -273,8 +260,6 @@ export function tryLockfileVerificationCache (
   const stat = statLockfile(key.lockfilePath)
   if (!stat) return { hit: false, precomputed: {} }
 
-  // Stat shortcut: same path + same stat means we trust the cached
-  // hash without reading the file. Microseconds.
   const byPathRecord = indexes.byPath.get(key.lockfilePath)
   if (byPathRecord && statMatches(stat, byPathRecord.lockfile)) {
     return lookupByStat({ record: byPathRecord, stat, verifiers: key.verifiers })
@@ -303,13 +288,6 @@ interface ContentHashLookupOptions {
   stat: LockfileStat
 }
 
-/**
- * Content lookup: hash the in-memory lockfile, look up by content
- * hash. Catches worktrees (same content, different path) and CI
- * checkouts (same content, reset stat). On hit, refresh the
- * path/stat entry so the next install at this path takes the stat
- * shortcut.
- */
 function lookupByContentHash ({ cacheDir, indexes, key, stat }: ContentHashLookupOptions): CacheLookupResult {
   let hash: string
   try {
@@ -354,11 +332,6 @@ function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<str
  * lockfile is hashed once and the resulting record is appended to the
  * cache file. If the file is past {@link MAX_CACHE_ENTRIES}, it is
  * rewritten keeping the most recent entries.
- *
- * Reuses `precomputed` values from a prior
- * {@link tryLockfileVerificationCache} lookup so we don't re-stat or
- * (especially) re-hash the lockfile a second time on the miss-then-
- * record path.
  */
 export function recordVerification (
   cacheDir: string,
@@ -423,10 +396,7 @@ function maybeCompactCache (cacheDir: string): void {
 
 /**
  * Decide whether to compact from the file size alone — avoids reading
- * and parsing the file on every successful install. Records cluster
- * around a few hundred bytes; the byte budget translates directly to
- * the entry cap with generous slack so we don't trigger a rewrite on
- * every append once we cross the line.
+ * and parsing the file on every successful install.
  */
 function cacheExceedsCompactionTrigger (cacheFilePath: string): boolean {
   let size: number

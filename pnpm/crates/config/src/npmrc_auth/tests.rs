@@ -29,11 +29,7 @@ macro_rules! static_env {
     };
 }
 
-/// Test fake: the process environment is empty. Per the DI
-/// pattern from
-/// [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339),
-/// the fake is a unit struct scoped to the test module; tests
-/// turbofish it through the generic slot.
+/// Test fake: the process environment is empty.
 struct NoEnv;
 impl EnvVar for NoEnv {
     fn var(_: &str) -> Option<String> {

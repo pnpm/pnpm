@@ -537,9 +537,8 @@ describe('pollForWebAuthToken', () => {
             headers: createRetryAfterHeaders('10'),
           })
         }
-        // This second fetch still returns 202, but the next timeout check
-        // should trigger the error since time (2000) - start (0) = 2000 > 2000? No, it's equal.
-        // Actually the condition is `>` so 2000 > 2000 is false. So it waits another 1s, then 3000 > 2000 is true.
+        // This second fetch still returns 202. The timeout check is `>`, so
+        // 2000 > 2000 is false; it waits another 1s, then 3000 > 2000 is true.
         return createMockResponse({
           ok: true,
           status: 202,

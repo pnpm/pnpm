@@ -258,9 +258,6 @@ const ENV_PASSTHROUGH: &[&str] = &[
 ];
 
 /// A [`Command`] whose environment is scrubbed down to [`ENV_PASSTHROUGH`].
-/// Used for every launch that runs third-party code — scaffolding,
-/// installs, and the build/serve scripts — so unattended lifecycle scripts
-/// can't read ambient secrets out of the parent environment.
 fn sandboxed_command(program: &str) -> Command {
     let mut command = Command::new(program);
     command.env_clear();

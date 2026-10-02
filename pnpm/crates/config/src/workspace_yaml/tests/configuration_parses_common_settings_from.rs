@@ -472,12 +472,7 @@ remoteSideEffectsCache:
 }
 
 /// Lockfile-verification policy keys all live in `pnpm-workspace.yaml`
-/// alongside the rest of the install settings. This test asserts the
-/// camelCase rename + `apply_to` wiring for every new field
-/// introduced by the gate: `cacheDir` (path-resolved against the
-/// workspace dir), `minimumReleaseAge` / `…Exclude` / `…Strict` /
-/// `…IgnoreMissingTime`, and `trustPolicy` / `…Exclude` /
-/// `…IgnoreAfter`.
+/// alongside the rest of the install settings.
 #[test]
 fn parses_supply_chain_policy_settings_from_yaml_and_applies() {
     let yaml = r#"

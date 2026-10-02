@@ -14,8 +14,7 @@
 //! Only the script shortcuts can hit this: every other command that
 //! forwards a command line puts a script or command name ahead of the
 //! separator, which lands a value in the positional first, and from there
-//! clap keeps every `--` verbatim — the reason `pnpm run build -- --flag`
-//! was already right.
+//! clap keeps every `--` verbatim.
 
 use crate::parse_boundary::command_boundary;
 use std::ffi::OsString;

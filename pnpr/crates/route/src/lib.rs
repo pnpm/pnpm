@@ -132,8 +132,7 @@ struct RouteMatcher {
 struct ResolvedAlias {
     name: String,
     /// [`credential_digest`] of [`Self::authorization`]: the credential epoch
-    /// this alias's private cache entries are keyed by. Changes when the
-    /// upstream credential rotates.
+    /// this alias's private cache entries are keyed by.
     credential_digest: String,
     registry: String,
     /// Nerf-darted upstream origin the alias serves. Routing is by origin
@@ -534,13 +533,7 @@ impl RouteContext {
                 // authorization-only check could replay a lockfile routed
                 // through a different `/~<name>/` endpoint than this caller
                 // resolves through. A since-removed alias (`find` → `None`) or
-                // a rotated credential also fails closed here. A descriptor
-                // carrying a package qualifier (recorded when the upstream's
-                // rules explicitly refine that name) re-checks the per-package
-                // gate through `select_alias`, so cache replay is exactly as
-                // strict as a fresh resolve; unqualified descriptors gate at
-                // the registry level, shared among the callers the upstream's
-                // `access:` admits.
+                // a rotated credential also fails closed here.
                 self.aliases
                     .iter()
                     .find(|candidate| candidate.name == alias.as_str())

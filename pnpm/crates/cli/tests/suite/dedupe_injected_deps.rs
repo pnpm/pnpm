@@ -566,7 +566,7 @@ fn injected_workspace_dep_with_dedupe_off_materialises_under_gvs() {
     );
 
     // The slot path must not embed the raw `file:` version — that is
-    // the `ERROR_INVALID_NAME` shape on Windows the fix removes.
+    // the `ERROR_INVALID_NAME` shape on Windows.
     #[cfg(unix)]
     {
         let target = fs::read_link(&dep).expect("read packages/a/node_modules/b symlink");

@@ -106,9 +106,7 @@ pub struct FrozenLockfileInputs<'a> {
     /// and awaited before any dependency lifecycle script executes, so a
     /// rejected lockfile aborts before [`crate::BuildModules`] runs. Empty
     /// when verification is disabled (`trustLockfile`), in which case the
-    /// gate is a no-op. The non-blocking sequencing runs
-    /// `verifyLockfileResolutions` concurrently with the fetch and gates
-    /// the build on `verifyLockfile`.
+    /// gate is a no-op.
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
     /// Fetch-evidence cell `CreateVirtualStore` fills after its
     /// warm/cold partition so the concurrent verification fan-out's

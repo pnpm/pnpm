@@ -122,11 +122,6 @@ async function serveValidatedMeta (request: PickRequest, cached: PackageMeta): P
     const now = new Date()
     fs.utimes(pkgMirror, now, now).catch(() => {})
   }
-  // The cached metadata may be abbreviated (no per-version `time`). When
-  // minimumReleaseAge is active we need `time` for the maturity check, so
-  // upgrade to full metadata via a follow-up fetch when warranted. Without
-  // this, repeat installs of recently-modified packages would silently
-  // bypass the maturity check via the warn-and-skip fallback.
   const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
   const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
   ctx.metaCache.set(request.cacheKey, meta)

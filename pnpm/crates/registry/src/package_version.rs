@@ -79,9 +79,7 @@ pub struct PackageVersion {
     ///
     /// **Wire format:** the field is nominally a string, but the real
     /// npm registry occasionally serves `"deprecated": false` for
-    /// never-deprecated versions. Rust serde is strict, so we route
-    /// through a custom deserializer that normalizes the field to
-    /// `Option<String>`, treating a `false` boolean as absent.
+    /// never-deprecated versions.
     #[serde(
         default,
         deserialize_with = "deserialize_deprecated_field",

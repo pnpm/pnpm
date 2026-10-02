@@ -471,7 +471,7 @@ async fn identify_recognizes_bearer_and_ignores_basic() {
     let header = format!("Bearer {token}");
     assert_eq!(identify(Some(&header), &tokens).await.unwrap().as_deref(), Some("alice"));
 
-    // Basic credentials are no longer accepted on requests — the header is
+    // Basic credentials are not accepted on requests — the header is
     // ignored (treated as anonymous), so request handling never pays a bcrypt.
     let basic = "Basic YWxpY2U6c2VjcmV0";
     assert!(identify(Some(basic), &tokens).await.unwrap().is_none());

@@ -175,9 +175,6 @@ async function findWorkspaceProjects (opts: CheckDepsStatusOptions): Promise<Pro
  * `@pnpm/config.reader` writes `enableGlobalVirtualStore: false` when `ci`
  * is set, and reading `allowBuilds` yields `{}`. Normalizing unset values
  * ensures an unrecorded setting matches its resolved default.
- *
- * pacquet normalizes the same two settings before comparing, in
- * `enable_global_virtual_store_match` and `allow_builds_match`.
  */
 const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, unknown>> = {
   allowBuilds: {},

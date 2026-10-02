@@ -53,11 +53,7 @@ export async function mutateModules (
   // the one case this diff cannot separate.
   const verifiedFileIntegrityBaseline = verifiedFileIntegritySnapshot()
 
-  // When a pnpr server is configured, use server-side resolution. The pnpr server
-  // path supports `install`, `installSome` (pnpm add), `uninstallSome`
-  // (pnpm remove), and complete-project revision refreshes. Mutations that
-  // need other client-side update behavior still fall through to the normal
-  // flow.
+  // When a pnpr server is configured, use server-side resolution.
   if (opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
@@ -295,12 +291,7 @@ async function validateModulesAndReopenContext (
 
 /**
  * Re-validate every entry in the lockfile against the policies the
- * resolver chain was built with (today: minimumReleaseAge in strict mode
- * via the npm verifier; the abstraction supports other resolvers
- * attaching their own verifiers). The threat model is a lockfile that
- * someone else resolved — committed to the repo, restored from a CI
- * cache, etc. — bypassing the local resolver's policy filters; the local
- * resolver's own filters already cover fresh resolution.
+ * resolver chain was built with.
  *
  * The verification is kicked off here, right after the lockfile is loaded,
  * but not awaited inline — it would otherwise block every later install
@@ -424,8 +415,7 @@ function shouldPruneVirtualStore (opts: StrictInstallOptions, ctx: PnpmContext):
 
 // Reconcile the install with the lockfile verification that runs alongside
 // it. The verification verdict is awaited first so it takes precedence and
-// aborts as soon as it fails, even while the install is still in flight —
-// matching the original sequencing where verification gated the install, so
+// aborts as soon as it fails, even while the install is still in flight, so
 // a rejected lockfile surfaces its own error rather than whatever the
 // concurrent install happened to throw. Only once verification passes is the
 // install's result (or error) surfaced. detachReporter mirrors the success

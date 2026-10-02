@@ -121,12 +121,6 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
 /// fallback chain finishes), so an empty-lockfile install like this
 /// one has no `link_file` calls and no such event in the captured
 /// sequence. See `link_file::tests` for that channel's coverage.
-///
-/// `pnpm:context` carries `currentLockfileExists`, `storeDir`,
-/// `virtualStoreDir`. `currentLockfileExists` is hard-coded
-/// `false` today (pacquet doesn't read or write
-/// `node_modules/.pnpm/lock.yaml`), matching the TODO in
-/// [`Install::run`].
 #[tokio::test]
 async fn install_emits_pnpm_event_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

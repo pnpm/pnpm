@@ -1,14 +1,10 @@
 //! Build the per-install list of [`ResolutionVerifier`]s the lockfile
-//! gate fans out across. Currently only the npm-resolver verifier
-//! plugs in; future resolver-side verifiers append to the same vec.
+//! gate fans out across.
 //!
 //! Returning `Vec<Arc<dyn ResolutionVerifier>>` matches the runner's
 //! input shape ([`pnpm_lockfile_verification::verify_lockfile_resolutions()`])
 //! and lets the install path skip the call entirely when the vec is
-//! empty (the runner is a no-op on `&[]`). The function never returns
-//! an error; an invalid exclude pattern surfaces from
-//! [`pnpm_config::version_policy::create_package_version_policy()`]
-//! and propagates via [`BuildVerifiersError`].
+//! empty (the runner is a no-op on `&[]`).
 //!
 //! The verifier list is built from the install's config fields just
 //! before the lockfile-resolution gate runs over it.

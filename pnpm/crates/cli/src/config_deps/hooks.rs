@@ -10,10 +10,8 @@ use super::{
 use miette::WrapErr;
 
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
-/// application order (see [`finder::find_pnpmfiles`]). Shared by the
-/// `updateConfig` install hook and the `beforePacking` pack/publish hook
-/// so both apply the same pnpmfile set as the install's other hooks,
-/// matching pnpm's single loaded hooks object.
+/// application order (see [`finder::find_pnpmfiles`]). Every hook applies
+/// the same pnpmfile set, matching pnpm's single loaded hooks object.
 pub fn resolve_pnpmfile_paths(
     config: &Config,
     root_dir: &Path,
@@ -275,9 +273,7 @@ fn resolved_config_views(
 }
 
 /// The keys whose value the hooks changed between the serialized input
-/// config and the hooks' output. Applying only these avoids clobbering
-/// config resolved elsewhere (`.npmrc`, CLI flags) that a hook left
-/// untouched.
+/// config and the hooks' output.
 pub(super) fn config_delta(input: &Value, output: &Value) -> Value {
     let (Some(input_obj), Some(output_obj)) = (input.as_object(), output.as_object()) else {
         return output.clone();

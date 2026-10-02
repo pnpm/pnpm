@@ -164,10 +164,6 @@ pub struct IngestTarballToStore<'a> {
     /// `Install::run`.
     pub requester: &'a str,
     /// Per-package archive-entry filter applied during CAS extraction.
-    /// Receives the entry's path *after* the top-level
-    /// `package/` strip; returning `true` drops the entry before the
-    /// CAS write, implementing the `ignoreFilePattern` /
-    /// `archiveFilters` behavior.
     /// `None` (the default for ordinary npm tarballs) writes every
     /// regular-file entry; `Some(filter)` is what the binary fetcher
     /// uses to strip Node's bundled `npm` / `corepack` from the CAS.
@@ -180,12 +176,9 @@ pub struct IngestTarballToStore<'a> {
     /// is shared.
     pub ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     /// Install-scoped set used to de-duplicate package-status progress.
-    /// When `Some`, a `fetched` or `found_in_store` emit records its
-    /// `store_index_key(integrity, pkg_id)` here. Later callers that see
-    /// the same key skip their own package-status emit, while still doing
-    /// the underlying fetch/cache work. Only the fresh install path
-    /// threads this set through, because resolve-time prefetches can
-    /// otherwise report the same package again in the warm batch.
+    /// Only the fresh install path threads this set through, because
+    /// resolve-time prefetches can otherwise report the same package
+    /// again in the warm batch.
     pub progress_reported: Option<SharedReportedProgressKeys>,
     /// Ecosystem-owned projection policy applied after verified extraction and
     /// before the store-index row is queued.
@@ -198,10 +191,7 @@ pub struct IngestTarballToStore<'a> {
 /// reason; absent fields skip rather than emit `null` so the `??`
 /// chain doesn't short-circuit on a present-but-`null` field.
 ///
-/// Today pacquet populates `http_status_code` for the
-/// [`TarballError::HttpStatus`] variant and a curated
-/// `ERR_PNPM_*` constant in `code` for every other variant —
-/// the mapping is hand-maintained per match arm rather than
+/// The mapping is hand-maintained per match arm rather than
 /// reflectively derived, so renaming a [`TarballError`] variant
 /// won't silently change the emitted `code`. `errno` and `status`
 /// are skipped because pacquet's error layer doesn't carry them;

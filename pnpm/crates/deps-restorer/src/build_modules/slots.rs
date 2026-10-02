@@ -17,15 +17,12 @@ use std::{fs, io};
 /// — `slot_dir(key)` — or the GVS lookup misses, falls through to the
 /// legacy flat-name path, and points at a directory that
 /// [`crate::CreateVirtualDirBySnapshot`] never created.
-/// `slot_dir(key.without_peer())` was the pre-[#432] spelling and
-/// silently dropped lifecycle scripts for peer-resolved snapshots
-/// — never use it here.
+/// `slot_dir(key.without_peer())` silently drops lifecycle scripts for
+/// peer-resolved snapshots — never use it here.
 ///
 /// The package-name segment is `key.name`, which carries no
 /// peer context: the slot's `node_modules/<pkg>` is keyed by the bare
 /// package name whatever the peers resolved to.
-///
-/// [#432]: https://github.com/pnpm/pacquet/issues/432
 pub(crate) fn virtual_store_dir_for_key(
     layout: &crate::VirtualStoreLayout,
     key: &PackageKey,

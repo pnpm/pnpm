@@ -1,15 +1,4 @@
 //! Tests for [`super`]'s proxy plumbing.
-//!
-//! Covers the proxy behaviors that don't require a real proxy listener:
-//!
-//! * `HTTP proxy` — per-URL routing, basic-auth decoding, scheme bypass.
-//! * `SOCKS proxy` — routing decision (live-network case skipped).
-//! * `noProxy` — reverse-dot-segment match, bypass-all literal.
-//! * `Invalid proxy URL` — `ERR_PNPM_INVALID_PROXY`.
-//!
-//! The one HTTP integration test stands up a [`mockito`] server playing
-//! the role of an HTTP proxy and asserts the request arrives with an
-//! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
     AuthHeaders, CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher,

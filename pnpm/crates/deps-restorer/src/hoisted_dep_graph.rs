@@ -5,10 +5,7 @@
 //! lockfile plus an optional *current* lockfile and runs
 //! `pnpm_real_hoist::hoist` to get the directory shape, then
 //! assembles a [`LockfileToDepGraphResult`] keyed by the computed
-//! absolute directory of every node. Store I/O (`fetching` /
-//! `files_index_file`) is still deferred — those fields are
-//! populated by the linker, which kicks off store fetches when it
-//! has a real consumer for the handles.
+//! absolute directory of every node.
 //!
 //! Unlike the depPath-keyed [`crate::deps_graph`] module (which is
 //! a hashing-side adapter for the build cache), the graph defined
@@ -45,10 +42,7 @@ use std::{
 ///
 /// Omits the store-controller-bound fields (`fetching`,
 /// `files_index_file`) that the walker only learns about once it
-/// fetches the package. Those land in the follow-up sub-slice that
-/// wires the store in; today, this type pins the shape of every
-/// other field so the walker can fill them without churning the
-/// call sites.
+/// fetches the package.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DependenciesGraphNode {
     pub package: HoistedPackageMetadata,
@@ -102,9 +96,7 @@ pub type DependenciesGraph = BTreeMap<PathBuf, DependenciesGraphNode>;
 pub struct DepHierarchy(pub BTreeMap<PathBuf, DepHierarchy>);
 
 /// Per-importer alias → direct-dependency directory. For the
-/// single-importer case the only key is `"."`; workspace support
-/// will add per-importer entries keyed by the importer's
-/// project id.
+/// single-importer case the only key is `"."`.
 pub type DirectDependenciesByImporterId = BTreeMap<String, BTreeMap<String, PathBuf>>;
 
 /// Everything the walker hands back to the install pipeline.
@@ -119,7 +111,7 @@ pub struct LockfileToDepGraphResult {
     pub direct_dependencies_by_importer_id: DirectDependenciesByImporterId,
     /// Outer key is the project root that owns the inner
     /// hierarchy (the workspace root for single-importer
-    /// lockfiles, plus per-project roots once Slice 9 lands).
+    /// lockfiles).
     pub hierarchy: BTreeMap<PathBuf, DepHierarchy>,
     /// Per-depPath list of lockfile-relative directory paths
     /// where the package landed. Round-trips through
@@ -152,11 +144,7 @@ pub struct LockfileToDepGraphResult {
     pub skipped: BTreeSet<String>,
 }
 
-/// Inputs the walker reads from. Carries the subset pacquet needs
-/// for the hoisted-linker path that's actually implemented today.
-/// Fields tied to the still-unported store controller, fetch
-/// concurrency, or workspace project list will be added when their
-/// consumers land.
+/// Inputs the walker reads from.
 #[derive(Debug, Clone)]
 pub struct LockfileToHoistedDepGraphOptions<'a> {
     pub installability: HoistedInstallability,
@@ -173,9 +161,7 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// Packages the previous install decided not to fetch
     /// (installability check failed; the package was added here).
     /// The walker skips any depPath in this set without consulting
-    /// the snapshot. Cloned + extended on the way out. The
-    /// hoisted-specific typing is a set of raw `String`s (rather than
-    /// `DepPath`s), so the wrapper here is `BTreeSet<String>`.
+    /// the snapshot. Cloned + extended on the way out.
     pub skipped: BTreeSet<String>,
     /// When true, no package is reused from the previous install:
     /// every node is re-materialized whether or not its recorded
@@ -232,9 +218,8 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
 }
 
 /// Failure modes of [`lockfile_to_hoisted_dep_graph`]. Marked
-/// `#[non_exhaustive]` so adding variants in later sub-slices (the
-/// installability filter, the store-fetch integration) isn't a
-/// breaking API change.
+/// `#[non_exhaustive]` so adding variants isn't a breaking API
+/// change.
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
 pub enum HoistedDepGraphError {
@@ -275,11 +260,6 @@ pub enum HoistedDepGraphError {
 /// Build a directory-keyed [`LockfileToDepGraphResult`] from a
 /// wanted lockfile, plus an optional *current* lockfile to diff
 /// against.
-///
-/// The store-controller-bound `fetching` / `files_index_file`
-/// fields on each graph node remain default-valued — those are
-/// populated by Slice 5's linker, which kicks off the actual
-/// store fetches when it has a real consumer for the handles.
 ///
 /// Multi-importer (workspace) lockfiles are supported: the hoister
 /// ([`pnpm_real_hoist::hoist`]) attaches each non-root importer as

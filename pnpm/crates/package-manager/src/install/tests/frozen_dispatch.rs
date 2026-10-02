@@ -20,10 +20,6 @@ use text_block_macros::text_block;
 /// from the cold-batch dispatcher. Variant selection happens
 /// before any network fetch, so the bogus URL on the variant is
 /// never read — the test stays hermetic.
-///
-/// Closes the variant-mismatch checkbox of [#437] slice F.
-///
-/// [#437]: https://github.com/pnpm/pacquet/issues/437
 #[tokio::test]
 async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let dirs = InstallDirs::new();
@@ -143,10 +139,6 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 /// adds the snapshot to the skip set — so variant selection
 /// never runs and the unmatchable-platform variant doesn't fail
 /// the install.
-///
-/// Closes the `--no-runtime` checkbox of [#437] slice F.
-///
-/// [#437]: https://github.com/pnpm/pacquet/issues/437
 #[tokio::test]
 async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
     let dirs = InstallDirs::new();

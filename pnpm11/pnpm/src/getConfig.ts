@@ -323,7 +323,6 @@ function invalidHookResult (key: string): PnpmError {
 
 const DERIVED_CONFIG_INPUTS = ['hoist', 'shamefullyHoist', 'symlink']
 
-// Apply derived config settings (hoist, shamefullyHoist, symlink)
 function applyDerivedConfig (config: Config): void {
   if (config.hoist === false) {
     delete config.hoistPattern

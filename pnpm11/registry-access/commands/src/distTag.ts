@@ -94,7 +94,6 @@ export async function handler (
   if (subcommand === 'ls' || subcommand === 'list') {
     return distTagLs(opts, params.slice(1))
   }
-  // Default: treat all params as arguments to ls
   return distTagLs(opts, params)
 }
 
@@ -184,7 +183,6 @@ async function distTagRm (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const cliOtp = opts.cliOptions?.otp
 
-  // First check the tag exists
   const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
   if (!(tag in distTags)) {
     throw new PnpmError('DIST_TAG_NOT_FOUND', `dist-tag "${tag}" is not set on package "${packageName}"`)

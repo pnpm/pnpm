@@ -21,7 +21,7 @@ use std::{
 /// Subset of `.npmrc` keys pacquet honours for registry / auth setup.
 ///
 /// The parser pulls out:
-/// * the top-level `registry=` URL (already supported pre-[#336]),
+/// * the top-level `registry=` URL,
 /// * scoped registry routes (`@scope:registry=...`),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
@@ -32,9 +32,7 @@ use std::{
 ///   (`HTTPS_PROXY`, `HTTP_PROXY`, `PROXY`, `NO_PROXY` + lowercase)
 ///   fires from [`NpmrcProxy::apply_proxy_cascade`].
 /// * TLS + `local-address` keys (`ca`, `cafile`, `cert`, `key`,
-///   `strict-ssl`, `local-address`). `cafile` reads from disk and
-///   feeds the same slot as inline `ca`; an unreadable `cafile` is
-///   silently treated as unset.
+///   `strict-ssl`, `local-address`).
 ///   Applied via [`NpmrcTls::apply_tls_and_local_address`].
 ///
 /// Values pass through `${VAR}` substitution before being stored.
@@ -42,11 +40,6 @@ use std::{
 /// warnings so the literal `${VAR}` never reaches downstream auth code
 /// (critical for OIDC trusted publishing — see
 /// <https://github.com/pnpm/pnpm/issues/11513>).
-///
-/// Other project-structural `.npmrc` knobs remain unparsed for now.
-/// They will land here as the matching feature work picks them up.
-///
-/// [#336]: https://github.com/pnpm/pacquet/issues/336
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     /// Unscoped creds (i.e. `_auth=…`, `_authToken=…`, `username=…` /
@@ -257,11 +250,7 @@ impl NpmrcAuth {
 
     /// Convenience wrapper that runs [`apply_registry_and_warn`],
     /// [`apply_proxy_cascade`], and [`build_auth_headers`] in one call.
-    /// Used by tests and other callers that don't layer additional
-    /// config sources on top of `.npmrc`. Production code in
-    /// [`crate::Config::current`] inserts `pnpm-workspace.yaml` between
-    /// phase 1 and phase 2 so default-registry creds key at the final
-    /// URL.
+    /// Used by tests.
     ///
     /// [`apply_registry_and_warn`]: NpmrcAuth::apply_registry_and_warn
     /// [`apply_proxy_cascade`]: NpmrcProxy::apply_proxy_cascade
@@ -308,24 +297,14 @@ use tls::{
 impl NpmrcTls {
     /// Resolve the TLS + `local-address` slots on `config.tls`.
     ///
-    /// The transformations:
-    /// - Inline `ca=` PEMs are kept verbatim.
-    /// - `cafile=<path>` is read from disk and split on
-    ///   `-----END CERTIFICATE-----`.
-    ///   Inline `ca` entries appear in the final list before the
-    ///   `cafile` ones — same ordering as a `ca=` line followed by a
-    ///   `cafile=` line. Unreadable `cafile` is silently dropped.
-    /// - `local-address` is parsed as [`std::net::IpAddr`]. An invalid
-    ///   value is silently dropped.
-    ///
-    /// `strict_ssl`, `cert`, `key` are pass-through (no transformation).
+    /// Inline `ca` entries appear in the final list before the
+    /// `cafile` ones — same ordering as a `ca=` line followed by a
+    /// `cafile=` line.
     ///
     /// `cafile` paths arrive here already absolute — relative values
     /// were resolved against the `.npmrc`'s directory in
     /// [`NpmrcAuth::from_ini`] (pnpm/pnpm#11726).
     pub fn apply_tls_and_local_address(&mut self, config: &mut Config) {
-        // Inline CA first, then file-loaded CA, so a user that
-        // duplicates a cert across both ends up with it added twice.
         let mut ca = std::mem::take(&mut self.ca);
         if let Some(path) = self.cafile.take() {
             ca.extend(load_cafile(Path::new(&path)));
@@ -352,10 +331,6 @@ impl NpmrcProxy {
     /// Later layers overwrite the keys they set and re-resolve — see the
     /// [`crate::proxy_keys`] module docs for why a key, once named, is
     /// never won back by a lower-priority layer.
-    ///
-    /// Generic over [`EnvVar`] so cascade tests can drive every branch
-    /// without mutating the process environment (no `EnvGuard` global
-    /// lock).
     pub fn apply_proxy_cascade<Sys: EnvVar>(&mut self, config: &mut Config) {
         // Each proxy env var is tried in literal-, upper-, then
         // lower-case order. For the var names below the literal form is

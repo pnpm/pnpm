@@ -93,18 +93,11 @@ fn cas_path_for(store: &StoreDir, content: &[u8]) -> std::path::PathBuf {
         .expect("sha512 hex is always a valid CAFS path")
 }
 
-/// The reproducer.
-///
-/// Pre-Option-C: the verifier deletes the file while the simulated
-/// writer "holds the lock", because `verify_file` doesn't acquire the
-/// lock at all.
-///
-/// Post-Option-C: the verifier acquires `cas_write_lock(path)`
-/// before deciding whether to delete. While the test holds the
-/// lock, the verifier blocks; we observe the file is still on disk.
-/// Then the test releases the lock, the verifier finishes, and we
-/// observe the file is still there (because the verifier now sees
-/// the final committed state).
+/// The verifier acquires `cas_write_lock(path)` before deciding whether
+/// to delete. While the test holds the lock, the verifier blocks; we
+/// observe the file is still on disk. Then the test releases the lock,
+/// the verifier finishes, and we observe the file is still there,
+/// because the verifier now sees the final committed state.
 #[test]
 fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let tmp = tempdir().expect("tempdir");

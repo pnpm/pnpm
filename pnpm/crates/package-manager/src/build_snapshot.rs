@@ -9,8 +9,7 @@ use pnpm_resolving_npm_resolver::InvalidTarballRevisionMetadataError;
 use std::collections::HashMap;
 
 /// Result of converting a resolved [`PackageVersion`] into the v9 lockfile
-/// shape: a `PackageKey` (used to index both `packages:` and `snapshots:`), the
-/// per-version `PackageMetadata`, and the per-instance `SnapshotEntry`.
+/// shape.
 #[derive(Debug)]
 pub struct BuiltSnapshot {
     pub package_key: PackageKey,

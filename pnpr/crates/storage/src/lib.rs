@@ -217,8 +217,6 @@ impl Storage {
         self.hosted.list_blob_files()
     }
 
-    /// The hosted package names, used by the local search scan (which
-    /// indexes hosted/static packages only, never the proxy mirror).
     /// Build the filesystem listing index for legacy stores before serving requests.
     pub async fn rebuild_package_index(&self) -> Result<()> {
         self.hosted.rebuild_package_index().await

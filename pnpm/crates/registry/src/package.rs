@@ -52,7 +52,7 @@ pub struct Package {
 
     /// Last `ETag` the registry returned when this manifest was
     /// fetched. Threaded into `If-None-Match` on the next
-    /// conditional GET by the cached metadata fetcher (Phase 5).
+    /// conditional GET by the cached metadata fetcher.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub etag: Option<String>,
 

@@ -3,9 +3,7 @@
 /// `scaffold` generates the project on disk *without* installing
 /// dependencies — it runs once per stack (the generated files are identical
 /// across binaries and layouts) and the result is copied into each grid
-/// cell, where the binary-under-test performs the actual install. Every
-/// scaffold command is run through `pnpm dlx`, so the first token is the
-/// package spec to fetch and the rest are its arguments.
+/// cell, where the binary-under-test performs the actual install.
 #[derive(Debug, Clone, Copy)]
 pub struct Stack {
     pub name: &'static str,

@@ -92,8 +92,7 @@ impl Default for IniDocument {
 }
 
 impl IniDocument {
-    /// Parse `text` into an [`IniDocument`], recording every line and
-    /// preserving comments, blank lines, repeated keys, and line terminators.
+    /// Parse `text` into an [`IniDocument`].
     pub fn parse(text: &str) -> Self {
         let (has_bom, text_without_bom) = match text.strip_prefix('\u{feff}') {
             Some(stripped) => (true, stripped),
@@ -352,8 +351,7 @@ fn resolve_append_key(key: &str, is_array: bool) -> String {
     }
 }
 
-/// Read `path` into an [`IniDocument`]. A missing file produces an empty document;
-/// any other read error propagates.
+/// Read `path` into an [`IniDocument`].
 pub fn read(path: &Path) -> io::Result<IniDocument> {
     IniDocument::read(path)
 }

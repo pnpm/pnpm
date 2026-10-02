@@ -125,17 +125,13 @@ pub enum NodePackageMapType {
 /// `nodeLinker: hoisted`, mirroring yarn's `nmHoistingLimits`.
 ///
 /// Given workspace package `A` → `B` → `C`:
-/// - [`HoistingLimits::None`] (default): hoist as far as possible
+/// - [`HoistingLimits::None`]: hoist as far as possible
 ///   (`/node_modules/B`, `/node_modules/C`).
 /// - [`HoistingLimits::Workspaces`]: hoist only as far as each
 ///   workspace package (`/packages/A/node_modules/{B,C}`).
 /// - [`HoistingLimits::Dependencies`]: hoist only up to each
 ///   workspace package's direct dependencies
 ///   (`/packages/A/node_modules/B/node_modules/C`).
-///
-/// No effect under `nodeLinker: isolated`. The user-facing mode is
-/// translated into the per-locator border map the hoister consumes
-/// by `crate::get_hoisting_limits` in `pnpm-package-manager`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HoistingLimits {
@@ -152,8 +148,7 @@ pub enum HoistingLimits {
 /// [`TrustPolicy::NoDowngrade`] the verifier rejects any version
 /// whose trust evidence (`_npmUser.trustedPublisher` or
 /// `dist.attestations.provenance`) is weaker than an earlier-published
-/// version's. Defaults to [`TrustPolicy::Off`] so installs without an
-/// explicit policy don't change behavior.
+/// version's.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustPolicy {
@@ -167,9 +162,7 @@ pub enum TrustPolicy {
 ///
 /// The setting is `'download' | 'error' | 'warn' | 'ignore'`. `download`
 /// switches to the pinned version, `error` aborts, `warn` prints a
-/// warning, and `ignore` skips the check entirely. The documented
-/// default is `download`, so [`Config::pm_on_fail`](crate::settings::Config::pm_on_fail) stays optional and the
-/// package-manager check applies the fallback when the setting is unset.
+/// warning, and `ignore` skips the check entirely.
 ///
 /// `pnpm with current <cmd>` runs `<cmd>` with `pmOnFail` forced to
 /// [`PmOnFail::Ignore`] via the `pnpm_config_pm_on_fail` env var.
@@ -236,8 +229,7 @@ impl RuntimeOnFail {
 /// What `pnpm run` / `pnpm exec` do when `node_modules` is out of sync
 /// with the lockfile before running a script.
 ///
-/// The setting is `'install' | 'warn' | 'error' | 'prompt' | false`
-/// (default `'install'`, pnpm's `'verify-deps-before-run': 'install'`).
+/// The setting is `'install' | 'warn' | 'error' | 'prompt' | false`.
 /// pnpm's rc type also admits a bare boolean: `true` runs the check but
 /// takes none of the four actions on an out-of-sync verdict, so it is
 /// modeled explicitly rather than mapped to an action.
@@ -353,12 +345,9 @@ pub struct AuditConfig {
 
 /// Tri-state mirror of `pnpm_executor::ScriptsPrependNodePath`
 /// with serde wiring. The executor crate keeps its own enum free of
-/// serde so config concerns don't leak into the spawn-path. Converted
-/// at the `BuildModules` call site (see `install_frozen_lockfile.rs`)
-/// via an explicit `match`; no `From` impl exists because neither
-/// crate depends on the other, and adding such a dep just for the
-/// conversion would invert the layering. Both enums share the same
-/// three variants so the match is exhaustive and one-line per arm.
+/// serde so config concerns don't leak into the spawn-path. No `From`
+/// impl exists because neither crate depends on the other, and adding
+/// such a dep just for the conversion would invert the layering.
 ///
 /// Deserializes the `scriptsPrependNodePath: boolean | 'warn-only'`
 /// yaml shape.
@@ -366,7 +355,7 @@ pub struct AuditConfig {
 pub enum ScriptsPrependNodePath {
     /// `scriptsPrependNodePath: true` — always prepend.
     Always,
-    /// `scriptsPrependNodePath: false` (or absent) — never prepend.
+    /// `scriptsPrependNodePath: false` — never prepend.
     #[default]
     Never,
     /// `scriptsPrependNodePath: 'warn-only'` — emit a warning if the

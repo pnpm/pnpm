@@ -433,8 +433,8 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
 
     drop(dirs.dir);
 }
-/// Wiring proof for the new `nodeLinker: hoisted` install branch
-/// (umbrella [#438] slice 6). Empty lockfile drives the cheapest
+/// Wiring proof for the new `nodeLinker: hoisted` install branch.
+/// Empty lockfile drives the cheapest
 /// successful install path:
 ///
 /// 1. `Install::run` dispatches into `InstallFrozenLockfile::run`.
@@ -446,19 +446,14 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
 ///    walker result against the empty `snapshots:` map.
 /// 4. [`crate::link_hoisted_modules()`] is called with an empty
 ///    graph (no-op).
-/// 5. `BuildModules` is skipped under hoisted (slice 7 retargets
-///    it onto `hoistedLocations`).
+/// 5. `BuildModules` is skipped under hoisted.
 /// 6. `.modules.yaml` is written with `nodeLinker: hoisted` and
 ///    `hoisted_locations: None` (the field is dropped when empty
 ///    so an isolated install never produces a hoisted-only key).
 ///
 /// The empty-lockfile shape exercises every branch on `is_hoisted`
 /// without needing a real package fetch — proving the wiring
-/// composes with the existing pipeline phases. End-to-end coverage
-/// against the registry-mock with a real package is left to a
-/// follow-up CLI integration test.
-///
-/// [#438]: https://github.com/pnpm/pacquet/issues/438
+/// composes with the existing pipeline phases.
 #[tokio::test]
 async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     let dirs = InstallDirs::new();

@@ -27,8 +27,7 @@ pub(super) fn apply_runtime_on_fail(cfg: &Config, projects: &mut [pnpm_workspace
     }
 }
 
-/// Shared workspace-root and package-manager policy derivation used by the
-/// install, dedupe, and prune dispatch paths.
+/// Shared workspace-root and package-manager policy derivation.
 pub(crate) fn derive_config_root(
     cfg: &mut Config,
     dir_ref: &Path,

@@ -7,13 +7,7 @@
 //! Mirrors the install path's
 //! [`DefaultResolver`][pnpm_resolving_default_resolver::DefaultResolver] chain (see
 //! `pnpm_package_manager::install_with_fresh_lockfile`) so a single
-//! resolve claims every protocol the install claims: npm registry
-//! (`name@version` / `range` / `tag`, incl. the `foo@npm:bar` alias
-//! form), git URLs, `http(s)` tarball URLs, `file:` / `link:` /
-//! `workspace:` and bare filesystem paths, the node / deno / bun
-//! runtime specs — including the `yarn@runtime:` line that ships as
-//! release archives rather than as an npm package — and `<alias>:`
-//! named-registry specs. A specifier no
+//! resolve claims every protocol the install claims. A specifier no
 //! resolver in the chain claims surfaces as
 //! `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 //!
@@ -33,16 +27,14 @@ use crate::{
     error::to_napi_error,
 };
 
-/// The `(alias, bareSpecifier)` a resolve is requested for. Mirrors
-/// `WantedDependency` in `index.d.ts`.
+/// The `(alias, bareSpecifier)` a resolve is requested for.
 #[napi(object)]
 pub struct WantedDependencyInput {
     pub alias: Option<String>,
     pub bare_specifier: Option<String>,
 }
 
-/// Options for [`resolve_dependency`]. Mirrors `ResolveOptions` in
-/// `index.d.ts`.
+/// Options for [`resolve_dependency`].
 #[napi(object)]
 pub struct ResolveDependencyOptions {
     pub dir: String,
@@ -58,7 +50,7 @@ pub struct ResolveDependencyOptions {
     pub auth_header_by_uri: Option<HashMap<String, String>>,
 }
 
-/// Result of [`resolve_dependency`]. Mirrors `ResolveResult` in `index.d.ts`.
+/// Result of [`resolve_dependency`].
 #[napi(object)]
 pub struct ResolveDependencyResult {
     pub id: String,
@@ -156,9 +148,7 @@ fn run_resolve_blocking(
         // `Resolver::resolve` erases its error to `ResolveError`
         // (`Box<dyn Error>`), so the underlying miette `Diagnostic` — and its
         // `ERR_PNPM_*` code / hint — is already gone by the time it reaches
-        // here; only the message survives. Restoring the code on this path
-        // requires the resolver trait to carry a typed diagnostic error, a
-        // pacquet-core change tracked as a follow-up.
+        // here; only the message survives.
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;
 
     Ok(ResolveDependencyResult {

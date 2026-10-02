@@ -3,9 +3,6 @@ use std::path::Path;
 /// Minimal project view consumed by the graph filter: the project's
 /// root directory (which doubles as the node id) and the manifest
 /// `name` used for `--filter` name-pattern matching.
-///
-/// Narrowed to the two manifest fields the graph and the filter
-/// actually read.
 pub trait BaseProject {
     fn root_dir(&self) -> &Path;
     fn manifest_name(&self) -> Option<&str>;

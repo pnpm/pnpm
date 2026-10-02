@@ -11,15 +11,9 @@
 //! the registry mock serves; pre-baking a tiny v9 lockfile by hand
 //! would diverge silently the moment a fixture changes.
 //!
-//! Every ported hoist case runs against the real implementation; the
-//! suite has no `known_failures` stubs.
-//!
-//! Workspace install (pnpm/pacquet#431) landed in [#443]. The
-//! [`workspace_hoist_walks_every_importer`] test below covers the
+//! The [`workspace_hoist_walks_every_importer`] test below covers the
 //! basic multi-importer case; `hoistWorkspacePackages` name-links are
 //! covered by [`hoist_workspace_packages_links_projects_by_name`].
-//!
-//! [#443]: https://github.com/pnpm/pacquet/pull/443
 
 pub use _utils::*;
 
@@ -324,8 +318,7 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
 /// lockfile, no `--frozen-lockfile`) must lay every dependency out as
 /// a **real directory** flat under the project's `node_modules/`, not
 /// as a symlink into a `.pnpm` virtual store. Closes
-/// [#11871](https://github.com/pnpm/pnpm/issues/11871): the fresh
-/// path used to hard-refuse the combination.
+/// [#11871](https://github.com/pnpm/pnpm/issues/11871).
 ///
 /// Uses `@pnpm.e2e/hello-world-js-bin-parent` (a direct dep) which
 /// pulls in `@pnpm.e2e/hello-world-js-bin` as a transitive — under

@@ -198,7 +198,6 @@ test('applies a patch on a directory', async () => {
       .map(fileId)
   )
 
-  // does not touch filesToKeep
   for (const suffix of filesToKeep) {
     const sourceFile = path.resolve('source', suffix)
     const targetFile = path.resolve('target', suffix)
@@ -207,7 +206,6 @@ test('applies a patch on a directory', async () => {
     expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
   }
 
-  // remove filesToRemove without replacement
   for (const suffix of filesToRemove) {
     const sourceFile = path.resolve('source', suffix)
     const targetFile = path.resolve('target', suffix)
@@ -216,7 +214,6 @@ test('applies a patch on a directory', async () => {
     expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
   }
 
-  // add filesToAdd without removing old files
   for (const suffix of filesToAdd) {
     const sourceFile = path.resolve('source', suffix)
     const targetFile = path.resolve('target', suffix)
@@ -224,7 +221,6 @@ test('applies a patch on a directory', async () => {
     expect(fsMethods.link).toHaveBeenCalledWith(sourceFile, targetFile)
   }
 
-  // replace filesToModify by removing old files and add new hardlinks
   for (const suffix of filesToModify) {
     const sourceFile = path.resolve('source', suffix)
     const targetFile = path.resolve('target', suffix)

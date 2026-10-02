@@ -62,8 +62,7 @@ pub struct InstalledGlobalPackage {
 ///
 /// A missing directory yields an empty list; any other read error (e.g.
 /// permission denied) is surfaced so callers don't mistake an unreadable
-/// global dir for "no global packages." Only `ENOENT` returns `[]`; every
-/// other error propagates.
+/// global dir for "no global packages."
 pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageInfo>> {
     let entries = match std::fs::read_dir(global_dir) {
         Ok(entries) => entries,

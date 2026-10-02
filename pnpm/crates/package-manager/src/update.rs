@@ -54,8 +54,7 @@ use std::{
 
 /// Everything `pacquet update` (alias `up` / `upgrade`) does.
 ///
-/// Runs on pacquet's always-fresh-resolve install path. Its behavior has
-/// two halves:
+/// Runs on pacquet's always-fresh-resolve install path. Its behavior:
 ///
 /// * **Compatible bump** (no `--latest`): the matched names have their
 ///   lockfile pins withheld from the preferred-versions seed

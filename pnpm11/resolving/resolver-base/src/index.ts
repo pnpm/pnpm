@@ -248,10 +248,7 @@ export interface ResolutionVerifier {
  * the user, persists them (e.g. into `minimumReleaseAgeExclude`), or
  * aborts. Code is the verifier-defined error code
  * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, etc.) — the
- * install command filters by code to decide downstream UX. Lifted here
- * (rather than in deps-installer) so both deps-resolver and
- * deps-installer can share one shape; future resolver packages plug in
- * without needing the deps-installer dependency.
+ * install command filters by code to decide downstream UX.
  */
 export interface ResolutionPolicyViolation {
   name: string

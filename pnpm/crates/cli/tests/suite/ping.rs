@@ -2,12 +2,6 @@
 //! configured default) and prints a `PING`/`PONG` report for
 //! `GET <registry>-/ping?write=true`.
 //!
-//! Covers the reachable-registry report, the JSON-details branch, the
-//! configured default registry, rejection on a non-success status,
-//! preservation of a registry path prefix, and a transport failure, plus a
-//! guard that inline registry credentials are redacted from the echoed
-//! `PING` line.
-//!
 //! The registry is a `mockito` server the spawned `pacquet` connects to
 //! over loopback. An empty `--npmrc-auth-file` replaces the developer's
 //! real `~/.npmrc` so a token or `registry=` already on the machine can't

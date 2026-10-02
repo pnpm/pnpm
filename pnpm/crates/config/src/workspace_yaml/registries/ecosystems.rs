@@ -15,7 +15,7 @@ use std::{
 /// The package ecosystem whose packages a registry serves.
 ///
 /// Closed, and narrower than the set of surfaces a pnpr server can host:
-/// pnpm installs from these three, so an ecosystem it cannot install from
+/// pnpm installs from these, so an ecosystem it cannot install from
 /// has no meaning in a `registries` entry and is refused where the entry is
 /// parsed rather than somewhere further in.
 #[derive(

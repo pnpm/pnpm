@@ -33,7 +33,6 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
 
-  // Extract existing specifiers from configDependencies (handles both old and new formats)
   const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
 
@@ -79,10 +78,8 @@ async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: stri
   const version = resolution.manifest.version
   const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
 
-  // Write clean specifier to workspace manifest
   configDependencySpecifiers[pkgName] = wantedDep.bareSpecifier ?? version
 
-  // Write resolved info to env lockfile
   const pkgKey = `${pkgName}@${version}`
   envLockfile.importers['.'].configDependencies[pkgName] = {
     specifier: configDependencySpecifiers[pkgName],

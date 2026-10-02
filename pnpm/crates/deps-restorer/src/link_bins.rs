@@ -94,9 +94,6 @@ pub struct LinkVirtualStoreBins<'a> {
     /// Lockfile `packages:` section, indexed by `PkgNameVerPeer`
     /// (without peer suffix). Used to filter children by
     /// `hasBin == true` *before* any per-child IO.
-    /// Most packages don't declare a bin, so this short-circuits the
-    /// bulk of the per-slot work before any path-building or manifest
-    /// lookup happens.
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// Bundled manifests recovered from the warm-cache prefetch of
     /// `index.db` ([`crate::PackageManifests`]). A hit lets the

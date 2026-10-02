@@ -1,5 +1,5 @@
 //! Hoisted-linker. Produces the on-disk `node_modules/` tree
-//! described by Slice 4's [`crate::LockfileToDepGraphResult`]:
+//! described by [`crate::LockfileToDepGraphResult`]:
 //! removes orphaned directories the new plan doesn't place,
 //! imports each graph node into its computed directory via
 //! [`crate::import_indexed_dir()`], and links bins under every
@@ -9,9 +9,7 @@
 //! paths via `cas_paths_by_pkg_id`. It decouples downloading from
 //! linking because pacquet's existing tarball / store-dir /
 //! package-fetch machinery is reused verbatim by the install
-//! pipeline (Slice 6) before the linker runs. The linker is the
-//! final composition step — given a graph and a fully-populated
-//! CAS index for every package, it materializes the tree.
+//! pipeline before the linker runs.
 //!
 //! Concurrency uses [`rayon`]: the hierarchy walk parallelizes
 //! at each level, and `import_indexed_dir` itself is internally
@@ -114,7 +112,7 @@ pub struct LinkHoistedModulesOpts<'a> {
     pub prev_graph: Option<&'a DependenciesGraph>,
     /// Per-importer directory hierarchies, keyed by importer
     /// root. Single-importer installs have one entry keyed by
-    /// `lockfile_dir`; workspace support will add more.
+    /// `lockfile_dir`.
     pub hierarchy: &'a std::collections::BTreeMap<PathBuf, DepHierarchy>,
     /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
@@ -133,9 +131,8 @@ pub struct LinkHoistedModulesOpts<'a> {
 }
 
 /// Failure modes of [`link_hoisted_modules`]. Marked
-/// `#[non_exhaustive]` so adding variants in later sub-slices
-/// (e.g. side-effects cache, store-controller integration)
-/// isn't a breaking API change.
+/// `#[non_exhaustive]` so adding variants isn't a breaking API
+/// change.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LinkHoistedModulesError {
@@ -146,7 +143,7 @@ pub enum LinkHoistedModulesError {
     MissingCasPaths { pkg_id_with_patch_hash: PkgIdWithPatchHash, dir: PathBuf },
 
     /// A hierarchy entry referenced a directory that has no
-    /// corresponding entry in `graph`. Slice 4's walker inserts
+    /// corresponding entry in `graph`. The walker inserts
     /// a graph node every time it inserts a hierarchy entry, so
     /// this shouldn't fire from a real walker result — but
     /// surfacing the inconsistency fails the install fast rather
@@ -172,7 +169,7 @@ pub enum LinkHoistedModulesError {
     LinkBins(#[error(source)] LinkBinsError),
 }
 
-/// Produce the on-disk hoisted tree from a Slice 4 walk result.
+/// Produce the on-disk hoisted tree from a walk result.
 ///
 /// 1. **Orphan removal.** Every directory the previous install
 ///    placed but the new plan doesn't, plus every package
@@ -204,7 +201,7 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     let removed = remove_orphans(opts)?;
 
     // Drive each importer's hierarchy in parallel — workspace
-    // installs (Slice 9) will have multiple importers; the
+    // installs have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
     let LinkedLevel { imported: added, bins } = opts.hierarchy
@@ -278,10 +275,7 @@ fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedM
     Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
 }
 
-/// Whether `dir` sits lexically inside `confine_root`. The walker builds
-/// every graph dir through `safe_join_modules_dir`, so this is the
-/// invariant — checking it here keeps the deletion site from depending
-/// on the constructor's discipline.
+/// Whether `dir` sits lexically inside `confine_root`.
 fn confined(dir: &Path, confine_root: &Path) -> bool {
     let confined = dir.starts_with(confine_root)
         && dir

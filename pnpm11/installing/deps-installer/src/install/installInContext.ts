@@ -278,9 +278,7 @@ async function installWithPacquet (
   // Older pacquet can only materialize: split the install in two —
   // ask `resolveAndLinkProjects` for a `lockfileOnly` resolve pass (writes
   // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
-  // pacquet for the fetch / import / link / build phases. The resolve
-  // pass emitted a `pnpm:progress status:resolved` per package; ask
-  // pacquet to drop its own duplicates.
+  // pacquet for the fetch / import / link / build phases.
   const result = await resolveAndLinkProjects(projects, ctx, { ...opts, lockfileOnly: true })
   await opts.beforeLifecycleScripts?.({
     updatedProjects: result.projects,
@@ -357,9 +355,7 @@ async function readLockfileWrittenByPacquet (
  * The `InstallFunctionResult` for an install pacquet resolved and
  * materialized end-to-end. pacquet wrote `pnpm-lock.yaml` and the
  * `node_modules` tree itself. `ctx.wantedLockfile` has already been
- * refreshed from disk, and pacquet reports its own stats / ignored-builds
- * via NDJSON, so the structured `stats` / `ignoredBuilds` fall back to
- * their no-op defaults. Resolution-policy handlers are guarded out before
+ * refreshed from disk. Resolution-policy handlers are guarded out before
  * this path, so there are no command-layer policy violations to return.
  * Manifests are returned unchanged — this path only runs for plain
  * installs, which don't rewrite `package.json`.
@@ -379,9 +375,7 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
 /**
  * Run the pacquet binary if it's configured, otherwise run the JS
  * `headlessInstall`. Callers can hand off any code path that materializes
- * an already-resolved lockfile (workspace partial install, hoisted
- * linker, pnpr server install, frozen install) without restating the
- * delegation choice.
+ * an already-resolved lockfile without restating the delegation choice.
  *
  * Pacquet reads the wanted lockfile from disk and produces its own
  * `pnpm:stats` / `pnpm:ignored-scripts` log events that drive the
@@ -409,9 +403,7 @@ export async function materializeOrDelegate (
     opts.saveLockfile !== false &&
     (projects == null || !hasUninstallMutations(projects))
   ) {
-    // Reached only from the resolve-then-materialize call sites
-    // (workspace-partial, hoisted-linker, pnpr server install). Each ran a
-    // lockfileOnly resolve pass that emitted one
+    // The callers ran a lockfileOnly resolve pass that emitted one
     // `pnpm:progress status:resolved` per package, so pacquet's
     // duplicate `resolved` events would double the reporter's count.
     await opts.runPacquet.run({ filterResolvedProgress: true, rootProjectPreinstallRan: opts.rootProjectPreinstallRan })

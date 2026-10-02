@@ -27,9 +27,6 @@ export interface ResolveManifestDependenciesOpts {
 /**
  * Resolves the dependencies of a manifest and returns the resulting lockfile
  * without writing anything to disk.
- *
- * This is a lightweight wrapper around resolveDependencies for cases where
- * you only need the lockfile output (e.g., resolving package manager integrities).
  */
 export async function resolveManifestDependencies (
   manifest: ProjectManifest,

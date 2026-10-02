@@ -87,6 +87,11 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
 /// when a request names none.
 const DEFAULT_SEARCH_PAGE: usize = 10;
 
+/// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>` — `cargo search`.
+///
+/// Hosted sources only. An upstream contributes nothing, the way an npm
+/// upstream does until its `search` is turned on, and searching one needs
+/// its `config.json` `api` base rather than the index base pnpr proxies.
 async fn get_search(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -147,11 +152,6 @@ async fn collect_hosted_crates(
     Ok(())
 }
 
-/// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>` — `cargo search`.
-///
-/// Hosted sources only. An upstream contributes nothing, the way an npm
-/// upstream does until its `search` is turned on, and searching one needs
-/// its `config.json` `api` base rather than the index base pnpr proxies.
 /// Add one hosted source's names to the page.
 ///
 /// A hosted namespace shared with another ecosystem holds names that are not

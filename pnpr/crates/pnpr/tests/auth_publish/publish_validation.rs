@@ -805,8 +805,7 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
 /// axum's `Path` extractor percent-decodes path segments, so the
 /// handler sees the decoded value verbatim and never needs to decode
 /// again. This regression test pins that down: if someone reintroduces
-/// a manual `urldecode` (which was previously here and was both
-/// redundant and buggy on literal `%` chars), the `@scope/pkg`
+/// a manual `urldecode`, the `@scope/pkg`
 /// `CanonicalPackageName::parse` would still pass but a future bug-fix that
 /// changes the decoder could break percent-encoded scoped paths.
 #[tokio::test]

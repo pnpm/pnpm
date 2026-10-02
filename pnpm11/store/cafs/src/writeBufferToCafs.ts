@@ -229,9 +229,6 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
  *
  * If a process fails, its temporary file may remain. When the process is rerun, it will
  * safely overwrite any existing temporary file with the same name.
- *
- * @param file - The original file path
- * @returns A temporary file path in the format: {basename}{pid}{threadId}
  */
 function pathTemp (file: string): string {
   const basename = removeSuffix(path.basename(file))

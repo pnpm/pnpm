@@ -5,11 +5,9 @@
 //! `sha256-<base64>` integrity string the lockfile records on the
 //! emitted `BinaryResolution`.
 //!
-//! Three surfaces:
+//! Surfaces:
 //!
 //! - [`fetch_shasums_file`] — download and parse every row at once.
-//!   The node-resolver and bun-resolver fan the parsed rows out across
-//!   every artifact a release ships.
 //! - [`fetch_verified_node_shasums_file`] — download a Node.js release
 //!   SHASUMS file, verify its detached `OpenPGP` signature against the
 //!   embedded Node.js release keys, then parse the trusted body.
@@ -396,10 +394,6 @@ fn node_shasums_network_error(
 }
 
 /// Parse a `SHASUMS256.txt` body into rows.
-///
-/// Split out from [`fetch_shasums_file`] so verifier-side code that
-/// already has the body in hand can decode it without re-issuing the
-/// network request.
 #[must_use]
 pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
     body.lines()

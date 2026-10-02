@@ -103,11 +103,7 @@ pub(crate) struct TarballDownloadPackage {
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
 /// and store. The task's result is discarded — the [`MemCache`] carries
 /// `CacheValue::Available` (success) or `CacheValue::Failed` (error) to
-/// the install pass that later looks up the same archive. The download is
-/// routed through [`SilentReporter`]: the pnpr client's frozen
-/// materialization install emits the `resolved → fetched/found_in_store
-/// → imported` progress itself as it consumes each tarball, so the
-/// prefetch must not emit a competing, out-of-order set.
+/// the install pass that later looks up the same archive.
 pub(crate) fn spawn_tarball_download(download: TarballDownload) {
     tokio::spawn(async move {
         let _ = run_tarball_download(download).await;
@@ -151,11 +147,7 @@ async fn run_tarball_download(
 /// the server's still-running resolution rather than waiting for the
 /// finished lockfile.
 ///
-/// Mirrors the local fresh-install [`crate::PrefetchingResolver`] —
-/// each download lands in the shared [`MemCache`] under the archive's
-/// cache identity,
-/// and the frozen materialization install the client runs afterward
-/// picks it up from the cache. It carries its own store-index writer so
+/// It carries its own store-index writer so
 /// freshly-downloaded tarballs are recorded in `index.db` (the frozen
 /// install hits the mem cache and never writes the row itself), matching
 /// how `PrefetchingResolver` shares the install's writer.

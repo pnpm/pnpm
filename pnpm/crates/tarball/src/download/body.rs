@@ -59,10 +59,7 @@ impl BodyHasher {
 ///
 /// The extractor runs on a blocking thread fed through a channel, so
 /// what is held in memory is the queued chunks plus the extractor's own
-/// bounded batch — never the archive. That is the property the callers
-/// want: [`fetch_and_extract_once`](crate::download::fetch::fetch_and_extract_once) takes this path up front for a body
-/// whose advertised size already says it is large, and falls back to it
-/// for one that turns out to be large while it buffers.
+/// bounded batch — never the archive.
 ///
 /// `seed` is the part of the body already pulled off the socket; the
 /// caller has reported it to `progress` and has not hashed it.

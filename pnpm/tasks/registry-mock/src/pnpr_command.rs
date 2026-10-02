@@ -84,10 +84,6 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
         "pnpr binary not found at {bin:?} — \
          run `cargo build -p pnpr` before invoking the mock",
     );
-    // Seed the runtime storage with the registry-mock fixtures
-    // before pnpr starts serving. Idempotent — existing
-    // files are left alone, so CI can cache the runtime path
-    // across runs and only npm-proxied entries get fetched fresh.
     let seeded = seed_runtime_storage()
         .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
     if seeded > 0 {

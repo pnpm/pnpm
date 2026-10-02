@@ -14,7 +14,7 @@ pub struct NodeApiProject {
     pub dependency_manifest: Option<serde_json::Value>,
 }
 
-/// Options for [`install`](fn@crate::install). Mirrors [`InstallOptions`] in `index.d.ts`; only the
+/// Options for [`install`](fn@crate::install). Only the
 /// fields the engine consumes today are read, the rest are accepted and
 /// ignored so the contract stays forward-compatible.
 #[napi(object)]
@@ -43,9 +43,8 @@ pub struct InstallOptions {
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
     pub external_dependencies: Option<Vec<String>>,
-    /// `IndexMap` so the JS object's key order survives into
-    /// `pnpm-lock.yaml#overrides` — a `HashMap` here reordered the
-    /// recorded block at random on every install.
+    /// The JS object's key order survives into
+    /// `pnpm-lock.yaml#overrides`.
     pub overrides: Option<IndexMap<String, String>>,
     pub package_import_method: Option<String>,
     pub auto_install_peers: Option<bool>,
@@ -146,8 +145,7 @@ pub struct InstallOptions {
     pub read_package_hook_checksum: Option<String>,
 }
 
-/// Options for [`get_peer_dependency_issues`](crate::get_peer_dependency_issues). Mirrors the TypeScript
-/// declaration in `index.d.ts`.
+/// Options for [`get_peer_dependency_issues`](crate::get_peer_dependency_issues).
 #[napi(object)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -226,7 +224,7 @@ pub struct PeerDependencyMetaInput {
     pub optional: Option<bool>,
 }
 
-/// `peerDependencyRules` input. Mirrors `PeerDependencyRules` in `index.d.ts`.
+/// `peerDependencyRules` input.
 #[napi(object)]
 pub struct PeerDependencyRulesInput {
     pub ignore_missing: Option<Vec<String>>,

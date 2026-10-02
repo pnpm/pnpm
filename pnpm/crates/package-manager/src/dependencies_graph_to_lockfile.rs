@@ -36,12 +36,6 @@ use pnpm_resolving_deps_resolver::{
 use serde_json::Value;
 
 /// One importer's contribution to [`dependencies_graph_to_lockfile`].
-///
-/// Pacquet keeps the per-importer slice narrow — the manifest decides
-/// the dep-group classification of each alias, and
-/// `direct_dependencies_by_alias` (from `resolve_peers`) tells us which
-/// `DepPath` each alias resolved to. The shared `DependenciesGraph`
-/// lives outside this struct because it is importer-independent.
 pub struct ImporterLockfileInput<'a> {
     /// The on-disk `package.json` for this importer. Used to source
     /// each direct dependency's specifier (the value the user wrote)
@@ -135,11 +129,7 @@ pub struct LockfileImporterReuse<'a> {
     /// Per-importer update scopes, mirroring the resolver's
     /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
     /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
-    /// with the named packages recorded per importer here. The guard
-    /// resolves each importer's effective scope as: global when the global
-    /// is `None`, else this map's entry, else the global — so a recursive
-    /// update targets the named dependency in the importer that declares
-    /// it while leaving untouched importers' `link:` entries intact.
+    /// with the named packages recorded per importer here.
     pub scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 }
 

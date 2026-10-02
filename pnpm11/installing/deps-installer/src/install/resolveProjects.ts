@@ -97,9 +97,9 @@ export async function resolveProjects (
 
 /**
  * Always seed preferred versions from the lockfile, even for update
- * mutations. Gating this on `update` (the previous behavior) nullified
- * the seed globally during `pnpm up -r <pkg>`, so unrelated packages
- * with open ranges lost their pins and re-resolved to newest-in-range
+ * mutations. Gating this on `update` would nullify the seed globally
+ * during `pnpm up -r <pkg>`, so unrelated packages with open ranges
+ * would lose their pins and re-resolve to newest-in-range
  * (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
  * at the npm picker subtracts the lockfile-derived weight from its pins,
  * so the target re-resolves exactly as a fresh install would after its

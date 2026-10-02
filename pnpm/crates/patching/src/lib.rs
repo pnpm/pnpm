@@ -8,12 +8,10 @@
 //!    from `pnpm-workspace.yaml`'s `patchedDependencies` map to a
 //!    [`PatchGroupRecord`].
 //! 2. [`get_patch_info()`] for looking up the matching patch for a
-//!    `(name, version)` pair (exact → unique range → wildcard) with
-//!    `ERR_PNPM_PATCH_KEY_CONFLICT` on ambiguity.
+//!    `(name, version)` pair.
 //! 3. [`apply_patch_to_dir`] for applying a unified-diff patch
 //!    against an extracted package directory before postinstall
-//!    hooks run, using the pure-Rust [`diffy`] crate (`git apply`
-//!    and `patch` are ruled out for cross-platform reasons).
+//!    hooks run.
 //! 4. [`verify_patches`] for the `ERR_PNPM_UNUSED_PATCH` diagnostic
 //!    when configured patches don't match any installed dep.
 //! 5. [`prepare_pkg_files_for_diff`] and [`diff_folders`] for creating
@@ -22,9 +20,7 @@
 //! pnpm v11 reads `patchedDependencies` from `pnpm-workspace.yaml`,
 //! not from `package.json`'s `pnpm` field. [`resolve_and_group`]
 //! accordingly takes a workspace dir and a pre-parsed
-//! [`IndexMap`][indexmap::IndexMap] — the caller is responsible for
-//! surfacing the map (today: from yaml; in the lockfile-only path,
-//! from `pnpm-lock.yaml`'s top-level `patchedDependencies` field).
+//! [`IndexMap`][indexmap::IndexMap].
 
 #[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;

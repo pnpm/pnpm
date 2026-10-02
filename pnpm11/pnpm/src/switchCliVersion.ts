@@ -89,7 +89,6 @@ function satisfiesPin (version: string, wantedVersion: string): boolean {
  */
 async function resolveSwitchTargetVersion (versionSwitch: VersionSwitch): Promise<string | undefined> {
   const { config, envLockfile, wantedVersion } = versionSwitch
-  // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
   if (pmVersion != null && !satisfiesPin(pmVersion, wantedVersion)) {
     pmVersion = undefined
@@ -121,7 +120,6 @@ async function recordPin (versionSwitch: VersionSwitch, pmVersion: string): Prom
 }
 
 async function resolvePinFromRegistry (versionSwitch: VersionSwitch): Promise<string | undefined> {
-  // Resolve to an exact version from the registry.
   const resolved = await resolveIntegrities(versionSwitch, versionSwitch.wantedVersion, {
     save: versionSwitch.persistLockfile,
     frozenLockfile: versionSwitch.config.frozenLockfile,

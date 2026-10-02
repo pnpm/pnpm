@@ -20,7 +20,7 @@ use std::{
     sync::Mutex,
 };
 
-/// `pacquet rebuild` — re-run the lifecycle scripts of installed
+/// `pnpm rebuild` — re-run the lifecycle scripts of installed
 /// dependencies.
 #[derive(Debug, Clone, Args)]
 pub struct RebuildArgs {
