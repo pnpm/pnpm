@@ -1,8 +1,7 @@
 //! Tests that exercise behavior branches by writing `.modules.yaml`
 //! files to a real `tempfile::tempdir()` and reading them back. These
 //! cover branches (e.g. a custom `virtualStoreDir`) that the install
-//! pipeline only reaches transitively; until that pipeline lands these
-//! direct unit tests guard the behavior.
+//! pipeline only reaches transitively.
 
 use indexmap::IndexSet;
 use pipe_trait::Pipe;
@@ -183,10 +182,7 @@ fn dep_path_serializes_transparently() {
 
 /// `hoistedLocations` is the per-depPath list of lockfile-relative
 /// directory paths that hoisted-module linking and rebuild consult to
-/// find where a package lives on disk. Pacquet has no consumer yet
-/// (the install pipeline still writes the field as `None`), so this
-/// test pins the schema-level round-trip until a real producer
-/// appears.
+/// find where a package lives on disk.
 #[test]
 fn hoisted_locations_round_trips() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -227,10 +223,8 @@ fn hoisted_locations_round_trips() {
     );
 }
 
-/// A manifest with no `hoistedLocations` (the only state pacquet
-/// writes today) must omit the field on disk rather than emit
-/// `hoistedLocations: null`. Pacquet relies on
-/// `skip_serializing_if = "Option::is_none"` for this.
+/// A manifest with no `hoistedLocations` must omit the field on disk
+/// rather than emit `hoistedLocations: null`.
 #[test]
 fn absent_hoisted_locations_is_omitted_on_write() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");

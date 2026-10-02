@@ -108,8 +108,6 @@ fn intern_violation_code(code: &str) -> &'static str {
 }
 
 impl PnprClient {
-    /// Resolve a single project against the server and return the
-    /// resolved lockfile, ignoring the streamed per-package frames.
     /// Resolve a Python project against the server and return the
     /// `pylock.toml` document it produced. The client still downloads the
     /// wheels the document names and re-solves the project against their

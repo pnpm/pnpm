@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 /// a `SQLite` database for cross-restart durability.
 ///
 /// Token records carry the verdaccio shape (`created_at`, `last_used_at`,
-/// readonly, `cidr_whitelist`) so they can be surfaced by future
+/// readonly, `cidr_whitelist`) so they can be surfaced by the
 /// `/-/npm/v1/tokens` endpoints without a schema migration.
 #[derive(Debug)]
 pub struct TokenStore {

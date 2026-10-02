@@ -338,8 +338,7 @@ fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
             .collect(),
         Value::Bool(true) => {
             // `bundleDependencies: true` means "bundle every entry in
-            // `dependencies`". Rare but supported by npm. Materialize
-            // the keys from the dependencies map.
+            // `dependencies`". Rare but supported by npm.
             manifest
                 .get("dependencies")
                 .and_then(Value::as_object)

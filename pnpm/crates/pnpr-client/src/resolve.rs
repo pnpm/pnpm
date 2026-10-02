@@ -299,13 +299,8 @@ impl PnprClient {
         if opts.fix_lockfile {
             self.handshake_fix_lockfile().await?;
         }
-        // The server's response is untrusted, and the caller merges the
-        // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
-        // importers this request is about — the requested projects plus
-        // whatever the input lockfile already carried — so a hostile server
-        // cannot introduce dependencies for a project that was never sent.
-        // This is a containment check (every returned importer was
-        // requested), which is the injection boundary; it deliberately does
+        // The importer check is a containment check (every returned importer
+        // was requested), which is the injection boundary; it deliberately does
         // not require every requested importer to be present. A dependency-
         // free importer is still present-but-empty (pnpm records it as
         // `{ specifiers: {} }`), and a genuinely missing importer is surfaced
@@ -329,12 +324,6 @@ impl PnprClient {
 
         verify_transform_support(&response, project_transforms_requested)?;
 
-        // Consume the NDJSON stream line by line. The response header above
-        // proves transform support before any package frame is consumed, so
-        // current servers preserve resolution/fetch overlap while older
-        // servers fail without triggering downloads or buffering hints.
-        // reqwest's `gzip` feature transparently inflates the byte stream if a
-        // proxy compressed it, so the frames arrive as plain JSON lines.
         let outcome = read_ndjson_frames(response, |line| {
             handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)
         })

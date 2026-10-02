@@ -90,7 +90,6 @@ pub struct RegistryRouting {
     /// (and the registries declared alongside it) rather than its own
     /// configuration.
     pub registry: String,
-    /// The client's named-registry aliases.
     /// The registries the client declares, keyed by URL, in the shape
     /// of the `registries` setting. The default registry is not among
     /// them: it travels as `registry`.

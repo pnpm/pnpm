@@ -26,12 +26,9 @@ fn wanted(os: Option<&[&str]>, cpu: Option<&[&str]>, libc: Option<&[&str]>) -> W
     WantedPlatform { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
 }
 
-/// Test-local convenience wrapper. The runtime `check_platform` takes
-/// the wanted axes as `Option<&[String]>` slices so the install hot
-/// path doesn't have to construct a `WantedPlatform` per snapshot;
-/// the tests find it more ergonomic to build one and pass it by
-/// reference, so this wrapper does the `.as_deref()` for each axis
-/// in one place.
+/// Test-local convenience wrapper. The tests find it more ergonomic to
+/// build a `WantedPlatform` and pass it by reference, so this wrapper does
+/// the `.as_deref()` for each axis in one place.
 fn check_platform_w(
     pkg: &str,
     wanted_platform: &WantedPlatform,
