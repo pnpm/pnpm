@@ -7,6 +7,7 @@ import type {
   AuditConfig,
   AuditLevel,
   AuditSettings,
+  ConfigDependencies,
   PackageExtension,
   PeerDependencyRules,
   PnpmSettings,
@@ -91,6 +92,9 @@ export function getOptionsFromPnpmSettings (
   }
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
+  }
+  if (settings.configDependencies != null) {
+    assertValidConfigDependencies(settings.configDependencies)
   }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
@@ -454,6 +458,24 @@ function assertValidAllowBuilds (allowBuilds: unknown): asserts allowBuilds is R
     if (typeof value !== 'boolean' && typeof value !== 'string') {
       throw new PnpmError('INVALID_ALLOW_BUILDS', `The value of allowBuilds.${pkg} should be a boolean or string, but got ${renderReceivedType(value)}`)
     }
+  }
+}
+
+function assertValidConfigDependencies (configDependencies: unknown): asserts configDependencies is ConfigDependencies {
+  assertObjectSetting(configDependencies, 'configDependencies')
+  for (const [name, dep] of Object.entries(configDependencies as Record<string, unknown>)) {
+    if (typeof dep === 'string') continue
+    if (dep != null && typeof dep === 'object' && !Array.isArray(dep)) {
+      const descriptor = dep as Record<string, unknown>
+      if (descriptor.tarball != null) {
+        assertString(descriptor.tarball, `configDependencies.${name}.tarball`)
+      }
+      if (typeof descriptor.integrity !== 'string') {
+        throw new PnpmError('INVALID_SETTING', `The "configDependencies.${name}.integrity" setting should be a string, but got ${renderReceivedType(descriptor.integrity)}`)
+      }
+      continue
+    }
+    throw new PnpmError('INVALID_SETTING', `The "configDependencies.${name}" setting should be a string or an object with an integrity field, but got ${renderReceivedType(dep)}`)
   }
 }
 

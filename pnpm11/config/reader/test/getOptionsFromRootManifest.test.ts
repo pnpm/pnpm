@@ -959,3 +959,31 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['configDependencies', 'all', 'The "configDependencies" setting should be an object, but got string'],
+  ['configDependencies', ['@scope/config'], 'The "configDependencies" setting should be an object, but got array'],
+  ['configDependencies', { '@scope/config': 123 }, 'The "configDependencies.@scope/config" setting should be a string or an object with an integrity field, but got number'],
+  ['configDependencies', { '@scope/config': null }, 'The "configDependencies.@scope/config" setting should be a string or an object with an integrity field, but got null'],
+  ['configDependencies', { '@scope/config': { tarball: 123, integrity: 'sha512-...' } }, 'The "configDependencies.@scope/config.tarball" setting should be a string, but got number'],
+  ['configDependencies', { '@scope/config': { tarball: 'https://...', integrity: 123 } }, 'The "configDependencies.@scope/config.integrity" setting should be a string, but got number'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid configDependencies', () => {
+  const configDependencies = {
+    '@scope/config': '1.0.0',
+    '@scope/other': {
+      tarball: 'https://registry.npmjs.org/@scope/other/-/other-1.0.0.tgz',
+      integrity: 'sha512-abc==',
+    },
+  }
+  const options = getOptionsFromPnpmSettings(process.cwd(), { configDependencies })
+  expect(options.configDependencies).toStrictEqual(configDependencies)
+})
