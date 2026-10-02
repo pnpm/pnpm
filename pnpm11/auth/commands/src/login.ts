@@ -106,6 +106,7 @@ export interface LoginFetchResponseHeaders {
 
 export interface LoginFetchOptions {
   method?: 'GET' | 'POST' | 'PUT'
+  redirect?: RequestRedirect
   headers?: Record<string, string>
   body?: string
   retry?: {
