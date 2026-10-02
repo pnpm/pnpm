@@ -115,7 +115,7 @@ use std::os::unix::fs::PermissionsExt;
 
 ### No star imports
 
-Avoid star (glob) imports inside the bodies of regular modules. Import items explicitly by name everywhere except the two cases noted below. The rule applies to production code, tests, integration tests, build scripts, and developer tooling under `tasks/`.
+Avoid star (glob) imports inside the bodies of regular modules. Import items explicitly by name everywhere except the cases noted below. The rule applies to production code, tests, integration tests, build scripts, and developer tooling under `tasks/`.
 
 The two exceptions are:
 
@@ -387,6 +387,10 @@ If the identifier is not directly in scope, use a path link (`` [`crate::store::
 A doc comment (`///` or `//!`) is rendered by `rustdoc` as the documentation of the item it attaches to, and it is visible to every reader who can see that item. The doc comment of a `pub` item therefore reaches every downstream user of the crate, including users who never read the source. Do not reference items more private than the item being documented. Disallowed references include a private function named in the doc comment of a `pub` item, a `pub(crate)` type named in the doc comment of a `pub` item, and a private constant named in the doc comment of a `pub(crate)` item. A reader who only sees the rendered docs cannot follow such a reference, and intra-doc links to inaccessible items become broken links in `cargo doc` output.
 
 If the explanation genuinely depends on that more private item, choose one of two fixes. The first option is to widen the visibility of the referenced item, adding a re-export when one fits the API. The second option is to move the explanation into a regular `//` comment on the implementation, where readers of the source can see it. Reserve `///` and `//!` for things a downstream user of the item needs to know. Use `//` for notes useful only to someone reading the source.
+
+Doc comments on clap commands and arguments are the `--help` output. The `@pnpm/napi` type declarations in `pnpm/npm/napi/index.d.ts`, and the doc comments on the `#[napi]` items they declare, describe the addon to its users. All of these follow the [user-facing text](../AGENTS.md#user-facing-text) rules.
+
+A default is documented on the field that has it, in the spelling the config file uses. The `#[default]` attribute on an enum variant is code and stays; prose on the variant or on the type claiming the default moves to the field, per [prose that cannot go stale](../AGENTS.md#prose-that-cannot-go-stale).
 
 ```rust
 // Bad: public doc references a private helper

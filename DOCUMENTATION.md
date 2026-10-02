@@ -61,7 +61,7 @@ build against the new website commit. The workflow never force-pushes.
 
 To publish directly from `main` without a release, open **Actions → Sync
 documentation → Run workflow**, select `main`, and leave both inputs empty.
-This builds, checks, and publishes all three products' current documentation,
+This builds, checks, and publishes every product's current documentation,
 including docs for unreleased changes. It requires the same `DOCS_SYNC_TOKEN`
 setup as automatic publication. The generated website commit records the source
 SHA. This manual override leaves the last-release tracking in `docs-sync.json`
@@ -74,6 +74,21 @@ commit available in pnpm/pnpm. Dispatch the sync with that `release_tag` and the
 full `docs_commit` SHA. Also carry the correction into the development branch.
 The workflow rejects corrections containing code changes or changes to another
 version's documentation. This keeps unreleased features off the public site.
+
+## Markdown by renderer
+
+Each file kind is rendered by a different tool. Use only what its renderer keeps.
+
+| Files | Renderer | Admonitions | Links |
+|---|---|---|---|
+| `pnpm/docs/`, `pnpm11/docs/`, `pnpr/docs/` | Docusaurus on pnpm.io | `:::note`, `:::tip`, `:::warning`, and the other Docusaurus forms | relative `.md` paths between pages; site-rooted `/img/...` and `/blog/...` paths, which the publisher rewrites |
+| `.changeset/*.md` | GitHub release notes and the release blog | none | absolute URLs |
+| `AGENTS.md`, `CONTRIBUTING.md`, and the other in-repo guides | GitHub, editors, agent tooling | GitHub alerts (`> [!NOTE]`); `WARNING` and `CAUTION` only for a hazard | relative paths |
+| READMEs of published npm packages | npm | none | absolute URLs |
+| Rust doc comments | rustdoc | none | intra-doc links |
+| Doc comments on clap commands and arguments | plain text in `--help` | none | none |
+
+GitHub alerts render only on GitHub. Docusaurus admonitions render only on pnpm.io.
 
 ## Initial rollout
 
