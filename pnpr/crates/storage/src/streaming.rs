@@ -1,7 +1,5 @@
 //! Streaming helpers for the blob path.
 //!
-//! The flows here:
-//!
 //! * [`stream_verified_to_cache`] streams an upstream response to the client
 //!   while teeing it into the cache, promoting the entry only if the SRI
 //!   matches the full body.

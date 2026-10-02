@@ -87,7 +87,8 @@ impl NpmrcAuth {
     /// blow up parsing.
     ///
     /// `npmrc_dir` is the directory of the `.npmrc` file the `text`
-    /// came from.
+    /// came from. A relative `cafile=` resolves against it, not against
+    /// the current directory.
     pub fn from_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
         Self::from_ini_with_options::<Sys>(
             text,
