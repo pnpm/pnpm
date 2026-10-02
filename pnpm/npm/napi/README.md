@@ -1,6 +1,6 @@
 # @pnpm/napi
 
-Node.js bindings for pnpm v12's Rust engine (pacquet), exposing pnpm's
+Node.js bindings for the pnpm engine, exposing pnpm's
 programmatic API — install, rebuild, dependency resolution, and pack — to a
 JavaScript host. The reference consumer is [Bit](https://bit.dev), which drives
 pnpm entirely through its programmatic API.
@@ -36,7 +36,7 @@ See [`index.d.ts`](./index.d.ts) for the full typed contract.
 | `readLockfile(options)` / `writeLockfile(options)` | Read and write `pnpm-lock.yaml` (or the current lockfile under the virtual store) with the engine's own parser and emitter. |
 | `filterLockfileByImporters(lockfile, importerIds, options?)` | Narrow a lockfile to the transitive closure of what the named importers reach. |
 | `readModulesManifest(modulesDir)` | The `.modules.yaml` state of an installed `node_modules`. |
-| `engineVersion()` | Version string of the underlying Rust engine (pacquet). |
+| `engineVersion()` | Version string of the pnpm engine. |
 | `getPeerDependencyIssues(options)` | Resolve the in-memory importers without writing an install and return missing or incompatible peer dependencies by importer. `autoInstallPeers` defaults to `false` for this query. |
 
 ### Output
@@ -50,7 +50,7 @@ however it likes.
 By default the rendered chunks go to stdout. Pass `onOutput` to receive them
 instead, for a host that has redirected its own output at the JavaScript
 level (a monkey-patched `process.stdout.write`, a stream forwarding to a
-remote terminal) where a write from Rust would bypass the redirection. Pass
+remote terminal) where a write from the engine would bypass the redirection. Pass
 `reporter.width` alongside it: the engine cannot see where those chunks end
 up.
 
@@ -75,9 +75,9 @@ the named importers keep only the dependency groups asked for, and
 `renderDependents` returns them rendered as a string — it prints nothing
 itself — mirroring the split between
 `@pnpm/deps.inspection.tree-builder` and `@pnpm/deps.inspection.list`. The
-split is also what replaces that API's `nameFormatter` callback: the tree
-walk is synchronous Rust and cannot call back into JavaScript, so a host
-that renames nodes after a manifest field asks for the field via
+walk cannot call back into JavaScript, so that API's `nameFormatter`
+callback has no counterpart here: a host that renames nodes after a
+manifest field asks for the field via
 `manifestFields`, writes `displayName` onto the returned trees, and passes
 them back to be rendered.
 
