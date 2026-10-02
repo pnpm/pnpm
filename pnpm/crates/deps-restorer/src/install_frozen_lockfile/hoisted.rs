@@ -335,6 +335,7 @@ fn link_post_hierarchy<Reporter: self::Reporter>(
         inputs.projects.walker_lockfile_dir,
         inputs.projects.manifests,
         &walked.direct_dependencies_by_importer_id,
+        &bins.sources,
     )?;
     for directory in changed_dirs {
         bins.sources.remove(&directory);

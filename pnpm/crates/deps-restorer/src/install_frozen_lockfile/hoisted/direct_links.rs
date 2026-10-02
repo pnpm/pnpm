@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use super::{
     Config, HoistedLinkerError, NodeLinker, Path, PathBuf, SymlinkDirectDependenciesError,
     SymlinkPackageError,
@@ -9,6 +12,7 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
     lockfile_dir: &Path,
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
+    initial_sources: &crate::HoistedBinSources,
 ) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
     let modules_dir_name = config.modules_dir_name();
     let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
@@ -29,7 +33,11 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
             },
             is_workspace_root,
         };
-        if scope.link_direct_dependencies(direct_dependencies_by_importer_id, &link_options)? {
+        if scope.link_direct_dependencies(
+            direct_dependencies_by_importer_id,
+            &link_options,
+            initial_sources.get(&scope.modules_dir).map(AsRef::as_ref),
+        )? {
             changed_dirs.insert(scope.modules_dir);
         }
     }
@@ -51,6 +59,7 @@ impl HoistedLinkScope<'_> {
         &self,
         direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
         link_options: &pnpm_cmd_shim::LinkBinsOptions,
+        initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
     ) -> Result<bool, HoistedLinkerError> {
         let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&self.importer_id)
         else {
@@ -65,6 +74,9 @@ impl HoistedLinkScope<'_> {
                 linked_names.push(alias.clone());
             }
         }
+        if !changed && self.already_linked(&linked_names, initial_sources) {
+            return Ok(false);
+        }
         crate::link_direct_dep_bins_before_builds(&self.modules_dir, &linked_names, link_options)
             .map_err(|source| {
                 HoistedLinkerError::SymlinkDirectDependencies(
@@ -72,6 +84,22 @@ impl HoistedLinkScope<'_> {
                 )
             })
             .map(|_| changed)
+    }
+
+    // Both passes precede lifecycle execution and use identical hoisted shim options.
+    // Candidate order matters when equally ranked packages expose the same command.
+    fn already_linked(
+        &self,
+        linked_names: &[String],
+        initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
+    ) -> bool {
+        initial_sources.is_some_and(|sources| {
+            sources.len() == linked_names.len()
+                && sources
+                    .iter()
+                    .zip(linked_names)
+                    .all(|(source, alias)| source.location == self.modules_dir.join(alias))
+        })
     }
 
     /// `Ok(true)` when the alias now resolves inside the project's own
