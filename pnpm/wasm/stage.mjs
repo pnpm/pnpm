@@ -10,6 +10,31 @@ const root = path.resolve(runtime, '../..')
 const target = path.join(root, 'target')
 const artifact = path.join(target, 'wasm32-wasip1-threads/release/pnpm.wasm')
 
+/**
+ * Writes the publishable `@pnpm/wasm` package to `directory`, with the runtime
+ * and its locked dependencies under `dist/`.
+ */
+export async function stagePackage (directory) {
+  const cli = JSON.parse(await readFile(path.join(root, 'pnpm/npm/pnpm/package.json'), 'utf8'))
+  await stageRuntime(path.join(directory, 'dist'))
+  await Promise.all(['LICENSE', 'README.md'].map(file => copyFile(path.join(directory, 'dist', file), path.join(directory, file))))
+  const manifest = {
+    name: '@pnpm/wasm',
+    version: cli.version,
+    description: 'pnpm for StackBlitz WebContainers',
+    keywords: ['pnpm', 'webcontainer', 'wasm'],
+    license: cli.license,
+    homepage: cli.homepage,
+    bugs: cli.bugs,
+    repository: { ...cli.repository, directory: 'pnpm/wasm' },
+    type: 'module',
+    engines: { node: '>=22.13' },
+    bin: { pnpm: 'dist/pnpm.mjs', pn: 'dist/pnpm.mjs', pnpx: 'dist/pnpx.mjs', pnx: 'dist/pnpx.mjs' },
+    files: ['dist/'],
+  }
+  await writeFile(path.join(directory, 'package.json'), JSON.stringify(manifest, null, 2) + '\n')
+}
+
 export async function stageRuntime (directory, { bundleDependencies = true } = {}) {
   await mkdir(path.dirname(directory), { recursive: true })
   const staging = await mkdtemp(`${directory}-`)
@@ -87,7 +112,8 @@ async function validateDependencies (directory) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const destination = path.join(root, 'pnpm/npm/pnpm/dist/wasm')
-  await stageRuntime(destination)
+  const destination = path.join(root, 'pnpm/npm/wasm')
+  await rm(destination, { recursive: true, force: true })
+  await stagePackage(destination)
   console.log(destination)
 }
