@@ -101,7 +101,7 @@ fn package(modules: &Path, name: &str, command: &str) -> PathBuf {
 
 #[test]
 fn deleted_windows_bins_preserve_outputs_owned_by_surviving_dotted_commands() {
-    let provided = HashSet::from(["TOOL.CMD".to_owned(), "keep".to_owned()]);
+    let provided = HashSet::from(["tool.cmd".to_owned(), "keep".to_owned()]);
     let removed = super::removal::removable_names("tool", &provided, true);
     assert_eq!(removed, ["tool", "tool.ps1", "tool.exe"]);
     let removed = super::removal::removable_names("keep.cmd", &provided, true);

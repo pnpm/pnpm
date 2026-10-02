@@ -297,17 +297,19 @@ where
     // `<slot>/node_modules/<alias>` (returning `None` harmlessly but
     // wasting work) or — worse — create a `<slot>/.../node_modules/.bin`
     // directory under a slot that doesn't exist on disk.
-    let selected_snapshots: Option<HashSet<&PackageKey>> =
-        selected_snapshots.map(|keys| keys.iter().collect());
-    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = snapshots
-        .iter()
-        .filter(|(slot_key, _)| {
-            !skipped.contains(slot_key)
-                && selected_snapshots
-                    .as_ref()
-                    .is_none_or(|keys| keys.contains(slot_key))
-        })
-        .collect();
+    let mut seen = HashSet::new();
+    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = match selected_snapshots {
+        Some(keys) => keys
+            .iter()
+            .filter(|key| seen.insert(*key))
+            .filter_map(|key| snapshots.get_key_value(key))
+            .filter(|(key, _)| !skipped.contains(*key))
+            .collect(),
+        None => snapshots
+            .iter()
+            .filter(|(key, _)| !skipped.contains(*key))
+            .collect(),
+    };
     slot_entries
         .par_iter()
         .try_for_each(|(slot_key, snapshot)| {

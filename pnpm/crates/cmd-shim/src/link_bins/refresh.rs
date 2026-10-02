@@ -96,16 +96,19 @@ impl DirectoryBinPlan {
             self.update_package::<Sys>(location)?;
         }
         let mut chosen = Vec::new();
+        let mut provided = None;
         for name in &self.pending {
             if let Some((command, package)) = self.winner(name) {
                 chosen.push((command.clone(), package));
             } else {
-                let provided = self.candidates
-                    .iter()
-                    .filter(|(_, candidates)| !candidates.is_empty())
-                    .map(|(name, _)| name.clone())
-                    .collect();
-                removal::remove_unclaimed(name, bins_dir, &provided)?;
+                let provided = provided.get_or_insert_with(|| {
+                    self.candidates
+                        .iter()
+                        .filter(|(_, candidates)| !candidates.is_empty())
+                        .map(|(name, _)| removal::normalize(name, cfg!(windows)))
+                        .collect()
+                });
+                removal::remove_unclaimed(name, bins_dir, provided)?;
             }
         }
         link_chosen_bins::<Sys>(chosen, bins_dir, options, &ShimTargetCache::default())?;

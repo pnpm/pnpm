@@ -22,13 +22,8 @@ pub(super) fn removable_names(
     if windows {
         names.extend(["cmd", "ps1", "exe"].map(|extension| format!("{name}.{extension}")));
     }
-    let normalize = |name: &str| if windows { name.to_lowercase() } else { name.to_owned() };
-    let provided: HashSet<_> = provided
-        .iter()
-        .map(|name| normalize(name))
-        .collect();
     names.retain(|name| {
-        let name = normalize(name);
+        let name = normalize(name, windows);
         !(provided.contains(&name)
             || windows
                 && [".cmd", ".ps1", ".exe"]
@@ -39,4 +34,8 @@ pub(super) fn removable_names(
                     }))
     });
     names
+}
+
+pub(super) fn normalize(name: &str, windows: bool) -> String {
+    if windows { name.to_lowercase() } else { name.to_owned() }
 }
