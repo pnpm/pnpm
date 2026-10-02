@@ -32,7 +32,11 @@ pub(super) fn drop_failed_edge(
         return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
     }
     if let Some(parent) = broken_parent {
-        ctx.workspace.record_broken_package(parent, err);
+        ctx.workspace.record_broken_package(
+            parent,
+            wanted.alias.as_deref().unwrap_or_default(),
+            err,
+        );
         return Ok(());
     }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {

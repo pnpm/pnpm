@@ -406,32 +406,41 @@ async fn drops_the_optional_dependency_above_an_unresolvable_regular_dependency(
     assert!(skipped[0].details.contains("missing"), "{}", skipped[0].details);
 }
 
-/// Dropping an optional dependency of a package keeps the package.
+/// Dropping an optional dependency of a package keeps the package. The
+/// report names the range the package asked for, the project, and the
+/// chain of packages from the project down.
 #[tokio::test]
 async fn drops_a_nested_optional_dependency_and_keeps_its_parent() {
     let mut skipped = SkippedLog::default();
     let result = resolve_with_missing_package_and(
-        serde_json::json!({ "dependencies": { "parent": "1.0.0" } }),
+        serde_json::json!({ "dependencies": { "top": "1.0.0" } }),
         &[
-            ("parent", serde_json::json!({ "optionalDependencies": { "opt": "1.0.0" } })),
+            ("top", serde_json::json!({ "dependencies": { "parent": "1.0.0" } })),
+            ("parent", serde_json::json!({ "optionalDependencies": { "opt": "^1.0.0" } })),
             ("opt", serde_json::json!({ "dependencies": { "missing": "1.0.0" } })),
         ],
-        |_, opts| skipped = record_skipped(opts),
+        |resolver, opts| {
+            let opt = resolver.table[&("opt".to_string(), "1.0.0".to_string())].clone();
+            resolver.table.insert(("opt".to_string(), "^1.0.0".to_string()), opt);
+            skipped = record_skipped(opts);
+        },
     )
     .await
     .expect("the nested optional dependency is dropped");
 
-    assert_eq!(graph_keys(&result), ["parent@1.0.0"]);
+    assert_eq!(graph_keys(&result), ["parent@1.0.0", "top@1.0.0"]);
     let parent = &result.peers.graph[&crate::DepPath::from("parent@1.0.0")];
     assert!(parent.edges.children.is_empty(), "{:?}", parent.edges.children);
     let skipped = skipped.lock().unwrap();
     assert_eq!(skipped.len(), 1, "{skipped:?}");
     assert_eq!(skipped[0].name.as_deref(), Some("opt"));
+    assert_eq!(skipped[0].bare_specifier, "^1.0.0");
     let parents: Vec<&str> = skipped[0].parents
         .iter()
         .map(|parent| parent.id.as_str())
         .collect();
-    assert_eq!(parents, ["parent@1.0.0"]);
+    assert_eq!(parents, ["top@1.0.0", "parent@1.0.0"]);
+    assert_ne!(skipped[0].prefix, "/lockfile-dir", "the project, not the lockfile directory");
 }
 
 /// Without an optional dependency above it, the failure still fails the
@@ -508,4 +517,33 @@ async fn left_out_packages_leave_no_policy_violation_or_publish_date() {
         .collect();
     assert_eq!(violations, ["kept@1.0.0"]);
     assert_eq!(result.time.keys().collect::<Vec<_>>(), ["kept@1.0.0"]);
+}
+
+/// Of several failed dependencies, the report names the alphabetically
+/// first, whichever failure arrived first.
+#[tokio::test]
+async fn reports_the_first_failed_dependency_by_name() {
+    for _ in 0..8 {
+        let mut skipped = SkippedLog::default();
+        resolve_with_missing_package_and(
+            serde_json::json!({ "optionalDependencies": { "opt": "1.0.0" } }),
+            &[(
+                "opt",
+                serde_json::json!({ "dependencies": { "z-missing": "1.0.0", "a-missing": "1.0.0" } }),
+            )],
+            |resolver, opts| {
+                resolver.failing = std::collections::HashSet::from_iter([
+                    "a-missing".to_string(),
+                    "z-missing".to_string(),
+                ]);
+                skipped = record_skipped(opts);
+            },
+        )
+        .await
+        .expect("the optional dependency is dropped");
+
+        let skipped = skipped.lock().unwrap();
+        assert_eq!(skipped.len(), 1, "{skipped:?}");
+        assert!(skipped[0].details.contains("a-missing"), "{}", skipped[0].details);
+    }
 }

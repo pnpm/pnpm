@@ -57,9 +57,14 @@ pub(super) fn drop_broken_optional_dependencies(
             false
         });
     }
-    for (parent, edge) in drop_edges_to(tree, &cause_by_id) {
-        let details = details(&edge.pkg_id);
-        report.skip_nested(tree, &parent, edge, details);
+    let removed = drop_edges_to(tree, &cause_by_id);
+    if !removed.is_empty() {
+        let first_reached = first_reached(tree, importers);
+        for (parent, edge) in removed {
+            let origin = report.origin(tree, importers, &first_reached, &parent);
+            let details = details(&edge.pkg_id);
+            report.skip_nested(tree, origin, &parent, edge, details);
+        }
     }
     Ok(left_out_packages(tree, importers, &cause_by_id))
 }
@@ -139,21 +144,52 @@ impl SkipReport<'_> {
     fn skip_nested(
         &self,
         tree: &ResolvedTree,
+        origin: SkipOrigin,
         parent: &Arc<str>,
         edge: ChildEdge,
         details: String,
     ) {
+        let specifier = requested_specifier(tree.packages.get(parent), &edge.alias);
         self.skip(SkippedOptionalDependency {
             details,
             name: Some(edge.alias),
-            version: None,
-            bare_specifier: tree.packages
-                .get(&edge.pkg_id)
-                .map(|pkg| pkg.version().to_string())
-                .unwrap_or_default(),
-            parents: vec![skipped_parent(parent, tree.packages.get(parent))],
-            prefix: self.lockfile_dir.display().to_string(),
+            version: specifier.clone(),
+            bare_specifier: specifier.unwrap_or_default(),
+            parents: origin.parents,
+            prefix: origin.prefix,
         });
+    }
+
+    /// The project and the importer-first package chain a kept package is
+    /// first reached through, or the lockfile directory and the package
+    /// alone when no project reaches it.
+    fn origin(
+        &self,
+        tree: &ResolvedTree,
+        importers: &[ImporterPeerInput],
+        first_reached: &HashMap<Arc<str>, FirstReach>,
+        parent: &Arc<str>,
+    ) -> SkipOrigin {
+        let Some(reach) = first_reached.get(parent) else {
+            return SkipOrigin {
+                prefix: self.lockfile_dir.display().to_string(),
+                parents: vec![skipped_parent(parent, tree.packages.get(parent))],
+            };
+        };
+        let mut chain = vec![Arc::clone(parent)];
+        let mut from = reach.from.as_ref();
+        while let Some(id) = from {
+            chain.push(Arc::clone(id));
+            from = first_reached[id].from.as_ref();
+        }
+        SkipOrigin {
+            prefix: importers[reach.importer].root_dir.display().to_string(),
+            parents: chain
+                .iter()
+                .rev()
+                .map(|id| skipped_parent(id, tree.packages.get(id)))
+                .collect(),
+        }
     }
 
     fn skip(&self, skipped: SkippedOptionalDependency) {
@@ -161,6 +197,71 @@ impl SkipReport<'_> {
             log(skipped);
         }
     }
+}
+
+/// Where a nested skip is reported from. See [`SkipReport::origin`].
+struct SkipOrigin {
+    prefix: String,
+    parents: Vec<SkippedOptionalDependencyParent>,
+}
+
+/// How a breadth-first walk from the importers' direct dependencies first
+/// reaches a package: through which importer, and from which package.
+struct FirstReach {
+    importer: usize,
+    from: Option<Arc<str>>,
+}
+
+fn first_reached(
+    tree: &ResolvedTree,
+    importers: &[ImporterPeerInput],
+) -> HashMap<Arc<str>, FirstReach> {
+    let mut walk = FirstReachWalk::default();
+    for (importer, input) in importers.iter().enumerate() {
+        for dep in &input.direct {
+            walk.reach(&dep.id, FirstReach { importer, from: None });
+        }
+    }
+    while let Some(id) = walk.pending.pop_front() {
+        let importer = walk.reached[&id].importer;
+        for edge in tree.children_by_id
+            .get(&id)
+            .into_iter()
+            .flat_map(|edges| edges.iter())
+        {
+            walk.reach(&edge.pkg_id, FirstReach { importer, from: Some(Arc::clone(&id)) });
+        }
+    }
+    walk.reached
+}
+
+#[derive(Default)]
+struct FirstReachWalk {
+    reached: HashMap<Arc<str>, FirstReach>,
+    pending: std::collections::VecDeque<Arc<str>>,
+}
+
+impl FirstReachWalk {
+    fn reach(&mut self, id: &Arc<str>, reach: FirstReach) {
+        if !self.reached.contains_key(id) {
+            self.reached.insert(Arc::clone(id), reach);
+            self.pending.push_back(Arc::clone(id));
+        }
+    }
+}
+
+/// The range `parent`'s manifest asks for under `alias`.
+fn requested_specifier(parent: Option<&ResolvedPackage>, alias: &str) -> Option<String> {
+    let manifest = parent?.result().package.manifest.as_deref()?;
+    ["optionalDependencies", "dependencies"]
+        .into_iter()
+        .find_map(|group| {
+            manifest
+                .get(group)?
+                .get(alias)?
+                .as_str()
+        })
+        .map(ToString::to_string)
 }
 
 fn skipped_parent(id: &Arc<str>, pkg: Option<&ResolvedPackage>) -> SkippedOptionalDependencyParent {
@@ -176,7 +277,7 @@ fn skipped_parent(id: &Arc<str>, pkg: Option<&ResolvedPackage>) -> SkippedOption
 }
 
 /// Every broken package, mapped to the recorded package whose failure
-/// broke it.
+/// broke it: the nearest one, the alphabetically first among equals.
 fn propagate_through_regular_edges(
     children_by_id: &HashMap<Arc<str>, Arc<Vec<ChildEdge>>>,
     broken: &HashMap<Arc<str>, ResolveDependencyTreeError>,
@@ -190,12 +291,17 @@ fn propagate_through_regular_edges(
                 .push(parent);
         }
     }
-    let mut cause_by_id: HashMap<Arc<str>, Arc<str>> = broken
-        .keys()
+    for parents in regular_parents.values_mut() {
+        parents.sort();
+    }
+    let mut seeds: Vec<Arc<str>> = broken.keys().cloned().collect();
+    seeds.sort();
+    let mut cause_by_id: HashMap<Arc<str>, Arc<str>> = seeds
+        .iter()
         .map(|id| (Arc::clone(id), Arc::clone(id)))
         .collect();
-    let mut pending: Vec<Arc<str>> = broken.keys().cloned().collect();
-    while let Some(id) = pending.pop() {
+    let mut pending: std::collections::VecDeque<Arc<str>> = seeds.into();
+    while let Some(id) = pending.pop_front() {
         let cause = Arc::clone(&cause_by_id[&id]);
         for parent in regular_parents
             .get(&*id)
@@ -204,7 +310,7 @@ fn propagate_through_regular_edges(
         {
             if !cause_by_id.contains_key(*parent) {
                 cause_by_id.insert(Arc::clone(parent), Arc::clone(&cause));
-                pending.push(Arc::clone(parent));
+                pending.push_back(Arc::clone(parent));
             }
         }
     }
