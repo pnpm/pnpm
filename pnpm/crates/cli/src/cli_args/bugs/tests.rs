@@ -2,7 +2,7 @@ use super::{
     BugsArgs, get_bugs_url_from_current_project, is_http_url, parse_package_spec, pick_bugs_url,
     repository_to_issues_url, try_hosted_git_shorthand,
 };
-use pnpm_config::Config;
+use pnpm_config::{Config, ManifestFormat};
 use pnpm_network_web_auth::OpenUrl;
 use serde_json::json;
 use std::{cell::RefCell, fs, io, path::Path};
@@ -11,16 +11,23 @@ use std::{cell::RefCell, fs, io, path::Path};
 fn current_project_bugs_uses_manifest_precedence() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("package.yaml"), "bugs: https://example.test/yaml\n").unwrap();
-    assert_eq!(get_bugs_url_from_current_project(dir.path()).unwrap(), "https://example.test/yaml");
+    assert_eq!(
+        get_bugs_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap(),
+        "https://example.test/yaml",
+    );
     fs::write(dir.path().join("package.json5"), "{bugs: 'https://example.test/json5'}").unwrap();
     assert_eq!(
-        get_bugs_url_from_current_project(dir.path()).unwrap(),
+        get_bugs_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap(),
         "https://example.test/json5",
     );
     fs::write(dir.path().join("package.json"), r#"{"bugs":"https://example.test/json"}"#).unwrap();
-    assert_eq!(get_bugs_url_from_current_project(dir.path()).unwrap(), "https://example.test/json");
+    assert_eq!(
+        get_bugs_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap(),
+        "https://example.test/json",
+    );
     fs::write(dir.path().join("package.json"), "{ invalid:").unwrap();
-    let error = get_bugs_url_from_current_project(dir.path()).unwrap_err();
+    let error =
+        get_bugs_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap_err();
     eprintln!("ERROR: {error:?}");
     assert!(format!("{error:?}").contains("package.json"));
 }

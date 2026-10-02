@@ -47,7 +47,10 @@ pub(crate) fn resolve(
         return Ok(None);
     }
     let dir = ctx.locations.dir;
-    if declares_script(safe_read_project_manifest_only(dir)?.as_ref(), command_name) {
+    if declares_script(
+        safe_read_project_manifest_only(dir, config.preferred_manifest_format)?.as_ref(),
+        command_name,
+    ) {
         ctx.builtin_replaced_by_script.store(true, Ordering::Relaxed);
         return Ok(Some(RunArgs {
             script: RunArgs::script(command_name, script_args),
@@ -67,7 +70,11 @@ pub(crate) fn resolve(
     }
     if let Some(workspace_dir) = config.workspace_dir.as_deref()
         && lexical_normalize(workspace_dir) != lexical_normalize(dir)
-        && declares_script(safe_read_project_manifest_only(workspace_dir)?.as_ref(), command_name)
+        && declares_script(
+            safe_read_project_manifest_only(workspace_dir, config.preferred_manifest_format)?
+                .as_ref(),
+            command_name,
+        )
     {
         return Err(ScriptOverrideInWorkspaceRoot { command: command_name.to_string() }.into());
     }

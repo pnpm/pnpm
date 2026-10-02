@@ -1,5 +1,6 @@
 use crate::{
-    DependencyGroup, PackageManifest, PackageManifestError, safe_read_project_manifest_from_dir,
+    DependencyGroup, ManifestFormat, PackageManifest, PackageManifestError,
+    safe_read_project_manifest_from_dir,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -22,7 +23,9 @@ fn project_manifests_reject_non_object_roots() {
                 "ERR_PNPM_INVALID_MANIFEST"
             };
             assert_eq!(miette::Diagnostic::code(&error).unwrap().to_string(), expected_code);
-            let raw_error = safe_read_project_manifest_from_dir(dir.path()).unwrap_err();
+            let raw_error =
+                safe_read_project_manifest_from_dir(dir.path(), ManifestFormat::default())
+                    .unwrap_err();
             assert_eq!(miette::Diagnostic::code(&raw_error).unwrap().to_string(), expected_code);
             assert!(error.to_string().contains("the manifest root must be an object"));
             assert!(
@@ -205,7 +208,8 @@ fn unreadable_preferred_manifest_does_not_fall_back_to_another_format() {
         let path = dir.path().join(preferred);
         fs::write(&path, [0xff]).unwrap();
         fs::write(dir.path().join("package.yaml"), "name: fallback\n").unwrap();
-        let error = safe_read_project_manifest_from_dir(dir.path()).unwrap_err();
+        let error =
+            safe_read_project_manifest_from_dir(dir.path(), ManifestFormat::default()).unwrap_err();
         dbg!(&error);
         assert!(matches!(error, PackageManifestError::Read { path: error_path, source }
             if error_path == path && source.kind() == std::io::ErrorKind::InvalidData));

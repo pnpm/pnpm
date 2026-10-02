@@ -127,6 +127,7 @@ mod pkg_recursive;
 mod pnpm_compatibility;
 mod pnpr_install;
 mod pnpx_alias;
+mod preferred_manifest_format;
 mod prefix;
 mod prune;
 mod publish;

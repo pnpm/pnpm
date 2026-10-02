@@ -14,7 +14,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_package_manifest::safe_read_project_manifest_from_dir;
+use pnpm_package_manifest::{ManifestFormat, safe_read_project_manifest_from_dir};
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
     fetch_full_metadata, parse_bare_specifier, pick_package_from_meta, pick_registry_for_package,
@@ -87,7 +87,7 @@ impl ViewArgs {
     pub async fn run(self, config: &Config, dir: &Path) -> miette::Result<String> {
         let package_spec = match self.params.first() {
             Some(spec) => spec.clone(),
-            None => nearest_manifest_name(dir)?,
+            None => nearest_manifest_name(dir, config.preferred_manifest_format)?,
         };
         let fields = self.params.get(1..).unwrap_or(&[]);
 
@@ -109,10 +109,13 @@ impl ViewArgs {
 /// `start_dir`. A missing manifest is [`ViewError::MissingPackageName`]; a
 /// present-but-invalid manifest (parse error, non-object body, or no `name`)
 /// is [`ViewError::InvalidPackageJson`].
-fn nearest_manifest_name(start_dir: &Path) -> Result<String, ViewError> {
+fn nearest_manifest_name(
+    start_dir: &Path,
+    manifest_format: ManifestFormat,
+) -> Result<String, ViewError> {
     let mut dir = start_dir;
     loop {
-        if let Some(name) = manifest_name(dir)? {
+        if let Some(name) = manifest_name(dir, manifest_format)? {
             return Ok(name);
         }
         match dir.parent() {
@@ -125,8 +128,8 @@ fn nearest_manifest_name(start_dir: &Path) -> Result<String, ViewError> {
 /// The non-empty `name` of the manifest in `dir`. A body that is not an
 /// object, or carries no usable name, is as invalid as one that fails to
 /// parse.
-fn manifest_name(dir: &Path) -> Result<Option<String>, ViewError> {
-    let manifest = safe_read_project_manifest_from_dir(dir)
+fn manifest_name(dir: &Path, manifest_format: ManifestFormat) -> Result<Option<String>, ViewError> {
+    let manifest = safe_read_project_manifest_from_dir(dir, manifest_format)
         .map_err(|err| ViewError::InvalidPackageJson {
             message: format!(
                 r#"Failed to read or parse project manifest in "{dir}": {err}"#,

@@ -2,7 +2,8 @@ use super::{
     create_workspace_yaml_from_yarn_workspaces, declares_yarn_workspaces,
     publish_new_workspace_manifest, same_patterns, workspaces_field_differs,
 };
-use crate::cli_args::package_manager::read_root_manifest_json;
+use crate::cli_args::package_manager::read_root_manifest;
+use pnpm_config::ManifestFormat;
 use std::{fs, path::Path};
 
 fn write_manifest(dir: &Path, contents: &str) {
@@ -10,7 +11,7 @@ fn write_manifest(dir: &Path, contents: &str) {
 }
 
 fn declares_in(dir: &Path) -> bool {
-    declares_yarn_workspaces(read_root_manifest_json(dir).as_ref())
+    declares_yarn_workspaces(read_root_manifest(dir, ManifestFormat::default()).as_ref())
 }
 
 #[test]

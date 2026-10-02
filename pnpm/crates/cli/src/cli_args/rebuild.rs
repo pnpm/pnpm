@@ -81,7 +81,11 @@ impl RebuildArgs {
         project_dir: &Path,
     ) -> miette::Result<()> {
         let project_config = Config::leak(project_config);
-        let state = State::init(project_dir.join("package.json"), project_config, true)
+        let manifest_path = pnpm_workspace::project_manifest_path(
+            project_dir,
+            project_config.preferred_manifest_format,
+        );
+        let state = State::init(manifest_path, project_config, true)
             .wrap_err_with(|| {
                 format!("initialize the rebuild state for {}", project_dir.display())
             })?;

@@ -158,7 +158,8 @@ pub(super) fn switch_target(
     roots: &PinRoots,
     frozen_lockfile: bool,
 ) -> miette::Result<Option<SwitchTarget>> {
-    let Some(manifest) = read_root_manifest(&roots.manifest) else {
+    let Some(manifest) = read_root_manifest(&roots.manifest, config.preferred_manifest_format)
+    else {
         return Ok(None);
     };
     let Some(mut pm) = wanted_package_manager(&manifest) else {

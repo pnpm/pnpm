@@ -4,7 +4,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_network_web_auth::OpenUrlAndWait;
-use pnpm_package_manifest::{PackageManifest, safe_read_project_manifest_from_dir};
+use pnpm_package_manifest::{ManifestFormat, PackageManifest, safe_read_project_manifest_from_dir};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
@@ -44,7 +44,7 @@ impl RepoArgs {
         let retry_opts = config.retry_opts();
 
         let urls = if self.packages.is_empty() {
-            vec![get_repo_url_from_current_project(dir)?]
+            vec![get_repo_url_from_current_project(dir, config.preferred_manifest_format)?]
         } else {
             let mut urls = Vec::with_capacity(self.packages.len());
             for pkg in &self.packages {
@@ -91,8 +91,12 @@ pub enum RepoError {
     NoRepoUrlRegistry { name: String },
 }
 
-fn get_repo_url_from_current_project(dir: &std::path::Path) -> miette::Result<String> {
-    let manifest = safe_read_project_manifest_from_dir(dir)?.ok_or(RepoError::NoRepoUrlLocal)?;
+fn get_repo_url_from_current_project(
+    dir: &std::path::Path,
+    manifest_format: ManifestFormat,
+) -> miette::Result<String> {
+    let manifest = safe_read_project_manifest_from_dir(dir, manifest_format)?
+        .ok_or(RepoError::NoRepoUrlLocal)?;
     let repository = manifest.get("repository");
     pick_repo_url(repository).ok_or_else(|| RepoError::NoRepoUrlLocal.into())
 }

@@ -30,13 +30,12 @@ use std::sync::Mutex;
 pub(super) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: &[std::path::PathBuf],
+    config: &Config,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
-        patterns: Some(pnpm_workspace::workspace_package_patterns(manifest)),
-        ignored_directories: ignored_directories.to_vec(),
-    };
+    let opts = config.find_workspace_projects_opts(Some(
+        pnpm_workspace::workspace_package_patterns(manifest),
+    ));
     pnpm_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 

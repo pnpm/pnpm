@@ -1,10 +1,10 @@
 use super::{
-    DepType, HashMap, HashSet, IncludeFilter, IndexMap, InstallabilityOptions, PackageKey,
-    PackageMetadata, Path, PathBuf, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, SbomComponent,
-    SbomRelationship, SnapshotEntry, State, build_purl, confined_importer_dir, extract_author,
-    extract_bugs_url, extract_homepage, extract_repository, integrity_string, normalize_link_path,
-    peer_names_from_manifest, platform_incompatible_optional, read_pkg_metadata_from_store,
-    safe_read_project_manifest_from_dir, tarball_url_for_component,
+    DepType, HashMap, HashSet, IncludeFilter, IndexMap, InstallabilityOptions, ManifestFormat,
+    PackageKey, PackageMetadata, Path, PathBuf, PeerSatisfactionEdges, PkgName, PkgNameVerPeer,
+    SbomComponent, SbomRelationship, SnapshotEntry, State, build_purl, confined_importer_dir,
+    extract_author, extract_bugs_url, extract_homepage, extract_repository, integrity_string,
+    normalize_link_path, peer_names_from_manifest, platform_incompatible_optional,
+    read_pkg_metadata_from_store, safe_read_project_manifest_from_dir, tarball_url_for_component,
 };
 use std::sync::OnceLock;
 
@@ -95,6 +95,7 @@ pub(super) struct ImporterComponents<'a> {
     pub(super) include: IncludeFilter,
     pub(super) exclude_peers: bool,
     pub(super) root_purl: &'a str,
+    pub(super) manifest_format: ManifestFormat,
     pub(super) ctx: &'a WalkContext<'a>,
 }
 
@@ -151,7 +152,9 @@ fn importer_peer_names(inputs: &ImporterComponents<'_>, importer_id: &str) -> Ha
         return HashSet::new();
     }
     confined_importer_dir(inputs.lockfile_dir, importer_id)
-        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
+        .and_then(|dir| {
+            safe_read_project_manifest_from_dir(&dir, inputs.manifest_format).ok().flatten()
+        })
         .map(|manifest| peer_names_from_manifest(&manifest))
         .unwrap_or_default()
 }
@@ -176,7 +179,9 @@ fn collect_linked_workspace_component(
     let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
         return false;
     };
-    let Ok(Some(ws_manifest)) = safe_read_project_manifest_from_dir(&ws_dir) else {
+    let Ok(Some(ws_manifest)) =
+        safe_read_project_manifest_from_dir(&ws_dir, inputs.manifest_format)
+    else {
         return false;
     };
     let ws_name = ws_manifest

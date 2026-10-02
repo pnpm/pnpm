@@ -30,6 +30,7 @@ pub(super) fn run_project_stages(
     );
     let dep_path = project_dir.to_string_lossy();
     stages(&RunPostinstallHooks {
+        manifest_format: config.preferred_manifest_format,
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: workspace_root,
             node_execpath: None,

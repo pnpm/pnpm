@@ -246,7 +246,8 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut dependencies = IndexMap::with_capacity(projects.len() + 1);
     let mut other_dirs = Vec::new();
-    if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
+    if pnpm_package_manifest::project_manifest_path(workspace_root, cfg.preferred_manifest_format)
+        .is_file()
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
@@ -259,7 +260,8 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
-    let injected_source_dirs = dedicated_injected_source_dirs(&projects, &other_dirs)?;
+    let injected_source_dirs =
+        dedicated_injected_source_dirs(&projects, &other_dirs, cfg.preferred_manifest_format)?;
     let selection =
         select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
     dependencies.extend(project_dependencies(&selection, cfg.sort));
@@ -288,11 +290,12 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
 fn dedicated_injected_source_dirs(
     projects: &[pnpm_workspace::Project],
     other_dirs: &[PathBuf],
+    manifest_format: pnpm_package_manifest::ManifestFormat,
 ) -> miette::Result<std::collections::HashSet<PathBuf>> {
     let other_manifests = other_dirs
         .iter()
         .map(|dir| {
-            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir, manifest_format)
                 .map_err(miette::Report::new)
         })
         .collect::<miette::Result<Vec<_>>>()?;

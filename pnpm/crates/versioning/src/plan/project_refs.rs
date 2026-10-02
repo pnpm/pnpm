@@ -135,6 +135,7 @@ fn releasable_participants<'a>(
                 name,
                 dir,
                 root_dir: &project.root_dir,
+                manifest_path: &project.manifest_path,
                 current_version: version,
                 internal_deps: Vec::new(),
             },

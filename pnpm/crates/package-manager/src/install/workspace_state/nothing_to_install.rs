@@ -37,7 +37,7 @@ pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool 
         return true;
     }
     let Ok(workspace_projects) =
-        load_workspace_projects(workspace_root, workspace_manifest, &config.managed_directories())
+        load_workspace_projects(workspace_root, workspace_manifest, config)
     else {
         return false;
     };

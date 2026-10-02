@@ -14,8 +14,8 @@ pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
-    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    ManifestFormat, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
+    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
@@ -254,7 +254,7 @@ macro_rules! identically_named_settings {
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
-            resolution_mode, catalog_mode, catalog_prune,
+            resolution_mode, catalog_mode, catalog_prune, preferred_manifest_format,
             minimum_release_age_exclude_prune, save_peer, save_exact, save_types,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,

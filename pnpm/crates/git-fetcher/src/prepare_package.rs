@@ -143,6 +143,7 @@ impl PreparePackageOptions<'_> {
         extra_env: &'a HashMap<String, String>,
     ) -> RunPostinstallHooks<'a> {
         RunPostinstallHooks {
+            manifest_format: pnpm_package_manifest::ManifestFormat::default(),
             environment: pnpm_executor::ScriptEnvironment {
                 init_cwd: pkg_dir,
                 node_execpath: self.scripts.node_execpath,

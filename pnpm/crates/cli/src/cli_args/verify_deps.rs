@@ -161,7 +161,8 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
 /// lockfile records. That drops them silently, so the gate leaves the
 /// decision to an explicit `pnpm install` after the settings have moved.
 fn refuse_install_dropping_ignored_settings(dir: &Path, config: &Config) -> miette::Result<()> {
-    let manifest = read_root_manifest(config.root_project_manifest_dir(dir));
+    let manifest =
+        read_root_manifest(config.root_project_manifest_dir(dir), config.preferred_manifest_format);
     let keys = ignored_lockfile_pnpm_field_keys(manifest.as_ref());
     if keys.is_empty() {
         return Ok(());

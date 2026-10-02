@@ -122,7 +122,8 @@ fn init_dedicated_project_state(
     let mut project_config = cfg.clone();
     project_config.anchor_dedicated_project(project_dir, project_name);
     let project_config = Config::leak(project_config);
-    let manifest_path = project_dir.join("package.json");
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(project_dir, cfg.preferred_manifest_format);
     match http_client {
         Some(http_client) => {
             let lockfile = State::lazy_lockfile(project_config, &manifest_path, require_lockfile);

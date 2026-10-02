@@ -2,7 +2,7 @@ use super::{
     RepoArgs, get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url,
     redact_url, repository_to_web_url,
 };
-use pnpm_config::Config;
+use pnpm_config::{Config, ManifestFormat};
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_reporter::SilentReporter;
@@ -13,11 +13,14 @@ fn current_project_repo_uses_manifest_precedence() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("package.yaml"), "repository: https://example.test/yaml\n")
         .unwrap();
-    assert_eq!(get_repo_url_from_current_project(dir.path()).unwrap(), "https://example.test/yaml");
+    assert_eq!(
+        get_repo_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap(),
+        "https://example.test/yaml",
+    );
     std::fs::write(dir.path().join("package.json5"), "{repository: 'https://example.test/json5'}")
         .unwrap();
     assert_eq!(
-        get_repo_url_from_current_project(dir.path()).unwrap(),
+        get_repo_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap(),
         "https://example.test/json5",
     );
     std::fs::write(
@@ -25,9 +28,13 @@ fn current_project_repo_uses_manifest_precedence() {
         r#"{"repository":"https://example.test/json"}"#,
     )
     .unwrap();
-    assert_eq!(get_repo_url_from_current_project(dir.path()).unwrap(), "https://example.test/json");
+    assert_eq!(
+        get_repo_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap(),
+        "https://example.test/json",
+    );
     std::fs::write(dir.path().join("package.json"), "{ invalid:").unwrap();
-    let error = get_repo_url_from_current_project(dir.path()).unwrap_err();
+    let error =
+        get_repo_url_from_current_project(dir.path(), ManifestFormat::default()).unwrap_err();
     eprintln!("ERROR: {error:?}");
     assert!(format!("{error:?}").contains("package.json"));
 }
@@ -128,7 +135,7 @@ fn test_opens_repository_object_url_from_local_manifest() {
         r#"{"name": "test-pkg", "repository": {"url": "https://github.com/test/pkg"}}"#,
     )
     .unwrap();
-    let url = get_repo_url_from_current_project(dir.path());
+    let url = get_repo_url_from_current_project(dir.path(), ManifestFormat::default());
     assert_eq!(url.unwrap(), "https://github.com/test/pkg");
 }
 
@@ -268,14 +275,14 @@ fn test_returns_none_for_null_repository() {
 fn test_throws_when_no_repository_url_defined() {
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::write(dir.path().join("package.json"), r#"{"name": "test-pkg"}"#).unwrap();
-    let result = get_repo_url_from_current_project(dir.path());
+    let result = get_repo_url_from_current_project(dir.path(), ManifestFormat::default());
     assert!(result.is_err());
 }
 
 #[test]
 fn test_throws_when_no_package_json_exists() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let result = get_repo_url_from_current_project(dir.path());
+    let result = get_repo_url_from_current_project(dir.path(), ManifestFormat::default());
     assert!(result.is_err());
 }
 
