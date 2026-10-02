@@ -1,5 +1,8 @@
-use super::{StoreDir, global_operation_lock_path, operation_lock_path};
-use std::fs::{File, TryLockError};
+use super::{global_operation_lock_path, locking_unsupported, operation_lock_path, StoreDir};
+use std::{
+    fs::{File, TryLockError},
+    io,
+};
 use tempfile::tempdir;
 
 fn temp_store(root: &tempfile::TempDir) -> StoreDir {
@@ -134,4 +137,18 @@ fn non_unicode_store_paths_keep_distinct_lock_identities() {
     );
 
     assert_ne!(operation_lock_path(&first).unwrap(), operation_lock_path(&second).unwrap());
+}
+
+#[test]
+fn unsupported_lock_errors_degrade_to_unguarded() {
+    // The `std` file-lock stubs on Android fail exactly like this.
+    assert!(locking_unsupported(&io::Error::new(
+        io::ErrorKind::Unsupported,
+        "lock_shared() not supported",
+    )));
+    assert!(!locking_unsupported(&io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        "permission denied",
+    )));
+    assert!(!locking_unsupported(&io::Error::new(io::ErrorKind::WouldBlock, "would block",)));
 }
