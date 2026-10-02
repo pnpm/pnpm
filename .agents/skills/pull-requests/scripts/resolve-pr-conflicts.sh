@@ -193,17 +193,90 @@ fi
 
 # Determine push remote (after checkout, since gh pr checkout may add the fork remote)
 REMOTE="origin"
-if [ "$HEAD_OWNER" != "pnpm" ]; then
+# The PR's head repository, not just its owner: a fork can be renamed, and an owner alone
+# does not say which repository the push has to land in. Guessing `<owner>/pnpm` when the
+# answer is missing would name a repository the PR does not come from.
+HEAD_REPO=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepository --jq '.headRepository.nameWithOwner // empty')
+if [ -z "$HEAD_REPO" ]; then
+  echo "ERROR: the PR's head repository is not known (it was renamed or deleted, or"
+  echo "  'gh pr view --json headRepository' failed). Refusing to guess the push target."
+  exit 1
+fi
+HEAD_SLUG=$(printf '%s' "$HEAD_REPO" | tr '[:upper:]' '[:lower:]')
+
+# A head owner of `pnpm` is not the same as a head repository of `pnpm/pnpm`: a PR can be
+# opened across repositories inside that organisation, from `pnpm/pnpm-fork` for example,
+# and pushing that one to origin would put the rebased commits in a repository the PR does
+# not come from. Only an exact `pnpm/pnpm` head repository is the upstream case, and it is
+# then still checked below, because origin is not necessarily a clone of it.
+if [ "$HEAD_SLUG" != "pnpm/pnpm" ]; then
   if git remote get-url "$HEAD_OWNER" &>/dev/null; then
     REMOTE="$HEAD_OWNER"
   else
     # Try to auto-add the fork remote from the PR's clone URL
-    FORK_URL="https://github.com/$HEAD_OWNER/pnpm.git"
+    FORK_URL="https://github.com/$HEAD_REPO.git"
     echo "Adding remote '$HEAD_OWNER' -> $FORK_URL"
     git remote add "$HEAD_OWNER" "$FORK_URL"
     REMOTE="$HEAD_OWNER"
   fi
 fi
+
+# Read the repository slug out of a Git remote URL. Only the URL forms that name github.com
+# as the host are understood — the same forms the normalization below accepts, including the
+# optional user and port git itself allows (`https://github.com/…`,
+# `https://alice@github.com:22/…`, `ssh://…`, `git@github.com:…`) — so a URL on another host
+# cannot be mistaken for the head repository by carrying `github.com` in its path. A URL that
+# matches none of them — another host, a local path, a `file://` URL, plaintext `http` — is
+# not a GitHub remote at all and has no slug: returning it unchanged would be unsafe, because
+# a relative local path reads exactly like a slug (`some-fork/pnpm.git` becomes
+# `some-fork/pnpm`) and would then compare equal to the head repository.
+repo_slug() {
+  case "$1" in
+    https://github.com/*|https://*@github.com/*|\
+    https://github.com:[0-9]*/*|https://*@github.com:[0-9]*/*|\
+    ssh://github.com/*|ssh://*@github.com/*|\
+    ssh://github.com:[0-9]*/*|ssh://*@github.com:[0-9]*/*|\
+    git@github.com:*) ;;
+    *) return 0 ;;
+  esac
+  printf '%s' "$1" | sed \
+    -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
+    -e 's#^git@github\.com:##' \
+    -e 's#\.git$##' \
+    -e 's#/$##' | tr '[:upper:]' '[:lower:]'
+}
+
+# A push URL can carry a credential in its userinfo (`https://user:token@github.com/...`), and
+# the URL of the wrong remote is printed below, so the token would be written to the terminal
+# or to a CI log by the very run that refuses to push. The host and path are what identify the
+# remote; the userinfo is replaced.
+redact_url() {
+  printf '%s' "$1" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@#\1***@#'
+}
+
+# The remote that is about to be pushed to is used because of its name -- `origin`, or the
+# head owner's. That name is not proof that it points at the PR's head repository: `gh pr
+# checkout` is what normally creates the fork remote, and --continue never runs it, so a
+# stale or reused remote with that name would receive this branch's force-push instead.
+# A remote can define several push URLs, and a push goes to every one of them, so each has
+# to be the head repository; reading the first and stopping would leave the others
+# unchecked. Only the forms that name github.com exactly are read as a repository slug.
+REMOTE_URLS=$(git remote get-url --push --all "$REMOTE")
+while IFS= read -r REMOTE_URL; do
+  [ -n "$REMOTE_URL" ] || continue
+  REMOTE_SLUG=$(repo_slug "$REMOTE_URL")
+  if [ "$REMOTE_SLUG" != "$HEAD_SLUG" ]; then
+    echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
+    echo "  Current $REMOTE: $(redact_url "$REMOTE_URL")"
+    if [ -z "$REMOTE_SLUG" ]; then
+      echo "  That is not a github.com repository URL, so it cannot name $HEAD_REPO."
+    fi
+    echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
+    echo "  Refusing to push: the rebased commits would go somewhere other than the PR's head"
+    echo "  repository. Add a remote for $HEAD_REPO and re-run."
+    exit 1
+  fi
+done <<< "$REMOTE_URLS"
 
 # Helper: regenerate lockfile without running lifecycle scripts
 regenerate_lockfile() {
