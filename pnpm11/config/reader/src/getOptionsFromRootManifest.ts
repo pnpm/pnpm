@@ -299,29 +299,48 @@ const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['org'
 function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { update?: unknown }).update
   const update = pnpmSettings.update
-  if (update == null) return
-  assertObjectSetting(update, 'update')
-  if (pnpmSettings.updateConfig != null) {
-    globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
+  if (update != null) {
+    assertObjectSetting(update, 'update')
+    if (pnpmSettings.updateConfig != null) {
+      globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
+    }
+    const updateConfig: NonNullable<OptionsFromRootManifest['updateConfig']> = {}
+    if (update.ignoreDeps != null) {
+      assertStringArray(update.ignoreDeps, 'update.ignoreDeps')
+      updateConfig.ignoreDependencies = update.ignoreDeps
+    }
+    if (update.changeset != null) {
+      assertBoolean(update.changeset, 'update.changeset')
+      updateConfig.changeset = update.changeset
+    }
+    if (update.githubActions != null) {
+      assertBoolean(update.githubActions, 'update.githubActions')
+      updateConfig.githubActions = update.githubActions
+    }
+    if (update.githubActionsServer != null) {
+      assertString(update.githubActionsServer, 'update.githubActionsServer')
+      updateConfig.githubActionsServer = update.githubActionsServer
+    }
+    settings.updateConfig = updateConfig
+    return
   }
-  const updateConfig: NonNullable<OptionsFromRootManifest['updateConfig']> = {}
-  if (update.ignoreDeps != null) {
-    assertStringArray(update.ignoreDeps, 'update.ignoreDeps')
-    updateConfig.ignoreDependencies = update.ignoreDeps
+  const rawUpdateConfig = pnpmSettings.updateConfig
+  if (Object.hasOwn(pnpmSettings, 'updateConfig')) {
+    assertObjectSetting(rawUpdateConfig, 'updateConfig')
+    const config = rawUpdateConfig as Record<string, unknown>
+    if (Object.hasOwn(config, 'ignoreDependencies')) {
+      assertStringArray(config.ignoreDependencies, 'updateConfig.ignoreDependencies')
+    }
+    if (Object.hasOwn(config, 'changeset')) {
+      assertBoolean(config.changeset, 'updateConfig.changeset')
+    }
+    if (Object.hasOwn(config, 'githubActions')) {
+      assertBoolean(config.githubActions, 'updateConfig.githubActions')
+    }
+    if (Object.hasOwn(config, 'githubActionsServer')) {
+      assertString(config.githubActionsServer, 'updateConfig.githubActionsServer')
+    }
   }
-  if (update.changeset != null) {
-    assertBoolean(update.changeset, 'update.changeset')
-    updateConfig.changeset = update.changeset
-  }
-  if (update.githubActions != null) {
-    assertBoolean(update.githubActions, 'update.githubActions')
-    updateConfig.githubActions = update.githubActions
-  }
-  if (update.githubActionsServer != null) {
-    assertString(update.githubActionsServer, 'update.githubActionsServer')
-    updateConfig.githubActionsServer = update.githubActionsServer
-  }
-  settings.updateConfig = updateConfig
 }
 
 /**
