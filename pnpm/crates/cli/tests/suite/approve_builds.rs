@@ -163,7 +163,7 @@ fn workspace_with_unapproved_build() -> (CommandTempCwd<AddMockedRegistry>, std:
     (harness, workspace)
 }
 
-/// Install the workspace from `workspace_with_unapproved_build` with its
+/// Install the workspace from [`workspace_with_unapproved_build`] with its
 /// build ignored.
 fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
     let (harness, workspace) = workspace_with_unapproved_build();
