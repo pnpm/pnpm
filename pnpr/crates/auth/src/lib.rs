@@ -263,7 +263,7 @@ fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
 
 /// Username + password record store. The only operation is
 /// [`Self::add_or_login`] (npm `adduser` / `login`), which verifies a
-/// password and mints a bearer token. pnpr no longer verifies Basic
+/// password and mints a bearer token. pnpr does not verify Basic
 /// credentials on requests, so there is no per-request password check.
 #[async_trait]
 pub trait UserBackend: Send + Sync {
@@ -486,11 +486,7 @@ impl Default for UserStore {
 /// Identify the caller behind an HTTP request. Inspects the
 /// `Authorization` header and resolves it to a username via the token
 /// store. Only `Bearer` tokens are honored: pnpr does not accept Basic
-/// credentials on requests. Clients authenticate with `_authToken`, and a
-/// password login mints a token through [`UserBackend::add_or_login`] — so
-/// request handling never pays a per-request bcrypt. Returns `None` for
-/// missing/unsupported credentials so the caller can decide whether
-/// anonymous is allowed.
+/// credentials on requests.
 ///
 /// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
 /// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`

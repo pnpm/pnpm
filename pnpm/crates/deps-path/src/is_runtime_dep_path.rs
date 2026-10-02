@@ -1,6 +1,5 @@
 /// `true` when `dep_path` is a runtime engine entry of the shape
-/// `(node|bun|deno)@runtime:…` — the only three runtimes recognised as
-/// engine deps.
+/// `(node|bun|deno)@runtime:…`.
 ///
 /// The check is byte-level (not parsed) so callers that hold the raw
 /// snapshot key can filter without round-tripping through [`crate::DepPath`].

@@ -137,10 +137,7 @@ fn missing_parent_dir_errors() {
 /// process umask, which strips group / other bits on systems with
 /// a restrictive default (e.g. `umask 0o077` CI shells). Owner
 /// bits are preserved under every sensible umask, so pinning just
-/// those keeps the test robust without weakening what it verifies
-/// (that `mode` is being threaded through to the syscall at all
-/// and that the owner-exec bit survives — the observable property
-/// that distinguishes an executable CAS blob from a data blob).
+/// those keeps the test robust without weakening what it verifies.
 #[cfg(unix)]
 #[test]
 fn unix_mode_is_applied_on_new_files() {

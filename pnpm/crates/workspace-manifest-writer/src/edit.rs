@@ -38,9 +38,7 @@ use crate::{
 
 /// Upsert one `name → specifier` entry into the top-level
 /// `configDependencies:` block, creating the block if absent. Returns
-/// whether anything changed. The entry value is a clean specifier; the
-/// resolved integrity lives in the env lockfile, so this only ever
-/// writes the `configDependencies` map in `pnpm-workspace.yaml`.
+/// whether anything changed.
 pub(crate) fn add_config_dependency(
     manifest: &mut Manifest,
     name: &str,
@@ -137,7 +135,6 @@ fn drop_omitted_patches(
 
 /// Upsert one `selector → specifier` entry into the top-level `overrides:`
 /// block, creating the block if absent. Returns whether anything changed.
-/// Used by `pacquet link` and (one entry at a time) by `pnpm audit --fix`.
 pub(crate) fn add_overrides(
     manifest: &mut Manifest,
     selector: &str,
@@ -161,7 +158,7 @@ pub(crate) fn add_overrides(
 /// Delete the given `selectors` from the top-level `overrides:` block,
 /// dropping the whole block when nothing remains. Selectors absent from the
 /// block are ignored. Returns whether anything changed. The inverse of
-/// [`add_overrides`]; used by `pacquet unlink`.
+/// [`add_overrides`].
 pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) -> bool {
     const BLOCK: &str = "overrides";
     let present: Vec<String> = match manifest.overrides.as_ref() {
@@ -302,8 +299,7 @@ fn upsert_top_level_entry(
 
 /// Set the top-level `key` to `value` (a non-null JSON value), inserting the
 /// block when absent and replacing it when present. Returns whether anything
-/// changed — a deep-equal current value is a no-op. Used by `pnpm config set`
-/// for arbitrary `pnpm-workspace.yaml` / `config.yaml` keys.
+/// changed — a deep-equal current value is a no-op.
 ///
 /// The replace path removes the old block and re-inserts the new one at the
 /// reorder position (rather than an in-place value patch), so the same code
@@ -332,8 +328,7 @@ pub(crate) fn set_top_level_field(
 }
 
 /// Remove the top-level `key`. Returns whether anything changed (false when the
-/// key is absent). Used by `pnpm config delete` and by `pnpm config set` when
-/// the cast value is null/undefined.
+/// key is absent).
 pub(crate) fn remove_top_level_field(manifest: &mut Manifest, key: &str) -> bool {
     if !manifest.document.keys
         .iter()

@@ -87,9 +87,7 @@ pub enum HoisterDependencyKind {
 /// recurse, then populate the children in place. The placeholder Rc
 /// and the populated one are the same allocation, so a node visited
 /// via a back-edge sees the eventually-populated set — matching JS's
-/// `Set<HoisterTree>` mutation semantics. The same interior
-/// mutability is what the hoister algorithm will use to move children
-/// between parents when it lands.
+/// `Set<HoisterTree>` mutation semantics.
 ///
 /// [yarn-tree]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L16-L19
 #[derive(Debug)]
@@ -304,10 +302,7 @@ impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
 ///
 /// The inner hoist is a recursive DFS with multi-round
 /// convergence over the result graph (peer-aware, with
-/// `hoistingLimits` enforced as `Border` decisions). Gaps that
-/// remain — popularity-based ident preference, multi-importer
-/// workspace trees, and `ExternalSoftLink` descendants — are
-/// documented on the private `nm_hoist` driver.
+/// `hoistingLimits` enforced as `Border` decisions).
 pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, HoistError> {
     let mut cache = TreeCache::default();
 
@@ -320,8 +315,6 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // `externalDependencies` are added as `link:` placeholders at
     // the root so the hoister won't move anything else into those
     // slots; they're stripped from the result after hoisting.
-    // Pacquet has no consumer for this yet, but the wrapper handles
-    // it so the signature is complete.
     for dep in &opts.external_dependencies {
         root_children.insert(RcByPtr(external_placeholder(dep)));
     }
@@ -337,8 +330,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // only controls whether the workspace *packages themselves* get
     // name-links in the root's hoisted modules dir (v11's
     // `hoistedWorkspacePackages` in the headless linker) — it never
-    // decides tree membership; gating membership on it silently
-    // dropped every importer-only dependency from the install.
+    // decides tree membership.
     for (importer_id, importer) in sorted_non_root_importers(lockfile) {
         let mut importer_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
         collect_importer_deps(importer, lockfile, opts, &mut cache, &mut importer_children)?;
@@ -617,13 +609,6 @@ struct HoistCtx<'a> {
 /// Mirrors upstream `hoistTo`'s
 /// `do { hoistGraph(); } while (anotherRoundNeeded)` shape, just
 /// with the DFS-by-round simplification described above.
-///
-/// The converter's result is a DAG (one shared node per package),
-/// but the walk mutates only decoupled — single-parent — copies:
-/// every edge the DFS crosses is decoupled first (see
-/// [`decouple_child`]), so a package reachable through several
-/// parents gets an independent hoist decision per path, exactly like
-/// upstream's per-path work tree.
 fn hoist_into_root(
     root: &Rc<HoisterResult>,
     root_locator: &str,
@@ -722,10 +707,9 @@ fn hoist_subtree(
     // its descendants are kept nested beneath it rather than hoisted
     // to the root. `under_border` carries that boundary down the
     // recursion — once any proper ancestor of a node is a border,
-    // the node (and everything below it) stays put. Mirrors
-    // upstream's `isHoistBorder` flag, which blocks a bordered
-    // node's *children* from hoisting past it, not the bordered
-    // node itself.
+    // the node (and everything below it) stays put. Mirrors upstream's
+    // `isHoistBorder` flag, which blocks a bordered node's *children* from
+    // hoisting past it, not the bordered node itself.
     let children_blocked = under_border || ctx.border_names.contains(&node.name);
 
     // Snapshot the current children so we can mutate

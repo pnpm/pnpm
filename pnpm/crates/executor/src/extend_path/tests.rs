@@ -126,9 +126,7 @@ fn scoped_package_slot_bins_use_native_separators() {
     );
 }
 
-/// Final PATH order is `[bins..., nodeGyp, ...extraBinPaths]`: the
-/// `.bin` directories come first, then the bundled node-gyp dir, then
-/// the caller-supplied extra paths.
+/// Final PATH order is `[bins..., nodeGyp, ...extraBinPaths]`.
 #[test]
 fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let wd = Path::new("/proj");

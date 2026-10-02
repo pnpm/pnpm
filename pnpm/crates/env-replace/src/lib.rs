@@ -15,11 +15,6 @@
 //! [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
 
 /// Capability: read a process environment variable as a UTF-8 string.
-///
-/// `${VAR}` placeholders inside `.npmrc` are resolved against the
-/// process environment; the lookup is routed through this trait so unit
-/// tests can drive every branch (set, unset, empty) with local fakes
-/// instead of mutating the real process environment.
 pub trait EnvVar {
     /// Return the value of the named environment variable, or `None`
     /// when it is unset. Implementations should treat invalid UTF-8
@@ -42,10 +37,6 @@ pub trait EnvVar {
 
 /// Production [`EnvVar`] provider: reads the real process environment via
 /// [`std::env::var`].
-///
-/// Consumers that don't have their own capability provider thread this
-/// through the turbofish slot (e.g. `env_replace_lossy::<SystemEnv>(raw)`).
-/// `pnpm-config` threads its own multi-capability `Host` instead.
 pub struct SystemEnv;
 
 impl EnvVar for SystemEnv {

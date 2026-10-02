@@ -35,7 +35,7 @@ const COMMAND_PREFIXES: [&str; 3] = ["recursive", "multi", "m"];
 /// The first index of `argv` that must reach the child untouched, or `None`
 /// when pnpm owns every token.
 ///
-/// Three ways to reach it, all of which pnpm honors:
+/// Ways to reach it, all of which pnpm honors:
 ///
 /// - an explicit `--`;
 /// - the `pnpm <script>` fallback, where the first positional names no

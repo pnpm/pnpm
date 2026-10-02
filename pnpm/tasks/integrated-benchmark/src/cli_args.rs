@@ -196,8 +196,7 @@ pub enum BenchmarkScenario {
     /// Frozen lockfile, cold cache + cold store, **and a cold pnpr cache**: the
     /// tarball-serving mock starts empty each iteration and re-fetches every
     /// tarball from a warm local origin, so the install exercises the proxy's
-    /// cold download/serve path — the one streaming overlaps, and the only
-    /// scenario that hits it (every other warms the mock). Frozen on purpose:
+    /// cold download/serve path. Frozen on purpose:
     /// no resolution, so the cold path is *just* tarball serving with no
     /// packument-fetch noise, and both the direct and pnpr arms measure it.
     #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr")]
@@ -211,8 +210,7 @@ pub enum BenchmarkScenario {
     /// already in the store, so no download dominates and hides it. This
     /// is the scenario that exposes pnpr's core win — a direct install
     /// pays the full cold resolution while pnpr offloads it to its warm
-    /// server. (Direct's `PrefetchingResolver` can't hide the resolution
-    /// behind downloads here because there are none.)
+    /// server.
     #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store")]
     IsolatedFreshInstallColdCacheHotStore,
     /// Frozen lockfile, cold cache + cold store. The typical CI shape.
@@ -354,8 +352,7 @@ impl BenchmarkScenario {
     }
 
     /// Whether to seed a `pnpm-lock.yaml` into the bench dir during
-    /// init. The two install variants skip this; the restore, add-dep,
-    /// and GVS variants need it. The fresh-resolve variant keeps the
+    /// init. The fresh-resolve variant keeps the
     /// lockfile *enabled* but seeds none: a seeded lockfile would let
     /// the online pre-warm pass skip resolution, leaving the metadata
     /// mirror cold for the measured offline runs.

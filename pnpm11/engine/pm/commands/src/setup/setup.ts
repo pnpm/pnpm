@@ -62,8 +62,6 @@ function getExecPath (): string {
 
 /**
  * Install the CLI as a global package using `pnpm add -g file:<dir>`.
- * This places pnpm in the standard global directory alongside other
- * globally installed packages.
  */
 function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   const execDir = path.dirname(execPath)

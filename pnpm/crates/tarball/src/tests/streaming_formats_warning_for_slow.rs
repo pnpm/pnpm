@@ -153,13 +153,6 @@ fn extract_propagates_malformed_tar_instead_of_panicking() {
 /// `cleaned_entry_path` would later be joined onto the CAFS
 /// extraction root by `create_cas_files` and land files outside
 /// the store (directory traversal).
-///
-/// Note: `tar::Header::set_path` refuses to write a `..` path on
-/// its own (defense in depth on the write side). To exercise the
-/// read-side guard we have to bypass that by writing the name
-/// bytes directly via `as_mut_bytes()` and recomputing the
-/// checksum. A malicious tarball in the wild could trivially be
-/// written by any non-Rust tool that doesn't sanitize.
 #[test]
 fn extract_rejects_parent_dir_component_in_entry_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();

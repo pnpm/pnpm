@@ -84,10 +84,8 @@ async function writeLockfile (
 
 /**
  * Writes a serialized lockfile, re-reading the env document that leads
- * `pnpm-lock.yaml` to preserve it. Ideally it would be captured during the
- * initial lockfile read and passed through, but that would require threading it
- * through 25+ call sites; re-reading is cheap since the file is likely still in
- * the OS page cache.
+ * `pnpm-lock.yaml` to preserve it. Re-reading is cheap since the file is
+ * likely still in the OS page cache.
  */
 async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mainDoc: string): Promise<void> {
   if (lockfileName !== WANTED_LOCKFILE) {

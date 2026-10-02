@@ -52,12 +52,11 @@ pub(crate) fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
         .any(|allowed| allowed == host)
 }
 
-/// Pluck the host portion out of a git URL. Handles the three forms
+/// Pluck the host portion out of a git URL. Handles the forms
 /// git resolution produces: `https://host/path/...`,
 /// `git+ssh://user@host/path/...`, and `git://host/path/...`. Falls
 /// through to `None` for `file://` paths and SSH-style
-/// `user@host:path/...` (those don't appear in `git_shallow_hosts`
-/// defaults and a future PR can flesh them out if needed).
+/// `user@host:path/...`.
 pub(super) fn extract_host(url: &str) -> Option<&str> {
     let rest = url
         .strip_prefix("https://")

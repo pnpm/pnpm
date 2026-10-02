@@ -36,9 +36,6 @@ export function forgetResolutionsOfPrevWantedDeps (
 }
 
 export function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): void {
-  // Similar to the forgetResolutionsOfPrevWantedDeps function above, we can
-  // delete existing resolutions in importers to make sure they're resolved
-  // again.
   if ((wantedLockfile.importers != null) && !isEmpty(wantedLockfile.importers)) {
     wantedLockfile.importers = mapValues(
       ({ dependencies: _dependencies, devDependencies: _devDependencies, optionalDependencies: _optionalDependencies, ...rest }) => rest,

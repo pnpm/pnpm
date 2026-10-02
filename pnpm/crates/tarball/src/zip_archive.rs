@@ -28,9 +28,6 @@ use ssri::Integrity;
 /// would pull in every descendant without consulting
 /// `ignore_file_pattern`, leaving the per-file filter no longer
 /// authoritative.
-///
-/// Unix mode comes from the central-directory record, which Windows
-/// tooling leaves unpopulated; those entries fall back to `0o644`.
 pub(crate) fn extract_zip_entries(
     archive: &mut zip::ZipArchive<Cursor<Vec<u8>>>,
     package_url: &str,
@@ -164,10 +161,7 @@ fn zip_entry_path(
     };
     // [`zip::read::ZipFile::enclosed_name`] returns `None` for
     // absolute paths and any path with a `..` component — a
-    // single check covers both forms of path traversal. The
-    // returned `PathBuf` has every `.` segment collapsed and is
-    // what we use below to build the canonical `cas_paths` /
-    // `pkg_files_idx` keys.
+    // single check covers both forms of path traversal.
     let Some(enclosed) = entry.enclosed_name() else {
         return Err(traversal(raw_name));
     };
@@ -199,9 +193,7 @@ fn zip_entry_path(
 
     // Strip the archive's top-level basename (`prefix` on
     // `pnpm_lockfile::BinaryResolution`) so the ignore filter
-    // sees paths relative to the archive root. If the entry path
-    // doesn't start with `{prefix}/` we use the normalized form
-    // (a no-op when the entry already lives at the archive root).
+    // sees paths relative to the archive root.
     let cleaned = match basename_prefix {
         Some(prefix) => normalized
             .strip_prefix(prefix)
@@ -490,11 +482,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
 
 /// Counterpart to [`crate::download::IngestTarballToStore`] for zip-archive binary
 /// resolutions: the zip flow downloads the body, verifies the
-/// integrity hash, then walks zip entries and writes each to the CAFS
-/// — with the `prefix` field stripped from each entry path before the
-/// ignore filter and CAS write so the runtime's top-level
-/// `node-vX.Y.Z-<platform>-<arch>/` directory doesn't leak into
-/// downstream consumers' paths.
+/// integrity hash, then walks zip entries and writes each to the CAFS.
 ///
 /// The store-index lookup, prefetch cache reuse, and store-index
 /// writer queueing match [`crate::download::IngestTarballToStore`] — runtime

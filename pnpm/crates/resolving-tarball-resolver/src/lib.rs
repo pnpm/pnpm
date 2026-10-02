@@ -1,6 +1,6 @@
 //! Claims any wanted dependency whose bare specifier starts with
-//! `http://` or `https://` and resolves it to a tarball URL. Two
-//! pieces of behavior to call out:
+//! `http://` or `https://` and resolves it to a tarball URL.
+//! Behavior to call out:
 //!
 //! - **URL normalization.** The bare specifier is round-tripped
 //!   through `url::Url` so a redundant default port

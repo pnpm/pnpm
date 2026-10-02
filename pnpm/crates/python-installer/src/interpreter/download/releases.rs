@@ -16,7 +16,7 @@ use std::{
 };
 
 /// The tags endpoint is small because it does not expand each release's
-/// hundreds of assets. Two pages currently cover the project's history.
+/// hundreds of assets.
 const TAGS_PER_PAGE: usize = 100;
 const MAX_TAG_PAGES: usize = 10;
 const MAX_TAGS_PAGE_BYTES: usize = 1024 * 1024;

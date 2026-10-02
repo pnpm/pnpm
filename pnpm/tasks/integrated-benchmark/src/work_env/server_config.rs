@@ -25,8 +25,6 @@ pub(super) struct RevisionMockRegistry {
     /// `.npmrc` at `init()`, before the mock itself exists.
     pub(super) url: String,
 }
-/// A pnpr resolver server spawned for one `pnpr@<rev>`
-/// target. Killed on drop so it never outlives the benchmark run.
 /// Where one benchmark's pnpr server binary, config and storage live.
 pub(super) struct PnprServerPaths<'a> {
     pub(super) bench_dir: &'a Path,
@@ -35,6 +33,8 @@ pub(super) struct PnprServerPaths<'a> {
     pub(super) storage: &'a Path,
     pub(super) port: u16,
 }
+/// A pnpr resolver server spawned for one `pnpr@<rev>`
+/// target. Killed on drop so it never outlives the benchmark run.
 pub(super) struct PnprServer {
     pub(super) process: Child,
     /// The latency proxy fronting this server, when `--pnpr-latency-ms`

@@ -2,7 +2,7 @@
 //! `<store_dir>/projects/<short-hash>` that point back to every project
 //! installed from the store. The prune sweep walks this directory
 //! to learn which projects still reference the shared `<store_dir>/links`
-//! slots — without it, a `pacquet store prune` (tracked separately) could
+//! slots — without it, a `pacquet store prune` could
 //! not distinguish abandoned packages from packages a project still uses.
 //!
 //! [`register_project`] (the write half) lives here alongside
@@ -84,8 +84,6 @@ pub fn register_project(
     store_dir: &StoreDir,
     project_dir: &Path,
 ) -> Result<(), RegisterProjectError> {
-    // The npm `is-subdir` check is `(parent, child)`. Skip when the
-    // store root lives at or under the project dir.
     if path_contains(project_dir, store_dir.root()) {
         return Ok(());
     }
@@ -130,10 +128,6 @@ fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), Reg
     if canonical_existing == canonical_project {
         return Ok(());
     }
-    // Mismatch — remove the stale entry and recreate. The
-    // entry is a directory symlink on Unix (file-shaped) and
-    // a junction on Windows (directory-shaped); the helper
-    // covers both.
     remove_symlink_dir(&link_path)
         .map_err(|error| RegisterProjectError::RemoveStale {
             project_dir: project_dir.to_path_buf(),
@@ -160,8 +154,7 @@ pub enum GetRegisteredProjectsError {
         error: io::Error,
     },
 
-    /// The `PROJECT_REGISTRY_ENTRY_INACCESSIBLE` error code. Fires
-    /// only when `read_link` failed with something *other* than
+    /// Fires only when `read_link` failed with something *other* than
     /// `ENOENT` / `EINVAL` (those two are silently skipped).
     #[display("Cannot read project registry entry {link_path:?}: {error}")]
     #[diagnostic(
@@ -174,12 +167,11 @@ pub enum GetRegisteredProjectsError {
         error: io::Error,
     },
 
-    /// The `PROJECT_INACCESSIBLE` error code. The registry entry
-    /// exists and points at a path that exists according to the
-    /// filesystem, but the stat returned a permission / I/O error.
-    /// Surfaces instead of silently dropping the entry — pruning on an
-    /// inaccessible project could remove slots the project still
-    /// references.
+    /// The registry entry exists and points at a path that exists
+    /// according to the filesystem, but the stat returned a permission
+    /// / I/O error. Surfaces instead of silently dropping the entry —
+    /// pruning on an inaccessible project could remove slots the
+    /// project still references.
     #[display("Cannot access registered project {project_dir:?} (via {link_path:?}): {error}")]
     #[diagnostic(
         code(ERR_PNPM_PROJECT_INACCESSIBLE),
@@ -215,10 +207,7 @@ pub enum GetRegisteredProjectsError {
 /// Side effects: any registry entry whose target stat returns
 /// `NotFound` is unlinked here, so the projects directory self-heals
 /// on every prune. Other I/O errors surface as
-/// [`GetRegisteredProjectsError`] variants — a `PROJECT_INACCESSIBLE`
-/// would otherwise leave the prune unable to tell whether the
-/// project's slots are still referenced, so we refuse rather than
-/// silently dropping the entry.
+/// [`GetRegisteredProjectsError`] variants.
 ///
 /// `ENOENT` on the registry directory itself returns an empty `Vec`
 /// — a store that hasn't seen any GVS install yet has no projects
@@ -285,13 +274,7 @@ fn registered_project_target(
     match read_symlink_dir(&link_path) {
         Ok(target) => Ok(Some(target)),
         // pnpm silently skips both ENOENT and EINVAL (the
-        // "file is not a symlink" errno on Linux). An EINVAL here
-        // means the entry is neither a symlink nor a junction (some
-        // other reparse-point shape, or a race) — benign to
-        // skip. EINVAL doesn't have a portable `ErrorKind`
-        // variant in stable Rust, so we match raw `errno` via
-        // `raw_os_error` when present and fall through to the
-        // generic "inaccessible" error otherwise.
+        // "file is not a symlink" errno on Linux).
         Err(error) if is_enoent_or_einval(&error) => Ok(None),
         Err(error) => Err(GetRegisteredProjectsError::EntryInaccessible { link_path, error }),
     }
@@ -314,9 +297,6 @@ fn live_project_dir(
     match fs::metadata(&absolute_target) {
         Ok(_) => Ok(Some(absolute_target)),
         Err(error) if error.kind() == ErrorKind::NotFound => {
-            // Use the cross-platform helper: the registry entry
-            // is a directory symlink on Unix and a junction on
-            // Windows, which need different syscalls to unlink.
             remove_symlink_dir(link_path)
                 .map_err(|error| GetRegisteredProjectsError::UnlinkStale {
                     link_path: link_path.to_path_buf(),

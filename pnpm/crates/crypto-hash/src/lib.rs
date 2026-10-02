@@ -4,8 +4,7 @@
 //! length/case-shortening branch of the depPath-to-filename encoding:
 //! the lockfile and registry helpers both need to apply the same
 //! shortening after their own pre-escape step. Keeping the helpers in
-//! one place avoids duplicating the sha2 dependency in every consumer
-//! (lockfile, registry, store-dir).
+//! one place avoids duplicating the sha2 dependency in every consumer.
 
 use base64::{
     Engine as _,
@@ -51,9 +50,8 @@ pub fn integrity_addressed_tarball_integrity(digest: &str) -> Option<Integrity> 
 
 /// Compute the `sha256-<base64>` digest of `input`.
 ///
-/// Produces `` `sha256-${base64}` ``. This is the shape pnpm writes for
-/// `pnpmfileChecksum` and (via the object hasher)
-/// `packageExtensionsChecksum`.
+/// This is the shape pnpm writes for `pnpmfileChecksum` and (via the
+/// object hasher) `packageExtensionsChecksum`.
 #[must_use]
 pub fn create_hash(input: &str) -> String {
     let digest = Sha256::digest(input.as_bytes());
@@ -125,8 +123,8 @@ pub fn create_short_hash(input: &str) -> String {
 /// [`create_short_hash`] of the full `filename`. Names that already
 /// start with `file+` are exempt from the case check.
 ///
-/// `max_length` is `Modules.virtual_store_dir_max_length` (default
-/// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
+/// `max_length` is `Modules.virtual_store_dir_max_length` (see
+/// `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
 ///
 /// The caller is responsible for pre-escaping the source string (parens
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only

@@ -132,15 +132,11 @@ pub struct DirectLinkPolicy<'a> {
     /// [`pnpm_lockfile::ImporterDepVersion::Link`] entries — workspace siblings
     /// resolved through `workspace:*` / `link:`. Used by the
     /// hoisted linker to layer workspace-sibling symlinks on top
-    /// of the real-directory tree the slice 5 linker produced;
+    /// of the real-directory tree the linker produced;
     /// the regular deps already landed under
     /// `<importer>/node_modules/<alias>/` as real directories
     /// from the hoisted linker, and re-symlinking them would
     /// either no-op or corrupt the layout.
-    ///
-    /// In the hoisted branch this runs after
-    /// `linkHoistedModules` with the direct-dependency map filtered to
-    /// only `link:`-shaped entries.
     pub link_only: bool,
 }
 

@@ -596,7 +596,6 @@ fn sbom_cyclonedx_scoped_root_has_group() {
     let tmp = copy_fixture("workspace-sbom");
     // workspace-sbom root has name "workspace-sbom-root" (unscoped)
     // but app-a is "@test/app-a" - we need a scoped root to test group
-    // Create a temp fixture with scoped name
     fs::write(
         tmp.path().join("package.json"),
         r#"{"name":"@myorg/myapp","version":"2.0.0","license":"MIT"}"#,

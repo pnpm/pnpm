@@ -72,9 +72,7 @@ export function calcDepState<NodeId extends string> (
      * depPath doesn't itself pin a Node: per-snapshot pins take
      * precedence so the side-effects-cache key reflects the actual
      * script-runner Node the bin linker would spawn for the package
-     * (see {@link readSnapshotRuntimePin}). Typically the root
-     * project's pin, from findLockedRootNodeRuntime in
-     * @pnpm/lockfile.utils.
+     * (see {@link readSnapshotRuntimePin}).
      */
     nodeVersion?: string
   }

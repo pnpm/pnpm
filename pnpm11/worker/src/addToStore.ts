@@ -241,7 +241,6 @@ function recordSideEffects (
   if (!existingFilesIndex.sideEffects) {
     existingFilesIndex.sideEffects = new Map()
   }
-  // Ensure side effects use the same algorithm as the original package
   if (existingFilesIndex.algo !== HASH_ALGORITHM) {
     throw new PnpmError(
       'ALGO_MISMATCH',

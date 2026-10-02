@@ -111,17 +111,14 @@ const NPM_REGISTRY_RESOLVED_VIA: &str = "npm-registry";
 pub struct NpmResolver<Cache: PackageMetaCache> {
     /// `default` plus per-scope (`@scope`) entries. The picker consults
     /// the `default` entry as the install-wide default and the scope
-    /// entry when the resolved package name carries one. Pacquet today
-    /// only populates
-    /// `default` — per-scope wiring lands when `.npmrc`'s
-    /// `<scope>:registry` parsing does.
+    /// entry when the resolved package name carries one.
     pub registries: HashMap<String, String>,
     /// User-supplied named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
     /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`] at construction. Today
-    /// only consulted by the named-registry resolver (out of scope
-    /// for this port); kept here so the install layer can build one
-    /// resolver instance with the full registry view.
+    /// only consulted by the named-registry resolver; kept here so the
+    /// install layer can build one resolver instance with the full
+    /// registry view.
     pub registries_by_prefix: HashMap<String, String>,
     pub metadata: RegistryMetadataClient<Cache>,
     pub format: RegistryMetadataFormat,

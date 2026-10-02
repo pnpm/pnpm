@@ -742,7 +742,7 @@ fn orphan_already_removed_is_tolerated() {
 }
 
 /// Pins fail-fast on internal inconsistency between the hierarchy
-/// and graph — Slice 4's walker keeps the two in sync, but a
+/// and graph — the walker keeps the two in sync, but a
 /// future bug there shouldn't yield a partial install layout.
 #[test]
 fn hierarchy_entry_missing_from_graph_errors() {

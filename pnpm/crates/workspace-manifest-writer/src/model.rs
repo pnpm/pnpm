@@ -26,7 +26,7 @@ pub(crate) struct Manifest {
     pub(crate) patched_dependencies: Option<IndexMap<String, String>>,
     /// `overrides:` clean string entries, keyed by package selector.
     /// Consulted to detect a no-op write of an already-present clean
-    /// specifier (the shape `pacquet link` and `pacquet audit --fix` write).
+    /// specifier.
     pub(crate) overrides: Option<IndexMap<String, String>>,
     /// Override keys whose existing value is *not* a plain string (e.g. a
     /// nested mapping a user hand-wrote). The writer refuses to replace

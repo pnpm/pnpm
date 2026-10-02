@@ -115,7 +115,7 @@ pub enum LocalSpecError {
     PathProtocolNotSupported(#[error(source)] PathProtocolNotSupportedError),
 }
 
-/// Aggregate error type returned by the three public entry points.
+/// Aggregate error type returned by the public entry points.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveLocalError {
     /// The wanted specifier carries an unsupported scheme. Today only
@@ -123,7 +123,7 @@ pub enum ResolveLocalError {
     Spec(#[error(source)] LocalSpecError),
 
     /// `file:` directory or tarball points at a path that doesn't
-    /// exist. Carries the `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code.
+    /// exist.
     #[display("Could not install from \"{path}\" as it does not exist.")]
     #[diagnostic(code(ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND))]
     LinkedPkgDirNotFound {
@@ -132,7 +132,6 @@ pub enum ResolveLocalError {
     },
 
     /// `<spec.fetchSpec>` exists but isn't a directory (ENOTDIR).
-    /// Carries the `ERR_PNPM_NOT_PACKAGE_DIRECTORY` code.
     #[display("Could not install from \"{path}\" as it is not a directory.")]
     #[diagnostic(code(ERR_PNPM_NOT_PACKAGE_DIRECTORY))]
     NotPackageDirectory {
@@ -233,8 +232,7 @@ async fn resolve_spec(
         return resolve_file_spec(&spec, opts).await.map(Some);
     }
 
-    // Directory branch. Short-circuit when the lockfile already has
-    // a pin and the install isn't asking for an update.
+    // Directory branch.
     if let Some(current) = &opts.current_pkg
         && opts.update == LocalResolverUpdate::Off
     {
@@ -410,9 +408,7 @@ fn synthesize_fallback_manifest(
 
 /// Map a [`PackageManifestError`] from
 /// [`safe_read_package_json_from_dir`] into the resolver's error
-/// surface, dispatching on the inner code: `ENOTDIR` →
-/// `ERR_PNPM_NOT_PACKAGE_DIRECTORY`, `ENOENT` → fall-back manifest, anything
-/// else → re-throw.
+/// surface.
 fn handle_manifest_read_failure(
     err: PackageManifestError,
     spec: &LocalPackageSpec,

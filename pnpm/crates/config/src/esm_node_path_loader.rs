@@ -19,9 +19,7 @@
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
 //! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
-//! stay in sync so both CLIs inject the same `NODE_OPTIONS` value. A golden
-//! test in each stack asserts the derived flag against the same file,
-//! `pnpm11/exec/esm-node-path-loader/test/import-flag.txt`.
+//! stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
 
 use std::{fmt::Write, sync::LazyLock};
 

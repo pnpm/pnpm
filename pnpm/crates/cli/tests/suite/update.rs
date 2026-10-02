@@ -1059,8 +1059,6 @@ fn update_latest_preserves_local_protocol_dependencies() {
     .expect("write packages/b/package.json");
 
     pacquet(&workspace, ["-r", "install"]).assert().success();
-    // Before the fix this failed with ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST
-    // trying to fetch the unpublished @test/b, @test/c, and @test/d from the registry.
     pacquet(&workspace, ["-r", "update", "--latest"]).assert().success();
 
     let a_manifest = fs::read_to_string(workspace.join("packages/a/package.json"))

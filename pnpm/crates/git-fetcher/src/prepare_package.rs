@@ -256,12 +256,6 @@ fn remove_install_node_modules(pkg_dir: &Path) -> Result<(), PreparePackageError
     }
 }
 
-/// Read the manifest, decide whether the package needs building, and
-/// run the appropriate lifecycle scripts. Returns `should_be_built:
-/// false` early when there's nothing to do; otherwise runs
-/// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
-/// hooks, then deletes `node_modules` so the install-time deps don't
-/// leak into the CAS.
 /// The lifecycle stage and command one prepublish script runs as, or `None`
 /// when the package declares no such script.
 ///

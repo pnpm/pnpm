@@ -136,7 +136,7 @@ impl<'de> Visitor<'de> for RegistryEntryVisitor {
     }
 }
 
-/// The three lookups the rest of pnpm reads, split out of the declarations.
+/// The lookups the rest of pnpm reads, split out of the declarations.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct RegistryLookups {
     /// Scope-routed URLs, `@`-prefixed and normalized.

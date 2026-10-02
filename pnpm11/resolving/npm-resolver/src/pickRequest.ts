@@ -34,12 +34,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   /**
    * When true, force a conditional registry request so a stale on-disk
    * packument can't satisfy the call: the on-disk exact-version fast
-   * path is skipped, and the in-memory cache is bypassed too. The fast
-   * path now promotes disk-loaded packuments into the in-memory cache,
-   * so an entry there can no longer be assumed to come from this
-   * install's own fresh network fetch — on a shared or long-lived
-   * resolver it might be disk-sourced, which would short-circuit the
-   * revalidation updateChecksums exists to force.
+   * path is skipped, and the in-memory cache is bypassed too.
    */
   updateChecksums?: boolean
   /**

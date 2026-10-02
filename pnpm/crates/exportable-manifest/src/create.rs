@@ -17,15 +17,6 @@
 //! 4. **README embedding** (opt-in).
 //! 5. **`transform`.** Required-field validation plus `bin` /
 //!    `peerDependenciesMeta` / `repository` normalization.
-//!
-//! The dependency replacers are called in a straight
-//! sequence ([`convert_dependency_for_publish`]) rather than threading
-//! a list of closures.
-//!
-//! `beforePacking` pnpmfile hooks are not applied here: pacquet's
-//! pnpmfile bridge (`pnpm_hooks::PnpmfileHooks`) does not yet
-//! expose that hook, so there is no source to feed it. The step lands
-//! when the bridge grows a `beforePacking` entry point.
 
 use crate::{
     replace::{

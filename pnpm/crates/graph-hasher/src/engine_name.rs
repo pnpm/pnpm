@@ -49,10 +49,9 @@ pub fn detect_node_major() -> Option<u32> {
 /// detection fails for any of the reasons listed on
 /// [`detect_node_major`].
 ///
-/// Used by `pnpm-package-is-installable`'s `check_engine` to
-/// evaluate `engines.node` ranges. Pacquet's installability check
-/// needs the full version, not just the major, because ranges like
-/// `>=14.18.0` would otherwise spuriously reject `14.17.x`.
+/// Pacquet's installability check needs the full version, not just the
+/// major, because ranges like `>=14.18.0` would otherwise spuriously
+/// reject `14.17.x`.
 #[must_use]
 pub fn detect_node_version() -> Option<String> {
     let raw = detect_node_version_raw()?;

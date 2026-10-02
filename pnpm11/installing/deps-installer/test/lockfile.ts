@@ -315,19 +315,11 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
 test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
-  // const fooProgress = {
-  //   name: 'pnpm:progress',
-  //   status: 'resolving',
-  //   manifest: {
-  //     name: 'foo',
-  //   },
-  // }
 
   const pkgs = ['@pnpm.e2e/foo', '@pnpm.e2e/bar', '@pnpm.e2e/qar']
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], testDefaults({ save: true, reporter }))
-  // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], testDefaults({ addDependenciesToPackage: 'devDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/foobar'], testDefaults({ save: true }))).updatedManifest

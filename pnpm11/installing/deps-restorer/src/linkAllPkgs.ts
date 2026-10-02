@@ -66,9 +66,6 @@ export async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: LinkAllPkgsOptions
 ): Promise<Set<string>> {
-  // Create a marker source file that will be added to filesMap for GVS packages
-  // that need building. The importer treats it as just another file, so it's
-  // atomically included in the staged directory and renamed with the package.
   let needsBuildMarkerSrc: string | undefined
   if (opts.enableGlobalVirtualStore) {
     needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')

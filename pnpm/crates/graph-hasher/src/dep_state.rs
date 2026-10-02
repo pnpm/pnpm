@@ -65,9 +65,7 @@ pub const SIDE_EFFECTS_FORMAT_KEY: &str = "format=2";
 /// Compute the side-effects cache key for a snapshot.
 ///
 /// Returns the cache key for the side-effects cache. Format:
-/// `<engine_name>;format=2[;deps=<hash>][;patch=<hash>]`. Byte-for-byte
-/// parity with pnpm is required — the key is persisted on disk and
-/// shared with pnpm.
+/// `<engine_name>;format=2[;deps=<hash>][;patch=<hash>]`.
 pub fn calc_dep_state<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,
@@ -135,24 +133,14 @@ where
 /// contribution becomes `""` (the "node not in graph" guard returns
 /// the empty string).
 ///
-/// **Visit order is part of the digest.** A node reached while one of
-/// its own ancestors is mid-walk hashes with its children truncated,
-/// and that truncated digest is what lands in `cache` until the
-/// outermost visit overwrites it — so inside a dependency cycle the
-/// digest a node ends up with depends on which node the walk entered
-/// the cycle from. Upstream is deterministic because JS objects
-/// iterate in insertion order; pacquet reproduces that by keeping
-/// [`DepsGraphNode::children`] insertion-ordered and by having callers
-/// drive the per-snapshot walks in lockfile key order (see
-/// [`crate::warm_deps_state_cache`]). Feeding this walk a
+/// **Visit order is part of the digest.** Upstream is deterministic
+/// because JS objects iterate in insertion order; pacquet reproduces
+/// that by keeping [`DepsGraphNode::children`] insertion-ordered and by
+/// having callers drive the per-snapshot walks in lockfile key order
+/// (see [`crate::warm_deps_state_cache`]). Feeding this walk a
 /// `HashMap`-ordered graph instead would give the same lockfile a
 /// different global-virtual-store slot on every run, and each install
 /// would re-import whatever landed on a fresh slot path.
-///
-/// Exposed at `pub(crate)` so the global-virtual-store path hasher
-/// (`crate::global_virtual_store_path`) can share the same recursion
-/// and cache — both [`calc_dep_state`] and `calc_graph_node_hash` are
-/// its only callers within this crate.
 pub(crate) fn calc_dep_graph_hash<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,

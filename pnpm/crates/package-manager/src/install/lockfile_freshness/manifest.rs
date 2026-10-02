@@ -62,10 +62,6 @@ pub(crate) fn check_importer_satisfies(
     // override pass conceptually returns a new manifest
     // from the perspective of every consumer downstream of the
     // resolver.
-    // `auto_install_peers` is folded into `satisfies_package_manifest`
-    // itself, so the manifest is cloned here only for the two mutations the
-    // comparison needs done up front: applying `pnpm.overrides` and dropping
-    // `link:` deps under `exclude_links_from_lockfile`.
     let normalized_manifest = normalized_freshness_manifest(
         check.manifest,
         check.config,

@@ -5,9 +5,7 @@ use super::{
 };
 
 /// Upsert one `name → bool` entry into the top-level `allowBuilds:` block,
-/// creating the block if absent. Returns whether anything changed. `pnpm
-/// approve-builds` calls this with each approved package set to `true` and
-/// each denied/unselected package set to `false`.
+/// creating the block if absent. Returns whether anything changed.
 pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
     const BLOCK: &str = "allowBuilds";
     let changed = if locate(manifest.document.text(), &[BLOCK]).is_some() {

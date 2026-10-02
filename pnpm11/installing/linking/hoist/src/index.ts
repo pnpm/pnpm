@@ -235,7 +235,6 @@ function hoistGraph<NodeId extends string> (
     hoistedDependenciesByNodeId: new Map(),
   }
 
-  // build the alias map and the id map
   for (const depNode of depNodes.sort(compareByDepthThenNodeId)) {
     for (const [childAlias, childNodeId] of Object.entries<NodeId>(depNode.children)) {
       hoistChild(ctx, {
@@ -263,7 +262,6 @@ function hoistChild<NodeId extends string> (ctx: HoistGraphContext<NodeId>, chil
   const hoist = getChildHoistType(ctx, child)
   if (!hoist) return
   const childAliasNormalized = childAlias.toLowerCase()
-  // if this alias has already been taken, skip it
   if (ctx.hoistedAliases.has(childAliasNormalized)) return
   if (!ctx.hoistedDependenciesByNodeId.has(childNodeId)) {
     ctx.hoistedDependenciesByNodeId.set(childNodeId, {})

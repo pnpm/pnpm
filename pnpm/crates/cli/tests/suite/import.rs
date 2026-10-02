@@ -5,7 +5,6 @@
 //! Every fixture pins a version that plain resolution of the same range
 //! would not pick, and every assertion names both the version the source
 //! lockfile recorded and the one resolution would have chosen instead.
-//! Asserting only that a package is present would pass without the fix.
 //!
 //! The fixtures resolve against `@pnpm.e2e` packages, which the mocked
 //! registry serves from local storage. Packages it proxies to the npm

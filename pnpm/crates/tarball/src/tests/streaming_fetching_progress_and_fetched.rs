@@ -110,8 +110,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     // for `with_body(...)` and `with_status(503)` likewise), so both
     // `started` events must carry a populated `size`. This guards
     // against emitting `started` before the response head arrives,
-    // which would leave `size` always-`null` (Copilot review on
-    // <https://github.com/pnpm/pacquet/pull/372>).
+    // which would leave `size` always-`null`.
     for (attempt, size) in &started {
         assert!(size.is_some(), "attempt {attempt} should expose Content-Length, got null");
     }
@@ -238,11 +237,7 @@ fn extract_zip_rejects_parent_dir_component() {
 /// Path-traversal validation must run *before* the `is_dir()`
 /// early-skip — otherwise an archive carrying a malicious directory
 /// entry like `../evil/` is silently dropped instead of surfacing
-/// [`TarballError::PathTraversal`]. Pacquet wouldn't write that
-/// directory either way (the CAS write path is gated on file
-/// entries), but rejecting outright keeps the "no unsafe entry
-/// accepted" contract intact for tooling that inspects the error
-/// code (Caught by `CodeRabbit` on [#472](https://github.com/pnpm/pacquet/pull/472)).
+/// [`TarballError::PathTraversal`].
 #[test]
 fn extract_zip_rejects_directory_entry_with_parent_component() {
     let (tempdir, store_path) = tempdir_with_leaked_path();

@@ -18,8 +18,7 @@ fn fake_resolution() -> LockfileResolution {
 
 /// [`ResolutionVerification::Err`] carries the verifier-supplied code
 /// and reason verbatim; the runner pulls these out to compose the
-/// install-level error breakdown. `code` is a `&'static str` so the
-/// per-policy constants can flow through without allocation.
+/// install-level error breakdown.
 #[test]
 fn resolution_verification_err_round_trip() {
     let verification = ResolutionVerification::Err {

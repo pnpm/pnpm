@@ -89,9 +89,6 @@ function patchAlias (alias: yaml.Alias, target: unknown, ctx: PatchContext): yam
 
   switch (ctx.aliases) {
     case 'follow': {
-    // This can result in surprising behavior since the anchor node will end up
-    // with the contents of the last encountered alias. The default is to
-    // "unwrap" for this reason.
       patchNode(resolved, target, ctx)
       return alias
     }

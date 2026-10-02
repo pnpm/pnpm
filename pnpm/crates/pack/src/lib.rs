@@ -10,11 +10,6 @@
 //! The recursive (`-r`) orchestration — selecting and topologically
 //! sorting the workspace projects — lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
-//!
-//! The filesystem write phase is injected through the [`Host`] /
-//! capability seam so its `PermissionDenied` / `ENOSPC` branches are
-//! testable; everything else runs on real `std::fs` and is covered by
-//! `tempfile` fixtures.
 
 pub use capabilities::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,

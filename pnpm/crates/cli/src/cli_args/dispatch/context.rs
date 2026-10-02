@@ -15,10 +15,7 @@ use std::{
 pub(crate) type CommandFuture<'a, Output = ()> =
     Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
 
-/// The shared context every subcommand handler needs: the canonicalized
-/// `--dir`, the derived `package.json` path, the selected reporter, the
-/// `--recursive` flag, and the lazily-loaded config loaders the handlers
-/// pull from on demand.
+/// The shared context every subcommand handler needs.
 ///
 /// The loaders are passed as `&dyn Fn` rather than eagerly loaded so a
 /// handler that never needs them (`pacquet init`) doesn't pay for the

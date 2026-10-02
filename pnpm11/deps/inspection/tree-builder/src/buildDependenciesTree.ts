@@ -364,8 +364,6 @@ async function dependenciesHierarchyForPackage (
 
   const { result, fieldMap } = initDependencyFields(projectSnapshot, opts.include)
 
-  // Materialize the tree rooted at this importer in a single getTree call.
-  // materializeChildren handles all dedup, search, and circular detection.
   // The depth is incremented by 1 because the importer itself is one level;
   // opts.depth controls how deep *below* the direct dependencies we go.
   const nodes = getTree({
@@ -378,7 +376,6 @@ async function dependenciesHierarchyForPackage (
     modulesDir,
   }, { type: 'importer', importerId })
 
-  // Categorize the materialized nodes into their dependency fields.
   for (const node of nodes) {
     const field = fieldMap.get(node.alias)
     if (field != null) {
@@ -401,7 +398,6 @@ function initDependencyFields (
   projectSnapshot: ProjectSnapshot,
   include: HierarchyContext['include']
 ): { result: DependenciesTree, fieldMap: Map<string, DependenciesField> } {
-  // Build a map from alias → dependency field for post-categorization.
   const result: DependenciesTree = {}
   const fieldMap = new Map<string, DependenciesField>()
   for (const field of DEPENDENCIES_FIELDS.sort().filter(f => include[f])) {

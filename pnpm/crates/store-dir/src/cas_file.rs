@@ -154,14 +154,7 @@ impl StoreDir {
         Ok((file_path, file_hash, size))
     }
 
-    /// Ensure the shard directory (`files/XX/`) exists. The CAS has
-    /// 256 shards keyed by `file_hash[0]`; `create_dir_all` does a
-    /// `stat` syscall every call even when the directory is already
-    /// there, so remember which shards we've created and skip on
-    /// repeat. Duplicate mkdirs across threads are benign — the first
-    /// few writes into a fresh shard may each call `create_dir_all`,
-    /// which is idempotent; once any of them completes and inserts
-    /// into the cache, subsequent writes take the fast path.
+    /// Ensure the shard directory (`files/XX/`) exists.
     fn ensure_shard_dir(&self, file_path: &Path, shard_byte: u8) -> Result<(), WriteCasFileError> {
         if !self.shard_already_ensured(shard_byte) {
             let parent = file_path.parent().expect("CAS file path always has a parent shard dir");
@@ -183,9 +176,7 @@ fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
 /// preserving its inode — only after its bytes are verified against the
 /// freshly streamed temp, the same guarantee [`ensure_cas_file`]'s
 /// byte-compare gives the buffered writer. A corrupt regular file is
-/// repaired in place, again keeping the inode so hard links to it from
-/// other projects' `node_modules` are healed by the same write
-/// (pnpm/pnpm#3445). Anything else (missing or torn blob, symlink or
+/// repaired in place. Anything else (missing or torn blob, symlink or
 /// other non-regular dirent, refused in-place write) is atomically
 /// replaced by the rename, which is self-healing in every such state.
 fn commit_streamed_temp_file(
@@ -238,11 +229,7 @@ fn repair_in_place(tmp_path: &Path, file_path: &Path) -> bool {
 /// Copy the reader into the temp file, hashing as it goes, and return the
 /// content hash and byte count.
 ///
-/// When `expected_size` is given, a reader that yields any other number of
-/// bytes fails with the `Read` variant, so a truncated source (e.g. a
-/// cut-short archive) never commits its partial content to the store, even
-/// though such a blob would be correctly addressed. The caller removes the
-/// temp file on every error.
+/// The caller removes the temp file on every error.
 fn stream_into_temp_file(
     reader: &mut dyn Read,
     file: fs::File,

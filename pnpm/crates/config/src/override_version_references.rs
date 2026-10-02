@@ -2,10 +2,8 @@
 //!
 //! An override value of `$foo` means "whatever specifier the root
 //! manifest declares for `foo`". The reference is resolved while config
-//! is read, so every downstream consumer — the read-package hook that
-//! rewrites manifests, the `overrides:` map written to
-//! `pnpm-lock.yaml`, and the lockfile freshness check that compares the
-//! two — works with the concrete specifier.
+//! is read, so every downstream consumer works with the concrete
+//! specifier.
 //!
 //! The syntax is deprecated in favor of catalogs, but pnpm still
 //! honors it.

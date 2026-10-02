@@ -3645,8 +3645,7 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
   test('only drops the unresolved placeholder, preserving resolved ones and defaults', async () => {
     // Same value contains one resolvable placeholder, one unresolved bare placeholder,
     // and one placeholder with a `-default` fallback. The unresolved one becomes ''
-    // but the other two must still expand. Guards against the original implementation
-    // that stripped every `${...}` on any substitution failure.
+    // but the other two must still expand.
     fs.writeFileSync(
       userconfig,
       '//registry.test/:_authToken=${SET}-${UNSET}-${DEFAULTED-fallback}\n',
@@ -5128,11 +5127,9 @@ test('loads setting from environment variable pnpm_config_*', async () => {
 })
 
 // The two boolean rows only pin down parsing, not runtime meaning. `false` turns the
-// check off. Bare `true` turns the check on but selects none of the four actions, because
-// `runDepsStatusCheck` switches on the string modes alone. That is the behavior pnpm has
-// always had for this setting, and `VerifyDepsBeforeRun` in `Config.ts` keeps `true` out of
-// the type on purpose. The Rust config crate models it the same way, as a `True` variant that
-// maps to no action (`pnpm/crates/config/src/lib.rs`). Keep these rows as a record of what the
+// check off. Bare `true` turns the check on but selects no action, because
+// `runDepsStatusCheck` switches on the string modes alone. `VerifyDepsBeforeRun` in
+// `Config.ts` keeps `true` out of the type on purpose. Keep these rows as a record of what the
 // parser returns; do not read them as a promise that bare `true` does an install.
 test.each([
   ['install', 'install'],
@@ -6235,10 +6232,7 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no wor
     // For global installs, enableGlobalVirtualStore defaults to true.
     expect(config.enableGlobalVirtualStore).toBe(true)
     // The key assertion: global config.yaml policy should NOT be wiped by the GVS
-    // allowBuilds = {} default. Previously this block set allowBuilds
-    // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
-    // saw allowBuilds = {} and skipped re-application, silently losing
-    // dangerouslyAllowAllBuilds.
+    // allowBuilds = {} default.
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
     // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
     expect(config.allowBuilds).toBeUndefined()
@@ -6749,8 +6743,7 @@ test('getConfig() prefers the canonical remote tier whichever spelling comes fir
 
 test('getConfig() lets sideEffectsCacheReadonly block writes on its own', async () => {
   // `sideEffectsCache` defaults to true, so deriving writes from it alone left
-  // the readonly setting with no effect on writing at all — which pacquet has
-  // always enforced and this stack did not.
+  // the readonly setting with no effect on writing at all.
   prepareEmpty()
   writeYamlFileSync('pnpm-workspace.yaml', { sideEffectsCacheReadonly: true })
 

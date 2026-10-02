@@ -36,10 +36,9 @@ pub struct State {
     /// while every install sub-pipeline still takes a borrowed
     /// `&MemCache` via deref.
     pub tarball_mem_cache: Arc<MemCache>,
-    /// HTTP client to make HTTP requests. Held behind [`std::sync::Arc`] so
-    /// the lockfile-verification gate can own a clone for the
-    /// `NpmResolutionVerifier`'s lifetime while every install
-    /// sub-pipeline takes a borrowed `&ThrottledClient` via deref.
+    /// Held behind [`std::sync::Arc`] so the lockfile-verification gate can
+    /// own a clone for the `NpmResolutionVerifier`'s lifetime while every
+    /// install sub-pipeline takes a borrowed `&ThrottledClient` via deref.
     pub http_client: std::sync::Arc<ThrottledClient>,
     /// Merged runtime configuration: built-in defaults, with overlays from
     /// the auth subset of `.npmrc` and from `pnpm-workspace.yaml`.

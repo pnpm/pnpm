@@ -216,21 +216,13 @@ pub(super) struct ConfigFile {
     /// registry and clients must address a `/~<name>/`.
     #[serde(default, rename = "defaultRegistry")]
     pub(super) default_registry: Option<DefaultRegistryFile>,
-    /// The removed top-level ACL block, kept only to *reject* it loudly.
-    /// Per-package rules live on each registry's `packages:` map now; a
-    /// config still carrying the global block previously enforced access
-    /// with it, so silently dropping the key (the fate of unknown verdaccio
-    /// fields) would be a security regression — private packages would
-    /// quietly open up on upgrade. Presence-detected through a custom
-    /// deserializer because a plain `Option` maps a *bare* `packages:`
-    /// (YAML null) to `None`, which would slip past the rejection.
+    /// The removed top-level ACL block, kept only to *reject* it loudly: a
+    /// config still carrying it enforced access with it, so silently dropping
+    /// the key would open private packages up on upgrade.
     #[serde(default, deserialize_with = "detect_removed_block")]
     pub(super) packages: Option<RemovedPackagesBlock>,
     /// The removed top-level `groups:` block, kept only to *reject* it
-    /// loudly. Teams are declared per registry (`registries.<name>.teams`)
-    /// and referenced as `team:<name>`; a config still carrying the global
-    /// block previously granted access through its group names, so it must
-    /// be migrated, not silently dropped.
+    /// loudly.
     #[serde(default, deserialize_with = "detect_removed_block")]
     pub(super) groups: Option<RemovedGroupsBlock>,
     /// pnpr-only: which fetch routes the resolution cache treats as
@@ -356,8 +348,7 @@ pub(super) struct OsvFile {
     pub(super) path: Option<String>,
 }
 
-/// Disk shape of the `resolver:` feature block. A bare `enabled` today;
-/// sub-feature keys can be added later. The field and the whole-block
+/// Disk shape of the `resolver:` feature block. The field and the whole-block
 /// defaults are both `enabled: true`, so omitting the block — or writing
 /// `resolver:` with no body — keeps the surface on.
 /// `deny_unknown_fields` so a typo like `resolver: { enable: false }`

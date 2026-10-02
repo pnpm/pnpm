@@ -145,9 +145,7 @@ impl ImporterTransforms {
             || !self.ignored_optional_matcher.is_empty()
     }
 
-    /// Every importer's manifest with the transforms applied; empty when
-    /// nothing transforms them, so the caller resolves against the
-    /// originals.
+    /// Every importer's manifest with the transforms applied.
     fn apply_to_all(
         &self,
         importer_manifests: &BTreeMap<String, &PackageManifest>,

@@ -226,10 +226,7 @@ pub(crate) fn modules_layout_consistent_with(
     // Patterns compare normalized (upstream's `?? []`): `None` and an
     // empty list are the same disabled state, so the pair must not read
     // as layout drift — a purge every install for `hoistPattern: []`
-    // projects, and a spurious `*_DIFF` error for `add` / `remove`. A
-    // `virtualStoreOnly` install records empty patterns deliberately, so
-    // it skips the comparison entirely and lets the follow-up install
-    // complete the linking instead of purging.
+    // projects, and a spurious `*_DIFF` error for `add` / `remove`.
     let hoist_patterns_match = modules.virtual_store_only == Some(true)
         || (normalized_pattern(modules.hoist_pattern.as_deref())
             == normalized_pattern(config.hoist_pattern.as_deref())
@@ -354,9 +351,7 @@ pub(super) fn unapproved_recorded_ignored_builds(
 /// hoist patterns are `None`, and under `nodeLinker: hoisted` (the
 /// hoisted linker uses `hoisted_locations` instead). Persisting it
 /// lets a subsequent install detect a hoist pattern change and
-/// re-hoist appropriately (the partial-install path tracked at
-/// pnpm/pacquet#433 will consume it; today every install does the
-/// full hoist anyway).
+/// re-hoist appropriately.
 ///
 /// `hoisted_locations` is the per-depPath list of lockfile-relative
 /// directory paths the hoisted linker placed each package at. Empty

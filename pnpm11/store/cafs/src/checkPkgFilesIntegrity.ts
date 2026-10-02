@@ -313,7 +313,7 @@ function scrubDirectoryAtCafsPath (filename: string): void {
  * `verifyFileIntegrity` with the work recorded in the tally the install
  * reports at the end. Only store verification goes through here; the
  * CAFS writer's own integrity check is not the store-wide problem the
- * report is about, and pacquet's writer doesn't hash at all.
+ * report is about.
  */
 function tallyVerifyFileIntegrity (
   filename: string,
@@ -363,8 +363,6 @@ export async function verifyFileIntegrityAsync (
   try {
     hasher = crypto.createHash(integrity.algorithm)
   } catch {
-    // An unusable algorithm, e.g. from a corrupted index file, is a
-    // verification failure rather than an error, as in `hashMatches`.
     return false
   }
   // The store addresses its own regular files. A symlink at the digest path
@@ -375,10 +373,6 @@ export async function verifyFileIntegrityAsync (
   try {
     handle = await fs.promises.open(filename, fs.constants.O_RDONLY | GUARDED_OPEN)
   } catch {
-    // Whatever turned the open away names something that cannot be reused, and
-    // the caller's fallback is a verified fetch that reports any real fault
-    // itself. A failure once the file is open is different: that one is left
-    // to throw, since the store handed over a file it then could not read.
     return false
   }
   try {

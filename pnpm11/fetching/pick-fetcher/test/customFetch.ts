@@ -192,7 +192,6 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         () => true,
         async (_cafs, _resolution, opts) => {
-          // Custom fetcher can call progress callbacks
           opts.onStart?.(100, 1)
           ;(opts.onProgress as any)?.({ done: 50, total: 100 })
 
@@ -229,7 +228,6 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         (_pkgId, resolution) => resolution.type === 'custom:cdn',
         async (_cafs, resolution) => {
-          // Custom fetcher can access custom resolution fields
           expect(resolution.type).toBe('custom:cdn')
           expect((resolution as any).cdnUrl).toBe('https://cdn.example.com/pkg.tgz')
 
@@ -380,7 +378,6 @@ describe('custom fetcher implementation examples', () => {
         const cafs = createCafsStore(storeDir)
         const filesIndexFile = path.join(storeDir, 'index.json')
 
-        // Create standard fetchers to pass to custom fetcher
         const fetchFromRegistry = createFetchFromRegistry({})
         const tarballFetchers = createTarballFetcher(
           fetchFromRegistry,
@@ -392,13 +389,11 @@ describe('custom fetcher implementation examples', () => {
         const customFetcher = createMockCustomFetcher(
           (_pkgId, resolution) => resolution.type === 'custom:url' && Boolean((resolution as any).customUrl),
           async (cafs, resolution, opts, fetchers) => {
-            // Map custom resolution to tarball resolution
             const tarballResolution = {
               tarball: (resolution as any).customUrl,
               integrity: tarballIntegrity,
             }
 
-            // Delegate to standard tarball fetcher (passed via fetchers parameter)
             return fetchers.remoteTarball(cafs, tarballResolution, opts)
           }
         )
@@ -581,7 +576,6 @@ describe('custom fetcher implementation examples', () => {
         const customFetcher = createMockCustomFetcher(
           (_pkgId, resolution) => resolution.type === 'custom:registry',
           async (cafs, resolution, opts, fetchers) => {
-            // Transform custom registry format to standard tarball URL
             const tarballUrl = `${registry}${(resolution as any).packageName}.tgz`
 
             const tarballResolution = {
@@ -633,7 +627,6 @@ describe('custom fetcher implementation examples', () => {
       const customFetcher = createMockCustomFetcher(
         (_pkgId, resolution) => resolution.type === 'custom:git',
         async (cafs, resolution, opts, fetchers) => {
-          // Map custom git resolution to GitHub codeload URL
           const tarballResolution = {
             tarball: `https://codeload.github.com/${(resolution as any).repo}/tar.gz/${(resolution as any).commit}`,
           }
@@ -674,13 +667,11 @@ describe('custom fetcher implementation examples', () => {
         async (_cafs, resolution) => {
           fetchCalls.push(Date.now())
 
-          // Check cache first
           const cacheKey = `${(resolution as any).url}@${(resolution as any).version}`
           if (cache.has(cacheKey)) {
             return cache.get(cacheKey)
           }
 
-          // Simulate fetch
           const result = {
             filesMap: new Map([['package.json', '/store/pkg.json']]),
             manifest: { name: 'cached-pkg', version: (resolution as any).version },
@@ -703,10 +694,8 @@ describe('custom fetcher implementation examples', () => {
         { customFetchers: [customFetcher], packageId: 'cached-pkg@1.0.0' }
       )
 
-      // First fetch - should hit the fetch logic
       const result1 = await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
 
-      // Second fetch - should use cache
       const result2 = await fetcher(createMockCafs(), customResolution, createMockFetchOptions())
 
       expect(result1).toBe(result2)
@@ -731,7 +720,7 @@ describe('custom fetcher implementation examples', () => {
             filesMap: new Map(),
             manifest: { name: 'auth-pkg', version: '1.0.0' },
             requiresBuild: false,
-            authToken, // Could store for future use
+            authToken,
           }
         }
       )

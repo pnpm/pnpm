@@ -19,7 +19,6 @@ index 8e020cac3320e72cb40e66b4c4573cc51c55e1e4..8be55d95c50a2a28e021e586ce5b928d
 ";
 
 /// The `is-positive@1.0.0` `index.js` body the patch applies against.
-/// Six lines before the modified region, three lines of context.
 /// Indentation uses tabs because the file the patch was authored
 /// against uses tabs.
 const IS_POSITIVE_INDEX_JS: &str = "\

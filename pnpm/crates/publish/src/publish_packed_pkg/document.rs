@@ -120,9 +120,8 @@ pub(crate) fn clean_version(version: &str) -> Result<String, PublishPackedPkgErr
     let mut parsed = trimmed
         .parse::<node_semver::Version>()
         .map_err(|_| PublishPackedPkgError::BadSemver { version: version.to_owned() })?;
-    // The published version is `major.minor.patch` plus any prerelease but
-    // never build metadata. node_semver's `Display` appends `+build`, so drop
-    // it to keep the published version identical to what pnpm registers (e.g.
+    // node_semver's `Display` appends `+build`, so drop it to keep the
+    // published version identical to what pnpm registers (e.g.
     // `1.2.3+build` -> `1.2.3`).
     parsed.build.clear();
     Ok(parsed.to_string())

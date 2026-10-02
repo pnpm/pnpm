@@ -55,12 +55,7 @@ pub struct NotModifiedResponse {
 /// `package.json`, learned only after the fetch. pacquet builds the
 /// lockfile before the install pass, so the `TarballResolver` must
 /// fetch here to fill `manifest` + `integrity` into its
-/// `ResolveResult`. Passing a `mem_cache` warms it under the hash this
-/// fetch settles, so the install pass's
-/// [`crate::IngestTarballToStore::run_with_mem_cache`] reuses the
-/// extraction without a second download. A pinned read whose archive is
-/// already being downloaded parks on that slot and takes the bundled
-/// manifest from it.
+/// `ResolveResult`.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,
     pub store_dir: &'static StoreDir,
@@ -353,11 +348,6 @@ impl FetchTarballForResolution<'_> {
     /// key and payload disagree is worse than none: consumers that
     /// trust `PackageFilesIndex.manifest` / `files` to match the key
     /// (bin linking, file materialization) would read the repo.
-    /// Nothing needs this row. A git-hosted archive — the only shape
-    /// carrying a subdirectory — is addressed by
-    /// `git_hosted_store_index_key` once the install pass has run
-    /// `prepare` over it, and both the graph prefetch and the
-    /// warm-store reuse map skip git-hosted entries.
     fn record_store_index_row(&self, integrity: &Integrity, pkg_files_idx: PackageFilesIndex) {
         if self.manifest_subdir.is_some() {
             return;

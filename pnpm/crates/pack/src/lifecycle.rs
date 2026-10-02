@@ -49,8 +49,7 @@ fn before_packing_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str
 
 impl PackScripts {
     /// Run the named lifecycle scripts that the manifest actually declares,
-    /// in order. Mirrors upstream's `runScriptsIfPresent`; the Rust port is
-    /// a plain loop rather than upstream's bound partial application.
+    /// in order. Mirrors upstream's `runScriptsIfPresent`.
     pub(super) fn run_if_present<Reporter: self::Reporter>(
         &self,
         dir: &Path,

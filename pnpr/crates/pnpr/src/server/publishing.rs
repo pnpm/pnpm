@@ -52,6 +52,19 @@ pub(super) enum PublishTarget {
     NotFound,
 }
 
+/// Resolve where a publish lands. A write may only target a hosted registry
+/// whose declared patterns claim the name: a selection of an upstream is
+/// rejected ("name a hosted registry"), never silently landing on an upstream,
+/// and an unclaimed name is rejected with the reason — so a typo'd scope
+/// fails loudly at publish time instead of storing a name the registry's
+/// namespace can never serve. The registry's `access` list gates the write
+/// exactly as it gates reads — a caller the registry denies gets the same
+/// not-found mask as on a read, whether the name is claimed or not
+/// ([`registry_visible_to_caller`] gates the loud rejection), so a private
+/// registry neither accepts the write nor reveals that it exists. The
+/// path-less base routes through its default-target registry; with no default
+/// target the bare host has no registry and the publish is a not-found,
+/// exactly like a read.
 pub(super) fn resolve_publish_target_for(
     state: &AppState,
     identity: &Identity,
@@ -100,19 +113,6 @@ pub(super) fn resolve_publish_target_for(
     }
 }
 
-/// Resolve where a publish lands. A write may only target a hosted registry
-/// whose declared patterns claim the name: a selection of an upstream is
-/// rejected ("name a hosted registry"), never silently landing on an upstream,
-/// and an unclaimed name is rejected with the reason — so a typo'd scope
-/// fails loudly at publish time instead of storing a name the registry's
-/// namespace can never serve. The registry's `access` list gates the write
-/// exactly as it gates reads — a caller the registry denies gets the same
-/// not-found mask as on a read, whether the name is claimed or not
-/// ([`registry_visible_to_caller`] gates the loud rejection), so a private
-/// registry neither accepts the write nor reveals that it exists. The
-/// path-less base routes through its default-target registry; with no default
-/// target the bare host has no registry and the publish is a not-found,
-/// exactly like a read.
 /// The registry a publish addresses, with how to name it in a refusal.
 fn addressed_publish_target(
     state: &AppState,
@@ -217,6 +217,18 @@ pub(super) async fn publish_package(
     }
 }
 
+/// `PUT /-/pnpm/v1/publish` — publish several packages with one
+/// request. The body is `{"packages": [<publish doc>, ...]}` where
+/// each entry is exactly the JSON body that `PUT /:pkg` takes
+/// (packument with `_attachments`). `pnpm publish --batch` sends
+/// this; the endpoint is not part of the standard npm registry API.
+///
+/// The batch is all-or-nothing up to the commit point: every
+/// document is validated (name, publish policy, attachment
+/// integrity) and every tarball of every package is fully written
+/// to a tmp slot before anything becomes visible to readers, so a
+/// batch that fails validation or staging leaves no new versions
+/// behind.
 pub(super) async fn serve_batch_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -265,18 +277,6 @@ pub(super) async fn serve_batch_publish(
     }
 }
 
-/// `PUT /-/pnpm/v1/publish` — publish several packages with one
-/// request. The body is `{"packages": [<publish doc>, ...]}` where
-/// each entry is exactly the JSON body that `PUT /:pkg` takes
-/// (packument with `_attachments`). `pnpm publish --batch` sends
-/// this; the endpoint is not part of the standard npm registry API.
-///
-/// The batch is all-or-nothing up to the commit point: every
-/// document is validated (name, publish policy, attachment
-/// integrity) and every tarball of every package is fully written
-/// to a tmp slot before anything becomes visible to readers, so a
-/// batch that fails validation or staging leaves no new versions
-/// behind.
 /// Validate every document of a batch publish, refusing a package named twice.
 ///
 /// One packument read-merge-write happens per package: with the same package

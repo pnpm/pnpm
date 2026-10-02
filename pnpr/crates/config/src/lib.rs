@@ -162,9 +162,7 @@ pub struct StorageConfig {
     /// Directory under which the disposable proxy cache lives —
     /// the mirror of upstream registries plus the resolver's cache.
     /// Safe to wipe at any time; it self-heals on the next
-    /// request. Defaults to a `.pnpr-cache` subdirectory of
-    /// [`Self::hosted_dir`]; set the YAML `cache:` key (or `--cache`) to
-    /// an absolute path to put it on separate, ephemeral disk.
+    /// request.
     pub cache_dir: PathBuf,
     /// Where the authoritative (hosted) store lives. Defaults to
     /// [`HostedStoreConfig::Fs`] — the local [`Self::hosted_dir`]
@@ -177,8 +175,7 @@ pub struct StorageConfig {
 pub struct IdentityConfig {
     /// Where to read/write the htpasswd-format user file and the
     /// token database. Both stores are in-memory when their paths
-    /// are `None`, matching the original `@pnpm/registry-mock` mode
-    /// where every restart wipes accounts.
+    /// are `None`.
     pub auth: AuthConfig,
     /// Which record store backs the auth state (users + tokens).
     /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
@@ -455,8 +452,7 @@ fn registry_mock_rules() -> PackageRules {
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
-    /// Default packument TTL — five minutes, matching the historical
-    /// proxy-mode default.
+    /// Default packument TTL — five minutes.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 }
 
@@ -469,11 +465,8 @@ pub struct Features {
     pub pipeline: PipelineFeature,
 }
 
-/// The npm-registry surface is derived, not configured: served iff
-/// at least one registry is declared (no registries ⇒ nothing to serve),
-/// minus the per-tier `--disable-registry` override. Folding the
-/// override in here lets the registry-only work below (upstream
-/// credential resolution) key off effective enablement.
+/// Folding the `--disable-registry` override in here lets the registry-only
+/// work below (upstream credential resolution) key off effective enablement.
 fn build_features(
     registry_declared: bool,
     resolver: Option<FeatureFile>,

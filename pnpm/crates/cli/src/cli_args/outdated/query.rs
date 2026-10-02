@@ -52,7 +52,6 @@ impl OutdatedRun {
 #[derive(Debug, Clone, Copy)]
 pub enum TargetVersion {
     /// The `latest` dist-tag — the absolute newest published version.
-    /// pnpm's default for `outdated`.
     Latest,
     /// The highest version satisfying the manifest range. pnpm's
     /// `outdated --compatible`, and the version an in-range `update`

@@ -135,12 +135,6 @@ fn validate_pnpr_config(config: &pnpm_config::Config, frozen: bool) -> miette::R
     if config.auto_dedupe && !frozen {
         return Err(AutoDedupeWithPnpr.into());
     }
-    // The pnpr server resolves dependencies and streams missing files
-    // straight into the store, so this path inherently writes the store.
-    // `frozenStore` promises the store is complete and read-only, so the
-    // two are mutually exclusive — refuse up front instead of failing on
-    // the read-only write with the `FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`
-    // guard.
     if config.frozen_store {
         return Err(FrozenStoreIncompatibleWithPnpr.into());
     }
@@ -436,10 +430,6 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     )
     .await?;
 
-    // `--lockfile-only`: the server resolved and returned the lockfile
-    // but fetched nothing; pnpm links nothing in this mode, so stop after
-    // writing the lockfile rather than running the materialization pass.
-    // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
     if link.lockfile.only {
         return Ok(());
     }

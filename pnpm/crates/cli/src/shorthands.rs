@@ -11,8 +11,8 @@
 //!
 //! Only the universal shorthands whose expansion targets exist in pacquet
 //! are handled here. The loglevel family (`-d`, `-q`, `--quiet`,
-//! `--verbose`, ...) is still not expanded: pacquet accepts `--loglevel`
-//! itself now, but some of the family's expansions (`--loglevel=verbose`,
+//! `--verbose`, ...) is not expanded: pacquet accepts `--loglevel`
+//! itself, but some of the family's expansions (`--loglevel=verbose`,
 //! `--loglevel=silly`) are npm level names that pnpm's own `loglevel`
 //! setting rejects, and nopt only soft-drops them upstream — mapping that
 //! quirk is left for when the family lands.

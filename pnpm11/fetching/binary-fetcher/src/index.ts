@@ -166,9 +166,6 @@ export interface AssetInfo {
 /**
  * Downloads and unpacks a zip file containing a binary asset.
  *
- * @param fetchFromRegistry - Function to fetch resources from registry
- * @param assetInfo - Information about the binary asset
- * @param targetDir - Directory where the binary asset should be installed
  * @throws {PnpmError} When integrity verification fails or extraction fails
  */
 export async function downloadAndUnpackZip (
@@ -184,7 +181,6 @@ export async function downloadAndUnpackZip (
     await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)
     await extractZipToTarget(tmp, assetInfo.basename, targetDir, assetInfo.ignoreEntry)
   } finally {
-    // Clean up temporary file
     try {
       await fsPromises.unlink(tmp)
     } catch {
@@ -224,11 +220,6 @@ async function downloadWithIntegrityCheck (
 /**
  * Extracts a zip file to the target directory.
  *
- * @param zipPath - Path to the zip file
- * @param basename - Base name of the file (without extension)
- * @param targetDir - Directory where contents should be extracted
- * @param ignoreEntry - Optional regex matched against the entry path relative to `basename`;
- *   matching entries are skipped.
  * @throws {PnpmError} When extraction fails or path traversal is detected
  */
 async function extractZipToTarget (
@@ -266,9 +257,6 @@ interface ExtractEntriesOptions {
  */
 async function extractEntries (zipPath: string, { extractionRoot, basename, ignoreEntry }: ExtractEntriesOptions): Promise<void> {
   const basenamePrefix = basename === '' ? '' : `${basename}/`
-  // Normalize `ignoreEntry` to a stateless regex. `.test()` on a `/g` or `/y` regex
-  // advances `lastIndex` between calls, which would cause inconsistent skips across
-  // entries in this loop.
   const testEntry = toStatelessTester(ignoreEntry)
 
   await fsPromises.mkdir(extractionRoot, { recursive: true })
@@ -338,7 +326,6 @@ async function extractEntry (zipfile: yauzl.ZipFile, entry: yauzl.Entry, target:
 function toStatelessTester (regex: RegExp | undefined): ((input: string) => boolean) | undefined {
   if (!regex) return undefined
   // `/g` and `/y` make `RegExp.prototype.test` stateful via `lastIndex`.
-  // Strip those flags by cloning into a fresh RegExp with only the safe flags.
   if (!regex.global && !regex.sticky) {
     return (input) => regex.test(input)
   }
@@ -350,12 +337,9 @@ function toStatelessTester (regex: RegExp | undefined): ((input: string) => bool
 /**
  * Validates that a path does not escape the base directory via path traversal.
  *
- * @param basePath - The base directory that should contain the target
- * @param targetPath - The relative path to validate
  * @throws {PnpmError} When path traversal is detected
  */
 function validatePathSecurity (basePath: string, targetPath: string): void {
-  // Explicitly reject absolute paths - they should never be allowed as prefixes or entry names
   if (path.isAbsolute(targetPath)) {
     throw new PnpmError('PATH_TRAVERSAL',
       `Refusing to extract path "${targetPath}" - absolute paths are not allowed`)

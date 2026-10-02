@@ -90,7 +90,6 @@ async function processMessage (message: WorkerMessage): Promise<object> {
 function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   fs.mkdirSync(storeDir, { recursive: true })
   const hexChars = '0123456789abcdef'.split('')
-  // Only create subdirectories for files/ — index/ is now managed by SQLite
   const filesDirPath = path.join(storeDir, 'files')
   try {
     fs.mkdirSync(filesDirPath)

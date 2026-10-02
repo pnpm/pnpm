@@ -41,6 +41,8 @@ pub(super) async fn serve_publish_pipeline_run(
     )
 }
 
+/// `GET /-/pnpr/v0/pipeline/runs[?workspace=&limit=]` — the most recent
+/// run summaries, newest first.
 pub(super) async fn serve_list_pipeline_runs(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -73,8 +75,6 @@ pub(super) async fn serve_list_pipeline_runs(
     })
 }
 
-/// `GET /-/pnpr/v0/pipeline/runs[?workspace=&limit=]` — the most recent
-/// run summaries, newest first.
 /// The workspace filter and page size a run listing asks for.
 pub(super) fn parse_pipeline_run_query(query: &str) -> (Option<String>, usize) {
     let mut workspace = None;

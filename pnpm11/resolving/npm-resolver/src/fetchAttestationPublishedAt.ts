@@ -6,11 +6,9 @@ import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
  * Per-version publish timestamp from npm's attestation endpoint —
  * `/-/npm/v1/attestations/<name>@<version>`.
  *
- * The response is a small JSON document containing one or more Sigstore
- * bundles. We read `bundle.verificationMaterial.tlogEntries[].integratedTime`
- * (the Rekor inclusion time) and surface it as an ISO date. This is a
- * couple of seconds after the actual publish — close enough for a
- * release-age policy that operates in minutes/hours/days.
+ * The Rekor inclusion time (`integratedTime`) is a couple of seconds after
+ * the actual publish — close enough for a release-age policy that operates
+ * in minutes/hours/days.
  *
  * We deliberately do **not** verify the Sigstore signature here: the
  * trust model is identical to reading the registry's `time` field on
@@ -24,8 +22,6 @@ import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
  * - The package has no published attestations (`404`).
  * - The response is malformed or missing the timestamp.
  * - The request itself fails (network error, registry 5xx).
- *
- * In all of those cases the caller falls back to fetching full metadata.
  */
 export interface FetchAttestationOptions {
   registry: string

@@ -38,9 +38,7 @@ enum JsonAuthOrigin {
 }
 
 /// The parsed `_auth` setting: registry URL → scope → credentials.
-/// Deserialization is strict — any malformed entry (bad JSON, wrong shape,
-/// invalid URL/scope, unsupported credential field) is an error, never a
-/// silent skip. See [`NpmrcAuth::from_json_sources`].
+/// See [`NpmrcAuth::from_json_sources`].
 ///
 /// [`IndexMap`] preserves source order so a later entry wins for a
 /// duplicate inferred route (`"@"` / `@scope` across different hosts) —

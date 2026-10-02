@@ -30,8 +30,6 @@ interface ShProgConfig {
  * @param src Path to the executable or script.
  * @param to Path to the shim to be created.
  * It is highly recommended to end with `.sh` or to contain no extension.
- * @param opts Options.
- * @return The content of shim.
  */
 export function generateShShim (src: string, to: string, opts: InternalOptions): string {
   const config = resolveShProgConfig(src, to, opts)

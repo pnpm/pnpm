@@ -146,8 +146,7 @@ pub enum TarballError {
     /// `run_with_mem_cache`, drove the network fetch, and failed.
     /// This task was parked on the shared `Notify` waiting for the
     /// download; on wake it sees [`crate::CacheValue::Failed`] and surfaces
-    /// this variant. The owner's original error stays with the
-    /// owner (it can't be cloned past `reqwest::Error`).
+    /// this variant.
     #[from(ignore)]
     #[display(
         "A concurrent fetch for {} failed; this request waited on the shared mem cache and inherits the failure",
@@ -182,11 +181,7 @@ pub enum TarballError {
 
     /// Per-entry I/O failure during zip extraction — `try_reserve`
     /// for the entry's payload, the body read, or any other
-    /// [`std::io::Error`] surfaced from the zip iterator. Carries
-    /// the archive URL and the entry path that triggered the
-    /// failure so a corrupt archive is diagnosable from the user-
-    /// facing message; the underlying [`std::io::Error`] is
-    /// exposed as `source` for miette / `Error::source` walkers.
+    /// [`std::io::Error`] surfaced from the zip iterator.
     /// Kept separate from [`TarballError::ReadTarballEntries`] so
     /// the retry-classification path emits `ERR_PNPM_ZIP`
     /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
@@ -212,8 +207,7 @@ pub enum TarballError {
     /// the underlying network refusal propagate.
     ///
     /// `ERR_PNPM_NO_OFFLINE_TARBALL` is a pacquet-specific code;
-    /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`
-    /// — "Failed to resolve `<pkg>` in package mirror `<dir>`".
+    /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`.
     #[from(ignore)]
     #[display(
         "Failed to fetch tarball for {package_id} from {url} in offline mode: snapshot not present in local store"

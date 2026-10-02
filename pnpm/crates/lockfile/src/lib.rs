@@ -71,9 +71,7 @@ use std::collections::{BTreeMap, HashMap};
 pub type PackageKey = PkgNameVerPeer;
 
 /// Default `peersSuffixMaxLength` an unset `settings.peersSuffixMaxLength`
-/// in the lockfile decays to. This value is also the threshold below which
-/// the field is stripped on serialization: when `peersSuffixMaxLength`
-/// equals this default it is omitted from the serialized file.
+/// in the lockfile decays to.
 pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -155,8 +153,7 @@ pub struct Lockfile {
     /// wire shape, serialized right after `packageExtensionsChecksum`
     /// in the root-key order. `None` when the project has no pnpmfile
     /// (or one without a `hooks` export) — the key is omitted in that
-    /// case, and the `skip_serializing_if` below does the same so the
-    /// lockfile round-trips byte-for-byte.
+    /// case.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pnpmfile_checksum: Option<String>,
 
@@ -174,9 +171,6 @@ pub struct Lockfile {
     /// patch file. Top-level in the v9 wire shape, sitting between
     /// `pnpmfileChecksum` and `importers` in the root-key order.
     /// A [`BTreeMap`] so the entries serialize sorted by key.
-    ///
-    /// Loading also accepts the `{hash, path}` shape pnpm 10 wrote,
-    /// collapsing it to the hash.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",

@@ -52,6 +52,14 @@ impl From<std::io::Error> for ResolveError {
     }
 }
 
+/// What writing a request's importers left in the temp workspace.
+struct Workspace<'a> {
+    /// The importer dirs below the root, in request order.
+    member_dirs: Vec<&'a str>,
+    /// Whether one of the importers was the root itself.
+    wrote_root: bool,
+}
+
 /// Resolve a request lockfile-only and return the produced lockfile.
 /// The store is intentionally left untouched (no tarball is fetched):
 /// tarball downloads happen later from upstream URLs or an upstream's
@@ -62,14 +70,6 @@ impl From<std::io::Error> for ResolveError {
 /// `pnpm-workspace.yaml` listing their dirs — so pacquet's install path
 /// discovers and resolves every importer in one pass, producing a lockfile
 /// keyed by the same POSIX importer dirs the client sent.
-/// What writing a request's importers left in the temp workspace.
-struct Workspace<'a> {
-    /// The importer dirs below the root, in request order.
-    member_dirs: Vec<&'a str>,
-    /// Whether one of the importers was the root itself.
-    wrote_root: bool,
-}
-
 pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,

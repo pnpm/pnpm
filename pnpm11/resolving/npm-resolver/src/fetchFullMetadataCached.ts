@@ -57,10 +57,7 @@ export async function fetchFullMetadataCached (
  * Sibling of {@link fetchFullMetadataCached} that hits the abbreviated
  * metadata endpoint (`Accept: application/vnd.npm.install-v1+json`) and
  * caches under `ABBREVIATED_META_DIR` — the same mirror the resolver
- * populates by default. Used by the lockfile verification gate as a
- * cheap upper-bound check: if the package's `modified` field is older
- * than the policy cutoff, every version in it predates the cutoff and
- * no per-version timestamp lookup is needed.
+ * populates by default.
  */
 export async function fetchAbbreviatedMetadataCached (
   fetchOpts: FetchMetadataFromFromRegistryOptions,

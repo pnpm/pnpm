@@ -87,9 +87,8 @@ impl NpmrcAuth {
     /// blow up parsing.
     ///
     /// `npmrc_dir` is the directory of the `.npmrc` file the `text`
-    /// came from. A relative `cafile=` resolves against it so a
-    /// project `.npmrc` reachable via `pacquet --dir <proj>` from a
-    /// different cwd still finds its CA bundle (pnpm/pnpm#11726).
+    /// came from. A relative `cafile=` resolves against it, not against
+    /// the current directory.
     pub fn from_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
         Self::from_ini_with_options::<Sys>(
             text,

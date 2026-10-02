@@ -115,9 +115,7 @@ function renderView (frame: LiveFrame, view: string): string {
   // only the differential — the characters that actually changed between
   // the previous frame and this one — so sticky blocks like the lockfile
   // verdict and deprecation warnings are not re-written on every progress
-  // tick. `\x1b[K` erases trailing characters on the current line;
-  // `\x1b[0J` erases anything an external process wrote below the
-  // rendered frame.
+  // tick. `\x1b[K` erases trailing characters on the current line.
   return `\r${committed}${frame.differ.update(visible)}\x1b[K${ERASE_TO_END_OF_DISPLAY}`
 }
 

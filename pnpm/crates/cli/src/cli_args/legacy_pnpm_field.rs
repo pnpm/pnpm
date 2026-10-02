@@ -7,9 +7,7 @@ use super::config_warnings::emit_config_warning;
 use serde_json::Value;
 
 /// Keys pnpm reads from `pnpm-workspace.yaml` and never from the `pnpm`
-/// field of `package.json` — either because they moved there in v11, or
-/// because (like `update`) they were introduced later and only ever
-/// lived there. Keys outside this set (`app`, or anything third-party
+/// field of `package.json`. Keys outside this set (`app`, or anything third-party
 /// tooling piggybacks on the `pnpm` namespace for) are left alone so the
 /// warning can't fire on something pnpm never owned.
 const MIGRATED_PNPM_FIELD_KEYS: &[&str] = &[

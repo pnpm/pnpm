@@ -63,11 +63,8 @@ export interface Client {
   resolve: ResolveFunction
   clearResolutionCache: () => void
   /**
-   * List of resolver-side verifiers — one entry per active policy
-   * (today: at most one, `npm.minimumReleaseAge`). Empty when no policy
-   * is active. The install layer fans out across the list to re-validate
-   * each lockfile entry; each verifier handles its own protocol
-   * short-circuit inside `verify`.
+   * List of resolver-side verifiers — one entry per active policy.
+   * Empty when no policy is active.
    */
   resolutionVerifiers: ResolutionVerifier[]
 }
@@ -107,8 +104,8 @@ export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { reso
  * whole tree before deciding what to do.
  *
  * The error mapping is centralized here so future violation codes
- * (today: `MINIMUM_RELEASE_AGE_VIOLATION`) get a consistent error code
- * across every strict-mode caller without each call site re-translating.
+ * get a consistent error code across every strict-mode caller without
+ * each call site re-translating.
  */
 export function makeResolutionStrict (resolve: ResolveFunction): ResolveFunction {
   return (async (wantedDependency, opts) => {
@@ -127,10 +124,6 @@ export function makeResolutionStrict (resolve: ResolveFunction): ResolveFunction
  */
 export function policyViolationToError (violation: ResolutionPolicyViolation): PnpmError {
   const message = `${violation.name}@${violation.version} ${violation.reason}`
-  // Map the per-violation `code` to the user-facing PnpmError code that
-  // pre-refactor callers (and `default-reporter`) already recognize.
-  // Future violation codes get their mapping added here so call sites
-  // don't have to re-translate.
   const errorCode = violation.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE
     ? 'NO_MATURE_MATCHING_VERSION'
     : violation.code

@@ -107,7 +107,6 @@ export async function installGroup (
     inheritedOpts: opts,
   }, commands)
 
-  // Read resolved aliases from the installed package.json
   const pkgJson = readPackageJsonFromDirRawSync(installDir)
   const aliases = Object.keys(pkgJson.dependencies ?? {})
 

@@ -119,14 +119,7 @@ fn ssl_policy_from_ref(policy: SecPolicyRef) -> Option<SecPolicy> {
 /// a CA to the default trust store. pnpm-on-Node inherits that trust
 /// implicitly because it runs inside Node; pacquet is a native binary,
 /// so to keep real-world parity for users behind a corporate MITM proxy
-/// it reads the variable explicitly. This is the one deliberate
-/// exception to the ".npmrc-only, no env vars" TLS parity policy
-/// documented in [`tls::TlsConfig`](crate::tls::TlsConfig): the variable is a process-global
-/// Node convention rather than a pnpm setting, and Node already honors
-/// it for pnpm today — so reading it *restores* parity rather than
-/// diverging from it. The certs are added in
-/// [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) (not [`apply_tls`]) so the
-/// `.npmrc`-derived [`TlsConfig`] stays env-free.
+/// it reads the variable explicitly.
 ///
 /// Read and parsed once per [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) call —
 /// that constructor builds one client per per-registry override, so
@@ -184,9 +177,6 @@ const END_CERTIFICATE: &str = "-----END CERTIFICATE-----";
 /// always come from the top-level (only `:cert(file)?` / `:key(file)?`
 /// / `:ca(file)?` are recognized as per-registry keys).
 ///
-/// The `ca` field is special: a per-registry `ca` is stored as a
-/// single string that may contain multiple concatenated PEMs, while
-/// the top-level `ca` is a `Vec<String>` (the `cafile` loader split).
 /// When the override has a `ca`, the effective top-level CA list is
 /// *replaced* (not merged) by a one-element list with the scoped PEM
 /// blob — which [`parse_ca_bundle`] handles fine since it accepts
@@ -204,16 +194,10 @@ pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
     }
 }
 
-/// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each
-/// CA, install the client identity, set `danger_accept_invalid_certs`
-/// when `strict_ssl: false`, and pin the outbound interface. Returns
-/// the modified builder unchanged when every field is `None` / empty —
-/// matching pnpm's "TLS-unset is default-TLS" semantics.
+/// Returns the modified builder unchanged when every field is `None` /
+/// empty — matching pnpm's "TLS-unset is default-TLS" semantics.
 ///
-/// `strict_ssl` defaults to `true` here (`unwrap_or(true)`) rather than
-/// in the config layer because that's where pnpm applies the same
-/// default — see the "Defaults" section of [`TlsConfig`]. A `cert` /
-/// `key` pair rustls rejects surfaces as
+/// A `cert` / `key` pair rustls rejects surfaces as
 /// [`TlsError::InvalidClientIdentity`] and bubbles through
 /// [`ForInstallsError`](crate::ForInstallsError), the way Node throws from
 /// `tls.createSecureContext`. Unreadable `ca` material is dropped
@@ -248,21 +232,14 @@ pub(super) fn apply_tls(
         // both pnpm-style configs (where `cert=` and `key=` arrive
         // separately) and users who paste them into one field.
         //
-        // rustls accepts PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`),
-        // PKCS#8 (`-----BEGIN PRIVATE KEY-----`), and EC
-        // (`-----BEGIN EC PRIVATE KEY-----`) private keys — same
-        // surface area Node's `tls.createSecureContext` exposes,
-        // and the surface pnpm hands to undici. PKCS#12 (`.pfx`) is
-        // not supported by pnpm at the config layer (no `pfx=`
-        // option in pnpm's `.npmrc` allow-list), so pacquet doesn't
-        // need to handle it either.
+        // PKCS#12 (`.pfx`) is not supported by pnpm at the config layer
+        // (no `pfx=` option in pnpm's `.npmrc` allow-list), so pacquet
+        // doesn't need to handle it either.
         let combined = format!("{cert}\n{key}");
         let identity = Identity::from_pem(combined.as_bytes())
             .map_err(|source| TlsError::InvalidClientIdentity { reason: source.to_string() })?;
         builder = builder.identity(identity);
     }
-    // The `strict-ssl` default is `true`, applied here at client-build
-    // time rather than at config-parse time.
     if !tls.strict_ssl.unwrap_or(true) {
         builder = builder.danger_accept_invalid_certs(true);
     }

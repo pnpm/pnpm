@@ -398,10 +398,6 @@ pub(crate) fn interactive_select(
         return Ok(Some(advisories));
     }
 
-    // `interact_opt` distinguishes an explicit cancel (Esc/Ctrl-C → `Ok(None)`)
-    // from a prompt failure (`Err`). A failure must not be swallowed into a
-    // clean audit, so it propagates; a cancel or empty selection is "nothing
-    // to do".
     let selected = MultiSelect::new()
         .with_prompt("Choose which vulnerabilities to fix (space to select, enter to confirm)")
         .items(&labels)

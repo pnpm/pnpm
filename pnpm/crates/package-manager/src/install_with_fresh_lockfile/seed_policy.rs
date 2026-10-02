@@ -34,9 +34,6 @@ impl From<PreferredVersions> for PreferredVersionsOverride {
 /// `update: 'compatible'` resolver mode, which ignores the lockfile
 /// version for the dependency being updated.
 ///
-/// `KeepAll` is the install/add default (every pin seeds the table, so
-/// unrelated entries keep their resolutions on a rewrite).
-///
 /// Every withholding variant carries the update's `--depth` ceiling,
 /// which bounds how deep the re-resolution reaches: a node past it keeps
 /// its locked resolution even when its name is a target. See

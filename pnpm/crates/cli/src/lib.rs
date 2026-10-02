@@ -146,10 +146,8 @@ fn run_cli() -> miette::Result<()> {
     // `pm_prefix`.
     let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
-    // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
-    // the packageManager / devEngines check disabled; rewrite argv before
-    // clap parses it. A version spec (`pnpm with 10 <cmd>`) is left for the
-    // `with` subcommand to handle.
+    // A version spec (`pnpm with 10 <cmd>`) is left for the `with`
+    // subcommand to handle.
     let argv = with_current::rewrite(argv)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
@@ -391,9 +389,7 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 /// limits in containers and CI runners are respected — `num_cpus`
 /// reports the host's logical CPU count, which on a quota-limited
 /// runner can spin up far more rayon threads than the kernel will
-/// actually schedule onto our cores (Copilot review on [#292]).
-///
-/// [#292]: https://github.com/pnpm/pacquet/pull/292
+/// actually schedule onto our cores.
 fn configure_rayon_pool() {
     if std::env::var_os("RAYON_NUM_THREADS").is_some() {
         return;
@@ -427,8 +423,7 @@ fn configure_rayon_pool() {
 /// avoid. The kernel metadata journal is the bottleneck even on
 /// small hosts, so a small intentional oversubscription
 /// (`max(4, 2 × parallelism)`) is a better trade than respecting the
-/// quota literally — Copilot's follow-up flagged the tension; we're
-/// keeping the floor and documenting it explicitly.
+/// quota literally.
 ///
 /// **Ceiling of 16 threads.** Past 16, the extra workers add system
 /// time without shortening the install. A warm-install sweep (nuxt, next, nitro

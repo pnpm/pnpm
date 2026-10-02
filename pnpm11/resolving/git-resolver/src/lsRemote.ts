@@ -7,7 +7,7 @@ import { safeExeca as execa } from 'execa'
  * so it fails fast on private repos instead of blocking on user input. All
  * ls-remote invocations must go through this function to keep that guarantee.
  *
- * Failed runs are retried immediately, matching the Rust runner's policy.
+ * Failed runs are retried immediately.
  * A run that fails every attempt throws `ERR_PNPM_GIT_LS_REMOTE_FAILED`,
  * which the git resolver restates with the dependency it was resolving.
  */

@@ -27,7 +27,6 @@ fn run_search(
     registry: &str,
     args: &[&str],
 ) -> std::process::Output {
-    // Write fetchRetries=0 and fetchRetryMintimeout=0 to project pnpm-workspace.yaml
     fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\nfetchRetryMintimeout: 0\n")
         .expect("write project pnpm-workspace.yaml");
 

@@ -7,10 +7,8 @@
 //! crate produces: a **sigstore bundle v0.3** (single certificate, `dsse`
 //! Rekor entry) — not the legacy v0.2 form (`x509CertificateChain`, `intoto`
 //! Rekor entry), which pacquet deliberately does not reproduce.
-//! The npm registry accepts the v0.3 bundle: a package published this way was
-//! verified end-to-end against npmjs.com (`@pnpm.e2e/testing-provenance2`,
-//! recorded in the Rekor transparency log), so the modern bundle is sufficient
-//! and no legacy-compatibility path is needed.
+//! The npm registry accepts the v0.3 bundle, so no legacy-compatibility path
+//! is needed.
 
 use std::time::Duration;
 

@@ -1,8 +1,6 @@
 //! Per-capability dependency-injection traits and the production
 //! [`Host`] provider, following the convention in
-//! `pnpm/CODE_STYLE_GUIDE.md`: one trait per capability, no `&self` on
-//! capability methods, and an explicit turbofish at production call
-//! sites.
+//! `pnpm/CODE_STYLE_GUIDE.md`.
 
 use crate::remove_dirent;
 use std::{fs, io, path::Path};

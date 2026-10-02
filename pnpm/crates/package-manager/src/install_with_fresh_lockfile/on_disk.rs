@@ -257,9 +257,6 @@ impl<'a> OnDiskInputs<'a> {
         linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
         skipped: &SkippedSnapshots,
     ) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
-        // Resolve the deferred `node --version` probe (non-GVS path); it
-        // overlapped `CreateVirtualStore`. Falls back to the synchronous
-        // value when the probe wasn't deferred.
         let top_level_bin_root = self.symlink_root();
         let engine_name =
             settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name).await;
@@ -320,10 +317,6 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     let lockfile = inputs.projects.materialization_lockfile;
     let mut materialized = inputs.materialize::<Reporter>(skipped).await?;
 
-    // The concurrent pre-resolve verification of the existing
-    // lockfile must have its verdict before anything sensitive: the
-    // symlink / bin-link phases, the dependency builds, and the
-    // lockfile save below all run on a trusted lockfile only.
     await_lockfile_gate(lockfile_verification_gate).await?;
     fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 

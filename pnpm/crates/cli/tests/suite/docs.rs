@@ -1,8 +1,7 @@
 //! `pacquet docs` / `pacquet home` — open the documentation of a package
 //! in the browser.
 //!
-//! Covers the missing-package-name error and the command structure
-//! checks. The browser-opening success path is covered by the unit tests
+//! The browser-opening success path is covered by the unit tests
 //! on `is_http_url`; the full integration path (mock registry + URL open)
 //! follows the `whoami` pattern but is deferred because it requires a
 //! platform-specific browser launcher.

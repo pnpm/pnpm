@@ -1,9 +1,9 @@
 /**
- * Node API bindings for the pnpm v12 Rust engine (pacquet).
+ * Node.js bindings for the pnpm engine.
  *
- * Shapes intentionally mirror the pnpm v11 TypeScript programmatic API
- * (`@pnpm/installing.deps-installer`, `@pnpm/installing.client`) so that
- * consumers migrating from the TS engine keep their call sites stable.
+ * Shapes mirror the programmatic API of `@pnpm/installing.deps-installer`
+ * and `@pnpm/installing.client`, so call sites written for those packages
+ * carry over.
  */
 
 export interface PackageManifest {
@@ -312,9 +312,7 @@ export interface ReporterOptions {
    * packages-diff summary — an entry is linked when it was symlinked in
    * rather than materialized from the store. A host that links its own
    * runtime into every project silences that noise without silencing the
-   * same packages when they are really installed. The Rust counterpart of
-   * the TypeScript reporter's `filterPkgsDiff` callback, which cannot
-   * cross the addon boundary.
+   * same packages when they are really installed.
    */
   hideLinkedPkgsDiff?: string[]
   /** Verbosity ceiling. Defaults to `'info'`. */
@@ -340,7 +338,7 @@ export interface ReporterOptions {
  * Receives each rendered output chunk instead of the engine writing it to
  * a file descriptor. For a host that has redirected its own output at the
  * JavaScript level — a monkey-patched `process.stdout.write`, a stream
- * that forwards to a remote terminal — where a write from Rust would
+ * that forwards to a remote terminal — where a write from the engine would
  * bypass the redirection. Chunks arrive in order and already carry their
  * newlines and cursor-control sequences; write them verbatim.
  */
@@ -614,11 +612,9 @@ export interface DependentsOptions {
   virtualStoreDirMaxLength?: number
   /**
    * `package.json` fields to project onto every package node as
-   * `manifest`. This is what the TypeScript tree-builder's `nameFormatter`
-   * callback is for: the walk is synchronous Rust and cannot call back
-   * into JavaScript, so a host that renames nodes after a manifest field
-   * asks for that field here, writes `displayName` on the returned trees,
-   * and passes them to {@link renderDependents}. Nodes whose manifest is
+   * `manifest`. A host that renames nodes after a manifest field asks for
+   * that field here, writes `displayName` on the returned trees, and
+   * passes them to {@link renderDependents}. Nodes whose manifest is
    * unreadable — and every workspace-project node — carry none.
    */
   manifestFields?: string[]
@@ -796,5 +792,5 @@ export function filterLockfileByImporters<Lockfile = LockfileFile>(
  */
 export function readModulesManifest(modulesDir: string): Promise<Record<string, unknown> | null>
 
-/** Version of the underlying Rust engine (pacquet). */
+/** Version of the pnpm engine. */
 export function engineVersion(): string

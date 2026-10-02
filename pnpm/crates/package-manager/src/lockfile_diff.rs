@@ -12,10 +12,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
 
 /// What a real install would change, derived from two lockfiles.
-///
-/// Package-level changes are diffed over the v9 `snapshots:` map — the
-/// peer-aware dependency wiring a real install rewrites — to match pnpm's
-/// `dedupeDiffCheck`, whose in-memory `packages` map is depPath-keyed.
 #[derive(Debug, Default)]
 pub struct LockfileDiff {
     /// Per-importer direct-dependency changes, in importer-id order.

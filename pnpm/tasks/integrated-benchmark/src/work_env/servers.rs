@@ -71,9 +71,6 @@ impl WorkEnv {
         let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
             .expect("create revision mock stderr log");
 
-        // The mock advertises its tarball URLs at the client-facing proxy
-        // URL (`registry.url`), not its own loopback port, so downloads cross
-        // the emulated registry link instead of bypassing it.
         let cold = self.options.selection.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
         let mut command = if cold {
             self.cold_revision_mock_command(revision, &binary, &bench_dir, mock_port, &registry.url)
@@ -140,9 +137,7 @@ impl WorkEnv {
             .collect()
     }
     /// Front the mock with the same latency + bandwidth profile the shared
-    /// registry proxy uses, serving the socket reserved at planning time
-    /// (and baked into this revision's `.npmrc`) so the port can't have
-    /// been stolen during the build.
+    /// registry proxy uses.
     fn front_revision_mock(
         &self,
         revision: &str,
@@ -215,11 +210,6 @@ impl WorkEnv {
         // single login bcrypt stays out of the measured install loop.
         let pnpr_token = mint_pnpr_token(port);
 
-        // With `--pnpr-latency-ms`, the client reaches the server through
-        // a latency-injecting proxy instead of directly, so the benchmark
-        // measures pnpr as the remote service it is in production. The
-        // proxy guard rides along in `PnprServer` so it's torn down with
-        // the server.
         let client_url = self.pnpr_client_url(id, port, &mut server);
 
         self.write_pnpr_client_env(&bench_dir, &client_url, &pnpr_token, pnpr_server_registry);
@@ -366,11 +356,7 @@ impl WorkEnv {
     ///
     /// When a revision has its own tarball-serving mock (see
     /// [`Self::plan_revision_mocks`]), its `pacquet@<rev>` and `pnpr@<rev>`
-    /// targets fetch from that mock instead of the shared one. In the cold-pnpr
-    /// scenario both arms therefore exercise the cold mock's serve path — the
-    /// direct arm hitting it as a cold pnpr *registry*, the pnpr arm through its
-    /// accelerator — and the frozen lockfile keeps that about tarball serving
-    /// rather than (noisy) cold resolution.
+    /// targets fetch from that mock instead of the shared one.
     pub(super) fn registry_for<'a>(
         &'a self,
         id: BenchId,
@@ -396,10 +382,7 @@ impl WorkEnv {
     /// revision and serves every arm, so a serve-path delta there cancels out;
     /// giving each revision a mock built from its own `pnpr` exposes the delta.
     ///
-    /// Binds the client-facing latency-proxy socket now — reserving the port
-    /// for the whole init + build window before `init()` bakes its URL into
-    /// `.npmrc` — and hands the live socket to the proxy when `benchmark()`
-    /// spawns it. Empty for non-Verdaccio modes, which front no local mock.
+    /// Empty for non-Verdaccio modes, which front no local mock.
     pub(super) fn plan_revision_mocks(&self) -> HashMap<String, RevisionMockRegistry> {
         let mut mocks = HashMap::new();
         if !matches!(self.options.network.registry, RegistryMode::Verdaccio) {

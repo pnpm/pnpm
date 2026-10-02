@@ -163,7 +163,7 @@ describe('lockfile minimumReleaseAge verification', () => {
   })
 
   test('loose mode rejects immature lockfile entries that are not on minimumReleaseAgeExclude', () => {
-    // The verifier now runs in loose mode too, so a lockfile produced under
+    // The verifier runs in loose mode too, so a lockfile produced under
     // no policy that still has immature pins is rejected the same way
     // strict mode would reject it. The expected workflow is: the loose-mode
     // auto-collect (during fresh resolution) populates the exclude list, and

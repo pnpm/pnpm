@@ -83,7 +83,6 @@ function widenVulnerablePinnedSpecifiers (
 ): void {
   for (const dep of wantedDependencies) {
     const pinned = findPinnedVersion(opts.catalogs, dep)
-    // Only proceed if the specifier is a pinned version, not a range
     if (pinned == null) continue
     if (!audit.isVulnerable(pinned.packageName, pinned.version)) continue
     if (hookOwnedAliases?.has(dep.alias)) {
@@ -142,7 +141,6 @@ function widenPinnedSpecifier (
     // preserves the original pinning style (i.e. pinned stays pinned).
     dep.prevSpecifier = pinned.specifier
   } else {
-    // If no catalog is used, we directly update the specifier.
     dep.bareSpecifier = widenedSpecifier
   }
 }

@@ -4,12 +4,7 @@
 //! Regression test for issue
 //! [#11901](https://github.com/pnpm/pnpm/issues/11901), where only the
 //! workspace root manifest got walked, so sibling projects' deps never
-//! landed in the lockfile or on disk. This test
-//! installs a two-project workspace from scratch (no lockfile, no
-//! `--frozen-lockfile`) and asserts every importer has its own
-//! lockfile entry, every direct dep is symlinked under each
-//! importer's `node_modules`, and shared transitive deps land once
-//! in the virtual store.
+//! landed in the lockfile or on disk.
 
 use crate::_utils;
 

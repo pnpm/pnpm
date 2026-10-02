@@ -2,7 +2,7 @@
 
 This document provides context and instructions for AI agents working on the pnpm codebase.
 
-The repository contains three products:
+The repository contains these products:
 
 - The **TypeScript pnpm v11 CLI** — `pnpm11/`.
 - The **Rust pnpm v12 CLI (pacquet)** — `pnpm/`. pnpm v12 is the target for new feature development. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
@@ -193,7 +193,7 @@ You can confirm the hooks are active with `git config core.hooksPath` (it should
 
 **Do not write a bare `#NNN` (a `#` followed by digits) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-issue-refs.mjs`) rejects them.
 
-GitHub turns any `#NNN` into a link to issue/PR `NNN` of *this* repo, which is almost never what a bare reference means. This is a frequent AI mistake in two forms:
+GitHub turns any `#NNN` into a link to issue/PR `NNN` of *this* repo, which is almost never what a bare reference means. This is a frequent AI mistake, in these forms:
 
 -   Using `#1`, `#2`, `#3`, … to enumerate items in a list. GitHub instead links them to unrelated issues `#1`, `#2`, `#3` of this repo. **Fix:** don't use `#` for enumeration — write `item 1`, `(1)`, `1.`, or rephrase.
 -   Referring to issue `#NNN` of a *different* repository. GitHub instead links it to issue `NNN` of this repo. **Fix:** use qualified syntax `owner/repo#NNN` or an absolute URL `https://github.com/owner/repo/issues/NNN`.
@@ -316,6 +316,45 @@ Write a comment only when:
 
 Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
 
+### Register
+
+The readers are engineers. Write for them:
+
+-   **Concise.** State each fact once, in the shortest form that is still precise. Text that repeats information stated elsewhere links to it instead. Length is not thoroughness.
+-   **Structured.** Prefer a list, a table, or a labelled item over prose. Do not write long paragraphs. A doc block of several paragraphs is cut to the contract.
+-   **One word per concept.** A synonym signals a distinction, and a reader who meets one goes looking for it. Spell a value the way the code or the message spells it.
+
+### Prose that cannot go stale
+
+A sentence that repeats a fact the code states has no test. Write the form that cannot go stale:
+
+-   No count over a list that can grow ("three products"). Name the list, not its size.
+-   A predicate a reader can grep for ("every crate that depends on `pnpm-lockfile`") instead of a hand-maintained roster. A roster that helps is marked "for example".
+-   No verbatim quotation of another file's heading or prose. Link the section by anchor; in Rust, link the item.
+-   One home per fact. A limit, a default, a path, or a setting name is stated once and linked from everywhere else. A default is documented on the field that has it, never on the field's type or on an enum variant.
+-   Fake names in guide examples. Code copied from a live item drifts when the item changes.
+-   A statement about behaviour is a claim. Verify it with a test, a compiler experiment, or a measurement, or leave it out. Say in the pull request what could not be verified.
+-   A deliberate exception to the surrounding pattern gets a one-line comment at the site, so the next reader does not take it for an oversight. A parameter every caller passes with the same value either says why or goes.
+-   A document that describes planned work states its status at the top and is deleted when the work lands. Grep for its name to find the references that would dangle.
+
+### User-facing text
+
+Most documentation in this repository is internal. The user-facing text is:
+
+-   the website documentation under `pnpm/docs/`, `pnpm11/docs/`, and `pnpr/docs/`;
+-   changesets;
+-   doc comments on clap commands and arguments, which are the `--help` output;
+-   the `@pnpm/napi` type declarations in `pnpm/npm/napi/index.d.ts`;
+-   diagnostics and log messages;
+-   the READMEs of published npm packages.
+
+User-facing text names only what the user can reach: their project, their config, the `pnpm` command, npm, Node.js. It does not name a crate, a module, a Rust or TypeScript item, the other implementation, the in-repo package name `pacquet`, a workflow, or a `just` recipe. It states a limitation by what the user sees, not by the mechanism behind it. Everything else is contributor text and says what helps a contributor.
+
+### Reviewing documentation and comments
+
+-   A review does not increase verbosity. For a nitpick, prefer removal over addition.
+-   A fix for a nitpick follows the same rule: remove rather than add.
+
 ## Code Style (TypeScript only)
 
 This repository uses [Standard Style](https://github.com/standard/standard) with a few modifications:
@@ -336,11 +375,8 @@ pnpm run lint
 
 ### Size and shape limits
 
-`@pnpm/eslint-config` ports the perfectionist rules that the Rust workspace enforces through [`dylint.toml`](./dylint.toml), with the same limits:
+`@pnpm/eslint-config` ports the perfectionist rules that the Rust workspace enforces through [`dylint.toml`](./dylint.toml), with the limits stated in the [pacquet style guide](./pnpm/CODE_STYLE_GUIDE.md#guides). It also enforces:
 
--   A function body has at most 40 lines of code, a cognitive complexity of at most 10, at most 3 levels of nesting, and at most 12 distinct local names.
--   A condition has at most 5 `&&` or `||` operators, and a method chain has at most 9 calls.
--   A production file has at most 400 lines of code.
 -   Variables, parameters, and type parameters have descriptive names, not single letters.
 -   Every `eslint-disable` directive gives a reason after `--`.
 

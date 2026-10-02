@@ -35,16 +35,9 @@ const UNSCOPED_RESCOPABLE_KEYS = [
 // Rewrite any unscoped per-registry keys in `source` to their URL-scoped
 // equivalents (`//host[:port]/path/:<key>=...`) using `source.registry` —
 // or the builtin default registry if the source doesn't declare its own.
-// This pins each layer's credential, client certificate, or CA setting to
-// the registry that layer named (or the implicit npmjs default), so a
-// later layer overriding `registry=` cannot pull a setting authored for
-// one host along to a different host. A URL-scoped key for the same
+// A URL-scoped key for the same
 // registry already present in `source` wins; we never overwrite an
 // explicit scoped value.
-//
-// Each rewrite triggers a deprecation warning so users migrate to writing
-// the URL-scoped form directly. npm has rejected unscoped credentials
-// outright since `npm@9` (`ERR_INVALID_AUTH`).
 export function rescopeUnscopedCreds (
   source: Record<string, unknown>,
   sourceLabel: string,

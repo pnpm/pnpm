@@ -752,7 +752,7 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
 ///
 /// Runs through pacquet's fresh-install path (single `pacquet install`,
 /// no `--frozen-lockfile`), exercising the hoist pass that fresh
-/// install now runs end-to-end.
+/// install runs end-to-end.
 #[test]
 fn dedupe_under_shamefully_hoist() {
     let CommandTempCwd {

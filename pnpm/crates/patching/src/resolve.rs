@@ -43,14 +43,10 @@ impl From<PatchNonSemverRangeError> for ResolvePatchedDependenciesError {
 /// [`BTreeMap`] would sort the keys and reorder ranges
 /// alphabetically.
 ///
-/// Each raw path is resolved against `workspace_dir`, hashed into a
-/// [`PatchInput`] entry, and then grouped. pnpm v11 reads install
-/// settings (including `patchedDependencies`) from the *workspace*
-/// manifest, not from `package.json`'s `pnpm` field, and anchors
-/// still-relative patch paths on `lockfileDir` when hashing and
-/// applying patches. Pacquet's lockfile always lives at the workspace
-/// root, so `workspace_dir` is that same base; if pacquet ever gains a
-/// separate `lockfileDir`, this base must follow it to stay in parity.
+/// pnpm v11 reads install settings (including `patchedDependencies`)
+/// from the *workspace* manifest, not from `package.json`'s `pnpm`
+/// field, and anchors still-relative patch paths on `lockfileDir` when
+/// hashing and applying patches.
 ///
 /// [`BTreeMap`]: std::collections::BTreeMap
 /// [`PatchGroup::range`]: crate::PatchGroup::range

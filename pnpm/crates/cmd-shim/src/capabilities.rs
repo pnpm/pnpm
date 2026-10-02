@@ -30,16 +30,6 @@ use std::{
 /// available, so callers that need a fully-filled buffer must loop.
 /// [`crate::read_head_filled`] supplies that loop while staying
 /// generic over this trait, so test fakes do not have to grow.
-///
-/// The trait makes no claim about how many syscalls a particular
-/// impl will use — the production `Host` impl opens the file,
-/// seeks to `offset` (if non-zero), and reads, which is more than
-/// one. What it does promise is the semantic contract: read up to
-/// `buf.len()` bytes starting at `offset` into `buf`.
-///
-/// Used by [`crate::search_script_runtime`] (via [`crate::read_head_filled`])
-/// to detect the script runtime via the shebang at the head of a bin
-/// file.
 pub trait FsReadHead {
     fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize>;
 }
@@ -50,9 +40,7 @@ pub trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;
 }
 
-/// Read the entire contents of a file into a `String`. Used by
-/// [`crate::link_bins_of_packages`] to short-circuit on warm reinstalls
-/// where the existing shim already targets the same bin file.
+/// Read the entire contents of a file into a `String`.
 pub trait FsReadToString {
     fn read_to_string(path: &Path) -> io::Result<String>;
 }
@@ -76,19 +64,11 @@ pub trait FsReadDir {
 }
 
 /// Recursively walk `path` and yield every regular file found beneath
-/// it (depth-first, no symlink follow). Used by
-/// [`crate::get_bins_from_package_manifest`] to enumerate
-/// `directories.bin` entries.
+/// it (depth-first, no symlink follow).
 ///
 /// Returns an `impl Iterator<Item = PathBuf>` rather than a
 /// `Vec<PathBuf>`, so the production walker streams entries straight
 /// out of `walkdir` instead of materialising the whole list up front.
-/// `directories.bin` trees are usually tiny in practice, but the
-/// abstraction should not bake in an allocation the real
-/// implementation does not need. Fakes return whatever concrete
-/// iterator they want. [`std::iter::empty`] fits the unreachable-walk
-/// case, and [`Vec::into_iter`] fits the case that feeds a fixed list
-/// of paths.
 ///
 /// `walkdir`'s builder exposes many knobs (`follow_links`, `min_depth`,
 /// `max_depth`, `sort_by`, and so on); pacquet uses just one
@@ -136,20 +116,13 @@ pub trait FsCreateDirAll {
 }
 
 /// Write `bytes` to `path`, replacing the file's contents if it
-/// exists. Used to write the three shim flavors (`.sh`, `.cmd`,
-/// `.ps1`).
+/// exists.
 ///
 /// **Not atomic.** This trait is the moral equivalent of
 /// `std::fs::write`: it opens (or creates and truncates) the file,
 /// writes `bytes`, and closes. No tempfile + rename guard, no
 /// `fsync`. A SIGINT or crash mid-write can leave a truncated file
-/// on disk. Number of syscalls is up to the impl — `std::fs::write`
-/// itself is open/(truncate)/write/close, and a fake might loop.
-/// If a future caller needs atomic write semantics, build it on top
-/// of this trait by writing to a sibling tempfile and then
-/// renaming. Hiding that algorithm inside the capability would
-/// obscure what each callsite inherits; keeping the trait minimal
-/// lets every callsite see exactly what guarantees it gets.
+/// on disk.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 
@@ -276,8 +249,7 @@ impl FsCreateDirAll for Host {
             }
             // Already there, or occupied by something that is not a
             // directory. `create_dir_all` owns the rule for telling
-            // those apart, and its error is the one this has always
-            // reported.
+            // those apart.
             Err(_) => Self::create_dir_all(path).map(|()| DirCreation::Unknown),
         }
     }

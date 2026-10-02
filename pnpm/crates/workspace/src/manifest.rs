@@ -22,13 +22,9 @@ use std::{
 /// Basename of the workspace manifest.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
-/// Subset of `pnpm-workspace.yaml` consumed by project enumeration.
-///
-/// The settings half (`storeDir`, `registry`, lifecycle policies, ...)
-/// is read separately by `pnpm_config::WorkspaceSettings`.
-/// Keeping the two readers apart keeps each focused on the shape its
-/// callers actually need and avoids a monolithic struct that has to
-/// grow with every new pnpm setting.
+/// Subset of `pnpm-workspace.yaml` consumed by project enumeration. The
+/// settings half (`storeDir`, `registry`, lifecycle policies, ...) is read
+/// separately by `pnpm_config::WorkspaceSettings`.
 #[derive(Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceManifest {

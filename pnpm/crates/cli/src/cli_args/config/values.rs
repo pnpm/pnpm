@@ -115,7 +115,7 @@ pub(super) fn is_string_only_ini_key(key: &str) -> bool {
 // config get / list
 // ---------------------------------------------------------------------------
 
-/// `configGet`: resolve and render the value at `key`. Port of `configGet`.
+/// `configGet`: resolve and render the value at `key`.
 pub(super) fn config_get(
     config: &Config,
     flags: ConfigFlags,
@@ -176,7 +176,7 @@ fn merge_default_catalog(result: &mut Map<String, Value>) {
     }
 }
 
-/// `configList`: the full config record as pretty JSON. Port of `configList`.
+/// `configList`: the full config record as pretty JSON.
 pub(super) fn config_list(config: &Config) -> String {
     serde_json::to_string_pretty(&Value::Object(config_to_record(config)))
         .expect("serializing the config record to JSON never fails")

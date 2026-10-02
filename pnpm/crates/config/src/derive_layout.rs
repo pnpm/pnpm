@@ -46,8 +46,7 @@ impl Config {
         // by the re-anchor above — pnpm builds this from
         // `lockfileDir ?? dir` to the same effect
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
-        // `true` fires — the hoisted-linker derivation below runs after
-        // this block, mirroring pnpm's config-reader ordering.
+        // `true` fires.
         if cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true) {
             let hidden_modules_dir =
                 pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
@@ -144,15 +143,7 @@ impl Config {
 
         // Re-resolve `store_dir` against the project's volume when no
         // explicit source (global config.yaml, pnpm-workspace.yaml,
-        // `PNPM_CONFIG_STORE_DIR`) set it. The SmartDefault picks
-        // `<pnpm_home>/store` unconditionally; the store-path resolution
-        // probes whether `pkg_root` can hardlink into the home volume
-        // and falls back to `<mountpoint>/.pnpm-store` when it can't,
-        // so a workspace on a separate (case-sensitive) volume gets a
-        // store on that same volume rather than the home volume.
-        // Without this, typescript-eslint's case-folded path cache
-        // diverges from TypeScript's case-sensitive program when the
-        // workspace is case-sensitive and the home is not.
+        // `PNPM_CONFIG_STORE_DIR`) set it.
         if explicit.store_dir {
             self.store_dir_placement_skipped = false;
         } else {
@@ -161,11 +152,7 @@ impl Config {
 
         // Derive `global_virtual_store_dir` last so it sees the final
         // `store_dir` / `virtualStoreDir` after yaml has been
-        // applied. An explicit `globalVirtualStoreDir` in yaml wins
-        // over the derivation; otherwise the field falls back to the
-        // user's pinned `virtualStoreDir` (under GVS-on) or to
-        // `<store_dir>/links`. See
-        // [`Self::apply_global_virtual_store_derivation`].
+        // applied. See [`Self::apply_global_virtual_store_derivation`].
         self.apply_global_virtual_store_derivation(
             explicit.virtual_store_dir,
             explicit.global_virtual_store_dir,

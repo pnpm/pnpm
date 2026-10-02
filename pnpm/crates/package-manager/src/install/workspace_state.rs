@@ -58,8 +58,6 @@ pub struct UpToDateFastPathCheck<'a> {
     pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
 }
 
-/// Pre-runtime twin of the repeat-install short-circuit inside
-/// [`super::Install::run`]: same workspace discovery, same
 /// What an up-to-date install reports about the workspace it covered.
 #[derive(Debug, PartialEq, Eq)]
 pub struct UpToDateWorkspace {
@@ -235,11 +233,6 @@ pub(super) fn lockfile_root_for(
 /// entries (`{ rootDir, manifest }`) consumed by the resolver.
 /// Projects whose manifest lacks a name are skipped. A missing or null
 /// version is indexed as `0.0.0`; malformed non-string versions are skipped.
-/// Index the workspace projects by package name and version — the
-/// resolver's view of what the workspace publishes, and the link
-/// targets `pacquet update --workspace` re-points dependencies at. A
-/// project without a name publishes nothing; a missing or null version
-/// reads as `0.0.0`, matching pnpm.
 #[must_use]
 pub fn build_workspace_packages_map(
     projects: Option<&[pnpm_workspace::Project]>,

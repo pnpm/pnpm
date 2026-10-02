@@ -88,8 +88,6 @@ pub fn extract_publish_manifest_from_packed(
         && manifest.get("readme").is_none_or(Value::is_null)
         && let Some(object) = manifest.as_object_mut()
     {
-        // A packed README fills a manifest's missing `readme`, as npm's
-        // publish document carries it.
         object.insert("readme".to_string(), Value::String(readme.text));
     }
     Ok(manifest)

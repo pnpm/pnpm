@@ -1,10 +1,6 @@
 //! Dispatcher-side surface of `@pnpm/resolving.resolver-base`. Defines
 //! the [`WantedDependency`] → [`ResolveResult`] contract and the
 //! [`Resolver`] trait every per-protocol resolver implements.
-//!
-//! Future per-protocol resolvers (npm, git, tarball, local, jsr,
-//! runtimes, named-registry, workspace) implement [`Resolver`]; the
-//! default-resolver dispatcher composes them into a chain.
 
 use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
@@ -70,8 +66,7 @@ impl From<PkgNameVer> for PkgResolutionId {
 /// `..WantedDependency::default()` in struct literals — a bare
 /// `WantedDependency::default()` with both halves `None` is a
 /// programming error the type system doesn't catch. The invariant is
-/// upheld by construction sites (the parse-wanted-dependency port
-/// and the deps-resolver's manifest reader); resolvers that walk a
+/// upheld by construction sites; resolvers that walk a
 /// [`WantedDependency`] with both halves empty should return
 /// `Ok(None)` so the chain falls through to the
 /// "spec not supported" terminal.
@@ -248,10 +243,6 @@ pub const EXISTING_VERSION_SELECTOR_WEIGHT: u32 = 1_000_000;
 
 /// One project in the current workspace that resolution can satisfy
 /// `workspace:`-protocol entries from.
-///
-/// `manifest` is held as an opaque [`DependencyManifest`] alias today
-/// (a thin wrapper around `serde_json::Value`); once `package-manifest`
-/// gains a typed in-memory manifest, swap the alias.
 #[derive(Debug, Clone)]
 pub struct WorkspacePackage {
     pub root_dir: PathBuf,
@@ -446,11 +437,6 @@ pub struct ResolutionPolicyOptions {
     /// Per-package exclude policy for the maturity filter. `None`
     /// applies the filter uniformly.
     pub published_by_exclude: Option<PackageVersionPolicy>,
-    /// Resolve named-registry packages to registry-qualified resolution
-    /// ids (`<name>@<registryName>:<version>`) — the lockfile 12.0 format
-    /// that keeps the same name@version from different registries
-    /// distinct. Mirrors the TypeScript
-    /// `RequestPackageOptions.namedRegistryQualifiedIds`.
     /// `trustPolicy='no-downgrade'` gate. When `Some(NoDowngrade)`, the
     /// npm resolver rejects a freshly picked version whose trust
     /// evidence is weaker than an earlier-published version's — the
@@ -524,9 +510,7 @@ pub type SharedDependencyManifest = Arc<DependencyManifest>;
 pub struct ResolveResult {
     /// Branded resolution identifier — see [`PkgResolutionId`].
     pub id: PkgResolutionId,
-    /// Where the artifact lives. Pacquet reuses
-    /// [`LockfileResolution`] for this — a discriminated union over
-    /// tarball/registry/directory/git/binary/variations.
+    /// Where the artifact lives.
     pub resolution: LockfileResolution,
     /// Provenance tag (`"npm-registry"`, `"git-repository"`,
     /// `"local-tarball"`, ...). Used by deps-installer logs and by
@@ -567,9 +551,6 @@ pub struct ResolvedPackageInfo {
     pub published_at: Option<String>,
     /// The manifest fragment the resolver fetched. Optional because
     /// some protocols defer manifest reading to the fetch step.
-    /// Held as [`SharedDependencyManifest`] (`Arc`-shared) so the
-    /// deps-resolver's tree walk and the per-snapshot graph copies
-    /// don't deep-clone the JSON tree per occurrence.
     pub manifest: Option<SharedDependencyManifest>,
     /// A version of the same package the registry does not report as
     /// deprecated, for the deprecation warning to point at. Filled by the npm

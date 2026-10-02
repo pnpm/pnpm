@@ -68,15 +68,10 @@ fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
     drop((root, mock_instance));
 }
 
-/// Workspace install (pnpm/pacquet#431) lands per-importer
-/// `node_modules` layouts; hoist must walk every importer's direct
-/// deps, not just the root, so transitives unique to a workspace
-/// project still reach the shared `<vs>/node_modules` private
-/// hoist. Sets up a two-importer workspace where the workspace
-/// package depends on `@pnpm.e2e/hello-world-js-bin-parent` (which
-/// has `@pnpm.e2e/hello-world-js-bin` as a transitive). With the
-/// default `hoistPattern: ["*"]` the transitive must end up
-/// hoisted regardless of which importer dragged it in.
+/// Workspace install lands per-importer `node_modules` layouts; hoist
+/// must walk every importer's direct deps, not just the root, so
+/// transitives unique to a workspace project still reach the shared
+/// `<vs>/node_modules` private hoist.
 ///
 /// Pacquet-original — covers the multi-importer hoist case directly,
 /// without relying on a single-project mutate-modules API pacquet

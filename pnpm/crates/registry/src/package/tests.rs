@@ -282,12 +282,9 @@ fn package_deserializes_without_npm_user_or_attestations() {
 /// boolean) on never-deprecated versions even though the upstream
 /// type declares the field as a string. JavaScript silently stores
 /// the boolean (and the upstream truthiness check happens to do the
-/// right thing). Rust serde is strict, so we route through a custom
-/// deserializer that normalizes the wire shape: `string` stays a
-/// string, `false` becomes `None`, `true` becomes `Some("")`. This
-/// regression pinned the entire integrated-benchmark workload, which
-/// fails to deserialize `react`, `react-dom`, `scheduler`, and other
-/// real-world packages without the normalization.
+/// right thing). This regression pinned the entire integrated-benchmark
+/// workload, which fails to deserialize `react`, `react-dom`,
+/// `scheduler`, and other real-world packages without the normalization.
 #[test]
 fn package_deserializes_deprecated_boolean_false() {
     let body = r#"{

@@ -301,9 +301,6 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
     // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the
     // moment this file is missing, forcing `pnpm install` to rerun.
-    // Writing it after both the `.modules.yaml` and the current
-    // lockfile succeed keeps the file pointing at a fully committed
-    // install.
     let mut state = build_workspace_state::<Host>(
         &inputs.projects.workspace_root,
         inputs.completion.config,

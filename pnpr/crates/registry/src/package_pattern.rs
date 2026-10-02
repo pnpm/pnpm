@@ -85,8 +85,6 @@ impl PackagePattern {
         let Some(namespace) = pattern.strip_suffix("/*") else {
             return Self::parse_exact(pattern, Ecosystem::Oci);
         };
-        // One component only, so two namespace patterns are either equal or
-        // disjoint and the specificity chain below stays strict.
         if namespace.contains('*') || namespace.contains('/') {
             return Err(invalid_pattern(pattern, Ecosystem::Oci));
         }
@@ -220,8 +218,6 @@ pub(super) fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
     match ecosystem {
         Ecosystem::Npm => "`@scope/*` or `@*/*`",
         Ecosystem::Oci => "`<namespace>/*`",
-        // A crate or project name is one flat token, so there is no namespace
-        // to claim below `**`.
         Ecosystem::Cargo | Ecosystem::Pypi => "nothing narrower",
     }
 }

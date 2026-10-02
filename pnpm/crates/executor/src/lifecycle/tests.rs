@@ -63,10 +63,7 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
 /// other tests have independent buffers.
 ///
 /// Unix-only: the script body uses `;` and `1>&2`, which `cmd /d /s /c`
-/// (the default shell pacquet now picks on Windows, per item `#4`)
-/// does not interpret the same way. Windows e2e coverage for
-/// lifecycle spawning is a follow-up — for now the cmd path is
-/// exercised by the unit tests in [`crate::shell`].
+/// does not interpret the same way.
 #[cfg(unix)]
 #[test]
 fn lifecycle_emits_script_stdio_and_exit_in_order() {
@@ -420,9 +417,8 @@ fn missing_manifest_returns_false() {
 }
 
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
-/// (the Windows default per item `#4`) doesn't speak. Env stamping
-/// itself is platform-agnostic and covered by the unit tests in
-/// [`crate::make_env`].
+/// doesn't speak. Env stamping itself is platform-agnostic and covered
+/// by the unit tests in [`crate::make_env`].
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {

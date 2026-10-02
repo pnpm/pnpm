@@ -125,10 +125,8 @@ pub(super) async fn run_fan_out(
             evaluate_candidate(candidate, &verifiers).await
         });
     }
-    // A transport failure (the registry couldn't be reached to verify an
-    // entry) aborts the whole pass with the registry's own error rather than
-    // collecting it as a policy violation. Drain the rest of the fan-out so no
-    // in-flight task is dropped mid-await, but keep only the first abort.
+    // Drain the rest of the fan-out so no in-flight task is dropped mid-await,
+    // but keep only the first abort.
     let mut violations = Vec::new();
     let mut fetch_error: Option<String> = None;
     while let Some(result) = futures.next().await {

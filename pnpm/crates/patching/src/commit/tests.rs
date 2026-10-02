@@ -280,9 +280,8 @@ fn patch_commit_prepare_pkg_files_for_diff_rethrows_unexpected_link_errors_witho
 
 /// `safe_package_file_path` is patch-commit's defense-in-depth guard
 /// against a packlist entry that escapes the source dir. It is unit-tested
-/// directly because the packlist now filters escaping `main` / `bin`
-/// fields upstream (see `escaping_main_and_bin_fields_are_not_force_included`
-/// in `pnpm-fs-packlist`), so the integration path below no longer
+/// directly because the packlist filters escaping `main` / `bin`
+/// fields upstream, so the integration path below never
 /// surfaces one.
 #[test]
 fn safe_package_file_path_rejects_paths_that_escape_source() {

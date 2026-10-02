@@ -238,11 +238,7 @@ fn host_can_link_between_dirs_same_volume_is_true() {
 
 /// `host_can_link_between_dirs` collapses every failure mode to
 /// `false`, including the case where `from_dir` does not exist
-/// (so the temp source file can't be created). Mirrors pnpm's
-/// `canLink` returning `false` on `EACCES` / `EPERM` / `EXDEV` /
-/// anything else — pacquet's probe widens that to "any error means
-/// not linkable" so the algorithm degrades to `home_default` rather
-/// than aborting the install.
+/// (so the temp source file can't be created).
 #[test]
 fn host_can_link_between_dirs_missing_from_dir_is_false() {
     let tmp = tempdir().expect("create tempdir");

@@ -2,7 +2,6 @@
 //! run [`crate::prepare_package()`], delete `.git`, run [`crate::packlist()`],
 //! and import the resulting file set into the CAS.
 //!
-//! Pacquet, like pnpm, does not bundle git — the user must install it.
 //! `git` operations are sync (no async git client lives in the workspace),
 //! so the work runs under `tokio::task::block_in_place` to keep the
 //! current thread off the async runtime's "no-blocking" hot path while
@@ -291,16 +290,11 @@ fn ssh_repo_host(repo: &str) -> Option<&str> {
 /// "Failed to prepare git-hosted package ... → Failed to prepare
 /// package → `ERR_PNPM_PREPARE_PACKAGE`".
 fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError {
-    // For the MVP we preserve `err` as the source; the install log
-    // line at the dispatcher level already includes the repo URL via
-    // the `package_id` field. A future refactor can add a dedicated
-    // `Prepare { repo, source }` variant once we have observed real
-    // chains in the install reporter.
+    // The install log line at the dispatcher level already includes the
+    // repo URL via the `package_id` field.
     GitFetcherError::Prepare(err)
 }
 
-/// True iff `commit` is exactly a 40-character hexadecimal git SHA,
-/// validated before the value reaches `git`.
 /// Inputs for [`checkout_commit`].
 pub struct CheckoutOptions<'a> {
     pub repo: &'a str,
@@ -552,7 +546,3 @@ fn static_operation_label(args: &[&str]) -> &'static str {
         _ => "git",
     }
 }
-
-// `import_into_cas`, `is_file_executable`, and `map_write_cas` live in
-// [`crate::cas_io`] so [`crate::GitHostedTarballFetcher`] can reuse
-// them for the prepare-and-rewrite pass on git-hosted tarballs.

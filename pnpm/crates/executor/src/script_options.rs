@@ -44,9 +44,7 @@ pub struct ScriptExecutionOptions<'a> {
     /// (`sh -c` on POSIX, `cmd /d /s /c` on Windows).
     pub shell: Option<&'a Path>,
     /// The `shellEmulator` config: run the script through pacquet's
-    /// built-in shell rather than the platform's. Callers that mirror a
-    /// pnpm call site which does not thread the setting — publishing,
-    /// packing, patching, git package preparation — pass `false`.
+    /// built-in shell rather than the platform's.
     pub shell_emulator: bool,
     /// The `.bin` holding the script directory's own executables, when
     /// `modulesDir` puts them somewhere other than

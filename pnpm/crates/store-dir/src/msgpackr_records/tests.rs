@@ -253,10 +253,6 @@ fn rejects_reference_to_unknown_slot() {
 /// appeared in the stream.
 #[test]
 fn plain_positive_fixint_in_slot_range_passes_through() {
-    // [65, 127] — both bytes would be "slot refs" under the old
-    // always-records interpretation and would blow up as
-    // `UnknownSlot`. Under records-mode tracking they're legitimate
-    // positive fixints.
     let input = &[0x92, 0x41, 0x7f][..];
     let out = transcode_to_plain_msgpack(input).unwrap();
     assert_eq!(out, input);

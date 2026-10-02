@@ -174,12 +174,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     drop(dirs.dir);
 }
 /// `--frozen-lockfile` passed on the CLI must take precedence over
-/// `config.lockfile=false`. Before this fix the dispatch matched on
-/// `(config.lockfile, frozen_lockfile, lockfile)` in an order that
-/// treated `config.lockfile=false` as "skip lockfile entirely",
-/// silently dropping the CLI flag and resolving from the registry
-/// instead — the very regression the integrated benchmark was
-/// measuring. Pin the new priority: frozen flag + lockfile present
+/// `config.lockfile=false`. Pin the priority: frozen flag + lockfile present
 /// → `InstallFrozenLockfile`, regardless of `config.lockfile`.
 ///
 /// We don't need the full install to succeed here — any error that
@@ -273,8 +268,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
 }
 /// Symmetric negative: `--frozen-lockfile` with no lockfile
 /// loadable must surface `NoLockfile`, even when `config.lockfile`
-/// is `false` (which used to fall through to the no-lockfile path
-/// and silently succeed).
+/// is `false`.
 #[tokio::test]
 async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let dirs = InstallDirs::new();
@@ -711,9 +705,9 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
     .run::<SilentReporter>()
     .await;
 
-    // The freshness check must accept the install; before the fix
-    // pacquet would surface `OutdatedLockfile::OverridesChanged`
-    // because `catalog:` ≠ `1.0.0` as raw strings. (The install may
+    // The freshness check must accept the install; it must not surface
+    // `OutdatedLockfile::OverridesChanged` over `catalog:` ≠ `1.0.0`
+    // as raw strings. (The install may
     // still fail later for unrelated reasons in this minimal fixture,
     // but the overrides gate must pass.)
     if let Err(InstallError::OutdatedLockfile { reason }) = &result {
@@ -820,8 +814,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
 /// enough to prove the wiring runs end-to-end without panicking and
 /// that the registry entry actually lands on disk; the GVS-shaped
 /// per-package path layout itself is unit-tested inside the
-/// [`crate::VirtualStoreLayout`] module, and the e2e GVS cases (with
-/// non-empty snapshots) are tracked as a follow-up.
+/// [`crate::VirtualStoreLayout`] module.
 #[tokio::test]
 async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     let dirs = InstallDirs::new();

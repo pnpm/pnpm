@@ -127,8 +127,6 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
 
 /**
  * Empty function to ensure TypeScript has narrowed the manifest object to
- * something assignable to the {@see WorkspaceManifest} interface. This helps
- * make sure the validation logic in this file is correct as it's refactored in
- * the future.
+ * something assignable to the {@see WorkspaceManifest} interface.
  */
 function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest): void {}

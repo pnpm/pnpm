@@ -145,9 +145,7 @@ registries:
 }
 
 /// `strictStorePkgContentCheck` decides whether a store row that holds
-/// another package fails the install. Same camelCase rename +
-/// `apply_to` wiring as `verifyStoreIntegrity`, and the same
-/// default-true polarity.
+/// another package fails the install.
 #[test]
 fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
     let yaml = "strictStorePkgContentCheck: false\n";
@@ -161,10 +159,7 @@ fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
 }
 
 /// `sideEffectsCache` is the side-effects cache READ-path knob from
-/// pnpm-workspace.yaml. Same shape as `verifyStoreIntegrity`:
-/// camelCase rename + `apply_to` wiring. Parsing a yaml that flips
-/// the default-true setting to false must end up at
-/// `config.side_effects_cache == false`.
+/// pnpm-workspace.yaml.
 #[test]
 fn parses_side_effects_cache_from_yaml_and_applies() {
     let yaml = "sideEffectsCache: false\n";
@@ -178,9 +173,7 @@ fn parses_side_effects_cache_from_yaml_and_applies() {
 }
 
 /// `sideEffectsCacheReadonly` is pnpm's read-only flag for the
-/// side-effects cache. Same camelCase + `apply_to` wiring as
-/// `sideEffectsCache`. Default is `false`, so flipping it on via
-/// yaml must end at `config.side_effects_cache_readonly == true`.
+/// side-effects cache.
 #[test]
 fn parses_side_effects_cache_readonly_from_yaml_and_applies() {
     let yaml = "sideEffectsCacheReadonly: true\n";

@@ -103,9 +103,7 @@ export function isTarballFilename (bareSpecifier: string): boolean {
 }
 
 /**
- * Whether the spec is path-shaped:
- * - Windows: `/^(?:[./\\]|~\/|[a-z]:)/i`
- * - POSIX:   `/^(?:[./]|~\/|[a-z]:)/i`
+ * Whether the spec is path-shaped.
  *
  * A path lacking that shape reads as a hosted-git shorthand instead.
  */

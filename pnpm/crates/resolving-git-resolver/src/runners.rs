@@ -1,9 +1,4 @@
 //! Production [`GitProbe`] and [`GitCommandRunner`] implementations.
-//!
-//! Pulled out from `git_resolver.rs` to keep the public API free of
-//! the runner concrete types: callers get either the production
-//! pair (real network + real `git` binary) or supply their own
-//! ports of the traits in tests.
 
 use crate::{
     git_resolver::{GitProbe, ProbeFuture},

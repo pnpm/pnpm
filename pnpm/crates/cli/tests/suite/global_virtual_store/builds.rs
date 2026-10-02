@@ -114,10 +114,8 @@ fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
     drop((root, mock_instance));
 }
 
-/// TS: `GVS re-links when allowBuilds changes` (`globalVirtualStore.ts:205`),
-/// which is also the `.modules.yaml` half listed under the
-/// "`.modules.yaml` Write And Verify" section of the porting plan: the
-/// approval set the install ran under has to round-trip through
+/// TS: `GVS re-links when allowBuilds changes` (`globalVirtualStore.ts:205`):
+/// the approval set the install ran under has to round-trip through
 /// `.modules.yaml`.
 #[test]
 fn gvs_relinks_when_allow_builds_changes() {

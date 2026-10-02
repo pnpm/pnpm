@@ -360,9 +360,7 @@ async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required(
 /// not just a post-challenge retry. `publish_with_otp_handling` invokes its
 /// operation with no challenge OTP first, so the configured one has to fall
 /// through; regressing that would make `--otp` a no-op until the registry
-/// challenges. The single `expect(1)` mock matches `npm-otp` on the first
-/// request and returns 200, so a dropped OTP or an extra challenge round-trip
-/// fails the assertion.
+/// challenges.
 #[tokio::test]
 async fn publish_with_otp_handling_sends_a_configured_otp_on_the_first_attempt() {
     let mut server = mockito::Server::new_async().await;
@@ -394,11 +392,8 @@ async fn publish_with_otp_handling_sends_a_configured_otp_on_the_first_attempt()
 }
 
 /// The classic OTP flow, driven end-to-end through the publish HTTP layer:
-/// prompt for an OTP on the challenge and retry. The first PUT
-/// (no `npm-otp`) gets a 401 OTP challenge, the fake host prompts and returns
-/// the code, and the retry PUT — distinguished by the `npm-otp` header it now
-/// carries — succeeds. Exercises the `put_publish` ↔ `with_otp_handling` seam
-/// a mocked operation cannot.
+/// prompt for an OTP on the challenge and retry. Exercises the `put_publish`
+/// ↔ `with_otp_handling` seam a mocked operation cannot.
 #[tokio::test]
 async fn classic_otp_flow_prompts_then_retries_with_the_code() {
     web_auth_fake!(FakeHost, RecordingReporter, set_input);

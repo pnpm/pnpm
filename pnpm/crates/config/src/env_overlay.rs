@@ -3,7 +3,7 @@
 //!
 //! Reads `pnpm_config_<key>` (or its `PNPM_CONFIG_<KEY>` uppercase form)
 //! for every key in the schema and applies it to the config *after*
-//! `pnpm-workspace.yaml`. That ordering means env vars override yaml.
+//! `pnpm-workspace.yaml`.
 //! The command line's `--config.<key>=<value>` values read through the same
 //! field list; see [`crate::Config::cli_setting_values`].
 //!
@@ -336,7 +336,6 @@ impl WorkspaceSettings {
         json_field!(settings, reader, ignore_scripts, "IGNORE_SCRIPTS");
         json_field!(settings, reader, git_checks, "GIT_CHECKS");
         json_field!(settings, reader, publish_wait_timeout, "PUBLISH_WAIT_TIMEOUT");
-        // Empty removes the `v` prefix, so an empty env value must survive.
         string_field_allow_empty!(settings, reader, tag_version_prefix, "TAG_VERSION_PREFIX");
         json_field!(settings, reader, engine_strict, "ENGINE_STRICT");
         json_field!(settings, reader, force_ignores_platform, "FORCE_IGNORES_PLATFORM");

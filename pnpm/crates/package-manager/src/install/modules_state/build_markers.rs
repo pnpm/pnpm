@@ -16,9 +16,7 @@ pub(in super::super) fn gvs_build_markers_may_require_recovery(config: &Config) 
 }
 /// Probe the buildable or patched GVS slots this lockfile resolves to.
 /// Markers in sibling hash directories belong to other dependency graphs and
-/// cannot be recovered by materializing this one. The effective Node version
-/// participates only when materialization would run installability checks;
-/// constraint-free materialization keys the layout to the detected host Node.
+/// cannot be recovered by materializing this one.
 pub(in super::super) fn gvs_build_marker_present(
     wanted: &Lockfile,
     config: &Config,

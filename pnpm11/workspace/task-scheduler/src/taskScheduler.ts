@@ -32,7 +32,7 @@ export interface ScheduleTasksOptions {
 }
 
 export interface ScheduleGraphOptions<Node> {
-  /** When `true`, the first failure stops the run: nothing further is dispatched and the scheduler settles at once. */
+  /** See {@link ScheduleTasksOptions.bail}. */
   bail: boolean
   /** Maximum number of graph nodes whose work may be in flight. */
   concurrency?: number
@@ -289,8 +289,7 @@ function finishNode<Node> (scheduler: Scheduler<Node>, node: Node, completion: T
 
 function settleIfDone<Node> (scheduler: Scheduler<Node>): void {
   // Task runs may opt out because a watch-style script never finishes.
-  // Command pipelines retain their prior Promise.all behavior by waiting
-  // for work that was already dispatched.
+  // Command pipelines wait for work that was already dispatched.
   const inFlightSettled = scheduler.opts.finishInFlight === false || scheduler.active === 0
   if (scheduler.unsettled === 0 || (scheduler.stopDispatch && inFlightSettled)) {
     scheduler.resolve()

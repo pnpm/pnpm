@@ -28,9 +28,7 @@ impl WorkspaceSettings {
     ///
     /// Every field listed here is a key excluded from the global
     /// config, plus the programmatic-only and workspace-only knobs
-    /// (`patchedDependencies`, `allowBuilds`,
-    /// `supportedArchitectures`, `ignoredOptionalDependencies`,
-    /// `hoistingLimits`, `externalDependencies`) that pnpm only reads
+    /// that pnpm only reads
     /// from `pnpm-workspace.yaml` or the legacy `package.json#pnpm`
     /// field. Without this filter a user could put `nodeLinker:
     /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would

@@ -153,6 +153,13 @@ impl PackageManagerBootstrap {
     }
 }
 
+/// Fold a source's explicitly-set settings into the running record, later
+/// sources overriding earlier ones. The `_auth` key is dropped: it carries
+/// credentials and never belongs in `pnpm config list` output.
+///
+/// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
+/// setting, so a source that sets either one decides both, or `pnpm config
+/// get` would answer one of the two with the value the install did not use.
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,

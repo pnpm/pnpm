@@ -65,10 +65,6 @@ const AUTH_CFG_KEYS = [
  * 4. **Fetch retry/timeout:** governs how the client talks to the registry.
  *    These reflect the same network environment as a regular install.
  *
- * Other settings are intentionally excluded. These are the ones that control
- * how downloaded packages are arranged in `node_modules` (hoisting, linking,
- * workspace layout, etc.).
- *
  * ## Rules
  *
  * | Category                       | Inherited by dlx? | Examples                                         |
@@ -173,11 +169,6 @@ export function inheritAuthConfig (target: InheritableConfigPair, src: Inheritab
  * Inherits the categories listed above (auth/registry, security & trust
  * policy, catalogs, and fetch retry/timeout) from a local config source
  * into the target config.
- *
- * Used by `pnpm dlx` and `pnpm create` so that these commands respect
- * the local project's registry authentication, security policies,
- * catalog definitions, and fetch behavior, while ignoring
- * project-structural settings.
  */
 export function inheritDlxConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
   inheritPickedConfig(target, src, pickDlxConfig, pickRawAuthConfig)
@@ -191,8 +182,6 @@ export const isIniConfigKey = (key: string): boolean =>
 
 /**
  * Whether the config key should be read from .npmrc files.
- * This includes auth keys and proxy keys (proxy keys are readable from .npmrc
- * for easier migration from npm, but are written to YAML config files).
  */
 export const isNpmrcReadableKey = (key: string): boolean =>
   isIniConfigKey(key) || NETWORK_INI_KEYS.includes(key)

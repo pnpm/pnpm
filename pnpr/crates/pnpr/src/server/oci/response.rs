@@ -42,6 +42,12 @@ pub(super) fn ranged_blob_response(
     }
 }
 
+/// A refusal on its way to becoming a response, small enough to ride in a
+/// `Result`'s error slot as the response itself is not.
+///
+/// The status is carried rather than re-derived from the code, because a
+/// `RegistryError` has already chosen one, and deriving it back from the spec
+/// code would answer `405` for every error that has no code of its own.
 pub(in super::super) struct Refusal {
     pub(super) status: StatusCode,
     pub(super) code: ErrorCode,

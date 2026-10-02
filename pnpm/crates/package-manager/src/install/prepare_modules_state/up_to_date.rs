@@ -144,9 +144,6 @@ fn build_state_unchanged(
     modules: &pnpm_modules_yaml::ModulesLayout,
 ) -> bool {
     let config = context.tree.config;
-    // An `allowBuilds` change that now permits a previously-ignored
-    // build must rebuild it, even though the lockfile and layout are
-    // unchanged.
     !has_newly_allowed_ignored_builds(modules, config)
         // Every other move in the approval set. A withdrawn approval has
         // to be re-evaluated, or a strict install would exit 0 on a

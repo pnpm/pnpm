@@ -204,9 +204,6 @@ async function fetchPackageFilesFromDir (
 ): Promise<FetchResult> {
   const files = await packlist(dir)
   const filesMap = new Map<string, string>(files.map((file) => [file, path.join(dir, file)]))
-  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-  // Safe read was added to support the Bit workspace in which the components have no package.json files.
-  // Related PR in Bit: https://github.com/teambit/bit/pull/5251
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
   const requiresBuild = pkgRequiresBuild(manifest, filesMap)
   return {

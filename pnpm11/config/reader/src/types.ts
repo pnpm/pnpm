@@ -158,8 +158,7 @@ export const pnpmTypes = {
   'audit-level': ['low', 'moderate', 'high', 'critical'],
 }
 
-// NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)
-//       contains some field that overlaps with that of `npmTypes.types`. The definitions of such fields are pointless as they are overwritten by
+// NOTE: pnpmTypes contains some field that overlaps with that of `npmTypes.types`. The definitions of such fields are pointless as they are overwritten by
 //       `npmTypes.types` anyway.
 // TODO: Fix this overlap later.
 // TODO: After that, move `...pnpmTypes` down, `...npmTypes.types` up.

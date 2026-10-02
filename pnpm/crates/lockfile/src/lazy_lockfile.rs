@@ -194,8 +194,7 @@ impl LazyLockfile {
 
 /// A wanted lockfile that is either already parsed (callers that
 /// re-resolve after a manifest mutation hold one) or lazily loadable.
-/// `Copy` so it threads through the install pipeline like the
-/// `Option<&Lockfile>` it replaces.
+/// `Copy` so it threads through the install pipeline.
 #[derive(Clone, Copy)]
 pub enum MaybeLazyLockfile<'a> {
     Loaded(Option<&'a Lockfile>),

@@ -19,7 +19,7 @@ use crate::{
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter},
 };
 
-/// Inputs for [`pack`]. Mirrors [`PackOptions`] in `index.d.ts`.
+/// Inputs for [`pack`].
 #[napi(object)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -41,7 +41,7 @@ pub struct PackOptions {
     pub extra_env: Option<HashMap<String, String>>,
 }
 
-/// Result of [`pack`]. Mirrors [`PackResult`] in `index.d.ts`.
+/// Result of [`pack`].
 #[napi(object)]
 pub struct PackResult {
     pub published_manifest: serde_json::Value,

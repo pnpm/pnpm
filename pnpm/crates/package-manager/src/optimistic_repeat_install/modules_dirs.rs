@@ -32,12 +32,6 @@ pub(super) fn first_project_missing_modules_dir(
 }
 /// [`first_project_missing_modules_dir`] restricted to the projects the gate
 /// selected.
-///
-/// A filtered install legitimately leaves the projects it did not select
-/// without a modules directory, but the projects the gated command selected
-/// still have to have one: without that, a filtered `run` or `exec` could
-/// select a project the filtered install never materialized and run it
-/// without its dependencies.
 pub(super) fn first_selected_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,

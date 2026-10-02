@@ -49,14 +49,13 @@ mod recursive;
 pub struct RunArgs {
     /// A pre-defined package script followed by the arguments passed to
     /// it. When empty, the available scripts are listed.
-    ///
-    /// One positional rather than a script name plus a separate argument
-    /// list, so parsing stops *at* the script name — pnpm puts `run` in
-    /// `SPECIALLY_ESCAPED_CMDS` to the same effect. Every later token
-    /// reaches the script verbatim, including a `--` separator and
-    /// anything shaped like a pnpm flag. Splitting the two lets clap keep
-    /// parsing past the script name, which swallows both
-    /// (pnpm/pnpm#13295). `exec` / `dlx` / `with` take the same shape.
+    // One positional rather than a script name plus a separate argument
+    // list, so parsing stops *at* the script name — pnpm puts `run` in
+    // `SPECIALLY_ESCAPED_CMDS` to the same effect. Every later token
+    // reaches the script verbatim, including a `--` separator and
+    // anything shaped like a pnpm flag. Splitting the two lets clap keep
+    // parsing past the script name, which swallows both
+    // (pnpm/pnpm#13295). `exec` / `dlx` / `with` take the same shape.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub script: Vec<String>,
     /// Avoid exiting with a non-zero exit code when the script is undefined.

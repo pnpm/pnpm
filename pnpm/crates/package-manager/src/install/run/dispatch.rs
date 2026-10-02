@@ -81,15 +81,6 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         install.lockfile_policy.update_checksums,
         install.lockfile_policy.frozen,
     )?;
-    // Compute the dispatch decision once. `take_frozen_path` is true
-    // for both state 1 (--frozen-lockfile) and state 2 (auto-frozen
-    // via prefer-frozen-lockfile). The freshness check fires for both
-    // — fatal for state 1, fall-through for state 2.
-    //
-    // `--dry-run` always takes the fresh-resolve path: it must compute
-    // the would-be lockfile to diff against the existing one, and the
-    // frozen freshness gate would otherwise abort on a stale lockfile
-    // instead of reporting the change.
     let take_frozen_path = decide_frozen_path::<Reporter>(&FrozenDispatch {
         dry_run: install.execution.dry_run,
         frozen_lockfile: install.lockfile_policy.frozen,

@@ -154,9 +154,7 @@ pub(super) fn carry_previous_deprecation(
     }
 }
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the
-/// lockfile's `packages:` map. Pulls `engines` / `cpu` / `os` / `libc` /
-/// `deprecated` / `hasBin` / `bundledDependencies` / `peerDependencies`
-/// off the resolver's manifest fragment when present.
+/// lockfile's `packages:` map.
 ///
 /// Covers the per-package half only — the per-snapshot fields
 /// `dependencies` / `optionalDependencies` / `transitivePeerDependencies` /
@@ -285,9 +283,7 @@ pub fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
         });
     (has_bin || has_bin_directory).then_some(true)
 }
-/// Returned `Option`-pair from [`build_peer_dep_blocks`]: the
-/// `peerDependencies` map (name → range) and the
-/// `peerDependenciesMeta` map (name → `{ optional: true }`).
+/// Returned `Option`-pair from [`build_peer_dep_blocks`].
 pub(super) type PeerDepBlocks =
     (Option<HashMap<String, String>>, Option<HashMap<String, PeerDependencyMeta>>);
 /// Split the resolver's `peer_dependencies` into the

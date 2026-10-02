@@ -150,7 +150,6 @@ async function installImportedLockfile (
   params: string[],
   imported: ImportedPreferredVersions
 ): Promise<void> {
-  // For a workspace with shared lockfile
   if (opts.workspaceDir) {
     await installImportedWorkspaceLockfile({ ...opts, workspaceDir: opts.workspaceDir }, params, imported)
     return
@@ -196,7 +195,6 @@ async function installImportedWorkspaceLockfile (
   )
 }
 
-// Check and warn if there are cyclic dependencies
 function checkWorkspaceCycles (
   opts: Pick<ImportCommandOptions, 'ignoreWorkspaceCycles' | 'disallowWorkspaceCycles'> & { workspaceDir: string },
   cycles: string[][]

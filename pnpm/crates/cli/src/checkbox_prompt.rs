@@ -382,7 +382,7 @@ fn render_help_line() -> String {
 }
 
 /// pnpm's `interactivePromptPageSize()`: the terminal height less the
-/// frame around the list, and never fewer than seven lines.
+/// frame around the list.
 fn page_size_for(term: &Term) -> usize {
     term.size_checked()
         .map_or(MIN_PAGE_SIZE, |(rows, _)| {

@@ -22,7 +22,7 @@ pub(super) fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 /// pnpm's own env pass only skips a variable that is absent, never one
 /// that is empty, so an empty value clobbers lower-priority layers. For
 /// nearly every setting an empty value is indistinguishable from an unset
-/// one, which is why [`read_env`] drops it. Three settings are exceptions,
+/// one, which is why [`read_env`] drops it. The exceptions,
 /// where `""` is observably different from unset:
 ///
 /// - `savePrefix`: `""` is the value that selects an exact version pin.
@@ -44,7 +44,7 @@ pub(super) fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> 
 /// where an empty variable reads as unset); the command line's
 /// `--config.<setting>=<value>` tokens are the other
 /// (`WorkspaceSettings::from_string_values`). `value_allow_empty` is kept
-/// separate because three settings read `""` as a value of their own — see
+/// separate because some settings read `""` as a value of their own — see
 /// [`read_env_allow_empty`].
 #[derive(Clone, Copy)]
 pub(super) struct StringReader<'a> {

@@ -263,9 +263,8 @@ test('devEngines.packageManager re-resolves when locked version no longer satisf
   expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
 })
 
-// https://github.com/pnpm/pnpm/issues/14009: a frozen install used to record
-// the bumped pin and carry on, hiding a lockfile that no longer matched the
-// manifest from every CI job that relies on the flag.
+// A frozen install that recorded the bumped pin would hide a lockfile that no
+// longer matches the manifest from CI (https://github.com/pnpm/pnpm/issues/14009).
 test('devEngines.packageManager is not re-resolved under --frozen-lockfile', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

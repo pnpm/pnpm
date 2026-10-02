@@ -38,18 +38,9 @@ const ENFILE: i32 = 23;
 /// (many concurrent rayon workers each holding fds during CAS
 /// extraction + verification) makes fd pressure likely under load.
 ///
-/// Backoff doubles starting at 2 ms and caps at 200 ms; the budget
-/// is 32 sleep-and-retry rounds followed by a final attempt (33
-/// total calls) for roughly 5–6 s of total wait before we surface
-/// the error. Real fd-pressure resolves in tens of ms once other
-/// workers finish their writes and close fds, so we hit the cap
-/// rarely.
-///
 /// On Windows the error codes don't map (Win32 returns its own
 /// numeric space) and the runtime fd limits work differently, so
-/// the helper is a thin pass-through there — the trailing `op()`
-/// after the `cfg(unix)` block is the one and only attempt on that
-/// platform.
+/// the helper is a thin pass-through there.
 pub(crate) fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
 where
     Func: FnMut() -> io::Result<Value>,
@@ -130,26 +121,6 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 /// guarantee that should call [`ensure_parent_dir`] first — splitting
 /// the two lets the CAFS writer share one `create_dir_all` per shard
 /// instead of paying it per file.
-///
-/// Sequence:
-///
-/// 1. Try `O_CREAT | O_EXCL` open (`OpenOptions::create_new(true)`).
-///    On success we own the file and write `content` directly.
-/// 2. On `ErrorKind::AlreadyExists` (warm cache or concurrent writer
-///    race) re-read the file and byte-compare with `content`. CAS
-///    paths are hash-derived, so matching bytes == matching digest;
-///    since we already have the expected bytes in hand, comparing
-///    against them verifies integrity without a separate hash step.
-/// 3. If bytes match → `Ok(())`. The file is a live CAS entry; leaving
-///    it alone is correct.
-/// 4. If bytes mismatch, a prior install crashed mid-write and left a
-///    torn blob. Recover by writing a fresh temp file next to the
-///    target and `rename`ing it over. Rename is atomic on Unix
-///    (`rename(2)`) and replaces-in-place on Windows
-///    (`SetFileInformationByHandle`/`MoveFileEx`), so an observer
-///    never sees a partial file. ([`ensure_cas_file`] instead repairs
-///    in place, keeping the inode for the sake of hard-linked copies.)
-/// 5. Any other open error propagates as `CreateFile`.
 ///
 /// Design choices:
 ///
@@ -252,11 +223,6 @@ fn ensure(
 
 /// Borrow the process-local write mutex for `file_path`.
 ///
-/// The hot path costs one path hash + one uncontended mutex acquire
-/// per CAFS file written (~170k on the alotta-files fixture), with no
-/// allocations: the path is hashed into one of `NUM_CAS_LOCK_STRIPES`
-/// statically-allocated mutexes.
-///
 /// **Coordination contract.** Callers handing in the same `&Path`
 /// always receive the same `Mutex<()>`. The hasher is initialised
 /// once per process (`LazyLock<RandomState>`) so the path-to-stripe
@@ -357,13 +323,7 @@ fn verify_or_rewrite(
 }
 
 /// Repair a corrupt regular file at `file_path` per the caller's
-/// strategy. [`Repair::InPlace`] overwrites under the same inode so
-/// every hard link to the file — other projects' `node_modules` copies
-/// of the CAS blob — is healed by the same write (pnpm/pnpm#3445),
-/// falling back to [`write_atomic`]'s temp+rename when the in-place
-/// overwrite is refused or the freshly written bytes fail verification
-/// (e.g. a concurrent process still mid-write on the same path
-/// interleaved with ours).
+/// strategy.
 fn repair_file(
     file_path: &Path,
     content: &[u8],
@@ -428,15 +388,6 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// `rename` it over the target. The rename is the only atomic step; an
 /// observer sees either the old contents or the new ones, never a
 /// half-written blob.
-///
-/// The temp file itself is opened with `O_CREAT|O_EXCL`
-/// (`create_new(true)`) rather than `create+truncate` so we never
-/// follow a symlink or truncate a file an attacker (or a crashed
-/// prior install) pre-seeded at our predicted temp path. If we hit
-/// `AlreadyExists` anyway — collisions are vanishingly rare given the
-/// pid + per-process atomic counter temp scheme, but cross-container
-/// shared-store setups can re-use pids — we advance the counter and
-/// try again, up to `MAX_TEMP_ATTEMPTS` times.
 ///
 /// Open errors are classified as `CreateFile`; write errors as
 /// `WriteFile`. On any failure the partially-created temp file is
@@ -546,9 +497,8 @@ pub fn create_exclusive_temp_file(
     })
 }
 
-/// Build a unique temp path inside `dir`, of the form
-/// `{base}{pid}{counter}` per [`create_exclusive_temp_file`]'s
-/// uniqueness contract.
+/// Build a unique temp path inside `dir`, per
+/// [`create_exclusive_temp_file`]'s uniqueness contract.
 fn temp_path_in(dir: &Path, base: &str) -> PathBuf {
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 

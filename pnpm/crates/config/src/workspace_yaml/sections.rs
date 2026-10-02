@@ -526,13 +526,6 @@ pub struct PeerDependencyRules {
 /// groups, merged onto every matching manifest at install time. The
 /// fields are `dependencies`, `optionalDependencies`,
 /// `peerDependencies`, and `peerDependenciesMeta`.
-///
-/// Read directly from yaml — no validation here beyond serde's shape
-/// check. The hook
-/// (`pnpm_package_manager::PackageExtender`) merges these onto
-/// manifests, with the manifest's own fields taking precedence on
-/// conflict so the extension never overwrites a value the package
-/// already declared.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PackageExtension {
@@ -546,7 +539,7 @@ pub struct PackageExtension {
     pub peer_dependencies_meta: Option<BTreeMap<String, PeerDependencyMeta>>,
 }
 
-/// `peerDependenciesMeta` entry shape: a single `optional` flag today.
+/// `peerDependenciesMeta` entry shape: a single `optional` flag.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PeerDependencyMeta {

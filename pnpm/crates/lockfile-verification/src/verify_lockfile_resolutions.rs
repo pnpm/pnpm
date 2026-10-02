@@ -6,12 +6,6 @@
 //! short-circuit by returning [`ResolutionVerification::Ok`] for
 //! resolutions outside their scope; the runner is policy-neutral and
 //! dispatch-free at this layer.
-//!
-//! Cache lookup / record are out of scope for this slice (Phase 6
-//! splits the runner from the JSONL cache). The shape that supports
-//! the cache — `lockfile_path` on the options bag, the runner-side
-//! emit boundaries — is in place so the cache slice only needs to
-//! plug into the existing call sites.
 
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
@@ -158,11 +152,6 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    // Caching activates only when both `cache_dir` and
-    // `lockfile_path` are supplied. Production wiring always passes
-    // both; tests that skip them exercise the gate without
-    // memoization (and still cover the runner's emit + violation
-    // logic via the same code path).
     let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
 
     let cache_verifiers = with_offline_check_cache_identities(verifiers);
@@ -240,18 +229,11 @@ async fn verify_candidates<Reporter: self::Reporter>(
         LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
 
-    // The drop guard fires `Failed` for early-return / panic paths.
-    // The success path replaces it with the `Done` payload before
-    // returning, so the guard's drop only fires on a panic or on the
-    // throw-violations branch.
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
     let violations = match run_fan_out(candidates, verifiers, concurrency).await {
         Ok(violations) => violations,
-        // The registry couldn't be reached to verify an entry: abort with its
-        // own error (already credential-redacted) instead of a policy batch.
-        // `emit_guard` is still armed to emit `failed` on drop.
         Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
     };
     if violations.is_empty() {
@@ -333,8 +315,7 @@ fn record_verdict(
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
 /// returns violations as data instead of throwing on the first batch.
 /// No reporter emits, no cache wiring — for callers that need to
-/// inspect violations (auto-collect into `minimumReleaseAgeExclude`,
-/// strict-mode prompts, future custom policies).
+/// inspect violations.
 pub async fn collect_resolution_policy_violations(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],

@@ -9,7 +9,7 @@ use std::path::Path;
 #[repr(u8)]
 pub enum ReporterType {
     /// Rich visual output: a progress line, a packages diff, lifecycle
-    /// output, and a `Done in ...` summary. The default; renders in place
+    /// output, and a `Done in ...` summary. Renders in place
     /// on a terminal and falls back to `append-only` output when stdout is
     /// not a terminal.
     #[default]
@@ -88,10 +88,6 @@ impl ReporterFlags {
 }
 
 /// Accepted values of pnpm's universal `--loglevel` option.
-///
-/// `silent` selects the silent reporter outright (see
-/// [`ReporterFlags::resolve`]); the other values
-/// become the default reporter's [`MaxLogLevel`] ceiling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum LogLevelSetting {
     Silent,

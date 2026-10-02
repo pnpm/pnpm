@@ -85,10 +85,6 @@ fn read_shebang<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime
 /// reads are common. On regular files at offset 0 the underlying
 /// `read` returns the whole prefix in one syscall, so the loop adds
 /// no extra syscalls in the hot path. The cost is one extra branch.
-///
-/// Kept generic over [`FsReadHead`] so tests can plug in a fake that
-/// deliberately returns short and verify the loop accumulates
-/// correctly.
 pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Result<usize> {
     let mut total = 0;
     while total < buf.len() {

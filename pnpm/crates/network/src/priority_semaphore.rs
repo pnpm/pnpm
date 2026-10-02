@@ -1,7 +1,7 @@
 //! Class-aware permit dispenser backing
 //! [`ThrottledClient`](crate::ThrottledClient).
 //!
-//! Three request classes share the pool:
+//! The request classes share the pool:
 //!
 //! * **Latency** ([`crate::UNPRIORITIZED`]) — packument and other
 //!   metadata fetches that gate resolution progress. Served FIFO.

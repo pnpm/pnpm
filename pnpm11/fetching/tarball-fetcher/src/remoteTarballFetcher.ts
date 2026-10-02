@@ -43,7 +43,6 @@ export interface NpmRegistryClient {
 }
 
 export interface CreateDownloaderOptions {
-  // retry
   retry?: {
     retries?: number
     factor?: number

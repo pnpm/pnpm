@@ -26,10 +26,7 @@ impl ThrottledClient {
     ///   request-level cap bounds how many fetches actually run at once;
     ///   pacquet's semaphore plays the second role.
     /// * **A `User-Agent` header** ([`NetworkSettings::user_agent`],
-    ///   defaulting to [`DEFAULT_USER_AGENT`](crate::DEFAULT_USER_AGENT)). A default
-    ///   `reqwest::Client` sends no UA, which can trip CDN / WAF rules
-    ///   that reject or RST bot-shaped traffic before any HTTP response
-    ///   is produced.
+    ///   defaulting to [`DEFAULT_USER_AGENT`](crate::DEFAULT_USER_AGENT)).
     ///
     /// `pool_idle_timeout(4s)` matches
     /// [`agentkeepalive`'s](https://github.com/node-modules/agentkeepalive/blob/1e5e312f36/lib/agent.js#L39-L41)
@@ -74,25 +71,9 @@ impl ThrottledClient {
     /// * **Proxy routing.** HTTPS targets route through `https_proxy`,
     ///   HTTP targets through `http_proxy`, and [`ProxyConfig::no_proxy`]
     ///   short-circuits both via a per-URL custom-proxy closure.
-    ///   Basic-auth user/password halves embedded in the proxy URL
-    ///   are percent-decoded before being forwarded as the
-    ///   `Proxy-Authorization` header.
     /// * **TLS.** Every certificate read out of [`TlsConfig::ca`] is
     ///   added as a trusted root; material the TLS backend cannot read
-    ///   is skipped. When both [`TlsConfig::cert`] and
-    ///   [`TlsConfig::key`] are set and neither is blank, they are
-    ///   concatenated and passed to `Identity::from_pem` (rustls
-    ///   single-buffer form). rustls accepts PKCS#1, PKCS#8, and EC
-    ///   private keys — the same surface Node's `tls` exposes.
-    ///   `strict_ssl` defaults to `true` and disables both
-    ///   chain-of-trust and hostname verification when `false` — same
-    ///   as Node's `rejectUnauthorized=false` short-circuit.
-    /// * **`local_address`.** Pinned via
-    ///   `reqwest::ClientBuilder::local_address`.
-    /// * **Trust store.** The platform's, falling back to the Mozilla
-    ///   roots bundled into the binary when the platform verifier
-    ///   cannot be constructed (a system with no trust store at all).
-    ///   Android always uses the bundled roots because the CLI has no JVM.
+    ///   is skipped.
     ///
     /// Returns [`ProxyError::InvalidProxy`](crate::proxy::ProxyError::InvalidProxy) when either configured
     /// proxy URL fails to parse even after the auto-`http://` prefix
@@ -183,9 +164,6 @@ impl ThrottledClient {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
         let proxy_routing = resolve_proxy_routing(proxy)?;
-        // Read once here, not inside `build_client`: `for_installs`
-        // builds one client per per-registry override, so loading the
-        // bundle per call would re-read and re-parse it N times.
         let extra_ca_certs = load_node_extra_ca_certs();
 
         let inputs = ClientBuildInputs {
@@ -205,11 +183,7 @@ impl ThrottledClient {
             follow_redirects: build_client(tls, false)?,
             no_redirects: build_client(tls, true)?,
         };
-        // Build one client per per-registry override. Each gets a
-        // merged `TlsConfig` where the per-registry fields shadow
-        // their top-level counterparts field-by-field. `strict_ssl` and
-        // `local_address` are top-level-only, so the per-registry client
-        // still honors the top-level values.
+        // Build one client per per-registry override.
         let per_registry = per_registry.try_map(|override_| -> Result<_, ForInstallsError> {
             let merged = merge_tls(tls, override_);
             Ok(ClientPair {

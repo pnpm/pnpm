@@ -2,12 +2,7 @@
 //! the registry.
 //!
 //! Ported from the upstream suite `registry-access/commands/test/unpublish.ts`
-//! plus the error paths its handler defines: the missing-name / not-found /
-//! no-versions / no-matching-versions errors, the `--force` protection for a
-//! full unpublish (also when a range matches every version), the partial
-//! unpublish `PUT` (versions removed, dist-tags re-pointed, `latest`
-//! reassigned), tolerated tarball-delete 404s, the 405/401 registry
-//! answers, and the OTP challenge handling a 2FA-enforced account needs.
+//! plus the error paths its handler defines.
 //!
 //! The registry is a `mockito` server; an empty `--npmrc-auth-file` keeps the
 //! developer's real `~/.npmrc` from influencing the test.

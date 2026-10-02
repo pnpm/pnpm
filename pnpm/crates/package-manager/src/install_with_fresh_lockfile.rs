@@ -84,21 +84,6 @@ pub type ResolvedPackages = DashMap<String, watch::Sender<bool>>;
 /// materialize `node_modules`, and emit a brand-new `pnpm-lock.yaml`
 /// reflecting the resolved graph. Caller (see [`crate::Install::run`])
 /// drives this path whenever no `--frozen-lockfile` was requested.
-///
-/// **Brief overview for each package:**
-/// * Resolve every importer's dependency through the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver] chain
-///   (`resolve_workspace` builds the per-importer trees, runs the
-///   cross-importer peer pass, and applies `dedupeInjectedDeps`).
-/// * Fetch a tarball of each resolved package and extract it into the
-///   store directory.
-/// * Import (by reflink, hardlink, or copy) the files from the store
-///   dir to `node_modules/.pacquet/{name}@{version}/node_modules/{name}/`.
-/// * Create dependency symbolic links in
-///   `node_modules/.pacquet/{name}@{version}/node_modules/`.
-/// * Create a symbolic link at `node_modules/{name}`.
-/// * Run the resolved graph through
-///   [`crate::dependencies_graph_to_lockfile()`] to produce a v9
-///   `pnpm-lock.yaml`; the caller writes it to `<lockfile_dir>/pnpm-lock.yaml`.
 #[must_use]
 pub struct InstallWithFreshLockfile<'a> {
     pub(crate) inputs: FreshInputs<'a>,
@@ -321,9 +306,8 @@ pub(crate) struct OwnedInputs {
     /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::InstallProjects::pnpmfile_hook_override`].
     pub(crate) pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     /// The pre-resolve verification of the existing lockfile, running in
-    /// the background while this install resolves and materializes. The
-    /// verdict is awaited before bin linking, dependency builds, and the
-    /// lockfile save. See [`crate::LockfileVerificationGate`].
+    /// the background while this install resolves and materializes. See
+    /// [`crate::LockfileVerificationGate`].
     pub(crate) lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
     pub(crate) resolution: crate::ResolutionInputs,
     pub(crate) fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs,
@@ -373,9 +357,7 @@ pub(crate) struct FreshProjectInputs {
 ///
 /// Returns the hoist-graph slot the dispatch already consumed plus the
 /// freshly-built [`Lockfile`], so the caller can save it as
-/// `<install_state_dir>/lock.yaml` after `.modules.yaml` succeeds — the
-/// same ordering the frozen-lockfile path uses to guarantee a manifest
-/// failure can't leave a current-lockfile pointing at incomplete install state.
+/// `<install_state_dir>/lock.yaml` after `.modules.yaml` succeeds.
 #[must_use]
 pub struct InstallWithFreshLockfileResult {
     pub hoisted: pnpm_deps_restorer::InstalledHoistedState,

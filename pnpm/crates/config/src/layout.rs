@@ -478,8 +478,7 @@ impl Config {
     /// `NODE_PATH` export in [`Config::current`], so the derived `true`
     /// symlinks bins without exporting `NODE_PATH` (the hoisted layout
     /// has no hidden store to expose), exactly like pnpm's config
-    /// reader. Also re-applied by the CLI's `--config.node-linker`
-    /// override, which lands after [`Config::current`] has run.
+    /// reader.
     ///
     /// A user-configured value — recorded in `explicit_settings` by
     /// every config layer — is never touched. Otherwise the derived

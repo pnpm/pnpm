@@ -245,7 +245,6 @@ function detectPackageChange (
   currentPkg: RequestPackageOptions['currentPkg'],
   resolveResult: ResolveResult
 ): { updated: boolean, integrityChanged: boolean, previousIntegrity: unknown } {
-  // Check if the integrity has changed between the current and newly resolved package
   // Use 'in' check to safely access integrity from any resolution type that has it
   const previousResolution = currentPkg?.resolution
   const previousIntegrity = previousResolution && 'integrity' in previousResolution ? previousResolution.integrity : undefined

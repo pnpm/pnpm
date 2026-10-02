@@ -52,11 +52,6 @@ pub(super) fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
     }
 }
 
-/// The install-family commands that sync `packageManagerDependencies` from
-/// their own pipeline, where the effective `frozen-lockfile` value is known —
-/// the commands whose dispatch calls
-/// `pipelines::derive_config_root_and_package_manager_to_sync`.
-/// See [`env_lockfile_sync`](super::env_lockfile_sync).
 /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command line.
 /// Only the install family carries the flags, and `pnpm ci` is a frozen
 /// install whether or not they were typed.

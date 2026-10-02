@@ -142,15 +142,6 @@ impl Landing {
     }
 }
 
-/// Append a character that carries no meaning of its own, escaping the shell
-/// operators of an unquoted `word` so the parser reads them as the text POSIX
-/// says they are.
-///
-/// Parentheses are not escaped. A `word` is subject to command substitution,
-/// so `${NAME:-$(date)}` has to keep its `$(…)`, and telling those parentheses
-/// from a literal pair would mean tracking the substitution itself. A literal
-/// `(` in a `word` is still read as syntax, which fails loudly rather than
-/// quietly running something.
 /// Append the character a backslash escaped. In a `word` POSIX makes it the
 /// plain character, and single quotes are the one form the parser reads as
 /// literal whatever it holds; a backslash of its own would be read by the
@@ -171,6 +162,15 @@ fn push_escaped(expanded: &mut String, escaped: char, is_bare_word_text: bool) {
     expanded.push('\'');
 }
 
+/// Append a character that carries no meaning of its own, escaping the shell
+/// operators of an unquoted `word` so the parser reads them as the text POSIX
+/// says they are.
+///
+/// Parentheses are not escaped. A `word` is subject to command substitution,
+/// so `${NAME:-$(date)}` has to keep its `$(…)`, and telling those parentheses
+/// from a literal pair would mean tracking the substitution itself. A literal
+/// `(` in a `word` is still read as syntax, which fails loudly rather than
+/// quietly running something.
 fn push_plain(expanded: &mut String, character: char, is_bare_word_text: bool) {
     if !is_bare_word_text {
         expanded.push(character);

@@ -141,7 +141,7 @@ pub(super) struct GroupInstall<'a> {
 
 /// Install `install.selectors` into `install.install_dir`, returning the leaked
 /// per-group [`Config`] (anchored there, saving to `dependencies`). Then run the
-/// global build-approval flow. Shared by add and update.
+/// global build-approval flow.
 pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
     install: GroupInstall<'_>,
 ) -> miette::Result<&'static Config> {

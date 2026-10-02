@@ -42,7 +42,7 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
-  /** The three lookups the `registries` setting is split into. */
+  /** The lookups the `registries` setting is split into. */
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
@@ -304,8 +304,6 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
   if (pnpmSettings.updateConfig != null) {
     globalWarn('Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update".')
   }
-  // The `update` section is authoritative when present: build the internal
-  // `updateConfig` shape from it, superseding any deprecated `updateConfig`.
   const updateConfig: NonNullable<OptionsFromRootManifest['updateConfig']> = {}
   if (update.ignoreDeps != null) {
     assertStringArray(update.ignoreDeps, 'update.ignoreDeps')

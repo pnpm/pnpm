@@ -7,7 +7,6 @@
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum RangeSpecStyle {
     /// Save with a caret range (`^version`), allowing same-major updates.
-    /// pnpm's default.
     #[default]
     Major,
     /// Save with a tilde range (`~version`), allowing patch-level updates.

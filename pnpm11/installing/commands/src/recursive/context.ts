@@ -75,11 +75,8 @@ export async function createRecursiveContext (input: RecursiveInput): Promise<Re
   const store = opts.storeControllerAndDir ?? await createStoreController(opts)
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
-  // See `installDeps.ts` for context; mirrored here so workspace-recursive
-  // installs also surface immature picks (loose-mode auto-persist or
-  // strict-mode prompt). The workspace manifest writer dedupes against the
-  // existing list, so a single drain at the end captures additions across
-  // every project.
+  // The workspace manifest writer dedupes against the existing list, so a
+  // single drain at the end captures additions across every project.
   const policyHandlers = setupPolicyHandlers(opts)
   const installOpts = extendOptionsForInstall(opts, {
     allProjects,

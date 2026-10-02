@@ -50,10 +50,6 @@ export interface CreateNpmResolutionVerifierOptions {
   /**
    * Retained on the options bag because the resolver path branches on it
    * (the lowest-version fallback) and tests forward both fields together.
-   * The verifier itself no longer gates on this flag — once the loose-mode
-   * auto-collect makes every accepted-immature pin explicit in
-   * `minimumReleaseAgeExclude`, running the verifier in loose mode is the
-   * thing that proves the manifest stays in sync with the lockfile.
    */
   minimumReleaseAgeStrict?: boolean
   minimumReleaseAgeExclude?: string[]
@@ -338,11 +334,7 @@ function snapshotVerifierPolicy (
     Object.entries(mergedRegistriesByPrefix).sort(([aliasA], [aliasB]) => aliasA.localeCompare(aliasB))
   )
   return {
-    // Marks runs that enforced the tarball-URL binding. A cache record
-    // written before this rule existed lacks the flag, so
-    // `canTrustPastCheck` rejects it and forces a re-verification that
-    // applies the binding — otherwise an upgrade could keep trusting a
-    // lockfile that was only ever age/trust-checked.
+    // Marks runs that enforced the tarball-URL binding.
     tarballUrlBinding: true,
     revisionHistoryBinding: true,
     // Same cache identity rule for the missing-integrity structural check.
@@ -511,10 +503,6 @@ async function runTrustCheck (
     ignoreMissingTimeField?: boolean
   }
 ): Promise<ResolutionViolation | undefined> {
-  // A transport failure (auth/network/5xx) propagates the registry's own fetch
-  // error; the gate aborts the install with it rather than folding it into a
-  // policy violation. Still fail-closed: a missing manifest can't be mistaken
-  // for a passing trust check because the install never proceeds.
   const meta = await fetchFullMetaForTrust(context, pin.registry, pin.name)
 
   try {

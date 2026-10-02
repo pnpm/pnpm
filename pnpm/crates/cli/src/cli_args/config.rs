@@ -232,8 +232,6 @@ pub(super) fn resolve_global(flags: ConfigFlags) -> bool {
     match flags.location {
         Some(ConfigLocation::Global) => true,
         Some(ConfigLocation::Project) => false,
-        // No `--location`: pnpm defaults config operations to global when no
-        // explicit location was given (a bare `--global` lands here too).
         None => true,
     }
 }
@@ -250,14 +248,10 @@ fn split_set_params(
         .ok_or_else(|| ConfigError::NoParams { subcommand: subcommand.to_string() })?;
     match value {
         Some(value) => Ok((key, value)),
-        None => {
-            // `key=value` form: the key is everything before the first `=`, the
-            // value everything after (so a value may itself contain `=`).
-            match key.split_once('=') {
-                Some((k, v)) => Ok((k.to_string(), v.to_string())),
-                None => Ok((key, String::new())),
-            }
-        }
+        None => match key.split_once('=') {
+            Some((k, v)) => Ok((k.to_string(), v.to_string())),
+            None => Ok((key, String::new())),
+        },
     }
 }
 

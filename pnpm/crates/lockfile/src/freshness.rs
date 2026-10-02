@@ -144,9 +144,7 @@ pub enum StalenessReason {
 
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
-    /// (sorted). This drift would otherwise require a full resolution;
-    /// pacquet has no resolver, so the matching action is to surface
-    /// this as `OutdatedLockfile`. Both values are returned sorted so
+    /// (sorted). Both values are returned sorted so
     /// the error message reads stably in CI logs.
     #[display(
         "`ignoredOptionalDependencies` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
@@ -154,9 +152,7 @@ pub enum StalenessReason {
     IgnoredOptionalDependenciesChanged { lockfile: Vec<String>, config: Vec<String> },
 
     /// The lockfile's `overrides` map doesn't match the current
-    /// install's `Config::overrides`. This drift would otherwise
-    /// require a full resolution; pacquet has no resolver, so the
-    /// matching action is to surface this as `OutdatedLockfile`. Both
+    /// install's `Config::overrides`. Both
     /// values are normalized into a `BTreeMap` so the comparison is
     /// order-insensitive (an absent map equals an empty one), and the
     /// rendered error reads stably.
@@ -168,9 +164,7 @@ pub enum StalenessReason {
     /// The lockfile's `settings.injectWorkspacePackages` differs from
     /// the current install's `Config::inject_workspace_packages`. The
     /// gate normalizes both sides to a boolean so an absent setting
-    /// equals an explicit `false`. This drift would otherwise require a
-    /// full resolution; pacquet has no resolver, so the matching action
-    /// is to surface this as `OutdatedLockfile`.
+    /// equals an explicit `false`.
     #[display(
         "`injectWorkspacePackages` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
@@ -178,7 +172,7 @@ pub enum StalenessReason {
 
     /// `settings.peersSuffixMaxLength` in the lockfile differs from
     /// the value the current install would use. An unset field in the
-    /// lockfile is treated as the default (1000), so drift is "recorded
+    /// lockfile is treated as the default, so drift is "recorded
     /// value (or default) doesn't equal the current config's value".
     #[display(
         "`peersSuffixMaxLength` in the lockfile ({lockfile}) doesn't match the current config ({config})"
@@ -187,9 +181,7 @@ pub enum StalenessReason {
 
     /// The lockfile's `packageExtensionsChecksum` doesn't match the
     /// checksum derived from the current install's
-    /// `Config::package_extensions`. This drift would otherwise require
-    /// a full resolution; pacquet has no resolver, so the matching
-    /// action is to surface this as `OutdatedLockfile`. Both values are
+    /// `Config::package_extensions`. Both values are
     /// the prefixed `sha256-…` strings the writer emits.
     #[display(
         "`packageExtensionsChecksum` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
@@ -197,9 +189,7 @@ pub enum StalenessReason {
     PackageExtensionsChecksumChanged { lockfile: Option<String>, config: Option<String> },
 
     /// The lockfile's `patchedDependencies` (key → patch-file hash)
-    /// doesn't match the map the current install would write. This drift
-    /// would otherwise require a full resolution; pacquet has no resolver,
-    /// so the matching action is to surface this as `OutdatedLockfile`. A
+    /// doesn't match the map the current install would write. A
     /// changed patch file changes its hash here, which is what catches an
     /// edited patch whose `(patch_hash=...)` depPath suffix would otherwise
     /// go stale. Both values are normalized into a `BTreeMap` so the
@@ -403,9 +393,6 @@ fn check_recorded_config(
         });
     }
 
-    // A changed patch file changes its hash here, which is what
-    // invalidates a lockfile whose `(patch_hash=...)` depPath suffixes
-    // would otherwise go stale.
     let empty_patches: BTreeMap<String, String> = BTreeMap::new();
     let lockfile_patches = lockfile.patched_dependencies.as_ref().unwrap_or(&empty_patches);
     let config_patches = check.patched_dependencies.unwrap_or(&empty_patches);
@@ -520,7 +507,7 @@ fn check_pnpmfile_checksum(
 /// records. A lockfile with no `settings` block records nothing about
 /// the setting it was written under, so there is nothing to compare.
 ///
-/// This and its four peers below are the single definition of "this
+/// This and its peers below are the single definition of "this
 /// lockfile setting changed", shared with the fast path that records a
 /// provably inert setting change without re-resolving.
 #[must_use]

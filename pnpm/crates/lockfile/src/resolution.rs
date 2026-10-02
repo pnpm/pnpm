@@ -30,11 +30,6 @@ pub struct TarballResolution {
     /// (preparePackage / packlist) on extraction, and their cached content
     /// depends on whether build scripts ran, so they are addressed by a
     /// git-hosted store-index key rather than the integrity-based key.
-    ///
-    /// The git resolver sets this when it produces the resolution; the
-    /// lockfile loader back-fills it on entries whose URL matches a known
-    /// git host for backward compatibility with lockfiles written before
-    /// this field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_hosted: Option<bool>,
     /// Sub-directory inside the tarball to pack. The git-hosted tarball
@@ -337,10 +332,7 @@ pub struct PlatformSelector {
 ///
 /// Iterates `variants` in declaration order and returns the first
 /// [`PlatformAssetResolution`] whose `targets[]` contains an `(os, cpu,
-/// libc?)` triple matching `selector`. Each variant's target list is
-/// scanned linearly — `targets[]` is typically 1–3 entries (one per
-/// architecture combo that shares an artifact), so the nested-loop
-/// cost is negligible.
+/// libc?)` triple matching `selector`.
 #[must_use]
 pub fn select_platform_variant<'a>(
     variants: &'a [PlatformAssetResolution],
@@ -466,7 +458,7 @@ impl LockfileResolution {
         // demand. Every other tarball must keep its URL or it can no longer be
         // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
         // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
-        // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
+        // `/download/` URLs).
         let rebuildable = !git_hosted
             && !tarball.tarball.starts_with("file:")
             && (integrity_addressed

@@ -51,9 +51,6 @@ pub struct ProxyConfig {
 /// Parsed `no-proxy` value.
 ///
 /// The setting takes either a host-list string or the literal `true`.
-/// Per AGENTS.md rule 7 (string-literal-union → `enum`) the two-shape
-/// union becomes a closed Rust enum so callers can pattern-match the
-/// bypass case without inspecting a sentinel string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NoProxySetting {
     /// `no-proxy=true` — bypass every proxy regardless of host.

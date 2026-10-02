@@ -8,8 +8,7 @@
 //! trees, and finishes with one [`fn@resolve_peers_workspace`] pass that
 //! shares peer caches across importers and applies
 //! `dedupeInjectedDeps` once with every importer's direct deps in
-//! scope. [`fn@resolve_importer`] still owns three lower-level passes
-//! and the `autoInstallPeers` hoist loop that ties them together.
+//! scope.
 //!
 //! 1. **Tree pass** ([`fn@resolve_dependency_tree`]). Walks a project
 //!    manifest's direct dependencies through a

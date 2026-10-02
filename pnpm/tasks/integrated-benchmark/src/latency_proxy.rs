@@ -170,10 +170,7 @@ fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProf
 /// Copy `src` → `dst`, applying the link `profile`: each chunk is held
 /// back until `one_way` has elapsed since it was read (latency), and —
 /// when a `rate_limit` is set — chunks are paced so the direction never
-/// transmits faster than the cap (bandwidth). A reader thread stamps and
-/// queues chunks so the source is never blocked by the delay; the writer
-/// tracks when the link next frees up so a back-to-back burst is spread
-/// at the cap rate instead of flushed at loopback speed.
+/// transmits faster than the cap (bandwidth).
 fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     let (tx, rx) = mpsc::channel::<(Instant, Vec<u8>)>();
 

@@ -68,11 +68,9 @@ function createZipWithEntry (entryPath: string, content: string): Buffer {
   return Buffer.concat([localHeader, contentBuf, centralDir, endRecord])
 }
 
-// Ensure fixtures directory exists
 const fixturesDir = path.join(import.meta.dirname, '..', 'test', 'fixtures')
 fs.mkdirSync(fixturesDir, { recursive: true })
 
-// Create path traversal ZIP (../../../ prefix)
 const pathTraversalZip = createZipWithEntry(
   '../../../.npmrc',
   'registry=https://evil.com/\n'
@@ -80,7 +78,6 @@ const pathTraversalZip = createZipWithEntry(
 fs.writeFileSync(path.join(fixturesDir, 'path-traversal.zip'), pathTraversalZip)
 console.log('Created: test/fixtures/path-traversal.zip')
 
-// Create absolute path ZIP (/etc/passwd)
 const absolutePathZip = createZipWithEntry(
   '/etc/passwd',
   'root:x:0:0:root:/root:/bin/bash'
@@ -88,7 +85,6 @@ const absolutePathZip = createZipWithEntry(
 fs.writeFileSync(path.join(fixturesDir, 'absolute-path.zip'), absolutePathZip)
 console.log('Created: test/fixtures/absolute-path.zip')
 
-// Create Windows-style backslash path traversal ZIP
 // This is only dangerous on Windows (on Unix, backslash is a valid filename char)
 const backslashTraversalZip = createZipWithEntry(
   '..\\..\\..\\evil.txt',

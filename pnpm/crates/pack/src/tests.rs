@@ -1105,9 +1105,7 @@ fn format_pack_output_text_block() {
 }
 
 /// `pack` runs `prepack`, `prepare`, and `postpack`.
-/// Exercises `run_scripts_if_present` / `script_body`: with scripts
-/// enabled, each of `prepack` / `prepare` / `postpack` runs and leaves a
-/// marker file. Gated to Unix like the executor's other script-running
+/// Gated to Unix like the executor's other script-running
 /// tests, since it shells out through the platform shell.
 #[cfg(unix)]
 #[test]

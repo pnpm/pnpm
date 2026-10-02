@@ -35,17 +35,14 @@ pub(super) fn parse_bool(value: &str) -> Option<bool> {
 }
 
 /// Read a `cafile` path and split the contents on
-/// `-----END CERTIFICATE-----` to produce one PEM per certificate:
-/// re-append the delimiter to each split, trim, drop empties, and
-/// silently treat any read error as an empty list.
+/// `-----END CERTIFICATE-----` to produce one PEM per certificate. A
+/// read error is silently treated as an empty list.
 pub(super) fn load_cafile(path: &Path) -> Vec<String> {
     let Ok(contents) = std::fs::read_to_string(path) else {
         return Vec::new();
     };
     let delimiter = "-----END CERTIFICATE-----";
     // Key contract points:
-    // - `split` (not `split_inclusive`) — the delimiter is dropped
-    //   from each chunk and re-appended on the map side.
     // - Filter on `chunk.trim().is_empty()` — drops the trailing
     //   empty chunk produced when the file ends with a delimiter,
     //   but *keeps* a trailing non-empty (malformed) chunk, which is

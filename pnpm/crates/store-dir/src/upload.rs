@@ -34,9 +34,7 @@ pub const HASH_ALGORITHM: &str = "sha512";
 ///
 /// The actual load-existing → apply-diff → write-back happens
 /// inside the writer task ([`StoreIndexWriter::queue_side_effects_upload`])
-/// so concurrent uploads for the same row stay commutative — a
-/// second upload to the same row builds on the first's mutation
-/// rather than racing against a stale read.
+/// so concurrent uploads for the same row stay commutative.
 ///
 /// Behaviour at the writer side:
 ///
@@ -110,10 +108,6 @@ pub fn upload_with_diff(
 /// Off Unix [`add_files_from_dir()`] reports a fixed mode, so a mode
 /// difference from `base` is not a change the build made. Those
 /// differences are ignored. A digest change is still recorded.
-///
-/// Both fields of the returned [`SideEffectsDiff`] use `Option<…>` with
-/// `skip_serializing_if = is_none` (see `SideEffectsDiff`), so an empty
-/// side of the diff round-trips through msgpack the way pnpm expects.
 pub fn calculate_diff(
     base: &HashMap<String, CafsFileInfo>,
     current: &HashMap<String, CafsFileInfo>,

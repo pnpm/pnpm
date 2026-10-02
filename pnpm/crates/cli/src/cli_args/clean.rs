@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or every project in the workspace)
 /// without following NTFS junctions into their targets. A `clean` /
-/// `purge` script in `package.json` overrides the built-in command,
-/// mirroring pnpm's `overridableByScript` flag; `pnpm pm clean` /
-/// `pnpm pm purge` runs the built-in regardless.
+/// `purge` script in `package.json` overrides the built-in command;
+/// `pnpm pm clean` / `pnpm pm purge` runs the built-in regardless.
 #[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Also remove `pnpm-lock.yaml` files.

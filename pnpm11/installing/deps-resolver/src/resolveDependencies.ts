@@ -160,10 +160,6 @@ export async function resolveDependenciesOfDependency (
 // of importers. However, when a workspace package is "injected", it becomes a
 // "file:" dependency and is no longer an "importer" from the perspective of
 // pnpm.
-//
-// To allow the catalog protocol to still be used for injected workspace
-// packages, it's necessary to check if the parent package was an injected
-// workspace package and replace the catalog: protocol for the current package.
 function replaceCatalogProtocolOfInjectedWorkspaceDep (
   ctx: ResolutionContext,
   parentPkg: ParentPkg,

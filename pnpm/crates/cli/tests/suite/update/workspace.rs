@@ -365,7 +365,6 @@ fn update_latest_no_save_catalog_bumps_lockfile_only() {
 
     pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
 
-    // package.json and the workspace catalog are untouched...
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
     let yaml = read_workspace_yaml(&workspace);
     assert!(yaml.contains("^100.0.0"), "catalog entry must be untouched under --no-save: {yaml}");
@@ -427,9 +426,7 @@ fn update_latest_default_catalog_preserves_reference() {
 /// `catalogMode: strict`, where the wanted version falls outside the
 /// catalog entry's range, rejects with
 /// `ERR_PNPM_CATALOG_VERSION_MISMATCH` instead of crashing
-/// ([pnpm#11706](https://github.com/pnpm/pnpm/pull/11706): before that
-/// fix, passing a range to the exact-version comparison threw `Invalid
-/// Version`).
+/// ([pnpm#11706](https://github.com/pnpm/pnpm/pull/11706)).
 #[test]
 fn update_strict_catalog_range_mismatch_errors() {
     let (root, workspace, anchor) = setup();

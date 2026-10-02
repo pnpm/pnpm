@@ -616,11 +616,6 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
 /// every time a user runs `pacquet install` after `pnpm install` in
 /// the same project, which is the scenario the vlt benchmark
 /// exercises.
-///
-/// As each setting is ported end-to-end (yaml plumbing, `Config`
-/// field, real consumer, and joined into `current_settings`), it
-/// joins [`settings_match`]'s comparison automatically and a
-/// drift on it starts rejecting again.
 #[test]
 fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let dir = tempdir().unwrap();

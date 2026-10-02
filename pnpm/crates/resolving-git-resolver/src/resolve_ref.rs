@@ -1,7 +1,5 @@
-//! Ref-resolution helpers: [`resolve_ref`] / [`parse_ls_remote`] /
-//! [`resolve_ref_from_refs`] / [`resolve_v_tags`], plus the
-//! [`GitCommandRunner`] capability seam the production runner plugs
-//! into.
+//! Ref-resolution helpers, plus the [`GitCommandRunner`] capability seam the
+//! production runner plugs into.
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -22,8 +20,7 @@ use pnpm_network::redact_and_sanitize;
 pub trait GitCommandRunner: Send + Sync {
     /// Invoke `git ls-remote <repo> [<ref> <ref>^{}]` (or
     /// `git ls-remote <repo>` when `ref_` is `None`) and return the
-    /// captured stdout on success. Uses a retry-of-one policy (one
-    /// attempt + one retry, total two attempts at most).
+    /// captured stdout on success.
     fn ls_remote<'a>(
         &'a self,
         repo: &'a str,

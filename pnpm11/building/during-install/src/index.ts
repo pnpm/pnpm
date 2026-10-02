@@ -72,7 +72,6 @@ export async function buildModules<NodeId extends string> (
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
   }
-  // postinstall hooks
 
   const dependencyGraph = buildGraph<NodeId>(depGraph, rootDepPaths)
   if (dependencyGraph.size === 0) return {}

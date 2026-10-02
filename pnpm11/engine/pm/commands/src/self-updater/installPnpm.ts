@@ -177,12 +177,10 @@ export async function installPnpmToStore (
   const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, pkgName, pnpmVersion)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
-  // Compute the GVS hash for the pnpm package to find its path
   const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, pkgName, globalVirtualStoreDir, PNPM_ALLOW_BUILDS)
   const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', pkgName)
   const binDir = path.join(pnpmGvsPath, 'bin')
 
-  // Check if already installed in the GVS
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
     if (!fs.existsSync(binDir)) {
       await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
@@ -190,8 +188,6 @@ export async function installPnpmToStore (
     return { binDir }
   }
 
-  // Reached only on a store cache miss (a genuine download), so verifying the
-  // pnpm engine's registry signature here does not slow down repeated commands.
   await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version: pnpmVersion }, opts)
 
   // Install to a temporary directory — headless install with GVS enabled
@@ -307,8 +303,6 @@ async function installPnpmPackage (installDir: string, binDir: string, { opts, p
     return
   }
   if (opts.envLockfile != null) {
-    // Reached only when actually downloading (no matching global install),
-    // so the signature check does not run on every invocation.
     await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version }, opts)
   }
   await installFromLockfile(installDir, binDir, {

@@ -112,13 +112,6 @@ fn json_string_array(values: &[String]) -> String {
 /// host. Negation entries (`!foo`) and the special `any` sentinel are
 /// honored.
 ///
-/// The wanted axes are taken as `Option<&[String]>` slices so the
-/// hot path doesn't allocate a [`WantedPlatform`] per snapshot —
-/// callers can pass `manifest.os.as_deref()` directly. The owned
-/// [`WantedPlatform`] form is only built when an error is returned
-/// (for diagnostic display via the
-/// [`UnsupportedPlatformError`]).
-///
 /// `supported` substitutes for `['current']`: per axis when it names the
 /// axes, and as a whole when it names the platforms themselves.
 ///

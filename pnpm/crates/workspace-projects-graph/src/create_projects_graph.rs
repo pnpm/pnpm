@@ -362,7 +362,7 @@ fn resolve_by_name_version(
     }
 }
 
-/// Classify a non-`workspace:` specifier into the three shapes
+/// Classify a non-`workspace:` specifier into the shapes
 /// [`create_projects_graph()`] acts on. See the function's doc comment
 /// for why this is a focused check rather than a full
 /// `npm-package-arg` resolve.

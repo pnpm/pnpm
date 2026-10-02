@@ -325,9 +325,7 @@ fn root_event_matches_pnpm_wire_shape() {
 
 /// `pnpm:stats` is presence-tagged on `added` / `removed`. pnpm
 /// emits each from a separate site, so an event carries one or the
-/// other — never both. Pacquet currently emits both back-to-back
-/// (added from `CreateVirtualStore`, removed from a placeholder)
-/// to keep the wire shape consumable until pruning lands.
+/// other — never both.
 #[test]
 fn stats_event_matches_pnpm_wire_shape() {
     let event = LogEvent::Stats(StatsLog {

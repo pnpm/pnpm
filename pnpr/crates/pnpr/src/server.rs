@@ -221,9 +221,7 @@ pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
     try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
-/// Like [`router`] but with a caller-supplied [`AuthState`]. Used
-/// by [`serve`] to wire the persistent file-backed stores, and by
-/// tests that want to override the bcrypt cost or pre-seed users.
+/// Like [`router`] but with a caller-supplied [`AuthState`].
 ///
 /// Panics if the config is invalid, an enabled OSV database can't load, or
 /// the hosted object store's settings don't build a client. Call
@@ -488,10 +486,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
 /// Enabling that target — `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
 /// level of `debug`/`trace` — turns the upstream serve paths into a per-request
 /// profile of where time goes: the upstream packument/tarball fetch vs the
-/// on-disk cache read. Meant both for ad-hoc perf diagnosis (e.g. cold-store
-/// regressions) and as a server-side datapoint the integrated benchmark can
-/// scrape from the mock's log as a new testbed measurement, alongside its
-/// client-side phase events. Near zero-cost when the target is disabled: the
+/// on-disk cache read. Near zero-cost when the target is disabled: the
 /// only always-on work is one `Instant::now()`; the field values (including
 /// `elapsed`) are computed only when the event is enabled.
 async fn timed<Fut: Future>(phase: &'static str, package: &str, fut: Fut) -> Fut::Output {

@@ -458,7 +458,7 @@ async fn frozen_install_swallows_and_reports_unreachable_optional_tarball() {
             prefer_frozen: None,
             ignore_manifest_check: false,
             // The lockfile-resolution verifier is unrelated to what this test
-            // exercises (the optional-tarball swallow path) and now always runs;
+            // exercises (the optional-tarball swallow path);
             // its fail-closed tarball-URL check would otherwise try to fetch
             // metadata for `broken-pkg` from the unreachable default registry and
             // abort the install before the optional-snapshot code path runs.
@@ -687,15 +687,15 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
 }
 /// The frozen-install `--no-optional` scenario.
 ///
-/// The fixture is designed to discriminate slice 5 (`--no-optional`
-/// filter) from slice 4 (fetch-failure swallow): a snapshot with
+/// The fixture is designed to discriminate the `--no-optional`
+/// filter from the fetch-failure swallow: a snapshot with
 /// `optional: true` whose **metadata row is missing from
-/// `packages:`**. Slice 4's swallow only covers `DownloadTarball`
+/// `packages:`**. The swallow only covers `DownloadTarball`
 /// and `GitFetch` — `MissingPackageMetadata` propagates even for
-/// optional snapshots. So if slice 5's filter doesn't fire, the
-/// missing-metadata error aborts the install regardless of slice
-/// 4. A successful install therefore proves the snapshot was
-/// dropped **before** cache-key derivation by the slice 5 gate.
+/// optional snapshots. So if the filter doesn't fire, the
+/// missing-metadata error aborts the install.
+/// A successful install therefore proves the snapshot was
+/// dropped **before** cache-key derivation by the filter.
 ///
 /// When `!include.optionalDependencies`, every depNode whose
 /// `optional` flag is true is dropped from the install graph
@@ -703,14 +703,14 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
 ///
 /// Also asserts that `--no-optional` exclusions are **not**
 /// persisted to `.modules.yaml.skipped` — same convention as the
-/// fetch-failure swallow (slice 4): the exclusion is transient,
+/// fetch-failure swallow: the exclusion is transient,
 /// so a later install without `--no-optional` brings the snapshot
 /// back into the install graph.
 #[tokio::test]
 async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     // Lockfile with one `optional: true` snapshot whose metadata
-    // row is intentionally missing from `packages:`. Slice 4
-    // (fetch-failure swallow) does NOT cover `MissingPackageMetadata`,
+    // row is intentionally missing from `packages:`. The
+    // fetch-failure swallow does NOT cover `MissingPackageMetadata`,
     // so reaching the cache-key derivation step would abort the
     // install. The `--no-optional` filter must drop the snapshot
     // before that step runs.
@@ -740,8 +740,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     let mut config = Config::new();
     config.lockfile = false;
     // Opt out of GVS so the slot-path assertion targets the legacy
-    // `<dirs.virtual_store_dir>/<flat-name>` layout. Same pattern as the
-    // slice 4 swallow tests.
+    // `<dirs.virtual_store_dir>/<flat-name>` layout.
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
@@ -831,10 +830,10 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
 /// Polarity test for [`frozen_install_no_optional_drops_optional_only_snapshots`].
 /// Same fixture, but the dispatch list **includes** `Optional`. With
 /// the snapshot's metadata missing from `packages:`, the install
-/// must now abort with `MissingPackageMetadata` — slice 4's
+/// must now abort with `MissingPackageMetadata` — the
 /// fetch-failure swallow doesn't cover that variant, so the
 /// optional-ness alone doesn't save the install. Proves the
-/// slice 5 filter is gated on the dispatch list rather than firing
+/// filter is gated on the dispatch list rather than firing
 /// unconditionally.
 #[tokio::test]
 async fn frozen_install_optional_included_surfaces_missing_metadata() {

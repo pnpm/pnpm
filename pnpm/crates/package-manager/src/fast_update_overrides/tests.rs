@@ -551,9 +551,8 @@ fn range_override(value: &str) -> Vec<VersionOverride> {
     }]
 }
 
-/// Records the version each resolution asks for. The rewrite that follows
-/// is the pre-existing machinery; what this pins is the version the range
-/// maps to.
+/// Records the version each resolution asks for. What this pins is the
+/// version the range maps to.
 struct RecordingResolver {
     requested: std::sync::Mutex<Vec<String>>,
 }

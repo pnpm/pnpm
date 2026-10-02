@@ -54,7 +54,7 @@ const SUPPORTED_OS: &[&str] = &["linux", "darwin", "win32"];
 
 const SUPPORTED_TARGETS: &str = "linux-x64, linux-x64-musl, linux-arm64, linux-arm64-musl, darwin-x64, darwin-arm64, win32-x64, win32-arm64";
 
-/// `pacquet pack-app`: pack a CJS entry file into a standalone executable.
+/// `pnpm pack-app`: pack a CJS entry file into a standalone executable.
 ///
 /// The executable embeds a Node.js binary via the Node.js Single
 /// Executable Applications API. Requires the embedded runtime to be

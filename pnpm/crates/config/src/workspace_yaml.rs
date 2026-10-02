@@ -127,7 +127,7 @@ fn overlay_some<Setting>(target: &mut Option<Setting>, value: Option<Setting>) {
     }
 }
 
-/// The dropped keys of a global `config.yaml`, in the four buckets its
+/// The dropped keys of a global `config.yaml`, in the buckets its
 /// warnings report.
 #[derive(Default)]
 struct DroppedKeys {

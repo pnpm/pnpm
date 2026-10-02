@@ -24,8 +24,7 @@ export async function resolveAndLinkProjects (
   ctx: PnpmContext,
   opts: InstallInContextOptions
 ): Promise<InstallFunctionResult> {
-  // Aliasing for clarity in boolean expressions below. True for both
-  // `--dry-run` and `dedupe --check`: resolve fully, write nothing.
+  // Aliasing for clarity in boolean expressions below.
   const isInstallationOnlyForLockfileCheck = isCheckOnlyInstall(opts)
 
   // The wanted lockfile is mutated during installation. To compare changes, a

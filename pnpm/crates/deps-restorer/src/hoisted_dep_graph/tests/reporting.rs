@@ -52,7 +52,7 @@ fn walker_single_root_dep_emits_one_node() {
 /// `true` (only `engineStrict + engine mismatch` and
 /// `InvalidNodeVersion` actually throw). The
 /// warning log emit is out of scope here; the walker proceeds
-/// silently for now.
+/// silently.
 #[test]
 fn walker_emits_required_dep_with_unsupported_platform_as_warning() {
     let mut root_deps = ResolvedDependencyMap::new();

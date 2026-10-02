@@ -36,14 +36,6 @@ impl StoreIndex {
     ///    `rmp_serde::to_vec_named` path. These may still live in
     ///    caches written by older pacquet versions.
     ///
-    /// All three route through
-    /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack],
-    /// which expands records into plain msgpack maps and narrows the
-    /// `float 64` encoding of `checkedAt` back to `uint 64`. Plain
-    /// msgpack rows skip the records-expansion (the `records_mode` flag
-    /// never flips) but still benefit from the float narrowing. The
-    /// result feeds `rmp_serde` to produce a [`PackageFilesIndex`].
-    ///
     /// Cost is one `Vec<u8>` allocation + memcpy per read, dwarfed by
     /// the `SQLite` query and disk I/O.
     pub fn get(&self, key: &str) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
@@ -226,11 +218,7 @@ impl StoreIndex {
     /// Uses the [`encode_package_files_index`][crate::msgpackr_records::encode_package_files_index]
     /// encoder, which emits msgpackr-records bytes that pnpm's
     /// `Packr({useRecords: true, moreTypes: true}).unpack(…)` reads as
-    /// the same shape it produces itself. A naive
-    /// `rmp_serde::to_vec_named` here produced bytes that pnpm's reader
-    /// interpreted as a top-level JS `Map`, making `pkgIndex.files` a
-    /// property-access miss and crashing with `files is not iterable`
-    /// inside pnpm's CAFS layer.
+    /// the same shape it produces itself.
     pub fn set(&self, key: &str, value: &PackageFilesIndex) -> Result<(), StoreIndexError> {
         let buf = crate::msgpackr_records::encode_package_files_index(value)
             .map_err(|source| StoreIndexError::Encode { source })?;
@@ -265,10 +253,6 @@ impl StoreIndex {
         &mut self,
         entries: impl IntoIterator<Item = (String, PackageFilesIndex)>,
     ) -> Result<(), StoreIndexError> {
-        // Encode outside the transaction so a single malformed row can't
-        // hold `BEGIN IMMEDIATE`'s write lock while we serialize msgpack,
-        // and skip individual encoding failures with a log so one bad
-        // entry doesn't drop the rest of the batch on the floor.
         let mut encoded: Vec<(String, Vec<u8>)> = Vec::new();
         for (key, value) in entries {
             match crate::msgpackr_records::encode_package_files_index(&value) {

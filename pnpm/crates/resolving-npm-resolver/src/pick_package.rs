@@ -32,17 +32,7 @@
 //! in-memory cache that the winner just populated and short-circuit
 //! without hitting the registry. This is done via
 //! [`PackumentFetchLocker`], which owns per-key semaphores and is
-//! threaded through [`MetadataRequestContext::fetch_locker`]: the first
-//! caller for a given cache key acquires the per-key permit and
-//! does the disk + network work; subsequent callers wait on the
-//! permit and re-check
-//! [`PackageMetaCache`] after acquiring so the winner's
-//! [`PackageMetaCache::set`] short-circuits the rest. Without this,
-//! pacquet was firing N concurrent HTTP GETs for the same packument
-//! per cluster of cross-referencing deps, queued behind the
-//! `ThrottledClient` semaphore — multiplying packument-fetch
-//! wall-clock by the dedup factor and putting the resolve walk
-//! 3-5× behind pnpm on the `alotta-files` benchmark.
+//! threaded through [`MetadataRequestContext::fetch_locker`].
 
 pub use errors::PickPackageError;
 pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
@@ -141,11 +131,6 @@ pub struct PickPackageResult {
 /// 4. **publishedBy mtime shortcut**: if the mirror file was written
 ///    after the maturity cutoff, reuse it before attempting another
 ///    conditional fetch.
-///
-/// Cache-miss / forced-fetch goes through
-/// [`crate::fetch_full_metadata_cached()`], which sends the conditional
-/// `If-None-Match` / `If-Modified-Since` headers built from the
-/// mirror's first line. A 304 reuses the on-disk body.
 pub async fn pick_package<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
@@ -184,10 +169,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let mut disk_meta: Option<Arc<Package>> = None;
 
     // Re-check in-memory cache after acquiring the permit — the
-    // previous permit holder may have just populated it. Without
-    // this re-check, every duplicate caller would still fall
-    // through to the disk + network path even though they were
-    // waiting precisely for the winner's fetch to complete.
+    // previous permit holder may have just populated it.
     if let Some(result) = state.cached_pick(ctx, spec, opts).await? {
         return Ok(result);
     }

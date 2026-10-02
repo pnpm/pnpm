@@ -9,8 +9,7 @@ export interface LockfileVerificationMessageBase {
   status: 'started' | 'done' | 'failed' | 'cached'
   /**
    * Absolute path of the lockfile being verified. Omitted only when
-   * the verifier is invoked without a path (today only in unit tests
-   * that skip the cache wiring); production code paths always pass it.
+   * the verifier is invoked without a path.
    */
   lockfilePath?: string
 }

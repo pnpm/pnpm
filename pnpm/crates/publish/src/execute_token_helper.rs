@@ -1,13 +1,5 @@
 //! run a configured `tokenHelper` command and
 //! return the auth token it prints.
-//!
-//! The publish PUT now authenticates through the shared
-//! [`AuthHeaders`](pnpm_network::AuthHeaders) map, which carries an
-//! un-executed `tokenHelper` command per registry and runs it lazily on
-//! lookup (see `pnpm_network::token_helper`) — so a `tokenHelper`-only
-//! registry is authenticated on publish without this helper. This
-//! function is retained for the publish-specific path that needs the bare
-//! token (no `Bearer` scheme) rather than a finished header value.
 
 use std::io;
 

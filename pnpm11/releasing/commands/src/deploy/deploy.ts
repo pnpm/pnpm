@@ -168,7 +168,6 @@ async function deployWithoutSharedLockfile (
     // directory, so the workspace root project a filtered install brings along
     // would link its own dependencies into the deployed node_modules.
     excludeWorkspaceRootProject: true,
-    // Compute the wanted lockfile correctly by setting pruneLockfileImporters.
     // Since pnpm deploy only installs dependencies for a single selected
     // project, other projects in the "importers" lockfile section will be
     // empty when node-linker=hoisted.
@@ -188,8 +187,7 @@ async function deployWithoutSharedLockfile (
     // This is important when node-linker=hoisted to prevent project-2 from
     // being included in the hoisted install. If project-2 is errantly hoisted
     // to the root node_modules dir, downstream logic will fail to inject it to
-    // the deploy directory. It's also just weird to include empty importers
-    // that don't matter to the filtered lockfile generated for pnpm deploy.
+    // the deploy directory.
     pruneLockfileImporters: true,
     // The node_modules for a pnpm deploy should be self-contained. The global
     // virtual store would create symlinks outside of the deploy directory.
@@ -304,8 +302,6 @@ async function installFromDeployFiles (
       allProjectsGraph: undefined,
       selectedProjectsGraph: undefined,
       rootProjectManifest: deployFiles.manifest,
-      // The node_modules for a pnpm deploy should be self-contained. The global
-      // virtual store would create symlinks outside of the deploy directory.
       enableGlobalVirtualStore: false,
       rootProjectManifestDir: deployDir,
       dir: deployDir,

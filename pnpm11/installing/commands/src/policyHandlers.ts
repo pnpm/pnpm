@@ -13,11 +13,7 @@ import { isCI } from 'ci-info'
  * layer can react without depending on the deps-installer's private
  * install types.
  *
- * Verifier codes (today: `MINIMUM_RELEASE_AGE_VIOLATION` and
- * `TRUST_DOWNGRADE`) are the contract surface for downstream UX.
- * Each `PolicyHandler` below filters violations by code to decide
- * what to do with them (prompt, persist to an exclude list, log,
- * abort).
+ * Verifier codes are the contract surface for downstream UX.
  */
 export interface PolicyViolation {
   name: string
@@ -93,11 +89,6 @@ export interface PolicyHandlersOptions {
  * current opts. Returns `undefined` only when no handler reports
  * activity — saves the install command an empty no-op call at every
  * checkpoint when no policies are configured.
- *
- * Today only the minimumReleaseAge handler is registered. Future
- * policies (trustPolicy UX, license policy, etc.) plug in by
- * exporting a sibling `create<Name>PolicyHandler(opts)` and getting
- * pushed into the `handlers` list below.
  */
 export function setupPolicyHandlers (opts: PolicyHandlersOptions): PolicyHandlersPlan | undefined {
   const handlers: PolicyHandler[] = []

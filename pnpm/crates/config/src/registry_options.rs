@@ -238,10 +238,6 @@ impl Config {
     /// abbreviated metadata to full on demand for the maturity check (see
     /// `maybe_upgrade_abbreviated_meta_for_release_age`), so it doesn't
     /// need the full packument requested up front.
-    ///
-    /// The install resolver (`PickPolicy`), `pacquet add`'s pre-resolution,
-    /// and the `self-update` / `pnpm with` engine probe all derive their
-    /// metadata mode from here so none of them can drift.
     #[must_use]
     pub fn requires_full_metadata_for_resolution(&self) -> bool {
         self.full_metadata_policy(self.registry_supports_time_field)
@@ -312,8 +308,7 @@ impl Config {
     /// configured scoped routes keyed by `@scope`.
     ///
     /// The built-in `@jsr` route is one of them, so every consumer that
-    /// routes a package by its scope — the resolver, the lockfile
-    /// verifier, `pnpm why`, `pnpm view` — reaches JSR packages at
+    /// routes a package by its scope reaches JSR packages at
     /// npm.jsr.io instead of asking the default registry for an
     /// `@jsr/*` packument it does not serve. A configured `@jsr:registry`
     /// wins over it.

@@ -29,14 +29,7 @@ export interface PublishedAtLookupContext {
   cutoffMs: number
   /**
    * Resolver-owned LRU (per-install) keyed via `getPkgMetaCacheKey`
-   * (registry + name, with a `:full` suffix for full meta). When the
-   * resolver has already fetched a package during this install, the
-   * verifier reuses that packument instead of re-paying the disk/network
-   * round-trip — the fresh-install path otherwise fetches every entry
-   * twice. Optional:
-   * the frozen-install path runs without a resolver and never
-   * populates this cache, so the verifier's own fetch chain still
-   * carries the cold case.
+   * (registry + name, with a `:full` suffix for full meta).
    */
   sharedMetaCache?: PackageMetaCache
   /**
@@ -47,9 +40,7 @@ export interface PublishedAtLookupContext {
    * package-level `modified` plus the set of currently-listed version
    * names — so the multi-hundred-KB packument can be GC'd as soon as
    * the fetch returns (the cache only needs to dedupe network/disk
-   * round-trips, not full document storage). Resolves to `{ meta }` on
-   * success or `{ error }` on a fetch failure — it never rejects, so the
-   * cached promise is safe to share between callers.
+   * round-trips, not full document storage).
    */
   abbreviatedMetaCache: Map<string, Promise<AbbreviatedMetaResult>>
   /**
@@ -114,9 +105,7 @@ type AbbreviatedMetaResult =
 
 /**
  * Per-install dedup of every network/disk fetch the verifier issues.
- * The maturity check uses the layered `fetchPublishedAt` lookup; the
- * trust check uses an attestation fast-path before falling back to
- * the same full-metadata mirror. All maps live here so verifying
+ * All maps live here so verifying
  * many versions of the same package only pays the disk/network costs
  * once. The on-disk conditional-GET cache is handled inside
  * fetch{Abbreviated,Full}MetadataCached via the resolver's shared
@@ -151,11 +140,7 @@ export function fetchFullMetaForTrust (
   if (cachedPromise == null) {
     // Fast path: if the resolver already upgraded to full meta for this
     // (registry, name) during the same install (e.g. minimumReleaseAge
-    // active), reuse that document. Abbreviated meta is rejected here —
-    // it lacks per-version `time` and per-version trust evidence, both
-    // required by failIfTrustDowngraded. The read is registry-qualified
-    // (see `getPkgMetaCacheKey`), so a package of the same name served by
-    // a different registry can't be returned here.
+    // active), reuse that document.
     const shared = readSharedMetaForTrust(context.sharedMetaCache, registry, name)
     if (shared != null) {
       cachedPromise = Promise.resolve(projectTrustMeta(shared))
@@ -166,10 +151,7 @@ export function fetchFullMetaForTrust (
       // the same (registry, name) within one install don't refetch a
       // known-failing endpoint.
       //
-      // The fetched packument is projected down to just the trust-relevant
-      // fields (per-version `_npmUser.trustedPublisher` and
-      // `dist.attestations.provenance`, plus the package-level `time` map)
-      // before being stored. The full document — dependency maps, scripts,
+      // The full document — dependency maps, scripts,
       // READMEs for every version — would otherwise stay resident in this
       // map for the entire install, which on multi-thousand-entry
       // workspaces OOMs CI runners with a 2GB heap (see pnpm/pnpm#11860).
@@ -321,18 +303,12 @@ async function tryAbbreviatedModifiedShortcut (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  // A fetch failure here is fine: ignore `error` and fall back to per-version
-  // lookups, the same as a successful-but-uninformative metadata response.
   const { meta } = await fetchAbbreviatedMeta(context, registry, name)
   const modified = meta?.modified
   if (typeof modified !== 'string') return undefined
   const modifiedMs = Date.parse(modified)
   if (Number.isNaN(modifiedMs)) return undefined
   if (modifiedMs >= context.cutoffMs) return undefined
-  // The shortcut treats `modified` as an upper bound on every version's
-  // publish time — but only for versions the registry currently lists.
-  // An unpublished or never-published pin would otherwise pass the gate
-  // on a stale package-level timestamp.
   if (!meta?.versionArtifacts?.has(version)) return undefined
   return modified
 }
@@ -347,19 +323,10 @@ export function fetchAbbreviatedMeta (
   if (cachedPromise == null) {
     // Fast path: the resolver's per-install LRU already holds this
     // packument from its own pickPackage pass — abbreviated or full.
-    // Project it for the shortcut and skip the disk/network round-trip.
-    // The read is registry-qualified (see `getPkgMetaCacheKey`), so it
-    // can only return this registry's own packument.
     const shared = readSharedMeta(context.sharedMetaCache, registry, name)
     if (shared != null) {
       cachedPromise = Promise.resolve({ meta: projectAbbreviatedMeta(shared) })
     } else {
-      // Carry a fetch failure (auth/network/5xx) as `error` instead of
-      // collapsing it to `undefined`: the tarball-URL check rethrows it (so the
-      // registry's own error surfaces, not a tampering-style mismatch) while
-      // the age shortcut ignores it and falls back to per-version lookups.
-      // Keeping it a resolved value — not a rejected promise — lets the two
-      // callers share one cached promise without an unhandled rejection.
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),

@@ -8,8 +8,7 @@
 //! predecessors, so the topological order has nearly as many layers as
 //! projects, plus a denser hub every hundredth project. The lockfile,
 //! manifest I/O, and resolution around this phase are covered by other
-//! groups; this one isolates the pre-resolution sort, which used to
-//! rescan every project per layer.
+//! groups; this one isolates the pre-resolution sort.
 //!
 //! [pnpm/pnpm#14149]: <https://github.com/pnpm/pnpm/issues/14149>
 

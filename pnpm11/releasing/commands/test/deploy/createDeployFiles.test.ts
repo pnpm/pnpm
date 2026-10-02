@@ -277,7 +277,7 @@ test('createDeployFiles preserves peer-only dependencies auto-installed into an 
 
 // A package may legitimately be named after an Object.prototype member, and a
 // plain property read would find that member and report a binding that does not
-// exist, leaving the peer unbound where pacquet's map lookup binds it.
+// exist.
 test('createDeployFiles binds a peer whose name collides with an Object prototype member', () => {
   const lockfileDir = path.resolve('workspace')
   const libDir = path.join(lockfileDir, 'lib')

@@ -24,7 +24,7 @@ const ghAcmePrivateMeta = loadJsonFileSync<any>(testFixtures.find('gh-acme-priva
 const GH_REGISTRY = 'https://npm.pkg.github.com/'
 const ENTERPRISE_REGISTRY = 'https://npm.enterprise.example.com/'
 
-// The `@github` scope is no longer defaulted to GitHub Packages — so public
+// The `@github` scope is not routed to GitHub Packages — so public
 // `@github/*` npm installs are not hijacked. The `gh:` prefix resolves via
 // the built-in `gh` named-registry alias instead.
 const registriesByScope = {

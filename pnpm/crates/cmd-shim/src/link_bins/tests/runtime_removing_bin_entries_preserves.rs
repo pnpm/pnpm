@@ -515,10 +515,7 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
 }
 
 /// Uses `aaa-other` (lexically less than `npm`) as the non-owner so the
-/// test fails when ownership is broken: with the rule disabled the
-/// lexical fallback picks `aaa-other`, the assertion observes
-/// `/aaa-other/npx` instead of `/npm/npx`. A package named `other`
-/// would lexically lose to `npm` regardless, masking the regression.
+/// test fails when ownership is broken.
 #[test]
 fn ownership_breaks_bin_conflicts() {
     let tmp = tempdir().unwrap();

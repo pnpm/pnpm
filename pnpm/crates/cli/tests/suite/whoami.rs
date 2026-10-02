@@ -1,10 +1,6 @@
 //! `pacquet whoami` resolves the default registry's auth token from config
 //! and prints the username returned by `GET <registry>-/whoami`.
 //!
-//! Covers the success path, the unauthenticated path, a registry that rejects
-//! the request, and preservation of a registry path prefix, plus a guard that
-//! control characters in a registry-provided username are stripped.
-//!
 //! The registry is a `mockito` server the spawned `pacquet` connects to
 //! over loopback. Credentials are supplied through `--npmrc-auth-file`,
 //! which replaces the developer's real `~/.npmrc`, so the unauthenticated

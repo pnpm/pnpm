@@ -71,7 +71,6 @@ function isEagainError (err: unknown): boolean {
 }
 
 function waitEagainBackoff (attempts: number): void {
-  // Exponential backoff: wait 2^attempts milliseconds, max 300ms
   const delay = Math.min(Math.pow(2, attempts), 300)
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
 }

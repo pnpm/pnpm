@@ -630,8 +630,7 @@ fn to_lockfile_form_drops_scoped_tarball_with_percent_encoding_on_the_public_reg
 
 /// A URL that merely starts with the canonical URL but carries a trailing
 /// `://suffix` is not canonical: stripping only the leading scheme keeps the
-/// suffix, so it must not be dropped (the previous split-on-first-`://` logic
-/// treated it as canonical).
+/// suffix, so it must not be dropped.
 #[test]
 fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
     let tarball = "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz://suffix".to_string();
