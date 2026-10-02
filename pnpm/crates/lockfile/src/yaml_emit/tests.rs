@@ -136,3 +136,9 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
     }
     assert_eq!(yaml, expected);
 }
+
+#[test]
+fn a_line_feed_in_a_key_forces_double_quotes() {
+    let yaml = to_string(json!({ "a\nb": "c" }));
+    assert_eq!(yaml, "\"a\\nb\": c\n");
+}

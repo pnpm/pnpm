@@ -62,7 +62,7 @@ struct ScalarScan {
 }
 
 /// A [`ScalarLines::OneLine`] scalar has nowhere to put a line break, so a
-/// line feed counts as unprintable rather than selecting the literal style.
+/// line feed forces the double-quoted style instead of the literal one.
 fn scan_scalar(chars: &[u32], lines: ScalarLines, style: CollectionStyle) -> Option<ScalarScan> {
     let mut scan = ScalarScan {
         plain: is_plain_safe_first(chars[0]) && is_plain_safe_last(chars[chars.len() - 1]),
@@ -70,12 +70,11 @@ fn scan_scalar(chars: &[u32], lines: ScalarLines, style: CollectionStyle) -> Opt
     };
     let mut prev: Option<u32> = None;
     for &char in chars {
-        let line_break_allowed = match lines {
-            ScalarLines::Multiline => true,
-            ScalarLines::OneLine => false,
-        };
-        if char == CHAR_LINE_FEED && line_break_allowed {
-            scan.has_line_break = true;
+        if char == CHAR_LINE_FEED {
+            match lines {
+                ScalarLines::Multiline => scan.has_line_break = true,
+                ScalarLines::OneLine => return None,
+            }
         } else if !is_printable(char) {
             return None;
         }
