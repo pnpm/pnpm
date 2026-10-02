@@ -174,13 +174,10 @@ impl AuditArgs {
         interactive_select(filtered)
     }
 
-    /// Resolve the `--fix` flag (and the `--interactive` implies-override
-    /// rule) into a [`FixMethod`]. Mirrors pnpm's fix-method dispatch:
-    /// `--fix`/`--fix override` → override, `--fix update` → update,
-    /// `--interactive` without `--fix` → override, anything else → error.
+    /// Resolve the `--fix` flag and interactive settings into a [`FixMethod`].
     pub(super) fn resolve_fix_method(&self) -> miette::Result<Option<FixMethod>> {
         match self.fix.as_deref() {
-            Some("override") => Ok(Some(FixMethod::Override)),
+            Some("override" | "true") => Ok(Some(FixMethod::Override)),
             Some("update") => Ok(Some(FixMethod::Update)),
             Some(value) => Err(AuditError::InvalidFixOption { value: value.to_string() }.into()),
             None if self.interactive => Ok(Some(FixMethod::Override)),
