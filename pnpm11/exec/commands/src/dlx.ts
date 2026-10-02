@@ -104,8 +104,11 @@ export async function handler (
   [command, ...args]: string[],
   commands?: CommandHandlerMap
 ): Promise<{ exitCode: number, output?: string }> {
-  if (!command && (!opts.package || opts.package.length === 0)) {
-    return { exitCode: 1, output: help() }
+  if (!command) {
+    if (!opts.package?.length) {
+      return { exitCode: 1, output: help() }
+    }
+    throw new PnpmError('DLX_MISSING_COMMAND', "'pnpm dlx' requires a command to run")
   }
   const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(opts, opts.package ?? [command])
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
