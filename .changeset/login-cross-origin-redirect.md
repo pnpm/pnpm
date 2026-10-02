@@ -1,6 +1,7 @@
 ---
 "@pnpm/network.fetch": patch
 "@pnpm/registry-access.client": patch
+"@pnpm/auth.commands": patch
 "pnpm": patch
 "pacquet": patch
 ---
