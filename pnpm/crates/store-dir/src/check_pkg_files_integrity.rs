@@ -138,8 +138,7 @@ pub type VerifiedFilesCache = DashSet<PathBuf>;
 /// dispatches into.
 pub type SharedVerifiedFilesCache = Arc<VerifiedFilesCache>;
 
-/// `in-tarball filename` → `CAFS path`. Return value of the two verify
-/// entry points below.
+/// `in-tarball filename` → `CAFS path`.
 pub type FilesMap = HashMap<String, PathBuf>;
 
 /// Result of a `PackageFilesIndex`-row verification pass.
@@ -266,12 +265,6 @@ impl PendingFilesCheck {
                 continue;
             }
             if verify_file(&path, filename, info, &self.algo) {
-                // Concurrency note: another thread may verify the same
-                // path between the `contains` check and our `insert`,
-                // doing the stat twice. That's benign — `verify_file`
-                // is idempotent and the cache converges to the same
-                // state either way. Pnpm's worker_threads cache has
-                // the same race-window for the same reason.
                 verified_files_cache.insert(path);
             } else {
                 all_verified = false;
@@ -466,8 +459,6 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 /// another *process* sharing the store may be importing from it — see
 /// [`scrub_directory_at_cafs_path`].
 fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
-    // Lock-free fast path. `check_file` is read-only and only touches
-    // the file's metadata; no risk of clobbering a writer's state.
     let Some((is_modified, _)) = check_file(path, info.checked_at) else {
         tracing::debug!(
             target: "pacquet::store_index",
@@ -485,12 +476,6 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
 }
 
 fn verify_modified_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
-    // Slow path: the file's mtime indicates a recent change. Acquire
-    // the per-path lock and re-check so a concurrent writer's
-    // `write_all` lands before we decide whether to delete. The
-    // common case (unmodified file from a prior install) never gets
-    // here — the lock cost only applies to files actually being
-    // re-verified, which is rare.
     let lock = pnpm_fs::cas_write_lock(path);
     let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
@@ -615,8 +600,7 @@ fn scrub_directory_at_cafs_path(path: &Path) {
 /// re-fetch". That's a safer default for a cache-hint path — we don't
 /// want a transient `EACCES` on a CAS blob to panic the install — and
 /// the content-hash check in [`verify_file_integrity`] still catches
-/// actual corruption. If we ever want pnpm-strict error propagation,
-/// changing the return type to `Result<Option<…>>` is the right shape.
+/// actual corruption.
 ///
 /// 100 ms of slack on the mtime comparison matches pnpm's threshold —
 /// accounts for coarse mtime resolution on some filesystems plus the

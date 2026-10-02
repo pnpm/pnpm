@@ -227,7 +227,6 @@ function parseLongLinkPath (entryContent: Buffer): string {
 }
 
 function parseHeader (state: ParserState, header: Buffer, headerOffset: number): PendingEntry {
-  // The file type is a single byte at offset 156 in the header
   const fileType = header[FILE_TYPE_OFFSET]
   const fileSize = takeEntryFileSize(state, header)
   verifyHeaderChecksum(header, headerOffset)
@@ -307,9 +306,6 @@ function normalizeTraversal (fileName: string): string {
 
 /**
  * Parses a PAX header, which is a series of key/value pairs.
- *
- * @param buffer - The content of the PAX header entry
- * @param global - Whether this is a global PAX header
  */
 function parsePaxHeader (state: ParserState, buffer: Buffer, global: boolean): void {
   let cursor: number = 0

@@ -44,12 +44,6 @@ pub(super) fn commit_modules_state(
     let phase_start = std::time::Instant::now();
     save_current_lockfile(inputs.tree.config, inputs.lockfiles.materialized)?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.current_lockfile", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    // Regenerate `pnpm-lock.yaml` from the synthesized snapshot when
-    // the wanted lockfile was reconstructed from
-    // `<install_state_dir>/lock.yaml`. The no-op short-circuit above
-    // handles the common case; this branch covers the rare path where
-    // `.modules.yaml` was wiped or inconsistent and the frozen install
-    // had to relink.
     if inputs.materialized.frozen {
         save_relinked_wanted_lockfile(&RelinkedLockfileSave {
             config: inputs.tree.config,
@@ -173,13 +167,6 @@ pub(super) fn deferred_projects(
 /// install records the full shared graph it materialized. This
 /// keeps the file aligned with physical state without discarding
 /// unselected slots that remain on disk.
-/// Filter the wanted lockfile down to the snapshots that
-/// were actually materialized: dep maps the user excluded
-/// (`--no-optional`, `--no-dev`) plus snapshots the
-/// install-time skip set transiently dropped (a fetch
-/// failure, `--no-optional`-only entries). The next install
-/// diffs against this filtered shape so dropped snapshots
-/// aren't mistaken for already-done work.
 pub(super) fn save_current_lockfile(
     config: &Config,
     materialized_current_lockfile: Option<&Lockfile>,

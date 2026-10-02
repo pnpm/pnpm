@@ -62,7 +62,7 @@ fn store_path_accepts_the_silent_shorthand() {
 
 #[test]
 fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
-    // `storeDir` is a project-structural setting — in pnpm 11 (and now
+    // `storeDir` is a project-structural setting — in pnpm 11 (and
     // pacquet) it's only honoured from `pnpm-workspace.yaml`, not `.npmrc`.
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 

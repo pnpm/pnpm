@@ -128,10 +128,7 @@ impl StoreDir {
         self.files_dir().clone()
     }
 
-    /// Borrow the memoised `<root>/files` path. The CAS write hot
-    /// path calls this per CAFS file written, so caching the joined
-    /// path saves one `PathBuf` allocation per call (~170k on the
-    /// alotta-files clean install).
+    /// Borrow the memoised `<root>/files` path.
     pub(crate) fn files_dir(&self) -> &PathBuf {
         self.cached_files_dir.get_or_init(|| self.root.join("files"))
     }
@@ -168,12 +165,7 @@ impl StoreDir {
     }
 
     /// Path to the shared global-virtual-store directory inside the
-    /// store, at `<store-dir>/links`. pnpm builds this as
-    /// `<storeDir>/links` where `storeDir` already carries the
-    /// [`STORE_VERSION`] (`"v11"`) suffix. Pacquet's [`StoreDir::from`]
-    /// applies the same suffix, so `self.root` is already the v11 path
-    /// and the on-disk location is `<root>/links`, identical to pnpm's.
-    /// Sharing this path across pnpm and pacquet is the whole point.
+    /// store, at `<store-dir>/links`.
     pub fn links(&self) -> PathBuf {
         self.root.join("links")
     }
@@ -181,17 +173,12 @@ impl StoreDir {
     /// Path to the per-store projects registry — a flat directory of
     /// symlinks (`<store>/projects/<short-hash>` → project dir) the
     /// global-virtual-store prune sweep walks when deciding which
-    /// `<store>/links/...` slots are still referenced. Uses the same
-    /// `{storeDir}/projects/` layout pnpm 11 does — `<store>` already
-    /// carries the v11 suffix on both sides per [`Self::links`].
+    /// `<store>/links/...` slots are still referenced.
     pub fn projects(&self) -> PathBuf {
         self.root.join("projects")
     }
 
-    /// Borrow the raw store-root path. Most code should prefer the
-    /// purpose-built helpers (`v11`, `tmp`, `links`, `projects`); this
-    /// is for the few callers that need to compute a sibling path the
-    /// helpers don't cover.
+    /// Borrow the raw store-root path.
     pub fn root(&self) -> &std::path::Path {
         &self.root
     }

@@ -116,17 +116,6 @@ export interface PacquetEngine {
 /**
  * Build the pacquet install engine `mutateModules` delegates to when
  * `configDependencies` declares pacquet.
- *
- * `run` spawns the pacquet binary installed under
- * `node_modules/.pnpm-config/pacquet`. From `pnpm install`/`pnpm i` it
- * forwards the user's own pnpm CLI flags to pacquet's `install`
- * subcommand; from `add`/`update`/`dedupe` it doesn't forward (warning
- * instead). Pacquet's NDJSON stderr is parsed line-by-line and the
- * valid JSON records are re-emitted on pnpm's global `streamParser` so
- * `@pnpm/cli.default-reporter` renders pacquet's events the same way it
- * renders pnpm's own. Non-JSON stderr lines (panic backtraces,
- * unexpected diagnostics) are forwarded to the real stderr verbatim so
- * they reach the user.
  */
 export function makeRunPacquet (opts: MakeRunPacquetOpts): PacquetEngine {
   return {
@@ -152,12 +141,6 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
 }
 
 function createPacquetArgs (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): string[] {
-  // From `pnpm install`/`pnpm i` we forward the user's flags through to
-  // pacquet's own `install` subcommand verbatim — pacquet mirrors pnpm's
-  // surface closely enough on that command that they're safe to pass
-  // along. From `add`/`update`/`dedupe` we don't forward anything: those
-  // commands carry flags pacquet's `install` doesn't recognize
-  // (`--save-dev`, `--save-peer`, etc.) which clap would reject.
   const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
   // In resolve mode pacquet does the resolution itself, so it must not
   // be pinned to the existing lockfile — drop both injected flags.
@@ -187,10 +170,8 @@ function warnAboutDroppedFlags (opts: MakeRunPacquetOpts): void {
 }
 
 function logPacquetBanner (lockfileDir: string): void {
-  // Banner so users can tell at a glance their install is going
-  // through the Rust engine rather than the JS path. Chalk is the
-  // same dependency the default reporter uses for the "+ pkg
-  // version" summary, so colorization respects the user's TTY
+  // Chalk is the same dependency the default reporter uses for the
+  // "+ pkg version" summary, so colorization respects the user's TTY
   // settings consistently.
   const banner = [
     chalk.magentaBright('▶ Using pacquet for this install'),
@@ -360,21 +341,12 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * positionals nopt classified (`install` / `i`, plus anything users
  * typed positionally) since pacquet's `install` doesn't accept any —
  * leaving them in produces `error: unexpected argument 'install'
- * found`. Pacquet's clap parser walks the same `--prod`, `--dev`,
- * `--no-optional`, `--no-runtime`, `--node-linker`, `--offline`,
- * `--prefer-offline`, `--cpu`, `--os`, `--libc`, `--frozen-lockfile`
- * surface pnpm itself accepts on `install`, so the flags don't need
- * reshaping.
+ * found`.
  *
  * Flags we manage ourselves (`--frozen-lockfile`,
  * `--ignore-manifest-check`) are dropped in every form the user can
  * type them — positive (`--frozen-lockfile`), negated
- * (`--no-frozen-lockfile`), and any `=value` form. pnpm resolves the
- * frozen-lockfile setting itself and encodes the decision in the mode
- * it hands pacquet: a resolving install (pacquet resolves and writes
- * the lockfile, no `--frozen-lockfile` injected) or a frozen
- * materialization (pacquet is pinned to the lockfile via an injected
- * `--frozen-lockfile`) — see `createPacquetArgs`. Forwarding the
+ * (`--no-frozen-lockfile`), and any `=value` form. Forwarding the
  * user's own token would contradict that choice: pacquet accepts a
  * `--no-<flag>` negation for every boolean flag with last-one-wins
  * override semantics, so a user `--no-frozen-lockfile` sitting next to

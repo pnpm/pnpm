@@ -53,7 +53,6 @@ pub fn copy_file_exclusive(
 /// whatever the target holds, a symlink included, without following
 /// it. A failure removes the temp file; a crash can leave one behind,
 /// under a name nothing else uses.
-/// Copy `source_path` to `target_path` atomically using `permissions` for the target.
 pub fn copy_file_atomic_with_permissions(
     source_path: &Path,
     target_path: &Path,
@@ -81,12 +80,6 @@ pub fn copy_file_atomic_with_permissions(
 
 /// Copy `source_path` to `target_path`, so that a reader of the target
 /// sees either what it held before or the whole copy, never a part.
-///
-/// The bytes go into a temp sibling that [`copy_file_exclusive`]
-/// creates, which is then renamed over the target. The rename replaces
-/// whatever the target holds, a symlink included, without following
-/// it. A failure removes the temp file; a crash can leave one behind,
-/// under a name nothing else uses.
 pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()> {
     let permissions = fs::File::open(source_path)?.metadata()?.permissions();
     copy_file_atomic_with_permissions(source_path, target_path, &permissions)

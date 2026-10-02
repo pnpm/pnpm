@@ -52,7 +52,7 @@ pub fn extend_path(
 ) -> OsString {
     let mut path_arr: Vec<PathBuf> = Vec::new();
 
-    // 1+2. Walk the wd's node_modules ancestors, deepest first. The first
+    // Walk the wd's node_modules ancestors, deepest first. The first
     // entry is the wd's own, which `wd_bin_dir` overrides.
     let mut ancestors = ancestor_node_modules_bins(wd);
     if let Some(bin) = wd_bin_dir
@@ -62,18 +62,15 @@ pub fn extend_path(
     }
     path_arr.extend(ancestors);
 
-    // 3. Bundled node-gyp-bin.
     if let Some(p) = node_gyp_bin {
         path_arr.push(p.to_path_buf());
     }
 
-    // 4. Caller-supplied extra paths.
     path_arr.extend_from_slice(extra_bin_paths);
 
-    // 5. dirname(node) when scriptsPrependNodePath is `Always`.
-    //    `WarnOnly` only emits a warning; the actual prepend is gated
-    //    on the setting being `true`. We omit the warn-emission here;
-    //    the caller (with reporter context) is a better place for it.
+    // `WarnOnly` only emits a warning; the actual prepend is gated
+    // on the setting being `true`. We omit the warn-emission here;
+    // the caller (with reporter context) is a better place for it.
     if scripts_prepend_node_path == ScriptsPrependNodePath::Always
         && let Some(node) = node_execpath
         && let Some(parent) = node.parent()
@@ -81,7 +78,6 @@ pub fn extend_path(
         path_arr.push(parent.to_path_buf());
     }
 
-    // 6. originalPath at the end.
     if let Some(orig) = original_path {
         let added: HashSet<OsString> = path_arr
             .iter()
@@ -156,8 +152,6 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     }
     bins.push(acc.join("node_modules").join(".bin"));
 
-    // The deepest .bin must end up first; collect in the natural order
-    // then reverse.
     bins.reverse();
     bins
 }

@@ -19,7 +19,7 @@ pub(super) const OUTPUT_DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
 /// A script whose output is republished as `pnpm:lifecycle` events
 /// rather than written straight to the terminal.
 ///
-/// The three identity fields travel on every event the script produces:
+/// The identity fields travel on every event the script produces:
 /// `dep_path` groups them, `stage` names the script, and `wd` is what the
 /// reporter renders as the project prefix.
 #[derive(Clone, Copy)]

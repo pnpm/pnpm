@@ -85,8 +85,7 @@ pub(crate) fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
 /// module pin specific config-cascade behaviours, none of which
 /// turn on cross-volume detection, so the test fakes return
 /// `false` for every probe. The probe failing collapses to the
-/// pre-existing `SmartDefault` `store_dir` value, which is what the
-/// pre-port assertions already assume.
+/// pre-existing `SmartDefault` `store_dir` value.
 ///
 /// `inert_link_probe!(Name)` wires the impl onto a local test
 /// fake without polluting each test fn with the boilerplate.

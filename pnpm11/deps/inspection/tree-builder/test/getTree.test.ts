@@ -806,9 +806,7 @@ describe('getTree', () => {
       // root → a → b → target (search match)
       // root → c → b (deduped, but subtree contains a search match)
       //
-      // Without the fix, "c → b" would be excluded because b is deduped
-      // (empty deps) and b itself doesn't match the search.
-      // With the fix, "c → b" appears as deduped + searched.
+      // "c → b" appears as deduped + searched.
       const version = '1.0.0'
       const currentPackages = generateMockCurrentPackages(version, {
         root: ['a', 'c'],

@@ -128,14 +128,8 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
 
     let registries = resolver_setup::resolve_registries(install.drivers.config)?;
 
-    // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
-    // and `pick_lowest_direct` steer the deps-resolver's per-depth
-    // version pick; `full_metadata` forces the npm resolver to fetch
-    // per-version `time` fields so the time-based cutoff and the
-    // no-downgrade trust check have publication dates; `published_by`
-    // (+exclude) is the maturity cutoff. Shared with `pacquet add`'s
-    // explicit-spec pre-resolution via [`PickPolicy`] so both pick the
-    // same version.
+    // Shared with `pacquet add`'s explicit-spec pre-resolution via
+    // [`PickPolicy`] so both pick the same version.
     let policy = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
         install.drivers.config,
         observer.minimum_release_age_exclude_override.as_deref(),

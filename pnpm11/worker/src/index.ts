@@ -43,9 +43,7 @@ const globalWithWorkers = globalThis as typeof globalThis & { finishWorkers?: ()
  * implementation (44ms -> 245ms over 2M awaits, paid whether or not the
  * scope is entered), and pnpm supports Node 22.13, where that is the
  * implementation. Every install would pay it so that a diagnostic reads
- * correctly in one non-default configuration. The alternative with no
- * global cost is threading the tally through the store controller's
- * per-request options into `readPkgFromCafs`.
+ * correctly in one non-default configuration.
  */
 const verifiedFileIntegrity: VerifiedFileIntegrity = { files: 0, ms: 0 }
 
@@ -196,8 +194,6 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
     if (indexWrites) {
       // Write immediately so that subsequent worker reads (e.g. side effects)
       // see the committed data without waiting for nextTick.
-      // A throw here (e.g. ImmutableStoreIndex refusing the write under
-      // frozenStore) rejects the promise.
       opts.storeIndex.setRawMany(indexWrites)
     }
     return value

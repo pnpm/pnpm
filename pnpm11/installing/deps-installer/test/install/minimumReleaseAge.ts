@@ -88,10 +88,9 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
 })
 
 test('strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts', async () => {
-  // Pre-refactor strict mode threw at the resolver on the first immature
-  // pick (forcing a discover-by-loop dance, pnpm/pnpm#10488). With always-defer the
-  // resolver records every immature pick inline; the install command (here
-  // simulated via the hook) decides what to do once it has the full set.
+  // The resolver records every immature pick inline (pnpm/pnpm#10488); the
+  // install command (here simulated via the hook) decides what to do once it
+  // has the full set.
   prepareEmpty()
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   const seen: string[] = []
@@ -382,10 +381,9 @@ test('the lockfile minimumReleaseAge gate runs in loose mode too', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
 
-  // Loose mode no longer skips the verifier — once auto-collect makes every
-  // accepted-immature pin explicit in `minimumReleaseAgeExclude`, running
-  // the verifier in loose mode is what keeps the manifest in sync with the
-  // lockfile. A pre-existing immature lockfile entry that isn't yet on the
+  // Once auto-collect makes every accepted-immature pin explicit in
+  // `minimumReleaseAgeExclude`, running the verifier in loose mode is what
+  // keeps the manifest in sync with the lockfile. A pre-existing immature lockfile entry that isn't yet on the
   // exclude list is rejected here, same as strict mode.
   await expect(
     install(manifest, testDefaults({ minimumReleaseAge }))

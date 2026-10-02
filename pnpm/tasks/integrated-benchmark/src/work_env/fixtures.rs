@@ -157,18 +157,7 @@ pub(super) fn save_pristine_copies(dir: &Path) {
     }
 }
 /// Synthesize the per-revision `pnpm-workspace.yaml` through a typed
-/// [`MinimalWorkspaceManifest`] and emit it via `serde_saphyr`, instead
-/// of formatting raw YAML strings. The typed round-trip rules out the
-/// `duplicated mapping key` failure modes a string-injection approach
-/// is prone to, and keeps the on-disk file in sync with the schema as
-/// new fields are added.
-///
-/// Pacquet's `.npmrc` sets `ignore-scripts=true` so no scripts actually
-/// run, but pnpm still warns about `ERR_PNPM_IGNORED_BUILDS` for
-/// packages whose postinstalls would have fired — the manifest's
-/// `allowBuilds: {core-js: false, es5-ext: false, fsevents: false}`
-/// silences those specific warnings and keeps pnpm's output clean so
-/// hyperfine doesn't see stderr noise.
+/// [`MinimalWorkspaceManifest`] and emit it via `serde_saphyr`.
 ///
 /// Always guarantees `storeDir: ./store-dir` and `cacheDir: ./cache-dir`
 /// end up in the destination. Both pnpm and pacquet read these from this
@@ -178,16 +167,12 @@ pub(super) fn save_pristine_copies(dir: &Path) {
 /// wipes a directory the install never wrote to. That silently
 /// invalidates cold/hot-cache semantics and lets state from previous runs
 /// leak in (Copilot review on [#296](https://github.com/pnpm/pacquet/pull/296)).
-/// `cacheDir` is the resolution-metadata mirror specifically: keeping it
-/// local is what lets the cold-cache scenarios force a real cold resolve.
 ///
 /// If a custom fixture's workspace file already declares `storeDir`,
 /// trust it — that's the user opting into a different store layout
 /// (e.g. shared store across revisions to test a specific scenario).
-/// Only inject our default when the key is absent.
 ///
-/// Also mirrors the `.npmrc` settings (`registry`, `autoInstallPeers`,
-/// `ignoreScripts`, `lockfile`) into the workspace file as camelCase
+/// Also mirrors the `.npmrc` settings into the workspace file as camelCase
 /// keys so pnpm 10 picks them up from either source. Per pnpm's reader
 /// (`config/reader/src/index.ts:802-808` at pnpm/pnpm@8eb1be4988),
 /// non-camelCase keys in `pnpm-workspace.yaml` are silently dropped, so
@@ -209,21 +194,9 @@ pub(super) fn create_pnpm_workspace(
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
     }
-    // Force the packument-metadata cache bench-local too, for the same
-    // per-iteration-wipe reason as `storeDir`. Left at the global default
-    // (`~/.cache/pnpm`), the metadata mirror survives every cold-cache
-    // wipe, so a direct install resolves from a warm mirror and never pays
-    // the packument-fetch waterfall pnpr is built to offload — "cold
-    // cache" would then wipe only the CAS, not the resolution cache.
     if manifest.cache_dir.is_none() {
         manifest.cache_dir = Some("./cache-dir".to_string());
     }
-    // Pin `packages: ['.']` when the fixture didn't set one.
-    // Without this the fresh-resolve install path's project walker
-    // (`find_workspace_projects`) defaults to `[".", "**"]` and recurses
-    // into the per-revision `<bench_dir>/pacquet/` clone of pnpm/pnpm,
-    // tripping on the intentionally malformed test fixture at
-    // `workspace/project-manifest-reader/__fixtures__/invalid-package-json/package.json`.
     if manifest.packages.is_none() {
         manifest.packages = Some(vec![".".to_string()]);
     }

@@ -367,8 +367,7 @@ function logCompleteLines (pending: string, text: string, log: (line: string) =>
     const line = held + text.slice(start, end)
     held = ''
     start = end + 1
-    // A CRLF terminator contributes no CR to the line, the
-    // same as every other line reader in both stacks.
+    // A CRLF terminator contributes no CR to the line.
     log(line.endsWith('\r') ? line.slice(0, -1) : line)
   }
   return held + text.slice(start)

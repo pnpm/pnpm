@@ -108,11 +108,6 @@ async function createSingleProjectInstallContext (
   }
   const { manifest, writeProjectManifest } = await readManifestToInstall(opts, userNamedDeps)
 
-  // `setupPolicyHandlers` composes the per-policy handlers the install
-  // needs for the current opts (today: minimumReleaseAge; future:
-  // trustPolicy UX, license policy, etc.). Returns `undefined` when no
-  // handler is active so the install skips the empty no-op call at
-  // every checkpoint when no policies are configured.
   const policyHandlers = setupPolicyHandlers(opts)
 
   const { reporter: reporterName, ...coreOpts } = opts

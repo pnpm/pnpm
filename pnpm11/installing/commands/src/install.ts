@@ -258,11 +258,9 @@ async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: Inst
     throw new PnpmError('CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER',
       'Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server')
   }
-  // `dryRun` makes the installer resolve fully and return the before/after
-  // wanted lockfile without writing anything. `lockfileOnly` keeps it from
-  // materializing `node_modules` and skips the metadata cache (resolution
-  // skips fetching). The optimistic fast path is disabled so resolution
-  // always runs.
+  // `lockfileOnly` keeps the installer from materializing `node_modules`
+  // and skips the metadata cache (resolution skips fetching). The
+  // optimistic fast path is disabled so resolution always runs.
   installDepsOptions.optimisticRepeatInstall = false
   installDepsOptions.lockfileOnly = true
   installDepsOptions.dryRun = true

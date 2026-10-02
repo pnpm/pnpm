@@ -48,9 +48,7 @@ pub struct PackageBinSource {
     /// silently shadowed by a transitive's bin. Defaults to
     /// [`BinOrigin::Direct`] —
     /// constructions via [`PackageBinSource::new`] don't have to
-    /// supply the field. Pacquet's hoist + hoisted-linker passes use
-    /// [`PackageBinSource::with_origin`] to tag transitive
-    /// candidates as [`BinOrigin::Hoisted`].
+    /// supply the field.
     pub origin: BinOrigin,
     /// The package directory with every symlink resolved — the
     /// virtual-store slot dir a symlinked [`location`] points at.
@@ -85,10 +83,7 @@ impl PackageBinSource {
         }
     }
 
-    /// Tag this source with the given [`BinOrigin`]. Builder-style
-    /// helper so call sites that need to mark candidates as
-    /// [`BinOrigin::Hoisted`] don't have to spell out the struct
-    /// literal.
+    /// Tag this source with the given [`BinOrigin`].
     #[must_use]
     pub fn with_origin(mut self, origin: BinOrigin) -> Self {
         self.origin = origin;

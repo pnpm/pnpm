@@ -723,9 +723,7 @@ fn hoist_false_disables_private_hoist_pattern() {
 }
 
 /// `hoistingLimits` deserializes as one of the `none` / `workspaces`
-/// / `dependencies` modes; the install pipeline translates the mode
-/// into the per-locator border map via
-/// `pnpm_package_manager::get_hoisting_limits`. Yaml-empty /
+/// / `dependencies` modes. Yaml-empty /
 /// missing keeps the `Config` field at its [`HoistingLimits::None`]
 /// default.
 #[test]

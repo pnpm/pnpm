@@ -84,7 +84,6 @@ function selectPackagesToUpdate (opts: GlobalUpdateOptions, params: string[]): G
     return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
   }
 
-  // If specific packages are requested, filter to only groups containing them
   let packagesToUpdate = allPackages
   if (params.length > 0) {
     packagesToUpdate = allPackages.filter((pkg) =>
@@ -210,7 +209,6 @@ async function activateUpdatedGroup (
 ): Promise<void> {
   const { globalDir, globalBinDir } = ctx
   const { pkg, installDir } = group
-  // Check for bin name conflicts with other global packages
   const pkgs = await readInstalledPackages(installDir)
   const { binsToSkip, retainedBinNames, ownership } = await planUpdatedGroupBins(ctx, { pkg, installDir, pkgs })
   const hashLink = getHashLink(globalDir, pkg.hash)

@@ -240,8 +240,6 @@ impl EncodeMetaError {
 /// Version fragments come from [`PackageVersions::fragments`] — for a
 /// freshly-fetched packument these borrow the raw bytes the registry
 /// served, so the write is one buffered pass with no re-serialization.
-/// The cold-install cost is therefore the same one temp-file +
-/// `rename` per package as the previous format.
 pub fn save_meta_indexed(
     pkg_mirror: &Path,
     meta: &Package,
@@ -531,11 +529,7 @@ pub async fn load_meta_async(pkg_mirror: Option<&Path>) -> Option<Package> {
 }
 
 /// Async sibling of [`load_meta_headers`]. Same rationale as
-/// [`load_meta_async`] — the synchronous body opens a file and
-/// parses a short JSON header line, blocking the worker for the
-/// duration. The headers-only read is cheap (~100 bytes typically)
-/// but is invoked on every cache-warm pick, so the cumulative block
-/// time is still meaningful with hundreds of packuments.
+/// [`load_meta_async`].
 pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHeaders> {
     let pkg_mirror = pkg_mirror?.to_path_buf();
     tokio::task::spawn_blocking(move || load_meta_headers(&pkg_mirror)).await.ok().flatten()

@@ -219,9 +219,6 @@ async function resolveLockfileViaPnpr (
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   })
 
-  // For installSome projects, copy resolved specs from the lockfile importer
-  // entries back into the client manifest so save-prefix/catalog/etc. take
-  // effect (the server applies these during its resolution step).
   if (allInstallProjects) {
     applyResolvedSpecsToAddedProjects(allInstallProjects, { lockfile, lockfileDir })
   }
@@ -381,8 +378,6 @@ async function materializePnprLockfile (
     ignoredBuilds,
     // Pacquet doesn't surface a structured stats return; default to
     // zeros so the pnpr server's non-optional `stats` slot is filled.
-    // The reporter still renders accurate counts from pacquet's
-    // `pnpm:stats` log events.
     stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     lockfile,
     // The pnpr server enforces the whole verification policy itself and

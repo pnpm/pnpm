@@ -48,9 +48,7 @@ impl fmt::Display for VersionPart {
 ///
 /// Runtime entries (pnpm v11's `node@runtime:` /  `deno@runtime:` /
 /// `bun@runtime:` deps) carry a `runtime:` prefix in front of the
-/// version part (e.g. `runtime:22.0.0`). Pacquet preserves that
-/// prefix through [`Prefix`] so a round-trip stays byte-stable
-/// against the `pnpm-lock.yaml` output.
+/// version part (e.g. `runtime:22.0.0`).
 ///
 /// **NOTE:** The peer part isn't guaranteed to be correct. It is only assumed to be.
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -58,8 +56,7 @@ impl fmt::Display for VersionPart {
 #[serde(try_from = "Cow<'de, str>", into = "String")]
 pub struct PkgVerPeer {
     /// Scheme prefix (e.g. `runtime:`) preserved verbatim through
-    /// the round-trip. [`Prefix::None`] for plain semver — the only
-    /// shape pacquet recognises before pnpm v11.
+    /// the round-trip.
     prefix: Prefix,
     version: VersionPart,
     peer: String,
@@ -70,8 +67,7 @@ pub struct PkgVerPeer {
 /// Pnpm v11 introduces `runtime:` for runtime dependencies; pacquet
 /// preserves the substring so the resulting depPath
 /// (e.g. `node@runtime:22.0.0`) round-trips correctly and downstream
-/// consumers (the `--no-runtime` filter, the install dispatcher)
-/// can discriminate runtime entries by their prefix instead of
+/// consumers can discriminate runtime entries by their prefix instead of
 /// substring-searching the depPath.
 ///
 /// The enum is closed because pnpm only defines this one scheme so
@@ -79,7 +75,7 @@ pub struct PkgVerPeer {
 /// rather than turning the prefix into an unbounded string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Prefix {
-    /// No prefix — plain semver, the default before pnpm v11.
+    /// No prefix — plain semver.
     None,
     /// `runtime:` — runtime dependency specifier (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`).
@@ -156,8 +152,7 @@ impl PkgVerPeer {
     }
 
     /// Destructure the struct into a tuple of version and peer.
-    /// The prefix (if any) is dropped — keep the call shape
-    /// backward-compatible with pre-runtime consumers. New callers
+    /// The prefix (if any) is dropped. Callers
     /// that need the prefix should access it via
     /// [`PkgVerPeer::prefix`] before destructuring.
     #[must_use]

@@ -43,9 +43,7 @@ impl WorkEnv {
             .trim()
             .to_string()
     }
-    /// Output binary a `pacquet@<rev>` target runs. Revisions disagree
-    /// on the client bin name, so prefer whichever exists (`pnpm` when
-    /// neither does yet).
+    /// Output binary a `pacquet@<rev>` target runs.
     fn pacquet_binary(&self, revision: &str) -> PathBuf {
         WorkEnv::client_binary_in(&self.pacquet_source_dir(revision))
     }
@@ -276,9 +274,7 @@ impl WorkEnv {
         // `pnpm run compile-only` rather than `pnpm run compile` —
         // the root `compile` script also runs `update-manifests`,
         // which fires a second `pnpm install` and rewrites tracked
-        // manifest files (a no-op for the benchmark, and the
-        // rewrite-on-second-run was what made `sync_bench_repo`
-        // need its `git reset --hard` guard). `compile-only` keeps
+        // manifest files (a no-op for the benchmark). `compile-only` keeps
         // the workspace-manifest-reader / typecheck-only setup steps
         // *and* the final `pn -F=pnpm compile` that produces
         // `pnpm/dist/pnpm.{mjs,cjs}` — i.e. everything the install

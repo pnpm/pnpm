@@ -26,7 +26,6 @@ export async function checkGlobalBinConflicts (opts: {
   const newBinOwners = await mapBinsToOwners(opts.newPkgs)
   if (newBinOwners.size === 0) return binsToSkip
 
-  // Quick check: only investigate if a bin with the same name already exists
   const conflicting = new Set(
     [...newBinOwners.keys()].filter((name) => binSlotExists(opts.globalBinDir, name))
   )

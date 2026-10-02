@@ -176,7 +176,6 @@ async function readLockfileMainDocument (lockfilePath: string): Promise<string |
     }
     return null
   }
-  // Skip the env lockfile document if present (first document in combined format)
   lockfileRawContent = extractMainDocument(lockfileRawContent)
   return lockfileRawContent.trim() ? lockfileRawContent : null
 }

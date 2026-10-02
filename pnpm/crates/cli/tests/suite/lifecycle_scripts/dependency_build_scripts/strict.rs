@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 /// takes the fresh-lockfile path, which never ran the build phase —
 /// so a blocked dependency build script was silently ignored, and
 /// the install exited 0, unlike `pnpm add`. Under the default
-/// `strictDepBuilds`, the install now fails with
+/// `strictDepBuilds`, the install fails with
 /// `ERR_PNPM_IGNORED_BUILDS` after adding the dependency.
 #[test]
 fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {

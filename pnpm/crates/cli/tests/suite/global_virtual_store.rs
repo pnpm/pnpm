@@ -617,7 +617,7 @@ fn injected_local_packages_work_with_global_virtual_store() {
     drop((root, mock_instance));
 }
 
-/// The three negatives every `virtualStoreOnly` install shares: no
+/// The negatives every `virtualStoreOnly` install shares: no
 /// importer symlinks, no hoisted packages, no `.bin`.
 fn assert_no_post_import_linking(workspace: &Path) {
     assert!(
@@ -686,8 +686,8 @@ fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
 /// The dependency is a peer resolved by a workspace sibling, so the
 /// lockfile records `@pnpm.e2e/peer-a: link:packages/peer-a` on the
 /// `@pnpm.e2e/abc` snapshot (see the `exclude_links_from_lockfile`
-/// suite for the resolution half). Nothing used to create that link:
-/// project-locally the omission is invisible, because the slot sits
+/// suite for the resolution half). Project-locally the omission is
+/// invisible, because the slot sits
 /// under the importer's `node_modules` and Node's upward walk finds the
 /// importer's own copy of the peer. A GVS slot lives in the shared
 /// store where no such walk exists, so without the link the peer is

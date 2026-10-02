@@ -150,10 +150,6 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
 /// `pnpm-tarball`; the canonical Node-runtime filter lives at
 /// the install-dispatch site (Slice D) where it's constructed once
 /// per fetch.
-///
-/// The callback receives the *cleaned* path (post-prefix strip,
-/// `to_string_lossy()` already applied), so its inputs are stable
-/// strings keyed the same way pnpm keys the equivalent filter.
 pub type IgnoreEntryFilter = dyn Fn(&str) -> bool + Send + Sync;
 
 /// A settled mem-cache slot: the extracted CAS map and the bundled
@@ -352,10 +348,7 @@ impl<'a> IngestTarballToStore<'a> {
         Ok(self.settled_by_owner::<Reporter>(&cached.files, progress_key))
     }
 
-    /// The first owner already reported its package status. If the caller
-    /// supplied a shared progress set, this emit is skipped for keys the
-    /// owner reported; otherwise the legacy per-caller cache-hit progress is
-    /// preserved.
+    /// The first owner already reported its package status.
     fn settled_by_owner<Reporter: self::Reporter>(
         &self,
         cas_paths: &Arc<HashMap<String, PathBuf>>,

@@ -37,9 +37,6 @@ fn empty_text_is_no_query() {
 
 #[test]
 fn malformed_pair_doesnt_abort_parse() {
-    // A pair with no `=` (e.g. trailing `&` or an unkeyed value)
-    // used to short-circuit the whole parse with `?`. Now we just
-    // skip it.
     assert_eq!(parse_query("flag&text=foo").as_deref(), Some("foo"));
     assert_eq!(parse_query("text=foo&trailing").as_deref(), Some("foo"));
 }

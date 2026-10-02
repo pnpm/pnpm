@@ -173,9 +173,7 @@ export interface ResolveDependencyTreeResult {
   /**
    * Policy violations collected inline during resolution — the
    * resolver pushes to this list whenever it picks a package that
-   * trips one of its own checks (today: `minimumReleaseAge`). The
-   * shape mirrors `ResolutionPolicyViolation`; downstream callers
-   * filter by `code` to decide what to do.
+   * trips one of its own checks.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
 }

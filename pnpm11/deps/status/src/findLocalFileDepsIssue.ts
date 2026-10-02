@@ -176,9 +176,7 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
  * repeat-install fast path for every project with git dependencies. Such
  * specs (and anything else carrying a protocol or URL) stay on the fast
  * path. `catalog:` specs also return false here — callers dereference them
- * through the catalogs config first, because a catalog entry may hold a
- * bare local path (the catalog resolver only bans the `link:` and `file:`
- * protocols).
+ * through the catalogs config first.
  */
 function isLocalFileSpec (spec: string): boolean {
   if (spec.startsWith('file:')) return true

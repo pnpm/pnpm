@@ -102,7 +102,6 @@ test('from a github repo with different name via named installation', async () =
   project.isExecutable('.bin/szia')
 })
 
-// This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
 test('from a github repo with different name', async () => {
   const project = prepareEmpty()
   getMockAgent().get('https://github.com')

@@ -183,7 +183,7 @@ impl WorkspaceSettings {
         self.key_issues = issues;
     }
 
-    /// The top-level keys of `text` that set nothing, in the three buckets
+    /// The top-level keys of `text` that set nothing, in the buckets
     /// they are reported under.
     fn top_level_key_issues(text: &str) -> WorkspaceKeyIssues {
         let mut issues = WorkspaceKeyIssues::default();

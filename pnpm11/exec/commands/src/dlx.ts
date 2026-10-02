@@ -345,8 +345,7 @@ async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'eng
   } catch (err: unknown) {
     // The installed package's `package.json` is unreadable. Observed in the
     // wild for `node@runtime:<version>` whose CAS slot was materialized by
-    // a code path that didn't run pnpm's `appendManifest` (or pacquet's
-    // equivalent runtime-manifest synthesis), leaving the slot without
+    // a code path that didn't run pnpm's `appendManifest`, leaving the slot without
     // the `package.json` runtime archives don't ship themselves. Fall back
     // to the scopeless package name — for single-bin packages (the dlx
     // common case) it matches what `manifest.bin` would have named, and

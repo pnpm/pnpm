@@ -112,9 +112,6 @@ export function resolveRegistriesByScope (state: ConfigBuildState, sources: Regi
   const { pnpmConfig } = state
   pnpmConfig.registriesByScope = mergeRegistriesByScope(state, sources)
   const { registriesFromNpmrc } = sources
-  // Re-apply an unscoped `--registry` CLI flag last for the same reason
-  // as `cliScopedRegistries` — it entered `registriesFromNpmrc` via
-  // `authConfig.registry` and would otherwise be buried by env JSON.
   if (state.registrySetOnCommandLine && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
@@ -171,8 +168,6 @@ function mergeRegistriesByScope (
     // The `_auth` env var is the operator's channel — a CI runner pointed at
     // a mandated proxy — so its routes win over what any file declares.
     ...jsonAuthRegistries.envRegistries,
-    // CLI per-scope registries last, so `--@scope:registry=...` wins over
-    // both yaml and `_auth` ("CLI > _auth env > yaml > _auth file").
     ...cliScopedRegistries,
   }
 }

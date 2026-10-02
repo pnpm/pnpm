@@ -167,10 +167,7 @@ function canUsePnprForPatchRefresh (
  * - `install`: send the manifest as-is.
  * - `uninstallSome`: drop the named deps from the manifest before sending,
  *   so the pnpr server's resolution naturally produces a lockfile without them.
- * - `installSome`: parse selectors and merge them into the manifest. The
- *   pnpr server then resolves the merged manifest, and we read the resolved
- *   specifiers (with the right save-prefix applied server-side) back from
- *   the lockfile importer entries to update the client-side manifest.
+ * - `installSome`: parse selectors and merge them into the manifest.
  *
  * Returns null if the projects don't map cleanly to allProjects (caller
  * should fall through to the normal flow).
@@ -281,8 +278,6 @@ export function applyResolvedSpecsFromLockfile (
   // user spec). The on-disk YAML shape pairs them per entry — the reader
   // splits them. Read both and compute the save-prefix spec client-side.
   for (const dep of newDeps) {
-    // User explicitly specified a spec (e.g. `foo@^2`) — the merged manifest
-    // already has the right value, don't touch it.
     if (dep.userSpecified) continue
     applyResolvedSpec(manifest, { alias: dep.alias, importerSnapshot, rangeSpecStyle })
   }

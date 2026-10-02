@@ -4,7 +4,7 @@ import type { RemoteSideEffectsCacheSettings, SideEffectsCacheSettings } from '@
 import type { Config, ConfigContext } from '../Config.js'
 
 /**
- * Resolves the four accepted spellings into the three fields consumers read.
+ * Resolves the accepted spellings into the fields consumers read.
  *
  * `sideEffectsCache: true` sets reading and writing together,
  * `sideEffectsCacheReadonly` is `read` without `write`, and
@@ -26,8 +26,7 @@ export function resolveSideEffectsCache (pnpmConfig: Config): void {
   pnpmConfig.sideEffectsCacheWrite = settings != null
     ? settings.write ?? true
     // `sideEffectsCacheReadonly` reads as blocking writes and is documented as
-    // doing so, and pacquet has always enforced that. Deriving writes from the
-    // boolean alone let it through here, since that boolean defaults to on.
+    // doing so.
     : readonly ? false : shorthand
   // Combined here rather than as each source is read, so that the canonical
   // spelling wins on a field both set no matter which order they appeared in.

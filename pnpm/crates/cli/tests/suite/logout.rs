@@ -61,7 +61,7 @@ fn logout_errors_when_not_logged_in() {
     assert!(stderr.contains("Not logged in to https://registry.npmjs.org/"), "stderr: {stderr}");
 }
 
-/// End-to-end `pacquet logout` against the file `pnpm login` writes now: the
+/// End-to-end `pacquet logout` against the file `pnpm login` writes: the
 /// binary reads the token out of `config.yaml`'s `_auth`, revokes it, and
 /// takes the registry's entry back out of the document.
 #[test]

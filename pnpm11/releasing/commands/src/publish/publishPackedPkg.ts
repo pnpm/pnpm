@@ -416,7 +416,6 @@ async function determineOidcProvenance (
  *
  * `libnpmpublish` has a quirk in which it only read the authentication information from `//<registry>:_authToken`
  * instead of `token`.
- * This function fixes that by making sure the registry specific authentication information exists.
  */
 function appendAuthOptionsForRegistry (targetPublishOptions: StagePublishOptions, registry: NormalizedRegistryUrl): void {
   const registryInfo = parseSupportedRegistryUrl(registry)

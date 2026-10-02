@@ -7,10 +7,6 @@ use super::{
 };
 use axum::response::IntoResponse;
 
-/// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
-/// through the registry graph. Resolves the package to its one concrete origin,
-/// loads that origin's packument, and extracts the requested version with its
-/// `dist.tarball` rewritten onto the same origin's base.
 /// The stored packument of whichever source a registry routes this package to.
 ///
 /// An upstream registry's per-package rules gate the read, and the hosted gate

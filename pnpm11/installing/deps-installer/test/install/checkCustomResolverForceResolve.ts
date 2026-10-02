@@ -182,8 +182,7 @@ describe('checkCustomResolverForceResolve', () => {
   })
 
   test('shouldRefreshResolution can filter by depPath to match specific packages', async () => {
-    // Resolver uses shouldRefreshResolution to do its own filtering -- this is
-    // the expected pattern now that canResolve is not used as a gate.
+    // Resolver uses shouldRefreshResolution to do its own filtering.
     const resolver: CustomResolver = {
       canResolve: (wantedDependency) => wantedDependency.alias === 'indirect-pkg',
       shouldRefreshResolution: (depPath) => depPath.startsWith('indirect-pkg@'),

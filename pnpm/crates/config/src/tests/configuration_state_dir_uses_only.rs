@@ -613,16 +613,11 @@ pub fn unscoped_creds_in_project_npmrc_warn_naming_that_file() {
 }
 
 /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
-/// generic capability seam — no process-environment mutation, no
-/// `EnvGuard` lock, no `unsafe` block. With the DI seam from
-/// pnpm/pacquet#339 + pnpm/pnpm#11708 the precedence is checked by
-/// passing a per-test unit struct that satisfies [`EnvVar`],
-/// [`GetHomeDir`], and [`GetCurrentDir`].
+/// generic capability seam.
 ///
 /// The `home_dir` and `current_dir` capability impls both call
 /// `unreachable!` because `default_store_dir` short-circuits on
-/// `PNPM_HOME` before consulting either — the panic-on-call
-/// documents that precondition. Tracks pnpm/pacquet#343.
+/// `PNPM_HOME` before consulting either.
 #[test]
 pub fn should_use_pnpm_home_env_var() {
     struct EnvWithPnpmHome;
@@ -650,10 +645,7 @@ pub fn should_use_pnpm_home_env_var() {
 
 /// Companion to [`should_use_pnpm_home_env_var`]: when
 /// `PNPM_HOME` is unset, `default_store_dir` falls through to
-/// `XDG_DATA_HOME`. Exercised through the DI seam with a fake
-/// `Sys` that only returns a value for `XDG_DATA_HOME`. No
-/// process-environment mutation, no `EnvGuard`, no `unsafe`.
-/// Tracks pnpm/pacquet#343.
+/// `XDG_DATA_HOME`.
 #[test]
 pub fn should_use_xdg_data_home_env_var() {
     struct EnvWithXdgDataHome;

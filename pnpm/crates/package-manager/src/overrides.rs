@@ -4,11 +4,7 @@
 //! The rewrite is a manifest hook that fires on every manifest
 //! read during resolution. Pacquet uses the same rewrite both for
 //! frozen-lockfile freshness checks and for the fresh resolver's
-//! manifest hook. Its shape — generic vs.
-//! parent-scoped overrides, `-` deletion, `link:` / `file:` local
-//! targets, range intersection via semver — drives both the
-//! resolved dependency graph and the lockfile's post-override
-//! manifest view.
+//! manifest hook.
 //!
 //! The hook never touches the on-disk `package.json` — mutation
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]

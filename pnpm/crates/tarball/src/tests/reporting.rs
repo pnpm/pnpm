@@ -158,8 +158,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
 /// Without a shared progress-dedupe set, `run_with_mem_cache`'s
 /// `Available` short-circuit emits `pnpm:progress found_in_store`
 /// against the caller's reporter, regardless of who originally
-/// populated the slot. This preserves the legacy install path where a
-/// later caller still needs its own visible cache-hit event.
+/// populated the slot.
 ///
 /// Drives two `run_with_mem_cache` calls for the same URL but
 /// different `package_id`s. The first uses `SilentReporter`

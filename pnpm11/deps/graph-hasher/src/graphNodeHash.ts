@@ -18,8 +18,7 @@ export interface GraphNodeHashOptions {
    * Node; pinning snapshots get resolved per-snapshot via
    * readSnapshotRuntimePin so the GVS engine hash matches
    * the Node the bin linker would actually spawn for each package.
-   * Typically the root project's pin, from findLockedRootNodeRuntime
-   * in @pnpm/lockfile.utils. undefined falls back to
+   * undefined falls back to
    * engineName's default (system node --version, with
    * process.version as a last resort).
    */

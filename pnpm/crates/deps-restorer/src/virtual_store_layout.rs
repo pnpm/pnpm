@@ -1,7 +1,6 @@
 //! Per-install computed layout of the virtual store.
 //!
-//! Stage 1 of pnpm/pacquet#432 introduces a path split: when the global
-//! virtual store is enabled, packages live at
+//! When the global virtual store is enabled, packages live at
 //! `<store_dir>/links/<scope>/<name>/<version>/<hash>/node_modules/<name>`,
 //! not at the project-local
 //! `<project>/node_modules/.pnpm/<flat-name>/node_modules/<name>`. The
@@ -97,9 +96,7 @@ impl VirtualStoreLayout {
     /// `enable_global_virtual_store` setting on `Config`. Reserved
     /// for callers that must stay on the project-local flat layout
     /// even under GVS — today no production install path uses this
-    /// directly. Both `InstallFrozenLockfile` and
-    /// `InstallWithoutLockfile` construct via [`Self::new`] so they
-    /// honor `Config::enable_global_virtual_store` consistently.
+    /// directly.
     pub fn legacy(root: impl Into<PathBuf>, virtual_store_dir_max_length: usize) -> Self {
         VirtualStoreLayout {
             package_store_dir: root.into(),
@@ -124,12 +121,7 @@ impl VirtualStoreLayout {
         self
     }
 
-    /// Build the layout for one install. Reads
-    /// [`Config::enable_global_virtual_store`] to decide whether to
-    /// precompute GVS slot names, then iterates the lockfile's
-    /// `snapshots` (the per-peer-context entries) and computes each
-    /// snapshot's [`format_global_virtual_store_path`]-shaped suffix
-    /// via [`calc_graph_node_hash`](pnpm_graph_hasher::calc_graph_node_hash).
+    /// Build the layout for one install.
     ///
     /// Returns a layout that's safe to pass by reference across rayon
     /// workers: every field is `Send + Sync` once constructed (the
@@ -146,8 +138,7 @@ impl VirtualStoreLayout {
     /// per-snapshot through `find_own_runtime_node_major` — the
     /// engine portion of the hash then tracks the Node that the
     /// bin linker would spawn for that pinning package's lifecycle
-    /// scripts. The per-snapshot runtime pin takes precedence over
-    /// the install-wide fallback.
+    /// scripts.
     ///
     /// `None` propagates straight into
     /// [`calc_graph_node_hash`](pnpm_graph_hasher::calc_graph_node_hash)'s `engine` parameter — `None` and
@@ -155,11 +146,6 @@ impl VirtualStoreLayout {
     /// the `engine` contribution, the latter hashes the empty string),
     /// so the call site must keep the `Option` shape rather than
     /// flattening to `unwrap_or("")`.
-    ///
-    /// `snapshots` / `packages` are the lockfile fields the caller
-    /// already has by the time the install dispatches to a frozen-
-    /// lockfile flow — see
-    /// [`crate::InstallFrozenLockfile::run`].
     ///
     /// `allow_build_policy` drives engine-agnostic gating. When
     /// `Some`, the constructor walks `snapshots` once to collect
@@ -209,16 +195,9 @@ impl VirtualStoreLayout {
 
     /// [`Self::new`], with the derived suffix map cached on disk.
     ///
-    /// The key is a digest of the inputs the suffixes are derived from,
-    /// taken from the values in hand rather than from a re-read of the
-    /// lockfile file — the caller parsed that file at some earlier
-    /// point, and a second read can return a different revision, which
-    /// would file this run's suffixes under another one's identity.
-    ///
-    /// Only the restore path uses it. Nothing here depends on that any
-    /// more, but a caller whose lockfile the install is about to
-    /// rewrite gains nothing from an entry it will immediately
-    /// invalidate.
+    /// Only the restore path uses it. A caller whose lockfile the
+    /// install is about to rewrite gains nothing from an entry it will
+    /// immediately invalidate.
     ///
     /// The cache module below documents what the key covers and what
     /// the loader refuses to trust.
@@ -338,14 +317,6 @@ impl VirtualStoreLayout {
         self.gvs_suffixes.is_some()
     }
 
-    /// Absolute directory that holds `node_modules/<name>` for one
-    /// snapshot. Falls back to
-    /// [`PkgNameVerPeer::to_virtual_store_name`](pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name)
-    /// when GVS is off, or when GVS is on but the key isn't in the
-    /// precomputed map (which would indicate a bug — every snapshot
-    /// the install touches must have been visited in
-    /// [`Self::new`]; the fallback is defensive rather than expected
-    /// to fire).
     /// Like [`Self::slot_dir`], but only for a snapshot with a
     /// precomputed GVS suffix — `None` instead of the flat-name
     /// fallback. The directory-clone cache requires this: a GVS suffix
@@ -360,6 +331,14 @@ impl VirtualStoreLayout {
         Some(join_global_virtual_store_path(&self.package_store_dir, suffix))
     }
 
+    /// Absolute directory that holds `node_modules/<name>` for one
+    /// snapshot. Falls back to
+    /// [`PkgNameVerPeer::to_virtual_store_name`](pnpm_lockfile::PkgNameVerPeer::to_virtual_store_name)
+    /// when GVS is off, or when GVS is on but the key isn't in the
+    /// precomputed map (which would indicate a bug — every snapshot
+    /// the install touches must have been visited in
+    /// [`Self::new`]; the fallback is defensive rather than expected
+    /// to fire).
     #[must_use]
     pub fn slot_dir(&self, key: &PackageKey) -> PathBuf {
         let suffix = match &self.gvs_suffixes {
@@ -593,8 +572,7 @@ fn is_local_directory(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) -
 }
 
 /// Extra hash input that keeps a snapshot taken from a local directory
-/// on a slot of its own. `None` for every other snapshot, which then
-/// hashes exactly as it did before.
+/// on a slot of its own. `None` for every other snapshot.
 ///
 /// A directory resolution is the one resolution with no integrity: it
 /// is a path relative to the lockfile, so `file:dep` hashes identically

@@ -152,10 +152,6 @@ pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
 /// preserves the blessing of a validated file whose mtime already lies
 /// ahead of the filesystem clock.
 ///
-/// pnpm's `checkDepsStatus` records `Date.now()` at this point. Reading
-/// the same *now* off the filesystem keeps the wall clock — which can
-/// run ahead of the mtime clock — out of the comparison.
-///
 /// A check that finishes inside the millisecond it is blessing leaves
 /// the baseline where it was, on purpose: `now_ms` is the present, not a
 /// point past it, and there is nothing later to record yet. The next run

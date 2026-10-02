@@ -248,7 +248,6 @@ fn command_in_dir(
             Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
     }
     // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
-    // See exec.ts:246.
     if let Some(node_options) = node_options {
         cmd.env("NODE_OPTIONS", node_options);
     }

@@ -38,8 +38,7 @@ export function pathEscapesProject (rawPath: string): boolean {
   // `path.parse().root` is non-empty for any host-rooted form: a POSIX
   // absolute path (`/x`), and on Windows also the drive-relative (`C:x`) and
   // root-relative (`\x`) forms that `path.isAbsolute()` reports as relative
-  // yet still resolve outside the project. Platform-specific, matching the
-  // pacquet port (which rejects `Component::RootDir` / `Component::Prefix`).
+  // yet still resolve outside the project.
   if (path.parse(rawPath).root !== '') return true
   return rawPath.split(/[/\\]/).includes('..')
 }

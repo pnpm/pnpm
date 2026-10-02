@@ -291,10 +291,6 @@ pub(super) fn check_importer_manifests_exist(
 /// Shared between dispatch states 1 and 2 so the explicit
 /// `--frozen-lockfile` flag and the implicit `preferFrozenLockfile:
 /// true` fast path agree on what "lockfile is up to date" means.
-/// Callers in state 1 surface any `Err` as [`crate::InstallError`]; callers
-/// in state 2 treat a stale-lockfile `Err` as fall-through to the
-/// fresh-resolve path (and surface the rest as fatal — see the
-/// `From<FreshnessCheckError> for InstallError` impl in [`error`]).
 ///
 /// `ignore_manifest_check` skips the per-importer specifier gate.
 /// The pnpm CLI passes it when delegating materialization through
@@ -360,8 +356,7 @@ fn check_importer_freshness(
         project_manifests_by_dir(inputs.manifests.iter().map(|(_, manifest)| *manifest));
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
-    // serial fold keeps the first error in importer order, like the
-    // loop it replaces.
+    // serial fold keeps the first error in importer order.
     let results: Vec<Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError>> = inputs
         .manifests
         .par_iter()
@@ -463,7 +458,7 @@ pub(crate) fn parse_config_overrides(
     }
 }
 
-/// Outdated-settings gate (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7): check
+/// Outdated-settings gate: check
 /// `ignoredOptionalDependencies` + `overrides` +
 /// `packageExtensionsChecksum` drift between the lockfile-recorded
 /// values and the current config before the per-importer specifier

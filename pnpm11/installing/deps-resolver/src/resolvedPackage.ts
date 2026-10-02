@@ -122,7 +122,7 @@ export function getResolvedPackage (
  * named-registry package is keyed `<name>@<registryName>:<version>` and
  * cannot collide. Without the qualifier the second resolution silently
  * reuses the first one's tarball, so the dependency that asked for the
- * named registry gets the other registry's bytes. Differing integrity is
+ * named registry gets the other registry's bytes.
  * The check is limited to named-registry involvement so nothing else can trip
  * it, and within that it is fail-closed: the two are allowed to share an id
  * only when something positively proves they are the same artifact — equal

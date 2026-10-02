@@ -7,22 +7,6 @@ use super::{
     symlink_already_points_at, target_requires_shim,
 };
 
-/// Write the canonical bin shim for `target_path` at `shim_path`,
-/// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
-/// is Windows*. Idempotent on warm reinstalls via
-/// [`is_shim_pointing_at`].
-///
-/// `make_powershell_shim` (see [`wants_powershell_shim`](super::wants_powershell_shim)) drops the
-/// `.ps1` sibling, and deletes any that an earlier install left
-/// behind.
-///
-/// The chmod step (`set_executable` for the canonical shim and
-/// `ensure_executable_bits` for the target binary) is wired through the
-/// [`FsSetExecutable`] / [`FsEnsureExecutableBits`] capability traits.
-/// On Unix the production impls run the actual `chmod`; on Windows
-/// they are no-ops (Windows has no equivalent permission concept), so
-/// the call sites stay portable and don't need their own
-/// `#[cfg(unix)]` gating.
 /// The per-bin inputs one [`write_shim`] call consumes.
 #[derive(Clone, Copy)]
 pub(super) struct ShimSpec<'a> {
@@ -63,6 +47,14 @@ impl ShimSpec<'_> {
     }
 }
 
+/// Write the canonical bin shim for `target_path` at `shim_path`,
+/// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
+/// is Windows*. Idempotent on warm reinstalls via
+/// [`is_shim_pointing_at`].
+///
+/// `make_powershell_shim` (see [`wants_powershell_shim`](super::wants_powershell_shim)) drops the
+/// `.ps1` sibling, and deletes any that an earlier install left
+/// behind.
 pub(super) fn write_shim<Sys>(
     spec: ShimSpec<'_>,
     cache: &ShimTargetCache,

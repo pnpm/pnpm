@@ -66,6 +66,19 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     }
 }
 
+/// Authenticate every request once, up front, and stash the resolved
+/// [`Identity`] in request extensions for the handlers (via
+/// [`AuthedCaller`]).
+///
+/// This is also where bearer-token restrictions are enforced — ahead of
+/// every route handler, so a restricted token is rejected before a write
+/// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
+/// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
+/// both and surfaces them on `npm token list`, so it must enforce them too
+/// — otherwise a token the operator restricted could still publish, or be
+/// used from any network. Basic-auth and anonymous requests carry no
+/// restriction and are still subject to the per-package access policy in
+/// the handlers; an unknown or revoked bearer token resolves to anonymous.
 pub(super) async fn authenticate(
     State(state): State<AppState>,
     mut request: Request,
@@ -108,19 +121,6 @@ pub(super) async fn authenticate(
     next.run(request).await
 }
 
-/// Authenticate every request once, up front, and stash the resolved
-/// [`Identity`] in request extensions for the handlers (via
-/// [`AuthedCaller`]).
-///
-/// This is also where bearer-token restrictions are enforced — ahead of
-/// every route handler, so a restricted token is rejected before a write
-/// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
-/// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
-/// both and surfaces them on `npm token list`, so it must enforce them too
-/// — otherwise a token the operator restricted could still publish, or be
-/// used from any network. Basic-auth and anonymous requests carry no
-/// restriction and are still subject to the per-package access policy in
-/// the handlers; an unknown or revoked bearer token resolves to anonymous.
 /// The identity an OCI bearer token carries, or `None` when the credential is
 /// not one of pnpr's own bearer tokens and the ordinary backend lookup should
 /// decide instead.

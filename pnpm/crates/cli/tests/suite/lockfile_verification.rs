@@ -1,5 +1,5 @@
 //! End-to-end CLI integration test for the lockfile-verification
-//! gate ported in Phase 7. Spawns the `pacquet` binary against a
+//! gate. Spawns the `pacquet` binary against a
 //! pnpm-workspace.yaml that activates the verifier and confirms the
 //! gate fires through the real install path — non-zero exit, the
 //! upstream-canonical diagnostic code in stderr.

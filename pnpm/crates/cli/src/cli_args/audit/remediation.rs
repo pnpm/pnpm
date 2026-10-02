@@ -122,9 +122,6 @@ impl AuditArgs {
         context: &FixContext<'_>,
     ) -> miette::Result<AuditOutcome> {
         prune_ignored_advisories(state.config, report, context.settings_dir)?;
-        // Pre-filter by audit-level and ignored GHSAs so the interactive
-        // prompt and both fix methods see the same advisory set the
-        // override path's fixable filter would.
         let filtered = filter_advisories_for_fix(report, context.audit_level, state.config);
         let Some(filtered) = self.select_advisories(filtered)? else {
             return Ok(AuditOutcome::Clean);
@@ -175,9 +172,7 @@ impl AuditArgs {
     }
 
     /// Resolve the `--fix` flag (and the `--interactive` implies-override
-    /// rule) into a [`FixMethod`]. Mirrors pnpm's fix-method dispatch:
-    /// `--fix`/`--fix override` → override, `--fix update` → update,
-    /// `--interactive` without `--fix` → override, anything else → error.
+    /// rule) into a [`FixMethod`]. Mirrors pnpm's fix-method dispatch.
     pub(super) fn resolve_fix_method(&self) -> miette::Result<Option<FixMethod>> {
         match self.fix.as_deref() {
             Some("override") => Ok(Some(FixMethod::Override)),

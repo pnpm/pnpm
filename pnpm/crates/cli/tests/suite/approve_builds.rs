@@ -65,8 +65,8 @@ fn workspace_with_unapproved_build() -> (CommandTempCwd<AddMockedRegistry>, std:
     (harness, workspace)
 }
 
-/// Set up a workspace that depends on `@pnpm.e2e/install-script-example`
-/// and install it with its build ignored (not in `allowBuilds`).
+/// Install the workspace from `workspace_with_unapproved_build` with its
+/// build ignored.
 fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
     let (harness, workspace) = workspace_with_unapproved_build();
 
@@ -610,7 +610,6 @@ fn approve_builds_works_after_removing_an_unrelated_dependency() {
     drop(harness);
 }
 
-/// The `allowBuilds` map recorded in the workspace manifest.
 /// The *decided* `allowBuilds` entries. An install scaffolds an
 /// undecided placeholder for every build it blocked, which is a prompt to
 /// edit rather than a decision, so it is dropped here exactly as the

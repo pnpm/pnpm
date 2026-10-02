@@ -203,7 +203,6 @@ async function switchGlobalPnpm (
   globalInfo(`Switching pnpm from v${packageManager.version} to v${targetVersion}...`)
   const store = await createStoreController({ ...opts, ...bootstrapConfig })
 
-  // Resolve integrities and write env lockfile to pnpm-lock.yaml
   const envLockfile = await resolvePackageManagerIntegrities(targetVersion, {
     registriesByScope: bootstrapConfig.registriesByScope,
     rootDir: opts.pnpmHomeDir,

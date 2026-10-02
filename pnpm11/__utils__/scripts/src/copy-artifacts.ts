@@ -65,7 +65,6 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
       return
     }
 
-    // Copy dist/ from the pnpm build output and strip non-target reflink packages.
     // Source maps are removed from this copy — they are archived separately via
     // createSourceMapsArchive(), which reads from the original pnpmDistDir.
     const distDest = path.join(artifactDir, 'dist')
@@ -81,14 +80,12 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
     const archiveName = isWindows ? `pnpm-${target}.zip` : `pnpm-${target}.tar.gz`
 
     if (isWindows) {
-      // Create zip for Windows
       const zipPath = path.join(dest, archiveName)
       execa.sync('zip', ['-r', zipPath, binaryName, 'dist'], {
         cwd: artifactDir,
         stdio: 'inherit',
       })
     } else {
-      // Create tar.gz for Unix
       await stream.promises.pipeline(
         tar.create({ gzip: true, cwd: artifactDir }, [binaryName, 'dist']),
         fs.createWriteStream(path.join(dest, archiveName))

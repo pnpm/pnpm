@@ -19,10 +19,7 @@ pub(crate) struct RawCreds {
     /// `tokenHelper=` value: the raw command line naming an executable
     /// pnpm runs to obtain the registry token. Kept as the raw string
     /// here; validated (reserved characters) and split into a command
-    /// at [`NpmrcAuth::build_auth_headers`] time. Only honored from a
-    /// trusted, non-repo source (see the trust guard in
-    /// [`crate::Config::current`]); a project/workspace `.npmrc`
-    /// carrying one is rejected.
+    /// at [`NpmrcAuth::build_auth_headers`] time.
     pub token_helper: Option<String>,
 }
 
@@ -302,8 +299,7 @@ pub(super) fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String
     // The catch-all swallows arbitrary `.npmrc` keys that don't map to
     // a credential field. Examples: a top-level `store-dir=` line, or
     // a `//host/:registry=` per-registry override that we don't honour
-    // yet. Only the four recognised fields contribute to `RawCreds`;
-    // everything else is silently dropped.
+    // yet.
     match field {
         "_authToken" => creds.auth_token = Some(value),
         "_auth" => creds.auth_pair_base64 = Some(value),

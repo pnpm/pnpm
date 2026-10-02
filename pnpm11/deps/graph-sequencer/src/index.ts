@@ -22,7 +22,6 @@ export interface Result<Vertex> {
  * pays that component's size per reported cycle (the price of the
  * established cycle-reporting semantics).
  *
- * @param {Graph<Vertex>}  graph - The graph represented as a Map where keys are nodes and values are their outgoing edges.
  * @param {Vertex[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
  * @returns {Result<Vertex>} An object containing one deterministic order and the cycles encountered.
  */

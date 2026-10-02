@@ -155,7 +155,6 @@ export async function destroyDispatchers (): Promise<void> {
  * Returns undefined if no special configuration is needed (to use global dispatcher).
  */
 export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher | undefined {
-  // If no special options are set, use the global dispatcher
   if (!needsCustomDispatcher(opts)) {
     return undefined
   }
@@ -402,14 +401,12 @@ function pickSettingByUrl<Setting> (
 ): Setting | undefined {
   if (!settings) return undefined
 
-  // Try exact match first
   if (settings[uri]) return settings[uri]
 
   // Use nerf-dart format for matching (e.g., //registry.npmjs.org/)
   const nerf = nerfDart(uri)
   if (settings[nerf]) return settings[nerf]
 
-  // Try without port
   const parsedUrl = new URL(uri)
   const withoutPort = removePort(parsedUrl)
   if (settings[withoutPort]) return settings[withoutPort]
@@ -417,7 +414,6 @@ function pickSettingByUrl<Setting> (
   const byParentPath = pickSettingByNerfDartParentPath(settings, nerf)
   if (byParentPath) return byParentPath
 
-  // If the URL had a port, try again without it
   if (withoutPort !== uri) {
     return pickSettingByUrl(settings, withoutPort)
   }
@@ -429,7 +425,6 @@ function pickSettingByNerfDartParentPath<Setting> (
   settings: Record<string, Setting>,
   nerf: string
 ): Setting | undefined {
-  // Try progressively shorter nerf-dart paths
   const maxParts = Object.keys(settings).reduce((max, key) => {
     const parts = key.split('/').length
     return parts > max ? parts : max

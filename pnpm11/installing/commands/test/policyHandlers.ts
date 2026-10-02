@@ -37,10 +37,9 @@ test('setupPolicyHandlers returns undefined when no policy is active', () => {
 })
 
 test('setupPolicyHandlers returns a plan even when strict mode is on without a TTY', async () => {
-  // Pre-refactor this returned undefined and the resolver did the fail-fast
-  // throw. Now the plan is always returned: the strict-no-TTY case throws
-  // from the handler with the full violation list, not just the first
-  // immature pick the resolver happened to hit.
+  // The plan is always returned: the strict-no-TTY case throws from the
+  // handler with the full violation list, not just the first immature pick
+  // the resolver happened to hit.
   await withStdinTTY(false, () => {
     expect(setupPolicyHandlers({
       minimumReleaseAge: 60,

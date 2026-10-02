@@ -36,12 +36,7 @@ impl PkgNameVerPeer {
     }
 
     /// The package id pnpm addresses this package by outside the
-    /// lockfile: the store-index row key (`store_index_key` /
-    /// `git_hosted_store_index_key` — referenced as plain text because
-    /// `pnpm-lockfile` deliberately does not depend on
-    /// `pnpm-store-dir`), the `packageId` of a `pnpm:progress`
-    /// event, and the resolution id the git fetchers build their
-    /// `allowBuild` dep path from.
+    /// lockfile.
     ///
     /// For a registry package this is the peer-stripped key itself
     /// (`name@version`). For a non-registry resolution — a URL tarball,

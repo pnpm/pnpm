@@ -182,7 +182,6 @@ function applyInvocationToConfig (config: CommandConfig, parsedCliArgs: ParsedCl
   }
   config.argv = parsedCliArgs.argv
   config.fallbackCommandUsed = parsedCliArgs.fallbackCommandUsed
-  // Set 'npm_command' env variable to current command name
   if (cmd) {
     config.extraEnv = {
       ...config.extraEnv,

@@ -9,8 +9,7 @@ use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
 /// type through config-dependency sync, the `updateConfig` hooks, and the
-/// install itself. Lifting it out of the dispatch keeps the three
-/// `ReporterType` arms to a single line each.
+/// install itself.
 pub(crate) struct InstallPipeline {
     pub(crate) args: InstallArgs,
     pub(crate) cfg: &'static mut Config,
@@ -39,12 +38,7 @@ impl InstallPipeline {
         .await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
-        // while discovery walks the workspace. Certain means the fast
-        // "Already up to date" return cannot fire: it is off under
-        // `--frozen-lockfile` / `--force`, and it requires a workspace
-        // state from a previous install — a workspace with none on
-        // disk (a lockfile-only workflow never writes one) always
-        // reaches the full pipeline. A `--fix-lockfile` run reads
+        // while discovery walks the workspace. A `--fix-lockfile` run reads
         // through the separate repair loader, which this prefetch does
         // not feed. Only the shared-lockfile arms consume this
         // lockfile; the per-project arms load their own.

@@ -109,7 +109,6 @@ function buildGroupChoices (choiceRows: UpdateChoiceDependency[], opts: BuildGro
     }
   }
   if (rawChoices.length === 0) return undefined
-  // add in a header row for each group
   rawChoices.unshift({
     raw: opts.header,
     name: '',

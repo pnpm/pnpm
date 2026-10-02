@@ -206,7 +206,6 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
   const pnpmConfig = createConfigFromDefaultsAndNpmrc(defaultOptions, npmrcResult.mergedConfig)
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
-  // Track which keys are explicitly set (not defaults)
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
   pnpmConfig.explicitlySetKeys = explicitlySetKeys
   pnpmConfig.cliOptions = cliOptions

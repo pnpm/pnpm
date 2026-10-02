@@ -16,7 +16,7 @@ use std::{
 
 /// Error from [`apply_patch_to_dir`].
 ///
-/// Surfaces three diagnostic codes:
+/// Diagnostic codes:
 ///
 /// - `ERR_PNPM_PATCH_NOT_FOUND` — the patch file is missing.
 /// - `ERR_PNPM_INVALID_PATCH` — the patch file can't be parsed.
@@ -70,25 +70,7 @@ pub enum PatchApplyError {
 /// `a/` and `b/` prefixes git uses, then validated against
 /// `patched_dir`: absolute paths, `..` segments, and (on Windows)
 /// drive prefixes / root components are rejected as
-/// `ERR_PNPM_PATCH_FAILED`. A patch file is attacker-controlled
-/// data — an `a/../../outside` header would otherwise let it
-/// read, write, or delete outside the package directory.
-///
-/// `Modify` writes the patched content via a sibling temp file +
-/// `rename` (the same pattern
-/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs)
-/// uses for the lockfile), which both makes the rewrite crash-safe
-/// — a failed write leaves the original on disk instead of an empty
-/// dirent — and breaks any hardlink (or reflink) back to the
-/// content-addressable store as a side effect of the rename creating
-/// a new dirent → inode mapping. A plain truncating write would
-/// otherwise corrupt the store copy that every other snapshot of the
-/// same package shares, and leak patched content into sibling
-/// snapshots. The patched output lives in the side-effects cache
-/// after this call returns; nothing requires the store copy to carry
-/// it. The temp file is chmoded to match the original before rename so
-/// patched shebang scripts in `bin/` keep their executable bit
-/// atomically — no window where the file has the wrong mode.
+/// `ERR_PNPM_PATCH_FAILED`.
 pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
@@ -348,8 +330,6 @@ fn apply_one_file(
     patch_file_path: &Path,
     file_patch: &FilePatch<'_, str>,
 ) -> Result<(), PatchApplyError> {
-    // Strip the conventional `a/` / `b/` prefix so the path inside
-    // the patch maps onto a relative path under `patched_dir`.
     let operation = file_patch.operation().strip_prefix(1);
     let apply = FileApply { patched_dir, patch_file_path };
 
@@ -436,26 +416,16 @@ impl FileApply<'_> {
                 return Err(self.failed(format!("apply to {}: {message}", target.display())));
             }
         };
-        // Stage the patched bytes in a sibling temp file, then
-        // atomically rename over the target. `rename` creates a new
-        // dirent → inode mapping at `target`, which both:
-        //
-        //   1. **Breaks the hardlink to the store.** Files in
-        //      `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
-        //      hardlinked (or reflinked) from the content-
-        //      addressable store; a plain truncating `fs::write`
-        //      would mutate the shared inode, corrupting the store
-        //      copy and every other snapshot's hardlink to it. The
-        //      patched output is captured by the side-effects cache
-        //      after this returns; nothing requires the store copy
-        //      to carry it.
-        //   2. **Is crash-safe.** If the write fails after we've
-        //      unlinked the target, the package is broken until
-        //      reinstall — `unlink → write` would have that
-        //      window. With temp + rename, a mid-write failure
-        //      just leaves a stale temp file (cleaned up best-
-        //      effort) and the original target intact, so the next
-        //      install can retry from the same baseline.
+        // `rename` creates a new dirent → inode mapping at `target`, which
+        // breaks the hardlink to the store. Files in
+        // `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
+        // hardlinked (or reflinked) from the content-
+        // addressable store; a plain truncating `fs::write`
+        // would mutate the shared inode, corrupting the store
+        // copy and every other snapshot's hardlink to it. The
+        // patched output is captured by the side-effects cache
+        // after this returns; nothing requires the store copy
+        // to carry it.
         write_atomic_with_mode(target, updated.as_bytes(), &permissions)
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
     }
@@ -611,9 +581,7 @@ fn write_atomic_with_mode(
         // Close before chmod / rename. Required on Windows: `MoveFileEx`
         // over a still-open source handle fails with a sharing
         // violation. Not strictly required on Unix but matches the
-        // pattern in `save_lockfile::write_atomic`. No `sync_all`: this
-        // routine is atomic against IO errors, not power loss — see
-        // the `fn` doc above.
+        // pattern in `save_lockfile::write_atomic`.
         drop(file);
 
         return replace_with_permissions(&tmp, target, permissions);

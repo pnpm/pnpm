@@ -156,7 +156,6 @@ async function markSymlinkTargetReachable ({ dir, entryPath, linksDir, reachable
     ? target
     : path.resolve(dir, target)
 
-  // Check if this symlink points into the global virtual store
   if (!isSubdir(linksDir, absoluteTarget)) return
   // Mark the package directory as reachable
   // The path structure is:
@@ -165,7 +164,6 @@ async function markSymlinkTargetReachable ({ dir, entryPath, linksDir, reachable
   // We want to mark the {hash} directory
   const relPath = path.relative(linksDir, absoluteTarget)
   const parts = relPath.split(path.sep)
-  // Find the hash directory (the one containing node_modules)
   const nodeModulesIdx = parts.indexOf('node_modules')
   if (nodeModulesIdx === -1) return
   // Store relative path like "@scope/pkg-a/1.0.0/hash123" or "@/pkg-a/1.0.0/hash123"
@@ -222,14 +220,12 @@ async function removeUnreachablePackages (
           )
           count += removedVersions.count
           if (removedVersions.allRemoved) {
-            // Remove the package directory when all its versions are removed
             await rimraf(pkgDir)
             removedPkgs++
           }
         })
       )
 
-      // If we removed all packages in scope, remove the scope directory
       if (removedPkgs === pkgNames.length && pkgNames.length > 0) {
         await rimraf(scopePath)
       }
@@ -257,7 +253,6 @@ async function removeUnreachableVersions (
       const versionDir = path.join(pkgDir, version)
       const hashes = await getSubdirsSafely(versionDir)
 
-      // Remove unreachable hash directories
       let removedHashes = 0
       await Promise.all(
         hashes.map(async (hash) => {
@@ -270,7 +265,6 @@ async function removeUnreachableVersions (
         })
       )
 
-      // If we removed all hashes, remove the version directory
       if (removedHashes === hashes.length && hashes.length > 0) {
         await rimraf(versionDir)
         removedVersions++

@@ -9,12 +9,12 @@ use super::{
 /// The design follows a queue-and-flush pattern: producers don't touch
 /// `SQLite`, they just push `(key, value)` onto an unbounded channel. A single
 /// [`spawn_blocking`][tokio::task::spawn_blocking] task drains the channel,
-/// collects each non-blocking burst into a batch (capped at 256 entries —
-/// see `MAX_BATCH_SIZE`), and flushes it with one `BEGIN IMMEDIATE` ...
-/// `COMMIT`. That turns the per-snapshot `Connection::open` + 7-PRAGMA +
-/// solo-INSERT pattern into one open + N transactions, amortizes the WAL
-/// commit fsync across the batch, and leaves tokio's blocking pool alone
-/// (one writer thread, not one per tarball).
+/// collects each non-blocking burst into a batch, and flushes it with one
+/// `BEGIN IMMEDIATE` ... `COMMIT`. That turns the per-snapshot
+/// `Connection::open` + 7-PRAGMA + solo-INSERT pattern into one open + N
+/// transactions, amortizes the WAL commit fsync across the batch, and
+/// leaves tokio's blocking pool alone (one writer thread, not one per
+/// tarball).
 pub struct StoreIndexWriter {
     tx: tokio::sync::mpsc::UnboundedSender<WriteMsg>,
     disabled: bool,
@@ -210,13 +210,6 @@ fn drain_queued(
 }
 
 /// Coalesce the batch by key and write it in one transaction.
-///
-/// Multiple writes for the same store-index row arriving in the same batch
-/// get applied in order against a single in-memory [`PackageFilesIndex`]
-/// value, which then flushes once. This is what makes two
-/// `SideEffectsUpload`s for the same row commutative: each builds on the
-/// previous one's mutation rather than re-reading the pre-batch state from
-/// `SQLite`.
 fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
     for msg in batch.drain(..) {
@@ -236,10 +229,7 @@ fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
     }
 }
 
-/// `Replace` is a straight overwrite. `SideEffectsUpload` does
-/// the read-modify-write: it loads the row from `pending` (if a
-/// prior message in this batch already touched it) or from
-/// `SQLite`, then layers the diff on top. Three short-circuit
+/// `Replace` is a straight overwrite. Three short-circuit
 /// branches log and skip without removing the row from
 /// `pending`, so a same-batch `Replace` for the same key still
 /// flushes — see the docs on
@@ -398,11 +388,7 @@ impl StoreIndexWriter {
     /// Silently drops the entry if the writer task has exited (closed
     /// channel). Matches pnpm's graceful-degradation on failed writes:
     /// the install in flight still completes, the next install misses on
-    /// this cache-key and re-downloads. The "channel closed" warning is
-    /// logged only on the first failure per writer instance — every
-    /// subsequent call would emit the same message, and on a 1352-
-    /// snapshot install that's a thousand identical warnings drowning
-    /// out real diagnostics.
+    /// this cache-key and re-downloads.
     pub fn queue(&self, key: String, value: PackageFilesIndex) {
         self.send_msg(WriteMsg::Replace { key, value });
     }

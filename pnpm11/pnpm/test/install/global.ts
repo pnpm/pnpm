@@ -25,8 +25,6 @@ function globalPkgDir (pnpmHome: string): string {
 
 /**
  * Find an installed global package in the flat isolated directory structure.
- * Scans globalDir for hash symlinks, resolves them,
- * and returns the path to the package's node_modules entry.
  */
 function findGlobalPkg (globalDir: string, pkgName: string): string | null {
   return findGlobalPkgInstall(globalDir, pkgName)?.pkgPath ?? null
@@ -195,12 +193,6 @@ test('global add denies scripts for a package prefixed with ! in --allow-build',
 // runs `install.handler` against the install directory — and that is the
 // install run that crashed with `ENOENT` because `modulesDir` was being
 // forwarded as an absolute path and re-joined with `lockfileDir`.
-//
-// `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive this flow
-// non-interactively: `promptApproveGlobalBuilds` skips the TTY check and
-// passes `all: true` so `approve-builds` approves every pending build
-// without prompting. The post-approval install must complete and the
-// build artifact must end up in the global install dir.
 test('approve-builds during global add does not produce a doubled modules path', async () => {
   prepare()
   const global = path.resolve('..', 'global')
@@ -756,15 +748,11 @@ test('global add from a local directory using "."', () => {
     pnpm_config_store_dir: path.resolve('..', 'store'),
   }
 
-  // Install globally from within the package directory using "."
-  // This used to fail because "." was resolved relative to the temp install
-  // directory instead of the user's CWD.
+  // "." must resolve relative to the user's CWD, not the temp install directory.
   execPnpmSync(['add', '-g', '.'], { cwd: localPkg, env, expectSuccess: true })
 
-  // Verify the package was installed globally
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'my-local-tool')).toBeTruthy()
 
-  // Verify the bin was linked
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'my-local-tool'))).toBeTruthy()
 
   // Install globally using a file: relative selector

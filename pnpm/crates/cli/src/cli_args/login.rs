@@ -43,9 +43,7 @@ impl LoginArgs {
         Ok(())
     }
 
-    /// The testable core of [`run`](Self::run): guard the config directory,
-    /// build the registry HTTP client from `config`, and perform the login,
-    /// returning the success message. Generic over the capability host `Sys` so
+    /// The testable core of [`run`](Self::run). Generic over the capability host `Sys` so
     /// a test can drive it with a fake host over a mock registry and assert on
     /// the returned message; [`run`](Self::run) binds the production
     /// [`AuthHost`] and writes that message to stdout.

@@ -311,7 +311,6 @@ async function readMetadataResponse (
   dropIncompletePublishTimes(meta)
   // Only the response headers decide cacheability, never the body.
   delete meta.uncacheable
-  // Check if request took longer than expected
   const elapsedMs = Date.now() - startTime
   if (elapsedMs > request.fetchOpts.fetchWarnTimeoutMs) {
     globalWarn(`Request took ${elapsedMs}ms: ${redactUrlForDisplay(request.uri)}`)

@@ -65,18 +65,12 @@ fn build_env_for_platform(
     parent_env: HashMap<String, String>,
     is_windows: bool,
 ) -> EnvBuild {
-    // 1. Start from the parent env, stripping `npm_package_*` (we
-    //    regenerate them below) and the `(npm|pnpm)_config_*` auth
-    //    keys, plus the per-call stamps we re-derive (`NODE`,
-    //    `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
-    //    `npm_config_*` such as `npm_config_platform_arch` are
-    //    preserved. `pnpm_*` keys such as `PNPM_HOME` are intentionally
-    //    NOT in the filter.
+    // 1. User-defined `npm_config_*` such as `npm_config_platform_arch`
+    //    are preserved. `pnpm_*` keys such as `PNPM_HOME` are
+    //    intentionally NOT in the filter.
     let mut env = filter_parent_env(parent_env, is_windows);
 
-    // 2. `npm_package_*` recursive stamp. Top-level keeps only
-    //    name/version/config/engines/bin; recursion below those
-    //    keeps everything.
+    // 2. `npm_package_*` recursive stamp.
     stamp_package(&mut env, "npm_package_", manifest);
 
     // 3. Per-call stamping.
@@ -87,11 +81,7 @@ fn build_env_for_platform(
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
     //    `NODE_OPTIONS`) is applied BEFORE the reserved per-call stamps
-    //    below, so pnpm's own stamps win on conflict. This mirrors TS
-    //    `runLifecycleHook`, which spreads `{ ...extraEnv, INIT_CWD,
-    //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
-    //    keys overwrite anything `extra_env` set. A non-reserved key
-    //    still takes effect.
+    //    below, so pnpm's own stamps win on conflict.
     //    `extra_env` is also the one route by which a delegation marker
     //    ([`DEV_PREINSTALL_ALREADY_RAN_ENV`] or
     //    [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]) could re-enter after
@@ -125,8 +115,6 @@ fn build_env_for_platform(
     env.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "false".into());
 
     // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
-    //    The caller creates the dir; we only record the path and pass
-    //    it back.
     let tmpdir = if opts.unsafe_perm {
         None
     } else {
@@ -270,9 +258,6 @@ fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
 /// arrays iterate as indexed keys; objects iterate as named keys. The
 /// top-level call uses prefix `npm_package_`; recursion appends
 /// `<sanitized-key>_`.
-///
-/// At the top level only name/version/config/engines/bin are kept; once
-/// recursed under one of those, everything is kept.
 fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value) {
     let pairs: Vec<(String, &Value)> = match value {
         Value::Object(map) => map
@@ -393,7 +378,7 @@ pub fn package_manager_env(
 }
 
 /// Whether one manifest field reaches the environment. The top level keeps
-/// only `name`, `version`, `config`, `engines` and `bin`; below those three,
+/// only `name`, `version`, `config`, `engines` and `bin`; below those,
 /// recursion keeps everything. An underscore-prefixed key is npm's own
 /// bookkeeping and never stamped.
 fn stamps_manifest_field(prefix: &str, key: &str) -> bool {

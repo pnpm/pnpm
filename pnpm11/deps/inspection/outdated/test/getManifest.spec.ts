@@ -58,10 +58,10 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
 
-  // The resolver no longer throws on immature picks — it falls back to
+  // On immature picks the resolver falls back to
   // the lowest matching version and flags the result with `policyViolation`.
   // outdated treats that as "no version available within the policy" and
-  // returns null, same as the pre-refactor throw path.
+  // returns null.
   const resolve = jest.fn<ResolveFunction>(async (wantedPackage, resolveOpts) => {
     expect(wantedPackage.bareSpecifier).toBe('latest')
     expect(resolveOpts.publishedBy).toBeInstanceOf(Date)

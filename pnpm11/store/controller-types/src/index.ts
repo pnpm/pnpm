@@ -235,17 +235,12 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
     /**
-     * Forwarded from the resolver's `ResolveResult.nonDeprecatedAlternative`,
-     * so the deprecation warning can name a version to move to. Set only for a
-     * deprecated pick that the resolver worked out from a packument.
+     * Forwarded from the resolver's `ResolveResult.nonDeprecatedAlternative`.
      */
     nonDeprecatedAlternative?: NonDeprecatedAlternative
     alias?: string
     /**
      * Forwarded from the resolver's `ResolveResult.policyViolation`.
-     * The caller (deps-resolver) aggregates these per-pick into a
-     * single set the install command can react to — see
-     * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
      */
     policyViolation?: ResolutionPolicyViolation
     hooked?: boolean

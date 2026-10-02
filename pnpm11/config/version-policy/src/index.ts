@@ -145,7 +145,6 @@ export function parseVersionPolicyRule (pattern: string): ParsedVersionPolicyRul
   const packageName = pattern.slice(0, atIndex)
   const versionsPart = pattern.slice(atIndex + 1)
 
-  // Parse versions separated by ||
   const exactVersions: string[] | null = parseExactVersionsUnion(versionsPart)
   if (exactVersions == null) {
     throw new PnpmError('INVALID_VERSION_UNION',

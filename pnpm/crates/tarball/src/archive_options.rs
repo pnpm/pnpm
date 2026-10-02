@@ -34,12 +34,7 @@ pub struct ArchiveStoreContext<'a> {
     /// index is trusted and the import fails lazily if a blob is
     /// missing — trades the per-file stat / optional rehash for the
     /// risk that a mutated or corrupt store serves stale content until
-    /// the next integrity-full install. Whether that translates into a
-    /// wall-time win depends on the workload; the per-snapshot stat
-    /// isn't the bottleneck on the benchmarks this repo tracks (see
-    /// [#273]), but cutting the syscall count is still correct.
-    ///
-    /// [#273]: https://github.com/pnpm/pacquet/issues/273
+    /// the next integrity-full install.
     pub verify_integrity: bool,
     /// Mirrors pnpm's `strictStorePkgContentCheck` setting (default
     /// `true`). A store row whose bundled manifest names a package other
@@ -52,9 +47,7 @@ pub struct ArchiveStoreContext<'a> {
     /// lookup. Ports pnpm's `verifiedFilesCache: Set<string>`: a CAFS
     /// path that one snapshot's verify pass has already stat'ed (and
     /// optionally re-hashed) gets skipped when the next snapshot
-    /// touches the same blob. Without it pacquet was paying the
-    /// per-file stat in `check_pkg_files_integrity` once per
-    /// (snapshot × file) instead of once per (file). Allocate one
+    /// touches the same blob. Allocate one
     /// `Arc<DashSet<PathBuf>>` at install bootstrap and pass the same
     /// handle to every [`crate::IngestTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
@@ -83,11 +76,7 @@ pub struct ArchiveFetchOptions<'a> {
     /// prefetch (`prefetched_cas_paths`) and the `SQLite` `index.db`
     /// lookup (`load_cached_cas_paths`) miss, the fetcher fails fast
     /// with [`crate::TarballError::NoOfflineTarball`] rather than hitting
-    /// the registry. The `--offline` flag gates the metadata-fetch
-    /// path in pnpm; pacquet has no metadata-fetch path on the
-    /// frozen-install flow (the lockfile pins every resolution), so
-    /// this gate is pacquet's most useful interpretation of the flag
-    /// for frozen installs.
+    /// the registry.
     pub offline: bool,
 }
 

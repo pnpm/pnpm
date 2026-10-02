@@ -1,20 +1,13 @@
 // Applies the pending release plan, then runs the meta-updater to mirror the
 // bumped Rust wrapper versions into the Rust sources the release builds from.
 //
-// `pnpm version -r` (native workspace release management) consumes the pending
-// `.changeset/*.md` intents: it bumps versions across the workspace, writes
-// changelogs, and records consumed intents in the committed `.changeset/
-// ledger.yaml`. The ledger keeps cherry-picks and merge-backs between release
-// branches safe, and the Rust products' `alpha` release lanes (configured under
-// `versioning` in pnpm-workspace.yaml) advance their `X.Y.Z-alpha.N` prerelease
-// lines. `pnpm version -r` bumps only the npm wrapper manifests, so the
+// `pnpm version -r` bumps only the npm wrapper manifests, so the
 // meta-updater then copies those versions into the Rust sources that embed
 // them (see the Rust-source handlers in `.meta-updater/src/index.ts`);
 // `meta-updater --test` in pre-push and CI enforces the same sync.
 //
-// `--release <product>` (repeatable) restricts the run to a subset of the three
-// releasable products, so a frequent v12 (Rust) release no longer has to drag
-// the TypeScript CLI (v11) along. With no `--release` flag every pending intent
+// `--release <product>` (repeatable) restricts the run to a subset of the
+// releasable products. With no `--release` flag every pending intent
 // is consumed, so a bare `pnpm bump` still cuts a full release.
 
 import { execFileSync } from 'node:child_process'
@@ -89,9 +82,7 @@ export function parseSelectedProducts (argv: readonly string[]): Set<Product> {
 // Turns the selected products into `--filter` arguments for `pnpm version -r`.
 // An empty selection releases everything (no filter). When `pnpm11` is selected
 // the run starts from the whole workspace and excludes only the alpha products
-// left unselected (an exclude-only filter selects "every project minus these"),
-// so selecting all three yields no filter — a full release. When `pnpm11` is not
-// selected only the chosen alpha products' packages are included.
+// left unselected (an exclude-only filter selects "every project minus these").
 export function releaseFilterArgs (selected: ReadonlySet<Product>): string[] {
   if (selected.size === 0) return []
   const alphaProducts = Object.keys(ALPHA_PRODUCT_PACKAGES) as AlphaProduct[]

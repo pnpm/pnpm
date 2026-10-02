@@ -30,23 +30,14 @@
 //! the workspace volume, so `eslint --fix` fails with a
 //! "`TSConfig` does not include this file" error on every project file.
 //!
-//! The hardlink attempt itself is threaded through the
-//! [`LinkProbe`] capability so tests can answer the linkability
-//! question without touching disk. The production [`Host`] impl
-//! performs the real link attempts via [`host_can_link_between_dirs`].
-//!
 //! [`pnpm_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
 //! this module; the path returned here is the un-suffixed base. Every
 //! caller wraps the result in [`pnpm_store_dir::StoreDir::from`],
-//! which appends the suffix in one place — an
-//! `if (!endsWith(v11)) append(v11)` step. Doing the join at
+//! which appends the suffix in one place. Doing the join at
 //! construction guarantees that everything pacquet exposes externally
 //! (the `storeDir` written to `.modules.yaml`, the path printed by
 //! `pacquet store path`, the NDJSON `context` log event) matches the
-//! value pnpm produces, so switching between the two tools no longer
-//! trips `ERR_PNPM_UNEXPECTED_STORE`.
-//!
-//! [`Host`]: crate::api::Host
+//! value pnpm produces.
 
 use crate::api::LinkProbe;
 use pnpm_store_dir::StoreDir;

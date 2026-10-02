@@ -123,8 +123,7 @@ function planDriftUpdate ({ ctx, opts }: MutationRun, { additions, settings }: F
 }
 
 // Typed as required, but a caller that passes it through from its own
-// optional config leaves it undefined, and this now runs on every
-// install rather than only when the fast path opens.
+// optional config leaves it undefined.
 function configuredOverrides (opts: MutationRun['opts']): Record<string, string> {
   return opts.overrides ?? {}
 }

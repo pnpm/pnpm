@@ -144,12 +144,9 @@ export interface ResolutionContext extends RegistryContext {
   publishedByExclude?: PackageVersionPolicy
   /**
    * Shared accumulator the resolver pushes into when an inline policy
-   * check (today: minimumReleaseAge in `npm-resolver`) flags a pick.
-   * resolveDependencyTree hands the populated array back to the install
-   * command via its return so the post-tree gate can prompt / abort /
-   * persist without re-walking the resolved tree. Each verifier code
-   * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, ...) is the
-   * contract surface for downstream UX.
+   * check flags a pick. resolveDependencyTree hands the populated array
+   * back to the install command via its return so the post-tree gate can
+   * prompt / abort / persist without re-walking the resolved tree.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
   trustPolicy?: TrustPolicy

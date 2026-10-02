@@ -461,7 +461,6 @@ function parseTarballEntries (tarContent: Buffer, chunkSize = tarContent.length)
   return entries
 }
 
-// Helper to create a minimal tarball buffer with a single entry
 function createTarballWithEntry (
   entryPath: string,
   content: string | Buffer,

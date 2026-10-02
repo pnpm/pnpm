@@ -70,7 +70,6 @@ export function packForStorage (data: unknown): Uint8Array {
 
 /**
  * Create a store index key from an integrity hash and package id.
- * The key is `${integrity}\t${pkgId}` — tab-separated.
  * Integrity strings never contain tabs, so this is unambiguous.
  */
 export function storeIndexKey (integrity: string, pkgId: string): string {

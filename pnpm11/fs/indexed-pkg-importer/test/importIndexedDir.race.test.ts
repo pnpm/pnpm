@@ -31,7 +31,6 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
   const srcFile = path.join(tmp, 'src', 'package.json')
   const newDir = path.join(tmp, 'dest')
 
-  // Create source file in CAS
   fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
   fs.writeFileSync(srcFile, '{"name":"pkg","version":"1.0.0"}')
 
@@ -187,7 +186,6 @@ test('safeToSkip creates dir when target does not exist', () => {
   const srcFile = path.join(tmp, 'src', 'index.js')
   const newDir = path.join(tmp, 'dest')
 
-  // Create source file
   fs.mkdirSync(path.join(tmp, 'src'), { recursive: true })
   fs.writeFileSync(srcFile, 'content')
 

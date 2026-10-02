@@ -95,10 +95,6 @@ fn cas_path_for(store: &StoreDir, content: &[u8]) -> std::path::PathBuf {
 
 /// The reproducer.
 ///
-/// Pre-Option-C: the verifier deletes the file while the simulated
-/// writer "holds the lock", because `verify_file` doesn't acquire the
-/// lock at all.
-///
 /// Post-Option-C: the verifier acquires `cas_write_lock(path)`
 /// before deciding whether to delete. While the test holds the
 /// lock, the verifier blocks; we observe the file is still on disk.

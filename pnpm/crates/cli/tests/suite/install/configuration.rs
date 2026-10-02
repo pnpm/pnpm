@@ -456,10 +456,7 @@ fn install_ignores_env_var_in_project_npmrc_registry() {
 /// must materialize packages under the shared
 /// `<store_dir>/v11/links/<scope>/<name>/<version>/<hash>` tree, not
 /// the project-local `node_modules/.pnpm/` legacy layout. Pins the
-/// fix for pnpm/pnpm#11814: before that fix the without-lockfile
-/// path hardcoded `VirtualStoreLayout::legacy`, so the fresh-resolve
-/// install silently fell through to project-local slots even with
-/// GVS opted in.
+/// fix for pnpm/pnpm#11814.
 ///
 /// Also asserts that the project gets registered under
 /// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch

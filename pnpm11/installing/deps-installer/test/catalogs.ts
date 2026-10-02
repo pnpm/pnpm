@@ -1492,7 +1492,6 @@ describe('add', () => {
     })
 
     // The catalog should preserve the original specifier, NOT become 'catalog:'
-    // This is the bug fix - previously it would incorrectly write 'catalog:' to the catalog
     if (updatedCatalogs?.default?.['is-positive']) {
       expect(updatedCatalogs.default['is-positive']).not.toBe('catalog:')
       expect(updatedCatalogs.default['is-positive']).toMatch(/^\^?\d/)

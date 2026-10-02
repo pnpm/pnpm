@@ -113,6 +113,11 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) org: Option<String>,
 }
 
+/// Merge the incoming packument with the on-disk / upstream state
+/// and stream every tarball to a tmp slot. The caller must hold the
+/// package lock for `doc.name` from before this call until after
+/// [`commit_publishes`](super::commit_publishes). On error, every tmp file this call wrote is
+/// removed.
 pub(in super::super) async fn stage_publish(
     state: &AppState,
     doc: ValidatedPublish,
@@ -225,11 +230,6 @@ pub(super) async fn write_attachment_slot(
     }
 }
 
-/// Merge the incoming packument with the on-disk / upstream state
-/// and stream every tarball to a tmp slot. The caller must hold the
-/// package lock for `doc.name` from before this call until after
-/// [`commit_publishes`](super::commit_publishes). On error, every tmp file this call wrote is
-/// removed.
 /// Validate each incoming version against the locally hosted packument. A
 /// hosted packument is served as-is, so anything not in it is genuinely new
 /// here, even if it exists upstream.

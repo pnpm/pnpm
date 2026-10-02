@@ -73,8 +73,7 @@ fn recursive_pack_silent_preserves_json_output() {
 }
 
 /// `pacquet -r --filter <name> pack` packs only the `--filter`-selected
-/// project, leaving the rest unpacked — the same selection `run -r` /
-/// `exec -r` apply, since all three share `select_recursive_projects`.
+/// project, leaving the rest unpacked.
 #[test]
 fn recursive_pack_filter_packs_only_selected_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

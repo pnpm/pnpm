@@ -347,8 +347,6 @@ function removeTrailingAndLeadingSlash (dirPath: string): string {
  */
 export async function preparePkgFilesForDiff (src: string, packageFiles?: string[]): Promise<string> {
   const files = packageFiles ?? Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
-  // If there are no extra files in the source directories, then there is no reason
-  // to copy.
   if (await areAllFilesInPkg(files, src)) {
     return src
   }

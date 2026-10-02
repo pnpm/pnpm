@@ -185,8 +185,8 @@ impl DlxArgs {
             return run_provisioned::<Reporter>(tool, config, bin_command, args, &spawn).await;
         }
 
-        // `pkgs = package ?? [command]`. With `--package`, the command
-        // names the bin to run; otherwise the command is also the package.
+        // With `--package`, the command names the bin to run; otherwise the
+        // command is also the package.
         let pkgs: Vec<String> =
             if self.package.is_empty() { vec![bin_command.clone()] } else { self.package.clone() };
         // Resolved here rather than in the install below so the catalog's

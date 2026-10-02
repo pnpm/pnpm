@@ -97,7 +97,7 @@ export async function verifyPnpmEngineIdentity (
   opts: VerifyPnpmEngineIdentityOptions
 ): Promise<void> {
   const trustedKeys = opts.trustedKeys ?? getNpmSigningKeys()
-  if (trustedKeys.length === 0) return // test seam: no trusted keys means skip
+  if (trustedKeys.length === 0) return
 
   const pnpmVersion = engine.version
   const toVerify = collectEnginePackagesToVerify(envLockfile, engine, opts.registriesByScope)
@@ -110,9 +110,6 @@ export async function verifyPnpmEngineIdentity (
       fallbackRegistry: CANONICAL_NPM_REGISTRY,
     })
   } catch (err: unknown) {
-    // Fail closed: we will not run a downloaded pnpm we could not verify, even
-    // when the failure is "could not reach the registry". The lockfile integrity
-    // is project-controlled, so it is not a safe fallback.
     throw new PnpmError(
       'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
       `Refusing to run pnpm@${pnpmVersion}: its npm registry signature could not be verified (${String(err)}).`,

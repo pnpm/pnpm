@@ -49,8 +49,7 @@ async function updateLockfileImporter (
   // Capture previous importer refs before the lockfile importer is rebuilt,
   // so an install that doesn't actually change a workspace dependency (e.g.
   // updating an unrelated dependency) does not rewrite its `link:` entry to a
-  // peer-suffixed `file:`. These are the pnpm/pnpm#10433 re-resolution paths
-  // that dedupeInjectedDeps does not reach.
+  // peer-suffixed `file:`.
   const previousDirectRefs = getDirectRefs(opts.wantedLockfile.importers[project.id])
   const updateMatching = opts.importers[opts.index].updateMatching
   const updateTargetedAliases = getUpdateTargetedAliases(project)

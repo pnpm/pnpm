@@ -58,9 +58,7 @@ test('a registry whose abbreviated metadata has the time field needs no full met
 
 // Trust checks read trust evidence (_npmUser) that abbreviated metadata
 // never carries, so registrySupportsTimeField does not make abbreviated
-// metadata sufficient for the no-downgrade policy. This matches the
-// self-update code path and pacquet's
-// Config::requires_full_metadata_for_resolution.
+// metadata sufficient for the no-downgrade policy.
 test('trustPolicy requires full metadata even when the registry has the time field in abbreviated metadata', () => {
   expect(shouldFetchFullMetadata({
     trustPolicy: 'no-downgrade',

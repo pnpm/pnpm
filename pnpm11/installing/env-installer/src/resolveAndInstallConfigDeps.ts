@@ -53,7 +53,6 @@ export async function resolveAndInstallConfigDeps (
     return
   }
 
-  // Resolve missing deps
   const fetch = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)

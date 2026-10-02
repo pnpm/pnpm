@@ -543,9 +543,7 @@ fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
 ///    every install-setup event (`pnpm:context`, `pnpm:stage`,
 ///    `pnpm:lockfile-verification`).
 ///
-/// Proves the single-project lockfile gate added in this commit
-/// doesn't break the warm-reinstall fast path it's intended to
-/// preserve. Companion to
+/// Companion to
 /// [`optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing`]
 /// (which covers the negative direction).
 #[tokio::test]

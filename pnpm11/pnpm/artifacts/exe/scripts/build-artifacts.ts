@@ -8,9 +8,9 @@ const exeDir = path.resolve(import.meta.dirname, '..')
 const pnpmRootDir = path.resolve(exeDir, '..', '..')
 
 // Hosts the release pipeline runs on (Linux CI and Apple Silicon Macs) build
-// the full six-target matrix. Other hosts — currently any non-Linux,
+// the full target matrix. Other hosts — currently any non-Linux,
 // non-Apple-Silicon-Mac dev box (Intel Mac, Windows, etc.) — build only the
-// two baseline targets so dev-local runs stay fast. The defaults (entry,
+// baseline targets so dev-local runs stay fast. The defaults (entry,
 // outputDir, outputName, targets) live in the "pnpm.app" object of
 // pnpm/package.json — CLI --target flags replace that list when we want to
 // narrow it. darwin-x64 is intentionally absent from the matrix on

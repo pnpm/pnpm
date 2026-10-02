@@ -174,7 +174,6 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
     timeout: opts.fetchTimeout,
   }
 
-  // Try web-based login first, fall back to classic login
   let token: string
   try {
     token = await webLogin({ context, fetchOptions, registry })

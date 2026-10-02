@@ -1,7 +1,6 @@
 //! End-to-end coverage for `nodeLinker: hoisted` on the
 //! **fresh-lockfile** install path (no checked-in lockfile, not
-//! `--frozen-lockfile`). pnpm/pnpm#11871 enabled this path; before
-//! it, `pacquet install` hard-refused the combination.
+//! `--frozen-lockfile`). Covers pnpm/pnpm#11871.
 //!
 //! Each test writes a `package.json` (and a `pnpm-workspace.yaml`
 //! carrying `nodeLinker: hoisted` plus any feature knob under test),
@@ -116,7 +115,7 @@ fn read_pkg_version(workspace: &Path, relative: &str) -> String {
 ///
 /// The upstream test also removes `node_modules/send` and reinstalls
 /// to assert it is re-added; that re-add is the partial-install path
-/// (pnpm/pacquet#433) and is omitted here.
+/// and is omitted here.
 #[test]
 fn installing_with_hoisted_node_linker() {
     let CommandTempCwd {

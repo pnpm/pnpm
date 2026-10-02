@@ -131,20 +131,6 @@ fn merge_auth_sources(sources: impl IntoIterator<Item = Option<NpmrcAuth>>) -> N
     merged
 }
 
-/// Fold a source's explicitly-set settings into the running record.
-///
-/// Serializes `settings` to a camelCase JSON object (its `Option` fields make
-/// a serialized value name exactly the keys this source set) and copies every
-/// non-`null` entry into `target`, later sources overriding earlier ones. The
-/// `_auth` key is dropped — it carries credentials and never belongs in
-/// `pnpm config list` output (raw auth keys come from `raw_auth_config`,
-/// censored at render time).
-///
-/// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
-/// setting, so a source that sets either one decides both: the record follows
-/// [`WorkspaceSettings::apply_to`] and fills in the spelling the source left
-/// out, or `pnpm config get` would answer one of the two with the value the
-/// install did not use.
 /// Record what `settings` declares about registry routing, before
 /// [`WorkspaceSettings::apply_to`] consumes it.
 pub(super) fn note_declared_registries(
@@ -205,8 +191,7 @@ impl Config {
 
         // `env_json_source` is listed before `env_scoped_source` so the JSON
         // env var wins on the rare occasion both define the same
-        // `//host/:_authToken` key — the JSON auth is applied after the
-        // env-scoped config, so it wins.
+        // `//host/:_authToken` key.
         let mut npmrc_auth = merge_auth_sources([
             env_json_source,
             env_scoped_source,
@@ -223,9 +208,7 @@ impl Config {
         let trusted_auth = merge_auth_sources(trusted_sources);
 
         // A `tokenHelper` names an executable, so it is honored only from a
-        // trusted, non-repo source. Reject one that a workspace or project
-        // `.npmrc` contributed by comparing the full merge against the
-        // trusted-only merge before either is consumed below.
+        // trusted, non-repo source.
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
         Ok(AuthSources { npmrc_auth, trusted_auth })

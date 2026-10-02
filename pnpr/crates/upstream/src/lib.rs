@@ -48,10 +48,7 @@ pub struct SearchResponse {
     pub total: usize,
 }
 
-/// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
-/// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, capped native DNS,
-/// pool/timeout tuning, concurrency semaphore, and per-registry TLS
-/// routing if it's ever wired in later) and adds the per-upstream glue a
+/// Wraps a shared [`ThrottledClient`] and adds the per-upstream glue a
 /// proxy needs: building the upstream URL, applying verdaccio's
 /// `timeout`/`max_fails`/`fail_timeout` knobs, and fishing the packument
 /// or tarball response out of it.
@@ -115,7 +112,6 @@ pub struct CacheValidators {
     pub last_modified: Option<String>,
 }
 
-/// A packument fetched against an upstream.
 /// A document fetched by [`Upstream::fetch_document`].
 #[derive(Debug)]
 pub struct FetchedDocument {

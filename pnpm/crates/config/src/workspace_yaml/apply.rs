@@ -98,8 +98,6 @@ impl WorkspaceSettings {
                     r#"Both the "update" and "updateConfig" settings are set. The deprecated "updateConfig" setting is ignored in favor of "update"."#,
                 );
             }
-            // The `update` section is authoritative when present, superseding
-            // any deprecated `updateConfig`.
             config.update_config = UpdateConfig {
                 ignore_dependencies: update.ignore_deps,
                 changeset: update.changeset,

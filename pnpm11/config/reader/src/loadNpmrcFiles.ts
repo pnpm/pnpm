@@ -94,10 +94,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   ])
 
   return {
-    // Merge all sources (lowest to highest priority):
-    // builtin < defaults < user < auth.ini < workspace < env (//-scoped + JSON auth) < CLI
     mergedConfig: pickNpmrcReadableKeys([builtin, opts.defaultOptions, user, authIni, workspace, envScoped, jsonAuth.auth, cli]),
-    // Build rawConfig with same priority order
     rawConfig: {
       ...builtin,
       ...opts.defaultOptions,
@@ -141,7 +138,6 @@ interface NpmrcSources {
 function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSourcesContext): NpmrcSources {
   const userConfigPath = normalizePath(opts.npmrcAuthFile) ?? path.resolve(os.homedir(), '.npmrc')
 
-  // Read .npmrc from workspace root (or project root if no workspace)
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
   const workspaceNpmrcPath = path.resolve(workspaceNpmrcDir, '.npmrc')
   // When npmrcAuthFile explicitly points at the project .npmrc, the user has
@@ -157,10 +153,8 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
     }
   )
 
-  // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
   const user = readAndFilterNpmrc(userConfigPath, warnings, env)
 
-  // Read pnpm auth file (~/.config/pnpm/auth.ini)
   const authIni = readAndFilterNpmrc(
     path.join(opts.configDir, 'auth.ini'),
     warnings,
@@ -206,7 +200,6 @@ function readJsonAuth (globalConfigAuth: unknown, env: Record<string, string | u
   return jsonAuth
 }
 
-// Read pnpm builtin rc + inline defaults
 function readPnpmBuiltinConfig (moduleDirname: string, warnings: string[], env: Record<string, string | undefined>): Record<string, unknown> {
   return {
     ...readAndFilterNpmrc(
@@ -484,8 +477,6 @@ function isErrorWithCode (err: unknown, code: string): boolean {
 
 /**
  * If cafile is set in any layer, read it and set ca.
- * Replicates the behavior of @pnpm/network.ca-file's readCAFileSync:
- * splits on '-----END CERTIFICATE-----' and re-appends the delimiter.
  */
 function loadCAFile (layers: Array<Record<string, unknown>>): void {
   let cafile: string | undefined

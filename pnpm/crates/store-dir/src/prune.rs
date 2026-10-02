@@ -86,10 +86,6 @@ impl StoreDir {
     /// store-dir, so the informational messages go to stderr via
     /// `eprintln!` until [#344] lands the proper reporter wiring.
     ///
-    /// Returns `Ok(())` on success; surfaces I/O errors from the mark
-    /// or sweep walks as [`PruneError`]. Stale registry entries are
-    /// healed transparently by [`crate::get_registered_projects`].
-    ///
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
     pub fn prune(&self) -> Result<(), PruneError> {
         let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
@@ -214,7 +210,6 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Result<Vec<PathBuf>, PruneE
             let name_str = name.to_string_lossy();
             if name_str == "node_modules" {
                 out.push(entry_path);
-                // Don't descend into node_modules
             } else if !name_str.starts_with('.') {
                 subdirs.push(entry_path);
             }
@@ -231,10 +226,7 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Result<Vec<PathBuf>, PruneE
 /// `<scope>/<name>/<version>/<hash>` segment in `reachable` and
 /// recurse into the slot's `node_modules/` for transitive deps.
 ///
-/// `canonical_links` must already be the canonicalised links root
-/// — [`StoreDir::prune`] does this once and threads it through, so
-/// the per-entry loop doesn't pay a `canonicalize` syscall for an
-/// invariant value.
+/// `canonical_links` must already be the canonicalised links root.
 ///
 /// `visited` is the cycle guard, keyed by the canonical (real) path
 /// of `dir`. Storing the canonical `PathBuf` directly is enough — the
@@ -344,10 +336,6 @@ fn remove_unreachable_packages(
             let (removed_here, all_versions_emptied) =
                 remove_unreachable_versions(&pkg_dir, &pkg_rel, reachable)?;
             count += removed_here;
-            // Every version under this pkg was emptied — try to drop the
-            // now-empty `<name>/` parent. Race-safe remove: a concurrent
-            // install that just materialised a fresh version dir here keeps
-            // its work.
             if all_versions_emptied && remove_empty_dir(&pkg_dir)? {
                 emptied_pkgs += 1;
             }
@@ -372,9 +360,6 @@ fn remove_unreachable_versions(
         let (removed_here, all_hashes_removed) =
             remove_unreachable_slots(&version_dir, &pkg_rel.join(version), reachable)?;
         count += removed_here;
-        // Try to drop the `<version>/` parent only if it's genuinely empty
-        // after the slot removals. A concurrent install that just landed a
-        // new hash dir here survives.
         if all_hashes_removed && remove_empty_dir(&version_dir)? {
             emptied_versions += 1;
         }
@@ -395,8 +380,6 @@ fn remove_unreachable_slots(
         if reachable.contains(&version_rel.join(hash)) {
             continue;
         }
-        // The slot subtree is unreferenced — recursive remove of its files
-        // is correct.
         remove_slot_dir(&version_dir.join(hash))?;
         removed += 1;
     }
@@ -452,10 +435,7 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
 /// just-written tree wiped by that recursive remove. Using
 /// `fs::remove_dir` keeps pacquet race-safe (the new slot stays;
 /// only the parent that's truly empty is removed) while producing
-/// the same on-disk result in the non-race case. Slot directories
-/// themselves still go through [`remove_slot_dir`] — those are
-/// known-unreferenced by the time prune reaches them, so recursive
-/// removal is correct.
+/// the same on-disk result in the non-race case.
 fn remove_empty_dir(path: &Path) -> Result<bool, PruneError> {
     match fs::remove_dir(path) {
         Ok(()) => Ok(true),

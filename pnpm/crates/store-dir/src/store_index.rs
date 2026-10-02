@@ -244,9 +244,6 @@ impl StoreIndex {
     /// [`StoreIndex::open_immutable`] when frozen, so no WAL or SHM
     /// sidecar is created under a read-only store root, and
     /// [`StoreIndex::open_readonly`] otherwise.
-    ///
-    /// `None` means the store has no `index.db` yet — a first install
-    /// against an empty store — and every lookup simply misses.
     #[must_use]
     pub fn shared_for(
         store_dir: &StoreDir,
@@ -306,21 +303,12 @@ impl StoreIndex {
 /// Decode one `package_index.data` blob into a [`PackageFilesIndex`].
 /// Exposed publicly so callers reading raw rows via
 /// [`StoreIndex::get_many_raw`] can run the decode outside the
-/// store-index mutex (typically across a rayon pool — the decode
-/// is the dominant CPU cost for rows that carry a `manifest`
-/// field).
+/// store-index mutex.
 pub fn decode_package_files_index(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError> {
     decode_index_value(bytes)
 }
 
 fn decode_index_value(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError> {
-    // `transcode_to_plain_msgpack` tracks records-mode internally and
-    // only reinterprets `0x40..=0x7f` as slot references after a record
-    // definition has been observed, so it's safe to run on both
-    // pacquet-written (plain msgpack) and pnpm-written (msgpackr records)
-    // rows. For plain rows it still performs the integer-valued float
-    // narrowing we need on the read side — pacquet writes the
-    // `checkedAt` timestamp as `float 64` for JS/BigInt interop.
     let plain = crate::msgpackr_records::transcode_to_plain_msgpack(bytes)
         .map_err(|source| StoreIndexError::Transcode { source })?;
     rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
@@ -393,15 +381,6 @@ pub struct PackageFilesIndex {
 
     /// Side-effect overlays applied after post-install scripts. Populated
     /// by the build-side-effects cache (WRITE path).
-    ///
-    /// Pacquet's on-disk byte stability for this field comes from
-    /// the msgpackr-records encoder
-    /// (`crate::msgpackr_records::encode_package_files_index`),
-    /// which iterates the map in sorted-key order before emitting.
-    /// The serde `Serialize` impl below is never reached on the
-    /// write path — `StoreIndex::set_many` always routes through
-    /// the bespoke encoder — but is kept for the read path's
-    /// round-trip through `rmp_serde::from_slice`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub side_effects: Option<HashMap<String, SideEffectsDiff>>,
 
@@ -438,9 +417,7 @@ pub struct CafsFileInfo {
 
 /// Emit `Option<u64>` on the msgpack wire as `float 64` rather than
 /// `uint 64`. See the doc on [`CafsFileInfo::checked_at`] for the
-/// interop reasoning — short version, msgpackr reads `uint 64` as a
-/// `BigInt` and pnpm's integrity check then crashes on Number/BigInt
-/// mixing.
+/// interop reasoning.
 #[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 fn serialize_checked_at<Serializer: serde::Serializer>(
     value: &Option<u64>,

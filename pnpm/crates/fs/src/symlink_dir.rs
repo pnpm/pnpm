@@ -178,8 +178,8 @@ impl fmt::Display for ConcurrentCleanupWarning {
 
 impl Error for ConcurrentCleanupWarning {}
 
-/// Idempotent, overwrite-on-stale symlink creator with overwrite-on
-/// semantics: an existing occupant at `link` is moved aside.
+/// Idempotent, overwrite-on-stale symlink creator: an existing occupant
+/// at `link` is moved aside.
 ///
 /// A regular file or directory occupying `link` can be gone by the time the
 /// rename that moves it aside runs, which is what a second writer racing for
@@ -328,8 +328,7 @@ mod windows {
 
     /// Cached choice of writer. `UNDECIDED` until the first successful
     /// call resolves the EPERM probe; afterward [`USE_SYMLINK`] or
-    /// [`USE_JUNCTION`]. Caching the winning branch after the first call
-    /// avoids re-probing on every subsequent symlink.
+    /// [`USE_JUNCTION`].
     const UNDECIDED: u8 = 0;
     const USE_SYMLINK: u8 = 1;
     const USE_JUNCTION: u8 = 2;

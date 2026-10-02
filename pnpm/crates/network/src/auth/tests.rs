@@ -678,11 +678,7 @@ fn classifies_urls_that_are_secure_for_credentials() {
 /// [`AuthHeaders::for_url`]: the URL ends without a `/` *and*
 /// names a path segment (`/scope`). Without the append,
 /// [`nerf_dart`] would drop the segment and miss the token; with
-/// it, the lookup walks `//reg.com/scope/`. Removing the append
-/// branch makes this test fail. Kept as a focused single-assertion
-/// case for the slash-append branch even though
-/// [`registry_with_pathname_matches_metadata_and_tarballs`]'s first
-/// assertion (`https://npm.pkg.github.com/pnpm`) also exercises it.
+/// it, the lookup walks `//reg.com/scope/`.
 #[test]
 fn slash_append_branch_lets_path_segment_match() {
     let headers = build(&[("//reg.com/scope/", "Bearer scoped")]);

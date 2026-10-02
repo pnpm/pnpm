@@ -1,10 +1,9 @@
 //! Every `pnpm` end-to-end test, built as one binary.
 //!
-//! Each module below was previously its own integration-test target.
 //! Cargo links an integration-test binary against the whole dependency
-//! graph, so one target per file meant re-linking ~240 MB per file on
-//! every change to the crate. `cargo nextest` still runs each test in
-//! its own process, so the isolation is unchanged.
+//! graph, so one target per file re-links ~240 MB per file on every
+//! change to the crate. `cargo nextest` runs each test in its own
+//! process.
 
 mod _utils;
 

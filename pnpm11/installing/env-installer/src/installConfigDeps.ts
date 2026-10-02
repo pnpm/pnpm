@@ -172,14 +172,11 @@ async function normalizeForInstall (
   configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
-  // If it's a EnvLockfile object (has lockfileVersion), use it directly
   if (isEnvLockfile(configDepsOrLockfile)) {
     verifyEnvLockfile(configDepsOrLockfile)
     return normalizeFromLockfile(configDepsOrLockfile, opts.registriesByScope)
   }
 
-  // It's ConfigDependencies from workspace manifest.
-  // Try to read the env lockfile first.
   const envLockfile = await readEnvLockfile(opts.rootDir)
   if (envLockfile) {
     verifyEnvLockfile(envLockfile)

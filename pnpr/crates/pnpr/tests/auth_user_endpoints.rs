@@ -371,8 +371,6 @@ async fn revoke_token_by_key_removes_the_token() {
 /// Returns true when `key` is the hash of `raw_token`. We can't
 /// inspect the store from the test, so we drive a revocation through
 /// the public API and check whether the raw token stopped working.
-/// Used by [`revoke_token_by_key_removes_the_token`] to pick which of
-/// the two listed keys belongs to the token we want to revoke.
 async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) -> bool {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();

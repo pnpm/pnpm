@@ -174,9 +174,7 @@ pub(super) struct EntryMeta {
     pub(super) size: u64,
 }
 
-/// `None` when the ignore filter drops the entry. Ignored entries are
-/// dropped before the CAS write, and paths are matched *after* the
-/// top-level prefix strip, so the callback sees the cleaned relative path.
+/// `None` when the ignore filter drops the entry.
 /// Bypassing the CAS write here also keeps the package's
 /// [`PackageFilesIndex`] tight — an ignored entry never surfaces in `files`
 /// or `manifest`.

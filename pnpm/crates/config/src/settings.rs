@@ -191,9 +191,6 @@ pub struct Config {
     /// which still triggers the hoist pass (in case `public_hoist_pattern`
     /// is set). `Some(non-empty)` is the normal case. The default is
     /// `Some(["*"])`.
-    ///
-    /// The hoist guard at the install call site is
-    /// `hoist_pattern.is_some() || public_hoist_pattern.is_some()`.
     #[default(_code = "Some(default_hoist_pattern())")]
     pub hoist_pattern: Option<Vec<String>>,
 
@@ -293,9 +290,7 @@ pub struct Config {
     /// `false`, matching pnpm's opt-in setting.
     pub node_experimental_package_map: bool,
 
-    /// Selects the package-map dependency surface. Pacquet currently
-    /// materializes only the standard map for isolated installs; loose
-    /// and hoisted maps require layout-aware writers.
+    /// Selects the package-map dependency surface.
     pub node_package_map_type: NodePackageMapType,
 
     /// When symlink is set to false, pnpm creates a virtual store directory without any symlinks.
@@ -339,10 +334,7 @@ pub struct Config {
     /// the canonical consumer.
     ///
     /// [`Self::apply_virtual_store_only_derivation`] clears both hoist
-    /// patterns when this is set. Combining it with
-    /// `enable_modules_dir: false` while the global virtual store is
-    /// off is a config conflict, rejected by
-    /// `pnpm_package_manager::Install::run`.
+    /// patterns when this is set.
     pub virtual_store_only: bool,
 
     /// `enableModulesDir`: pnpm's setting for suppressing the
@@ -416,8 +408,6 @@ pub struct Config {
     /// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH`. The same value is
     /// persisted into `node_modules/.modules.yaml` so subsequent
     /// installs see the user's pick.
-    ///
-    /// Default value is 60 on Windows and 120 otherwise.
     #[default(_code = "default_virtual_store_dir_max_length()")]
     pub virtual_store_dir_max_length: u64,
 
@@ -578,33 +568,22 @@ pub struct Config {
 
     /// Refuse network requests during install. The `offline` flag gates
     /// the metadata-fetch path with `ERR_PNPM_NO_OFFLINE_META` when no
-    /// cached metadata exists for a spec. Pacquet doesn't have a
-    /// metadata-fetch path yet (no resolver until Stage 2), so the same
-    /// flag instead gates pacquet's tarball-fetch fall-through: when both
+    /// cached metadata exists for a spec. The same
+    /// flag also gates pacquet's tarball-fetch fall-through: when both
     /// the warm prefetch and the `SQLite` `index.db` lookup miss, the
     /// tarball fetcher fails fast with `ERR_PNPM_NO_OFFLINE_TARBALL`
-    /// rather than hitting the registry. The frozen-lockfile install
-    /// path needs no metadata, so the surface area collapses to
-    /// "every snapshot must already be in the local store".
+    /// rather than hitting the registry.
     ///
     /// Pacquet's tarball-side gate has no exact pnpm counterpart
     /// (pnpm doesn't gate the tarball fetcher on `offline`), but it's
     /// the most useful interpretation of the flag for a frozen
     /// installer: surface a clear `offline` error rather than letting
     /// the underlying `connection refused` / DNS error propagate.
-    /// The Stage 2 resolver will additionally honor the flag on the
-    /// metadata path.
     pub offline: bool,
 
     /// Prefer the local store on read, fall back to the network on a
     /// cache miss. The `preferOffline` flag biases the resolver to use
     /// cached metadata when available even past the freshness window.
-    ///
-    /// Pacquet's frozen-install path already prefers the local store
-    /// — the warm prefetch + SQLite-cache lookups always run before
-    /// any network fetch — so `prefer_offline` is effectively a no-op
-    /// today. The field exists so `.npmrc` / yaml / CLI all parse the
-    /// flag cleanly; Stage 2's resolver will honor it.
     pub prefer_offline: bool,
 
     /// Add the full URL to the package's tarball to every entry in pnpm-lock.yaml.
@@ -631,9 +610,9 @@ pub struct Config {
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
     /// (`gh`, `work`, ...) to the registry URL its `<alias>:` specifiers
     /// resolve against. Empty by default — the resolver layer merges
-    /// these on top of pnpm's built-in defaults (today: `gh:` →
-    /// GitHub Packages) and rejects malformed URLs at construction
-    /// time with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
+    /// these on top of pnpm's built-in defaults and rejects malformed
+    /// URLs at construction time with
+    /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
     ///
     /// The `prefix` a `registries` entry declares, or the deprecated
     /// `namedRegistries` setting.
@@ -718,9 +697,6 @@ pub struct Config {
     #[default = true]
     pub hoist_workspace_packages: bool,
 
-    /// Per-importer block-list of package aliases that may NOT be
-    /// hoisted past that importer's slot. Outer key is the
-    /// importer locator (e.g. `'.@'` for the root project, or the
     /// `hoistingLimits` from `pnpm-workspace.yaml`. Controls how far
     /// dependencies are hoisted under `nodeLinker: hoisted`. See
     /// [`HoistingLimits`] for the `none` / `workspaces` /
@@ -837,7 +813,7 @@ pub struct Config {
     /// boundary for a store writable by untrusted users or jobs.
     ///
     /// The `verifyStoreIntegrity` camelCase key in
-    /// `pnpm-workspace.yaml` (default `true`).
+    /// `pnpm-workspace.yaml`.
     #[default = true]
     pub verify_store_integrity: bool,
 
@@ -852,7 +828,7 @@ pub struct Config {
     /// metadata it was listed under, both surface here.
     ///
     /// The `strictStorePkgContentCheck` camelCase key in
-    /// `pnpm-workspace.yaml` (default `true`).
+    /// `pnpm-workspace.yaml`.
     #[default = true]
     pub strict_store_pkg_content_check: bool,
 
@@ -912,8 +888,6 @@ pub struct Config {
     /// Read from `pnpm-workspace.yaml`'s `sideEffectsCache` field
     /// (camelCase, optional, defaults `true`).
     ///
-    /// Default `true` (`side-effects-cache`).
-    ///
     /// The READ gate combines this with [`side_effects_cache_readonly`]
     /// via [`Config::side_effects_cache_read`]; the WRITE gate via
     /// [`Config::side_effects_cache_write`]. Consume those helpers
@@ -938,11 +912,6 @@ pub struct Config {
     /// errors before giving up. The `fetchRetries` setting (default `2`).
     /// The value is the count of *retries*, so total attempts =
     /// `fetch_retries + 1`.
-    ///
-    /// Today this only gates the `pnpm-tarball` download path;
-    /// `crates/registry`'s metadata fetches still issue a single request.
-    /// Threading the same retry policy through the registry client is a
-    /// follow-up.
     ///
     /// Read from `pnpm-workspace.yaml` only — pnpm 11 excludes the
     /// `fetch-retry*` family from `NPM_AUTH_SETTINGS`, so a
@@ -1257,13 +1226,6 @@ pub struct Config {
     /// read as `parallelism - |value|` (floored at 1).
     ///
     /// Default: `min(4, availableParallelism())`.
-    ///
-    /// Parsed and stored for parity with pnpm's config surface.
-    /// pacquet's frozen-lockfile install materializes the whole
-    /// workspace in a single shared pass rather than one project at a
-    /// time, so there is no per-project parallel loop for this limit
-    /// to throttle yet — the same "read now, consume as the
-    /// architecture lands" posture as [`Self::prefer_offline`].
     #[default(_code = "default_workspace_concurrency()")]
     pub workspace_concurrency: u32,
 
@@ -1292,12 +1254,6 @@ pub struct Config {
     /// current directory. A CLI-only boolean: it is not a `.npmrc` /
     /// `pnpm-workspace.yaml` key, so the yaml / env overlay never
     /// populates it — the CLI layer sets it from the flag.
-    ///
-    /// pacquet's install already spans the whole workspace (it reads
-    /// every importer from the shared lockfile), so the flag is a
-    /// surface no-op on `install` today. Stored for parity and for
-    /// future commands where recursive vs. single-project selection
-    /// diverges.
     pub recursive: bool,
 
     /// `--filter` selectors, one raw selector string per entry
@@ -1688,11 +1644,6 @@ pub struct Config {
     /// is reported unless its name has an entry here whose range the
     /// resolved version satisfies. The `allowedDeprecatedVersions`
     /// setting.
-    ///
-    /// Parsed and stored for parity with pnpm's config surface. Pacquet
-    /// does not yet emit deprecation warnings during resolution, so
-    /// there is nothing for the allow-list to suppress today; the field
-    /// is consumed once that warning path lands.
     pub allowed_deprecated_versions: BTreeMap<String, String>,
 
     /// `updateConfig` from `pnpm-workspace.yaml`: defaults specific to
@@ -1720,11 +1671,6 @@ pub struct Config {
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See
     /// [`PeerDependencyRules`].
-    ///
-    /// Parsed and stored for parity with pnpm's config surface. Pacquet
-    /// resolves peers but does not yet have a missing/bad peer-issue
-    /// reporting pass, so these rules have no consumer today; they are
-    /// applied once that pass lands.
     ///
     /// [`PeerDependencyRules`]: crate::workspace_yaml::PeerDependencyRules
     pub peer_dependency_rules: workspace_yaml::PeerDependencyRules,

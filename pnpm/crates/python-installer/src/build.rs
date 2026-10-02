@@ -393,9 +393,6 @@ pub(super) enum Contract {
     Interpreter,
 }
 
-/// A wheel built from a project's source, and the directory it was
-/// unpacked into. The environment installs the unpacked files, so the
-/// directory outlives the build.
 /// An environment a backend can run in, or the requirements nothing has
 /// approved to run in one.
 enum BuildEnvironment {

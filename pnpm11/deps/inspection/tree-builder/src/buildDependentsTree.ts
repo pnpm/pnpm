@@ -142,7 +142,6 @@ function buildSelectedProjectsGraph (projectPaths: string[], opts: BuildDependen
     optionalDependencies: true,
   }
 
-  // Build root IDs from the selected project paths (respects --filter / --recursive)
   const allRootIds: TreeNodeId[] = []
   for (const projectPath of projectPaths) {
     const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
@@ -222,7 +221,6 @@ function searchPackage (
   ctx: WalkContext
 ): ReturnType<Finder> {
   const { name, version, readManifest } = pkg
-  // Check canonical name first
   const matched = search({ alias: name, name, version, readManifest })
   if (matched) return matched
 

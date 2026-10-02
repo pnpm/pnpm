@@ -21,7 +21,7 @@ export type TrustCheckOptions = NonNullable<Parameters<typeof failIfTrustDowngra
 /**
  * Upper bound on trust downgrades set aside for one pick. Each one re-runs the
  * picker over the packument, so the cap bounds the work a hostile packument
- * can force. It matches the Rust resolver's re-pick cap.
+ * can force.
  */
 const TRUST_REPICK_LIMIT = 1000
 

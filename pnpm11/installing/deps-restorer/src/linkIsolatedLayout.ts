@@ -91,10 +91,6 @@ async function hoistDependencies (ctx: HeadlessContext, depGraph: HeadlessDepGra
   const { opts } = ctx
   const allImportersIncluded = equals([...depGraph.importerIds].sort(), Object.keys(ctx.wantedLockfile.importers).sort())
   const priorWorkspaceProjectIds = await findPriorWorkspaceProjectIds(ctx, { allImportersIncluded, importerIds: depGraph.importerIds })
-  // With the full graph the recomputed hoist map is complete, so it
-  // replaces the recorded one and drops the entries this install made
-  // ineligible. The incremental graph only knows the packages it
-  // imported, so there the recorded map fills in the rest.
   const hoisted = await hoistIntoModulesDirs(ctx, depGraph, priorWorkspaceProjectIds)
   // The recomputed map only replaces the recorded one when the graph is
   // the whole workspace: a filtered install hoists from the filtered

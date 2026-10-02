@@ -420,7 +420,6 @@ test('config get update and audit return the settings the CLI acts on, under the
     ignore: ['GHSA-xxxx-yyyy-zzzz'],
   })
 
-  // The deprecated internal spellings are no longer part of the record.
   const deprecatedResults = await Promise.all(['updateConfig', 'auditConfig'].map(
     async (deprecatedKey) => config.handler(createConfigCommandOpts(baseOpts), ['get', deprecatedKey])
   ))

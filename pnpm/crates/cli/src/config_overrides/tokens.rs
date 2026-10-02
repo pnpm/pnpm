@@ -79,9 +79,7 @@ pub(super) fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -
     classify_valued_flag(key, value, setting(key))
 }
 
-/// A `--config.<key>=<value>` token, after the prefix. Everything the
-/// prefix claims stays claimed, so a typo like `--config.foo` never
-/// escapes into clap's "unexpected argument" path.
+/// A `--config.<key>=<value>` token, after the prefix.
 fn classify_dotted(rest: &str) -> ConfigToken<'_> {
     let Some((key, value)) = rest.split_once('=') else {
         return ConfigToken::Malformed;

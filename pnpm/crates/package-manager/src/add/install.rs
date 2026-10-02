@@ -151,16 +151,6 @@ pub(super) fn add_install<'i>(
     install.projects.catalogs_override = seed.catalogs_override;
     install
 }
-/// The lockfile pins to withhold, and the preferences to layer on the seed,
-/// for a version an `add` named that its catalog entry resolves past.
-///
-/// A cataloged dependency writes `catalog:` to the manifest and keeps its
-/// version in the catalog entry, so a version named on the command line has
-/// nowhere else to land: without this the entry's recorded resolution is
-/// reused and the request is dropped in silence. Every other `add` — a
-/// dependency that isn't cataloged, a catalog entry that already resolves to
-/// the wanted version, one the wanted version falls outside of — is left
-/// alone, so an add that needs no resolution still skips it.
 /// Update targets that no selector scoped to a version line: a `catalog:`
 /// re-resolution moves whatever version the catalog entry now names.
 pub(super) fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {

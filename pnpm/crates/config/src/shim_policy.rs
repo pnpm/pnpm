@@ -114,9 +114,7 @@ impl Default for GlobalShims {
 }
 
 impl GlobalShims {
-    /// Fold one configuration layer into the resolved setting. Records
-    /// merge key-wise; the scalar shorthands replace the accumulated
-    /// state (`false` → nothing dispatches, `true` → the defaults).
+    /// Fold one configuration layer into the resolved setting.
     pub fn apply(&mut self, layer: &GlobalShimsSetting) {
         match layer {
             GlobalShimsSetting::Toggle(false) => self.entries.clear(),

@@ -123,7 +123,7 @@ fn setting_cannot_affect_lockfile(
     }
 }
 
-/// All three peer settings only change how peer dependencies are
+/// The peer settings only change how peer dependencies are
 /// resolved, deduplicated, and hashed into depPath suffixes. None of
 /// them has anything to act on when no package or project declares a
 /// peer dependency and no depPath carries a peers suffix.

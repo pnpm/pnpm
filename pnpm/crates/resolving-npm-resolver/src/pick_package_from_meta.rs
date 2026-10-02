@@ -167,7 +167,6 @@ pub enum PickPackageFromMetaError {
 /// - `Ok(None)` — no version satisfies the spec. The orchestrator
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
-/// - `Err(_)` — one of the four `PnpmError` variants above.
 pub fn pick_package_from_meta<PickFn>(
     pick_version_by_range: PickFn,
     opts: &PickPackageFromMetaOptions<'_>,
@@ -388,10 +387,6 @@ fn preferred_max_pick(
     None
 }
 
-/// A deprecated pick falls back to the highest non-deprecated version
-/// among `candidates`, when the packument carries another one at all.
-/// Scoping the retry to the candidates keeps a preference group that is
-/// one explicitly pinned version from being overridden.
 fn same_release_line(version: &str, target: &node_semver::Version) -> bool {
     node_semver::Version::parse(version)
         .is_ok_and(|parsed| {
@@ -411,6 +406,10 @@ fn same_release_non_deprecated_pick(non_deprecated: &[&str], picked: &str) -> Op
     max_version(&same_release_prereleases)
 }
 
+/// A deprecated pick falls back to the highest non-deprecated version
+/// among `candidates`, when the packument carries another one at all.
+/// Scoping the retry to the candidates keeps a preference group that is
+/// one explicitly pinned version from being overridden.
 fn non_deprecated_pick<Raw: AsRef<str>>(
     opts: &PickVersionByVersionRangeOptions<'_>,
     candidates: &[Raw],

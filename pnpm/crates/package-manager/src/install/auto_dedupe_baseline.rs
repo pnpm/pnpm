@@ -2,11 +2,9 @@
 //! wrote. A lockfile does not say whether it was deduplicated, so `autoDedupe`
 //! keeps installs off the up-to-date path unless this record vouches for the
 //! lockfile. A deduplicating resolution converges, so after a `--lockfile-only`
-//! one writes the lockfile, the install records digests of what it read: the
-//! pnpm version, the workspace-state settings, whether it ignored the
-//! pnpmfile, the project manifests, the lockfile bytes and the local packages
-//! the lockfile resolves. A later `--lockfile-only` install whose digests
-//! match takes the up-to-date path.
+//! one writes the lockfile, the install records digests of what it read. A
+//! later `--lockfile-only` install whose digests match takes the up-to-date
+//! path.
 //! Like the repeat-install fast path, it does not re-resolve for a setting the
 //! workspace state leaves out, a change inside a `link:` target that is not a
 //! workspace project, or versions published since. A local file that is missing

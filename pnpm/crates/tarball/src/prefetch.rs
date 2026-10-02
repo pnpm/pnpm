@@ -260,10 +260,7 @@ fn prefetch_cas_paths_blocking(
 /// Phase 2: decode one row's msgpackr-records bytes into a
 /// [`PackageFilesIndex`], then run the integrity check. Both steps are
 /// per-row CPU work with no shared state, so the caller fans them out
-/// across rayon. With manifests included in the payload, decoding 1k+ rows
-/// serially had become the dominant chunk of the prefetch wall
-/// (single-threaded `spawn_blocking`); the par-iter recovers the per-row
-/// parallelism the warm-batch link phase already uses.
+/// across rayon.
 ///
 /// The bundled manifest is split off the decoded entry via `Option::take` so
 /// it travels back to the caller without an intermediate `Value::clone` of

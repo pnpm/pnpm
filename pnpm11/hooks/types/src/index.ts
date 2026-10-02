@@ -54,19 +54,12 @@ export interface CustomResolver {
   /**
    * Called during resolution to determine if this resolver should handle a dependency.
    * This should be a cheap check (ideally synchronous) as it's called for every dependency.
-   *
-   * @param wantedDependency - The dependency descriptor to check
-   * @returns true if this resolver should handle the dependency
    */
   canResolve?: (wantedDependency: WantedDependency) => boolean | Promise<boolean>
 
   /**
    * Called to resolve a dependency that canResolve returned true for.
    * This can be an expensive async operation (e.g., network requests).
-   *
-   * @param wantedDependency - The dependency descriptor to resolve
-   * @param opts - Resolution options including lockfileDir, projectDir, and preferredVersions
-   * @returns Resolution result with id and resolution object
    */
   resolve?: (wantedDependency: WantedDependency, opts: ResolveOptions) => ResolveResult | Promise<ResolveResult>
 
@@ -85,8 +78,6 @@ export interface CustomResolver {
    * Use this to implement custom cache invalidation logic (e.g., time-based expiry, version checks).
    *
    * @param depPath - The dependency path (e.g., 'lodash@4.17.21' or '@scope/pkg@1.0.0')
-   * @param pkgSnapshot - The lockfile entry for this dependency
-   * @returns true to force re-resolution of all dependencies
    */
   shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
@@ -115,8 +106,6 @@ export interface CustomFetcher extends ResolutionFetchContract {
    * This is called for each package that needs to be fetched.
    *
    * @param pkgId - The package ID (e.g., 'foo@1.0.0' or custom format)
-   * @param resolution - The resolution object from the lockfile
-   * @returns true if this fetcher should handle fetching this package
    */
   canFetch?: (pkgId: string, resolution: Resolution) => boolean | Promise<boolean>
 
@@ -130,12 +119,6 @@ export interface CustomFetcher extends ResolutionFetchContract {
    * fetchers.remoteTarball). Alternatively, return a
    * {@link CustomFetcherDelegation} envelope and pnpm performs the delegation
    * itself. Both forms preserve the original integrity of a locked archive.
-   *
-   * @param cafs - The content-addressable file system to add package files to
-   * @param resolution - The resolution object containing fetch information
-   * @param opts - Fetch options including package manifest
-   * @param fetchers - Standard pnpm fetchers available for delegation (remoteTarball, localTarball, git, etc.)
-   * @returns FetchResult with files index and other package information, or a delegation envelope
    */
   fetch?: (cafs: Cafs, resolution: Resolution, opts: FetchOptions, fetchers: Fetchers) => FetchResult | CustomFetcherDelegation | Promise<FetchResult | CustomFetcherDelegation>
 }

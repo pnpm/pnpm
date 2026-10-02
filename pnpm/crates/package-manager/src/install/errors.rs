@@ -57,7 +57,7 @@ pub enum InstallError {
         #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
     ),
 
-    // The three `*_DIFF` errors below mirror pnpm's `validateModules`:
+    // The `*_DIFF` errors below mirror pnpm's `validateModules`:
     // a non-plain-install mutation refuses to touch a modules directory
     // whose persisted layout settings disagree with the current config.
     #[display(

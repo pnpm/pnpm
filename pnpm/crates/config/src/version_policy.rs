@@ -2,14 +2,6 @@
 //! `pnpm-workspace.yaml`'s `allowBuilds`, `minimumReleaseAgeExclude`,
 //! `trustPolicyExclude`, and similar policy keys.
 //!
-//! - [`expand_package_version_specs`] expands every spec into one or
-//!   more literal `name` / `name@version` strings. Used by `allowBuilds`.
-//! - [`create_package_version_policy`] returns a matcher-based policy
-//!   that evaluates a `pkg_name` against a set of rules. Used by
-//!   `minimumReleaseAgeExclude` and `trustPolicyExclude` — wildcards
-//!   in the name (`is-*`, `@scope/*`) match real package names via the
-//!   shared [`crate::matcher`].
-//!
 //! What this module supports:
 //!
 //! - Bare name → `foo`, `@scope/foo`.
@@ -17,15 +9,7 @@
 //! - Exact-version union → `foo@1.0.0 || 2.0.0`. Each version is
 //!   parsed strictly (like the `semver` npm package's `valid`);
 //!   whitespace around `||` and within versions is trimmed.
-//! - Wildcards in the name **without** a version part —
-//!   [`expand_package_version_specs`] keeps them verbatim (the literal
-//!   lands in the set and is compared by equality), and
-//!   [`create_package_version_policy`] runs them through
-//!   [`crate::matcher`] so they match real package names.
-//!
-//! Combining a `*` wildcard in the name with a version part is
-//! explicitly rejected as
-//! [`VersionPolicyError::NamePatternInVersionUnion`].
+//! - Wildcards in the name **without** a version part.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -112,9 +96,7 @@ where
         .collect())
 }
 
-/// Fold one parsed spec into the accumulator: a bare name absorbs every
-/// version-specific spec for the same package, and exact versions accumulate
-/// in first-seen order without duplicates.
+/// Fold one parsed spec into the accumulator.
 fn absorb_spec(
     by_package: &mut indexmap::IndexMap<String, Option<Vec<String>>>,
     name: String,

@@ -169,8 +169,6 @@ fn run_token_helper_command_with_timeout(
         }
         thread::sleep(Duration::from_millis(20));
     };
-    // The child is reaped; disarm so the guard can't signal a pid the OS
-    // may already have recycled.
     guard.disarm();
 
     Ok(TokenHelperOutput {

@@ -46,14 +46,7 @@ impl InstallArgs {
     /// previous install, emit the same "Already up to date" + summary
     /// events [`Install::run`](pnpm_package_manager::Install::run) would and report the install as finished.
     ///
-    /// The gates mirror the dispatch in [`crate::cli_args::CliArgs::run`]
-    /// (which checks `recursive` / `filter` before reaching here) plus
-    /// every input that would make [`Install::run`](pnpm_package_manager::Install::run) skip its own
-    /// short-circuit or do extra pre-install work: an explicit
-    /// `--frozen-lockfile` / `--lockfile-only`, config
-    /// dependencies, Cargo or Python dependency management, and pnpmfile
-    /// `updateConfig` hooks (these can mutate state the npm-only check does
-    /// not cover). A configured
+    /// A configured
     /// pnpr server deliberately does NOT bail: the check decides
     /// purely locally that nothing changed, and asking the server
     /// cannot change that answer

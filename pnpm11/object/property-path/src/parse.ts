@@ -53,9 +53,6 @@ export class UnexpectedEndOfInputError extends PnpmError {
  *   parsePropertyPath('["foo"].bar.baz')
  *   parsePropertyPath(`["foo"]['bar'].baz`)
  *   parsePropertyPath('foo[123]')
- *
- * @param propertyPath The string of property path to parse.
- * @returns The parsed path in the form of an array.
  */
 type ParseStack =
   | ExactToken<'.'>

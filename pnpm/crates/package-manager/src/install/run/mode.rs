@@ -30,21 +30,10 @@ impl RunMode {
         // and a long-lived embedder (the NAPI addon) both drive several
         // installs through the same process-global tally.
         let verified_file_integrity_baseline = VerifiedFileIntegrity::snapshot();
-        // `--lockfile-only` with `lockfile: false` (pnpm's
-        // `useLockfile: false`) is a config conflict: the only output the
-        // flag produces is the lockfile, and that write is disabled.
-        // Fail fast rather than run a resolve that writes nothing.
         reject_lockfile_only_without_lockfile(
             install.context.config,
             install.execution.lockfile_only,
         )?;
-        // `enableModulesDir: false` (with the global virtual store off) is
-        // "resolve and write the lockfile, materialize nothing" — the same
-        // pipeline `--lockfile-only` takes, entered from config. It stays
-        // outside the `lockfile: false` conflict above (pnpm accepts that
-        // combination and simply writes nothing), and never turns a
-        // rebuild — which runs against an already-materialized
-        // `node_modules` — into a silent no-op.
         let lockfile_only = effective_lockfile_only(
             install.context.config,
             install.execution.lockfile_only,

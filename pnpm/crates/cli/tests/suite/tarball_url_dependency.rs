@@ -16,18 +16,6 @@
 //! dependency is re-resolved, and its integrity must survive so the next
 //! `--frozen-lockfile` install doesn't fail closed.
 //!
-//! Both upstream bugs stem from pnpm's URL/tarball resolver returning no
-//! integrity (it's learned only on download) and a later fetch step being
-//! skipped on a warm store — so pnpm has to carry the previous lockfile
-//! entry's integrity forward. pacquet has no such gap: because it builds
-//! the lockfile before the install pass, the [`TarballResolver`] learns the
-//! integrity from the tarball's bytes (a download, or — on a re-resolve
-//! where the prior lockfile already recorded the URL + integrity — a reuse
-//! of the warm store extraction, see the no-refetch test below). Either way
-//! a re-resolved entry can never lose its integrity, so pacquet needs no
-//! carry-forward equivalent of pnpm's `packageRequester` / `updateLockfile`
-//! fixes.
-//!
 //! Reaching the [`TarballResolver`] requires a bare specifier whose URL
 //! does *not* start with the configured registry — a registry-host
 //! tarball URL is parsed by the npm resolver instead (see
@@ -184,7 +172,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
 /// re-resolve against a warm store skips the fetch entirely. pacquet
 /// downloads during resolution to learn the integrity + manifest, so
 /// without reuse it would re-fetch the tarball on every re-resolution
-/// ([PR #12096](https://github.com/pnpm/pnpm/pull/12096)). The resolver now consults the prior lockfile + store
+/// ([PR #12096](https://github.com/pnpm/pnpm/pull/12096)). The resolver consults the prior lockfile + store
 /// index and, on a hit, reuses the cached integrity + bundled manifest
 /// without touching the network.
 ///

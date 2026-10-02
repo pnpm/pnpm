@@ -66,7 +66,7 @@ use workspace::{
     no_lockfile_error, project_dir, recursive_workspace_outdated, validate_package_patterns,
 };
 
-/// Output format for `pacquet outdated`.
+/// Output format for `pnpm outdated`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutdatedFormat {
     Table,
@@ -74,7 +74,7 @@ pub enum OutdatedFormat {
     Json,
 }
 
-/// `--prod` / `--dev` / `--no-optional` for `pacquet outdated`.
+/// `--prod` / `--dev` / `--no-optional` for `pnpm outdated`.
 #[derive(Debug, Args)]
 pub struct OutdatedDependencyOptions {
     /// Check only "dependencies" and "optionalDependencies".
@@ -110,7 +110,7 @@ impl OutdatedDependencyOptions {
     }
 }
 
-/// `pacquet outdated [<pkg> ...]`.
+/// `pnpm outdated [<pkg> ...]`.
 #[derive(Debug, Args)]
 pub struct OutdatedArgs {
     /// Restrict the check to dependencies whose name matches one of these

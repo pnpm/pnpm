@@ -83,10 +83,6 @@ test('resolveFromGit() with commit', async () => {
 })
 
 test('resolveFromGit() with no commit', async () => {
-  // This is repeated twice because there was a bug which caused the specifier
-  // to contain the commit hash on second call.
-  // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
-  // was mutated. A 'committish' field was added to it.
   for (let attempt = 0; attempt < 2; attempt++) {
     const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop -- the second call checks that the first one did not modify the parsed specifier
     expect(resolveResult).toStrictEqual({

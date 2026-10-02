@@ -109,13 +109,10 @@ pub struct FetchFullMetadataOptions<'a> {
     pub http: crate::MetadataHttpClient<'a>,
 }
 
-/// Outcome of a [`fetch_full_metadata`] call. The caller (today: only
-/// `maybe_upgrade_abbreviated_meta_for_release_age` inside
-/// [`crate::pick_package()`]) reacts differently to a 304 than to
-/// a 200. [`Package`] is boxed so the size of the enum stays small
-/// even though a full packument can be many KB — the same boxing
-/// pattern used elsewhere in the crate when a large struct sits next
-/// to a unit variant.
+/// Outcome of a [`fetch_full_metadata`] call. The caller reacts
+/// differently to a 304 than to a 200. [`Package`] is boxed so the
+/// size of the enum stays small even though a full packument can be
+/// many KB.
 #[derive(Debug, Clone)]
 pub enum FetchFullMetadataOutcome {
     /// Registry returned a 2xx with a parsed body.
@@ -289,9 +286,6 @@ fn to_http_date(value: &str) -> Option<String> {
     httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date)
 }
 
-/// Fetch the registry metadata document for `pkg_name`. The
-/// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
-/// between the full and abbreviated packument forms.
 /// A metadata document plus the response's entity tag and whether it
 /// forbade caching.
 pub(crate) struct MetadataDocument {
@@ -300,6 +294,9 @@ pub(crate) struct MetadataDocument {
     pub uncacheable: bool,
 }
 
+/// Fetch the registry metadata document for `pkg_name`. The
+/// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
+/// between the full and abbreviated packument forms.
 pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,

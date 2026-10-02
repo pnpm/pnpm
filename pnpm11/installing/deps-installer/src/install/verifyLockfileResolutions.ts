@@ -105,22 +105,12 @@ export interface VerifyLockfileResolutionsOptions {
  * Fresh local resolution is covered by the resolver's own per-version
  * filter.
  *
- * Each verifier handles its own protocol short-circuit inside `verify`
- * (returning `{ ok: true }` for resolutions outside its scope), so the
- * fan-out is policy-neutral and dispatch-free at this layer.
- *
  * Designed for fail-closed semantics at the verifier level: a verifier
  * that can't confirm a resolution is expected to return `{ ok: false }`
  * rather than passing silently — otherwise a registry hiccup or an
  * unpublished version would re-open the bypass.
  *
  * No-op when `verifiers` is empty.
- *
- * When `options.cacheDir` and `options.lockfilePath` are both
- * provided, an unchanged lockfile that has already been verified
- * under the same (or stricter) policy short-circuits the registry
- * round-trip entirely — see {@link tryLockfileVerificationCache} for
- * the lookup logic.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
@@ -176,10 +166,6 @@ function createVerificationCacheContext (
   // hashObject streams and is key-order-stable, unlike JSON.stringify.
   let cachedHash: string | undefined
   return {
-    // Caching kicks in only when the caller surfaced both a writable
-    // cache directory and the lockfile's absolute path — that's the
-    // production wiring; unit tests that skip them get the gate without
-    // memoization and still exercise the same code path.
     cache: options?.cacheDir && options?.lockfilePath
       ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
       : undefined,
@@ -357,9 +343,7 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
  * returns the violations as data instead of throwing on the first batch.
  * No cache lookup or write — the throw-mode `verifyLockfileResolutions`
  * is what populates / honors the cache; this is for callers that need
- * to inspect violations (auto-collect into `minimumReleaseAgeExclude`,
- * the strict-mode interactive prompt, future resolver-specific
- * policies).
+ * to inspect violations.
  *
  * Returns an empty array when `verifiers` is empty or the lockfile has
  * no packages, so callers don't need a separate emptiness check.

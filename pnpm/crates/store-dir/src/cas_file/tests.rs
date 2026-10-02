@@ -86,15 +86,7 @@ fn shard_cache_populates_on_first_write_and_skips_mkdir_thereafter() {
     assert!(store_dir.shard_already_ensured(hash_a[0]));
     assert!(path_a.is_file());
 
-    // Second write of identical content — same hash, same path —
-    // hits `ensure_cas_file`'s `AlreadyExists` → `verify_or_rewrite`
-    // path: the `O_CREAT|O_EXCL` open returns `EEXIST`, then
-    // `verify_or_rewrite` byte-compares the existing file against
-    // the buffer, finds them equal, and returns `Ok(())` without
-    // writing again. A torn-blob mismatch would route through the
-    // in-place repair instead, which is covered by
-    // `cas_repair_preserves_inode_and_heals_hard_links` over in
-    // `crates/fs/src/ensure_file.rs`.
+    // Second write of identical content — same hash, same path.
     let (path_b, hash_b) = store_dir.write_cas_file(b"hello world", false).unwrap();
     assert_eq!(hash_a, hash_b);
     assert_eq!(path_a, path_b);

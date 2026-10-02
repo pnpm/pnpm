@@ -416,7 +416,7 @@ impl IndexReader {
     /// Where `url`'s document is cached. The route scope keys the
     /// namespace, so a private index cached under one caller's credential
     /// is never read back for a caller who does not reproduce that scope.
-    /// Where the document read from `url` is cached. `derived_from` is the
+    /// `derived_from` is the
     /// digest of the artifact a document was extracted from rather than
     /// read whole, and joins the key so a republished artifact is read
     /// again rather than answered from what came out of the old one.

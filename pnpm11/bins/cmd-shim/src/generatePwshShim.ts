@@ -9,8 +9,6 @@ import { isAscii, isWindows, normalizePathEnvVar } from './utils.js'
  * @param src Path to the executable or script.
  * @param to Path to the shim to be created.
  * It is highly recommended to end with `.ps1`.
- * @param opts Options.
- * @return The content of shim.
  */
 export function generatePwshShim (src: string, to: string, opts: InternalOptions): string {
   const shTarget = path.relative(path.dirname(to), src).split('\\').join('/')

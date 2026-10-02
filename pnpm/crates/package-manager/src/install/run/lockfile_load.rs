@@ -82,11 +82,6 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     loaded_workspace_projects: Option<&[pnpm_workspace::Project]>,
 ) -> Result<StartedLockfiles<'a>, InstallError> {
     install.context.lockfile.prefetch();
-    // Report the projects this install covers depending on each
-    // other in a cycle — after the short-circuit above, because pnpm
-    // returns from "Already up to date" before reaching its own
-    // check, and before any resolution, because a
-    // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
         install.context.config,
         workspace,
@@ -96,8 +91,6 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     let current_lockfile_task = spawn_current_lockfile_load(install.context.config);
     // Past the repeat-install fast path every install flavor needs
     // the wanted lockfile's contents; force the deferred load here.
-    // A broken lockfile is regenerable state, so only a frozen
-    // install treats it as fatal (upstream `readLockfiles`).
     let phase_start = std::time::Instant::now();
     let wanted = load_wanted_lockfile::<Reporter>(
         install.context.lockfile,
@@ -138,10 +131,7 @@ pub(super) fn spawn_current_lockfile_load(config: &Config) -> CurrentLockfileLoa
 // The frozen-lockfile path diffs each wanted snapshot against
 // this on a per-`PackageKey` basis to decide whether the
 // already-installed slot is still usable. `Ok(None)` on a
-// first install (the file doesn't exist yet). A corrupted /
-// version-incompatible file is disposable state: pnpm warns and
-// continues with an empty current lockfile because the wanted
-// lockfile and filesystem remain authoritative.
+// first install (the file doesn't exist yet).
 pub(super) async fn join_current_lockfile_load<Reporter: self::Reporter>(
     task: CurrentLockfileLoad,
     config: &Config,
@@ -168,10 +158,6 @@ pub(super) async fn join_current_lockfile_load<Reporter: self::Reporter>(
 /// The fold's "before" is read out here rather than at its use site: a load
 /// that failed leaves nothing cached, so asking later would retry it and turn
 /// a lockfile this arm chose to ignore into a fatal one.
-/// The wanted lockfile as its loader holds it: the document, the loader's
-/// shared handle to it, the intact copy a filtered install splices back
-/// over, and the importers as they were before the branch lockfiles were
-/// folded in.
 #[derive(Default)]
 pub(super) struct LoadedWantedLockfile<'a> {
     pub(super) lockfile: Option<&'a Lockfile>,
@@ -271,12 +257,8 @@ async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
     scope: &InstallScope<'_>,
     pre_hooked_paths: &HashSet<PathBuf>,
 ) -> Result<(Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>, HookedManifests), InstallError> {
-    // The pnpmfile whose checksum the freshness gates compare
-    // against a lockfile's `pnpmfileChecksum`, resolved the way the
-    // install that records one resolves it. Building the handle
-    // costs a `stat`. The Node worker only starts if a gate has to
-    // ask whether the pnpmfile exports hooks. The handle is handed to
-    // the resolve path below so an install spawns at most one.
+    // The handle is handed to the resolve path below so an install
+    // spawns at most one Node worker.
     let pnpmfile_hook = resolve_pnpmfile_hook(
         install.context.config,
         &workspace.dirs.workspace_root,

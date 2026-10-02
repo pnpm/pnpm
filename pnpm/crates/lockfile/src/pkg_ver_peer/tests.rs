@@ -129,10 +129,7 @@ fn deserialize_serialize() {
 /// front of the semver (e.g. `node@runtime:22.0.0` in the
 /// lockfile's `packages:` / `snapshots:` keys). Pacquet's parser
 /// must accept the prefix and preserve it through Display so a
-/// `serde_saphyr` round-trip stays byte-stable. Pre-runtime
-/// callers that only read `version()` continue to see the bare
-/// semver — the prefix is exposed separately via
-/// [`PkgVerPeer::prefix`].
+/// `serde_saphyr` round-trip stays byte-stable.
 #[test]
 fn parse_runtime_prefix_round_trips() {
     let parsed: PkgVerPeer = "runtime:22.0.0".parse().expect("parse runtime version");

@@ -68,10 +68,6 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<(Vec<u64>, Vec<u64>, Vec<String>)> {
     let classification = classify_for_update(advisories);
 
-    // When `minimumReleaseAge` is set, the patched versions are likely
-    // fresher than the cutoff; record the ones that actually are as
-    // exclusions (persisted to config and injected into this resolve) so the
-    // picker may install them.
     let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
 
     update_non_vulnerable::<Reporter>(state, &classification, &age_excludes).await?;
@@ -162,8 +158,7 @@ fn installed_packages(updated: &Lockfile) -> InstalledPackages {
     installed
 }
 
-/// The packages present in the post-update lockfile: every name (regardless of
-/// lockfile-key shape) plus, for each, the versions whose key parsed as semver.
+/// The packages present in the post-update lockfile.
 pub(crate) struct InstalledPackages {
     pub(crate) names: HashSet<String>,
     pub(crate) versions: HashMap<String, Vec<Version>>,
@@ -190,9 +185,6 @@ pub(crate) fn report_fixed_remaining(
             fixed.extend(entries.iter().map(|(id, _)| *id));
             continue;
         }
-        // Still installed, but only via non-semver keys
-        // (file:/git/tarball); the range can't be evaluated, so don't
-        // claim it's fixed.
         let Some(versions) = installed.versions.get(name) else {
             remaining.extend(entries.iter().map(|(id, _)| *id));
             continue;
@@ -211,7 +203,6 @@ pub(crate) fn report_fixed_remaining(
         gone.into_iter()
             .flat_map(|(_, ids)| ids.iter().copied()),
     );
-    // Advisories with an unparsable vulnerable range can't be proven fixed.
     remaining.extend(unparsable.iter().copied());
 
     (fixed, remaining)

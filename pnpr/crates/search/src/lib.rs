@@ -3,10 +3,7 @@
 //! Verdaccio (which this server replaces in `@pnpm/registry-mock`)
 //! does **not** proxy search to its upstream npmjs — it scans the
 //! local storage and matches on package name. Tests rely on that
-//! behavior: `releasing/commands/test/search.ts` asserts that a
-//! query for a guaranteed-not-to-exist string returns "No packages
-//! found", which an upstream proxy can't guarantee because npm's
-//! search returns dozens of fuzzy matches for almost anything.
+//! behavior.
 
 use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
@@ -77,8 +74,7 @@ pub fn browse_requested(query_string: &str) -> bool {
 }
 
 /// The first parsable value of a numeric URL parameter, or `None` when the
-/// query string carries none. Every search surface reads its page size and
-/// offset this way; only the parameter names differ between them.
+/// query string carries none.
 #[must_use]
 pub fn parse_usize_param(query_string: &str, key: &str) -> Option<usize> {
     query_string
@@ -91,7 +87,7 @@ pub fn parse_usize_param(query_string: &str, key: &str) -> Option<usize> {
         })
 }
 
-/// `size=` URL param; bounded the same way npm bounds it (1..=250).
+/// `size=` URL param; bounded the same way npm bounds it.
 #[must_use]
 pub fn parse_size(query_string: &str, default_size: usize) -> usize {
     parse_usize_param(query_string, "size")
@@ -175,9 +171,7 @@ fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
 }
 
 /// Project a packument into the subset of fields npm's search
-/// endpoint returns per result. Pulls the latest version (or any
-/// version if there's no `dist-tags.latest`) for `version` /
-/// `description` / `keywords`.
+/// endpoint returns per result.
 fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     let obj = packument.as_object()?;
     let versions = obj.get("versions").and_then(Value::as_object)?;
@@ -193,7 +187,6 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     {
         pkg.insert("maintainers".to_string(), maintainers.clone());
     }
-    // `time.<version>` if present, else `time.modified` as a fallback.
     if let Some(time) = obj.get("time").and_then(Value::as_object) {
         let date = time
             .get(version_id)
@@ -203,8 +196,6 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
             pkg.insert("date".to_string(), date);
         }
     }
-    // Stable-order publisher block when "_npmUser" is set, to keep
-    // diffs deterministic.
     if let Some(npm_user) = version_obj.and_then(|v| v.get("_npmUser")) {
         pkg.insert("publisher".to_string(), npm_user.clone());
     }

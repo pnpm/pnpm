@@ -119,10 +119,6 @@ async function resolvePackageFromResponse (
     },
   })
 
-  // Resolver-inline policy violations (e.g. minimumReleaseAge) flow up
-  // here; collect them onto the shared context so resolveDependencyTree
-  // can hand the full set to the install command between
-  // resolveDependencyTree and resolvePeers.
   const policyViolation = recheckAgainstMinimumReleaseAge(ctx, pkgResponse.body)
   if (policyViolation) {
     ctx.resolutionPolicyViolations.push(policyViolation)

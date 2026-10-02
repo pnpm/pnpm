@@ -123,11 +123,8 @@ export interface MutateModulesResult {
   ignoredBuilds: IgnoredBuilds | undefined
   /**
    * Resolver-policy violations the post-resolution scan found in the
-   * freshly-resolved lockfile. Each violation carries a verifier code
-   * (e.g. `MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`); the
-   * install command filters by code to decide what to do (persist to
-   * `minimumReleaseAgeExclude`, log, etc.). Empty array when no
-   * verifier reported a violation or no policy was active.
+   * freshly-resolved lockfile. Empty array when no verifier reported a
+   * violation or no policy was active.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
   /**

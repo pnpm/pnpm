@@ -122,6 +122,10 @@ struct VisibleName<'a> {
     name: &'a str,
 }
 
+/// `GET simple/` — every hosted project the caller may read through the
+/// addressed registry. Upstream sources are not enumerated: an upstream
+/// index's full project list is not something installers ask for, and
+/// pypi.org's runs to hundreds of thousands of names.
 async fn get_project_list(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -149,10 +153,6 @@ async fn get_project_list(
     private_no_cache(response)
 }
 
-/// `GET simple/` — every hosted project the caller may read through the
-/// addressed registry. Upstream sources are not enumerated: an upstream
-/// index's full project list is not something installers ask for, and
-/// pypi.org's runs to hundreds of thousands of names.
 /// Every hosted project of the target registry this caller may see, from the
 /// sources the registry routes to.
 async fn visible_project_names(

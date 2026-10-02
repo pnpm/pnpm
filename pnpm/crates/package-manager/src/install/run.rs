@@ -377,21 +377,8 @@ pub struct ResolutionInputs {
 // single instance lets a name the resolver fetched during this
 // install short-circuit the verifier's own fetch chain, and
 // vice versa.
-// Resolution verifiers re-apply `minimumReleaseAge` /
-// `trustPolicy='no-downgrade'` (plus the tarball-URL anti-tamper
-// check) to every entry in the loaded `pnpm-lock.yaml`. They are
-// built here — cheap, no I/O — but the verification fan-out itself
-// is dispatched per path below: on the frozen materialization path
-// it runs concurrently with the fetch (see [`InstallFrozenLockfile`])
-// so the per-entry registry round trips overlap the download;
-// every other path (fresh resolve, the lockfile-only / up-to-date
-// short-circuits) verifies eagerly via [`verify_lockfile_eagerly`]
-// before it proceeds. `trust_lockfile` (the OR of yaml's
-// `trustLockfile` and the `--trust-lockfile` CLI flag, resolved in
-// [`crate::cli_args::install::InstallArgs::run`]; the opt-out for
-// environments that treat the on-disk lockfile as
-// already-trusted) or no active resolution policy leaves the list
-// empty, making every gate a no-op — fresh local resolution is
+// `trust_lockfile` or no active resolution policy leaves the verifier
+// list empty, making every gate a no-op — fresh local resolution is
 // already filtered by the resolver's own per-version gate
 // (`minimumReleaseAge` via `ResolveResult::policy_violation`,
 // `trustPolicy='no-downgrade'` via the npm resolver's

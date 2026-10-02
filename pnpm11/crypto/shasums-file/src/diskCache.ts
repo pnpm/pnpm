@@ -22,8 +22,7 @@ import { threadId } from 'node:worker_threads'
  *   `fetchVerifiedNodeShasumsFileCached`), so a pre-seeded entry is only
  *   accepted if it is a genuine release body.
  * - Unverified entries are trusted on read, which grants a project nothing
- *   new: the unsigned channels' mirrors are already project-configurable
- *   (their bodies were project-controllable before the cache existed), and
+ *   new: the unsigned channels' mirrors are already project-configurable, and
  *   the musl list's download URLs are derived from the hardcoded
  *   unofficial-builds base, never from the cached body.
  * - Authenticated responses bypass this cache because the URL does not

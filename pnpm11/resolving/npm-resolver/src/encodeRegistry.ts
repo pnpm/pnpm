@@ -63,8 +63,7 @@ const MAX_KEY_LENGTH = 255
  * path that is not all lowercase gets a sha256 suffix, the guard
  * `encodePkgName` applies to package names, because HFS+ and NTFS would
  * otherwise merge `.../Team` into `.../team`. A trailing `.` is escaped because
- * Win32 strips one, which would alias `.../foo.` onto `.../foo`. A key that would
- * not fit a 255-byte filename is replaced by its own hash.
+ * Win32 strips one, which would alias `.../foo.` onto `.../foo`.
  *
  * `registry` must be a URL with a host; a resolver always has both, so
  * anything else is malformed config and throws

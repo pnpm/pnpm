@@ -29,7 +29,7 @@ const SECRET_REGISTRY_KEYS = new Set([
 const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
 
 /**
- * Turns the settings that name registries into the three lookups the rest of
+ * Turns the settings that name registries into the lookups the rest of
  * pnpm reads: the scope-routed URLs, the `<prefix>:`-addressed URLs, and the
  * per-registry options. The declaration map itself does not travel.
  */

@@ -44,7 +44,7 @@ const RANGES = [
 ]
 
 // No `latest` tag, so the pickers can't take their dist-tag shortcut and every
-// range goes through the version scan the semver calls used to do.
+// range goes through the version scan.
 function metaWithoutLatest (versions: string[]): PackageMeta {
   const meta: PackageMeta = {
     name: 'pick-version',

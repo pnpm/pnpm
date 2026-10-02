@@ -222,7 +222,7 @@ async function injectWorkspaceLicense (
     const licensePath = path.join(workspaceDir, license)
     // Only inject a regular file. A symlink could point outside the workspace and leak its
     // target's bytes into the published tarball, so `lstat()` (which does not follow symlinks)
-    // rejects it — matching pacquet's inject_workspace_license.
+    // rejects it.
     const stats = await fs.promises.lstat(licensePath)
     if (stats.isFile()) {
       filesMap[`package/${license}`] = licensePath

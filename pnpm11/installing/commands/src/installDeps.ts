@@ -164,7 +164,7 @@ export type InstallDepsOptions = Pick<Config,
    * `true` when this call originated from `pnpm install` (or `pnpm i`),
    * `false`/`undefined` for `add`, `update`, `dedupe`, etc. Used to gate
    * which pnpm CLI flags are safe to forward to pacquet's `install`
-   * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
+   * subcommand.
    */
   isInstallCommand?: boolean
 } & Partial<Pick<Config, 'dangerouslyAllowAllBuilds' | 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
@@ -248,16 +248,8 @@ function applyWorkspaceOption (opts: InstallDepsOptions): void {
 
 /**
  * When `configDependencies` declares pacquet, build the alternative
- * install engine the deps-installer delegates to. The CLI layer owns
- * the construction so the installer doesn't need to know about
- * pacquet's binary path, CLI surface, or any settings that only
- * pacquet consumes. Threaded through both the workspace recursive
- * path and the single-project path. Two declaration names are
- * accepted: the original unscoped `pacquet` and the official scoped
- * `@pnpm/pacquet` mirror. Both packages ship the same JS shim and
- * optional `@pacquet/<plat>-<arch>` binary sub-packages, so the
- * resolved \`node_modules/.pnpm-config/<name>\` layout pacquet's
- * wrapper expects is identical either way.
+ * install engine the deps-installer delegates to. Threaded through both
+ * the workspace recursive path and the single-project path.
  */
 async function createPacquetRunner (opts: InstallDepsOptions): Promise<ReturnType<typeof makeRunPacquet> | undefined> {
   const pacquetConfigDepName = await findVerifiedPacquetConfigDepName(opts)

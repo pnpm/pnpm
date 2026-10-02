@@ -15,8 +15,8 @@ use pnpm_testing_utils::{fs::is_symlink_or_junction, registry::TestRegistry};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
-/// End-to-end wiring smoke for the lockfile-verification gate
-/// (Phase 7). An invalid `minimumReleaseAgeExclude` pattern (the
+/// End-to-end wiring smoke for the lockfile-verification gate.
+/// An invalid `minimumReleaseAgeExclude` pattern (the
 /// glob form is rejected when paired with a version part, surfacing
 /// `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION`) trips
 /// `build_resolution_verifiers` before the frozen-lockfile dispatch

@@ -232,7 +232,6 @@ async function getPackageBins (
 
   if (manifest == null) {
     // There's a directory in node_modules without package.json: ${target}.
-    // This used to be a warning but it didn't really cause any issues.
     return []
   }
 

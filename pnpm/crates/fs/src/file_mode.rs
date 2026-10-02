@@ -69,9 +69,7 @@ pub fn current_umask() -> u32 {
 }
 
 /// Whether a file mode has *any* executable bit set (`u+x`, `g+x`, or
-/// `o+x`). Matches pnpm's `modeIsExecutable` and is therefore the rule
-/// pacquet must follow when deciding whether a CAFS blob gets the
-/// `-exec` suffix or has its on-disk mode flipped executable.
+/// `o+x`). Matches pnpm's `modeIsExecutable`.
 #[must_use]
 pub fn is_executable(mode: u32) -> bool {
     mode & EXEC_MASK != 0

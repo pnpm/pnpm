@@ -121,15 +121,12 @@ fn boundary_before(prev: char, curr: char, next: Option<char>) -> bool {
     let curr_upper = curr.is_ascii_uppercase();
     let curr_digit = curr.is_ascii_digit();
 
-    // letter → digit and digit → letter both start a new word
     if (prev.is_ascii_alphabetic() && curr_digit) || (prev_digit && curr.is_ascii_alphabetic()) {
         return true;
     }
-    // lower → upper: camelCase hump (`fetchRetries` → `fetch`, `Retries`)
     if prev_lower && curr_upper {
         return true;
     }
-    // upper → upper followed by lower: acronym end (`XMLHttp` → `XML`, `Http`)
     if prev_upper && curr_upper && next.is_some_and(|following| following.is_ascii_lowercase()) {
         return true;
     }
