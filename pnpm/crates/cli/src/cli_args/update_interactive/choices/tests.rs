@@ -402,7 +402,8 @@ fn a_row_shared_by_many_projects_counts_the_projects_that_do_not_fit() {
     assert!(row.ends_with("example-workspace-package-01, +11 more"), "{row}");
 }
 
-/// Short project names that fit the bound together are all named.
+/// Every project that fits within the bound is named before the rest are
+/// counted.
 #[test]
 fn projects_that_fit_are_named_before_the_rest_are_counted() {
     let packages: Vec<OutdatedPackage> = ["app", "web", "lib", "docs", "e2e", "tooling", "website"]
