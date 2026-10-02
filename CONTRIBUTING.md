@@ -1,5 +1,7 @@
 # Contributing
 
+The [Code of Conduct](./CODE_OF_CONDUCT.md) applies to every issue, pull request, and discussion. Its section [Communicating in Issues, Pull Requests, and Discussions](./CODE_OF_CONDUCT.md#communicating-in-issues-pull-requests-and-discussions) covers what is expected in a thread, and [`.github/SUPPORT.md`](./.github/SUPPORT.md) is the practical version: where to ask a question, how to write a report that gets fixed, and how issues are prioritized.
+
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
