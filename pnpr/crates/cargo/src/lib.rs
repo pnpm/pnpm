@@ -209,16 +209,16 @@ impl CrateDocument {
     #[must_use]
     pub fn max_version(&self) -> Option<String> {
         let parsed = |entry: &IndexEntry| semver::Version::parse(&entry.vers).ok();
-        let unyanked = self.versions.iter().filter(|entry| !entry.yanked);
-        unyanked
-            .filter_map(parsed)
+        let unyanked = || {
+            self.versions
+                .iter()
+                .filter(|entry| !entry.yanked)
+                .filter_map(parsed)
+        };
+        let every = || self.versions.iter().filter_map(parsed);
+        unyanked()
             .max()
-            .or_else(|| {
-                self.versions
-                    .iter()
-                    .filter_map(parsed)
-                    .max()
-            })
+            .or_else(|| every().max())
             .map(|version| version.to_string())
     }
 
