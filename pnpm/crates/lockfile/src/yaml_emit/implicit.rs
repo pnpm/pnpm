@@ -185,7 +185,6 @@ pub(super) struct TimestampScan<'a> {
 }
 
 impl TimestampScan<'_> {
-    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
     fn date(&mut self) -> bool {
         self.digits(4, 4)
             && self.byte(b'-')
@@ -215,7 +214,6 @@ impl TimestampScan<'_> {
         self.index - start >= min
     }
 
-    /// `(?:[Tt]|[ \t]+)`
     fn time_separator(&mut self) -> bool {
         match self.bytes.get(self.index) {
             Some(b'T' | b't') => {
@@ -236,7 +234,6 @@ impl TimestampScan<'_> {
         }
     }
 
-    /// `[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?`
     fn time(&mut self) -> bool {
         if !(self.digits(1, 2)
             && self.byte(b':')
@@ -252,8 +249,6 @@ impl TimestampScan<'_> {
         true
     }
 
-    /// `(?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?`, and nothing
-    /// after it.
     fn timezone(&mut self) -> bool {
         self.skip_spaces();
         if self.index == self.bytes.len() {
