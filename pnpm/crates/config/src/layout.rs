@@ -294,7 +294,8 @@ impl Config {
         project_dir: &Path,
         modules_dir_name: &std::ffi::OsStr,
     ) {
-        let symlinked = cfg!(unix) && self.prefer_symlinked_executables == Some(true);
+        let symlinked =
+            cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true);
         if !symlinked || !self.extend_node_path || modules_dir_name == "node_modules" {
             return;
         }

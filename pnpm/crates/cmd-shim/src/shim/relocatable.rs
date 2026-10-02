@@ -26,7 +26,7 @@ pub(crate) fn is_within_root(
     shim_dir: &Path,
     target: &Path,
 ) -> bool {
-    cfg!(unix)
+    cfg!(any(unix, target_os = "wasi"))
         && relocatable_root.is_some_and(|root| is_subdir(root, shim_dir) && is_subdir(root, target))
 }
 
@@ -105,6 +105,10 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
             && realpath_missing(&shim_dir.join(relative))
                 .is_ok_and(|target| is_subdir(&root, &target))
     };
+    #[cfg(any(test, target_family = "wasm"))]
+    if let Some(result) = wasm_shim_resolves_in_root(shim_content, resolves_in_root) {
+        return result;
+    }
     let entries_resolve_in_root = |value: &str| {
         value
             .split(':')
@@ -143,4 +147,27 @@ fn unescape_sh_double_quoted(text: &str) -> Option<String> {
         }
     }
     Some(unescaped)
+}
+
+#[cfg(any(test, target_family = "wasm"))]
+fn wasm_shim_resolves_in_root(
+    shim_content: &str,
+    resolves_in_root: impl Fn(&str) -> bool,
+) -> Option<bool> {
+    let config = shim_content
+        .lines()
+        .find_map(|line| line.strip_prefix("// pnpm-wasm-shim="))?;
+    let Ok(config) = serde_json::from_str::<serde_json::Value>(config) else {
+        return Some(false);
+    };
+    Some(
+        config["target"].as_str().is_some_and(&resolves_in_root)
+            && config["nodePath"]
+                .as_array()
+                .is_some_and(|paths| {
+                    paths
+                        .iter()
+                        .all(|entry| entry.as_str().is_some_and(&resolves_in_root))
+                }),
+    )
 }

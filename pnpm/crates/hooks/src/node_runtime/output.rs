@@ -15,7 +15,7 @@ const STDOUT_LINE_LIMIT: usize = 64 * 1024;
 /// prints (e.g. its own `console.log`) is forwarded as info so it is not
 /// silently lost.
 pub(super) async fn forward_hook_stdout(
-    stdout: tokio::process::ChildStdout,
+    stdout: crate::async_process::ChildStdout,
     logger: &crate::PreResolutionHookLogger,
 ) {
     let mut reader = BufReader::new(stdout);

@@ -32,7 +32,6 @@ pnpm-workspace-state = { workspace = true }
 base64 = { workspace = true }
 derive_more = { workspace = true }
 dunce = { workspace = true }
-home = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
@@ -53,6 +52,9 @@ pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+home = { workspace = true }
 
 [lints]
 workspace = true

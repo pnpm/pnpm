@@ -1,5 +1,6 @@
 //! Running one package's build scripts.
 
+mod dependency_bins;
 mod linked_copies;
 mod patched_engines;
 mod side_effects;
@@ -10,8 +11,6 @@ use side_effects::{
     upload_side_effects_cache,
 };
 use slot_to_build::slot_to_build;
-
-use std::sync::atomic::Ordering;
 
 use super::{
     AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
@@ -311,7 +310,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
             dep_path: snapshot_key.to_string(),
         })?;
-    context.progress.slot_mutations.store(true, Ordering::Relaxed);
+    dependency_bins::record_mutation(context, snapshot_key)?;
     for patched_dir in context.pkg_roots().all(snapshot_key) {
         if !patched_dir.exists() {
             continue;
@@ -351,7 +350,8 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     if !should_run_scripts {
         return Ok(Some(false));
     }
-    context.progress.slot_mutations.store(true, Ordering::Relaxed);
+    dependency_bins::refresh(context, snapshot_key)?;
+    dependency_bins::record_mutation(context, snapshot_key)?;
     let result =
         run_candidate_hooks::<Reporter>(context, snapshot_key, pkg_dir, extra_bin_paths, optional);
     match result {

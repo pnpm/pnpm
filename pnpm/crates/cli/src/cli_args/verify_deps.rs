@@ -9,8 +9,8 @@ use super::{
     package_manager::read_root_manifest,
     reporter::{ReporterType, quiet_loglevel_arg},
 };
+use crate::process::{Command, exit};
 use derive_more::{Display, Error};
-use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
@@ -20,7 +20,6 @@ use std::{
     collections::HashSet,
     io::{self, IsTerminal},
     path::Path,
-    process::{Command, exit},
     time::Duration,
 };
 
@@ -283,7 +282,7 @@ const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
 
 /// Whether the install ended by a signal, or by `Ctrl+C` on Windows,
 /// rather than by exiting with an error of its own.
-fn is_interrupted(status: std::process::ExitStatus) -> bool {
+fn is_interrupted(status: crate::process::ExitStatus) -> bool {
     match status.code() {
         None => true,
         #[cfg(windows)]
@@ -314,7 +313,7 @@ fn prompt_install(
     reporter: ReporterType,
     issue: String,
 ) -> miette::Result<()> {
-    if !std::io::stdin().is_terminal() {
+    if !crate::confirm_prompt::stdin_is_terminal().into_diagnostic()? {
         refuse_install_dropping_ignored_settings(dir, config)?;
         return Err(VerifyDepsError::CannotPrompt { issue }.into());
     }
@@ -325,11 +324,7 @@ fn prompt_install(
     let message = format!(
         "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
     );
-    match Confirm::new()
-        .with_prompt(message)
-        .default(true)
-        .interact()
-    {
+    match crate::confirm_prompt::confirm(&message, Some(true)) {
         Ok(true) => locked_install(dir, selected_project_dirs, config, install_args, reporter),
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like

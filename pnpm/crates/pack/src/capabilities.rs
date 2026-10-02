@@ -123,7 +123,7 @@ impl FsAtomicWrite for Host {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+        let mut tmp = pnpm_fs::private_named_tempfile_in(dir)?;
         write_body(tmp.as_file_mut())?;
         // A `NamedTempFile` is created 0o600. Match what a plain `fs::write`
         // would leave: preserve the mode only when overwriting an existing
@@ -140,6 +140,16 @@ impl FsAtomicWrite for Host {
                 .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
             tmp.as_file()
                 .set_permissions(std::fs::Permissions::from_mode(mode))?;
+        }
+        #[cfg(target_os = "wasi")]
+        {
+            let mode = if std::fs::symlink_metadata(dest).is_ok_and(|metadata| metadata.is_file()) {
+                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
+                    & 0o777
+            } else {
+                0o644
+            };
+            pnpm_fs::set_file_permissions(tmp.as_file(), &mode)?;
         }
         tmp.as_file().sync_all()?;
         tmp.persist(dest).map_err(|error| error.error)?;

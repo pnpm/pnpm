@@ -27,7 +27,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 sha2 = { workspace = true }
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(any(unix, target_os = "wasi"))'.dependencies]
 libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
@@ -42,6 +42,9 @@ windows-sys = { workspace = true, features = [
 
 [target.'cfg(windows)'.dev-dependencies]
 windows-sys = { workspace = true, features = ["Win32_Security"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]
 workspace = true

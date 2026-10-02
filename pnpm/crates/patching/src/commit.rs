@@ -1,3 +1,4 @@
+use crate::process::Command;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_git_fetcher::PacklistError;
@@ -6,7 +7,6 @@ use serde_json::{Map, Value};
 use std::{
     fs, io,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 mod diff_output;
@@ -259,14 +259,16 @@ fn recreate_symlink(source: &Path, target: &Path) -> io::Result<()> {
     return std::os::unix::fs::symlink(link_target, target);
     #[cfg(windows)]
     return std::os::windows::fs::symlink_file(link_target, target);
-    #[cfg(not(any(unix, windows)))]
+    #[cfg(target_os = "wasi")]
+    return pnpm_fs::create_symlink(&link_target, target, false);
+    #[cfg(not(any(unix, windows, target_os = "wasi")))]
     return Err(io::Error::new(io::ErrorKind::Unsupported, "symlinks unsupported"));
 }
 
 fn temporary_filtered_dir(src: &Path) -> PathBuf {
     let name = src.file_name().map_or_else(|| "patch".into(), |n| n.to_string_lossy());
     let parent = src.parent().unwrap_or_else(|| Path::new("."));
-    parent.join(format!("{name}_tmp_{}", std::process::id()))
+    parent.join(format!("{name}_tmp_{}", crate::process::id()))
 }
 
 fn slash_path(path: &Path) -> String {

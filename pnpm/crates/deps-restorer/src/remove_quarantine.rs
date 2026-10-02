@@ -20,7 +20,9 @@ use std::{
 };
 
 #[cfg(target_os = "macos")]
-use std::{ffi::OsStr, process::Command};
+use crate::process::Command;
+#[cfg(target_os = "macos")]
+use std::ffi::OsStr;
 
 #[cfg(target_os = "macos")]
 const QUARANTINE_ATTR: &str = "com.apple.quarantine";

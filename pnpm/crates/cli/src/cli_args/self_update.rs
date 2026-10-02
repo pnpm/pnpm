@@ -167,11 +167,7 @@ fn enforce_resolution_policy(
     }
     let prompt = format!("pnpm@{version} {reason}.\nUpdate anyway?", reason = violation.reason);
     // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
-    match dialoguer::Confirm::new()
-        .with_prompt(prompt)
-        .default(false)
-        .interact()
-    {
+    match crate::confirm_prompt::confirm(&prompt, Some(false)) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(SelfUpdateError::MinimumReleaseAgeDenied.into()),
     }
@@ -181,6 +177,12 @@ fn enforce_resolution_policy(
 /// Checked in the dispatcher *before* project config is loaded, so a broken
 /// `.npmrc` / workspace config can't mask the corepack refusal.
 pub(crate) fn reject_if_corepack() -> miette::Result<()> {
+    if cfg!(target_family = "wasm") {
+        return Err(miette::miette!(
+            code = "ERR_PNPM_WASM_SELF_UPDATE_UNSUPPORTED",
+            "Update this WebAssembly distribution by installing a newer pnpm-wasm.tgz package"
+        ));
+    }
     if is_executed_by_corepack() {
         return Err(SelfUpdateError::CantSelfUpdateInCorepack {
             install_command: standalone_install_command(),

@@ -7,7 +7,7 @@ use std::{
 /// temporary area. Unix directories are owner-qualified and forced to mode
 /// `0700`, so another local user cannot pre-create or replace their contents.
 pub fn secure_temp_lock_dir(name: &str) -> io::Result<PathBuf> {
-    secure_lock_dir(std::env::temp_dir(), name)
+    secure_lock_dir(crate::temp_dir(), name)
 }
 
 /// Create or validate a process-shared lock directory in a stable location
@@ -29,12 +29,22 @@ fn secure_lock_dir(mut directory: PathBuf, name: &str) -> io::Result<PathBuf> {
         // SAFETY: `geteuid` has no preconditions and does not mutate memory.
         unsafe { libc::geteuid() },
     ));
-    #[cfg(not(unix))]
+    #[cfg(target_os = "wasi")]
+    directory.push(format!("{name}-{}", crate::wasi_fs::user_id()));
+    #[cfg(not(any(unix, target_os = "wasi")))]
     directory.push(name);
+    #[cfg(target_os = "wasi")]
+    crate::wasi_fs::secure_directory(&directory)?;
+    #[cfg(not(target_os = "wasi"))]
     fs::create_dir_all(&directory)?;
     #[cfg(unix)]
     secure_unix_directory(&directory)?;
     Ok(directory)
+}
+
+#[cfg(target_os = "wasi")]
+fn user_lock_root() -> io::Result<PathBuf> {
+    Ok(PathBuf::from("/tmp"))
 }
 
 #[cfg(all(unix, not(target_os = "android")))]
@@ -124,6 +134,7 @@ fn user_lock_root() -> io::Result<PathBuf> {
 
 /// Open a lock file without following symlinks on Unix, then verify that the
 /// current user owns the one-link regular file that was opened.
+#[cfg(not(target_os = "wasi"))]
 pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
     let mut options = fs::OpenOptions::new();
     options
@@ -142,6 +153,21 @@ pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
     let file = options.open(path)?;
     #[cfg(unix)]
     validate_unix_file(&file)?;
+    Ok(file)
+}
+
+#[cfg(target_os = "wasi")]
+pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
+    let file = match crate::wasi_fs::create_new(path, 0o600) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            crate::wasi_fs::open_lock(path)?
+        }
+        Err(error) => return Err(error),
+    };
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::other(format!("lock must be a regular file: {}", path.display())));
+    }
     Ok(file)
 }
 

@@ -5,8 +5,10 @@ use super::{
     HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
     PackageMetadata, PatchKeyConflictError, Reporter, ResolvePatchedDependenciesError,
     SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
-    importer_root_dir, link_top_level_bins,
+    importer_root_dir,
 };
+
+mod post_build_bins;
 
 #[cfg(test)]
 mod tests;
@@ -45,6 +47,9 @@ pub enum BuildPhaseError {
     /// `<importer>/node_modules/.bin`.
     #[diagnostic(transparent)]
     TopLevelBinLink(#[error(source)] LinkBinsError),
+    /// A dependency's local bin directory could not be refreshed after a build.
+    #[diagnostic(transparent)]
+    DependencyBinLink(#[error(source)] crate::LinkVirtualStoreBinsError),
 }
 
 /// Resolve `pnpm-workspace.yaml`'s `patchedDependencies` into a
@@ -108,6 +113,7 @@ pub struct BuildPhaseInputs<'a> {
     /// Nested `.bin` directories the hoisted linker held bins back in. See
     /// [`crate::link_hoisted_modules()`].
     pub held_back_bins_dirs: &'a [crate::HeldBackBinsDir],
+    pub hoisted_bin_sources: Option<&'a crate::HoistedBinSources>,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -131,10 +137,12 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     let shared_side_effects_publisher =
         crate::shared_side_effects::shared_side_effects_publisher(config, inputs.graph.importers);
 
+    let bin_state = crate::build_options::BuildBinState::default();
     let build_output = build_or_defer::<Reporter>(
         inputs,
         patches.as_ref(),
         shared_side_effects_publisher.as_ref(),
+        &bin_state,
     )?;
 
     // Always emit the `pnpm:ignored-scripts` event with the package
@@ -160,7 +168,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         return Ok(build_output);
     }
 
-    link_held_back_bins(inputs)?;
+    finish_dependency_bin_links(inputs, &build_output, &bin_state)?;
 
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
@@ -174,16 +182,34 @@ pub fn run_build_phase<Reporter: self::Reporter>(
             modules_dir_name,
             importer_id,
             importer_snapshot,
+            &bin_state.refreshed_hoisted_bins,
         )?;
     }
 
     Ok(build_output)
 }
 
+fn finish_dependency_bin_links(
+    inputs: &BuildPhaseInputs<'_>,
+    build_output: &crate::BuildModulesOutput,
+    bin_state: &crate::build_options::BuildBinState,
+) -> Result<(), BuildPhaseError> {
+    link_held_back_bins(inputs)?;
+    if build_output.mutated_slots {
+        post_build_bins::relink_dependency_bins(
+            inputs,
+            &build_output.mutated_snapshot_keys,
+            &bin_state.refreshed_hoisted_bins,
+        )?;
+    }
+    Ok(())
+}
+
 fn build_or_defer<Reporter: self::Reporter>(
     inputs: &BuildPhaseInputs<'_>,
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
     shared_side_effects_publisher: Option<&crate::shared_side_effects::SharedSideEffectsPublisher>,
+    bin_state: &crate::build_options::BuildBinState,
 ) -> Result<crate::BuildModulesOutput, BuildPhaseError> {
     let config = inputs.policy.config;
     // BuildModules walks per-snapshot package directories and runs
@@ -206,10 +232,14 @@ fn build_or_defer<Reporter: self::Reporter>(
             ignored_builds: Vec::new(),
             deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
             mutated_slots: false,
+            mutated_snapshot_keys: std::collections::HashSet::default(),
         }
     } else {
+        if let Some(sources) = inputs.hoisted_bin_sources {
+            bin_state.refreshed_hoisted_bins.seed(sources);
+        }
         build_modules(inputs, patches, shared_side_effects_publisher)
-            .run::<Reporter>()
+            .run_with_bin_state::<Reporter>(bin_state)
             .map_err(BuildPhaseError::BuildModules)?
     };
 
@@ -237,6 +267,7 @@ fn build_modules<'a>(
             frozen_store: config.frozen_store,
         },
         directories: crate::BuildLayout {
+            link_options: inputs.directories.link_options,
             layout: inputs.directories.layout,
             pkg_roots_by_key: inputs.directories.hoisted_pkg_roots_by_key,
             gather_ancestor_bin_paths: inputs.directories.is_hoisted,
@@ -285,6 +316,7 @@ fn link_importer_top_level_bins(
     modules_dir_name: &OsStr,
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
+    plans: &crate::build_options::HoistedBinPlans,
 ) -> Result<(), BuildPhaseError> {
     // Public-hoist promotes transitives into the workspace root's
     // `<root>/node_modules/<alias>`, so only the root importer's `.bin`
@@ -321,12 +353,15 @@ fn link_importer_top_level_bins(
         inputs.skipped,
         false,
     );
-    link_top_level_bins(
+    let cached =
+        post_build_bins::importer_sources(plans, &modules_dir, &direct_names, hoisted_names);
+    crate::link_bins::link_top_level_bins_cached(
         &modules_dir,
         &direct_names,
         hoisted_names,
         &peer_locations,
-        inputs.directories.link_options,
+        &post_build_bins::link_options(inputs.directories.link_options, mutated_slots),
+        cached.as_ref(),
     )
     .map_err(BuildPhaseError::TopLevelBinLink)
 }

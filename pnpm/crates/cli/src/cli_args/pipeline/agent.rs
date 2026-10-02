@@ -9,11 +9,11 @@
 //! arbitrary workspace code. The child inherits the agent's permissions;
 //! process separation is not a sandbox.
 
+use crate::process::Command;
 use pnpm_crypto_hash::create_short_hash;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
     time::Duration,
 };
 
@@ -264,7 +264,7 @@ fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
         .create(true)
         .truncate(false)
         .open(directory.join("lock"))?;
-    file.try_lock().map_err(std::io::Error::other)?;
+    pnpm_fs::try_lock_file(&file, true).map_err(std::io::Error::other)?;
     Ok(file)
 }
 

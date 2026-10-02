@@ -43,5 +43,8 @@ tar = { workspace = true }
 node-semver = { workspace = true }
 serde_json = { workspace = true }
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
 [lints]
 workspace = true

@@ -1,5 +1,15 @@
 use std::{io, path::PathBuf};
 
+#[cfg(not(target_family = "wasm"))]
+pub use std::env::current_exe as current_executable;
+
+#[cfg(target_family = "wasm")]
+pub fn current_executable() -> io::Result<PathBuf> {
+    std::env::var_os("PNPM_WASM_EXECUTABLE")
+        .map(PathBuf::from)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "PNPM_WASM_EXECUTABLE is not set"))
+}
+
 /// The executable that re-invokes the running pnpm as `pnpm`.
 ///
 /// On Windows, `pnpx.exe` and `pnx.exe` are hardlinks of the pnpm binary, and
@@ -8,7 +18,7 @@ use std::{io, path::PathBuf};
 /// `dlx` prepended to its arguments, so the `pnpm` executable linked beside the
 /// alias is returned instead.
 pub fn current_pnpm_exe() -> io::Result<PathBuf> {
-    std::env::current_exe().map(pnpm_exe_beside)
+    current_executable().map(pnpm_exe_beside)
 }
 
 /// Whether `exe_stem`, an executable's file name without its extension, is one

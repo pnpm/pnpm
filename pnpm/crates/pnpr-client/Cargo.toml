@@ -23,7 +23,6 @@ derive_more = { workspace = true }
 futures-util = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
-reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -35,11 +34,17 @@ base64 = { workspace = true }
 mockito = { workspace = true }
 p256 = { workspace = true }
 pnpr = { workspace = true }
-reqwest = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
 
 [lints]
 workspace = true

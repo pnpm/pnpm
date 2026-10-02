@@ -31,11 +31,11 @@
 use std::{
     path::Path,
     ptr,
-    sync::{
-        Once,
-        atomic::{AtomicPtr, AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
 };
+
+#[cfg(any(unix, windows))]
+use std::sync::Once;
 
 /// The terminal and service-manager signals that end pnpm without running
 /// destructors.

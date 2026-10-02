@@ -247,6 +247,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -352,6 +353,7 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -481,6 +483,7 @@ async fn write_path_disabled_skips_upload() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,
@@ -632,6 +635,7 @@ async fn upload_error_does_not_interrupt_install() {
             frozen_store: false,
         },
         directories: crate::BuildLayout {
+            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
             layout: &VirtualStoreLayout::legacy(
                 virtual_store_dir.path(),
                 pnpm_config::default_virtual_store_dir_max_length() as usize,

@@ -68,10 +68,9 @@ cell that looks like a pnpm/pacquet regression. Bump pins deliberately.
 `webcontainer/` installs a small project with the pnpm CLI bundle inside a
 StackBlitz WebContainer, booted in headless Chromium. WebContainers run
 Node.js in the browser with their own `fs` and `node:sqlite`, which differ from
-Node.js in ways no local test reproduces. pacquet is a native executable and
-does not run there, so only the pnpm CLI is tested. Each step must exit 0:
-install without a lockfile, repeat install, offline reinstall from the
-store, `add`, `remove`, and `list`.
+Node.js in ways no local test reproduces. The default mode tests the TypeScript
+CLI bundle: install without a lockfile, repeat install, offline reinstall from
+the store, `add`, `remove`, and `list`.
 
 From the repo root, with the bundle built (`pnpm --filter pnpm run compile`):
 
@@ -79,6 +78,78 @@ From the repo root, with the bundle built (`pnpm --filter pnpm run compile`):
 pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --only-shell chromium
 node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs
 ```
+
+The Rust CLI runs through the WebAssembly runtime. Test its packaged artifact
+with `--wasm-package target/pnpm-wasm.tgz`, or test the regular npm wrapper's
+automatic runtime selection with `--wrapper-package <wrapper-tarball>`.
+The wrapper mode installs locally and globally with npm, exercises all four bin
+aliases and local `npx` dispatch, and repeats the bin checks with install scripts
+disabled. It also tests the unpacked Corepack entry without installing
+dependencies. No runtime override or executable-permission repair is supplied.
+
+```sh
+node pnpm/wasm/pack-wrapper.mjs
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wrapper-package target/pnpm-webcontainer-wrapper.tgz
+```
+
+Both Rust CLI modes exercise update, lockfile-only and frozen/offline installs,
+configuration, command failures, `dlx`, `create`, workspace scripts and bins,
+interactive build approval, rebuild, pack, and a Vite build. Expected failures
+assert their exit status and diagnostic. These are representative workflow
+tests, not a claim that every command or native dependency works in a browser.
+
+To test actual Corepack dispatch, prepare an integrity-pinned offline cache on
+the host, then import it with Corepack inside the WebContainer. The cache helper
+runs pinned Corepack through `pnpm dlx` and serves the exact wrapper tarball from
+a temporary local registry. This mode runs the workflows through Corepack with
+its network access disabled:
+
+```sh
+node pnpm/tasks/ecosystem-e2e/webcontainer/corepack-cache.mjs target/pnpm-webcontainer-wrapper.tgz target/pnpm-webcontainer-corepack.tgz
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wrapper-package target/pnpm-webcontainer-wrapper.tgz --corepack-cache target/pnpm-webcontainer-corepack.tgz
+```
+
+This validates cached Corepack selection, not a cold download. Corepack 0.36.0's
+download path currently hits a WebContainer `Hash.digest()` host error before
+pnpm starts. Direct-runtime version-switch rejection remains covered by the
+other Rust CLI modes; the Corepack mode keeps its project pinned to the cached
+version.
+
+### Rust WASM host probe
+
+The v12 WebContainer port is tracked in
+[pnpm/tasks#63](https://github.com/pnpm/tasks/issues/63). The capability probe
+runs a Rust WASI module and Node host checks in a real WebContainer without
+building or running the TypeScript CLI:
+
+```sh
+rustup target add wasm32-wasip1
+rustc --target wasm32-wasip1 pnpm/tasks/ecosystem-e2e/webcontainer/wasm-probe.rs -o /tmp/pnpm-wasm-probe.wasm
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-probe /tmp/pnpm-wasm-probe.wasm
+```
+
+It asserts WASI file reads/writes, rename and hardlinks, and checks that Node
+sees the same files. It also asserts Node symlinks, randomness, workers,
+child process exit status and registry HTTP streaming. Rust thread/process
+results and missing Node SQLite methods are reported as capability evidence;
+their absence does not fail the probe. When the SQLite methods exist, the
+probe verifies persistence across reopening the database.
+
+A successful probe does **not** mean pnpm v12 can install packages in
+WebContainers. It establishes the host capabilities needed to implement that
+port. Native CLI code and build configuration are unaffected.
+
+The threaded runtime probe exercises Tokio, Rayon, cross-thread file
+descriptors and the Rust-to-Node HTTP/process bridge. Build it before testing:
+
+```sh
+rustup target add wasm32-wasip1-threads
+pnpm build:wasm-runtime-probe
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
+```
+
+The [runtime guide](../../wasm/README.md) describes its host contract and
+validation boundaries.
 
 ## CI
 

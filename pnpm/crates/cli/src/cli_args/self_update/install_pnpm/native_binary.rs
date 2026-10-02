@@ -1,6 +1,6 @@
 use super::{
     Context, IntoDiagnostic, Path, PathBuf, Value, format_global_virtual_store_path, fs, host_arch,
-    host_libc, host_platform, package_dir, parse_manifest, replace_executable,
+    host_libc, host_platform, installed_version, package_dir, parse_manifest, replace_executable,
 };
 
 /// Scope-local directory name of the `@pnpm/exe` platform package under
@@ -86,10 +86,19 @@ pub(crate) fn link_exe_platform_binary(
         .wrap_err("link the native pnpm binary into the wrapper")?;
 
     if platform == "win32" {
-        link_windows_aliases(&src, &wrapper_real_dir)?;
+        link_aliases(&src, &wrapper_real_dir, ".exe")?;
         rewrite_windows_bin_field(&wrapper_real_dir);
+    } else if is_rust_wrapper(install_dir, wrapper_pkg_name) {
+        link_aliases(&src, &wrapper_real_dir, "")?;
     }
     Ok(())
+}
+
+fn is_rust_wrapper(install_dir: &Path, wrapper_pkg_name: &str) -> bool {
+    matches!(wrapper_pkg_name, "pnpm" | "@pnpm/exe")
+        && installed_version(install_dir, wrapper_pkg_name)
+            .and_then(|version| node_semver::Version::parse(&version).ok())
+            .is_some_and(|version| version.major >= 12)
 }
 
 /// Resolve the platform binary by its explicit adjacent path in the
@@ -140,13 +149,11 @@ fn find_native_binary(
         })
 }
 
-/// Aliases (pn / pnpx / pnx) must be .exe hardlinks of the native
-/// binary, not .cmd wrappers — cmd-shim's Bash shim mangles a .cmd
-/// target under MSYS2 / Git Bash. The native binary detects which
-/// name it was launched as and prepends `dlx` for pnpx / pnx.
-fn link_windows_aliases(src: &Path, wrapper_real_dir: &Path) -> miette::Result<()> {
+/// Native engines recognize alias names directly. Windows requires `.exe`
+/// targets because shell shims targeting `.cmd` files break under MSYS2.
+fn link_aliases(src: &Path, wrapper_real_dir: &Path, extension: &str) -> miette::Result<()> {
     for alias in ["pn", "pnpx", "pnx"] {
-        replace_executable(src, &wrapper_real_dir.join(format!("{alias}.exe")))
+        replace_executable(src, &wrapper_real_dir.join(format!("{alias}{extension}")))
             .into_diagnostic()
             .wrap_err_with(|| format!("link the {alias} alias into the wrapper"))?;
     }

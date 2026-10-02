@@ -20,8 +20,10 @@ import type { DepPath } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { strict as isStrictSubdir } from 'is-subdir'
 
+import { builtBinPackages } from './builtBinPackages.js'
 import { binDirsInAllParentDirs } from './rebuildGraph.js'
 import type { PackageToBuild, RebuildState } from './rebuildTypes.js'
+import { relinkHoistedPackageBins } from './relinkHoistedPackageBins.js'
 
 // Serializes builds of a shared GVS projection across concurrent per-project
 // rebuilds: the first build proceeds, concurrent ones await it and reuse the
@@ -65,8 +67,15 @@ export async function runBuild (depPath: DepPath, state: RebuildState): Promise<
   } finally {
     releaseGvsLock?.()
   }
+  await propagateBuildOutputs(depPath, pkgRoots, state)
+}
+
+async function propagateBuildOutputs (depPath: DepPath, pkgRoots: string[], state: RebuildState): Promise<void> {
   if (pkgRoots.length > 1) {
-    await hardLinkDir(pkg.pkgRoot, pkgRoots.slice(1))
+    await hardLinkDir(pkgRoots[0], pkgRoots.slice(1))
+  }
+  if (state.opts.nodeLinker === 'hoisted' && state.builtDepPaths.has(depPath)) {
+    await relinkHoistedPackageBins(pkgRoots, state)
   }
 }
 
@@ -99,6 +108,7 @@ async function buildPackage (pkg: PackageToBuild, state: RebuildState): Promise<
     return
   }
   const hasSideEffects = await runPostinstallIfRequired(pkg, extraBinPaths, state)
+  if (hasSideEffects) state.builtDepPaths.add(depPath)
   if (hasSideEffects && pkg.gvsDir != null) {
     await fs.promises.rm(path.join(pkg.pkgRoot, '.pnpm-needs-build'), { force: true })
   }
@@ -108,14 +118,16 @@ async function buildPackage (pkg: PackageToBuild, state: RebuildState): Promise<
   state.pkgsThatWereRebuilt.add(depPath)
 }
 
-async function prepareBinPaths ({ depPath, pkgRoot }: PackageToBuild, state: RebuildState): Promise<string[]> {
+export async function prepareBinPaths ({ depPath, pkgRoot }: Pick<PackageToBuild, 'depPath' | 'pkgRoot'>, state: RebuildState): Promise<string[]> {
   const { ctx, opts } = state
   if (opts.nodeLinker === 'hoisted') {
     return [...ctx.extraBinPaths, ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)]
   }
   const modules = getPkgModulesDir(depPath, state)
   const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-  await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn: state.warn })
+  const snapshot = state.pkgSnapshots[depPath]
+  const forceForPackages = builtBinPackages(modules, { ...snapshot.dependencies, ...snapshot.optionalDependencies }, state)
+  await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn: state.warn, forceForPackages })
   return ctx.extraBinPaths
 }
 
@@ -180,7 +192,6 @@ async function uploadSideEffects (
     state: RebuildState
   }
 ): Promise<void> {
-  state.builtDepPaths.add(depPath)
   const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
   try {
     await state.opts.storeController.upload(pkgRoot, {

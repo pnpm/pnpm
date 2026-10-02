@@ -298,6 +298,7 @@ impl<'a> OnDiskInputs<'a> {
 
                 skipped,
                 held_back_bins_dirs: &linked.held_back_bins_dirs,
+                hoisted_bin_sources: Some(&linked.hoisted_bin_sources),
                 // The fresh-resolve path never serves an explicit
                 // `pacquet rebuild`; rebuilds always take the frozen path.
             },
@@ -331,6 +332,7 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         ignored_builds,
         deferred_builds,
         mutated_slots: _,
+        mutated_snapshot_keys: _,
     } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
 
     let injected_deps = crate::collect_injected_deps(

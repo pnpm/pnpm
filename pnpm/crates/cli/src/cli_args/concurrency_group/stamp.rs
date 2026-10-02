@@ -12,7 +12,7 @@ pub(super) struct ProcessStamp {
 
 pub(super) fn process_stamp(command: &str) -> String {
     let cwd = std::env::current_dir().unwrap_or_default();
-    let pid = format!("pid {} in {}", std::process::id(), oneline(&cwd.to_string_lossy()));
+    let pid = format!("pid {} in {}", pnpm_fs::process_id(), oneline(&cwd.to_string_lossy()));
     let command = oneline(command);
     let mut lines = Vec::new();
     if let Some(since) = unix_now() {

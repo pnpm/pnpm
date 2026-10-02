@@ -265,7 +265,9 @@ fn collect_catalog_bumps(
         else {
             continue;
         };
-        let Ok(version) = entry.version.parse::<ImporterDepVersion>() else { continue };
+        let Ok(version) = entry.version.parse::<ImporterDepVersion>() else {
+            continue;
+        };
         let Some(bumped) = bumped_range(&alias_key, &entry.specifier, &version, range_spec_style)
         else {
             continue;

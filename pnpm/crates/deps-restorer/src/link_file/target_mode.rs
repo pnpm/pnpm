@@ -1,16 +1,22 @@
 //! The mode a file materialized into `node_modules` carries.
 
-use std::{fs, io, path::Path};
+#[cfg(unix)]
+use std::fs;
+use std::{io, path::Path};
 
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.
-pub(super) fn desired_permissions(source_file: &Path) -> io::Result<fs::Permissions> {
+pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::CopyPermissions> {
     #[cfg(unix)]
     if let Some(mode) = desired_mode(source_file) {
         use std::os::unix::fs::PermissionsExt;
         return Ok(fs::Permissions::from_mode(mode));
     }
-    fs::File::open(source_file)?.metadata().map(|meta| meta.permissions())
+    #[cfg(target_os = "wasi")]
+    if let Some(mode) = desired_mode(source_file) {
+        return Ok(mode);
+    }
+    pnpm_fs::copy_permissions(source_file)
 }
 
 /// The mode the materialized file should carry: what a fresh store
@@ -19,7 +25,7 @@ pub(super) fn desired_permissions(source_file: &Path) -> io::Result<fs::Permissi
 ///
 /// `None` for a file of a local-directory dependency, which keeps the
 /// mode its project gives it (see [`pnpm_fs::file_mode::is_cas_file_path`]).
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn desired_mode(source_file: &Path) -> Option<u32> {
     pnpm_fs::file_mode::is_cas_file_path(source_file)
         .then(|| {
@@ -47,7 +53,7 @@ pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
 /// reflink tier sets them explicitly — so an entry the store wrote under a
 /// wider umask keeps that wider mode in `node_modules` until it is aligned
 /// here (pnpm/pnpm#3807).
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn align_target_mode(source_file: &Path, target_link: &Path) -> io::Result<()> {
     match desired_mode(source_file) {
         Some(mode) => pnpm_fs::file_mode::set_path_permissions(target_link, mode),
@@ -55,12 +61,18 @@ pub(super) fn align_target_mode(source_file: &Path, target_link: &Path) -> io::R
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 pub(super) fn source_has_desired_mode(_source_file: &Path) -> io::Result<bool> {
     Ok(true)
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 pub(super) fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io::Result<()> {
     Ok(())
+}
+
+#[cfg(target_os = "wasi")]
+pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
+    let Some(mode) = desired_mode(source_file) else { return Ok(true) };
+    Ok(pnpm_fs::copy_permissions(source_file)? & 0o777 == mode)
 }

@@ -1,7 +1,10 @@
 #[cfg(windows)]
 pub(super) use windows::ensure_workspace_directory_windows;
 
-use super::{IntoDiagnostic, Path, PathBuf, Result, fs, io};
+#[cfg(any(unix, windows))]
+use super::fs;
+use super::{IntoDiagnostic, Path, PathBuf, Result, io};
+#[cfg(any(unix, windows))]
 use miette::WrapErr;
 #[cfg(unix)]
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,6 +27,11 @@ pub(super) fn ensure_workspace_directory(
     #[cfg(unix)]
     {
         ensure_workspace_directory_unix(root_dir.to_path_buf(), components)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        let _ = (root_dir, components);
+        wasi::unsupported().into_diagnostic()
     }
     #[cfg(windows)]
     {
@@ -93,6 +101,7 @@ fn open_or_create_directory_at(
     }
 }
 
+#[cfg(any(unix, windows))]
 fn accept_existing_directory(error: io::Error) -> io::Result<()> {
     match error.kind() {
         // Lost the race with a concurrent install; its directory is as good as ours.
@@ -299,7 +308,7 @@ fn move_occupant_aside(
 
     let ignored_name = format!(
         ".ignored_{name}-{}-{}",
-        std::process::id(),
+        pnpm_fs::process_id(),
         MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
     );
     let ignored = std::ffi::CString::new(ignored_name.as_bytes())?;
@@ -374,7 +383,7 @@ fn create_workspace_temporary(
     loop {
         let temporary_name = format!(
             ".{name}.pnpm-{}-{}",
-            std::process::id(),
+            pnpm_fs::process_id(),
             MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
         );
         let temporary = std::ffi::CString::new(temporary_name.as_bytes())?;
@@ -398,3 +407,8 @@ fn create_workspace_temporary(
 
 #[cfg(windows)]
 mod windows;
+
+#[cfg(target_os = "wasi")]
+mod wasi;
+#[cfg(target_os = "wasi")]
+pub(super) use wasi::{force_workspace_symlink, read_workspace_file, write_workspace_file};

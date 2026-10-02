@@ -27,6 +27,9 @@ use url::Url;
 /// each other's entries.
 pub struct StoreIndex {
     conn: Connection,
+    // Fields drop in order: close SQLite before releasing its process lease.
+    #[cfg(target_os = "wasi")]
+    _lease: Arc<wasi_lease::IndexLease>,
 }
 
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
@@ -40,6 +43,15 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum StoreIndexError {
+    #[cfg(target_os = "wasi")]
+    #[display("Failed to coordinate access to index.db at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_STORE_INDEX_LEASE))]
+    Lease {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[display("Store-index writer is unavailable")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITER_UNAVAILABLE))]
     WriterUnavailable,
@@ -131,8 +143,10 @@ impl StoreIndex {
                 source,
             })?;
         let db_path = store_dir.join("index.db");
-        #[cfg(unix)]
+        #[cfg(any(unix, target_os = "wasi"))]
         create_new_index_with_inherited_mode(&db_path, store_dir)?;
+        #[cfg(target_os = "wasi")]
+        let lease = wasi_lease::acquire(&db_path, true)?;
         let conn = Connection::open(&db_path)
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
 
@@ -156,7 +170,11 @@ impl StoreIndex {
         )
         .map_err(|source| StoreIndexError::InitSchema { source })?;
 
-        Ok(StoreIndex { conn })
+        Ok(StoreIndex {
+            conn,
+            #[cfg(target_os = "wasi")]
+            _lease: lease,
+        })
     }
 
     /// Open the `index.db` that lives directly under a [`StoreDir`]'s root.
@@ -180,11 +198,17 @@ impl StoreIndex {
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
+        #[cfg(target_os = "wasi")]
+        let lease = wasi_lease::acquire(&db_path, true)?;
         let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
         conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex { conn })
+        Ok(StoreIndex {
+            conn,
+            #[cfg(target_os = "wasi")]
+            _lease: lease,
+        })
     }
 
     /// Open an existing `index.db` from a store that is complete and
@@ -206,13 +230,19 @@ impl StoreIndex {
     /// locks for it to wait on.
     pub fn open_immutable(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
+        #[cfg(target_os = "wasi")]
+        let lease = wasi_lease::acquire(&db_path, false)?;
         let uri = immutable_sqlite_uri(&db_path)?;
         let conn = Connection::open_with_flags(
             &uri,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
         )
         .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex { conn })
+        Ok(StoreIndex {
+            conn,
+            #[cfg(target_os = "wasi")]
+            _lease: lease,
+        })
     }
 
     /// Read-only counterpart to [`StoreIndex::open_in`].
@@ -559,3 +589,18 @@ mod tests;
 mod writer;
 
 mod queries;
+
+#[cfg(target_os = "wasi")]
+mod wasi_lease;
+
+#[cfg(target_os = "wasi")]
+fn create_new_index_with_inherited_mode(
+    db_path: &Path,
+    store_dir: &Path,
+) -> Result<(), StoreIndexError> {
+    match pnpm_fs::create_file_inheriting_mode(store_dir, db_path, None) {
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(source) => Err(StoreIndexError::CreateFile { path: db_path.to_path_buf(), source }),
+    }
+}

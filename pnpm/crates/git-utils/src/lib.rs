@@ -6,6 +6,11 @@
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
+#[cfg(target_family = "wasm")]
+pub(crate) use pnpm_process as process;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use std::process;
+
 pub use capabilities::{CommandOutput, Host, RunCommand};
 pub use non_interactive::{
     disable_git_prompts, has_configured_ssh_command, non_interactive_git_env,

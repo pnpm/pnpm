@@ -1,4 +1,5 @@
-use std::{fmt, process::ExitStatus};
+use crate::process::ExitStatus;
+use std::fmt;
 
 /// How a script finished.
 ///
@@ -41,6 +42,10 @@ impl ScriptExit {
         if let Self::Process(status) = self {
             use std::os::unix::process::ExitStatusExt;
             return status.signal().and_then(posix_signal_name);
+        }
+        #[cfg(target_family = "wasm")]
+        if let Self::Process(status) = self {
+            return status.signal_name();
         }
         None
     }

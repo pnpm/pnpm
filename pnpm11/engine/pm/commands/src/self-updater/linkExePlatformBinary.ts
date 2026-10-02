@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { isError } from '@pnpm/error'
 import { familySync } from 'detect-libc'
+import semver from 'semver'
 
 /**
  * Computes the scope-local directory name of the `@pnpm/exe` platform
@@ -75,7 +76,15 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
 
   if (process.platform === 'win32') {
     linkWindowsAliases(src, wrapperDir)
+  } else if (isRustWrapper(wrapperDir, wrapperPkgName)) {
+    for (const alias of ['pn', 'pnpx', 'pnx']) forceLink(src, path.join(wrapperDir, alias))
   }
+}
+
+function isRustWrapper (wrapperDir: string, wrapperPkgName: string): boolean {
+  if (wrapperPkgName !== 'pnpm' && wrapperPkgName !== '@pnpm/exe') return false
+  const { version } = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'package.json'), 'utf8'))
+  return typeof version === 'string' && (semver.parse(version, { loose: true })?.major ?? 0) >= 12
 }
 
 interface FindPlatformBinaryOptions {

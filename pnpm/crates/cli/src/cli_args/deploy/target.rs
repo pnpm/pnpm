@@ -1,7 +1,7 @@
 use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
     IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
-    WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
+    WORKSPACE_MANIFEST_FILENAME, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
     is_ancestor_path, is_child_path, lexical_normalize, path_compare::has_path_prefix,
     remove_dirent, same_path, warn,
 };
@@ -379,17 +379,5 @@ pub(super) fn write_deploy_files(
     Ok(())
 }
 
-fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
-    let dir = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
-    tmp.write_all(contents)?;
-    tmp.as_file().sync_all()?;
-    if let Ok(metadata) = fs::metadata(path) {
-        tmp.as_file().set_permissions(metadata.permissions())?;
-    }
-    tmp.persist(path).map_err(|error| error.error)?;
-    Ok(())
-}
+mod atomic_write;
+use atomic_write::write_atomic;

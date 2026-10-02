@@ -21,7 +21,7 @@ use super::{
     reporter::{ReporterType, reporter_emit},
     run::{RunContext, ScriptSelector, run_stages},
 };
-use crate::cli_args::recursive::filtered_projects_dependencies;
+use crate::{cli_args::recursive::filtered_projects_dependencies, process::Command};
 
 use cache::{CacheDisposition, TaskCache};
 use derive_more::{Display, Error};
@@ -59,7 +59,6 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     path::{Path, PathBuf},
-    process::Command,
     sync::Mutex,
     time::Instant,
 };

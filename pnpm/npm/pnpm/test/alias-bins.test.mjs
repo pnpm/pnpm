@@ -1,309 +1,89 @@
-// Exercises the `pn`, `pnpx`, and `pnx` alias bins: each hands over to the pnpm
-// installed alongside it, whatever `PATH` names. They are `sh` scripts, so they
-// run wherever `sh` does — on Windows the install script replaces them with
-// hardlinks of the native binary, which infers the alias from its own name.
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { after, describe, it } from 'node:test'
+import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-/** Each alias and the argv it prepends: `pnpx` and `pnx` mean `pnpm dlx`. */
-const ALIASES = [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]
-// No pnpm on it, so a `PATH` lookup finds nothing but the decoys the tests plant.
-// The system directories stay on it for whatever the sibling itself reaches for.
-const BARE_PATH = '/usr/bin:/bin'
-const ARGS = ['add', 'foo']
+const ARGS = ['add', 'two words', '$(false)', "quote'", 'back\\slash']
+const UNIX = process.platform !== 'win32'
 
-const NO_SH = process.platform === 'win32' && 'Windows has no sh'
+for (const alias of ['pn', 'pnpx', 'pnx']) {
+  const expected = alias === 'pn' ? ARGS : ['dlx', ...ARGS]
+  test(`${alias} preserves literal arguments and ignores a pnpm earlier on PATH`, t => {
+    const fixture = createFixture(t)
+    const decoys = path.join(fixture.dir, 'decoys')
+    fs.mkdirSync(decoys)
+    for (const name of ['pnpm', 'readlink', 'dirname']) {
+      fs.writeFileSync(path.join(decoys, name), '#!/bin/sh\necho HIJACKED\n', { mode: 0o755 })
+    }
+    const result = run(path.join(fixture.wrapper, alias), { PATH: `${decoys}${path.delimiter}${process.env.PATH}` })
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(JSON.parse(result.stdout), expected)
+  })
 
-describe('alias bins', () => {
-  for (const [alias, injected] of ALIASES) {
-    const expected = `sibling: ${injected}${ARGS.join(' ')}\n`
-
-    describe(alias, () => {
-      it('parses as an sh script', { skip: NO_SH }, async () => {
-        const result = await run('sh', ['-n', path.join(WRAPPER_DIR, alias)])
-        assert.equal(result.status, 0, result.stderr)
-      })
-
-      // The native binary sits next to the alias, so it is reachable even where
-      // the directory holding both is not on `PATH` — as `node_modules/.bin` is
-      // not, outside a `pnpm run`.
-      it('runs the pnpm beside it with no pnpm on PATH', { skip: NO_SH }, async () => {
-        const { wrapperDir } = createFixture()
-
-        const result = await run(path.join(wrapperDir, alias), ARGS, { env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // Any other pnpm on `PATH` — a different major installed globally, or a
-      // wrapper of one — would otherwise take over the call, and say nothing.
-      it('ignores an unrelated pnpm earlier on PATH', { skip: NO_SH }, async () => {
-        const { dir, wrapperDir } = createFixture()
-        const decoyDir = path.join(dir, 'decoy')
-        writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
-
-        const result = await run(path.join(wrapperDir, alias), ARGS, { env: { PATH: `${decoyDir}:${BARE_PATH}` } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // A bin directory links the alias from this package while its own `pnpm`
-      // comes from elsewhere, or is missing. The alias belongs to the package it
-      // was linked from, so that is the pnpm it has to reach.
-      it('resolves past a symlink to the package it was linked from', { skip: NO_SH }, async () => {
-        const { dir, wrapperDir } = createFixture()
-        const binDir = path.join(dir, 'node_modules', '.bin')
-        writeStub(path.join(binDir, 'pnpm'), 'decoy')
-        const link = path.join(binDir, alias)
-        fs.symlinkSync(path.relative(binDir, path.join(wrapperDir, alias)), link)
-
-        const result = await run(link, ARGS, { env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // The walk's other branch: an absolute link replaces the path outright
-      // rather than being joined onto the link's own directory.
-      it('resolves past an absolute symlink', { skip: NO_SH }, async () => {
-        const { dir, wrapperDir } = createFixture()
-        const binDir = path.join(dir, 'node_modules', '.bin')
-        writeStub(path.join(binDir, 'pnpm'), 'decoy')
-        const link = path.join(binDir, alias)
-        fs.symlinkSync(path.join(wrapperDir, alias), link)
-
-        const result = await run(link, ARGS, { env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // The kernel and the C library's `PATH` search hand the interpreter the
-      // path they resolved, so `$0` is bare only when a shell is given the name
-      // itself — and then it stands for a file in the current directory.
-      it('runs as a bare name handed to sh', { skip: NO_SH }, async () => {
-        const { wrapperDir } = createFixture()
-
-        const result = await run('sh', [alias, ...ARGS], { cwd: wrapperDir, env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // Two hops, mixing the branches, since the walk is a loop rather than a
-      // single readlink.
-      it('resolves a chain of symlinks', { skip: NO_SH }, async () => {
-        const { dir, wrapperDir } = createFixture()
-        const firstDir = path.join(dir, 'first')
-        const secondDir = path.join(dir, 'second')
-        fs.mkdirSync(firstDir, { recursive: true })
-        fs.mkdirSync(secondDir, { recursive: true })
-        writeStub(path.join(firstDir, 'pnpm'), 'decoy')
-        writeStub(path.join(secondDir, 'pnpm'), 'decoy')
-        fs.symlinkSync(path.join(wrapperDir, alias), path.join(secondDir, alias))
-        fs.symlinkSync(path.relative(firstDir, path.join(secondDir, alias)), path.join(firstDir, alias))
-
-        const result = await run(path.join(firstDir, alias), ARGS, { env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
+  for (const absolute of [false, true]) {
+    test(`${alias} resolves ${absolute ? 'absolute' : 'relative'} symlinks to its own package`, { skip: !UNIX }, t => {
+      const fixture = createFixture(t)
+      const bin = path.join(fixture.dir, 'node_modules', '.bin')
+      fs.mkdirSync(bin, { recursive: true })
+      fs.writeFileSync(path.join(bin, 'pnpm'), 'throw new Error("HIJACKED")\n')
+      const source = path.join(fixture.wrapper, alias)
+      const link = path.join(bin, alias)
+      fs.symlinkSync(absolute ? source : path.relative(bin, source), link)
+      const result = run(link)
+      assert.equal(result.status, 0, result.stderr)
+      assert.deepEqual(JSON.parse(result.stdout), expected)
     })
   }
 
-  // `readlink` is the one helper the walk still shells out to, so it runs through
-  // `command -p`, which searches the system default PATH rather than the caller's.
-  // A decoy here would otherwise get to report any target it liked, or just run.
-  it('does not use a readlink from the caller\'s PATH', { skip: NO_SH }, async () => {
-    const { dir, wrapperDir } = createFixture()
-    const decoyDir = path.join(dir, 'decoy')
-    writeStub(path.join(decoyDir, 'readlink'), 'HIJACKED')
-    const binDir = path.join(dir, 'node_modules', '.bin')
-    writeStub(path.join(binDir, 'pnpm'), 'decoy')
-    const link = path.join(binDir, 'pnpx')
-    fs.symlinkSync(path.relative(binDir, path.join(wrapperDir, 'pnpx')), link)
-
-    const result = await run(link, ARGS, { env: { PATH: `${decoyDir}:${BARE_PATH}` } })
+  test(`${alias} needs no shell helpers to resolve chained symlinks`, { skip: !UNIX }, t => {
+    const fixture = createFixture(t)
+    const first = path.join(fixture.dir, 'first')
+    const second = path.join(fixture.dir, 'second')
+    fs.symlinkSync(path.join(fixture.wrapper, alias), second)
+    fs.symlinkSync('second', first)
+    const result = run(first, { PATH: '' })
     assert.equal(result.status, 0, result.stderr)
-    assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+    assert.deepEqual(JSON.parse(result.stdout), expected)
   })
 
-  // The default path `command -p` searches can lack readlink, as inside a Nix
-  // build sandbox. No test host is set up that way, so the alias's `command -p`
-  // is rewritten to a `command` that searches a directory that does not exist.
-  it('resolves its symlink with a readlink from PATH when the default path lacks one', { skip: NO_SH }, async () => {
-    const { dir, wrapperDir } = createFixture()
-    const alias = path.join(wrapperDir, 'pnpx')
-    fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
-    const binDir = path.join(dir, 'node_modules', '.bin')
-    writeStub(path.join(binDir, 'pnpm'), 'decoy')
-    const link = path.join(binDir, 'pnpx')
-    fs.symlinkSync(path.relative(binDir, alias), link)
-
-    const result = await run(link, ARGS, { env: { PATH: BARE_PATH } })
-    assert.equal(result.status, 0, result.stderr)
-    assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+  test(`${alias} preserves the exit status`, t => {
+    const fixture = createFixture(t)
+    assert.equal(run(path.join(fixture.wrapper, alias), { PNPM_FIXTURE_EXIT: '17' }).status, 17)
   })
 
-  // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
-  // path, which has no slash for `${self%/*}` to strip. Only a drive letter or a
-  // UNC prefix marks one, since a backslash is an ordinary character in a Unix
-  // file name. Each test here plants the alias and its sibling pnpm where the
-  // path resolves to, and hands `sh` the file whose own name is that path.
-  describe('native Windows $0', () => {
-    for (const [alias, injected] of ALIASES) {
-      const expected = `sibling: ${injected}${ARGS.join(' ')}\n`
 
-      it(`${alias} resolves a drive-letter path`, { skip: NO_SH }, async () => {
-        const dir = createTmpDir('pnpm native ')
-        const arg0 = `C:\\proj\\${alias}`
-        fs.copyFileSync(plantAliasAndPnpm(alias, path.join(dir, 'C:', 'proj')), path.join(dir, arg0))
+}
 
-        const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // A UNC path converts to one starting with `//`, which Linux and macOS
-      // read as `/`, so the share stands in for the temporary directory itself.
-      // `shareDir` is absolute, so its own leading separator is the second of
-      // the two backslashes that mark the path as UNC.
-      it(`${alias} resolves a UNC path`, { skip: NO_SH }, async () => {
-        const dir = createTmpDir('pnpm native ')
-        const shareDir = path.join(dir, 'share')
-        const arg0 = `\\${shareDir}/${alias}`.replaceAll('/', '\\')
-        fs.copyFileSync(plantAliasAndPnpm(alias, shareDir), path.join(dir, arg0))
-
-        const result = await run('sh', [arg0, ...ARGS], { cwd: dir, env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-
-      // The other side of the gate: neither prefix is there, so the backslash
-      // stays part of the directory name rather than becoming a separator.
-      it(`${alias} leaves a Unix path holding a backslash alone`, { skip: NO_SH }, async () => {
-        const dir = createTmpDir('pnpm native ')
-
-        const result = await run(plantAliasAndPnpm(alias, path.join(dir, 'proj\\dir')), ARGS, { env: { PATH: BARE_PATH } })
-        assert.equal(result.status, 0, result.stderr)
-        assert.equal(result.stdout, expected)
-      })
-    }
-  })
-
-  // The walk is copied into every bin that has to find a file beside itself, so
-  // a fix to one of them can silently miss the rest.
-  it('walks symlinks the same way in every bin', () => {
-    const walks = ['pnpm', ...ALIASES.map(([alias]) => alias)].map((bin) => {
-      const script = fs.readFileSync(path.join(WRAPPER_DIR, bin), 'utf8')
-      const start = script.indexOf('\ncaller_path_set=')
-      const end = script.indexOf('; else unset PATH; fi\n', start)
-      assert.ok(start >= 0 && end > start, `${bin} has no symlink walk`)
-      // Without the comments, which name the alias and so differ by design.
-      const code = script.slice(start, end).split('\n').filter((line) => !line.startsWith('#'))
-      return [bin, code.join('\n')]
-    })
-    for (const [bin, walk] of walks) {
-      assert.equal(walk, walks[0][1], `${bin} walks symlinks differently from ${walks[0][0]}`)
-    }
-  })
-
-  // What a script-less install leaves: `pnpm` is still the shebang-less
-  // placeholder, which the kernel refuses and `exec` retries under a shell. The
-  // alias has to reach it the same way a bin shim does.
-  it('reaches the placeholder pnpm when the install script was skipped', { skip: NO_SH }, async () => {
-    const { wrapperDir } = createFixture({ installBinary: false })
-
-    const result = await run(path.join(wrapperDir, 'pnpx'), ARGS, { env: { COREPACK_ENABLE_NETWORK: '0' } })
-    assert.notEqual(result.status, 0)
-    assert.match(result.stderr, /Network access is disabled/)
-  })
+test('alias entry rejects a symlink cycle without executing an adjacent entry point', { skip: !UNIX }, t => {
+  const fixture = createFixture(t)
+  const first = path.join(fixture.dir, 'cycle-first')
+  fs.symlinkSync('cycle-second', first)
+  fs.symlinkSync('cycle-first', path.join(fixture.dir, 'cycle-second'))
+  const result = run(first)
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /ELOOP|ENOENT|Cannot find module/)
 })
 
-/**
- * Spawn `command` with `args`. Resolves once the child has exited, with its
- * exit status and decoded output; rejects only if it could not be spawned.
- *
- * @param {string} command Executable to spawn, as an absolute path or a name on `PATH`.
- * @param {string[]} args Arguments to pass to it.
- * @param {{env?: Record<string, string>, cwd?: string}} [options] `env` is
- *   layered over `process.env`, which is inherited unchanged when omitted;
- *   `cwd` defaults to the current directory.
- * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
- *   `status` is null when a signal ended the child.
- */
-function run (command, args, { env, cwd } = {}) {
-  const child = spawn(command, args, { cwd, env: { ...process.env, ...env } })
-
-  let stdout = ''
-  let stderr = ''
-  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk })
-  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk })
-
-  return new Promise((resolve, reject) => {
-    child.on('error', reject)
-    child.on('close', (status) => { resolve({ status, stdout, stderr }) })
+function run (file, env = {}) {
+  return spawnSync(process.execPath, [file, ...ARGS], {
+    encoding: 'utf8', timeout: 10_000, env: { ...process.env, ...env },
   })
 }
 
-function createTmpDir (prefix) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
-  after(() => fs.rmSync(dir, { force: true, recursive: true }))
-  return dir
-}
-
-function plantAliasAndPnpm (alias, targetDir) {
-  fs.mkdirSync(targetDir, { recursive: true })
-  const file = path.join(targetDir, alias)
-  fs.copyFileSync(path.join(WRAPPER_DIR, alias), file)
-  fs.chmodSync(file, 0o755)
-  writeStub(path.join(targetDir, 'pnpm'), 'sibling')
-  return file
-}
-
-/**
- * A wrapper directory holding the three alias bins and a stand-in `pnpm` that
- * reports the arguments it was handed — which is all the aliases have to get
- * right, and what the install script's copy of the native binary occupies. The
- * directory it sits in stands for the project the package was installed into.
- *
- * `installBinary: false` puts the real wrapper there instead, placeholder and
- * all, standing for an install whose scripts were skipped.
- */
-function createFixture ({ installBinary = true } = {}) {
-  // The space in the name is deliberate: the walk resolves directories with
-  // `${self%/*}` and matches with `case`, neither of which field-splits, so every
-  // test here doubles as coverage that a path with a space still resolves.
-  const dir = createTmpDir('pnpm alias ')
-
-  const wrapperDir = path.join(dir, 'node_modules', 'pnpm')
-  const files = installBinary
-    ? ALIASES.map(([alias]) => alias)
-    : [...ALIASES.map(([alias]) => alias), 'pnpm', 'native-binary.mjs', 'bin/pnpm.mjs']
-  for (const file of files) {
-    fs.mkdirSync(path.dirname(path.join(wrapperDir, file)), { recursive: true })
-    fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(wrapperDir, file))
-    fs.chmodSync(path.join(wrapperDir, file), 0o755)
+function createFixture (t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm alias '))
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const wrapper = path.join(dir, 'package with spaces')
+  fs.mkdirSync(path.join(wrapper, 'bin'), { recursive: true })
+  for (const file of ['pn', 'pnpx', 'pnx', 'bin/pnpx.mjs']) {
+    fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(wrapper, file))
   }
-  if (installBinary) {
-    writeStub(path.join(wrapperDir, 'pnpm'), 'sibling')
-  } else {
-    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0' }))
-  }
-
-  return { dir, wrapperDir }
-}
-
-/**
- * An executable stand-in for `pnpm` at `file` that echoes `label` and its
- * arguments. chmod separately, since `writeFileSync`'s `mode` applies only when
- * it creates the file.
- */
-function writeStub (file, label) {
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
-  fs.chmodSync(file, 0o755)
+  fs.writeFileSync(path.join(wrapper, 'package.json'), JSON.stringify({ type: 'module' }))
+  fs.writeFileSync(path.join(wrapper, 'bin/pnpm.mjs'), 'console.log(JSON.stringify(process.argv.slice(2))); process.exitCode = Number(process.env.PNPM_FIXTURE_EXIT ?? 0)\n')
+  return { dir, wrapper }
 }

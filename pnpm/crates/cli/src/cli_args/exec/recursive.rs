@@ -354,7 +354,7 @@ fn queued_exec_results(task_graph: &TaskGraph) -> Mutex<IndexMap<String, Executi
 fn spawn_exec_task(
     context: &ExecTaskContext<'_>,
     root: &Path,
-) -> Result<std::process::ExitStatus, ExecError> {
+) -> Result<crate::process::ExitStatus, ExecError> {
     let dep_path = project_dep_path(root, context.dir, context.output.show_prefix);
     let output = project_output(dep_path.as_deref(), context.output.emit);
     spawn_in_dir(

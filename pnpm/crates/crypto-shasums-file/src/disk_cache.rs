@@ -173,7 +173,7 @@ pub(crate) fn write_cached_shasums(
         .to_os_string();
     temp_name.push(format!(
         ".tmp-{}-{}",
-        std::process::id(),
+        crate::process_id(),
         TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
     ));
     let temp = path.with_file_name(temp_name);

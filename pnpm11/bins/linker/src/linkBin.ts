@@ -33,6 +33,10 @@ export interface CommandInfo extends Command {
 }
 
 export interface LinkBinOptions {
+  /** Rewrite shims after replacing a target with a different interpreter or native binary. */
+  force?: boolean
+  /** Refresh only winning commands from these normalized absolute package directories. */
+  forceForPackages?: ReadonlySet<string>
   /** The command names selected by this bin-link pass. */
   linkedCommandNames?: Set<string>
   /**
@@ -79,7 +83,7 @@ export async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinO
     await rimraf(`${externalBinPath}.ps1`)
   }
   const ctx: BinLinkContext = { cmd, binsDir, externalBinPath, shShimDir, opts }
-  if (await isBinCorrectlyLinked(ctx)) {
+  if (!opts.force && !opts.forceForPackages?.has(path.normalize(cmd.pkgDir)) && await isBinCorrectlyLinked(ctx)) {
     // If a previous install failed, we may have re-copied the bin script from
     // the store, but we won't necessarily have reapplied the executable bit -
     // so apply it here.

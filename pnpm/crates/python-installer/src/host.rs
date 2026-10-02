@@ -1,8 +1,10 @@
+use crate::{async_process::Command, process::Stdio};
+
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pnpm_python_resolver::Target;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::{collections::BTreeMap, ffi::OsStr, path::PathBuf, process::Stdio};
-use tokio::{io::AsyncWriteExt, process::Command};
+use std::{collections::BTreeMap, ffi::OsStr, path::PathBuf};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct Interpreter {

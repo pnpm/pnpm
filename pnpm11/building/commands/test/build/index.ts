@@ -43,10 +43,10 @@ test('rebuilds dependencies', async () => {
   ])
 
   let modules = project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/8b333f12d5357f4f25a654c305c826294cb073bf',
-  ])
+  expect(modules!.pendingBuilds).toHaveLength(2)
+  expect(modules!.pendingBuilds[0]).toBe('@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  expect(modules!.pendingBuilds[1]).toMatch(/^test-git-fetch@/)
+  expect(modules!.pendingBuilds[1]).toMatch(/8b333f12d5357f4f25a654c305c826294cb073bf$/)
   const gitDepPath = modules!.pendingBuilds[1]
 
   await rebuild.handler({

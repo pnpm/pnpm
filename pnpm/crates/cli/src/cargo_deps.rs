@@ -6,6 +6,7 @@ pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
 use crate::{
     cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
     ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
+    process::Command,
 };
 use cargo_util_schemas::index::RegistryConfig;
 use futures_util::{StreamExt, TryStreamExt, stream};
@@ -36,7 +37,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs, io,
     path::{Path, PathBuf},
-    process::Command,
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
 };

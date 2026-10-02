@@ -15,7 +15,7 @@ pnpm-crypto-hash = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
-tokio = { workspace = true, features = ["rt", "process", "time", "io-util", "sync"] }
+tokio = { workspace = true, features = ["rt", "time", "io-util", "sync"] }
 derive_more = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-lockfile = { workspace = true }
@@ -23,6 +23,12 @@ pnpm-lockfile = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "process", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

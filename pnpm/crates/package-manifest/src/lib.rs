@@ -29,6 +29,7 @@ use node_semver::{Range, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
+#[cfg(not(target_os = "wasi"))]
 use tempfile::NamedTempFile;
 mod blank_lines;
 mod build_triggers;

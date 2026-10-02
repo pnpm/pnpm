@@ -208,7 +208,7 @@ pub(super) fn store(file: CacheFile<'_>, suffixes: &HashMap<PackageKey, String>)
     // two concurrent writers never share a staging file. A
     // predictable one would also let anything that can write the
     // cache directory redirect the write through a symlink.
-    let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else { return };
+    let Ok(mut file) = pnpm_fs::private_named_tempfile_in(parent) else { return };
     // No `sync_all`: this runs on the miss path, after the map has
     // already been derived, and an fsync there is latency spent on
     // the install this cache exists to speed up. A crash mid-write

@@ -13,7 +13,7 @@ pub(super) fn swap_hash_link_atomically(target: &Path, link: &Path) -> io::Resul
         return pnpm_fs::force_symlink_dir(target, link).map(|_| ());
     };
     fs::create_dir_all(parent)?;
-    let staged = link.with_extension(format!("{}.tmp", std::process::id()));
+    let staged = link.with_extension(format!("{}.tmp", pnpm_fs::process_id()));
     match fs::remove_file(&staged) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}

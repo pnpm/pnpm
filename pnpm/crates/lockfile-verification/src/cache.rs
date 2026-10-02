@@ -440,7 +440,7 @@ static COMPACT_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn compact_temp_path(target: &Path) -> PathBuf {
     let counter = COMPACT_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
+    let pid = crate::process_id();
     let suffix = format!(".{pid}.{counter}.tmp");
     let mut name = match target.file_name().and_then(|n| n.to_str()) {
         Some(name) => name.to_string(),

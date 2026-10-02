@@ -2,11 +2,11 @@
 //! with it, or, for a program that runs from a private install, in a
 //! child this process waits for.
 
+use crate::process::Command;
 use pnpm_store_dir::PrivateInstall;
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 /// Run `program` with `bin_dirs` prepended to `PATH`. A JavaScript
@@ -103,6 +103,17 @@ fn exec_command(program: &Path, mut command: Command) -> i32 {
     // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
     match command.status() {
         Ok(status) => status.code().unwrap_or(1),
+        Err(error) => {
+            eprintln!("pnpm: failed to run {}: {error}", program.display());
+            if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
+        }
+    }
+}
+
+#[cfg(target_family = "wasm")]
+fn exec_command(program: &Path, mut command: Command) -> i32 {
+    match pnpm_executor::spawn_child(&mut command, None).and_then(|mut child| child.wait()) {
+        Ok(status) => pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status)),
         Err(error) => {
             eprintln!("pnpm: failed to run {}: {error}", program.display());
             if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }

@@ -15,6 +15,8 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 
+import { linkPnpmBins } from '../../src/self-updater/linkPnpmBins.js'
+
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
 
@@ -1525,6 +1527,8 @@ test('installPnpm without env lockfile uses resolution path', async () => {
   expect(fs.existsSync(result.binDir)).toBe(true)
 })
 
+const testOnUnix = process.platform === 'win32' ? test.skip : test
+
 describe('linkExePlatformBinary', () => {
   const platform = process.platform
   const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
@@ -1573,7 +1577,6 @@ describe('linkExePlatformBinary', () => {
     const result = fs.readFileSync(path.join(topLevelExeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
 
-    // pn is a shell script in the tarball (not created by linkExePlatformBinary)
   })
 
   test('also works with flat node_modules layout', () => {
@@ -1676,12 +1679,59 @@ describe('linkExePlatformBinary', () => {
     const binDir = path.join(dir, 'bin')
     await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
 
-    linkExePlatformBinary(dir, 'pnpm')
-    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
+    await linkPnpmBins(dir, binDir, 'pnpm')
 
     const result = spawn.sync(path.join(binDir, 'pnpm'), ['--version'], { encoding: 'utf8' })
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe(platform === 'win32' ? process.version : 'fake pnpm v12 binary')
+  })
+
+  test.each(['pnpm', '@pnpm/exe'])('links every Rust alias without Node for %s', (wrapperPkgName) => {
+    const dir = tempDir(false)
+    const wrapperDir = path.join(dir, 'node_modules', wrapperPkgName)
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, libcFamily))
+    fs.mkdirSync(wrapperDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({
+      name: wrapperPkgName, version: '12.99.0',
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    const nativeBinary = path.join(platformDir, executable)
+    if (platform === 'win32') fs.copyFileSync(process.execPath, nativeBinary)
+    else fs.writeFileSync(nativeBinary, '#!/bin/sh\nprintf "native fixture\\n"\n', { mode: 0o755 })
+    for (const alias of ['pn', 'pnpx', 'pnx']) {
+      fs.writeFileSync(path.join(wrapperDir, alias), '#!/usr/bin/env node\nprocess.exit(99)\n', { mode: 0o755 })
+    }
+
+    linkExePlatformBinary(dir, wrapperPkgName)
+
+    const nativeBytes = fs.readFileSync(nativeBinary)
+    for (const alias of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+      const bin = path.join(wrapperDir, platform === 'win32' ? `${alias}.exe` : alias)
+      expect(fs.readFileSync(bin).equals(nativeBytes)).toBe(true)
+      const result = spawn.sync(bin, ['--version'], {
+        encoding: 'utf8', env: { ...process.env, PATH: path.join(dir, 'no-node-on-path') },
+      })
+      expect(result.status).toBe(0)
+      expect(result.stdout.trim()).toBe(platform === 'win32' ? process.version : 'native fixture')
+    }
+  })
+
+  testOnUnix('preserves legacy SEA Unix alias scripts', () => {
+    const dir = tempDir(false)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+    fs.mkdirSync(wrapperDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ version: '11.28.3' }))
+    fs.writeFileSync(path.join(platformDir, executable), 'legacy SEA')
+    for (const alias of ['pn', 'pnpx', 'pnx']) fs.writeFileSync(path.join(wrapperDir, alias), `legacy ${alias}`)
+
+    linkExePlatformBinary(dir)
+
+    for (const alias of ['pn', 'pnpx', 'pnx']) {
+      expect(fs.readFileSync(path.join(wrapperDir, alias), 'utf8')).toBe(`legacy ${alias}`)
+    }
   })
 
   test.each([

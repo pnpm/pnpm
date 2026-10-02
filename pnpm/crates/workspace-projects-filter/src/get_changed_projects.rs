@@ -1,13 +1,11 @@
+use crate::{filter::FilterError, process::Command};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use indexmap::IndexMap;
 use wax::{Glob, Program};
-
-use crate::filter::FilterError;
 
 mod catalogs;
 
