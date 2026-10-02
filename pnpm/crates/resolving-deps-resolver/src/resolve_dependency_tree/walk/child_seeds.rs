@@ -173,27 +173,22 @@ pub(super) fn child_wanted(
     spec: &DependencySpec,
     depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
-    let DependencySpec {
-        alias: name,
-        range,
-        optional,
-        injected,
-    } = spec;
+    let DependencySpec { alias, range, optional, injected } = spec;
     let mut wanted = WantedDependency {
-        alias: Some(name.clone()),
+        alias: Some(alias.clone()),
         bare_specifier: Some(range.clone()),
         optional: Some(*optional),
         injected: injected.then_some(true),
         ..WantedDependency::default()
     };
     let mut prior =
-        scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, name, range));
+        scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, alias, range));
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix
             .version_semver()
             .zip(range.parse::<node_semver::Range>().ok())
             .and_then(|(pinned, parsed)| {
-                higher_direct_dep_version(scope.direct_versions.as_deref(), name, pinned, &parsed)
+                higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
             })
         && keeps_locked_version(ctx, &wanted, key, depth)
     {
