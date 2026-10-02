@@ -154,23 +154,18 @@ pub enum InstallFrozenLockfileError {
     VersionPolicy(#[error(source)] VersionPolicyError),
 
     /// Wraps any error `compute_skipped_snapshots` surfaces from the
-    /// installability pass. Three sources, all reachable under
-    /// today's default config:
+    /// installability pass:
     ///
     /// - `InstallabilityError::InvalidNodeVersion` — the resolved
     ///   `current_node_version` isn't a parseable exact semver.
     ///   Pacquet falls back to a synthetic `99999.0.0` when
     ///   `node --version` fails, so this is currently unreachable
-    ///   from production — but a future `nodeVersion` config wiring
-    ///   (slice 2) will surface user-supplied bad values here as
-    ///   `ERR_PNPM_INVALID_NODE_VERSION`.
+    ///   from production.
     /// - `InstallabilityError::Engine` / `InstallabilityError::Platform`
     ///   from a non-optional incompatible snapshot with
     ///   `engine_strict = true`. Pacquet's default has
     ///   `engine_strict = false`, so this path is currently
-    ///   unreachable from production either — wired through so the
-    ///   slice that lands the config setting doesn't churn the
-    ///   error enum again.
+    ///   unreachable from production either.
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<pnpm_package_is_installable::InstallabilityError>),
 

@@ -193,7 +193,7 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     let removed = remove_orphans(opts)?;
 
     // Drive each importer's hierarchy in parallel — workspace
-    // installs (Slice 9) will have multiple importers; the
+    // installs have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
     let LinkedLevel {
@@ -270,10 +270,7 @@ fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedM
     Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
 }
 
-/// Whether `dir` sits lexically inside `confine_root`. The walker builds
-/// every graph dir through `safe_join_modules_dir`, so this is the
-/// invariant — checking it here keeps the deletion site from depending
-/// on the constructor's discipline.
+/// Whether `dir` sits lexically inside `confine_root`.
 fn confined(dir: &Path, confine_root: &Path) -> bool {
     let confined = dir.starts_with(confine_root)
         && dir

@@ -229,7 +229,7 @@ pub struct BuildModules<'a> {
     /// Excluded from both `requires_build` computation and the
     /// build graph. Pacquet does not run scripts (or
     /// even check `binding.gyp`) for slots that don't exist on
-    /// disk. Skipped snapshots never enter the build graph.
+    /// disk.
     pub skipped: &'a SkippedSnapshots,
 
     /// Forced-rebuild selection. `None` for a normal install — every

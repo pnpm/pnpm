@@ -81,7 +81,7 @@ pub(super) fn collect_resolved_entries<'a>(
         })
         // Hoisted-mode filter: `link_only` keeps only `link:`
         // entries (workspace siblings) and drops every regular
-        // dep. The hoisted linker (slice 5) already materialized
+        // dep. The hoisted linker already materialized
         // those regular deps as real `<importer>/node_modules/<alias>/`
         // directories; re-symlinking them here would either no-op
         // or replace the real dir with a slot symlink that points

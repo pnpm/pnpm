@@ -184,7 +184,7 @@ fn walker_honors_pre_skipped_dep_path() {
 }
 /// A `directory:` resolution gets recorded in
 /// `injection_targets_by_dep_path` so the post-install
-/// re-mirror step (a later sub-slice) can find it.
+/// re-mirror step can find it.
 #[test]
 fn walker_records_directory_resolution_as_injection_target() {
     let mut root_deps = ResolvedDependencyMap::new();

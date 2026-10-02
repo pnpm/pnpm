@@ -149,7 +149,7 @@ pub struct BuildLayout<'a> {
     pub layout: &'a crate::VirtualStoreLayout,
 
     /// Per-snapshot `pkgRoot` override, populated by the hoisted
-    /// linker with the slice 4 walker's
+    /// linker with the walker's
     /// [`crate::DependenciesGraphNode::dir`] values. When `Some`,
     /// every `pkgRoot` lookup goes through this map instead of the
     /// virtual-store-layout slot computation; a missing entry means
