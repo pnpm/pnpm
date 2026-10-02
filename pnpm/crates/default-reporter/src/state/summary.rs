@@ -1,7 +1,8 @@
 use super::{
-    DepKind, PackageDiff, PackageManifestMessage, ReporterState, SUMMARY_ORDER, SummaryScope,
-    SummaryState, Value, added_diff, diff_key, is_strictly_newer, manifest_dep_versions,
-    normalized_prefix, record_missing, relative, remove_optional_from_prod, removed_diff,
+    BlockPlacement, DepKind, PackageDiff, PackageManifestMessage, ReporterState, SUMMARY_ORDER,
+    SummaryScope, SummaryState, Value, added_diff, diff_key, is_strictly_newer,
+    manifest_dep_versions, normalized_prefix, record_missing, relative, remove_optional_from_prod,
+    removed_diff,
 };
 use std::fmt::Write as _;
 
@@ -86,7 +87,7 @@ impl ReporterState {
         }
         self.summary.rendered = true;
         let mut slot = std::mem::take(&mut self.summary.slot);
-        self.display.frame.emit(&mut slot, msg, false);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.summary.slot = slot;
     }
 

@@ -1,10 +1,10 @@
 use super::{
-    Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog, IgnoredScriptsLog,
-    InstallingConfigDepsLog, InstallingConfigDepsStatus, LockfileVerificationMessage, LogLevel,
-    MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState, ReporterState, RequestRetryLog,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, UpdateCheckLog, Utc, cached_verdict,
-    detect_install_source, entries_label, is_strictly_newer, normalize, pretty_ms, relative,
-    update_command, zoom_out,
+    BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog,
+    IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
+    LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
+    ReporterState, RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    UpdateCheckLog, Utc, cached_verdict, detect_install_source, entries_label, is_strictly_newer,
+    normalize, pretty_ms, relative, update_command, zoom_out,
 };
 
 /// `name@version` as a deprecation warning prints it.
@@ -86,7 +86,7 @@ impl ReporterState {
             }
         };
         let mut slot = std::mem::take(&mut self.display.config_deps_slot);
-        self.display.frame.emit(&mut slot, msg, false);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.display.config_deps_slot = slot;
     }
 
@@ -128,7 +128,7 @@ impl ReporterState {
             }
         };
         let mut slot = std::mem::take(&mut self.display.lockfile_verification_slot);
-        self.display.frame.emit(&mut slot, msg, false);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.display.lockfile_verification_slot = slot;
     }
 
@@ -210,7 +210,7 @@ impl ReporterState {
         let msg =
             format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());
         let mut slot = std::mem::take(&mut self.display.exec_slot);
-        self.display.frame.emit(&mut slot, msg, true);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Pinned);
         self.display.exec_slot = slot;
     }
 
@@ -277,7 +277,7 @@ impl ReporterState {
             self.rendering.colors.red(&format!("{count} deprecated subdependencies found:")),
             names.join(", "),
         );
-        self.display.frame.emit(&mut self.notices.deprecated_slot, msg, false);
+        self.display.frame.emit(&mut self.notices.deprecated_slot, msg, BlockPlacement::Scrolling);
         self.notices.deprecated_subdeps.clear();
     }
 
@@ -329,7 +329,7 @@ impl NoticeState {
         let extra = self.warnings - MAX_SHOWN_WARNINGS;
         let msg = format!("{} {extra} other warnings", colors.warn_label());
         let mut slot = std::mem::take(&mut self.collapsed_slot);
-        frame.emit(&mut slot, msg, false);
+        frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.collapsed_slot = slot;
     }
 }

@@ -1,7 +1,7 @@
 use super::{
-    BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState, LifecycleStdio,
-    RenderingContext, ReporterState, contains_path, cut_line, format_prefix, format_prefix_no_trim,
-    highlight_last_folder, lifecycle_ids, pretty_ms, visible_width,
+    BlockPlacement, BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState,
+    LifecycleStdio, RenderingContext, ReporterState, contains_path, cut_line, format_prefix,
+    format_prefix_no_trim, highlight_last_folder, lifecycle_ids, pretty_ms, visible_width,
 };
 use std::fmt::Write as _;
 
@@ -16,7 +16,7 @@ impl ReporterState {
         {
             let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
-            self.display.frame.emit(&mut slot, msg, false);
+            self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
             return;
         }
         let (stage, dep_path, wd) = lifecycle_ids(message);
@@ -46,7 +46,7 @@ impl ReporterState {
             self.scripts.entries.remove(&key);
         }
         let mut slot = self.scripts.slots.remove(&key).unwrap_or_default();
-        self.display.frame.emit(&mut slot, msg, false);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.scripts.slots.insert(key, slot);
     }
 

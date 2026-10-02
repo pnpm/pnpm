@@ -422,7 +422,7 @@ mod update_check;
 use update_check::{detect_install_source, is_strictly_newer, update_command};
 
 mod frame;
-use frame::{BlockSlot, Frame};
+use frame::{BlockPlacement, BlockSlot, Frame};
 
 mod paths;
 use paths::normalized_prefix;
@@ -447,7 +447,7 @@ impl DisplayState {
 impl Frame {
     pub(super) fn push_block(&mut self, message: String) {
         let mut slot = BlockSlot::default();
-        self.emit(&mut slot, message, false);
+        self.emit(&mut slot, message, BlockPlacement::Scrolling);
     }
 }
 
