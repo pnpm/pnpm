@@ -28,7 +28,10 @@ pub(super) fn build_extra_env(
     workspace_root: &Path,
 ) -> HashMap<String, String> {
     let mut env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
+    if let Some(node_options) = config.node_options
+        .as_ref()
+        .filter(|value| !value.is_empty())
+    {
         env.insert("NODE_OPTIONS".to_string(), node_options.clone());
     }
     config.add_cas_loader_env(workspace_root, &mut env);

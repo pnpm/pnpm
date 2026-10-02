@@ -335,7 +335,10 @@ impl Config {
     /// `extra_env` carries under a global virtual store.
     pub fn extra_env_with_node_options(&self) -> HashMap<String, String> {
         let mut extra_env = self.extra_env.clone();
-        if let Some(node_options) = &self.node_options {
+        if let Some(node_options) = self.node_options
+            .as_ref()
+            .filter(|value| !value.is_empty())
+        {
             let node_options = esm_node_path_loader::keep_esm_node_path_loader_option(
                 node_options,
                 self.extra_env.get("NODE_OPTIONS").map(String::as_str),

@@ -352,7 +352,7 @@ impl WorkspaceSettings {
         );
         json_field!(settings, reader, enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(settings, reader, script_shell, "SCRIPT_SHELL");
-        tri_string_field!(settings, reader, node_options, "NODE_OPTIONS");
+        settings.node_options = reader.value_allow_empty("NODE_OPTIONS").map(Some);
         json_field!(settings, reader, unsafe_perm, "UNSAFE_PERM");
         json_field!(settings, reader, child_concurrency, "CHILD_CONCURRENCY");
         json_field!(settings, reader, workspace_concurrency, "WORKSPACE_CONCURRENCY");
