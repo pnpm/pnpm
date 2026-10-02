@@ -959,3 +959,31 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['peerDependencyRules', 'all', 'The "peerDependencyRules" setting should be an object, but got string'],
+  ['peerDependencyRules', ['react'], 'The "peerDependencyRules" setting should be an object, but got array'],
+  ['peerDependencyRules', { ignoreMissing: 'react' }, 'The "peerDependencyRules.ignoreMissing" setting should be an array of strings, but got string'],
+  ['peerDependencyRules', { ignoreMissing: ['react', 123] }, 'The "peerDependencyRules.ignoreMissing" setting should be an array of strings, but got array'],
+  ['peerDependencyRules', { allowAny: true }, 'The "peerDependencyRules.allowAny" setting should be an array of strings, but got boolean'],
+  ['peerDependencyRules', { allowAny: ['react', null] }, 'The "peerDependencyRules.allowAny" setting should be an array of strings, but got array'],
+  ['peerDependencyRules', { allowedVersions: '18.x' }, 'The "peerDependencyRules.allowedVersions" setting should be an object, but got string'],
+  ['peerDependencyRules', { allowedVersions: { react: 18 } }, 'The "peerDependencyRules.allowedVersions.react" setting should be a string, but got number'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid peerDependencyRules', () => {
+  const peerDependencyRules = {
+    ignoreMissing: ['@types/*'],
+    allowAny: ['react'],
+    allowedVersions: { react: '17 || 18' },
+  }
+  const options = getOptionsFromPnpmSettings(process.cwd(), { peerDependencyRules })
+  expect(options.peerDependencyRules).toStrictEqual(peerDependencyRules)
+})

@@ -92,6 +92,9 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
+  if (settings.peerDependencyRules != null) {
+    assertValidPeerDependencyRules(settings.peerDependencyRules)
+  }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
@@ -454,6 +457,20 @@ function assertValidAllowBuilds (allowBuilds: unknown): asserts allowBuilds is R
     if (typeof value !== 'boolean' && typeof value !== 'string') {
       throw new PnpmError('INVALID_ALLOW_BUILDS', `The value of allowBuilds.${pkg} should be a boolean or string, but got ${renderReceivedType(value)}`)
     }
+  }
+}
+
+function assertValidPeerDependencyRules (peerDependencyRules: unknown): asserts peerDependencyRules is PeerDependencyRules {
+  assertObjectSetting(peerDependencyRules, 'peerDependencyRules')
+  const rules = peerDependencyRules as Record<string, unknown>
+  if (rules.ignoreMissing != null) {
+    assertStringArray(rules.ignoreMissing, 'peerDependencyRules.ignoreMissing')
+  }
+  if (rules.allowAny != null) {
+    assertStringArray(rules.allowAny, 'peerDependencyRules.allowAny')
+  }
+  if (rules.allowedVersions != null) {
+    assertStringRecord(rules.allowedVersions, 'peerDependencyRules.allowedVersions')
   }
 }
 
