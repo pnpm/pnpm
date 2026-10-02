@@ -93,7 +93,7 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
-  if (settings.configDependencies != null) {
+  if (Object.hasOwn(settings, 'configDependencies')) {
     assertValidConfigDependencies(settings.configDependencies)
   }
   translateRegistrySettings(settings)
@@ -467,7 +467,7 @@ function assertValidConfigDependencies (configDependencies: unknown): asserts co
     if (typeof dep === 'string') continue
     if (dep != null && typeof dep === 'object' && !Array.isArray(dep)) {
       const descriptor = dep as Record<string, unknown>
-      if (descriptor.tarball != null) {
+      if (Object.hasOwn(descriptor, 'tarball')) {
         assertString(descriptor.tarball, `configDependencies.${name}.tarball`)
       }
       if (typeof descriptor.integrity !== 'string') {

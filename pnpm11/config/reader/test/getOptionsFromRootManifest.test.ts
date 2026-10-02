@@ -987,3 +987,19 @@ test('getOptionsFromPnpmSettings() accepts valid configDependencies', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), { configDependencies })
   expect(options.configDependencies).toStrictEqual(configDependencies)
 })
+
+test.each([
+  ['configDependencies', null, 'The "configDependencies" setting should be an object, but got null'],
+  [
+    'configDependencies',
+    { '@scope/config': { tarball: null, integrity: 'sha512-abc==' } },
+    'The "configDependencies.@scope/config.tarball" setting should be a string, but got null',
+  ],
+])('getOptionsFromPnpmSettings() rejects explicit null in %s', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
