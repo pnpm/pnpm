@@ -958,3 +958,29 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['noProxy', 123, 'The "noProxy" setting should be a boolean or string, but got number'],
+  ['noProxy', null, 'The "noProxy" setting should be a boolean or string, but got null'],
+  ['noProxy', ['localhost'], 'The "noProxy" setting should be a boolean or string, but got array'],
+  ['noProxy', { host: 'localhost' }, 'The "noProxy" setting should be a boolean or string, but got object'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test.each([
+  true,
+  false,
+  'localhost,127.0.0.1',
+  '*.internal.domain',
+])('getOptionsFromPnpmSettings() accepts valid noProxy: %j', (value) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    noProxy: value,
+  })
+  expect(options.noProxy).toBe(value)
+})
