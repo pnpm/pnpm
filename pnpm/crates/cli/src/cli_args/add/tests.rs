@@ -330,3 +330,21 @@ fn the_dependency_group_filter_honors_the_optional_setting() {
 
     assert_eq!(args.included_groups(&config), [DependencyGroup::Prod, DependencyGroup::Dev]);
 }
+
+#[test]
+fn allow_build_applies_comma_separated_selectors() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let mut config = Config::default();
+    apply_allow_build(
+        &mut config,
+        &["esbuild,sharp,!core-js".to_string(), "pkg@https://example.com/a,b.tgz".to_string()],
+        dir.path(),
+    )
+    .expect("allow-build applies");
+
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&true));
+    assert_eq!(config.allow_builds.get("sharp"), Some(&true));
+    assert_eq!(config.allow_builds.get("core-js"), Some(&false));
+    assert_eq!(config.allow_builds.get("pkg@https://example.com/a,b.tgz"), Some(&true));
+    assert_eq!(config.allow_builds.len(), 4);
+}
