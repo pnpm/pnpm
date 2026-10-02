@@ -959,3 +959,31 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['supportedArchitectures', 'linux', 'The "supportedArchitectures" setting should be an object, but got string'],
+  ['supportedArchitectures', ['linux'], 'The "supportedArchitectures" setting should be an object, but got array'],
+  ['supportedArchitectures', { os: 'linux' }, 'The "supportedArchitectures.os" setting should be an array of strings, but got string'],
+  ['supportedArchitectures', { os: ['linux', 123] }, 'The "supportedArchitectures.os" setting should be an array of strings, but got array'],
+  ['supportedArchitectures', { cpu: 'x64' }, 'The "supportedArchitectures.cpu" setting should be an array of strings, but got string'],
+  ['supportedArchitectures', { cpu: ['x64', null] }, 'The "supportedArchitectures.cpu" setting should be an array of strings, but got array'],
+  ['supportedArchitectures', { libc: 'glibc' }, 'The "supportedArchitectures.libc" setting should be an array of strings, but got string'],
+  ['supportedArchitectures', { libc: ['glibc', true] }, 'The "supportedArchitectures.libc" setting should be an array of strings, but got array'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid supportedArchitectures', () => {
+  const supportedArchitectures = {
+    os: ['linux', 'darwin'],
+    cpu: ['x64', 'arm64'],
+    libc: ['glibc'],
+  }
+  const options = getOptionsFromPnpmSettings(process.cwd(), { supportedArchitectures })
+  expect(options.supportedArchitectures).toStrictEqual(supportedArchitectures)
+})
