@@ -33,6 +33,7 @@ export function packageWorkflowSteps (entry) {
 export function packageInstallSteps () {
   return [
     { name: 'install @pnpm/wasm with npm', command: 'npm', args: ['install', '--prefix', '../installed', '../pnpm/pnpm-wasm.tgz'] },
+    { name: 'installed package is @pnpm/wasm', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('../installed/node_modules/@pnpm/wasm/package.json').name, '@pnpm/wasm')"] },
     { name: 'installed package runs WASM', command: '../installed/node_modules/.bin/pnpm', args: ['store', 'path'], expectOutput: 'v11-wasm' },
     { name: 'npx dispatches the installed package', command: 'npx', args: ['--no-install', 'pnpm', '--version'], cwd: 'installed', expectOutput: '12.' },
     ...aliasSteps('../installed/node_modules/.bin'),
