@@ -19,7 +19,7 @@ import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { reportProgress } from './reportProgress.js'
 import { reportRequestRetry } from './reportRequestRetry.js'
 import { reportScope } from './reportScope.js'
-import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies.js'
+import { reportOptionalFetchFailures, reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies.js'
 import { reportStats } from './reportStats.js'
 import { type FilterPkgsDiff, reportSummary } from './reportSummary.js'
 import { reportUpdateCheck } from './reportUpdateCheck.js'
@@ -147,6 +147,7 @@ function reportWarnings ({ log$, opts, cwd }: ReportContext): Outputs {
       stage: log$.stage,
     }, { cwd, isRecursive: opts.isRecursive }),
     reportRequestRetry(log$.requestRetry),
+    reportOptionalFetchFailures(log$.skippedOptionalDependency),
   ]
 }
 

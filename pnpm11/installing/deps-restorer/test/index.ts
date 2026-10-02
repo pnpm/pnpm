@@ -359,6 +359,80 @@ test('skipping optional dependency if it cannot be fetched', async () => {
   expect(project.readModulesManifest()).toBeTruthy()
 })
 
+// https://github.com/pnpm/pnpm/issues/16514
+test('an optional dependency that fails the integrity check is skipped, unlinked, and reported', async () => {
+  const prefix = tempDir()
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '2.1.0' },
+    optionalDependencies: { 'is-positive': '1.0.0' },
+  }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      is-negative:
+        specifier: 2.1.0
+        version: 2.1.0
+    optionalDependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  is-negative@2.1.0:
+    resolution: {integrity: ${getIntegrity('is-negative', '2.1.0')}}
+
+  is-positive@1.0.0:
+    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}
+
+snapshots:
+
+  is-negative@2.1.0:
+    optionalDependencies:
+      is-positive: 1.0.0
+
+  is-positive@1.0.0:
+    optional: true
+`)
+  const reporter = jest.fn()
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    reporter,
+  }, {
+    retry: {
+      retries: 0,
+    },
+  }))
+
+  const project = assertProject(prefix)
+  project.has('is-negative')
+  expect(fs.existsSync(path.join(prefix, 'node_modules/is-positive'))).toBe(false)
+  expect(fs.lstatSync(path.join(prefix, 'node_modules/is-positive'), { throwIfNoEntry: false })).toBeUndefined()
+  expect(fs.lstatSync(path.join(prefix, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-positive'), { throwIfNoEntry: false })).toBeUndefined()
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:skipped-optional-dependency',
+    package: {
+      id: 'is-positive@1.0.0',
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    prefix,
+    reason: 'fetch_failure',
+    details: expect.stringContaining('ERR_PNPM_TARBALL_INTEGRITY'),
+  }))
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:root',
+    added: expect.objectContaining({ name: 'is-positive' }),
+  }))
+})
+
 test('run pre/postinstall scripts', async () => {
   let prefix = prepareFixtureWithIntegrity('deps-have-lifecycle-scripts')
   await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))

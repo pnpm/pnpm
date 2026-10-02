@@ -2,7 +2,7 @@ use super::{
     CasIndexes, CasPrefetch, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     CreateVirtualStoreStoreContext, LinkPlan, WantedEntries,
     cache_keys::{SlotReuse, SnapshotCacheKey},
-    cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch},
+    cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch, unlink_fetch_failed_children},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
     publish_planned_canonical_fetches, removed_aliases_by_key,
     slot_linking::LinkSlotsParallel,
@@ -34,6 +34,7 @@ impl<'a> CreateVirtualStore<'a> {
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
+        let planned = plan.survivors.len();
         let prefetched = self.settle_prefetch(
             prefetch.task,
             &prefetch.verified_files_cache,
@@ -41,7 +42,7 @@ impl<'a> CreateVirtualStore<'a> {
             &mut plan,
         )
         .await?;
-        self.materialize_plan::<Reporter>(
+        let output = self.materialize_plan::<Reporter>(
             wanted,
             plan,
             &prefetched,
@@ -51,7 +52,39 @@ impl<'a> CreateVirtualStore<'a> {
             },
             marker_source.as_ref(),
         )
-        .await
+        .await?;
+        self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
+        Ok(output)
+    }
+
+    /// `pnpm:stats added` fires one event per project once the
+    /// downloads have settled. The value is the *delta* between current
+    /// and wanted lockfile, computed as the post-skip-filter snapshot
+    /// count less the optional snapshots whose fetch failed, so a warm
+    /// reinstall against an unchanged lockfile reports `added: 0` and a
+    /// skipped optional package is not counted.
+    ///
+    /// The paired `pnpm:stats removed` event is emitted by the
+    /// caller from [`crate::PruneStaleModules`]'s result, so each
+    /// install carries exactly one `added` and one `removed`.
+    ///
+    /// Under the hoisted linker every snapshot survives the skip
+    /// filter (no slot to probe), and which packages are already on
+    /// disk is only known once its walker has run, so
+    /// [`crate::link_hoisted_modules()`] emits both stats there. A
+    /// `virtualStoreOnly` install never runs the linker, so it keeps
+    /// the count from here.
+    fn report_added<Reporter: self::Reporter>(&self, added: usize) {
+        if self.is_hoisted() && !self.ctx.config.virtual_store_only {
+            return;
+        }
+        Reporter::emit(&LogEvent::Stats(StatsLog {
+            level: LogLevel::Debug,
+            message: StatsMessage::Added {
+                prefix: self.ctx.requester.to_owned(),
+                added: added as u64,
+            },
+        }));
     }
 
     async fn materialize_plan<Reporter: self::Reporter>(
@@ -183,7 +216,7 @@ impl<'a> CreateVirtualStore<'a> {
         mut cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
     ) -> Result<snapshot_plan::SnapshotPlan<'a>, CreateVirtualStoreError> {
         let config = self.ctx.config;
-        let plan = snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
+        snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
             policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
                 skipped: self.selection.skipped,
                 link_dependencies: !self.is_hoisted() && config.symlink,
@@ -198,35 +231,7 @@ impl<'a> CreateVirtualStore<'a> {
             allow_build_policy: self.ctx.allow_build_policy,
 
             cache_keys: &mut cache_keys,
-        })?;
-
-        // `pnpm:stats added` fires one event per project once the
-        // orchestrator has decided how many packages will land in the
-        // virtual store. The value is the *delta* between current and
-        // wanted lockfile, computed as the post-skip-filter snapshot
-        // count so a warm reinstall against an unchanged lockfile
-        // reports `added: 0`.
-        //
-        // The paired `pnpm:stats removed` event is emitted by the
-        // caller from [`crate::PruneStaleModules`]'s result, so each
-        // install carries exactly one `added` and one `removed`.
-        //
-        // Under the hoisted linker every snapshot survives the skip
-        // filter (no slot to probe), and which packages are already on
-        // disk is only known once its walker has run, so
-        // [`crate::link_hoisted_modules()`] emits both stats there. A
-        // `virtualStoreOnly` install never runs the linker, so it keeps
-        // the count from here.
-        if !self.is_hoisted() || self.ctx.config.virtual_store_only {
-            Reporter::emit(&LogEvent::Stats(StatsLog {
-                level: LogLevel::Debug,
-                message: StatsMessage::Added {
-                    prefix: self.ctx.requester.to_owned(),
-                    added: plan.survivors.len() as u64,
-                },
-            }));
-        }
-        Ok(plan)
+        })
     }
 
     /// A joined-task failure degrades to an empty result: every lookup
@@ -401,6 +406,7 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await?;
         indexes.add_cold(cold_cas_paths);
+        unlink_fetch_failed_children(self.ctx, inputs.wanted.snapshots, &fetch_failed)?;
         Ok(fetch_failed)
     }
 

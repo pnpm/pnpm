@@ -91,6 +91,34 @@ fn skipped_optional_dependency_renders_nothing() {
     assert!(frame.is_empty(), "skipped-optional events must not render, got: {frame:?}");
 }
 
+/// An optional package that could not be fetched is missing from
+/// `node_modules`, so the skip renders as a warning with its cause, even
+/// when the install runs from a workspace project other than the lockfile
+/// directory (<https://github.com/pnpm/pnpm/issues/16514>).
+#[test]
+fn skipped_optional_fetch_failure_renders_a_warning() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some("ERR_PNPM_FETCH_404: GET https://registry.example/is-number/-/is-number-7.0.0.tgz: Not Found - 404".to_string()),
+            package: SkippedOptionalPackage::Installed {
+                id: "is-number@7.0.0".to_string(),
+                name: "is-number".to_string(),
+                version: "7.0.0".to_string(),
+            },
+            parents: None,
+            prefix: format!("{CWD}/../workspace-root"),
+            reason: SkippedOptionalReason::FetchFailure,
+        })],
+    );
+    assert_eq!(
+        frame,
+        "[WARN] is-number@7.0.0 is an optional dependency that could not be fetched. Excluding it from installation.\nERR_PNPM_FETCH_404: GET https://registry.example/is-number/-/is-number-7.0.0.tgz: Not Found - 404",
+    );
+}
+
 /// The registry's `latest` trails a prerelease build of the next major, so
 /// the notice would be an invitation to downgrade.
 #[test]
