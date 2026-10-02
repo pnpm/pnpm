@@ -1,6 +1,5 @@
 //! Read-only git queries shared by the commands that branch on
-//! repository state: `pnpm publish`'s working-tree checks, `pnpm
-//! version`'s clean-tree gate, and the per-branch lockfile settings.
+//! repository state.
 //! Also the environment that keeps the git resolver's and fetcher's
 //! invocations from waiting on the terminal.
 //!

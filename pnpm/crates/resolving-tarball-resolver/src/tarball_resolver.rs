@@ -19,14 +19,7 @@ use ssri::Integrity;
 mod cache;
 
 /// Store/network handles the [`TarballResolver`] needs to fetch a
-/// remote tarball during resolution — download it, compute its sha512
-/// integrity, extract it to the store, and read its bundled manifest.
-///
-/// The install orchestrator owns these and hands the resolver a clone;
-/// `mem_cache` (when present) is warmed keyed by URL so the install
-/// pass reuses the extraction without re-downloading. Absent only in
-/// unit tests that exercise the HEAD/normalize/redirect logic in
-/// isolation — see [`TarballResolver`].
+/// remote tarball during resolution.
 pub struct TarballFetchContext {
     pub mem_cache: Option<Arc<MemCache>>,
     pub auth_headers: Arc<AuthHeaders>,
@@ -112,16 +105,10 @@ impl TarballResolver {
             .map_err(|err| Box::new(err) as ResolveError)?
             .to_string();
 
-        // Warm-store reuse: when the prior
-        // lockfile recorded this exact tarball URL with an integrity and
-        // the content is already extracted in the store, reuse the cached
-        // integrity + bundled manifest instead of re-downloading. The
-        // bundled manifest carries the same dependency fields a fresh
+        // The bundled manifest carries the same dependency fields a fresh
         // extraction would, so transitive resolution is unchanged. Done
         // before the HEAD request so a hit needs no network at all (this
-        // is what lets a re-resolve succeed under `--offline`). Any miss
-        // (cold store, key drift, a row without a bundled manifest) falls
-        // through to the HEAD + download below.
+        // is what lets a re-resolve succeed under `--offline`).
         if let Some(reused) =
             self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier).await
         {
@@ -144,10 +131,6 @@ impl TarballResolver {
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
-        // No store context (unit tests): keep the HEAD-only shape. The
-        // download below is what fills `manifest` + `integrity`; without
-        // a store to extract into there's nothing to fetch, so leave
-        // them unset.
         let Some(ctx) = self.fetch_context.as_ref() else {
             return Ok(Some(Self::head_only_result(
                 wanted_dependency,
@@ -158,10 +141,7 @@ impl TarballResolver {
             )));
         };
 
-        // Download the tarball, compute its sha512 integrity, extract it
-        // to the store, and read its bundled manifest. Warms `mem_cache`
-        // (keyed by `resolved_url`) so the install pass reuses the
-        // extraction. Silent reporter: the install pass owns the
+        // Silent reporter: the install pass owns the
         // `resolved → found_in_store → imported` event ordering (see
         // `prefetching_resolver.rs`).
         let resolved = self

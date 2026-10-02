@@ -4,9 +4,7 @@ use clap::Parser;
 use pnpr_fixtures::build_storage_at_with_substitutions;
 
 /// Build verdaccio-shaped registry storage from raw package fixtures, so the
-/// `pnpr` server can serve them. The pnpm test harness runs this
-/// before launching the registry; pacquet's Rust tests build the same storage
-/// in-process instead.
+/// `pnpr` server can serve them.
 #[derive(Debug, Parser)]
 #[command(name = "pnpr-prepare", version, about)]
 struct Args {

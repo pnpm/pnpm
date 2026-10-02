@@ -65,8 +65,7 @@ impl From<&str> for AccessToken {
 pub struct AccessList(Vec<AccessToken>);
 
 impl AccessList {
-    /// Build from already-resolved tokens (the config loader's path,
-    /// where `team:` references have been resolved to member sets).
+    /// Build from already-resolved tokens.
     #[must_use]
     pub fn new(tokens: Vec<AccessToken>) -> Self {
         Self(tokens)
@@ -74,9 +73,7 @@ impl AccessList {
 
     /// Build from individual built-in or username tokens (e.g. the
     /// elements of a YAML sequence). Each string is one token, taken
-    /// verbatim; `team:` references cannot be built this way — they need
-    /// the owning registry's team declarations (the config loader
-    /// resolves them and builds the list with `Self::new`).
+    /// verbatim; `team:` references cannot be built this way.
     pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
     where
         Tokens: IntoIterator<Item = Token>,
@@ -170,8 +167,7 @@ pub struct PackageRules {
     /// Winner lookup by specificity tier, rebuilt whenever the rule set
     /// changes: at most one key per tier can match a given name, so the
     /// most specific match resolves with map lookups instead of a scan of
-    /// every rule — `for_package` runs on every read, write, search hit,
-    /// and route classification.
+    /// every rule.
     index: RuleIndex,
     /// Fallbacks for fields the winning entry omits (and for every name
     /// when the map itself is empty = the registry claims every name).
@@ -278,9 +274,7 @@ impl PackageRules {
         }
     }
 
-    /// Override the registry-level unpublish default (nobody). Used by the
-    /// programmatic registry-mock constructors, whose fixtures exercise
-    /// unpublish flows with any authenticated user.
+    /// Override the registry-level unpublish default (nobody).
     #[must_use]
     pub fn with_default_unpublish(mut self, unpublish: AccessList) -> Self {
         self.default_unpublish = unpublish;
@@ -324,10 +318,7 @@ impl PackageRules {
 
     /// The effective permissions for `package`: the **most specific**
     /// matching entry's fields, each falling back to the registry-level
-    /// default. Selection is order-free — the restricted pattern language
-    /// guarantees at most one matching key per specificity tier, so the
-    /// winner is unique regardless of where it appears in the map — and
-    /// indexed, so it costs tier lookups rather than a scan of every rule.
+    /// default.
     #[must_use]
     pub fn for_package(&self, package: &str) -> Effective<'_> {
         let winner = self.index

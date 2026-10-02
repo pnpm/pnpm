@@ -28,12 +28,6 @@ use pnpm_resolving_resolver_base::{
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /
 /// `workspace:`). Sits between the tarball resolver and the runtime
 /// / named-registry resolvers in the chain.
-///
-/// `resolve_latest` routes through
-/// [`resolve_latest_from_local`]
-/// so a `link:` / `file:` / `workspace:` spec stops here instead of
-/// falling through into a user-configured named-registry alias of
-/// the same name.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalSchemeResolver {
     pub ctx: LocalResolverContext,
@@ -130,10 +124,7 @@ impl Resolver for LocalPathResolver {
 }
 
 /// Combined scheme-then-path resolver. Kept for tests and one-off
-/// chains that don't need the split, but the production chain in
-/// `install_without_lockfile.rs` uses [`LocalSchemeResolver`] and
-/// [`LocalPathResolver`] separately so the named-registry resolver
-/// can slot in between them — matching the chain order.
+/// chains that don't need the split.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalResolver {
     pub ctx: LocalResolverContext,

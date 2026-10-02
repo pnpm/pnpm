@@ -6,10 +6,6 @@
 //! name (`@foo/bar` → `@jsr/foo__bar`), so the npm resolver needs the
 //! npm-style name to drive metadata fetches and the JSR-style name to
 //! restore the original alias.
-//!
-//! Returns `None` for non-`jsr:` specifiers so the caller can chain
-//! into another parser (npm-style bare specifier, named-registry,
-//! etc.) without sniffing the prefix itself.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -32,8 +28,7 @@ pub struct JsrSpec {
     pub version_selector: Option<String>,
 }
 
-/// Failures from [`parse_jsr_specifier`]. Each variant carries one of
-/// the three `ERR_PNPM_*` codes a malformed `jsr:` specifier raises.
+/// Failures from [`parse_jsr_specifier`].
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseJsrSpecifierError {
@@ -113,8 +108,6 @@ pub fn parse_jsr_specifier(
         return Err(ParseJsrSpecifierError::MissingScope);
     }
 
-    // An empty alias triggers `MissingPackageName` rather than
-    // falling through into the version-only branch.
     let Some(alias) = alias.filter(|alias| !alias.is_empty()) else {
         return Err(ParseJsrSpecifierError::MissingPackageName { specifier: rest.to_string() });
     };

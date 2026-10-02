@@ -6,7 +6,7 @@
 //! side for the directory case lives in `pnpm-directory-fetcher`;
 //! this crate is resolution-only.
 //!
-//! Three public entry points:
+//! Public entry points:
 //!
 //! - [`resolve_from_local_scheme`] — claims a wanted dep iff its bare
 //!   specifier starts with `link:`, `workspace:`, or `file:`. The

@@ -53,7 +53,6 @@ fn normalize_url(specifier: &str) -> Option<String> {
     {
         return None;
     }
-    // Hostnames are case-insensitive; the repository path and ref are not.
     let host = host.to_ascii_lowercase();
     if scheme.eq_ignore_ascii_case("https") && !is_known_host(&host) && !path.ends_with(".git") {
         return None;

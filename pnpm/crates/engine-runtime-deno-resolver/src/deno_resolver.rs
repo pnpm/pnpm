@@ -17,9 +17,7 @@ use crate::read_deno_assets::{ReadDenoAssetsError, read_deno_assets};
 const RESOLVED_VIA: &str = "github.com/denoland/deno";
 const BARE_SPEC_PREFIX: &str = "runtime:";
 
-/// Errors emitted by [`DenoResolver`], carrying the
-/// `ERR_PNPM_DENO_RESOLUTION_FAILURE` / `ERR_PNPM_DENO_MISSING_ASSETS` /
-/// `ERR_PNPM_DENO_GITHUB_FAILURE` / `ERR_PNPM_DENO_PARSE_HASH` codes.
+/// Errors emitted by [`DenoResolver`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum DenoResolverError {
     #[display("Could not resolve Deno version specified as {spec}")]

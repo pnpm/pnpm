@@ -32,10 +32,8 @@ pub fn get_catalogs_from_workspace_manifest(
 
     check_default_catalog_is_defined_once(manifest)?;
 
-    // `catalogs` is applied after writing `default`, so an explicit
-    // `catalogs.default` overrides the (already-validated to be absent)
-    // `catalog` field. With `catalog`/`catalogs.default` mutually
-    // exclusive only one branch ever populates the key.
+    // With `catalog`/`catalogs.default` mutually exclusive only one
+    // branch ever populates the key.
     let mut catalogs = Catalogs::new();
     if let Some(default) = &manifest.catalog {
         catalogs.insert(DEFAULT_CATALOG_NAME.to_string(), default.clone());

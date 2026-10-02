@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 
 use pnpm_fs::{lexical_normalize, relative_path};
 
-/// The two local-filesystem protocols a specifier can carry.
+/// The local-filesystem protocols a specifier can carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LocalSpecProtocol {
     Link,
@@ -123,9 +123,7 @@ impl LocalSpec {
     #[must_use]
     pub fn render(&self, consumer_dir: Option<&Path>) -> String {
         // Every branch routes through `normalize_path` so the absolute
-        // shape also gets backslash → forward-slash rewriting on Windows;
-        // `link:` / `file:` specifiers must use forward slashes regardless
-        // of host OS.
+        // shape also gets backslash → forward-slash rewriting on Windows.
         let path = match (self.specified_via_relative_path, consumer_dir) {
             (true, Some(dir)) => normalize_path(&relative_path(dir, &self.absolute_path)),
             _ => normalize_path(&self.absolute_path),
@@ -250,12 +248,6 @@ fn without_protocol(path: String) -> String {
 /// much as a drive path. Nothing is lost by that — a drive path names
 /// the same place from every directory, and a drive-relative one is
 /// measured from process state no caller here can see.
-///
-/// Declining the shape on the way in does not settle it, because a
-/// protocol-less path re-anchored onto a Windows drive puts the
-/// ambiguity back. [`without_protocol`] resolves that only where it is
-/// free to: a tarball takes `file:`, and a directory keeps the
-/// ambiguity rather than trade it for a wrong materialization.
 fn bare_path_is_unambiguous(specifier: &str) -> bool {
     !is_drive_letter_prefix(specifier) && is_filespec(specifier)
 }
