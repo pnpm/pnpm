@@ -150,11 +150,11 @@ recognises, then the new capability, then the code.
 ## How one entry should read
 
 **Do not ship the raw composed list.** Yarn's release pages are the conventional-commit
-log with the PR appended - "fix(nm): prefer direct dependency binaries by @user in
-#1234". Every entry is accurate and the page tells a user nothing: it is indexed by
-the change's author, not by the reader's problem. pnpm's uncurated output has the same
-shape, one entry per pull request in filename order. That is the thing being fixed
-here.
+log with the author and PR appended: `fix(nm): prefer direct dependency binaries by
+@user in #1234`. Every entry is accurate and the page tells a user nothing: it is
+indexed by the change's author, not by the reader's problem. pnpm's uncurated output
+has the same shape, one entry per pull request in filename order. That is the thing
+being fixed here.
 
 **The first sentence is the title.** esbuild gives every entry a bold heading; uv
 makes each bullet short enough to be one. pnpm's format has no title slot, so the
@@ -165,9 +165,9 @@ issue where, under certain conditions, ..." does not.
 **Default to one sentence.** uv's bullets run 80 to 120 characters and hold exactly
 one idea; Gitea's run 60 to 90. SQLite states a whole behavior change in one clause
 and no adjectives: "Fix the count-of-view optimization so that it does not give an
-incorrect answer for a DISTINCT query." Add a second sentence when the reader needs the old behavior to recognise
-the bug, and a second paragraph only when they must act: a migration, an opt-out, an
-exception to what the first paragraph promised.
+incorrect answer for a DISTINCT query." Add a second sentence when the reader needs
+the old behavior to recognise the bug, and a second paragraph only when they must
+act: a migration, an opt-out, an exception to what the first paragraph promised.
 
 **Show the literal change when output changes.** esbuild pairs almost every entry
 with before and after. Where a change rewrites a manifest range, a lockfile field, or
