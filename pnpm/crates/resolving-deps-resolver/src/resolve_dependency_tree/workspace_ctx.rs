@@ -414,11 +414,15 @@ impl WorkspaceTreeCtx {
             .or_insert(err);
     }
 
-    /// Take the packages recorded by [`Self::record_broken_package`].
+    /// Drain the recorded broken packages, leaving none behind.
     pub(crate) fn take_broken_packages(
         &self,
     ) -> HashMap<Arc<str>, super::ResolveDependencyTreeError> {
         std::mem::take(&mut *lock_recoverable(&self.tree.broken_packages))
+    }
+
+    pub(crate) fn skipped_optional_log(&self) -> Option<SkippedOptionalLogFn> {
+        self.hooks.skipped_optional_log.clone()
     }
 
     pub(crate) fn with_hooks(mut self, hooks: crate::WorkspaceResolveHooks) -> Self {

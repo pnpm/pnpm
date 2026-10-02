@@ -7,8 +7,8 @@ use super::{
 /// failing the install. On an optional edge the edge alone is dropped. On a
 /// regular edge below an optional one, the parent package is recorded as
 /// broken: once the walk is done, the nearest optional dependency above it is
-/// dropped with it, or the install fails if a regular path reaches it (see
-/// [`fn@crate::resolve_workspace`]).
+/// dropped and reported with it, or the install fails if a regular path
+/// reaches it (see [`fn@crate::resolve_workspace`]).
 ///
 /// The wanted lockfile holding a satisfying entry still fails the install,
 /// since the silent skip would erase the locked entries (see
@@ -31,6 +31,10 @@ pub(super) fn drop_failed_edge(
     if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
         return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
     }
+    if let Some(parent) = broken_parent {
+        ctx.workspace.record_broken_package(parent, err);
+        return Ok(());
+    }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {
             details: err.to_string(),
@@ -43,9 +47,6 @@ pub(super) fn drop_failed_edge(
             parents: pkgs_info_from_ids(ctx, edge.ancestor_ids),
             prefix: opts.project.project_dir.display().to_string(),
         });
-    }
-    if let Some(parent) = broken_parent {
-        ctx.workspace.record_broken_package(parent, err);
     }
     Ok(())
 }

@@ -25,7 +25,6 @@ use time_based::{TimeBasedCutoff, time_cutoff};
 use crate::{
     resolve_dependency_tree::{
         UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
-        importer_optional_dependency_names,
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
@@ -300,8 +299,7 @@ struct InitializedImporters {
     states: Vec<ImporterHoistState>,
     /// Each importer's project and modules dir, for its peer input.
     input_dirs: Vec<(PathBuf, Option<PathBuf>)>,
-    /// Each importer's `optionalDependencies` names.
-    optional_direct: Vec<rustc_hash::FxHashSet<String>>,
+    optional_direct: Vec<broken_optional::OptionalDirect>,
 }
 
 /// Phase 1: every importer's initial wave resolves before any peer
@@ -331,7 +329,12 @@ where
     let mut input_dirs = Vec::with_capacity(sorted.importers.len());
     let optional_direct = sorted.importers
         .iter()
-        .map(|importer| importer_optional_dependency_names(importer.manifest))
+        .map(|importer| {
+            importer.manifest
+                .dependencies([DependencyGroup::Optional])
+                .map(|(alias, specifier)| (alias.to_string(), specifier.to_string()))
+                .collect()
+        })
         .collect();
     let mut states = Vec::with_capacity(sorted.importers.len());
     for (importer_order, (importer, mut importer_opts)) in sorted.importers
@@ -416,6 +419,7 @@ fn finish(
     time: BTreeMap<String, String>,
 ) -> Result<ResolveWorkspaceResult, ResolveImporterError> {
     let broken = workspace.take_broken_packages();
+    let skipped_optional_log = workspace.skipped_optional_log();
     let optional_direct = std::mem::take(&mut initialized.optional_direct);
     let mut peer_inputs = importer_peer_inputs(initialized);
     // Reclaim the workspace ctx now that every importer's state has
@@ -427,12 +431,17 @@ fn finish(
         Ok(ws) => ws.into_resolved_tree(Vec::new()),
         Err(arc) => arc.snapshot(Vec::new()),
     };
-    broken_optional::drop_broken_optional_dependencies(
+    let left_out = broken_optional::drop_broken_optional_dependencies(
         &mut merged_tree,
         &mut peer_inputs.per_importer,
         &optional_direct,
         broken,
+        &broken_optional::SkipReport {
+            log: skipped_optional_log.as_ref(),
+            lockfile_dir: &settings.peers.lockfile_dir,
+        },
     )?;
+    let time = broken_optional::forget_left_out(&mut merged_tree, &left_out, time);
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
     Ok(ResolveWorkspaceResult { merged_tree, peers, time })
 }
