@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url'
 
 const directories = ['docs', 'pnpr-docs', 'versioned_docs/version-11.x', 'static/docs-assets']
 const files = ['sidebars.json', 'sidebars-pnpr.json', 'versioned_sidebars/version-11.x-sidebars.json', 'docs-sync.json']
+// Release pages are added next to the hand-written ones, so this directory is never cleared.
+const releasePages = /^blog\/releases\/[^/]+\.md$/
 
 export function copyDocsArtifact (source, destination) {
   const entries = []
@@ -16,7 +18,7 @@ export function copyDocsArtifact (source, destination) {
       const parts = relative.split(path.sep)
       const normalized = parts.join('/')
       if (!stat.isFile() || parts.some(part => part.startsWith('.')) ||
-          !(files.includes(normalized) || directories.some(dir => normalized.startsWith(`${dir}/`)))) {
+          !(files.includes(normalized) || releasePages.test(normalized) || directories.some(dir => normalized.startsWith(`${dir}/`)))) {
         throw new Error(`Unexpected documentation artifact: ${relative}`)
       }
       entries.push(relative)

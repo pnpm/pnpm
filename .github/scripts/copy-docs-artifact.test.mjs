@@ -18,6 +18,7 @@ function fixture (t) {
   for (const file of ['docs/index.md', 'pnpr-docs/index.md', 'versioned_docs/version-11.x/index.md', 'sidebars.json', 'sidebars-pnpr.json', 'versioned_sidebars/version-11.x-sidebars.json', 'docs-sync.json']) write(source, file, 'generated')
   write(destination, 'docs/removed.md', 'old')
   write(destination, 'blog/post.md', 'blog')
+  write(destination, 'blog/releases/12.8.md', 'hand-written')
   write(destination, '.git/config', 'trusted config')
   return { source, destination, write }
 }
@@ -33,9 +34,17 @@ test('copies generated docs, removes stale files and preserves website and Git f
   assert.equal(readFileSync(path.join(f.destination, '.git/config'), 'utf8'), 'trusted config')
 })
 
+test('adds release pages without removing the existing ones', t => {
+  const f = fixture(t)
+  f.write(f.source, 'blog/releases/12.9.0.md', 'generated')
+  copyDocsArtifact(f.source, f.destination)
+  assert.equal(readFileSync(path.join(f.destination, 'blog/releases/12.9.0.md'), 'utf8'), 'generated')
+  assert.equal(readFileSync(path.join(f.destination, 'blog/releases/12.8.md'), 'utf8'), 'hand-written')
+})
+
 test('rejects executable Git metadata and files outside documentation before changing the checkout', t => {
   const f = fixture(t)
-  for (const file of ['.git/hooks/pre-commit', 'docs/.gitattributes', 'docs/.git/config', 'package.json', '.npmrc']) {
+  for (const file of ['.git/hooks/pre-commit', 'docs/.gitattributes', 'docs/.git/config', 'package.json', '.npmrc', 'blog/post.md', 'blog/releases/nested/page.md', 'blog/releases/page.js']) {
     f.write(f.source, file, 'malicious')
     assert.throws(() => copyDocsArtifact(f.source, f.destination), /Unexpected documentation artifact/)
     assert.equal(readFileSync(path.join(f.destination, 'docs/removed.md'), 'utf8'), 'old')
@@ -57,6 +66,7 @@ test('rejects symlinks and incomplete artifacts before deleting published docs',
 test('the workflow enables pushing only after creating a documentation commit', t => {
   const f = fixture(t)
   f.write(f.source, 'static/docs-assets/12.x/img/logo.svg', '<svg/>')
+  f.write(f.source, 'blog/releases/12.8.md', 'hand-written')
   const workflow = readFileSync(new URL('../workflows/sync-docs.yml', import.meta.url), 'utf8')
   const commitStep = workflow.split('      - name: Commit the generated documentation\n')[1].split('      - name: Push the verified documentation commit\n')[0]
   assert.match(commitStep, /        id: commit\n/)

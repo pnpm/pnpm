@@ -106,6 +106,7 @@ jobs:
             website/sidebars-pnpr.json
             website/versioned_sidebars/version-11.x-sidebars.json
             website/static/docs-assets
+            website/blog/releases
             website/docs-sync.json
 
   publish:
@@ -138,7 +139,7 @@ jobs:
           VERSION: ${{ needs.sync.outputs.version }}
           LINE: ${{ needs.sync.outputs.line }}
         run: |
-          git add docs pnpr-docs sidebars-pnpr.json versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets docs-sync.json
+          git add docs pnpr-docs sidebars-pnpr.json versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets blog/releases docs-sync.json
           if git diff --cached --quiet; then exit 0; fi
           git config user.name 'pnpm docs sync'
           git config user.email 'pnpm-docs-sync@users.noreply.github.com'
