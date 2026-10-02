@@ -92,6 +92,9 @@ export function getOptionsFromPnpmSettings (
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
   }
+  if (Object.hasOwn(settings, 'supportedArchitectures')) {
+    assertValidSupportedArchitectures(settings.supportedArchitectures)
+  }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
@@ -452,6 +455,20 @@ function assertValidAllowBuilds (allowBuilds: unknown): asserts allowBuilds is R
     if (typeof value !== 'boolean' && typeof value !== 'string') {
       throw new PnpmError('INVALID_ALLOW_BUILDS', `The value of allowBuilds.${pkg} should be a boolean or string, but got ${renderReceivedType(value)}`)
     }
+  }
+}
+
+function assertValidSupportedArchitectures (supportedArchitectures: unknown): asserts supportedArchitectures is SupportedArchitectures {
+  assertObjectSetting(supportedArchitectures, 'supportedArchitectures')
+  const archs = supportedArchitectures as Record<string, unknown>
+  if (Object.hasOwn(archs, 'os')) {
+    assertStringArray(archs.os, 'supportedArchitectures.os')
+  }
+  if (Object.hasOwn(archs, 'cpu')) {
+    assertStringArray(archs.cpu, 'supportedArchitectures.cpu')
+  }
+  if (Object.hasOwn(archs, 'libc')) {
+    assertStringArray(archs.libc, 'supportedArchitectures.libc')
   }
 }
 
