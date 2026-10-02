@@ -93,6 +93,29 @@ pub fn open_nofollow(path: &Path) -> io::Result<std::fs::File> {
     })
 }
 
+/// Open a descendant directory after rejecting symlinks below `template`.
+/// The template itself may be a symlink. The host's path walk and final open
+/// are separate operations because WebContainers do not expose `openat`.
+pub fn open_directory_nofollow_beneath(path: &Path, template: &Path) -> io::Result<std::fs::File> {
+    with_absolute_path(path, |path| {
+        with_absolute_path(template, |template| {
+            let mut descriptor = 0;
+            // SAFETY: both live path slices and the writable output remain
+            // valid for the synchronous imported call.
+            check(unsafe {
+                host::open_directory_nofollow_beneath(
+                    path.as_ptr(),
+                    path.len(),
+                    template.as_ptr(),
+                    template.len(),
+                    &raw mut descriptor,
+                )
+            })?;
+            owned_file(descriptor)
+        })
+    })
+}
+
 fn owned_file(descriptor: u32) -> io::Result<std::fs::File> {
     use std::os::fd::FromRawFd;
     let descriptor = descriptor.try_into().map_err(|_| io::ErrorKind::InvalidData)?;
@@ -187,6 +210,13 @@ mod host {
             output: *mut u32,
         ) -> i32;
         pub(super) fn open_nofollow(path: *const u8, length: usize, output: *mut u32) -> i32;
+        pub(super) fn open_directory_nofollow_beneath(
+            path: *const u8,
+            length: usize,
+            template: *const u8,
+            template_length: usize,
+            output: *mut u32,
+        ) -> i32;
         pub(super) fn open_lock(path: *const u8, length: usize, output: *mut u32) -> i32;
         pub(super) fn try_lock(descriptor: i32, exclusive: u32) -> i32;
         pub(super) fn sqlite_register(path: *const u8, length: usize, registered: u32) -> i32;

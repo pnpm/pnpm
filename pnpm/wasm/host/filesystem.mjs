@@ -181,6 +181,24 @@ function createFilesystemImports ({ memory, resolveDescriptor, open, rootDescrip
   }
   return {
     ...createOpenImports({ options, rootDescriptor, open }),
+    open_directory_nofollow_beneath (pointer, length, templatePointer, templateLength, output) {
+      try {
+        const directory = guestPath(pointer, length)
+        const template = guestPath(templatePointer, templateLength)
+        const suffix = path.relative(template, directory)
+        if (!suffix || suffix === '..' || suffix.startsWith(`..${path.sep}`) || path.isAbsolute(suffix)) return errno.EINVAL
+        let current = template
+        for (const component of suffix.split(path.sep)) {
+          current = path.join(current, component)
+          const metadata = fs.lstatSync(current)
+          if (metadata.isSymbolicLink()) return errno.ELOOP
+          if (!metadata.isDirectory()) return errno.ENOTDIR
+        }
+        return open([rootDescriptor, 0, pointer, length, 0, readRights, 0n, 4, output])
+      } catch (error) {
+        return errorNumber(error)
+      }
+    },
     try_lock (descriptor, exclusive) {
       try { return locks.tryLock(resolveDescriptor(descriptor), exclusive !== 0) } catch (error) { return errorNumber(error) }
     },

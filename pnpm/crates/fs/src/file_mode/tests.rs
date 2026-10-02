@@ -290,39 +290,6 @@ fn grant_inherited_dir_mode_reaches_a_directory_its_owner_cannot_read() {
     assert_eq!(mode, 0o2370, "mode {mode:o}");
 }
 
-/// The fallback for a C library without no-follow `fchmodat` reaches a
-/// directory its owner cannot read and refuses a symlink.
-#[cfg(target_os = "linux")]
-#[test]
-fn chmod_through_path_handle_reaches_unreadable_dir_and_refuses_symlink() {
-    use std::{fs, os::unix::fs::PermissionsExt};
-
-    let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().join("ab");
-    fs::create_dir(&dir).unwrap();
-    fs::set_permissions(&dir, fs::Permissions::from_mode(0o300)).unwrap();
-    super::directory::chmod_through_path_handle(&dir, 0o2070).unwrap();
-    let mode = fs::metadata(&dir)
-        .unwrap()
-        .permissions()
-        .mode()
-        & 0o7777;
-    assert_eq!(mode, 0o2370, "mode {mode:o}");
-
-    let outside = tmp.path().join("outside");
-    fs::create_dir(&outside).unwrap();
-    fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
-    let link = tmp.path().join("cd");
-    std::os::unix::fs::symlink(&outside, &link).unwrap();
-    super::directory::chmod_through_path_handle(&link, 0o2070).unwrap_err();
-    let mode = fs::metadata(&outside)
-        .unwrap()
-        .permissions()
-        .mode()
-        & 0o7777;
-    assert_eq!(mode, 0o700, "symlink target must keep its mode, got {mode:o}");
-}
-
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_rejects_unrelated_template_without_changes() {
@@ -382,6 +349,62 @@ fn grant_inherited_dir_mode_rejects_symlink_parent_escape() {
             & 0o7777,
         0o700,
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_refuses_intermediate_symlink() {
+    use std::{
+        fs,
+        os::unix::fs::{PermissionsExt, symlink},
+    };
+
+    let temporary = tempfile::tempdir().unwrap();
+    let template = temporary.path().join("store");
+    let outside = temporary.path().join("outside");
+    let victim = outside.join("victim");
+    fs::create_dir(&template).unwrap();
+    fs::create_dir(&outside).unwrap();
+    fs::create_dir(&victim).unwrap();
+    fs::set_permissions(&template, fs::Permissions::from_mode(0o2775)).unwrap();
+    fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o700)).unwrap();
+    symlink(&outside, template.join("link")).unwrap();
+
+    let error =
+        super::grant_inherited_dir_mode(&template.join("link/victim"), &template).unwrap_err();
+    assert!(
+        error.kind() == std::io::ErrorKind::NotADirectory
+            || error.raw_os_error() == Some(libc::ELOOP),
+    );
+    for directory in [&outside, &victim] {
+        assert_eq!(
+            fs::metadata(directory)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o7777,
+            0o700,
+            "{} mode changed through a symlink",
+            directory.display(),
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn create_dir_all_inheriting_mode_rejects_parent_traversal_before_creation() {
+    use std::fs;
+
+    let temporary = tempfile::tempdir().unwrap();
+    let store = temporary.path().join("store");
+    fs::create_dir(&store).unwrap();
+    let path = store.join("new/../created");
+
+    let error = super::create_dir_all_inheriting_mode(&path).unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    assert!(!store.join("new").exists());
+    assert!(!store.join("created").exists());
 }
 
 #[cfg(unix)]

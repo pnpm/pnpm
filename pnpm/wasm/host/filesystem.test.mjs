@@ -71,6 +71,25 @@ test('chmod stays bound to the opened file after its path is replaced', context 
   assert.equal(wasi.fd_close(descriptor), 0)
 })
 
+test('directory open rejects an intermediate symlink below its template', context => {
+  const { directory, memory, wasi, imports, guestPath } = fixture(context)
+  const template = path.join(directory, 'store')
+  const outside = path.join(directory, 'outside')
+  fs.mkdirSync(template)
+  fs.mkdirSync(path.join(outside, 'child'), { recursive: true })
+  fs.chmodSync(path.join(outside, 'child'), 0o700)
+  fs.symlinkSync(outside, path.join(template, 'link'))
+  const target = path.join(template, 'link', 'child')
+  const templateBytes = new TextEncoder().encode(template)
+  new Uint8Array(memory.buffer, 1024, templateBytes.length).set(templateBytes)
+  assert.equal(imports.open_directory_nofollow_beneath(...guestPath(target), 1024, templateBytes.length, 16), 32)
+  assert.equal(fs.statSync(path.join(outside, 'child')).mode & 0o777, 0o700)
+  fs.mkdirSync(path.join(template, 'real'))
+  assert.equal(imports.open_directory_nofollow_beneath(...guestPath(path.join(template, 'real')), 1024, templateBytes.length, 16), 0)
+  const descriptor = new DataView(memory.buffer).getUint32(16, true)
+  assert.equal(wasi.fd_close(descriptor), 0)
+})
+
 test('ordinary WASI opens join the same descriptor mapping and follow relative symlinks', context => {
   const { directory, memory, wasi, imports, guestPath } = fixture(context)
   const target = path.join(directory, 'target')

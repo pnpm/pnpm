@@ -63,7 +63,7 @@ fn widen_mode(mode: impl Into<u32>) -> u32 {
 }
 
 /// The narrowing counterpart of [`widen_mode`], generic for the same reason.
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "linux")))]
 fn narrow_mode<Mode: TryFrom<u32>>(mode: u32) -> io::Result<Mode> {
     Mode::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
@@ -149,17 +149,6 @@ fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
     std::fs::OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW)
-        .open(path)
-}
-
-/// [`open_without_following`] restricted to a directory. See
-/// `directory::add_dir_mode_bits`.
-#[cfg(unix)]
-fn open_directory_without_following(path: &Path) -> io::Result<std::fs::File> {
-    use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
         .open(path)
 }
 
