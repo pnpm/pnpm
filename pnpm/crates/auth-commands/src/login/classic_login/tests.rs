@@ -26,7 +26,7 @@ async fn classic_login_does_not_forward_credentials_on_body_preserving_redirects
             .await
             .expect_err("login redirect must fail");
         assert!(
-            matches!(error, AddUserError::Http { status: actual, .. } if usize::from(actual) == status)
+            matches!(error, AddUserError::Http { status: actual, .. } if usize::from(actual) == status),
         );
         redirect.assert_async().await;
         redirect.remove_async().await;

@@ -101,19 +101,21 @@ impl DirectoryBinPlan {
             if let Some((command, package)) = self.winner(name) {
                 chosen.push((command.clone(), package));
             } else {
-                let provided = provided.get_or_insert_with(|| {
-                    self.candidates
-                        .iter()
-                        .filter(|(_, candidates)| !candidates.is_empty())
-                        .map(|(name, _)| removal::normalize(name, cfg!(windows)))
-                        .collect()
-                });
+                let provided = provided.get_or_insert_with(|| self.provided_names());
                 removal::remove_unclaimed(name, bins_dir, provided)?;
             }
         }
         link_chosen_bins::<Sys>(chosen, bins_dir, options, &ShimTargetCache::default())?;
         self.pending.clear();
         Ok(())
+    }
+
+    fn provided_names(&self) -> HashSet<String> {
+        self.candidates
+            .iter()
+            .filter(|(_, candidates)| !candidates.is_empty())
+            .map(|(name, _)| removal::normalize(name, cfg!(windows)))
+            .collect()
     }
 
     fn update_package<Sys: FsReadFile + FsWalkFiles>(
