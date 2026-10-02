@@ -426,10 +426,10 @@ pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> 
 /// verdaccio key would silently change who may reach what on upgrade.
 /// Fail loudly instead, naming the replacement.
 pub(super) fn reject_removed_blocks(
-    has_packages: bool,
-    has_groups: bool,
+    packages: Option<&RemovedPackagesBlock>,
+    groups: Option<&RemovedGroupsBlock>,
 ) -> Result<(), RegistryError> {
-    if has_packages {
+    if packages.is_some() {
         return Err(RegistryError::InvalidConfig {
             reason: "the top-level `packages:` block was removed: declare per-package rules \
                      on the registry that serves them, as `registries.<name>.packages` \
@@ -437,7 +437,7 @@ pub(super) fn reject_removed_blocks(
                 .to_string(),
         });
     }
-    if has_groups {
+    if groups.is_some() {
         return Err(RegistryError::InvalidConfig {
             reason: "the top-level `groups:` block was removed: declare teams on the \
                      registry that uses them, as `registries.<name>.teams` (team-name keys, \
