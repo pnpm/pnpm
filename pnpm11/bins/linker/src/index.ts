@@ -102,7 +102,7 @@ async function readBinCandidates (modulesDir: string, binsDir: string, opts: { w
 async function getCommandsByAliases (
   depsAliases: string[],
   binsDir: string,
-  opts: Parameters<typeof linkBinsOfPkgsByAliases>[2],
+  opts: Parameters<typeof linkBinsOfPkgsByAliases>[2]
 ): Promise<CommandInfo[]> {
   const pkgBinOpts = {
     allowExoticManifests: false,
