@@ -72,7 +72,8 @@ impl ShimSpec<'_> {
 /// is Windows*. Idempotent on warm reinstalls via
 /// [`is_shim_pointing_at`].
 ///
-/// `make_powershell_shim` (see [`wants_powershell_shim`](super::wants_powershell_shim)) drops the
+/// `make_powershell_shim` (see
+/// [`wants_powershell_shim`](super::windows_shim_policy::wants_powershell_shim)) drops the
 /// `.ps1` sibling, and deletes any that an earlier install left
 /// behind.
 pub(super) fn write_shim<Sys>(
