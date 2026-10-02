@@ -37,7 +37,7 @@ adopting website tooling changes. Release publication uses the website's current
 
 ## Publication
 
-After the Release workflow succeeds, Sync documentation verifies the
+When a maintainer publishes a draft GitHub release, Sync documentation verifies the
 signed tag and npm publication, then imports only that version's documentation
 from the tagged commit. Stable v11 and v12 releases update their
 respective CLI documentation. Pnpr releases, including alpha releases, update

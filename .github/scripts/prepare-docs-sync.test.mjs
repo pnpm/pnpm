@@ -26,8 +26,9 @@ function fixture (t, tag = 'v12.8.2') {
   const sha = git('rev-parse', 'HEAD')
   let verified = false
   const options = {
-    eventName: 'workflow_run',
-    event: { workflow_run: { head_branch: tag, head_sha: sha } },
+    eventName: 'release',
+    releaseTag: tag,
+    githubSha: sha,
     git: (...args) => {
       if (args[0] === 'verify-tag') { verified = true; return '' }
       return git(...args)
@@ -48,15 +49,14 @@ test('selects only the signed and published release snapshot', t => {
   })
   assert.throws(() => prepareDocsSync({ ...f.options, publicationState: () => 'missing' }), /not been published/)
   assert.throws(() => prepareDocsSync({ ...f.options, git: (...args) => args[0] === 'verify-tag' ? f.git(...args) : f.options.git(...args) }))
-  const event = { workflow_run: { ...f.options.event.workflow_run, head_sha: 'a'.repeat(40) } }
-  assert.throws(() => prepareDocsSync({ ...f.options, event }), /does not match/)
+  assert.throws(() => prepareDocsSync({ ...f.options, githubSha: 'a'.repeat(40) }), /does not match/)
 })
 
 test('ignores verification runs and releases outside stable v11 and v12', () => {
-  assert.equal(prepareDocsSync({ eventName: 'workflow_run', event: { workflow_run: { head_branch: 'main' } } }), undefined)
+  assert.equal(prepareDocsSync({ eventName: 'release', releaseTag: 'pnpm-wasm-v1.0.0' }), undefined)
   assert.equal(prepareDocsSync({ eventName: 'workflow_dispatch', releaseTag: 'v12.9.0-beta.1' }), undefined)
   for (const tag of ['v10.30.0', 'v13.0.0']) {
-    assert.equal(prepareDocsSync({ eventName: 'workflow_run', event: { workflow_run: { head_branch: tag } } }), undefined)
+    assert.equal(prepareDocsSync({ eventName: 'release', releaseTag: tag }), undefined)
     assert.throws(() => prepareDocsSync({ eventName: 'workflow_dispatch', releaseTag: tag }), /v11 and v12/)
   }
 })
