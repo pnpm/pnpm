@@ -1117,7 +1117,9 @@ test('prints a warning about an optional dependency that could not be fetched', 
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      config: { dir: prefix } as ReporterPnpmConfig,
+      // The install runs from a workspace project, while the skip is
+      // reported with the lockfile directory as its prefix.
+      config: { dir: path.join(prefix, 'packages/foo') } as ReporterPnpmConfig,
     },
     streamParser: createStreamParser(),
   })

@@ -385,7 +385,7 @@ importers:
 packages:
 
   is-negative@2.1.0:
-    resolution: {integrity: sha512-+iCKT4ZcvjRnjkHnQjZ8/qfciLLGD8BFKS0GNR5VjDU6jEiwh899R0GSMkaYcuTNd7fEKXb3Qib0webe6HczNw==}
+    resolution: {integrity: ${getIntegrity('is-negative', '2.1.0')}}
 
   is-positive@1.0.0:
     resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}

@@ -206,10 +206,10 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
 
 /**
  * A remote tarball URL with its credentials, query, and fragment removed. A
- * local tarball is identified by its file path, which is shown as is.
+ * local tarball is identified by its absolute file path, which is shown as is.
  */
 function displayTarballLocation (location: string): string {
-  return location.includes('://') ? redactUrlForDisplay(location) : location
+  return path.isAbsolute(location) || path.win32.isAbsolute(location) ? location : redactUrlForDisplay(location)
 }
 
 export class TarballIntegrityError extends PnpmError {

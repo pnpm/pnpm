@@ -92,8 +92,9 @@ fn skipped_optional_dependency_renders_nothing() {
 }
 
 /// An optional package that could not be fetched is missing from
-/// `node_modules`, so the skip renders as a warning with its cause
-/// (<https://github.com/pnpm/pnpm/issues/16514>).
+/// `node_modules`, so the skip renders as a warning with its cause, even
+/// when the install runs from a workspace project other than the lockfile
+/// directory (<https://github.com/pnpm/pnpm/issues/16514>).
 #[test]
 fn skipped_optional_fetch_failure_renders_a_warning() {
     let mut reporter = state(false);
@@ -108,7 +109,7 @@ fn skipped_optional_fetch_failure_renders_a_warning() {
                 version: "7.0.0".to_string(),
             },
             parents: None,
-            prefix: CWD.to_string(),
+            prefix: format!("{CWD}/../workspace-root"),
             reason: SkippedOptionalReason::FetchFailure,
         })],
     );

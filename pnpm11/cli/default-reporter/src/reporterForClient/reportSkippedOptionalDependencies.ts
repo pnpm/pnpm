@@ -6,8 +6,9 @@ import { formatWarn } from './utils/formatWarn.js'
 
 /**
  * A package that could not be fetched is reported as a warning wherever it
- * sits in the graph. Any other skip is reported only for a direct optional
- * dependency of the current project.
+ * sits in the graph and whichever project the install runs from, since it is
+ * missing for the whole install. Any other skip is reported only for a direct
+ * optional dependency of the current project.
  */
 export function reportSkippedOptionalDependencies (
   skippedOptionalDependency$: Rx.Observable<SkippedOptionalDependencyLog>,
@@ -16,7 +17,7 @@ export function reportSkippedOptionalDependencies (
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return skippedOptionalDependency$.pipe(
-    filter((log) => log['prefix'] === opts.cwd && (log.reason === 'fetch_failure' || log.parents?.length === 0)),
+    filter((log) => log.reason === 'fetch_failure' || (log['prefix'] === opts.cwd && log.parents?.length === 0)),
     map((log) => Rx.of({ msg: formatSkippedOptionalDependency(log) }))
   )
 }

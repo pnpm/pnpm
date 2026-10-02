@@ -26,3 +26,15 @@ test('the integrity error message shows a local tarball path as is', () => {
 
   expect(error.message).toContain(`"${tarball}"`)
 })
+
+test('the integrity error message hides the query of a tarball URL with one slash after the scheme', () => {
+  const error = new TarballIntegrityError({
+    algorithm: 'sha512',
+    expected: 'sha512-expected',
+    found: 'sha512-found',
+    sri: 'sha512-expected',
+    url: 'https:/registry.example/foo/-/foo-1.0.0.tgz?token=signed',
+  })
+
+  expect(error.message).not.toContain('signed')
+})

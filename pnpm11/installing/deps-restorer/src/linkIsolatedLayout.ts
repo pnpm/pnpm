@@ -7,10 +7,10 @@ import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { logger } from '@pnpm/logger'
 import type { DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
-import { rimraf } from '@zkochan/rimraf'
 import { equals } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
+import { limitModulesDirReads } from './limits.js'
 import { linkAllBins } from './linkAllBins.js'
 import { linkAllModules } from './linkAllModules.js'
 import { linkAllPkgs } from './linkAllPkgs.js'
@@ -120,7 +120,7 @@ async function unlinkFetchFailedChildren (depNodes: HeadlessDepGraph['depNodes']
   await Promise.all(depNodes.flatMap((depNode) =>
     Object.entries(depNode.children)
       .filter(([alias, childDir]) => alias !== depNode.name && fetchFailedDirs.has(childDir))
-      .map(async ([alias]) => unlinkIfSymlink(safeJoinModulesDir(depNode.modules, alias)))
+      .map(async ([alias]) => limitModulesDirReads(async () => unlinkIfSymlink(safeJoinModulesDir(depNode.modules, alias))))
   ))
 }
 
@@ -129,8 +129,13 @@ async function unlinkIfSymlink (link: string): Promise<void> {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   })
-  if (stats?.isSymbolicLink()) {
-    await rimraf(link)
+  if (!stats?.isSymbolicLink()) return
+  // A non-recursive unlink: an entry that stopped being a link since the
+  // check is a directory, which unlink refuses to remove.
+  try {
+    await fs.unlink(link)
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
 }
 

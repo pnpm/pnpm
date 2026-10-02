@@ -216,18 +216,17 @@ impl ReporterState {
 
     /// Mirrors pnpm's `reportSkippedOptionalDependencies`: a package that
     /// could not be fetched renders as a warning wherever it sits in the
-    /// graph. Any other skip renders only when its `parents` chain is
-    /// present and empty (a direct optional dependency of the current
-    /// project); transitive and parent-less skips stay debug-only.
+    /// graph and whichever project the install runs from, since it is
+    /// missing for the whole install. Any other skip renders only when it
+    /// belongs to the current project and its `parents` chain is present
+    /// and empty (a direct optional dependency); transitive and
+    /// parent-less skips stay debug-only.
     pub(super) fn on_skipped_optional(&mut self, log: &SkippedOptionalDependencyLog) {
-        if log.prefix != self.rendering.cwd {
-            return;
-        }
         if log.reason == SkippedOptionalReason::FetchFailure {
             self.on_skipped_optional_fetch_failure(log);
             return;
         }
-        if !log.parents.as_ref().is_some_and(Vec::is_empty) {
+        if log.prefix != self.rendering.cwd || !log.parents.as_ref().is_some_and(Vec::is_empty) {
             return;
         }
         let message = match &log.package {
