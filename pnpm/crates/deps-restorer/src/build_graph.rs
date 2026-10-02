@@ -15,12 +15,7 @@ use std::collections::{HashMap, HashSet};
 /// `binding.gyp` / `.hooks/`).
 ///
 /// `patches` is the per-snapshot lookup map produced by
-/// `InstallFrozenLockfile::run` from
-/// [`pnpm_patching::resolve_and_group`] + per-snapshot
-/// [`pnpm_patching::get_patch_info`]: keys are peer-stripped
-/// [`PackageKey`]s, values are the matched
-/// [`pnpm_patching::ExtendedPatchInfo`]. `None` when no
-/// `patchedDependencies` is configured. Presence of a key here makes
+/// `InstallFrozenLockfile::run`. Presence of a key here makes
 /// the snapshot a build candidate even when `requires_build` is false.
 ///
 /// `dependency_groups` are the groups this install includes — the
