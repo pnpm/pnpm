@@ -17,6 +17,7 @@
 
 pub use dependencies::{ResolvedWorkspaceDependencies, resolve_workspace_dependencies};
 
+mod broken_optional;
 mod dependencies;
 mod time_based;
 use time_based::{TimeBasedCutoff, time_cutoff};
@@ -24,6 +25,7 @@ use time_based::{TimeBasedCutoff, time_cutoff};
 use crate::{
     resolve_dependency_tree::{
         UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+        importer_optional_dependency_names,
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
@@ -298,6 +300,8 @@ struct InitializedImporters {
     states: Vec<ImporterHoistState>,
     /// Each importer's project and modules dir, for its peer input.
     input_dirs: Vec<(PathBuf, Option<PathBuf>)>,
+    /// Each importer's `optionalDependencies` names.
+    optional_direct: Vec<rustc_hash::FxHashSet<String>>,
 }
 
 /// Phase 1: every importer's initial wave resolves before any peer
@@ -325,6 +329,10 @@ where
     Chain: Resolver + ?Sized,
 {
     let mut input_dirs = Vec::with_capacity(sorted.importers.len());
+    let optional_direct = sorted.importers
+        .iter()
+        .map(|importer| importer_optional_dependency_names(importer.manifest))
+        .collect();
     let mut states = Vec::with_capacity(sorted.importers.len());
     for (importer_order, (importer, mut importer_opts)) in sorted.importers
         .iter()
@@ -356,7 +364,7 @@ where
         .into_iter()
         .map(|importer| importer.id.clone())
         .collect();
-    Ok(InitializedImporters { importer_ids, states, input_dirs })
+    Ok(InitializedImporters { importer_ids, states, input_dirs, optional_direct })
 }
 
 /// Computed after the init barrier and shared unchanged: recomputing it
@@ -404,10 +412,12 @@ where
 fn finish(
     settings: &PassSettings,
     workspace: Arc<WorkspaceTreeCtx>,
-    initialized: InitializedImporters,
+    mut initialized: InitializedImporters,
     time: BTreeMap<String, String>,
-) -> ResolveWorkspaceResult {
-    let peer_inputs = importer_peer_inputs(initialized);
+) -> Result<ResolveWorkspaceResult, ResolveImporterError> {
+    let broken = workspace.take_broken_packages();
+    let optional_direct = std::mem::take(&mut initialized.optional_direct);
+    let mut peer_inputs = importer_peer_inputs(initialized);
     // Reclaim the workspace ctx now that every importer's state has
     // dropped its `Arc<WorkspaceTreeCtx>`. The `try_unwrap` succeeds
     // when this is the sole remaining `Arc` reference (the common
@@ -417,8 +427,14 @@ fn finish(
         Ok(ws) => ws.into_resolved_tree(Vec::new()),
         Err(arc) => arc.snapshot(Vec::new()),
     };
+    broken_optional::drop_broken_optional_dependencies(
+        &mut merged_tree,
+        &mut peer_inputs.per_importer,
+        &optional_direct,
+        broken,
+    )?;
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
-    ResolveWorkspaceResult { merged_tree, peers, time }
+    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
 }
 
 struct PeerInputs {

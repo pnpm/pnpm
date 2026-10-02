@@ -23,7 +23,7 @@ use super::{
 /// groups when an alias appears in more than one, so the
 /// `ResolvedPackage.optional` propagation starts from the right
 /// per-direct-dep value.
-pub(super) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
+pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
     manifest
         .dependencies([DependencyGroup::Optional])
         .map(|(name, _)| name.to_string())

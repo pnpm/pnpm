@@ -1,7 +1,7 @@
 use super::{
-    DependencyGroup, FailureShape, HashMap, Mutex, RecordingResolver, WorkspaceImporter, assert_eq,
-    fake_manifest, fake_result, importer_opts, optional_failure_fixture, resolve_workspace,
-    workspace_opts,
+    DependencyGroup, FailingAliasResolver, FailureShape, HashMap, Mutex, PackageManifest,
+    RecordingResolver, WorkspaceImporter, assert_eq, fake_manifest, fake_result, importer_opts,
+    optional_failure_fixture, resolve_workspace, workspace_opts,
 };
 use std::str::FromStr;
 
@@ -300,5 +300,132 @@ async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
         let skipped = skipped.lock().unwrap();
         assert_eq!(skipped.len(), 1);
         assert_eq!(skipped[0].name.as_deref(), Some("broken"));
+    }
+}
+
+/// Resolve one importer against `packages` (name and manifest fields, each
+/// at version `1.0.0`), with a `missing` package the registry does not serve.
+async fn resolve_with_missing_package(
+    importer: serde_json::Value,
+    packages: &[(&str, serde_json::Value)],
+) -> Result<crate::ResolveWorkspaceResult, crate::ResolveImporterError> {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let path = tmp.path().join("package.json");
+    std::fs::write(&path, serde_json::to_string(&importer).unwrap()).expect("write package.json");
+    let manifest = PackageManifest::from_path(path).expect("parse package.json");
+    let resolver = FailingAliasResolver {
+        table: packages
+            .iter()
+            .map(|(name, fields)| {
+                let mut manifest = serde_json::json!({ "name": name, "version": "1.0.0" });
+                manifest
+                    .as_object_mut()
+                    .unwrap()
+                    .extend(fields.as_object().unwrap().clone());
+                (
+                    (name.to_string(), "1.0.0".to_string()),
+                    fake_result(name, "1.0.0", None, manifest),
+                )
+            })
+            .collect(),
+        failing: std::collections::HashSet::from_iter(["missing".to_string()]),
+        failure: FailureShape::RegistryResponse,
+    };
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod, DependencyGroup::Optional],
+        workspace_opts(false, false),
+        |_| importer_opts(tmp.path().to_path_buf(), None),
+    )
+    .await
+}
+
+fn graph_keys(result: &crate::ResolveWorkspaceResult) -> Vec<String> {
+    let mut keys: Vec<String> = result.peers.graph
+        .keys()
+        .map(ToString::to_string)
+        .collect();
+    keys.sort();
+    keys
+}
+
+/// A regular dependency that fails to resolve anywhere below an optional
+/// dependency drops that optional dependency with its whole subtree, as npm
+/// does, on every platform.
+#[tokio::test]
+async fn drops_the_optional_dependency_above_an_unresolvable_regular_dependency() {
+    let result = resolve_with_missing_package(
+        serde_json::json!({
+            "dependencies": { "kept": "1.0.0" },
+            "optionalDependencies": { "opt": "1.0.0" },
+        }),
+        &[
+            ("kept", serde_json::json!({})),
+            ("opt", serde_json::json!({ "dependencies": { "mid": "1.0.0", "leaf": "1.0.0" } })),
+            ("mid", serde_json::json!({ "dependencies": { "missing": "1.0.0" } })),
+            ("leaf", serde_json::json!({})),
+        ],
+    )
+    .await
+    .expect("the unresolvable dependency drops its optional ancestor");
+
+    assert_eq!(graph_keys(&result), ["kept@1.0.0"]);
+    let direct = &result.peers.direct_dependencies_by_importer["."];
+    assert_eq!(direct.keys().collect::<Vec<_>>(), ["kept"]);
+}
+
+/// Dropping an optional dependency of a package keeps the package.
+#[tokio::test]
+async fn drops_a_nested_optional_dependency_and_keeps_its_parent() {
+    let result = resolve_with_missing_package(
+        serde_json::json!({ "dependencies": { "parent": "1.0.0" } }),
+        &[
+            ("parent", serde_json::json!({ "optionalDependencies": { "opt": "1.0.0" } })),
+            ("opt", serde_json::json!({ "dependencies": { "missing": "1.0.0" } })),
+        ],
+    )
+    .await
+    .expect("the nested optional dependency is dropped");
+
+    assert_eq!(graph_keys(&result), ["parent@1.0.0"]);
+    let parent = &result.peers.graph[&crate::DepPath::from("parent@1.0.0")];
+    assert!(parent.edges.children.is_empty(), "{:?}", parent.edges.children);
+}
+
+/// Without an optional dependency above it, the failure still fails the
+/// install.
+#[tokio::test]
+async fn fails_on_an_unresolvable_dependency_of_a_regular_dependency() {
+    let result = resolve_with_missing_package(
+        serde_json::json!({ "dependencies": { "regular": "1.0.0" } }),
+        &[("regular", serde_json::json!({ "dependencies": { "missing": "1.0.0" } }))],
+    )
+    .await;
+
+    assert!(result.is_err(), "the failure is not inside an optional subtree");
+}
+
+/// A package reached both below an optional dependency and through regular
+/// dependencies only cannot be dropped, whichever occurrence walked its
+/// children.
+#[tokio::test]
+async fn fails_when_a_regular_path_reaches_the_broken_package() {
+    for (optional, regular) in [("a-opt", "b-regular"), ("b-opt", "a-regular")] {
+        let result = resolve_with_missing_package(
+            serde_json::json!({
+                "dependencies": { regular: "1.0.0" },
+                "optionalDependencies": { optional: "1.0.0" },
+            }),
+            &[
+                (optional, serde_json::json!({ "dependencies": { "shared": "1.0.0" } })),
+                (regular, serde_json::json!({ "dependencies": { "shared": "1.0.0" } })),
+                ("shared", serde_json::json!({ "dependencies": { "missing": "1.0.0" } })),
+            ],
+        )
+        .await;
+
+        assert!(result.is_err(), "`{regular}` needs `shared`, which cannot be installed");
     }
 }

@@ -8,7 +8,7 @@ pub use workspace_ctx::WorkspaceTreeCtx;
 
 pub(crate) use catalogs::resolve_catalog_specifiers;
 
-pub(crate) use importer::importer_direct_wanted_specs;
+pub(crate) use importer::{importer_direct_wanted_specs, importer_optional_dependency_names};
 
 pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
 
@@ -52,7 +52,7 @@ mod workspace_ctx;
 #[cfg(test)]
 mod test_support;
 
-use importer::{importer_injected_dependency_names, importer_optional_dependency_names};
+use importer::importer_injected_dependency_names;
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
     ChildEdge, NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,

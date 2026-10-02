@@ -118,6 +118,9 @@ pub(crate) struct WorkspaceTreeStorage {
     nodes_by_pkg_id: Mutex<HashMap<Arc<str>, Vec<NodeId>>>,
     /// See [`SyncLog`].
     sync_log: Mutex<SyncLog>,
+    /// Packages whose regular dependency failed to resolve inside an
+    /// optional subtree, each with its first such failure.
+    broken_packages: Mutex<HashMap<Arc<str>, super::ResolveDependencyTreeError>>,
 }
 
 #[derive(Default)]
@@ -401,6 +404,23 @@ pub(crate) struct SyncCursor {
 }
 
 impl WorkspaceTreeCtx {
+    pub(super) fn record_broken_package(
+        &self,
+        pkg_id: &Arc<str>,
+        err: super::ResolveDependencyTreeError,
+    ) {
+        lock_recoverable(&self.tree.broken_packages)
+            .entry(Arc::clone(pkg_id))
+            .or_insert(err);
+    }
+
+    /// Take the packages recorded by [`Self::record_broken_package`].
+    pub(crate) fn take_broken_packages(
+        &self,
+    ) -> HashMap<Arc<str>, super::ResolveDependencyTreeError> {
+        std::mem::take(&mut *lock_recoverable(&self.tree.broken_packages))
+    }
+
     pub(crate) fn with_hooks(mut self, hooks: crate::WorkspaceResolveHooks) -> Self {
         self.hooks = hooks;
         self

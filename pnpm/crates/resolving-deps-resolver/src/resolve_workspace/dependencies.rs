@@ -37,7 +37,7 @@ impl ResolvedWorkspaceDependencies {
     {
         share_root_deps(&mut self.initialized.states)?;
         run_hoist_rounds(resolver, &mut self.initialized.states, &self.workspace).await?;
-        Ok(finish(&self.settings, self.workspace, self.initialized, self.time))
+        finish(&self.settings, self.workspace, self.initialized, self.time)
     }
 }
 
