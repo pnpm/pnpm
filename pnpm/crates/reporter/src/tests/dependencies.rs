@@ -63,12 +63,13 @@ fn skipped_optional_omits_absent_details() {
     assert!(json.get("details").is_none(), "details must be omitted when absent, got {json:?}");
 }
 
-/// All four reason variants serialize as the `snake_case` strings
+/// Every reason variant serializes as the `snake_case` strings
 /// pnpm's reporter dispatches on.
 #[test]
 fn skipped_optional_reason_serializes_in_pnpm_form() {
     let cases = [
         (SkippedOptionalReason::BuildFailure, "build_failure"),
+        (SkippedOptionalReason::FetchFailure, "fetch_failure"),
         (SkippedOptionalReason::UnsupportedEngine, "unsupported_engine"),
         (SkippedOptionalReason::UnsupportedPlatform, "unsupported_platform"),
         (SkippedOptionalReason::ResolutionFailure, "resolution_failure"),

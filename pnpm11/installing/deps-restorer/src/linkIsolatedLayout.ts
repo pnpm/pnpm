@@ -53,7 +53,7 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
   if (opts.enableModulesDir !== false) {
     await Promise.all(depGraph.depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   }
-  await Promise.all([
+  const [, fetchFailedDirs] = await Promise.all([
     opts.symlink === false || opts.enableModulesDir === false
       ? Promise.resolve()
       : linkAllModules(depGraph.depNodes, {
@@ -81,6 +81,25 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])
+  dropFetchFailedPackages(depGraph, fetchFailedDirs)
+}
+
+/**
+ * Removes the optional packages that could not be fetched from the graph, so
+ * they are not hoisted, built, or linked into the projects that depend on them.
+ */
+function dropFetchFailedPackages (depGraph: HeadlessDepGraph, fetchFailedDirs: Set<string>): void {
+  if (fetchFailedDirs.size === 0) return
+  for (const dir of fetchFailedDirs) {
+    delete depGraph.graph[dir]
+  }
+  for (const directDependencies of Object.values(depGraph.directDependenciesByImporterId)) {
+    for (const [alias, dir] of Object.entries(directDependencies)) {
+      if (fetchFailedDirs.has(dir)) {
+        delete directDependencies[alias]
+      }
+    }
+  }
 }
 
 function shouldHoistDependencies ({ opts, skipPostImportLinking }: HeadlessContext): boolean {

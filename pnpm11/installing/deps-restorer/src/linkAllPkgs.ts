@@ -22,6 +22,7 @@ import { pathExists } from 'path-exists'
 import { isEmpty } from 'ramda'
 
 import { limitLinking } from './limits.js'
+import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
 
 export interface LinkAllPkgsOptions {
   allowBuild?: AllowBuild
@@ -56,11 +57,15 @@ interface PackageImportContext {
 type SideEffectsCacheKey = Awaited<ReturnType<NonNullable<PackageImportContext['restorer']>['restore']>>
 type ImportPackageResult = Awaited<ReturnType<StoreController['importPackage']>>
 
+/**
+ * Imports every fetched package into its slot. Resolves to the directories
+ * of the optional packages that could not be fetched and were left out.
+ */
 export async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: LinkAllPkgsOptions
-): Promise<void> {
+): Promise<Set<string>> {
   // Create a marker source file that will be added to filesMap for GVS packages
   // that need building. The importer treats it as just another file, so it's
   // atomically included in the staged directory and renamed with the package.
@@ -84,13 +89,20 @@ export async function linkAllPkgs (
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
   const importContext: PackageImportContext = { needsBuildMarkerSrc, opts, restorer, storeController }
-  await Promise.all(depNodes.map(async (depNode) => importDepNode(depNode, importContext)))
+  const fetchFailedDirs = new Set<string>()
+  await Promise.all(depNodes.map(async (depNode) => {
+    if (!await importDepNode(depNode, importContext)) {
+      fetchFailedDirs.add(depNode.dir)
+    }
+  }))
+  return fetchFailedDirs
 }
 
-async function importDepNode (depNode: DependenciesGraphNode, importContext: PackageImportContext): Promise<void> {
-  if (!depNode.fetching) return
-  const filesResponse = await fetchFilesResponse(depNode.fetching, depNode.optional)
-  if (filesResponse == null) return
+/** Resolves to `false` when the package is optional and could not be fetched. */
+async function importDepNode (depNode: DependenciesGraphNode, importContext: PackageImportContext): Promise<boolean> {
+  if (!depNode.fetching) return true
+  const filesResponse = await fetchFilesResponse(depNode, importContext.opts.lockfileDir)
+  if (filesResponse == null) return false
   depNode.requiresBuild = filesResponse.requiresBuild
   const sideEffectsCacheKey = await findSideEffectsCacheKey(depNode, filesResponse, importContext)
   const imported = await importIntoSlot(depNode, {
@@ -106,18 +118,20 @@ async function importDepNode (depNode: DependenciesGraphNode, importContext: Pac
   }
   if (imported != null) depNode.isBuilt = imported.isBuilt
   await linkSelfDependency(depNode, importContext.opts.depGraph)
+  return true
 }
 
 /** Resolves to `undefined` when the fetch of an optional package failed. */
 async function fetchFilesResponse (
-  fetching: NonNullable<DependenciesGraphNode['fetching']>,
-  optional: boolean
+  depNode: DependenciesGraphNode,
+  lockfileDir: string
 ): Promise<PackageFilesResponse | undefined> {
   try {
-    return (await fetching()).files
+    return (await depNode.fetching!()).files
   } catch (err: unknown) {
-    if (optional) return undefined
-    throw err
+    if (!depNode.optional) throw err
+    reportOptionalFetchFailure(err, depNode, lockfileDir)
+    return undefined
   }
 }
 

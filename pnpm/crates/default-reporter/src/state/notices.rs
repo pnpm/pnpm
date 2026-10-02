@@ -2,9 +2,9 @@ use super::{
     Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog, IgnoredScriptsLog,
     InstallingConfigDepsLog, InstallingConfigDepsStatus, LockfileVerificationMessage, LogLevel,
     MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState, ReporterState, RequestRetryLog,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, UpdateCheckLog, Utc, cached_verdict,
-    detect_install_source, entries_label, is_strictly_newer, normalize, pretty_ms, relative,
-    update_command, zoom_out,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog,
+    Utc, cached_verdict, detect_install_source, entries_label, is_strictly_newer, normalize,
+    pretty_ms, relative, update_command, zoom_out,
 };
 
 /// `name@version` as a deprecation warning prints it.
@@ -214,12 +214,20 @@ impl ReporterState {
         self.display.exec_slot = slot;
     }
 
-    /// Mirrors pnpm's `reportSkippedOptionalDependencies`: only a skip
-    /// whose `parents` chain is present and empty (a direct optional
-    /// dependency of the current project) renders; transitive and
-    /// parent-less skips stay debug-only.
+    /// Mirrors pnpm's `reportSkippedOptionalDependencies`: a package that
+    /// could not be fetched renders as a warning wherever it sits in the
+    /// graph. Any other skip renders only when its `parents` chain is
+    /// present and empty (a direct optional dependency of the current
+    /// project); transitive and parent-less skips stay debug-only.
     pub(super) fn on_skipped_optional(&mut self, log: &SkippedOptionalDependencyLog) {
-        if log.prefix != self.rendering.cwd || !log.parents.as_ref().is_some_and(Vec::is_empty) {
+        if log.prefix != self.rendering.cwd {
+            return;
+        }
+        if log.reason == SkippedOptionalReason::FetchFailure {
+            self.on_skipped_optional_fetch_failure(log);
+            return;
+        }
+        if !log.parents.as_ref().is_some_and(Vec::is_empty) {
             return;
         }
         let message = match &log.package {
@@ -237,6 +245,31 @@ impl ReporterState {
             }
         };
         self.display.frame.push_block(message);
+    }
+
+    fn on_skipped_optional_fetch_failure(&mut self, log: &SkippedOptionalDependencyLog) {
+        if self.options.max_log_level < MaxLogLevel::Warn {
+            return;
+        }
+        let pkg = match &log.package {
+            SkippedOptionalPackage::Installed { name, version, .. } => format!("{name}@{version}"),
+            SkippedOptionalPackage::ResolutionFailure { bare_specifier, .. } => {
+                bare_specifier.clone()
+            }
+        };
+        let mut message = format!(
+            "{pkg} is an optional dependency that could not be fetched. Excluding it from installation.",
+        );
+        if let Some(details) = &log.details {
+            message.push('\n');
+            message.push_str(details);
+        }
+        self.notices.push_warning(
+            self.rendering.colors,
+            &mut self.display.frame,
+            self.options.append_only,
+            &message,
+        );
     }
 
     /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency

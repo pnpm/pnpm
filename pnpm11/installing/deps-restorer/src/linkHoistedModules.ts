@@ -28,6 +28,8 @@ import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
+import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
+
 const limitLinking = pLimit(16)
 
 /** A package directory on disk that the hoisting plan does not place. */
@@ -361,9 +363,10 @@ async function importFetchedPkg (ctx: ImportPkgContext): Promise<boolean> {
   let filesResponse!: PackageFilesResponse
   try {
     filesResponse = (await depNode.fetching!()).files
-  } catch (err: any) { // eslint-disable-line
-    if (depNode.optional) return false
-    throw err
+  } catch (err: unknown) {
+    if (!depNode.optional) throw err
+    reportOptionalFetchFailure(err, depNode, opts.lockfileDir)
+    return false
   }
 
   depNode.requiresBuild = filesResponse.requiresBuild

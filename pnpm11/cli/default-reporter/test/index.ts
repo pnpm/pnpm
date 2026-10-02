@@ -1111,6 +1111,35 @@ test('prints info about an optional dependency that could not be resolved', asyn
   expect(output).toBe('info: foo@^30000.0.0 is an optional dependency that could not be resolved. Excluding it from installation.')
 })
 
+// https://github.com/pnpm/pnpm/issues/16514
+test('prints a warning about an optional dependency that could not be fetched', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  skippedOptionalDependencyLogger.debug({
+    details: 'ERR_PNPM_FETCH_404: GET https://registry.npmjs.org/foo/-/foo-1.0.0.tgz: Not Found - 404',
+    package: {
+      id: 'foo@1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+    },
+    prefix,
+    reason: 'fetch_failure',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(formatWarn(`foo@1.0.0 is an optional dependency that could not be fetched. Excluding it from installation.
+ERR_PNPM_FETCH_404: GET https://registry.npmjs.org/foo/-/foo-1.0.0.tgz: Not Found - 404`))
+})
+
 test('logLevel=default', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
