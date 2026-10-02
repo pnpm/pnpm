@@ -49,6 +49,7 @@ mod dir_clone_cache;
 mod dist_tag;
 mod dlx;
 mod docs;
+mod doctor;
 mod dry_run;
 mod env;
 mod exclude_links_from_lockfile;
