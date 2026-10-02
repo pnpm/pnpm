@@ -372,7 +372,7 @@ pub(in super::super) fn insert_tree_node(
                 false
             }
             std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(DependenciesTreeNode::new(Arc::clone(pkg_id), children, depth, true));
+                entry.insert(DependenciesTreeNode::new(Arc::clone(pkg_id), children, depth));
                 true
             }
         };

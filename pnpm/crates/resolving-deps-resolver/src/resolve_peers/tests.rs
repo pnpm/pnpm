@@ -344,7 +344,6 @@ fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGrap
         resolved_package_id: dep_path.to_string(),
         resolve_result: std::sync::Arc::new(resolve_result("parent", "1.0.0")),
         depth: 0,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: crate::ResolvedDependencyEdges {

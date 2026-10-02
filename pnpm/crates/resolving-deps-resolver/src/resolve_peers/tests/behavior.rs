@@ -201,7 +201,6 @@ fn realizing_children_shares_the_edge_package_id() {
             "parent@1.0.0".into(),
             TreeChildren::Lazy,
             0,
-            true,
         ),
     );
 
