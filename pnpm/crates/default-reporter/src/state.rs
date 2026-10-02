@@ -19,8 +19,8 @@ use pnpm_reporter::{
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
-    RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
-    StatsMessage, UpdateCheckLog,
+    RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalReason, Stage, StatsMessage, UpdateCheckLog,
 };
 use serde_json::Value;
 

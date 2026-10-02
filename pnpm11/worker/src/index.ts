@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
 import type { FilesMap, PackageFilesResponse, SideEffectsDiff } from '@pnpm/store.cafs-types'
@@ -204,6 +204,17 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
   })
 }
 
+/**
+ * A remote tarball URL with its credentials, query, and fragment removed. A
+ * local tarball is identified by its absolute file path, which is shown with
+ * only its control characters removed.
+ */
+function displayTarballLocation (location: string): string {
+  return path.isAbsolute(location) || path.win32.isAbsolute(location)
+    ? redactAndSanitize(location)
+    : redactUrlForDisplay(location)
+}
+
 export class TarballIntegrityError extends PnpmError {
   public readonly found: string
   public readonly expected: string
@@ -220,7 +231,7 @@ export class TarballIntegrityError extends PnpmError {
     url: string
   }) {
     super('TARBALL_INTEGRITY',
-      `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
+      `Got unexpected checksum for "${displayTarballLocation(opts.url)}". Wanted "${opts.expected}". Got "${opts.found}".`,
       {
         attempts: opts.attempts,
         hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.
