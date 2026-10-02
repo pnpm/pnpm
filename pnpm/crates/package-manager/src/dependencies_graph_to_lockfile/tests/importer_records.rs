@@ -127,7 +127,6 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         resolved_package_id: "node@runtime:26.3.0".to_string(),
         resolve_result: std::sync::Arc::new(resolve_result),
         depth: 1,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
@@ -302,7 +301,6 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),
         depth: 1,
-        installable: true,
         is_pure: true,
         optional: false,
         edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {

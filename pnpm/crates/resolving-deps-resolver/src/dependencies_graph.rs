@@ -29,7 +29,6 @@ pub struct DependenciesGraphNode {
     /// mutates the inner `ResolveResult` after `resolve_peers`.
     pub resolve_result: std::sync::Arc<ResolveResult>,
     pub depth: i32,
-    pub installable: bool,
     /// `true` when this snapshot has zero unresolved + missing peers,
     /// i.e. its depPath equals its `pkgIdWithPatchHash`.
     pub is_pure: bool,

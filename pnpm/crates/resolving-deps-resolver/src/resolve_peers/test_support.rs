@@ -24,7 +24,6 @@ pub(super) fn tree_node(
         Arc::from(pkg_id.to_string()),
         TreeChildren::Realized(Arc::new(children)),
         depth,
-        true,
     )
 }
 
@@ -44,7 +43,7 @@ pub(super) fn add_lazy_direct_dep(
     let node_id = NodeId::next();
     dependencies_tree.insert(
         node_id.clone(),
-        DependenciesTreeNode::new(Arc::from(pkg_id), TreeChildren::Lazy, 0, true),
+        DependenciesTreeNode::new(Arc::from(pkg_id), TreeChildren::Lazy, 0),
     );
     direct.push(DirectDep { alias: alias.to_string(), node_id, id: pkg_id.into() });
 }
