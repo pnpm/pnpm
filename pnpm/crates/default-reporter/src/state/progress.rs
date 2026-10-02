@@ -113,14 +113,16 @@ impl ReporterState {
             FetchingProgressMessage::InProgress { downloaded, package_id } => {
                 let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
                 let size = entry.size;
-                let done = *downloaded == size;
                 let msg = self.downloading_message(package_id, *downloaded, size);
                 let mut slot =
                     std::mem::take(&mut self.downloads.tarballs.get_mut(package_id).unwrap().slot);
                 // A finished download stops being rewritten in place and
                 // scrolls away with the rest of the output.
-                let placement =
-                    if done { BlockPlacement::Scrolling } else { BlockPlacement::Pinned };
+                let placement = if *downloaded == size {
+                    BlockPlacement::Scrolling
+                } else {
+                    BlockPlacement::Pinned
+                };
                 self.display.frame.emit(&mut slot, msg, placement);
                 self.downloads.tarballs.get_mut(package_id).unwrap().slot = slot;
             }
