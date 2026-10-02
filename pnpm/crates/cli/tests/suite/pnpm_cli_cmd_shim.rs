@@ -25,7 +25,10 @@ use std::{
 };
 use tempfile::TempDir;
 use windows_sys::Win32::System::{
-    Console::{AllocConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent},
+    Console::{
+        AllocConsole, CTRL_BREAK_EVENT, CTRL_C_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
+        SetConsoleCtrlHandler,
+    },
     Threading::CREATE_NEW_PROCESS_GROUP,
 };
 
@@ -288,11 +291,35 @@ fn stdin_reaches_the_command_pnpm_runs() {
     );
 }
 
+/// Ctrl+C at the console reaches every process attached to it. With the batch
+/// context already gone, cmd.exe exits along with pnpm instead of asking about
+/// a batch job.
+#[test]
+fn ctrl_c_ends_the_shim_without_asking_to_terminate_a_batch_job() {
+    assert_interrupt_asks_nothing(Interrupt::CtrlC);
+}
+
 /// Ctrl+Break stops a script the way Ctrl+C does, and cmd.exe asks the same
-/// question about a batch job it interrupts. With the batch context already
-/// gone, cmd.exe exits along with pnpm instead.
+/// question about a batch job it interrupts.
 #[test]
 fn ctrl_break_ends_the_shim_without_asking_to_terminate_a_batch_job() {
+    assert_interrupt_asks_nothing(Interrupt::CtrlBreak);
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Interrupt {
+    /// `CTRL_C_EVENT`, which reaches the whole console, as a keypress does.
+    CtrlC,
+    /// `CTRL_BREAK_EVENT`, sent to the process group of the `cmd.exe` the test
+    /// starts.
+    CtrlBreak,
+}
+
+/// Run `pnpm run dev` through `cmd /c` and the real `pnpm.cmd`, interrupt the
+/// script once it is running, and assert that cmd.exe exits without asking
+/// `Terminate batch job (Y/N)?`. With redirected stdio cmd.exe prints that
+/// question on stdout and then waits for an answer from the console.
+fn assert_interrupt_asks_nothing(interrupt: Interrupt) {
     let cli = GlobalCli::install();
     fs::write(
         cli.workspace.join("package.json"),
@@ -309,7 +336,9 @@ fn ctrl_break_ends_the_shim_without_asking_to_terminate_a_batch_job() {
 
     let _console = PrivateConsole::attach();
     let mut command = cli.via_cmd("run dev");
-    command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    if matches!(interrupt, Interrupt::CtrlBreak) {
+        command.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
     let mut child = command
         .with_stdin(Stdio::null())
         .with_stdout(Stdio::piped())
@@ -331,10 +360,15 @@ fn ctrl_break_ends_the_shim_without_asking_to_terminate_a_batch_job() {
         sleep(Duration::from_millis(50));
     }
 
-    // SAFETY: plain FFI call with no pointer arguments. The group is the one
-    // `CREATE_NEW_PROCESS_GROUP` made for `child`, so the event reaches cmd.exe,
-    // pnpm, and the script, and nothing else on the console.
-    let sent = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, child.id()) };
+    let (event, group) = match interrupt {
+        Interrupt::CtrlC => (CTRL_C_EVENT, 0),
+        Interrupt::CtrlBreak => (CTRL_BREAK_EVENT, child.id()),
+    };
+    // SAFETY: plain FFI call with no pointer arguments. Group 0 is the whole
+    // private console, where this process ignores the event (see
+    // `PrivateConsole`); any other group is the one `CREATE_NEW_PROCESS_GROUP`
+    // made for `child`.
+    let sent = unsafe { GenerateConsoleCtrlEvent(event, group) };
     assert_ne!(sent, 0, "GenerateConsoleCtrlEvent: {}", std::io::Error::last_os_error());
 
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -360,38 +394,50 @@ fn ctrl_break_ends_the_shim_without_asking_to_terminate_a_batch_job() {
         .expect("child stdout")
         .read_to_string(&mut stdout)
         .expect("read stdout");
-    eprintln!("status: {status:?}\nstdout: {stdout}");
+    eprintln!("{interrupt:?}: status: {status:?}\nstdout: {stdout}");
     assert!(
         !stdout.contains("Terminate batch job"),
-        "cmd.exe asked to terminate a batch job:\n{stdout}",
+        "cmd.exe asked to terminate a batch job after {interrupt:?}:\n{stdout}",
     );
-    assert!(status.is_some(), "cmd.exe kept running after Ctrl+Break");
+    assert!(status.is_some(), "cmd.exe kept running after {interrupt:?}");
 }
 
 /// A console of this test process's own, so the batch job prompt and the
-/// control event stay away from whatever console runs the test suite. Each
+/// control events stay away from whatever console runs the test suite. Each
 /// test runs in its own process under nextest, so the swap affects no other
 /// test.
+///
+/// Ctrl+C handling is switched back on, because the test runner may have
+/// started this process with it off, and children inherit that. A handler then
+/// keeps this process itself alive through a Ctrl+C sent to the whole console.
 struct PrivateConsole;
 
 impl PrivateConsole {
     fn attach() -> Self {
-        // SAFETY: plain FFI calls with no arguments. Detaching fails harmlessly
-        // when the process has no console to begin with.
-        let allocated = unsafe {
+        // SAFETY: plain FFI calls. Detaching fails harmlessly when the process
+        // has no console to begin with. `survive_ctrl_c` is a `'static` function
+        // that touches no state, so it is sound to call on any thread.
+        unsafe {
             FreeConsole();
-            AllocConsole()
-        };
-        assert_ne!(allocated, 0, "AllocConsole: {}", std::io::Error::last_os_error());
+            assert_ne!(AllocConsole(), 0, "AllocConsole: {}", std::io::Error::last_os_error());
+            SetConsoleCtrlHandler(None, 0);
+            SetConsoleCtrlHandler(Some(survive_ctrl_c), 1);
+        }
         PrivateConsole
     }
 }
 
 impl Drop for PrivateConsole {
     fn drop(&mut self) {
-        // SAFETY: plain FFI call with no arguments.
+        // SAFETY: plain FFI calls; the handler removed is the one `attach` added.
         unsafe {
+            SetConsoleCtrlHandler(Some(survive_ctrl_c), 0);
             FreeConsole();
         }
     }
+}
+
+/// Reports every console control event as handled.
+unsafe extern "system" fn survive_ctrl_c(_event: u32) -> windows_sys::core::BOOL {
+    1
 }
