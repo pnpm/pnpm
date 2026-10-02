@@ -23,7 +23,7 @@ grouped, what order they appear in, and how the page reads end to end.
 3. That file is the release page. The Rust CLI's GitHub release body is literally
    `tail -n +2 .changeset/changelogs/pacquet@<version>.md` plus the sponsors
    fragment (`.github/workflows/release.yml`), and the same section is composed into
-   the published `CHANGELOG.md` and becomes the pnpm.io release page
+   the published `CHANGELOG.md`. For a stable v11 or v12 release, it also becomes the pnpm.io release page
    ([DOCUMENTATION.md](../../../DOCUMENTATION.md#release-pages)).
 
 So curate `.changeset/changelogs/<package>@<version>.md` directly, on the release PR
