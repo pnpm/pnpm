@@ -272,6 +272,48 @@ fn skip_non_existing_optional_dependency() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// Regression test for [pnpm/pnpm#16511](https://github.com/pnpm/pnpm/issues/16511).
+/// An optional dependency whose own dependency is not in the registry is left
+/// out with its subtree, whether or not it fits the current platform.
+#[test]
+fn skip_optional_dependency_whose_dependency_does_not_exist() {
+    for optional in [
+        "@pnpm.e2e/has-unpublished-dep",
+        "@pnpm.e2e/not-compatible-with-any-os-and-has-unpublished-dep",
+    ] {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        write_manifest(
+            &workspace,
+            &serde_json::json!({
+                "dependencies": { "is-positive": "1.0.0" },
+                "optionalDependencies": { optional: "1.0.0" },
+            }),
+        );
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        assert!(is_absent(&workspace.join("node_modules").join(optional)));
+        let lockfile = read_wanted_lockfile(&workspace);
+        let snapshots: Vec<String> = lockfile.snapshots
+            .iter()
+            .flatten()
+            .map(|(key, _)| key.to_string())
+            .collect();
+        assert_eq!(snapshots, ["is-positive@1.0.0"]);
+
+        drop((root, npmrc_info)); // cleanup
+    }
+}
+
 /// Regression test for [pnpm/pnpm#16514](https://github.com/pnpm/pnpm/issues/16514).
 /// An optional dependency whose locked integrity no longer matches its
 /// tarball is skipped with a warning naming the error, and is not counted as

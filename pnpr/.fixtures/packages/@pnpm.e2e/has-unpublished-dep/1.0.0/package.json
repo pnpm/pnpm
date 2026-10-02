@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-unpublished-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/this-package-is-not-in-the-registry": "1.0.0"
+  }
+}

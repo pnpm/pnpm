@@ -1,16 +1,15 @@
 use super::{
     Arc, BTreeMap, ChildEdge, Cow, NodeId, NodeSeed, PendingNode, PkgNameVerPeer,
     ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, ResolvedPackageInput, Resolver,
-    SeededPackage, SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency,
-    WantedKey, async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
-    current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
-    extract_peer_dependencies, is_exotic_resolved_via, is_update_target, keeps_locked_version,
-    lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
-    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
-    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
-    pin_patched_revision, pkg_is_leaf, pkgs_info_from_ids, project_relative_cache_scope,
+    SeededPackage, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey, async_recursion,
+    build_pkg_id_with_patch_hash, catalogs_for_children, current_pkg_from_lockfile,
+    emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
+    is_exotic_resolved_via, is_update_target, keeps_locked_version, lock_recoverable, node_alias,
+    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
+    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
+    pin_locked_version, pin_patched_revision, pkg_is_leaf, project_relative_cache_scope,
     register_peer_dep_names, resolve_reused_node, resolve_wanted_cached,
-    resolves_children_through_catalogs, try_reuse_node, wanted_lockfile_contains_satisfying_entry,
+    resolves_children_through_catalogs, try_reuse_node,
 };
 
 #[async_recursion]
@@ -126,7 +125,7 @@ where
     {
         Ok(result) => Ok(Some(result)),
         Err(err) => {
-            drop_failed_optional_edge(ctx, wanted, edge.ancestor_ids, &opts, err)?;
+            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err)?;
             Ok(None)
         }
     }
@@ -463,53 +462,6 @@ pub(super) fn reject_exotic_subdep(
             .unwrap_or_default(),
         resolved_via: result.resolved_via.clone(),
     })
-}
-
-/// A resolution failure on an optional edge drops the edge instead of failing
-/// the install — unless the wanted lockfile already holds a satisfying entry,
-/// where the silent skip would erase the locked entries (see
-/// [`fn@wanted_lockfile_contains_satisfying_entry`]). `Ok(())` means the edge
-/// is dropped; every other failure propagates.
-pub(super) fn drop_failed_optional_edge(
-    ctx: &TreeCtx,
-    wanted: &WantedDependency,
-    ancestor_ids: &[Arc<str>],
-    opts: &ResolveOptions,
-    err: ResolveDependencyTreeError,
-) -> Result<(), ResolveDependencyTreeError> {
-    if !wanted.optional.unwrap_or(false) || !is_droppable_resolve_error(&err) {
-        return Err(err);
-    }
-    if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
-        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
-    }
-    if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
-        log(SkippedOptionalDependency {
-            details: err.to_string(),
-            name: wanted.alias.clone(),
-            version: wanted.alias
-                .is_some()
-                .then(|| wanted.bare_specifier.clone())
-                .flatten(),
-            bare_specifier: wanted.bare_specifier.clone().unwrap_or_default(),
-            parents: pkgs_info_from_ids(ctx, ancestor_ids),
-            prefix: opts.project.project_dir.display().to_string(),
-        });
-    }
-    Ok(())
-}
-
-/// Hook errors keep aborting even for optional edges.
-pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bool {
-    matches!(
-        err,
-        ResolveDependencyTreeError::Resolve(_)
-            | ResolveDependencyTreeError::NoMatchingVersion(_)
-            | ResolveDependencyTreeError::RegistryResponse(_)
-            | ResolveDependencyTreeError::GitResolve(_)
-            | ResolveDependencyTreeError::Pick(_)
-            | ResolveDependencyTreeError::SpecNotSupported { .. },
-    )
 }
 
 impl ChildEdge<'_> {

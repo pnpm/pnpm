@@ -17,6 +17,7 @@
 
 pub use dependencies::{ResolvedWorkspaceDependencies, resolve_workspace_dependencies};
 
+mod broken_optional;
 mod dependencies;
 mod time_based;
 use time_based::{TimeBasedCutoff, time_cutoff};
@@ -298,6 +299,7 @@ struct InitializedImporters {
     states: Vec<ImporterHoistState>,
     /// Each importer's project and modules dir, for its peer input.
     input_dirs: Vec<(PathBuf, Option<PathBuf>)>,
+    optional_direct: Vec<broken_optional::OptionalDirect>,
 }
 
 /// Phase 1: every importer's initial wave resolves before any peer
@@ -325,6 +327,15 @@ where
     Chain: Resolver + ?Sized,
 {
     let mut input_dirs = Vec::with_capacity(sorted.importers.len());
+    let optional_direct = sorted.importers
+        .iter()
+        .map(|importer| {
+            importer.manifest
+                .dependencies([DependencyGroup::Optional])
+                .map(|(alias, specifier)| (alias.to_string(), specifier.to_string()))
+                .collect()
+        })
+        .collect();
     let mut states = Vec::with_capacity(sorted.importers.len());
     for (importer_order, (importer, mut importer_opts)) in sorted.importers
         .iter()
@@ -356,7 +367,7 @@ where
         .into_iter()
         .map(|importer| importer.id.clone())
         .collect();
-    Ok(InitializedImporters { importer_ids, states, input_dirs })
+    Ok(InitializedImporters { importer_ids, states, input_dirs, optional_direct })
 }
 
 /// Computed after the init barrier and shared unchanged: recomputing it
@@ -404,10 +415,13 @@ where
 fn finish(
     settings: &PassSettings,
     workspace: Arc<WorkspaceTreeCtx>,
-    initialized: InitializedImporters,
+    mut initialized: InitializedImporters,
     time: BTreeMap<String, String>,
-) -> ResolveWorkspaceResult {
-    let peer_inputs = importer_peer_inputs(initialized);
+) -> Result<ResolveWorkspaceResult, ResolveImporterError> {
+    let broken = workspace.take_broken_packages();
+    let skipped_optional_log = workspace.skipped_optional_log();
+    let optional_direct = std::mem::take(&mut initialized.optional_direct);
+    let mut peer_inputs = importer_peer_inputs(initialized);
     // Reclaim the workspace ctx now that every importer's state has
     // dropped its `Arc<WorkspaceTreeCtx>`. The `try_unwrap` succeeds
     // when this is the sole remaining `Arc` reference (the common
@@ -417,8 +431,19 @@ fn finish(
         Ok(ws) => ws.into_resolved_tree(Vec::new()),
         Err(arc) => arc.snapshot(Vec::new()),
     };
+    let left_out = broken_optional::drop_broken_optional_dependencies(
+        &mut merged_tree,
+        &mut peer_inputs.per_importer,
+        &optional_direct,
+        broken,
+        &broken_optional::SkipReport {
+            log: skipped_optional_log.as_ref(),
+            lockfile_dir: &settings.peers.lockfile_dir,
+        },
+    )?;
+    let time = broken_optional::forget_left_out(&mut merged_tree, &left_out, time);
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
-    ResolveWorkspaceResult { merged_tree, peers, time }
+    Ok(ResolveWorkspaceResult { merged_tree, peers, time })
 }
 
 struct PeerInputs {
