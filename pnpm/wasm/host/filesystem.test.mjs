@@ -8,6 +8,7 @@ import { TextEncoder } from 'node:util'
 import { setTimeout } from 'node:timers/promises'
 
 import { createWasiFilesystem } from './filesystem.mjs'
+import { errno } from './wasi-errno.mjs'
 
 const { WebAssembly } = globalThis
 
@@ -121,6 +122,24 @@ test('Linux directory grant stays bound to the opened template after a rename', 
   assert.equal(fs.statSync(path.join(outside, 'child')).mode & 0o7777, 0o300)
   fs.chmodSync(path.join(moved, 'child'), 0o700)
   fs.chmodSync(path.join(outside, 'child'), 0o700)
+})
+
+test('directory grant selects the WASI fallback without procfd support', context => {
+  const { directory, memory, wasi, imports, guestPath } = fixture(context)
+  const template = path.join(directory, 'template')
+  const child = path.join(template, 'child')
+  fs.mkdirSync(child, { recursive: true })
+  const templateBytes = new TextEncoder().encode(template)
+  new Uint8Array(memory.buffer, 1024, templateBytes.length).set(templateBytes)
+  const originalExists = fs.existsSync
+  fs.existsSync = file => file === '/proc/self/fd' ? false : originalExists(file)
+  try {
+    assert.equal(imports.grant_directory_mode_beneath(...guestPath(child), 1024, templateBytes.length, 0o2070), errno.ENOTSUP)
+  } finally {
+    fs.existsSync = originalExists
+  }
+  assert.equal(imports.open_directory_nofollow_beneath(...guestPath(child), 1024, templateBytes.length, 16), 0)
+  assert.equal(wasi.fd_close(new DataView(memory.buffer).getUint32(16, true)), 0)
 })
 
 test('ordinary WASI opens join the same descriptor mapping and follow relative symlinks', context => {

@@ -208,7 +208,7 @@ function createFilesystemImports ({ memory, resolveDescriptor, open, rootDescrip
     },
     grant_directory_mode_beneath (pointer, length, templatePointer, templateLength, extra) {
       if ('webcontainer' in process.versions) return errno.ENOTSUP
-      if (process.platform !== 'linux' || !fs.existsSync('/proc/self/fd')) return errno.EACCES
+      if (process.platform !== 'linux' || !fs.existsSync('/proc/self/fd')) return errno.ENOTSUP
       if (extra < 0 || extra > 0o7777) return errno.EINVAL
       try {
         const directory = guestPath(pointer, length)
