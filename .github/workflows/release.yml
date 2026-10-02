@@ -297,6 +297,9 @@ jobs:
 
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
+            contents="$package_tarballs/contents"
+            mkdir "$contents"
+            tar -xzf "$tarball" -C "$contents"
             node -e '
               const fs = require("node:fs")
               const path = require("node:path")
@@ -331,7 +334,7 @@ jobs:
               }
             ' "$package/package.json" | while IFS= read -r file; do
               test -f "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
+              cmp "$contents/package/$file" "$package/$file"
             done
           done
 
@@ -1030,6 +1033,9 @@ jobs:
 
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
+            contents="$package_tarballs/contents"
+            mkdir "$contents"
+            tar -xzf "$tarball" -C "$contents"
             node -e '
               const fs = require("node:fs")
               const path = require("node:path")
@@ -1064,7 +1070,7 @@ jobs:
               }
             ' "$package/package.json" | while IFS= read -r file; do
               test -f "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
+              cmp "$contents/package/$file" "$package/$file"
             done
           done
 
@@ -1489,6 +1495,9 @@ jobs:
 
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
+            contents="$package_tarballs/contents"
+            mkdir "$contents"
+            tar -xzf "$tarball" -C "$contents"
             node -e '
               const fs = require("node:fs")
               const path = require("node:path")
@@ -1523,7 +1532,7 @@ jobs:
               }
             ' "$package/package.json" | while IFS= read -r file; do
               test -f "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
+              cmp "$contents/package/$file" "$package/$file"
             done
           done
 
