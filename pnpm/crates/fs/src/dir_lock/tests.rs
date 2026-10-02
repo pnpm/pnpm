@@ -146,7 +146,7 @@ fn a_directory_whose_held_file_is_locked_is_not_taken_over() {
     let path = root.path().join("engine.lock");
     fs::create_dir(&path).expect("plant an aged lock");
     let held = open_held_file(&path);
-    held.try_lock().expect("hold the file lock");
+    crate::try_lock_file(&held, true).expect("hold the file lock");
     sleep(AGE);
 
     let contended = DirLock::acquire(path.clone(), Duration::ZERO, THRESHOLD).expect("acquire");
@@ -208,13 +208,13 @@ fn a_live_holder_keeps_the_held_file_locked() {
         .expect("uncontended lock is taken");
     let probe = open_held_file(&path);
     assert!(
-        matches!(probe.try_lock(), Err(TryLockError::WouldBlock)),
+        matches!(crate::try_lock_file(&probe, true), Err(TryLockError::WouldBlock)),
         "the holder keeps the file lock",
     );
 
     drop(held);
     assert!(!path.exists());
-    probe.try_lock().expect("the file lock is released with the directory");
+    crate::try_lock_file(&probe, true).expect("the file lock is released with the directory");
 }
 
 /// The held file keeps one identity for every process that locks it, so

@@ -264,7 +264,7 @@ fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
         .create(true)
         .truncate(false)
         .open(directory.join("lock"))?;
-    file.try_lock().map_err(std::io::Error::other)?;
+    pnpm_fs::try_lock_file(&file, true).map_err(std::io::Error::other)?;
     Ok(file)
 }
 
