@@ -219,14 +219,7 @@ pub fn create_inheriting_mode(
         requested.is_some_and(crate::file_mode::is_executable),
     );
     let file = create_new(path, mode)?;
-    if let Err(error) = grant_file_mode(&file, mode) {
-        if let (Ok(created), Ok(current)) = (file_identity(&file), path_identity(path))
-            && created == current
-        {
-            let _ = std::fs::remove_file(path);
-        }
-        return Err(error);
-    }
+    grant_file_mode(&file, mode)?;
     Ok(file)
 }
 
