@@ -799,3 +799,28 @@ fn unlink_fetch_failed_children_removes_only_links_to_failed_snapshots() {
         "the link to the child whose fetch failed must be removed",
     );
 }
+
+/// An alias that names the parent itself resolves to the parent's own
+/// package directory, which must survive the cleanup even when the alias
+/// points at a failed snapshot.
+#[test]
+fn unlink_fetch_failed_children_keeps_the_parent_package_directory() {
+    let dir = tempdir().expect("tempdir");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let snapshots: HashMap<PackageKey, SnapshotEntry> = serde_saphyr::from_str(
+        "parent@1.0.0:\n  optionalDependencies:\n    parent: failed@1.0.0\n",
+    )
+    .expect("parse snapshots");
+    let parent: PackageKey = "parent@1.0.0".parse().unwrap();
+    let own_dir = layout.slot_dir(&parent).join("node_modules/parent");
+    std::fs::create_dir_all(&own_dir).expect("create the parent package directory");
+    std::fs::write(own_dir.join("package.json"), "{}").expect("write package.json");
+    let fetch_failed = HashSet::from(["failed@1.0.0".parse::<PackageKey>().unwrap()]);
+
+    unlink_fetch_failed_children(&snapshots, &fetch_failed, &layout).expect("unlink children");
+
+    assert!(own_dir.join("package.json").exists(), "the parent's own files must stay");
+}

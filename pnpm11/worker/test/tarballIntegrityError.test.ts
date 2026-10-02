@@ -13,3 +13,16 @@ test('the integrity error message hides the credentials and query of the tarball
 
   expect(error.message).toBe('Got unexpected checksum for "https://registry.example/foo/-/foo-1.0.0.tgz". Wanted "sha512-expected". Got "sha512-found".')
 })
+
+test('the integrity error message shows a local tarball path as is', () => {
+  const tarball = process.platform === 'win32' ? 'C:\\project\\local-tarball.tgz' : '/project/local-tarball.tgz'
+  const error = new TarballIntegrityError({
+    algorithm: 'sha512',
+    expected: 'sha512-expected',
+    found: 'sha512-found',
+    sri: 'sha512-expected',
+    url: tarball,
+  })
+
+  expect(error.message).toContain(`"${tarball}"`)
+})

@@ -204,6 +204,14 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
   })
 }
 
+/**
+ * A remote tarball URL with its credentials, query, and fragment removed. A
+ * local tarball is identified by its file path, which is shown as is.
+ */
+function displayTarballLocation (location: string): string {
+  return location.includes('://') ? redactUrlForDisplay(location) : location
+}
+
 export class TarballIntegrityError extends PnpmError {
   public readonly found: string
   public readonly expected: string
@@ -220,7 +228,7 @@ export class TarballIntegrityError extends PnpmError {
     url: string
   }) {
     super('TARBALL_INTEGRITY',
-      `Got unexpected checksum for "${redactUrlForDisplay(opts.url)}". Wanted "${opts.expected}". Got "${opts.found}".`,
+      `Got unexpected checksum for "${displayTarballLocation(opts.url)}". Wanted "${opts.expected}". Got "${opts.found}".`,
       {
         attempts: opts.attempts,
         hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.

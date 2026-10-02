@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 
 import { stageLogger } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
+import { isError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { logger } from '@pnpm/logger'
@@ -55,8 +56,9 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
   if (opts.enableModulesDir !== false) {
     await Promise.all(depGraph.depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   }
+  const linksModules = opts.symlink !== false && opts.enableModulesDir !== false
   const [, fetchFailedDirs] = await Promise.all([
-    opts.symlink === false || opts.enableModulesDir === false
+    !linksModules
       ? Promise.resolve()
       : linkAllModules(depGraph.depNodes, {
         currentLockfile: ctx.currentLockfile,
@@ -83,31 +85,52 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])
-  await dropFetchFailedPackages(depGraph, fetchFailedDirs)
+  dropFetchFailedPackages(depGraph, fetchFailedDirs)
+  if (linksModules) {
+    await unlinkFetchFailedChildren(depGraph.depNodes, fetchFailedDirs)
+  }
 }
 
 /**
  * Removes the optional packages that could not be fetched from the graph, so
  * they are not hoisted, built, or linked into the projects that depend on them.
- * The links their dependents received while the fetches were still running
- * are removed as well.
  */
-async function dropFetchFailedPackages (depGraph: HeadlessDepGraph, fetchFailedDirs: Set<string>): Promise<void> {
+function dropFetchFailedPackages (depGraph: HeadlessDepGraph, fetchFailedDirs: Set<string>): void {
   if (fetchFailedDirs.size === 0) return
   for (const dir of fetchFailedDirs) {
     delete depGraph.graph[dir]
   }
-  await Promise.all(depGraph.depNodes.flatMap((depNode) =>
-    Object.entries(depNode.children)
-      .filter(([, childDir]) => fetchFailedDirs.has(childDir))
-      .map(async ([alias]) => rimraf(safeJoinModulesDir(depNode.modules, alias)))
-  ))
   for (const directDependencies of Object.values(depGraph.directDependenciesByImporterId)) {
     for (const [alias, dir] of Object.entries(directDependencies)) {
       if (fetchFailedDirs.has(dir)) {
         delete directDependencies[alias]
       }
     }
+  }
+}
+
+/**
+ * Removes the links to the packages that could not be fetched from the
+ * packages that depend on them. The links were created while the fetches
+ * were still running. Only links are removed: an alias that names the
+ * dependent itself, or any other real directory, is left alone.
+ */
+async function unlinkFetchFailedChildren (depNodes: HeadlessDepGraph['depNodes'], fetchFailedDirs: Set<string>): Promise<void> {
+  if (fetchFailedDirs.size === 0) return
+  await Promise.all(depNodes.flatMap((depNode) =>
+    Object.entries(depNode.children)
+      .filter(([alias, childDir]) => alias !== depNode.name && fetchFailedDirs.has(childDir))
+      .map(async ([alias]) => unlinkIfSymlink(safeJoinModulesDir(depNode.modules, alias)))
+  ))
+}
+
+async function unlinkIfSymlink (link: string): Promise<void> {
+  const stats = await fs.lstat(link).catch((err: unknown) => {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  })
+  if (stats?.isSymbolicLink()) {
+    await rimraf(link)
   }
 }
 
