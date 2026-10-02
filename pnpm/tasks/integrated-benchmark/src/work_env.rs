@@ -3,7 +3,7 @@ pub(crate) use fixtures::seed_peer_heavy_registry;
 mod scripts;
 use scripts::{
     build_cleanup_command, create_install_script, dir_contains_file, may_create_lockfile,
-    sync_bench_repo, wipe_bench_dir,
+    remove_dir_all_with_retry, sync_bench_repo, wipe_bench_dir,
 };
 
 mod fixtures;
@@ -14,9 +14,10 @@ mod linked_workspace;
 
 mod server_config;
 use server_config::{
-    PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
-    cold_mock_config_yaml, distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth,
-    wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    PnprResolverServer, PnprRestartListener, PnprServer, PnprServerPaths, RevisionMockRegistry,
+    append_pnpr_auth_to_npmrc, cold_mock_config_yaml, distinct_public_route_registries,
+    mint_pnpr_token, pnpr_htpasswd_path, seed_pnpr_auth, wait_for_pnpr_ready,
+    write_pnpr_benchmark_config,
 };
 
 mod measurements;
@@ -34,7 +35,7 @@ mod servers;
 mod build;
 
 use crate::{
-    cli_args::{RegistryMode, TargetKind, TargetSpec},
+    cli_args::{ColdPnprCache, RegistryMode, TargetKind, TargetSpec},
     verify::executor,
 };
 use os_display::Quotable;
@@ -45,6 +46,7 @@ use std::{
     fs::{self},
     path::{Path, PathBuf},
     process::Command,
+    slice,
 };
 
 const BENCHMARK_OUTPUT_LOG: &str = "BENCHMARK_OUTPUT.ndjson";
@@ -336,9 +338,11 @@ impl WorkEnv {
         // keeps cold-cache scenarios genuinely cold for *resolution*, not
         // just for the CAS. `pnpr-storage` is the per-target pnpr server's
         // store + cache (only present for `pnpr@<rev>` targets) — wiping it
-        // upfront (but never per-iteration) makes the hyperfine warmup the
-        // run that primes the server, so timed runs measure a warm
-        // long-running server even while the client is cold. `cold-mock-storage`
+        // upfront (and per-iteration only for `ColdPnprCache::Resolution`)
+        // makes the hyperfine warmup the run that primes the server, so timed
+        // runs measure a warm long-running server even while the client is
+        // cold. `pnpr-auth` holds that server's `htpasswd` and `tokens.db`,
+        // wiped here so every run mints a fresh token. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
         for dir in self
@@ -360,7 +364,7 @@ impl WorkEnv {
         // the end of this method. Empty (no-op) when there are no pnpr
         // targets. Spawned before the GVS pre-warm below so a pnpr target
         // would have its server up if a scenario ever combines the two.
-        let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
+        let mut pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
 
         // For GVS-warm and repeat-install scenarios we need a pre-warm
         // pass: hyperfine's `--warmup` would otherwise time-from-empty
@@ -401,19 +405,53 @@ impl WorkEnv {
             self.prewarm_caches(&cleanup_command);
         }
 
-        self.run_hyperfine(&cleanup_command);
+        if scenario.cold_pnpr_cache() == Some(ColdPnprCache::Resolution) && !pnpr_servers.is_empty()
+        {
+            self.run_hyperfine_restarting_pnpr_servers(&cleanup_command, &mut pnpr_servers);
+        } else {
+            self.run_hyperfine(slice::from_ref(&cleanup_command));
+        }
         if scenario.uses_peer_heavy_fixture() {
             self.install_for_lockfile_comparison(&cleanup_command);
         }
         self.write_benchmark_diagnostics();
     }
 
-    fn run_hyperfine(&self, cleanup_command: &str) {
+    /// Run hyperfine with each `pnpr@<rev>` command's own server restarted on
+    /// empty storage before every iteration of that command. `servers` holds
+    /// one entry per pnpr target, in [`Self::benchmarked_ids`] order.
+    fn run_hyperfine_restarting_pnpr_servers(
+        &self,
+        cleanup_command: &str,
+        servers: &mut [PnprResolverServer],
+    ) {
+        let listener = PnprRestartListener::bind();
+        let mut pnpr_targets = 0;
+        let prepare_commands: Vec<String> = self
+            .benchmarked_ids()
+            .map(|id| {
+                if !id.is_pnpr() {
+                    return cleanup_command.to_string();
+                }
+                let restart = listener.prepare_command(pnpr_targets);
+                pnpr_targets += 1;
+                format!("{restart} && {cleanup_command}")
+            })
+            .collect();
+        listener.serve_during(
+            |server| self.restart_pnpr_server_on_empty_storage(&mut servers[server]),
+            || self.run_hyperfine(&prepare_commands),
+        );
+    }
+
+    /// `prepare_commands` holds either one step for every command or one step
+    /// per command, in [`Self::benchmarked_ids`] order.
+    fn run_hyperfine(&self, prepare_commands: &[String]) {
         let mut command = Command::new("hyperfine");
-        command
-            .current_dir(self.root())
-            .arg("--prepare")
-            .arg(cleanup_command);
+        command.current_dir(self.root());
+        for prepare in prepare_commands {
+            command.arg("--prepare").arg(prepare);
+        }
 
         self.options.hyperfine_options.append_to(&mut command);
 

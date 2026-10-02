@@ -6,11 +6,19 @@ use super::{
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
-    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
+    server_config::{PnprRestartListener, pnpr_auth_config_key, pnpr_benchmark_config_yaml},
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
-use std::{collections::HashMap, fs};
+use std::{
+    collections::HashMap,
+    fs,
+    panic::{self, AssertUnwindSafe},
+    process::{Command, ExitStatus},
+    sync::Mutex,
+    thread,
+    time::Duration,
+};
 
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {
@@ -408,24 +416,29 @@ fn pnpr_auth_config_key_uses_npmrc_nerf_shape() {
 #[test]
 fn pnpr_benchmark_config_declares_local_registry_public() {
     let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
+    let htpasswd = std::env::temp_dir().join("pnpr-benchmark-config-test-auth").join("htpasswd");
 
     let yaml = pnpr_benchmark_config_yaml(
         &storage,
+        &htpasswd,
         &["http://localhost:4873/", "http://127.0.0.1:61824/"],
     );
 
+    eprintln!("{yaml}");
     assert!(yaml.contains("registry: http://localhost:4873/"));
     assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
     assert!(yaml.contains("allowedPrivateNetworks:"));
     assert!(yaml.contains("max_users: -1"));
-    assert!(yaml.contains("htpasswd"));
+    let config: serde_json::Value = serde_saphyr::from_str(&yaml).expect("parse pnpr config");
+    assert_eq!(config["auth"]["htpasswd"]["file"], htpasswd.display().to_string());
 }
 
 #[test]
 fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
     let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
+    let htpasswd = std::env::temp_dir().join("pnpr-benchmark-config-test-auth").join("htpasswd");
 
-    let yaml = pnpr_benchmark_config_yaml(&storage, &[]);
+    let yaml = pnpr_benchmark_config_yaml(&storage, &htpasswd, &[]);
 
     // No operator-declared public routes: npmjs resolution comes from the
     // built-in route, so the config never spells out an npmjs registry rule.
@@ -570,4 +583,47 @@ fn client_binary_in_prefers_the_existing_binary() {
     assert_eq!(WorkEnv::client_binary_in(&root), release.join("pnpm"));
 
     let _ = fs::remove_dir_all(&root);
+}
+
+fn run_prepare_step(command: &str) -> ExitStatus {
+    Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .status()
+        .expect("run the --prepare step")
+}
+
+#[test]
+fn pnpr_restart_prepare_step_returns_after_its_server_restarted() {
+    let restarted = Mutex::new(Vec::new());
+    let restart = |server| {
+        thread::sleep(Duration::from_millis(100));
+        restarted.lock().unwrap().push(server);
+    };
+    let listener = PnprRestartListener::bind();
+
+    listener.serve_during(restart, || {
+        assert!(run_prepare_step(&listener.prepare_command(1)).success());
+        assert_eq!(*restarted.lock().unwrap(), [1]);
+        assert!(run_prepare_step(&listener.prepare_command(0)).success());
+        assert_eq!(*restarted.lock().unwrap(), [1, 0]);
+    });
+}
+
+#[test]
+fn pnpr_restart_prepare_step_fails_when_the_restart_fails() {
+    let mut status = None;
+    let listener = PnprRestartListener::bind();
+
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+        listener.serve_during(
+            |_| panic!("the pnpr server did not come back"),
+            || status = Some(run_prepare_step(&listener.prepare_command(0))),
+        );
+    }));
+
+    assert!(outcome.is_err());
+    let status = status.expect("the --prepare step ran");
+    dbg!(status);
+    assert!(!status.success());
 }

@@ -20,7 +20,9 @@ use std::{
 
 /// Empty one benchmark directory's install state and metrics log.
 pub(super) fn wipe_bench_dir(dir: &Path) {
-    for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"] {
+    for name in
+        ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "pnpr-auth", "cold-mock-storage"]
+    {
         let path = dir.join(name);
         if path.exists() {
             remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");

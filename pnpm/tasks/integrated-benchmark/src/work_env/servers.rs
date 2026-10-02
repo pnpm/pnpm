@@ -1,11 +1,11 @@
 use super::{
-    BenchId, PNPR_SERVER_REGISTRY_ENV, PNPR_TARBALL_REWRITE_FROM_ENV, PnprServer, PnprServerPaths,
-    RevisionMockRegistry, WorkEnv, append_pnpr_auth_to_npmrc, cold_mock_config_yaml,
-    distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth, wait_for_pnpr_ready,
-    write_pnpr_benchmark_config,
+    BenchId, PNPR_SERVER_REGISTRY_ENV, PNPR_TARBALL_REWRITE_FROM_ENV, PnprResolverServer,
+    PnprServer, PnprServerPaths, RevisionMockRegistry, WorkEnv, append_pnpr_auth_to_npmrc,
+    cold_mock_config_yaml, distinct_public_route_registries, mint_pnpr_token, pnpr_htpasswd_path,
+    remove_dir_all_with_retry, seed_pnpr_auth, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 use crate::{
-    cli_args::{BenchmarkScenario, RegistryMode, TargetKind},
+    cli_args::{BenchmarkScenario, ColdPnprCache, RegistryMode, TargetKind},
     latency_proxy::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec},
 };
 use pnpm_registry_mock::pick_unused_port;
@@ -74,7 +74,8 @@ impl WorkEnv {
         // The mock advertises its tarball URLs at the client-facing proxy
         // URL (`registry.url`), not its own loopback port, so downloads cross
         // the emulated registry link instead of bypassing it.
-        let cold = self.options.selection.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
+        let cold = self.options.selection.scenario.and_then(BenchmarkScenario::cold_pnpr_cache)
+            == Some(ColdPnprCache::Tarballs);
         let mut command = if cold {
             self.cold_revision_mock_command(revision, &binary, &bench_dir, mock_port, &registry.url)
         } else {
@@ -133,7 +134,7 @@ impl WorkEnv {
     /// server gets an isolated `<bench_dir>/pnpr-storage`. The returned
     /// guards keep the servers alive and kill them on drop; the vec is
     /// empty when no target is a pnpr target.
-    pub(super) fn start_pnpr_servers(&self, pnpr_server_registry: &str) -> Vec<PnprServer> {
+    pub(super) fn start_pnpr_servers(&self, pnpr_server_registry: &str) -> Vec<PnprResolverServer> {
         self.benchmarked_ids()
             .filter(|id| id.is_pnpr())
             .map(|id| self.start_pnpr_server(id, pnpr_server_registry))
@@ -168,7 +169,11 @@ impl WorkEnv {
         );
         proxy
     }
-    pub(super) fn start_pnpr_server(&self, id: BenchId, pnpr_server_registry: &str) -> PnprServer {
+    pub(super) fn start_pnpr_server(
+        &self,
+        id: BenchId,
+        pnpr_server_registry: &str,
+    ) -> PnprResolverServer {
         let bench_dir = self.bench_dir(id);
         let binary = bench_dir
             .join("pacquet")
@@ -180,7 +185,7 @@ impl WorkEnv {
             "pnpr binary not found at {binary:?} — the build step did not produce it",
         );
         let pnpr_storage = bench_dir.join("pnpr-storage");
-        seed_pnpr_auth(&pnpr_storage);
+        seed_pnpr_auth(&pnpr_htpasswd_path(&bench_dir));
         let public_route_registries = if matches!(self.options.network.registry, RegistryMode::Npm)
         {
             Vec::new()
@@ -190,21 +195,20 @@ impl WorkEnv {
         let pnpr_config =
             write_pnpr_benchmark_config(&bench_dir, &pnpr_storage, &public_route_registries);
         let port = pick_unused_port().expect("pick an unused port for the pnpr server");
+        let paths = PnprServerPaths {
+            bench_dir: bench_dir.clone(),
+            binary,
+            config: pnpr_config,
+            storage: pnpr_storage,
+            port,
+        };
 
         // Wrap the child in its guard *before* anything that can panic
         // (readiness wait, `.pnpr-env` write), so an early failure unwinds
         // through `PnprServer::drop` and kills the process instead of
         // leaking an orphaned server.
-        let mut server = PnprServer {
-            process: self.spawn_pnpr_server_process(&PnprServerPaths {
-                bench_dir: &bench_dir,
-                binary: &binary,
-                config: &pnpr_config,
-                storage: &pnpr_storage,
-                port,
-            }),
-            latency_proxy: None,
-        };
+        let mut server =
+            PnprServer { process: self.spawn_pnpr_server_process(&paths), latency_proxy: None };
 
         wait_for_pnpr_ready(port);
         // Log in as the seeded benchmark user to mint a bearer token. Real
@@ -224,7 +228,19 @@ impl WorkEnv {
 
         self.write_pnpr_client_env(&bench_dir, &client_url, &pnpr_token, pnpr_server_registry);
 
-        server
+        PnprResolverServer { server, paths }
+    }
+    /// Restart a pnpr resolver server on empty storage. Killing the process is
+    /// what drops the in-memory resolution cache: emptying `pnpr-storage` under
+    /// a live server leaves it warm. The token minted at startup stays valid
+    /// because `tokens.db` lives outside the storage (see [`pnpr_htpasswd_path`]).
+    pub(super) fn restart_pnpr_server_on_empty_storage(&self, resolver: &mut PnprResolverServer) {
+        let PnprResolverServer { server, paths } = resolver;
+        server.process.kill().expect("stop the pnpr server before restarting it");
+        server.process.wait().expect("wait for the stopped pnpr server to exit");
+        remove_dir_all_with_retry(&paths.storage).expect("empty pnpr storage before restart");
+        server.process = self.spawn_pnpr_server_process(paths);
+        wait_for_pnpr_ready(paths.port);
     }
     /// Write the client config variable and the benchmark's registry rewrite source.
     /// The `PNPM_CONFIG` prefix is required for the server to reach the client config.
@@ -247,7 +263,7 @@ impl WorkEnv {
         )
         .expect("write .pnpr-env");
     }
-    pub(super) fn spawn_pnpr_server_process(&self, paths: &PnprServerPaths<'_>) -> Child {
+    pub(super) fn spawn_pnpr_server_process(&self, paths: &PnprServerPaths) -> Child {
         eprintln!(
             "Starting pnpr server for {} on 127.0.0.1:{}...",
             paths.bench_dir.display(),
@@ -257,14 +273,14 @@ impl WorkEnv {
             .expect("create pnpr server stdout log");
         let stderr = File::create(paths.bench_dir.join("pnpr-server.stderr.log"))
             .expect("create pnpr server stderr log");
-        let mut command = Command::new(paths.binary);
+        let mut command = Command::new(&paths.binary);
         command
             .arg("--config")
-            .arg(paths.config)
+            .arg(&paths.config)
             .arg("--listen")
             .arg(format!("127.0.0.1:{}", paths.port))
             .arg("--storage")
-            .arg(paths.storage)
+            .arg(&paths.storage)
             // The resolver resolves against the registry the client
             // sends, caching packuments in its own store. A long TTL keeps
             // those cached packuments authoritative across the run, the
