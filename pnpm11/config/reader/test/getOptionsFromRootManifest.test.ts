@@ -358,6 +358,28 @@ test('getOptionsFromPnpmSettings() rejects non-object nodeDownloadMirrors', () =
   }))
 })
 
+test('getOptionsFromPnpmSettings() rejects explicit null nodeDownloadMirrors', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: null as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "nodeDownloadMirrors" setting should be an object, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() interpolates environment variables in nodeDownloadMirrors', () => {
+  process.env.TEST_NODE_MIRROR = 'https://mirror.example.com/node/'
+  try {
+    expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+      nodeDownloadMirrors: {
+        release: '${TEST_NODE_MIRROR}',
+      },
+    })).not.toThrow()
+  } finally {
+    delete process.env.TEST_NODE_MIRROR
+  }
+})
+
 test('getOptionsFromPnpmSettings() rejects a non-string range in packageExtensions', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
