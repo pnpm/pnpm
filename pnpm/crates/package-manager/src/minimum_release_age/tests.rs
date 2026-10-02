@@ -246,6 +246,60 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     assert!(workspace.contains("- bar@3.0.0"));
 
     assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
+
+    let messages: Vec<String> = EVENTS
+        .lock()
+        .expect("event lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Pnpm(log) => Some(log.message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(
+        messages[0],
+        "Added 2 entries to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt)",
+    );
+}
+
+#[tokio::test]
+async fn approval_with_single_entry_uses_singular_and_omits_list() {
+    recording_reporter!(reset_events);
+    reset_events();
+    let dir = tempdir().expect("temp dir");
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    let mut config = Config::new();
+    config.minimum_release_age_strict = Some(true);
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
+    let violations = vec![violation("foo", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")];
+
+    handle_minimum_release_age_violations_with::<RecordingReporter, _>(
+        &config,
+        dir.path(),
+        &violations,
+        true,
+        PolicyExcludes::Persist,
+        &mut prompt,
+    )
+    .await
+    .expect("approval should continue");
+
+    let messages: Vec<String> = EVENTS
+        .lock()
+        .expect("event lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Pnpm(log) => Some(log.message.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(
+        messages[0],
+        "Added 1 entry to minimumReleaseAgeExclude in pnpm-workspace.yaml (approved at the prompt)",
+    );
 }
 
 #[tokio::test]
