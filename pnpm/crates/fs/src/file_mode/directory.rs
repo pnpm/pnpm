@@ -49,19 +49,35 @@ pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
 /// not searchable.
 ///
 /// Directories that already existed are not passed in. `EPERM`, `EACCES`,
-/// and `EROFS` are ignored. The root directory is never changed.
+/// and `EROFS` are ignored. The root directory is never changed. `dir` must
+/// be a lexical descendant of `template` with no parent traversal in the
+/// descendant suffix; invalid boundaries return `InvalidInput` before changes.
 #[cfg(any(unix, target_os = "wasi"))]
 pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
-    let Some(template_mode) = reachable_mode(template)? else {
+    let mut current = std::path::absolute(dir)?;
+    let template = std::path::absolute(template)?;
+    let descendant = current
+        .strip_prefix(&template)
+        .map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidInput, "Permission template is not an ancestor")
+        })?;
+    if descendant
+        .components()
+        .any(|component| component == std::path::Component::ParentDir)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Permission inheritance cannot traverse a parent directory",
+        ));
+    }
+    let Some(template_mode) = reachable_mode(&template)? else {
         return Ok(());
     };
     let extra = inherited_dir_bits(template_mode);
     if extra == 0 {
         return Ok(());
     }
-    let mut current = dir.to_path_buf();
-    // Never chmod `/` when `template` is not a lexical prefix of `dir`.
-    while current != template && !current.as_os_str().is_empty() && current.parent().is_some() {
+    while current != template {
         add_dir_mode_bits(&current, extra)?;
         current.pop();
     }
