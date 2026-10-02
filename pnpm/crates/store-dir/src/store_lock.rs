@@ -65,11 +65,8 @@ fn lock_files(store_dir: &StoreDir, exclusive: bool) -> Result<StoreOperationLoc
     for path in paths {
         let file = pnpm_fs::open_secure_lock_file(&path)
             .map_err(|error| StoreLockError::Open { path: path.clone(), error })?;
-        #[cfg(not(target_os = "wasi"))]
-        let result = if exclusive { File::lock(&file) } else { File::lock_shared(&file) };
-        #[cfg(target_os = "wasi")]
-        let result = pnpm_fs::lock_file(&file, exclusive);
-        result.map_err(|error| StoreLockError::Acquire { path, error })?;
+        pnpm_fs::lock_file(&file, exclusive)
+            .map_err(|error| StoreLockError::Acquire { path, error })?;
         files.push(file);
     }
     Ok(StoreOperationLock { _files: files })

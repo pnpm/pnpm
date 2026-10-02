@@ -208,11 +208,7 @@ impl HeldFile {
         let Some(file) = &self.file else {
             return Liveness::Unavailable;
         };
-        #[cfg(not(target_os = "wasi"))]
-        let lock = file.try_lock();
-        #[cfg(target_os = "wasi")]
-        let lock = crate::try_lock_file(file, true);
-        let identified = match lock {
+        let identified = match crate::try_lock_file(file, true) {
             Ok(()) => held_file_id(file),
             Err(TryLockError::WouldBlock) => return Liveness::Busy,
             Err(TryLockError::Error(error)) => Err(error),
