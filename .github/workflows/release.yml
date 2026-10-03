@@ -1301,14 +1301,23 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.rust_version }}
         run: |
+          mkdir -p "$RUNNER_TEMP/pnpm-smoke/test-project"
+          cat > "$RUNNER_TEMP/pnpm-smoke/test-project/package.json" << 'EOF'
+          {
+            "name": "smoke-test",
+            "version": "1.0.0",
+            "dependencies": {
+              "is-positive": "1.0.0"
+            }
+          }
+          EOF
           docker run --rm -v "$RUNNER_TEMP/pnpm-smoke:/smoke" -w /smoke alpine:latest sh -c '
-            set -euo pipefail
+            set -eu
             chmod +x ./pnpm
             actual=$(./pnpm --version)
             echo "pnpm --version: $actual"
             test "$actual" = "'"$VERSION"'"
-            mkdir -p /smoke/test-project && cd /smoke/test-project
-            printf '%s\n' '{"name":"smoke-test","version":"1.0.0","dependencies":{"is-positive":"1.0.0"}}' > package.json
+            cd /smoke/test-project
             /smoke/pnpm install --no-frozen-lockfile
             test -d node_modules/is-positive
           '
@@ -1325,6 +1334,18 @@ jobs:
           actual=$(qemu-ppc64le -L /usr/powerpc64le-linux-gnu ./pnpm --version)
           echo "pnpm --version (ppc64le): $actual"
           test "$actual" = "$VERSION"
+          mkdir -p test-project && cd test-project
+          cat > package.json << 'EOF'
+          {
+            "name": "smoke-test",
+            "version": "1.0.0",
+            "dependencies": {
+              "is-positive": "1.0.0"
+            }
+          }
+          EOF
+          qemu-ppc64le -L /usr/powerpc64le-linux-gnu ../pnpm install --no-frozen-lockfile
+          test -d node_modules/is-positive
 
       - name: Smoke-test Linux riscv64 (QEMU)
         if: matrix.type == 'qemu-riscv64'
@@ -1338,6 +1359,18 @@ jobs:
           actual=$(qemu-riscv64 -L /usr/riscv64-linux-gnu ./pnpm --version)
           echo "pnpm --version (riscv64): $actual"
           test "$actual" = "$VERSION"
+          mkdir -p test-project && cd test-project
+          cat > package.json << 'EOF'
+          {
+            "name": "smoke-test",
+            "version": "1.0.0",
+            "dependencies": {
+              "is-positive": "1.0.0"
+            }
+          }
+          EOF
+          qemu-riscv64 -L /usr/riscv64-linux-gnu ../pnpm install --no-frozen-lockfile
+          test -d node_modules/is-positive
 
       - name: Smoke-test Linux s390x (QEMU)
         if: matrix.type == 'qemu-s390x'
@@ -1351,6 +1384,18 @@ jobs:
           actual=$(qemu-s390x -L /usr/s390x-linux-gnu ./pnpm --version)
           echo "pnpm --version (s390x): $actual"
           test "$actual" = "$VERSION"
+          mkdir -p test-project && cd test-project
+          cat > package.json << 'EOF'
+          {
+            "name": "smoke-test",
+            "version": "1.0.0",
+            "dependencies": {
+              "is-positive": "1.0.0"
+            }
+          }
+          EOF
+          qemu-s390x -L /usr/s390x-linux-gnu ../pnpm install --no-frozen-lockfile
+          test -d node_modules/is-positive
 
   publish-rust:
     name: Publish pnpm (Rust) and @pnpm/napi to npm
