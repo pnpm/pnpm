@@ -400,10 +400,7 @@ async fn transitive_required_peer_is_hoisted() {
     );
     assert!(!result.peers_result.peer_dependency_issues.missing.contains_key("peer-pkg"));
 }
-
-// ---------------------------------------------------------------------------
 // `autoInstallPeers` test cases, each covering a single-importer scenario.
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn auto_install_skips_optional_peers_without_preferred_versions() {

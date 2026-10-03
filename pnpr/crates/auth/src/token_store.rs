@@ -166,10 +166,7 @@ impl Default for TokenStore {
         Self::in_memory()
     }
 }
-
-// ---------------------------------------------------------------
 // SQLite-backed token store
-// ---------------------------------------------------------------
 
 /// `tokens` table DDL — shared by every SQL-backed auth store so the
 /// backends store the same shape and records can be moved between them.
@@ -249,10 +246,7 @@ pub(super) fn insert_token(
     )?;
     Ok(())
 }
-
-// ---------------------------------------------------------------
 // crypto helpers
-// ---------------------------------------------------------------
 
 /// Build a freshly-randomized secret for [`TokenStore::issue`].
 /// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`

@@ -87,15 +87,11 @@ fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
 }
 
-// ----- LogFormat / LogLevel serde behavior ------------------------------
-
 /// Helper: deserialize a YAML scalar into the requested enum.
 /// Lets us assert the variant mapping concisely.
 fn parse_log_yaml<Target: serde::de::DeserializeOwned>(yaml: &str) -> Result<Target, String> {
     serde_saphyr::from_str::<Target>(yaml).map_err(|err| err.to_string())
 }
-
-// ----- Config::resolve precedence ---------------------------------------
 
 /// Helper: write a config file under a tempdir and hand back the
 /// path. Tests use this to populate both the explicit `-c` arg
@@ -107,8 +103,6 @@ fn write_yaml(dir: &Path, name: &str, contents: &str) -> PathBuf {
 }
 
 const MINIMAL_YAML: &str = "storage: ./s\n";
-
-// ----- per-registry `packages:` rules from YAML -------------------------
 
 /// A one-hosted-registry config whose `packages:` map is the given YAML
 /// fragment (indented under `packages:`).

@@ -7,10 +7,7 @@ use super::{
     serve_packument_via_upstream, serve_tarball_via_upstream, tarball_response, wants_abbreviated,
 };
 use axum::response::IntoResponse;
-
-// --------------------------------------------------------------------
 // Handler bodies.
-// --------------------------------------------------------------------
 
 pub(super) async fn serve_packument(
     state: &AppState,
@@ -110,8 +107,6 @@ pub(super) fn osv_hides_version(
             is_osv_vulnerable_packument_version(packument, package_name, resolved, osv_index)
         })
 }
-
-// --------------------------------------------------------------------
 // Registry dispatch. A `/~<name>/` request resolves the package to
 // exactly one concrete origin through the validated registry graph
 // ([`pnpr_registry`]) and serves it there — authoritatively. Every concrete
@@ -123,7 +118,6 @@ pub(super) fn osv_hides_version(
 // (the via-upstream path returns `UpstreamUnavailable`), so a down private
 // source can never be reported as "not found" and pushed onto a public origin
 // one layer out.
-// --------------------------------------------------------------------
 
 /// The concrete origin a `/~<name>/` request resolved to, owned so it can be
 /// held across an `await` without borrowing the config.

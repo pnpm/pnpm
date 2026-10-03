@@ -13,11 +13,8 @@ pub(super) struct TeamPath {
     pub(super) scope: String,
     pub(super) team: String,
 }
-
-// --------------------------------------------------------------------
 // Orgs and teams. Membership is config-managed, so every mutation is
 // rejected with an explanation rather than silently ignored.
-// --------------------------------------------------------------------
 
 /// `GET {base}/-/org/{scope}/team` — the teams of the registry claiming
 /// `scope`.
