@@ -240,7 +240,7 @@ test('a 304 Not Modified renews the metadata file mtime so the publishedBy fresh
   expect(renewed()).toBe(true)
 })
 
-test('max-age=0 metadata is refetched without validators', async () => {
+test('max-age=0 metadata is revalidated with the origin', async () => {
   const cacheDir = temporaryDirectory()
   const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   registry
@@ -281,7 +281,7 @@ test('max-age=0 metadata is refetched without validators', async () => {
     .intercept({
       path: '/is-positive',
       method: 'GET',
-      headers: matchCacheBypassHeaders,
+      headers: matchRevalidationHeaders('"old"'),
     })
     .reply(200, newer, {
       headers: {
@@ -443,7 +443,7 @@ test('max-age=0 metadata is reused within one install but not from the disk mirr
     .intercept({
       path: '/is-positive',
       method: 'GET',
-      headers: matchCacheBypassHeaders,
+      headers: matchRevalidationHeaders('"old"'),
     })
     .reply(200, isPositiveMeta, {
       headers: {
@@ -456,6 +456,42 @@ test('max-age=0 metadata is reused within one install but not from the disk mirr
 
   const freshProcess = createResolveFromNpm(resolverOptions)
   expect((await freshProcess.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('an uncacheable mirror is served after a 304 from the origin and reused within the install', async () => {
+  const cacheDir = temporaryDirectory()
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  const cacheControl = 'public, max-age=900, no-store'
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta, { headers: { etag: '"current"', 'cache-control': cacheControl } })
+  const resolverOptions = {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  }
+  const wanted = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
+  expect((await createResolveFromNpm(resolverOptions).resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/is-positive.jsonl`)
+  await retryLoadJsonFile<{ uncacheable?: boolean }>(cachePath, (data) => data.uncacheable === true)
+
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchRevalidationHeaders('"current"'),
+    })
+    .reply(304, '', { headers: { 'cache-control': cacheControl } })
+  let requests = 0
+  const countingFetch: typeof fetch = async (...args) => {
+    requests++
+    return fetch(...args)
+  }
+  const nextInstall = createNpmResolver(countingFetch, getAuthHeader, resolverOptions)
+  expect((await nextInstall.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  expect((await nextInstall.resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.1.0' }, {}))!.id).toBe('is-positive@3.1.0')
+  expect(requests).toBe(1)
   getMockAgent().assertNoPendingInterceptors()
 })
 
@@ -746,6 +782,10 @@ test('cached metadata propagates a cache-loss fallback registry error', async ()
   })
   getMockAgent().assertNoPendingInterceptors()
 })
+
+function matchRevalidationHeaders (etag: string): (headers: Record<string, string>) => boolean {
+  return (headers) => headers['if-none-match'] === etag && headers['cache-control'] === 'no-cache'
+}
 
 function matchCacheBypassHeaders (headers: Record<string, string>): boolean {
   return headers['if-none-match'] === undefined &&

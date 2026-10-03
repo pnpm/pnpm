@@ -67,14 +67,13 @@ async function fetchConditionally (
   { ctx, spec, opts, fullMetadata }: PickRequest,
   cacheHeaders: MetaHeaders | null
 ): ReturnType<PickRequest['ctx']['fetch']> {
-  const uncacheable = cacheHeaders?.uncacheable === true
   const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, fullMetadata)
   return ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: uncacheable,
+    cacheBypass: cacheHeaders?.uncacheable === true,
     fullMetadata: fullMetadata || fullEtag != null,
-    etag: uncacheable ? undefined : (fullEtag ?? cacheHeaders?.etag),
-    modified: uncacheable ? undefined : cacheHeaders?.modified,
+    etag: fullEtag ?? cacheHeaders?.etag,
+    modified: cacheHeaders?.modified,
     registry: opts.registry,
   })
 }

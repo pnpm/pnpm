@@ -4,7 +4,7 @@ use pnpm_resolving_npm_resolver::PickPackageError;
 use std::{error::Error as _, iter};
 
 use super::super::{
-    edge_resolution::is_droppable_resolve_error, workspace_resolution::map_resolve_error,
+    failed_edge::is_droppable_resolve_error, workspace_resolution::map_resolve_error,
 };
 
 #[derive(Debug, Display, Error)]

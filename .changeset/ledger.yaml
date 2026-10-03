@@ -2909,6 +2909,11 @@
   dir: pnpm/npm/napi
   intents:
     - repeat-install-injected-workspace-deps
+"@pnpm/napi@12.9.0":
+  dir: pnpm/npm/napi
+  intents:
+    - napi-read-package-hook-checksum
+    - report-linked-from
 "@pnpm/network.agent@1100.0.0":
   dir: pnpm11/network/agent
   intents:
@@ -6335,6 +6340,66 @@ pacquet@12.8.2:
     - store-locks-follow-xdg-runtime-dir
     - unknown-option-reaches-pinned-pnpm
     - windows-rayon-pool
+pacquet@12.9.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - android-store-operation-lock
+    - auto-dedupe-downgrade
+    - cache-children-cycle-table
+    - clean-configured-global-store
+    - clean-keeps-project-root
+    - cmd-shim-no-terminate-batch-job-prompt
+    - config-dotted-settings-recorded
+    - custom-global-store-project-state
+    - dedupe-check-after-install-hoisted-optional-peer
+    - deploy-symlinked-target-paths
+    - engine-bins-linked-under-lock
+    - engine-slot-ignores-node-version
+    - env-only-lockfile-pacquet
+    - fix-direct-locked-versions
+    - fix-legacy-global-hard-links
+    - force-help-text-platform
+    - fresh-build-launchers
+    - frozen-injected-optional-peers
+    - frozen-install-absent-workspace-project
+    - frozen-install-without-lockfile
+    - gvs-esm-loader-commonjs-entry-point
+    - hoisted-delegated-symlinks
+    - hoisted-filtered-install-keeps-packages
+    - legacy-deploy-local-dependencies
+    - login-cross-origin-redirect
+    - offline-config-deps-store-reuse
+    - offline-resolve-reads-only-in-range-versions
+    - one-process-group-watchdog
+    - optional-peer-follows-its-provider
+    - parallel-dangling-link-probe
+    - peer-cycle-patch-hash
+    - pkg-get-recursive-duplicate-names
+    - pnpm-homepage-url
+    - prune-mark-phase-errors
+    - range-pin-keeps-locked-version
+    - range-pin-respects-minimum-release-age
+    - register-every-project-in-store
+    - registry-network-concurrency
+    - release-age-upgrade-keeps-full-etag
+    - report-linked-from
+    - reuse-cached-metadata-when-the-lockfile-decides-a-range
+    - reuse-deduplicated-lockfile-on-repeat-lockfile-only-install
+    - revalidate-uncacheable-registry-metadata
+    - run-after-failed-pre-run-install
+    - run-filter-after-script-hint
+    - self-update-checks-javascript-pnpm-runs
+    - self-update-replaces-standalone-exe-v12
+    - short-sequential-before-script
+    - skip-deps-of-unsupported-optional
+    - skip-failed-optional-build-on-repeat-install
+    - slow-link-fetch-concurrency
+    - store-index-undefined-manifest
+    - verify-deps-check-selected-project-dependencies
+    - warn-optional-fetch-failure
+    - wasm-webcontainers
+    - witty-bears-sing
+    - x64-musl-switch-to-pnpm-10
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:

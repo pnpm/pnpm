@@ -37,7 +37,9 @@ adopting website tooling changes. Release publication uses the website's current
 
 ## Publication
 
-After the Release workflow succeeds, Sync documentation verifies the
+When a maintainer publishes a draft GitHub release, Sync documentation
+dispatches itself from `main` for that tag, so every sync runs the workflow,
+scripts, and trusted keys on `main`. The sync verifies the
 signed tag and npm publication, then imports only that version's documentation
 from the tagged commit. Stable v11 and v12 releases update their
 respective CLI documentation. Pnpr releases, including alpha releases, update
@@ -66,6 +68,18 @@ including docs for unreleased changes. It requires the same `DOCS_SYNC_TOKEN`
 setup as automatic publication. The generated website commit records the source
 SHA. This manual override leaves the last-release tracking in `docs-sync.json`
 unchanged; subsequent newer releases resume updating their respective docs.
+
+### Release pages
+
+Each stable v11 and v12 sync also writes the release's page on the pnpm.io blog,
+`blog/releases/<version>.md`. The page is the composed changelog section that
+the release PR curated (see the
+[release-notes skill](.agents/skills/release-notes/SKILL.md)), read at the
+release commit. Its lead paragraph becomes the blog excerpt. The sync never
+overwrites an existing page, so fix a published page in pnpm/pnpm.io directly.
+Pnpr releases get no page.
+
+### Corrections
 
 For a correction that should ship before the next package release, branch from
 the published release tag, change only the corresponding `pnpm/docs/` or
@@ -102,7 +116,9 @@ GitHub alerts render only on GitHub. Docusaurus admonitions render only on pnpm.
    with permission to push content to pnpm/pnpm.io's `main` branch. Configure
    branch rules to allow that identity. Use a GitHub App token or fine-grained
    personal access token; the source repository's `GITHUB_TOKEN` cannot perform
-   this cross-repository push and trigger the website deployment.
+   this cross-repository push and trigger the website deployment. Limit the
+   environment's deployment branches to `main`, so a workflow on another branch
+   or a tag cannot read the token.
 4. Keep Crowdin uploads in pnpm/pnpm.io. Its existing paths and translation
    identifiers remain unchanged. Run `pnpm crowdin-upload` there after a sync
    when updating translation sources, as before.

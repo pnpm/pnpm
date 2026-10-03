@@ -133,11 +133,10 @@ pub(crate) struct MetadataRequestOptions<'a> {
     pub priority: u64,
     pub etag: Option<&'a str>,
     pub modified: Option<&'a str>,
-    /// Ask for the packument as a cold cache would: [`Self::etag`] and
-    /// [`Self::modified`] are dropped rather than sent, and `Cache-Control:
-    /// no-cache` keeps an intermediary from validating them on our behalf.
-    /// Set when the mirror those validators describe is known to be gone, so
-    /// only a body — never a `304` — can satisfy the request.
+    /// Send `Cache-Control: no-cache`, so an intermediary cannot answer from
+    /// its own copy without asking the origin. With [`Self::etag`] or
+    /// [`Self::modified`] the origin still answers a current mirror with a
+    /// `304`. Without them only a body can satisfy the request.
     pub bypass_cache: bool,
     pub http: crate::MetadataHttpClient<'a>,
 }
@@ -162,16 +161,16 @@ impl MetadataHttpClient<'_> {
 /// cache reuse disabled. A repeated 304 cannot validate any local body and is
 /// reported with the same error in both pnpm implementations.
 ///
-/// A [`MetadataRequestOptions::bypass_cache`] request has already given up its
-/// validators, so that retry would only repeat itself: its 304 fails straight
-/// away instead.
+/// A validator-free [`MetadataRequestOptions::bypass_cache`] request already
+/// disabled intermediary reuse, so that retry would only repeat itself: its
+/// 304 fails straight away instead.
 ///
-/// A 304 to a revalidation whose `Cache-Control` forbids reuse (see
-/// [`metadata_response_is_uncacheable`]) is asked once more without
-/// validators. A mirror without the uncacheable flag still sends
-/// validators, and a stale intermediary can answer them with a 304. If the
-/// validator-free request is answered with a 304 too, it is returned as is
-/// and the caller serves its mirror.
+/// A 304 to a revalidation sent without `bypass_cache` whose `Cache-Control`
+/// forbids reuse (see [`metadata_response_is_uncacheable`]) is asked once
+/// more without validators. Only a mirror without the uncacheable flag sends
+/// such a revalidation, and a stale intermediary can answer it with a 304. If
+/// the validator-free request is answered with a 304 too, it is returned as
+/// is and the caller serves its mirror.
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
@@ -187,7 +186,7 @@ pub(crate) async fn send_metadata_request<'a>(
         return Ok((client, response));
     }
     if validators.any() {
-        if !metadata_response_is_uncacheable(response.headers()) {
+        if opts.bypass_cache || !metadata_response_is_uncacheable(response.headers()) {
             return Ok((client, response));
         }
         drop(client);
@@ -210,8 +209,7 @@ pub(crate) async fn send_metadata_request<'a>(
     Ok((client, response))
 }
 
-/// The conditional-request headers this call may send. A cache-bypassing
-/// request gives them up.
+/// The conditional-request headers this call may send.
 struct Validators<'a> {
     etag: Option<&'a str>,
     modified: Option<String>,
@@ -221,9 +219,6 @@ impl<'a> Validators<'a> {
     const NONE: Validators<'static> = Validators { etag: None, modified: None };
 
     fn for_request(opts: &MetadataRequestOptions<'a>) -> Self {
-        if opts.bypass_cache {
-            return Validators::NONE;
-        }
         Validators {
             etag: opts.etag.filter(|value| !value.is_empty()),
             modified: opts.modified

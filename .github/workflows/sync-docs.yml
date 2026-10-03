@@ -1,11 +1,12 @@
 name: Sync documentation
 
 on:
-  # Automatic runs use signed, published release tags; no code or artifacts
-  # from the triggering run execute here. The token is limited to the push step.
-  workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [Release]
-    types: [completed]
+  # A maintainer publishes the draft GitHub release after approving the staged
+  # npm packages. A release event runs the workflow file from the tag, so it
+  # only dispatches the sync from the default branch. The token is limited to
+  # the push step.
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -20,11 +21,25 @@ permissions:
   contents: read
 
 jobs:
-  sync:
+  dispatch:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event_name == 'release' &&
+      (startsWith(github.event.release.tag_name, 'v11.') ||
+       startsWith(github.event.release.tag_name, 'v12.') ||
+       startsWith(github.event.release.tag_name, 'pnpr@'))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the sync from the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh workflow run sync-docs.yml -R "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f release_tag="$RELEASE_TAG"
+
+  sync:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       publish: ${{ steps.source.outputs.publish }}
@@ -106,6 +121,7 @@ jobs:
             website/sidebars-pnpr.json
             website/versioned_sidebars/version-11.x-sidebars.json
             website/static/docs-assets
+            website/blog/releases
             website/docs-sync.json
 
   publish:
@@ -138,7 +154,7 @@ jobs:
           VERSION: ${{ needs.sync.outputs.version }}
           LINE: ${{ needs.sync.outputs.line }}
         run: |
-          git add docs pnpr-docs sidebars-pnpr.json versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets docs-sync.json
+          git add docs pnpr-docs sidebars-pnpr.json versioned_docs/version-11.x versioned_sidebars/version-11.x-sidebars.json sidebars.json static/docs-assets blog/releases docs-sync.json
           if git diff --cached --quiet; then exit 0; fi
           git config user.name 'pnpm docs sync'
           git config user.email 'pnpm-docs-sync@users.noreply.github.com'

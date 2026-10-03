@@ -122,6 +122,11 @@ pub(crate) struct WorkspaceTreeStorage {
     nodes_by_pkg_id: Mutex<HashMap<Arc<str>, Vec<NodeId>>>,
     /// See [`SyncLog`].
     sync_log: Mutex<SyncLog>,
+    /// Packages whose regular dependency failed to resolve inside an
+    /// optional subtree, each with the failure of the alphabetically first
+    /// such dependency, so the reported error does not depend on which
+    /// failure arrived first.
+    broken_packages: Mutex<HashMap<Arc<str>, (String, super::ResolveDependencyTreeError)>>,
 }
 
 #[derive(Default)]
@@ -405,6 +410,35 @@ pub(crate) struct SyncCursor {
 }
 
 impl WorkspaceTreeCtx {
+    pub(super) fn record_broken_package(
+        &self,
+        pkg_id: &Arc<str>,
+        failed_alias: &str,
+        err: super::ResolveDependencyTreeError,
+    ) {
+        let mut broken = lock_recoverable(&self.tree.broken_packages);
+        match broken.get(pkg_id) {
+            Some((recorded_alias, _)) if recorded_alias.as_str() <= failed_alias => {}
+            _ => {
+                broken.insert(Arc::clone(pkg_id), (failed_alias.to_string(), err));
+            }
+        }
+    }
+
+    /// Drain the recorded broken packages, leaving none behind.
+    pub(crate) fn take_broken_packages(
+        &self,
+    ) -> HashMap<Arc<str>, super::ResolveDependencyTreeError> {
+        std::mem::take(&mut *lock_recoverable(&self.tree.broken_packages))
+            .into_iter()
+            .map(|(pkg_id, (_, err))| (pkg_id, err))
+            .collect()
+    }
+
+    pub(crate) fn skipped_optional_log(&self) -> Option<SkippedOptionalLogFn> {
+        self.hooks.skipped_optional_log.clone()
+    }
+
     pub(crate) fn with_hooks(mut self, hooks: crate::WorkspaceResolveHooks) -> Self {
         self.hooks = hooks;
         self

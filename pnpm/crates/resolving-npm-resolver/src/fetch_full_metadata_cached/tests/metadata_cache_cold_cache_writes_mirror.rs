@@ -794,7 +794,7 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
 }
 
 #[tokio::test]
-async fn max_age_zero_metadata_is_refetched_without_validators() {
+async fn max_age_zero_metadata_is_revalidated_with_the_origin() {
     let mut server = mockito::Server::new_async().await;
     let first = server
         .mock("GET", "/acme")
@@ -836,8 +836,7 @@ async fn max_age_zero_metadata_is_refetched_without_validators() {
     let newer = PACKAGE_BODY.replace("1.0.0", "1.0.1");
     let second = server
         .mock("GET", "/acme")
-        .match_header("if-none-match", Matcher::Missing)
-        .match_header("if-modified-since", Matcher::Missing)
+        .match_header("if-none-match", r#"W/"old""#)
         .match_header("cache-control", "no-cache")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -855,6 +854,61 @@ async fn max_age_zero_metadata_is_refetched_without_validators() {
     assert_eq!(stored.etag.as_deref(), Some(r#"W/"new""#));
     first.assert_async().await;
     second.assert_async().await;
+}
+
+/// A registry that forbids reuse but still answers a revalidation with a 304
+/// is served from the mirror, with a single request per install.
+#[tokio::test]
+async fn uncacheable_mirror_is_served_after_a_304_from_the_origin() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("etag", r#"W/"current""#)
+        .with_header("cache-control", "public, max-age=900, no-store")
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        offline: false,
+        priority: pnpm_network::UNPRIORITIZED,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+
+    fetch_full_metadata_cached("acme", &opts).await.expect("first fetch");
+    first.assert_async().await;
+    let mirror_path =
+        get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
+
+    let not_modified = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"current""#)
+        .match_header("cache-control", "no-cache")
+        .with_status(304)
+        .with_header("cache-control", "public, max-age=900, no-store")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("revalidation");
+    assert!(pkg.versions.get("1.0.0").is_some());
+    assert!(load_meta_headers(&mirror_path).expect("headers").uncacheable);
+    not_modified.assert_async().await;
 }
 
 /// A mirror without the uncacheable flag still sends validators. A stale 304
