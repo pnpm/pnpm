@@ -320,6 +320,7 @@ jobs:
                 const relative = file.replace(/^\.\//, "")
                 if (excluded.some((pattern) => pattern.test(relative))) return
                 const source = path.join(packageDir, relative)
+                if (path.relative(packageDir, source).split(path.sep)[0] === "..") throw new Error("Payload file outside the package: " + file)
                 const stat = fs.statSync(source, { throwIfNoEntry: false })
                 if (stat?.isFile()) {
                   files.add(relative)
@@ -1056,6 +1057,7 @@ jobs:
                 const relative = file.replace(/^\.\//, "")
                 if (excluded.some((pattern) => pattern.test(relative))) return
                 const source = path.join(packageDir, relative)
+                if (path.relative(packageDir, source).split(path.sep)[0] === "..") throw new Error("Payload file outside the package: " + file)
                 const stat = fs.statSync(source, { throwIfNoEntry: false })
                 if (stat?.isFile()) {
                   files.add(relative)
@@ -1518,6 +1520,7 @@ jobs:
                 const relative = file.replace(/^\.\//, "")
                 if (excluded.some((pattern) => pattern.test(relative))) return
                 const source = path.join(packageDir, relative)
+                if (path.relative(packageDir, source).split(path.sep)[0] === "..") throw new Error("Payload file outside the package: " + file)
                 const stat = fs.statSync(source, { throwIfNoEntry: false })
                 if (stat?.isFile()) {
                   files.add(relative)
