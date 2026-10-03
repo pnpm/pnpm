@@ -134,6 +134,7 @@ impl ConfigOverrides {
     /// relative path-valued setting outside a workspace.
     pub fn apply(&self, config: &mut Config, dir: &Path) {
         self.record_cli_settings(config);
+        config.raw_cli_config.clone_from(&self.raw_cli_config);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),

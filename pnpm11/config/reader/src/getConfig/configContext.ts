@@ -20,6 +20,7 @@ export const CONFIG_CONTEXT_KEYS = [
   'enginePinManifest',
   'nodeVersionFromEnginesRuntime',
   'cliOptions',
+  'rawCliConfig',
   'explicitlySetKeys',
   'packageManager',
   'wantedPackageManager',

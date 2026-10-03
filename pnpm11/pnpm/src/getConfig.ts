@@ -37,6 +37,7 @@ export async function getConfig (
     forSelfUpdate: opts.forSelfUpdate,
   })
   context.cliOptions = cliOptions
+  context.rawCliConfig = cliOptions.rawCliConfig as Record<string, unknown> | undefined
   applyDerivedConfig(config)
 
   if (opts.excludeReporter) {

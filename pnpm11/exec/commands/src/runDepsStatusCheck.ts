@@ -31,6 +31,7 @@ export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Proje
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
+  rawCliConfig?: Record<string, unknown>
 }
 
 export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions): Promise<void> {
@@ -47,7 +48,7 @@ export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (await installNotRequired(opts, upToDate, workspaceState)) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
+  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts), ...createCliConfigArgs(opts)]
   const install = lockedInstall.bind(null, opts, command)
 
   switch (opts.verifyDepsBeforeRun) {
@@ -245,7 +246,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
       if (await installNotRequired(opts, upToDate, workspaceState)) return
-      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
+      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts), ...createCliConfigArgs(opts)]
     }
     runInstall(opts, command)
   } finally {
@@ -314,3 +315,13 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
     ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
   ]
 }
+
+export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawCliConfig'>): string[] {
+  if (!opts.rawCliConfig) return []
+  return Object.entries(opts.rawCliConfig).flatMap(([key, value]) => {
+    if (value === undefined || value === null) return []
+    const values = Array.isArray(value) ? value : [value]
+    return values.map((item) => `--config.${key}=${item}`)
+  })
+}
+
