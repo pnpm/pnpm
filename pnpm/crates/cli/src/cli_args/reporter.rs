@@ -1,8 +1,11 @@
 use clap::ValueEnum;
 use pnpm_config::ColorMode;
 use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
-use pnpm_reporter::{LogEvent, NdjsonReporter, Reporter, SilentReporter};
-use std::path::Path;
+use pnpm_reporter::{LogEvent, NdjsonReporter, PnpmLog, Reporter, SilentReporter};
+use std::{
+    path::Path,
+    sync::atomic::{AtomicU8, Ordering},
+};
 
 /// Output format for progress and log messages.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -74,8 +77,15 @@ impl ReporterFlags {
             .unwrap_or_default()
     }
 
-    pub(crate) fn resolve_with(self, config: &pnpm_config::Config) -> ReporterType {
+    fn resolve_with(self, config: &pnpm_config::Config) -> ReporterType {
         self.resolve(config.loglevel, config.reporter)
+    }
+
+    /// Resolve the reporter over `config` and [select](select_reporter) it.
+    pub(crate) fn select_with(self, config: &pnpm_config::Config) -> ReporterType {
+        let reporter = self.resolve_with(config);
+        select_reporter(reporter);
+        reporter
     }
 
     /// Resolve the reporter and seed the default reporter's log-level ceiling
@@ -128,6 +138,117 @@ pub(crate) fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
         ReporterType::Default | ReporterType::AppendOnly => DefaultReporter::emit,
         ReporterType::Ndjson => NdjsonReporter::emit,
         ReporterType::Silent => SilentReporter::emit,
+    }
+}
+
+/// The reporter the running command drives, as a [`ReporterType`]
+/// discriminant. Written only by [`select_reporter`], so the reporter a
+/// handler reads and the sink [`CliReporter`] emits to cannot disagree.
+static SELECTED_REPORTER: AtomicU8 = AtomicU8::new(ReporterType::Default as u8);
+
+/// Route every later [`CliReporter`] event to `reporter`'s sink.
+///
+/// Call it whenever the reporter is resolved again, such as after loading
+/// configuration or running the pnpmfile's `updateConfig` hook.
+pub(crate) fn select_reporter(reporter: ReporterType) {
+    SELECTED_REPORTER.store(reporter as u8, Ordering::Relaxed);
+}
+
+pub(crate) fn selected_reporter() -> ReporterType {
+    SELECTED_REPORTER.load(Ordering::Relaxed).into()
+}
+
+/// The [`Reporter`] the CLI runs commands with: forwards each event to the
+/// [selected](select_reporter) sink.
+///
+/// Commands are instantiated with this one type rather than once per sink, so
+/// the install pipeline is compiled once. Choosing the sink per event costs an
+/// atomic load and a branch, next to sinks that lock a mutex or serialize JSON.
+pub(crate) struct CliReporter;
+
+impl Reporter for CliReporter {
+    fn emit(event: &LogEvent) {
+        if EventFilter::current().hides(event) {
+            return;
+        }
+        reporter_emit(selected_reporter())(event);
+    }
+
+    fn report_fatal_error(message: String) -> Option<String> {
+        match selected_reporter() {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                DefaultReporter::report_fatal_error(message)
+            }
+            ReporterType::Ndjson => NdjsonReporter::report_fatal_error(message),
+            ReporterType::Silent => SilentReporter::report_fatal_error(message),
+        }
+    }
+}
+
+/// Events [`CliReporter`] drops while an [`EventFilterGuard`] is alive.
+///
+/// Process-global rather than task-local: the install pipeline emits from
+/// rayon threads and spawned tasks. Hold a guard only around work that runs
+/// alone, because it hides every [`CliReporter`] event in the process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub(crate) enum EventFilter {
+    None = 0,
+    /// The lockfile-only comparison pass: hide the install-tree events and the
+    /// terminal "Already up to date".
+    GlobalUpdateResolution = 1,
+    /// A materializing pass: `update -g` prints one summary of its own.
+    GlobalUpdateMaterialization = 2,
+    /// Work that runs quietly regardless of `--reporter`, such as provisioning
+    /// the pnpm version a project pins.
+    All = 3,
+}
+
+static EVENT_FILTER: AtomicU8 = AtomicU8::new(EventFilter::None as u8);
+
+impl EventFilter {
+    fn current() -> Self {
+        match EVENT_FILTER.load(Ordering::Relaxed) {
+            1 => EventFilter::GlobalUpdateResolution,
+            2 => EventFilter::GlobalUpdateMaterialization,
+            3 => EventFilter::All,
+            _ => EventFilter::None,
+        }
+    }
+
+    fn hides(self, event: &LogEvent) -> bool {
+        match self {
+            EventFilter::None => false,
+            EventFilter::All => true,
+            EventFilter::GlobalUpdateResolution => {
+                matches!(
+                    event,
+                    LogEvent::PackageManifest(_)
+                        | LogEvent::Root(_)
+                        | LogEvent::Stats(_)
+                        | LogEvent::Summary(_),
+                ) || matches!(
+                    event,
+                    LogEvent::Pnpm(PnpmLog { message, .. }) if message == "Already up to date",
+                )
+            }
+            EventFilter::GlobalUpdateMaterialization => matches!(event, LogEvent::Summary(_)),
+        }
+    }
+
+    /// Apply this filter until the returned guard drops.
+    #[must_use]
+    pub(crate) fn apply(self) -> EventFilterGuard {
+        EVENT_FILTER.store(self as u8, Ordering::Relaxed);
+        EventFilterGuard
+    }
+}
+
+pub(crate) struct EventFilterGuard;
+
+impl Drop for EventFilterGuard {
+    fn drop(&mut self) {
+        EVENT_FILTER.store(EventFilter::None as u8, Ordering::Relaxed);
     }
 }
 

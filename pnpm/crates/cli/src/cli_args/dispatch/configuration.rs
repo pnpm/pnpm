@@ -1,9 +1,10 @@
 use super::{
-    CliArgs, CliCommand, Config, Context, DefaultReporter, Host, IntoDiagnostic, NdjsonReporter,
-    Path, PathBuf, ReporterType, SilentReporter, SummaryScope, apply_state_dir_override,
-    apply_store_dir_override, configure_color, default_pnpm_home_dir, now_millis, prepare_config,
-    prints_json_errors, warn_shared_workspace_lockfile_outside_workspace,
+    CliArgs, CliCommand, Config, Context, Host, IntoDiagnostic, Path, PathBuf, SummaryScope,
+    apply_state_dir_override, apply_store_dir_override, configure_color, default_pnpm_home_dir,
+    now_millis, prepare_config, prints_json_errors,
+    warn_shared_workspace_lockfile_outside_workspace,
 };
+use crate::cli_args::reporter::CliReporter;
 use crate::config_overrides::{ConfigOverrides, apply_registry_override};
 use pnpm_hooks::PnpmfileHooks;
 use std::sync::Arc;
@@ -53,9 +54,8 @@ impl RunAnchors {
 
 /// What the command line settles before any config is loaded, and when
 /// the run began.
-pub(super) struct RunSetup<'a> {
+pub(super) struct RunSetup {
     pub(super) started_at: u128,
-    pub(super) effective_reporter: &'a std::sync::atomic::AtomicU8,
     pub(super) is_install_family: bool,
     pub(super) print_json_errors: bool,
     pub(super) recursive_by_default: bool,
@@ -64,11 +64,10 @@ pub(super) struct RunSetup<'a> {
     pub(super) uses_stderr_reporter: bool,
 }
 
-impl<'a> RunSetup<'a> {
-    pub(super) fn of(args: &CliArgs, effective_reporter: &'a std::sync::atomic::AtomicU8) -> Self {
+impl RunSetup {
+    pub(super) fn of(args: &CliArgs) -> Self {
         RunSetup {
             started_at: now_millis(),
-            effective_reporter,
             is_install_family: matches!(
                 &args.command,
                 CliCommand::Add(_)
@@ -343,15 +342,8 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
 pub(in super::super) async fn apply_update_config(
     config: &mut Config,
     dir: &Path,
-    reporter: ReporterType,
 ) -> miette::Result<Vec<Arc<dyn PnpmfileHooks>>> {
-    match reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            prepare_config::<DefaultReporter>(config, dir).await
-        }
-        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await,
-        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await,
-    }
+    prepare_config::<CliReporter>(config, dir).await
 }
 
 pub(super) fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {

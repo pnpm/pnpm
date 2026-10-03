@@ -59,7 +59,7 @@ use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes};
 use serde_json::Value;
 use std::{

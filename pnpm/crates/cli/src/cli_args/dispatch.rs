@@ -14,6 +14,7 @@ use super::{
         configure_max_log_level, reporter_emit,
     },
 };
+use crate::cli_args::reporter::{select_reporter, selected_reporter};
 use crate::{
     config_deps::prepare_config,
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
@@ -26,15 +27,15 @@ use configuration::{
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
-use pnpm_default_reporter::{DefaultReporter, SummaryScope};
+use pnpm_default_reporter::SummaryScope;
 use pnpm_network_web_auth::OtpNonInteractiveError;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, SilentReporter};
+use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
 use routing::{
     emit_execution_time, now_millis, print_json_error, prints_json_errors, run_routed_command,
 };
 use std::{
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, AtomicU8, Ordering},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 impl CliArgs {
@@ -204,8 +205,8 @@ impl CliArgs {
         self.configure_reporter();
 
         let anchors = RunAnchors::resolve(&self)?;
-        let effective_reporter = AtomicU8::new(self.effective_reporter() as u8);
-        let setup = RunSetup::of(&self, &effective_reporter);
+        select_reporter(self.effective_reporter());
+        let setup = RunSetup::of(&self);
         let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
         let builtin_replaced_by_script =
@@ -216,8 +217,7 @@ impl CliArgs {
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
         // commands drive the visual reporter, so the rest stay silent.
         if setup.is_install_family && !builtin_replaced_by_script {
-            let final_reporter: ReporterType = effective_reporter.load(Ordering::Relaxed).into();
-            emit_execution_time(reporter_emit(final_reporter), setup.started_at);
+            emit_execution_time(reporter_emit(selected_reporter()), setup.started_at);
         }
 
         Ok(())
@@ -227,7 +227,7 @@ impl CliArgs {
         command: CliCommand,
         config_overrides: &ConfigOverrides,
         builtin_command_forced: bool,
-        setup: &RunSetup<'_>,
+        setup: &RunSetup,
         anchors: &RunAnchors,
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
@@ -256,7 +256,6 @@ impl CliArgs {
         };
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
-            effective_reporter: setup.effective_reporter,
             reporter_flags: self.reporter_flags(),
             builtin_command_forced,
             builtin_replaced_by_script: &builtin_replaced_by_script,
@@ -276,7 +275,7 @@ impl CliArgs {
         &self,
         target: &ConfigTarget<'_>,
         config_overrides: &ConfigOverrides,
-        setup: &RunSetup<'_>,
+        setup: &RunSetup,
         anchors: &RunAnchors,
         npm_command: &'static str,
     ) -> miette::Result<&'static mut Config> {
@@ -317,7 +316,7 @@ impl CliArgs {
         anchor: &Path,
         is_global: bool,
         config_overrides: &ConfigOverrides,
-        setup: &RunSetup<'_>,
+        setup: &RunSetup,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         config_overrides.apply(&mut cfg, anchor);
@@ -357,7 +356,7 @@ impl CliArgs {
         );
         apply_run_output_config(self, &mut cfg);
         let reporter = self.effective_reporter_with_config(cfg.loglevel, cfg.reporter);
-        setup.effective_reporter.store(reporter as u8, Ordering::Relaxed);
+        select_reporter(reporter);
         self.configure_run_reporter(&cfg, reporter, setup, anchors);
         Ok(Config::leak(cfg))
     }

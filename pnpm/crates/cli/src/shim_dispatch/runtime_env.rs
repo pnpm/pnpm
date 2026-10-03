@@ -5,6 +5,7 @@
 //! another process holds that lock, the runtime is installed into a
 //! [`PrivateInstall`] of this process's own instead, and runs from there.
 
+use crate::cli_args::reporter::{CliReporter, EventFilter};
 use crate::{State, cli_args::add::add_package, slot_lock};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{Config, Host, NodeLinker};
@@ -12,7 +13,6 @@ use pnpm_crypto_hash::create_hex_hash;
 use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::PrivateInstall;
 use serde_json::Value;
 use std::{
@@ -261,7 +261,8 @@ async fn install_runtime(
         Config::leak(hardened_install_config(config, environment_dir, global_virtual_store_dir));
     let state = State::init(environment_dir.join("package.json"), install_config, false)
         .wrap_err("initialize the managed runtime environment")?;
-    add_package::<SilentReporter, _>(
+    let quiet = EventFilter::All.apply();
+    add_package::<CliReporter, _>(
         state,
         &format!("{name}@runtime:{version_spec}"),
         RangeSpecStyle::Patch,
@@ -272,6 +273,7 @@ async fn install_runtime(
     )
     .await
     .wrap_err("install the managed runtime")?;
+    drop(quiet);
 
     managed_runtime_bin(environment_dir, name, &trusted_root)
         .ok_or_else(|| {

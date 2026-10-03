@@ -8,6 +8,7 @@ use super::{
     script_shortcut::ScriptShortcutArgs,
     set_script::SetScriptArgs,
 };
+use crate::cli_args::reporter::selected_reporter;
 use miette::Context;
 use pnpm_config::{Config, InitType};
 use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
@@ -91,10 +92,10 @@ pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<Command
     config.extra_env.insert("npm_command".to_string(), "run-script".to_string());
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter();
+    let reporter = selected_reporter();
     let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         let config: &'static Config = config;
         let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
@@ -128,10 +129,10 @@ pub(super) fn fallback<'a>(
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.locations.dir;
     let cli_dir = ctx.locations.cli_dir;
-    let reporter = ctx.reporter();
+    let reporter = selected_reporter();
     let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         let config: &'static Config = config;
         let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
@@ -147,10 +148,10 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.locations.dir;
     let cli_dir = ctx.locations.cli_dir;
-    let reporter = ctx.reporter();
+    let reporter = selected_reporter();
     let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         let config: &'static Config = config;
         let args = with_recursive_exec_options(cli_options, args, config);
         if recursive {
@@ -232,10 +233,10 @@ pub(super) fn stop<'a>(
     } else {
         let config = (ctx.loaders.config)()?;
         let dir = ctx.locations.dir;
-        let reporter = ctx.reporter();
+        let reporter = selected_reporter();
         let if_present = ctx.workspace.if_present;
         Ok(Box::pin(async move {
-            apply_update_config(config, dir, reporter).await?;
+            apply_update_config(config, dir).await?;
             args.run("stop", if_present, dir, config, reporter)
         }))
     }
@@ -248,9 +249,9 @@ pub(super) fn restart<'a>(
     args.if_present |= ctx.workspace.if_present;
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter();
+    let reporter = selected_reporter();
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         args.run(dir, config, reporter)
     }))
 }

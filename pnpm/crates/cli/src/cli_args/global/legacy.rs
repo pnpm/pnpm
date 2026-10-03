@@ -8,7 +8,8 @@
 //! listed by `list -g`.
 
 use super::{
-    GlobalInstallTarget, GlobalUpdateMaterializationReporter, check_bin_dir, global_dirs,
+    super::reporter::EventFilter,
+    GlobalInstallTarget, check_bin_dir, global_dirs,
     selectors::{is_pnpm_cli_dependency, resolve_local_param},
     warn_global,
 };
@@ -385,13 +386,15 @@ impl GlobalInstallTarget<'_> {
         ));
         let mut every_package_migrated = true;
         for MigrationSelector { alias, selector } in selectors {
-            let result = self.add_group::<GlobalUpdateMaterializationReporter<Reporter>>(
+            let filter = EventFilter::GlobalUpdateMaterialization.apply();
+            let result = self.add_group::<Reporter>(
                 std::slice::from_ref(selector),
                 range_spec_style,
                 supported_architectures.clone(),
                 &[],
             )
             .await;
+            drop(filter);
             if let Err(error) = result {
                 every_package_migrated = false;
                 warn_migration_failure::<Reporter>(alias, &legacy.dir, &error);

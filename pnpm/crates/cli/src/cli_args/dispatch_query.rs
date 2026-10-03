@@ -7,7 +7,6 @@ pub(super) use registry::{
     access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
     undeprecate, unpublish, unstar, view, whoami,
 };
-use std::sync::atomic::Ordering;
 
 use super::{
     access::AccessArgs,
@@ -63,12 +62,11 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
+use crate::cli_args::reporter::{CliReporter, EventFilter};
 use crate::config_deps::prepare_config;
 use clap::CommandFactory;
 
 use pnpm_config::Config;
-use pnpm_default_reporter::DefaultReporter;
-use pnpm_reporter::{NdjsonReporter, SilentReporter};
 
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {
@@ -105,17 +103,9 @@ pub(super) fn outdated<'a>(
         }));
     }
     let command_state = ctx.prepared_state(false);
-    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
-        let reporter = effective_reporter.load(Ordering::Relaxed).into();
-        let outcome = match reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                args.run::<DefaultReporter>(command_state).await?
-            }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await?,
-            ReporterType::Silent => args.run::<SilentReporter>(command_state).await?,
-        };
+        let outcome = { args.run::<CliReporter>(command_state).await? };
         if outcome == OutdatedOutcome::Outdated {
             #[expect(
                 clippy::exit,
@@ -129,30 +119,19 @@ pub(super) fn outdated<'a>(
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
     let command_state = ctx.prepared_state(true);
-    macro_rules! run_audit {
-        ($reporter:ty, $command_state:ident) => {
-            Box::pin(async move {
-                if args.run::<$reporter>($command_state).await? == AuditOutcome::Vulnerable {
-                    #[expect(
-                        clippy::exit,
-                        reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
-                    )]
-                    std::process::exit(1);
-                }
-                Ok(())
-            })
-        };
-    }
-    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
-        match effective_reporter.load(Ordering::Relaxed).into() {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                run_audit!(DefaultReporter, command_state).await
+        Box::pin(async move {
+            if args.run::<CliReporter>(command_state).await? == AuditOutcome::Vulnerable {
+                #[expect(
+                    clippy::exit,
+                    reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
+                )]
+                std::process::exit(1);
             }
-            ReporterType::Ndjson => run_audit!(NdjsonReporter, command_state).await,
-            ReporterType::Silent => run_audit!(SilentReporter, command_state).await,
-        }
+            Ok(())
+        })
+        .await
     }))
 }
 
@@ -160,9 +139,8 @@ pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<Comma
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         args.run(config, dir, recursive).await
     }))
 }
@@ -179,9 +157,8 @@ pub(super) fn licenses<'a>(
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         args.run(config, dir, recursive).await
     }))
 }
@@ -200,9 +177,8 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     let cfg = (ctx.loaders.config)()?;
     let recursive = ctx.workspace.recursive;
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        apply_update_config(cfg, dir, reporter).await?;
+        apply_update_config(cfg, dir).await?;
         if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             #[expect(
                 clippy::exit,
@@ -232,47 +208,28 @@ pub(super) fn version<'a>(
     let cfg: &Config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter();
-    Ok(Box::pin(async move {
-        match reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                args.run::<DefaultReporter>(cfg, dir, recursive).await
-            }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(cfg, dir, recursive).await,
-            ReporterType::Silent => args.run::<SilentReporter>(cfg, dir, recursive).await,
-        }
-    }))
+    Ok(Box::pin(async move { args.run::<CliReporter>(cfg, dir, recursive).await }))
 }
 
 pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter();
     let reporter_flags = ctx.reporter_flags;
     Ok(Box::pin(async move {
         let hooks = if args.json {
             prepare_config::<PackJsonReporter>(config, dir).await?
         } else {
-            apply_update_config(config, dir, reporter).await?
+            apply_update_config(config, dir).await?
         };
         reporter_flags.configure_with(config);
-        let reporter = reporter_flags.resolve_with(config);
+        // The pnpmfile's `updateConfig` hook can change `reporter` and `loglevel`.
+        let reporter = reporter_flags.select_with(config);
         let print_output = args.json || reporter != ReporterType::Silent;
         let output = if args.json {
             args.run::<PackJsonReporter>(dir, config, recursive, hooks).await?
         } else {
-            match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    args.run::<DefaultReporter>(dir, config, recursive, hooks).await?
-                }
-                ReporterType::Ndjson => {
-                    args.run::<NdjsonReporter>(dir, config, recursive, hooks).await?
-                }
-                ReporterType::Silent => {
-                    args.run::<SilentReporter>(dir, config, recursive, hooks).await?
-                }
-            }
+            args.run::<CliReporter>(dir, config, recursive, hooks).await?
         };
         if print_output && !output.is_empty() {
             println!("{output}");
@@ -307,15 +264,12 @@ pub(super) fn publish<'a>(
         args.run::<Reporter>(dir, config, recursive, hooks).await
     }
     if args.flags.output.json {
-        return Ok(Box::pin(run::<SilentReporter>(args, dir, config, recursive)));
+        return Ok(Box::pin(async move {
+            let _quiet = EventFilter::All.apply();
+            run::<CliReporter>(args, dir, config, recursive).await
+        }));
     }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(run::<DefaultReporter>(args, dir, config, recursive))
-        }
-        ReporterType::Ndjson => Box::pin(run::<NdjsonReporter>(args, dir, config, recursive)),
-        ReporterType::Silent => Box::pin(run::<SilentReporter>(args, dir, config, recursive)),
-    })
+    Ok(Box::pin(run::<CliReporter>(args, dir, config, recursive)))
 }
 
 /// `stage` shares `publish`'s dispatch shape: the values are read off `ctx`
@@ -352,17 +306,7 @@ pub(super) fn stage<'a>(
         }
         Ok(())
     }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(print_output::<DefaultReporter>(args, dir, config, recursive))
-        }
-        ReporterType::Ndjson => {
-            Box::pin(print_output::<NdjsonReporter>(args, dir, config, recursive))
-        }
-        ReporterType::Silent => {
-            Box::pin(print_output::<SilentReporter>(args, dir, config, recursive))
-        }
-    })
+    Ok(Box::pin(print_output::<CliReporter>(args, dir, config, recursive)))
 }
 
 // `pack-app` reads `pnpm.app` from package.json, resolves a Node.js version
