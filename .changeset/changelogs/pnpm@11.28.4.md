@@ -1,6 +1,6 @@
 ## 11.28.4
 
-pnpm 11.28.4 fixes two ways credentials could leak, makes `pnpm install --frozen-lockfile` accept several workspaces it rejected, warns when an optional dependency cannot be fetched, and stops `pnpm self-update` from installing a second pnpm next to a Homebrew one.
+pnpm 11.28.4 fixes two ways credentials could leak, makes `pnpm install --frozen-lockfile` accept several lockfiles it rejected, warns when an optional dependency cannot be fetched, and stops `pnpm self-update` from installing a second pnpm next to a Homebrew one.
 
 ### Patch Changes
 
