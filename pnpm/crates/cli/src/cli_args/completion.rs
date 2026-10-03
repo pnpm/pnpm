@@ -157,6 +157,7 @@ impl<'a> CompletionContext<'a> {
                 .iter()
                 .map(|shell| (*shell).to_string())
                 .collect()),
+            Some("exec") => bins::complete_bins(self),
             Some("run") => scripts::complete_scripts(self),
             _ => Ok(visible_subcommands(self.command)),
         }
@@ -442,6 +443,7 @@ fn option_has_separate_value(option: &str) -> bool {
     !option.contains('=')
 }
 
+mod bins;
 mod packages;
 mod scripts;
 mod shells;
