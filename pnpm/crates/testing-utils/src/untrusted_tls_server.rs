@@ -1,7 +1,5 @@
-use rustls::{
-    ServerConfig, ServerConnection,
-    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
-};
+use crate::trusted_tls_server::server_config;
+use rustls::ServerConnection;
 use std::{
     net::TcpListener,
     sync::{
@@ -22,19 +20,9 @@ pub struct UntrustedTlsServer {
 impl UntrustedTlsServer {
     #[must_use]
     pub fn start() -> Self {
-        let cert = CertificateDer::from_pem_slice(include_bytes!(
-            "../../network/tests/fixtures/test-client-pkcs1.crt"
-        ))
-        .expect("parse server certificate");
-        let key = PrivateKeyDer::from_pem_slice(include_bytes!(
-            "../../network/tests/fixtures/test-client-pkcs1.key"
-        ))
-        .expect("parse server key");
-        let config = Arc::new(
-            ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(vec![cert], key)
-                .expect("configure untrusted TLS server"),
+        let config = server_config(
+            include_bytes!("../../network/tests/fixtures/test-client-pkcs1.crt"),
+            include_bytes!("../../network/tests/fixtures/test-client-pkcs1.key"),
         );
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind TLS server");
         let url = format!("https://{}", listener.local_addr().expect("TLS server address"));

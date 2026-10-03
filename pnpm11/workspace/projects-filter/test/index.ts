@@ -862,6 +862,44 @@ test('select packages changed since the merge base with the diff ref, including 
   expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir, pkgCDir])
 })
 
+test('select changed packages of a workspace nested in a repository with diff.relative set', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const repoDir = temporaryDirectory()
+  const git = (...args: string[]) => execa('git', args, { cwd: repoDir })
+  await git('init', '--initial-branch=main')
+  await git('config', 'user.email', 'x@y.z')
+  await git('config', 'user.name', 'xyz')
+  await git('config', 'diff.relative', 'true')
+  const workspaceDir = path.join(repoDir, 'nested')
+  const pkgDirs = ['package-a', 'package-b'].map((name) => path.join(workspaceDir, name) as ProjectRootDir)
+  const [pkgADir] = pkgDirs
+  for (const pkgDir of pkgDirs) {
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'file.js'), '')
+  }
+  await git('add', '.')
+  await git('commit', '--allow-empty-message', '-m', '', '--no-gpg-sign')
+
+  fs.writeFileSync(path.join(pkgADir, 'file.js'), 'changed')
+
+  const projectsGraph: ProjectGraph<BaseProject> = Object.fromEntries(pkgDirs.map((rootDir) => [rootDir, {
+    dependencies: [],
+    package: {
+      rootDir,
+      manifest: { name: path.basename(rootDir), version: '0.0.0' },
+    },
+  }]))
+
+  const { selectedProjectsGraph } = await filterWorkspaceProjects(projectsGraph, [{
+    diff: 'HEAD',
+  }], { workspaceDir })
+
+  expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkgADir])
+})
+
 test('an option-like diff ref is rejected as a bad revision instead of being parsed as a git option', async () => {
   if (isCI && isWindows()) {
     return

@@ -297,6 +297,9 @@ jobs:
 
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
+            contents="$package_tarballs/contents"
+            mkdir "$contents"
+            tar -xzf "$tarball" -C "$contents"
             node -e '
               const fs = require("node:fs")
               const path = require("node:path")
@@ -317,6 +320,7 @@ jobs:
                 const relative = file.replace(/^\.\//, "")
                 if (excluded.some((pattern) => pattern.test(relative))) return
                 const source = path.join(packageDir, relative)
+                if (path.relative(packageDir, source).split(path.sep)[0] === "..") throw new Error("Payload file outside the package: " + file)
                 const stat = fs.statSync(source, { throwIfNoEntry: false })
                 if (stat?.isFile()) {
                   files.add(relative)
@@ -331,7 +335,7 @@ jobs:
               }
             ' "$package/package.json" | while IFS= read -r file; do
               test -f "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | shasum -a 256 | cut -d ' ' -f 1)" = "$(shasum -a 256 "$package/$file" | cut -d ' ' -f 1)"
+              cmp "$contents/package/$file" "$package/$file"
             done
           done
 
@@ -548,7 +552,7 @@ jobs:
       - name: Install runtime dependencies
         run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime
 
-      - name: Build and stage WebContainer runtime
+      - name: Build and stage the @pnpm/wasm package
         env:
           WASI_SDK_PATH: ${{ steps.wasm-toolchain.outputs.wasi-sdk-path }}
           WABT_PATH: ${{ steps.wasm-toolchain.outputs.wabt-path }}
@@ -557,7 +561,7 @@ jobs:
           node pnpm/wasm/stage.mjs
 
       - name: Archive payload
-        run: tar czf wasm-payload.tar.gz -C pnpm/npm/pnpm dist/wasm
+        run: tar czf wasm-payload.tar.gz -C pnpm/npm wasm
 
       - name: Upload payload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -994,14 +998,14 @@ jobs:
       - name: Unpack node-gyp payload
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
-      - name: Restore WebContainer payload
+      - name: Restore @pnpm/wasm package
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: wasm-payload
           path: wasm-payload
 
-      - name: Unpack WebContainer payload
-        run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm/pnpm
+      - name: Unpack @pnpm/wasm package
+        run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm
 
       - name: Generate npm packages
         # Rewrites the committed private `pacquet` wrapper into the publishable
@@ -1020,7 +1024,7 @@ jobs:
         run: |
           set -euo pipefail
           release_tarballs=$(mktemp -d)
-          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
+          for package in pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/wasm pnpm/npm/napi pnpm/npm/pnpm-exe pnpm/npm/pnpm; do
             package_tarballs="$release_tarballs/${package//\//_}"
             mkdir "$package_tarballs"
             (
@@ -1030,6 +1034,9 @@ jobs:
 
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
+            contents="$package_tarballs/contents"
+            mkdir "$contents"
+            tar -xzf "$tarball" -C "$contents"
             node -e '
               const fs = require("node:fs")
               const path = require("node:path")
@@ -1050,6 +1057,7 @@ jobs:
                 const relative = file.replace(/^\.\//, "")
                 if (excluded.some((pattern) => pattern.test(relative))) return
                 const source = path.join(packageDir, relative)
+                if (path.relative(packageDir, source).split(path.sep)[0] === "..") throw new Error("Payload file outside the package: " + file)
                 const stat = fs.statSync(source, { throwIfNoEntry: false })
                 if (stat?.isFile()) {
                   files.add(relative)
@@ -1064,7 +1072,7 @@ jobs:
               }
             ' "$package/package.json" | while IFS= read -r file; do
               test -f "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
+              cmp "$contents/package/$file" "$package/$file"
             done
           done
 
@@ -1140,14 +1148,14 @@ jobs:
       - name: Unpack node-gyp payload
         run: tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C pnpm/npm/pnpm
 
-      - name: Restore WebContainer payload
+      - name: Restore @pnpm/wasm package
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: wasm-payload
           path: wasm-payload
 
-      - name: Unpack WebContainer payload
-        run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm/pnpm
+      - name: Unpack @pnpm/wasm package
+        run: tar xzf wasm-payload/wasm-payload.tar.gz -C pnpm/npm
 
       - name: Generate npm packages
         run: |
@@ -1155,18 +1163,18 @@ jobs:
           node pnpm/npm/napi/scripts/generate-packages.mjs
 
       # Every generated package uses stage-only OIDC. CI stages the native
-      # packages, `@pnpm/napi` / `@pnpm/exe` wrappers, and `pnpm`, then finishes
-      # without publishing any of them. A maintainer approves those layers later
-      # with interactive 2FA in the same dependency order. The `pnpm` wrapper is
-      # approved last because the plan job uses it as the "release completed"
-      # gate. The build dirs `pacquet-*` publish as `@pnpm/exe.<target>`.
+      # packages and `@pnpm/wasm`, the `@pnpm/napi` / `@pnpm/exe` wrappers, and
+      # `pnpm`, then finishes without publishing any of them. A maintainer
+      # approves those layers later with interactive 2FA in the same dependency
+      # order. The `pnpm` wrapper is approved last because the plan job uses it
+      # as the "release completed" gate. The build dirs `pacquet-*` publish as `@pnpm/exe.<target>`.
       - name: Stage Rust native packages (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
         run: >-
           .github/scripts/npm-staged-publication.sh stage
           'Rust native packages' "$TAG"
-          pnpm/npm/pacquet-* pnpm/npm/napi.*
+          pnpm/npm/pacquet-* pnpm/npm/napi.* pnpm/npm/wasm
       - name: Stage Rust wrapper packages (OIDC)
         env:
           TAG: ${{ needs.plan.outputs.rust_tag }}
@@ -1489,6 +1497,9 @@ jobs:
 
             tarball=$(find "$package_tarballs" -type f -name '*.tgz' -print -quit)
             test -n "$tarball"
+            contents="$package_tarballs/contents"
+            mkdir "$contents"
+            tar -xzf "$tarball" -C "$contents"
             node -e '
               const fs = require("node:fs")
               const path = require("node:path")
@@ -1509,6 +1520,7 @@ jobs:
                 const relative = file.replace(/^\.\//, "")
                 if (excluded.some((pattern) => pattern.test(relative))) return
                 const source = path.join(packageDir, relative)
+                if (path.relative(packageDir, source).split(path.sep)[0] === "..") throw new Error("Payload file outside the package: " + file)
                 const stat = fs.statSync(source, { throwIfNoEntry: false })
                 if (stat?.isFile()) {
                   files.add(relative)
@@ -1523,7 +1535,7 @@ jobs:
               }
             ' "$package/package.json" | while IFS= read -r file; do
               test -f "$package/$file"
-              test "$(tar -xOf "$tarball" "package/$file" | sha256sum | cut -d ' ' -f 1)" = "$(sha256sum "$package/$file" | cut -d ' ' -f 1)"
+              cmp "$contents/package/$file" "$package/$file"
             done
           done
 

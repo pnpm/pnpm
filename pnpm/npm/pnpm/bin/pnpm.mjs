@@ -39,10 +39,9 @@ const GET_PNPM = new URL('../dist/node_modules/get-pnpm/lib/index.js', import.me
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org'
 
 if ('webcontainer' in process.versions) {
-  await import('../dist/wasm/pnpm.mjs')
-} else {
-  run(await nativeBinary())
+  fail('The pnpm package runs a native binary, which WebContainers cannot execute. Install @pnpm/wasm instead.')
 }
+run(await nativeBinary())
 
 function run (binary) {
   // Ctrl-C reaches the whole foreground process group, so the binary gets its

@@ -35,6 +35,7 @@ pub(crate) struct WorkspaceProjects<'a> {
     /// hold only in memory. An injected project is read from here before its
     /// directory on disk.
     pub(crate) manifests_by_dir: &'a super::ProjectManifestsByDir<'a>,
+    pub(crate) catalogs: &'a pnpm_catalogs_types::Catalogs,
 }
 
 /// Which of the project's `optionalDependencies` the comparison leaves out.

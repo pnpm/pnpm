@@ -14,7 +14,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pnpm_registry::{Package, PackageVersion};
+use pnpm_registry::{Package, PackageVersion, VersionTrustMetadata};
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
 
 use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
@@ -206,10 +206,9 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
 /// strongest [`TrustEvidence`] seen. Prereleases are filtered out
 /// when the current version is *not* itself a prerelease.
 ///
-/// Fails closed: a prior version whose manifest is listed but does
-/// not decode makes the scan error rather than skip — skipping could
-/// hide the strongest prior evidence and let a trust downgrade pass
-/// undetected.
+/// Fails closed when a prior version's trust metadata cannot be decoded:
+/// skipping it could hide the strongest prior evidence and let a trust
+/// downgrade pass undetected. Other manifest fields are not hydrated.
 fn detect_strongest_trust_evidence_before(
     meta: &Package,
     before_date: DateTime<Utc>,
@@ -231,15 +230,15 @@ fn detect_strongest_trust_evidence_before(
                     .is_some_and(|parsed| parsed < before_date)
         });
     for version in earlier {
-        let Some(manifest) = meta.versions.get(version) else {
+        let Some(trust) = meta.versions.trust_metadata(version) else {
             return Err(TrustViolation::TrustCheckFailed {
                 reason: format!(
-                    "undecodable version object for version {version} of {name} in metadata",
+                    "undecodable trust metadata for version {version} of {name} in metadata",
                     name = meta.name,
                 ),
             });
         };
-        let Some(evidence) = get_trust_evidence(&manifest) else {
+        let Some(evidence) = get_trust_evidence_compact(trust) else {
             continue;
         };
         // Keep the highest-ranked evidence seen so far. Don't short-
@@ -265,9 +264,6 @@ pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
         .as_ref()
         .and_then(|user| user.approver.as_ref())
         .is_some();
-    if has_approver {
-        return Some(TrustEvidence::StagedPublish);
-    }
     let has_provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
@@ -276,6 +272,35 @@ pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .is_some();
+    classify_trust_evidence(has_approver, has_trusted_publisher, has_provenance)
+}
+
+#[must_use]
+fn get_trust_evidence_compact(version: &VersionTrustMetadata) -> Option<TrustEvidence> {
+    let has_approver = version.npm_user
+        .as_ref()
+        .and_then(|user| user.approver.as_ref())
+        .is_some();
+    let has_provenance = version.dist
+        .as_ref()
+        .and_then(|dist| dist.attestations.as_ref())
+        .and_then(|attestations| attestations.provenance.as_ref())
+        .is_some();
+    let has_trusted_publisher = version.npm_user
+        .as_ref()
+        .and_then(|user| user.trusted_publisher.as_ref())
+        .is_some();
+    classify_trust_evidence(has_approver, has_trusted_publisher, has_provenance)
+}
+
+fn classify_trust_evidence(
+    has_approver: bool,
+    has_trusted_publisher: bool,
+    has_provenance: bool,
+) -> Option<TrustEvidence> {
+    if has_approver {
+        return Some(TrustEvidence::StagedPublish);
+    }
     if has_trusted_publisher && has_provenance {
         return Some(TrustEvidence::TrustedPublisher);
     }

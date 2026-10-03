@@ -438,7 +438,8 @@ pub(super) async fn auto_frozen_path(
             Ok(false)
         }
         Err(
-            error @ (FreshnessCheckError::InvalidOverrides(_)
+            error @ (FreshnessCheckError::InvalidCatalog(_)
+            | FreshnessCheckError::InvalidOverrides(_)
             | FreshnessCheckError::CalcPatchHashes(_)),
         ) => Err(error.into()),
     }

@@ -32,8 +32,8 @@ function setup () {
     return
   }
 
+  // The Node launchers stay in place there and point to `@pnpm/wasm`.
   if ('webcontainer' in process.versions) {
-    validateWebContainerRuntime()
     return
   }
 
@@ -66,13 +66,6 @@ function setup () {
     for (const name of BIN_NAMES) {
       placeBinary(nativeBinary, path.join(wrapperDir, name), 0o755)
     }
-  }
-}
-
-function validateWebContainerRuntime () {
-  const runtime = path.join(wrapperDir, 'dist', 'wasm', 'pnpm.wasm')
-  if (!fs.statSync(runtime, { throwIfNoEntry: false })?.isFile()) {
-    fail('The pnpm package is missing its bundled WebContainer runtime. Reinstall pnpm.')
   }
 }
 

@@ -283,3 +283,150 @@ fn unreadable_mirror_probe_does_not_cache_a_false_result() {
             .is_none(),
     );
 }
+
+#[test]
+fn trust_metadata_reads_only_trust_fields_from_a_version_fragment() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {
+                    "_npmUser": {"approver": {"name": "a", "email": "a@example.com"}},
+                    "dist": {"attestations": {"provenance": {"predicateType": "https://slsa.dev/provenance/v1"}}}
+                }
+            }
+        }"#,
+    );
+
+    assert!(package.versions.get("1.0.0").is_none());
+    let trust = package.versions.trust_metadata("1.0.0").expect("decode trust fields");
+    assert!(
+        trust.npm_user
+            .as_ref()
+            .and_then(|user| user.approver.as_ref())
+            .is_some(),
+    );
+    assert!(
+        trust.dist
+            .as_ref()
+            .and_then(|dist| dist.attestations.as_ref())
+            .and_then(|attestations| attestations.provenance.as_ref())
+            .is_some(),
+    );
+}
+
+#[test]
+fn compact_trust_matches_full_hydration_for_non_record_containers() {
+    for value in [
+        serde_json::json!(false),
+        serde_json::json!(1),
+        serde_json::json!("maintainer"),
+        serde_json::json!([]),
+        serde_json::Value::Null,
+    ] {
+        for field in ["_npmUser", "_npm_user", "attestations"] {
+            let mut manifest = serde_json::json!({
+                "name": "foo",
+                "version": "1.0.0",
+                "_npmUser": {"approver": true},
+                "dist": {
+                    "tarball": "https://r/foo.tgz",
+                    "attestations": {"provenance": true}
+                }
+            });
+            if field == "attestations" {
+                manifest["dist"][field] = value.clone();
+            } else {
+                manifest
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("_npmUser");
+                manifest[field] = value.clone();
+            }
+            let package: Package = serde_json::from_value(serde_json::json!({
+                "name": "foo", "dist-tags": {}, "versions": {"1.0.0": manifest}
+            }))
+            .unwrap();
+            let hydrated_first = package.clone();
+            let full = hydrated_first.versions.get("1.0.0").expect("tolerant full hydration");
+            let compact =
+                package.versions.trust_metadata("1.0.0").expect("tolerant compact decoding");
+            dbg!(&compact, &full);
+            assert_eq!(compact.npm_user, full.npm_user, "{field}: {value}");
+            assert_eq!(
+                compact.dist.as_ref().unwrap().attestations,
+                full.dist.attestations,
+                "{field}: {value}",
+            );
+            let after_hydration = hydrated_first.versions.trust_metadata("1.0.0").unwrap();
+            assert_eq!(after_hydration.npm_user, full.npm_user);
+            assert_eq!(after_hydration.dist.as_ref().unwrap().attestations, full.dist.attestations);
+            assert!(
+                package.versions
+                    .slot("1.0.0")
+                    .unwrap()
+                    .parsed
+                    .get()
+                    .is_none(),
+            );
+        }
+    }
+}
+
+#[test]
+fn compact_trust_cache_preserves_successes_and_failures_in_copies() {
+    let package = parse_package(
+        r#"{
+        "name":"foo", "dist-tags":{}, "versions": {
+            "1.0.0":{"_npmUser":{"approver":true}},
+            "2.0.0":{"dist":"not-an-object"}
+        }
+    }"#,
+    );
+    for (version, expected) in [("1.0.0", true), ("2.0.0", false)] {
+        assert_eq!(package.versions.trust_metadata(version).is_some(), expected);
+        for mut copy in
+            [package.versions.clone(), package.versions.filtered(|candidate| candidate == version)]
+        {
+            let slot = copy.slots
+                .iter_mut()
+                .find(|(candidate, _)| candidate == version)
+                .unwrap();
+            assert_eq!(slot.1.trust.get().unwrap().is_some(), expected);
+            dbg!(&slot.1);
+            assert!(slot.1.parsed.get().is_none());
+            slot.1.source = super::FragmentSource::None;
+            assert_eq!(copy.trust_metadata(version).is_some(), expected);
+        }
+    }
+}
+
+#[test]
+fn compact_trust_reads_typed_manifests_without_fragments() {
+    let manifest: PackageVersion = serde_json::from_value(serde_json::json!({
+        "name":"foo", "version":"1.0.0", "_npmUser":{"approver":true},
+        "dist":{"tarball":"https://r/foo.tgz", "attestations":{"provenance":true}}
+    }))
+    .unwrap();
+    let versions: crate::PackageVersions = HashMap::from([("1.0.0".to_string(), manifest)]).into();
+    let trust = versions.trust_metadata("1.0.0").expect("trust from typed manifest");
+    dbg!(&trust);
+    assert!(
+        trust.npm_user
+            .as_ref()
+            .unwrap()
+            .approver
+            .is_some(),
+    );
+    assert!(
+        trust.dist
+            .as_ref()
+            .unwrap()
+            .attestations
+            .as_ref()
+            .unwrap()
+            .provenance
+            .is_some(),
+    );
+}

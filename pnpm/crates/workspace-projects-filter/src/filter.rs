@@ -88,6 +88,17 @@ pub enum FilterError {
         stderr: String,
     },
 
+    /// The installed git is too old for the `[<since>]` selector.
+    #[display(
+        "Filtering by changed packages failed. The [<since>] selector requires git {}.{} or newer, but git {}.{} is installed.",
+        crate::get_changed_projects::MIN_GIT_VERSION.0,
+        crate::get_changed_projects::MIN_GIT_VERSION.1,
+        found.0,
+        found.1
+    )]
+    #[diagnostic(code(ERR_PNPM_FILTER_CHANGED))]
+    GitTooOld { found: (u32, u32) },
+
     /// A `testPattern` / `changedFilesIgnorePattern` glob did not
     /// compile.
     #[display("Invalid pattern {pattern:?}: {message}")]

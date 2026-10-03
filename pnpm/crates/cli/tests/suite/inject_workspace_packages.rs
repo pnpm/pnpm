@@ -9,6 +9,8 @@
 //! `settings.injectWorkspacePackages: true` so a later install with the
 //! flag flipped re-resolves.
 
+mod catalogs;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};

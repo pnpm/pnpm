@@ -180,7 +180,7 @@ pub(crate) fn reject_if_corepack() -> miette::Result<()> {
     if cfg!(target_family = "wasm") {
         return Err(miette::miette!(
             code = "ERR_PNPM_WASM_SELF_UPDATE_UNSUPPORTED",
-            "Update this WebAssembly distribution by installing a newer pnpm-wasm.tgz package"
+            "Update this WebAssembly distribution by installing a newer version of @pnpm/wasm"
         ));
     }
     if is_executed_by_corepack() {

@@ -1,9 +1,8 @@
 # WebContainer runtime
 
 This runtime executes the pnpm v12 CLI as threaded WebAssembly inside StackBlitz
-WebContainers. The regular npm wrapper includes this runtime and `pnpm.wasm`
-under `dist/wasm` and selects it using `process.versions.webcontainer`. The
-standalone distribution is also available for testing builds before release.
+WebContainers. It is published as the `@pnpm/wasm` npm package, separately from
+the native `pnpm` package.
 Implementation and validation are tracked in
 [pnpm/tasks#63](https://github.com/pnpm/tasks/issues/63).
 
@@ -26,16 +25,8 @@ pnpm --filter @pnpm-private/wasm-runtime test
 node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
 ```
 
-`stage.mjs` prepares the self-contained `pnpm/npm/pnpm/dist/wasm` payload for
-the regular npm wrapper. Release jobs restore it after the node-gyp payload.
-Native executable archives do not include the WASM payload. Normal native npm
-installations keep the direct native executable, without a runtime-selection
-check on each invocation.
-
-CI packs the regular wrapper with `pack-wrapper.mjs` and enforces a 20 MiB
-compressed size budget. The bundled runtime also increases native npm download
-size; it must be available before install scripts run for automatic WebContainer
-selection to work when those scripts are disabled.
+`stage.mjs` writes the `@pnpm/wasm` package to `pnpm/npm/wasm`, which the
+release jobs publish. `pack.mjs` packs the same package as `target/pnpm-wasm.tgz`.
 
 The full build uses the pinned nightly because `cap-primitives` requires unstable
 WASI filesystem APIs. Native builds retain the repository's stable toolchain.
