@@ -1,9 +1,8 @@
-use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome};
-use crate::validation::validate_username;
-
-// ---------------------------------------------------------------
+use super::{
+    AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome,
+    validate_username,
+};
 // htpasswd I/O
-// ---------------------------------------------------------------
 
 /// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
 /// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
@@ -118,10 +117,7 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
         None => PathBuf::from(name),
     }
 }
-
-// ---------------------------------------------------------------
 // bcrypt helpers
-// ---------------------------------------------------------------
 
 const DUMMY_BCRYPT_BODY: &str = "L6Bc/AlTQHyd9liGgGEZyOFLPHNgyxeEPfgYfBCVxJ7JIlwxyVU3u";
 

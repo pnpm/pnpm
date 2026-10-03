@@ -498,11 +498,8 @@ mod selection {
         assert_eq!(selected_packages(&rows, &[99]), Vec::<String>::new());
     }
 }
-
-// ---------------------------------------------------------------------
 // The scripted prompt behind [`UpdatePrompt::Scripted`], and the ports of
 // `pnpm11/installing/commands/test/update/interactive.ts` it carries.
-// ---------------------------------------------------------------------
 
 /// What one prompt put in front of the user.
 struct SeenPrompt {
