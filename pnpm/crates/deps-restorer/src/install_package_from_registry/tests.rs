@@ -151,6 +151,7 @@ fn create_config(
         disallow_workspace_cycles: false,
         strict_store_pkg_content_check: true,
         frozen_store: false,
+        fallback_store_dir: None,
         force: false,
         isolate_local_directory_imports: false,
         side_effects_cache: true,

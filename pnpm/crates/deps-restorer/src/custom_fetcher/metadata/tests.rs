@@ -75,6 +75,7 @@ fn ingest<'a>(
             strict_pkg_content_check: config.strict_store_pkg_content_check,
             verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
         requester: "",
         ignore_file_pattern: None,

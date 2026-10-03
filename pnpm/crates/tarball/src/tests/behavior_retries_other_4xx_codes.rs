@@ -240,6 +240,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                         strict_pkg_content_check: true,
                         verified_files_cache: SharedVerifiedFilesCache::default(),
                         prefetched_cas_paths: None,
+                        fallback_dir: None,
                     },
 
                     requester: "",
@@ -397,6 +398,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",
@@ -592,6 +594,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",
@@ -643,6 +646,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",
@@ -869,6 +873,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -959,6 +964,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: Some(&prefetched),
+            fallback_dir: None,
         },
 
         requester: "",

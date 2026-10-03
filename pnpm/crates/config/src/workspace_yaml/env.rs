@@ -75,7 +75,12 @@ impl WorkspaceSettings {
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
     pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
-        for dir in [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir] {
+        for dir in [
+            &mut self.store_dir,
+            &mut self.fallback_store_dir,
+            &mut self.global_dir,
+            &mut self.global_bin_dir,
+        ] {
             let Some(relative) = dir
                 .as_deref()
                 .and_then(|dir| {
@@ -102,6 +107,7 @@ impl WorkspaceSettings {
     pub(super) fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.fallback_store_dir);
         substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);

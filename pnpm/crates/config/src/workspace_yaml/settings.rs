@@ -248,6 +248,9 @@ pub struct WorkspaceSettings {
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
     pub global_virtual_store_dir: Option<String>,
+    /// `fallbackStoreDir`, resolved against the workspace dir. See
+    /// [`Config::fallback_store_dir`](crate::settings::Config::fallback_store_dir).
+    pub fallback_store_dir: Option<String>,
     /// `globalDir` from the global `config.yaml` or the environment. A
     /// relative value resolves against the directory pnpm runs in, which
     /// is where pnpm itself resolves it. See [`Config::global_dir`](crate::settings::Config::global_dir).

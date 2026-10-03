@@ -158,6 +158,7 @@ impl InstallPackageFromRegistry<'_> {
                     self.fetching.verified_files_cache,
                 ),
                 prefetched_cas_paths: self.fetching.prefetched_cas_paths,
+                fallback_dir: config.fallback_store(),
             },
 
             requester: self.requester,

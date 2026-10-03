@@ -47,6 +47,7 @@ fn ingest<'a>(
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
         requester: "/proj",
         ignore_file_pattern: None,

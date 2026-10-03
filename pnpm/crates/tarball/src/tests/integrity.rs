@@ -15,7 +15,7 @@ async fn should_throw_error_on_checksum_mismatch() {
     IngestTarballToStore {
 fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false},
 package: crate::TarballPackage {integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
-store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
+store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None,fallback_dir: None},
 
 
 
@@ -157,6 +157,7 @@ async fn falls_through_when_digest_is_malformed() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -231,6 +232,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
                 strict_pkg_content_check: true,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
+                fallback_dir: None,
             },
 
             requester: "",

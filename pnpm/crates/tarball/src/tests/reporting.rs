@@ -45,6 +45,7 @@ async fn network_fetch_records_progress_key() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -119,6 +120,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
             strict_pkg_content_check: false,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         // The row's blob was never written to disk, so the reuse this
@@ -225,6 +227,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",
@@ -265,6 +268,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",
@@ -377,6 +381,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",
@@ -428,6 +433,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "/proj",

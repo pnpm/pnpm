@@ -210,6 +210,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 [Full reference →](./settings/store.md#store-settings)
 
 * [storeDir](./settings/store.md#storedir)
+* [fallbackStoreDir](./settings/store.md#fallbackstoredir)
 * [verifyStoreIntegrity](./settings/store.md#verifystoreintegrity)
 * [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
