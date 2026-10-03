@@ -213,6 +213,15 @@ auditConfig:
     # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
     # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
     - GHSA-h67p-54hq-rp68
+    # GHSA-vfj7-8cjw-p6xm: braces stack exhaustion on deeply nested patterns.
+    # No patched braces release exists. pnpm expands patterns from the user's config
+    # and command line, or from scripts and manifests of dependencies already allowed
+    # to run code, so a crash gives an attacker nothing new.
+    - GHSA-vfj7-8cjw-p6xm
+    # GHSA-ch52-4w7c-c8xp: http-cache-semantics max-stale leaks other users'
+    # responses from a shared cache. No patched release exists. make-fetch-happen
+    # uses it for a private, single-user client cache, which has no other users.
+    - GHSA-ch52-4w7c-c8xp
 
 cargo:
   enabled: true
