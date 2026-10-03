@@ -319,7 +319,10 @@ impl BuildModules<'_> {
             self.child_concurrency,
         )?;
 
-        Ok(tallies.into_output(deferred_builds(requires_build_map.iter(), self.scripts.ignore), bin_state))
+        Ok(tallies.into_output(
+            deferred_builds(requires_build_map.iter(), self.scripts.ignore),
+            bin_state,
+        ))
     }
 
     fn requires_build_map(
@@ -489,7 +492,11 @@ struct BuildTallies {
 }
 
 impl BuildTallies {
-    fn progress<'a>(&'a self, dep_states: &'a DepStates, bin_state: &'a crate::build_options::BuildBinState) -> crate::BuildProgress<'a> {
+    fn progress<'a>(
+        &'a self,
+        dep_states: &'a DepStates,
+        bin_state: &'a crate::build_options::BuildBinState,
+    ) -> crate::BuildProgress<'a> {
         crate::BuildProgress {
             dep_graph: dep_states.graph.as_ref(),
             deps_state_cache: &dep_states.cache,
@@ -500,7 +507,11 @@ impl BuildTallies {
         }
     }
 
-    fn into_output(self, deferred_builds: Vec<String>, bin_state: &crate::build_options::BuildBinState) -> BuildModulesOutput {
+    fn into_output(
+        self,
+        deferred_builds: Vec<String>,
+        bin_state: &crate::build_options::BuildBinState,
+    ) -> BuildModulesOutput {
         // If a scheduler worker panicked while holding a lock, the
         // scheduler will have already propagated the panic (or returned
         // an Err) — so a poisoned mutex here can only mean the protected
@@ -514,7 +525,9 @@ impl BuildTallies {
                 .collect()
         };
         let mutated_snapshot_keys = std::mem::take(
-            &mut *bin_state.slot_mutations.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+            &mut *bin_state.slot_mutations
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
         );
         BuildModulesOutput {
             ignored_builds: into_list(self.ignored_builds),

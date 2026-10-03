@@ -60,8 +60,23 @@ fn side_effects_key_for_git_resolution_does_not_require_integrity() {
 #[cfg(unix)]
 #[test]
 fn materialization_failure_on_incomplete_slot_is_fatal() {
+    assert!(incomplete_patched_slot_run(false).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn skipped_optional_cached_patch_is_not_reported_as_applied() {
+    let output = incomplete_patched_slot_run(true).expect("skip broken optional dependency");
+    assert!(output.applied_patches.is_empty(), "{output:?}");
+}
+
+#[cfg(unix)]
+fn incomplete_patched_slot_run(
+    optional: bool,
+) -> Result<crate::BuildModulesOutput, crate::build_modules::BuildModulesError> {
     let pkg_key = key("@pnpm.e2e/postinstall-modifies-source", "1.0.0");
-    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let snapshots =
+        HashMap::from([(pkg_key.clone(), SnapshotEntry { optional, ..SnapshotEntry::default() })]);
     let packages: HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata> =
         HashMap::from([(
             pkg_key.without_peer(),
@@ -87,6 +102,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
                 peer_dependencies_meta: None,
             },
         )]);
+    let patches = super::single_patch(&pkg_key);
     let importers = root_importers(&[("@pnpm.e2e/postinstall-modifies-source", "1.0.0")]);
     let policy = policy_from_specs([], true);
 
@@ -109,7 +125,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         &pkg_key,
         &pnpm_graph_hasher::CalcDepStateOptions {
             engine_name: engine,
-            patch_file_hash: None,
+            patch_file_hash: Some("deadbeef"),
             include_dep_graph_hash: true,
         },
     );
@@ -128,7 +144,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     // not-requiring-build.
     let requires_build: RequiresBuildBySnapshot = HashMap::from([(pkg_key.clone(), true)]);
 
-    let result = BuildModules {
+    BuildModules {
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(&side_effects_maps),
             engine_name: Some(engine),
@@ -155,7 +171,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),
             packages: Some(&packages),
-            patches: None,
+            patches: Some(&patches),
             requires_build_by_snapshot: Some(&requires_build),
             importers: &importers,
             dependency_groups: None,
@@ -186,12 +202,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
 
         rebuild: None,
     }
-    .run::<SilentReporter>();
-
-    assert!(
-        result.is_err(),
-        "a non-optional package whose slot lost its manifest must fail the install, not finish broken",
-    );
+    .run::<SilentReporter>()
 }
 /// Negative pair: with `side_effects_cache = false`, even a
 /// matching cache entry is ignored — the build runs.

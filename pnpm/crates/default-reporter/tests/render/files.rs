@@ -39,3 +39,13 @@ fn applied_patches_are_listed_one_per_line() {
         "frame: {frame}",
     );
 }
+
+#[test]
+fn applied_patch_labels_cannot_inject_terminal_controls() {
+    let mut reporter = state(false);
+    let frame =
+        render(&mut reporter, vec![applied_patches(&["pkg@1.0.0\nforged\u{1b}[2J\u{202e}"])]);
+    assert!(frame.contains("Applied patches:\npkg@1.0.0forged[2J \u{2714}"), "frame: {frame:?}");
+    assert!(!frame.contains('\u{1b}'), "frame: {frame:?}");
+    assert!(!frame.contains('\u{202e}'), "frame: {frame:?}");
+}

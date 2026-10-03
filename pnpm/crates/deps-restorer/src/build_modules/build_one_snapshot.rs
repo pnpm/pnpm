@@ -7,7 +7,7 @@ mod side_effects;
 mod slot_to_build;
 use patched_engines::skip_incompatible_optional;
 use side_effects::{
-    FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
+    CachedBuild, FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
 };
 use slot_to_build::slot_to_build;
@@ -51,13 +51,17 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // scripts / apply patches when they themselves are candidates.
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
-    if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
-        if !skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?
-            && candidate.patch.is_some()
-        {
-            context.progress.record_applied_patch(&candidate.name, &candidate.version);
+    match already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
+        CachedBuild::Restored => {
+            if !skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?
+                && candidate.patch.is_some()
+            {
+                context.progress.record_applied_patch(&candidate.name, &candidate.version);
+            }
+            return Ok(());
         }
-        return Ok(());
+        CachedBuild::Skipped => return Ok(()),
+        CachedBuild::Miss => {}
     }
 
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);

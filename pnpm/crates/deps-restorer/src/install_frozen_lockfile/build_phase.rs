@@ -1,11 +1,11 @@
 //! Running package build scripts once the tree is materialized.
 
 use super::{
-    AppliedPatchesLog,    BuildModules, BuildModulesError, Config, Diagnostic, Display, Error, ExtendedPatchInfo,
-    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
-    PackageMetadata, PatchKeyConflictError, Reporter, ResolvePatchedDependenciesError,
-    SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
-    importer_root_dir,
+    AppliedPatchesLog, BuildModules, BuildModulesError, Config, Diagnostic, Display, Error,
+    ExtendedPatchInfo, HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel,
+    OsStr, PackageKey, PackageMetadata, PatchKeyConflictError, Reporter,
+    ResolvePatchedDependenciesError, SkippedSnapshots, SnapshotEntry,
+    direct_dep_names_for_importer, get_patch_info, importer_root_dir,
 };
 
 mod post_build_bins;
@@ -145,26 +145,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         &bin_state,
     )?;
 
-    // Always emit the `pnpm:ignored-scripts` event with the package
-    // names, unconditionally, so structured / NDJSON consumers always
-    // see the list. The event
-    // carries `strict_dep_builds` (the final, post-`updateConfig` value
-    // the strict-failure check also reads) so the default reporter can
-    // suppress the rendered warning box under strict mode — where the
-    // install fails with `ERR_PNPM_IGNORED_BUILDS` and the box would only
-    // duplicate the error — without a stale reporter-side flag. The
-    // display is gated on `!strictDepBuilds`; the strict path throws.
-    Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
-        level: LogLevel::Debug,
-        package_names: build_output.ignored_builds.clone(),
-        strict_dep_builds: config.strict_dep_builds,
-    }));
-    if !build_output.applied_patches.is_empty() {
-        Reporter::emit(&LogEvent::AppliedPatches(AppliedPatchesLog {
-            level: LogLevel::Debug,
-            package_names: build_output.applied_patches.clone(),
-        }));
-    }
+    emit_build_reports::<Reporter>(&build_output, config.strict_dep_builds);
 
     // `virtual_store_only` links no importer bins, so there is nothing
     // for the pass below to re-resolve. Dependency *build* scripts still
@@ -193,6 +174,32 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     }
 
     Ok(build_output)
+}
+
+fn emit_build_reports<Reporter: self::Reporter>(
+    build_output: &crate::BuildModulesOutput,
+    strict_dep_builds: bool,
+) {
+    // Always emit the `pnpm:ignored-scripts` event with the package
+    // names, unconditionally, so structured / NDJSON consumers always
+    // see the list. The event
+    // carries `strict_dep_builds` (the final, post-`updateConfig` value
+    // the strict-failure check also reads) so the default reporter can
+    // suppress the rendered warning box under strict mode — where the
+    // install fails with `ERR_PNPM_IGNORED_BUILDS` and the box would only
+    // duplicate the error — without a stale reporter-side flag. The
+    // display is gated on `!strictDepBuilds`; the strict path throws.
+    Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        level: LogLevel::Debug,
+        package_names: build_output.ignored_builds.clone(),
+        strict_dep_builds,
+    }));
+    if !build_output.applied_patches.is_empty() {
+        Reporter::emit(&LogEvent::AppliedPatches(AppliedPatchesLog {
+            level: LogLevel::Debug,
+            package_names: build_output.applied_patches.clone(),
+        }));
+    }
 }
 
 fn finish_dependency_bin_links(

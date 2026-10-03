@@ -50,6 +50,12 @@ pub(super) fn side_effects_cache_key(
         },
     ))
 }
+pub(super) enum CachedBuild {
+    Miss,
+    Restored,
+    Skipped,
+}
+
 /// Side-effects-cache `is_built` gate. Past the policy gate, this
 /// snapshot would otherwise run its scripts — but if the prefetch
 /// surfaced a matching side-effects-cache entry, the build is already
@@ -61,7 +67,7 @@ pub(super) fn already_built<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
     cache_key: Option<&str>,
-) -> Result<bool, BuildModulesError> {
+) -> Result<CachedBuild, BuildModulesError> {
     if !candidate.force_rebuild
         && context.cache.read
         && let Some(maps_by_snapshot) = context.cache.maps_by_snapshot
@@ -76,7 +82,7 @@ pub(super) fn already_built<Reporter: self::Reporter>(
             (&candidate.name, &candidate.version),
         );
     }
-    Ok(false)
+    Ok(CachedBuild::Miss)
 }
 /// Whether a side-effects-cache hit already put this snapshot's build output
 /// on disk, so the build can be skipped.
@@ -92,7 +98,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     cached: (&str, &pnpm_store_dir::SideEffectsOverlay),
     named: (&str, &str),
-) -> Result<bool, BuildModulesError> {
+) -> Result<CachedBuild, BuildModulesError> {
     let (key, overlay) = cached;
     tracing::debug!(
         target: "pacquet::build",
@@ -101,7 +107,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
         "side-effects cache hit; skipping build",
     );
     let Some(_slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay) else {
-        return Ok(true);
+        return Ok(CachedBuild::Restored);
     };
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
@@ -122,7 +128,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
                     %error,
                     "failed to materialize side-effects cache overlay; rebuilding",
                 );
-                return Ok(false);
+                return Ok(CachedBuild::Miss);
             }
             OverlayOutcome::Broken(error) => {
                 return report_broken_slot::<Reporter>(
@@ -132,11 +138,11 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
                     named,
                     error,
                 )
-                .map(|()| true);
+                .map(|()| CachedBuild::Skipped);
             }
         }
     }
-    Ok(true)
+    Ok(CachedBuild::Restored)
 }
 /// What materializing a cached overlay into one slot left behind.
 pub(super) enum OverlayOutcome {

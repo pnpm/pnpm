@@ -1,10 +1,10 @@
 use super::{
-    AppliedPatchesLog,    Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog, IgnoredScriptsLog,
-    InstallingConfigDepsLog, InstallingConfigDepsStatus, LockfileVerificationMessage, LogLevel,
-    MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState, ReporterState, RequestRetryLog,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog,
-    Utc, cached_verdict, detect_install_source, entries_label, is_strictly_newer, normalize,
-    pretty_ms, relative, update_command, zoom_out,
+    AppliedPatchesLog, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog,
+    IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
+    LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
+    ReporterState, RequestRetryLog, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    SkippedOptionalReason, UpdateCheckLog, Utc, cached_verdict, detect_install_source,
+    entries_label, is_strictly_newer, normalize, pretty_ms, relative, update_command, zoom_out,
 };
 
 /// `name@version` as a deprecation warning prints it.
@@ -64,7 +64,7 @@ impl ReporterState {
         let check = self.rendering.colors.green("\u{2714}");
         let lines = log.package_names
             .iter()
-            .map(|name| format!("{name} {check}"))
+            .map(|name| format!("{} {check}", pnpm_text_sanitize::sanitize_inline(name)))
             .collect::<Vec<_>>()
             .join("\n");
         self.display.frame.push_block(format!("Applied patches:\n{lines}"));
