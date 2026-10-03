@@ -2,6 +2,8 @@ use super::{
     CommandTempCwd, Path, assert_failure, assert_success, fs, stderr, stdout,
     write_minimal_manifest, write_two_project_audit_workspace,
 };
+use pnpm_testing_utils::trusted_tls_server::TrustedTlsServer;
+
 const SIGNATURE_KEYID: &str = "SHA256:test";
 
 #[test]
@@ -251,6 +253,56 @@ fn audit_signatures_fails_when_keys_endpoint_errors() {
 }
 
 #[test]
+fn audit_signatures_follows_a_keys_redirect_with_the_target_tls_settings() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let key = signing_key();
+    let integrity = "sha512-abc";
+    let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
+    let keys_server = TrustedTlsServer::start(&keys_body(&public_key_b64(&key)));
+    let mut registry = mockito::Server::new();
+    let keys_mock = registry
+        .mock("GET", "/-/npm/v1/keys")
+        .with_status(302)
+        .with_header("location", &format!("{}/-/npm/v1/keys", keys_server.url))
+        .create();
+    let packument_mock = registry
+        .mock("GET", "/signed-pkg")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_body("signed-pkg", "1.0.0", integrity, &signatures_json(&signature)))
+        .create();
+    write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
+    // The CA scoped to the registry does not trust the redirect target.
+    fs::write(
+        workspace.join(".npmrc"),
+        format!(
+            "registry={}/\ncafile={}\n//{}/:cafile={}\n",
+            registry.url(),
+            TrustedTlsServer::ca_path().display(),
+            registry.host_with_port(),
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../network/tests/fixtures/test-ca.pem")
+                .display(),
+        ),
+    )
+    .expect("write .npmrc");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("signatures")
+        .output()
+        .expect("run audit signatures");
+
+    assert_success(&output);
+    let out = stdout(&output);
+    assert!(out.contains("1 package has a verified registry signature"), "{out}");
+    keys_mock.assert();
+    packument_mock.assert();
+}
+
+#[test]
 fn audit_signatures_redacts_registry_credentials_on_network_error() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
@@ -391,9 +443,13 @@ fn keys_mock(registry: &mut mockito::Server, public_key_b64: &str) -> mockito::M
         .mock("GET", "/-/npm/v1/keys")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(format!(
-            r#"{{"keys":[{{"expires":null,"keyid":"{SIGNATURE_KEYID}","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"{public_key_b64}"}}]}}"#,
-        ))
+        .with_body(keys_body(public_key_b64))
+}
+
+fn keys_body(public_key_b64: &str) -> String {
+    format!(
+        r#"{{"keys":[{{"expires":null,"keyid":"{SIGNATURE_KEYID}","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"{public_key_b64}"}}]}}"#,
+    )
 }
 
 fn signatures_json(signature_b64: &str) -> String {

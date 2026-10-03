@@ -19,7 +19,10 @@ use p256::{
     pkcs8::DecodePublicKey,
 };
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry};
+use pnpm_network::{
+    ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
+    walk_reqwest_chain,
+};
 use registry::{
     PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
 };
