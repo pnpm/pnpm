@@ -167,6 +167,27 @@ Since v12.5.0, [task concurrency groups](../workspace-task-orchestration.md#conc
 
 Set `stateDir` in the [global configuration file](../cli/config.md) or on the command line. It is ignored in project `pnpm-workspace.yaml` files.
 
+### metadataCache
+
+* Default: **true**
+* Type: **Boolean**
+
+Controls whether pnpm reads and writes registry metadata in [`cacheDir`](#cachedir).
+Set it to `false` when the metadata cache should not persist on disk:
+
+```yaml
+metadataCache: false
+```
+
+For one command, use `pnpm install --no-metadata-cache` or
+`pnpm add <package> --no-metadata-cache`. The setting also works in the
+[global configuration file](../cli/config.md) and through
+`PNPM_CONFIG_METADATA_CACHE=false`.
+
+Disabling it leaves the package store and other caches unchanged. A fresh
+`--offline` resolution cannot use an existing metadata cache while this setting
+is disabled and fails with `ERR_PNPM_NO_OFFLINE_META`.
+
 ### cacheDir
 
 * Default:

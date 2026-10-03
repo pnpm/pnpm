@@ -328,6 +328,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [globalBinDir](./settings/other.md#globalbindir)
 * [npmrcAuthFile](./settings/other.md#npmrcauthfile)
 * [stateDir](./settings/other.md#statedir)
+* [metadataCache](./settings/other.md#metadatacache)
 * [cacheDir](./settings/other.md#cachedir)
 * [useStderr](./settings/other.md#usestderr)
 * [updateNotifier](./settings/other.md#updatenotifier)
