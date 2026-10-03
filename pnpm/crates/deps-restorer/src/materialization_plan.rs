@@ -12,7 +12,7 @@
 use crate::{
     InstallabilityHost, SkippedSnapshots, add_direct_runtime_skips, compute_skipped_snapshots,
     extend_skipped_with_dependency_closure, find_root_runtime_node_version,
-    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
+    install_frozen_lockfile::parse_major_from_version,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::ProjectSnapshot;
@@ -256,8 +256,6 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     Ok(skipped)
 }
 
-/// `host` with its Node.js version set to the one the root project's
-/// runtime dependency is locked to, unless `nodeVersion` is configured.
 #[must_use]
 pub fn with_locked_runtime_node(
     host: Option<&InstallabilityHost>,
@@ -265,13 +263,18 @@ pub fn with_locked_runtime_node(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<InstallabilityHost> {
     let host = host?.clone();
-    let locked_node_version = config.node_version
-        .is_none()
-        .then(|| find_root_runtime_node_version(importers))
-        .flatten();
-    Some(match locked_node_version {
-        Some(node_version) => InstallabilityHost { node_version, ..host },
-        None => host,
+    let runtime_pin = find_root_runtime_node_version(importers);
+    let target = crate::target_node::target_node_version(
+        crate::target_node::TargetNodeUse::Compatibility,
+        config.node_version.as_deref(),
+        runtime_pin.as_deref(),
+        Some(&host.node_version),
+    );
+    Some(match target {
+        Some(node_version) if node_version != host.node_version => {
+            InstallabilityHost { node_version: node_version.to_string(), ..host }
+        }
+        _ => host,
     })
 }
 
@@ -344,16 +347,18 @@ pub fn engine_name_from_host(host_node: &HostNode) -> Option<String> {
         .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
 }
 
-/// The engine name the root project's `node@runtime:` pin implies, when one is
-/// present. Both engine-resolution paths — [`resolve_engine_name`] and
-/// the frozen path's deferred-host branch — apply this one rule, so
-/// they can't drift apart on how a pin keys the store.
 #[must_use]
 pub fn engine_name_from_runtime_pin(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<String> {
-    find_runtime_node_major(importers)
-        .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
+    let runtime_pin = find_root_runtime_node_version(importers);
+    crate::target_node::target_node_major(
+        crate::target_node::TargetNodeUse::Execution,
+        None,
+        runtime_pin.as_deref(),
+        None,
+    )
+    .map(|major| pnpm_graph_hasher::engine_name(major, None, None))
 }
 
 /// Resolve the engine name that keys the install's store slots and the

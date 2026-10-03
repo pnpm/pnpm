@@ -201,14 +201,15 @@ fn pnpmfile_checksum_check<'a>(
     PnpmfileChecksumCheck::Current(current)
 }
 
-/// The Node version installability checks assume without probing: an
-/// explicit `nodeVersion` config value first, then a
-/// `devEngines.runtime` / `engines.runtime` pin from the root
-/// manifest. The early host detection and the install paths must
-/// derive it identically or the pre-spawned host would disagree with
-/// the one the install would have detected.
 fn effective_node_version(config: &Config, manifest: &PackageManifest) -> Option<String> {
-    config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
+    let runtime_pin = node_version_from_engines_runtime(manifest.value());
+    pnpm_deps_restorer::target_node_version(
+        pnpm_deps_restorer::TargetNodeUse::Compatibility,
+        config.node_version.as_deref(),
+        runtime_pin.as_deref(),
+        None,
+    )
+    .map(ToString::to_string)
 }
 
 /// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →
