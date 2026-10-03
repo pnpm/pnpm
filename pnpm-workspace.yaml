@@ -300,7 +300,10 @@ catalog:
   '@typescript-eslint/utils': ^8.71.0
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@webcontainer/api': ^1.6.4
-  '@yarnpkg/core': 4.9.2
+  # @yarnpkg/core 4.9.2 was published with a Yarn `patch:` specifier for its
+  # `got` dependency, which pnpm resolves to a nonexistent local path. The
+  # `@yarnpkg/nm` override keeps its transitive copy on this version too.
+  '@yarnpkg/core': 4.9.1
   '@yarnpkg/extensions': 2.0.7
   '@yarnpkg/fslib': ^3.1.5
   '@yarnpkg/lockfile': ^1.1.0
@@ -584,6 +587,7 @@ nodeVersion: 22.13.0
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
   '@yarnpkg/fslib@2': '3'
+  '@yarnpkg/nm>@yarnpkg/core': 'catalog:'
   adm-zip@<0.6.0: ^0.6.0
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
   body-parser@<2.2.1: '^2.2.1'
@@ -693,6 +697,7 @@ update:
     - '@babel/plugin-transform-explicit-resource-management'
     - '@jest/globals'
     - '@types/node'
+    - '@yarnpkg/core'
     - bin-links
     - bole
     - cspell
