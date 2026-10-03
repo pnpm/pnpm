@@ -79,41 +79,21 @@ pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core inst
 node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs
 ```
 
-The Rust CLI runs through the WebAssembly runtime. Test its packaged artifact
-with `--wasm-package target/pnpm-wasm.tgz`, or test the regular npm wrapper's
-automatic runtime selection with `--wrapper-package <wrapper-tarball>`.
-The wrapper mode installs locally and globally with npm, exercises all four bin
-aliases and local `npx` dispatch, and repeats the bin checks with install scripts
-disabled. It also tests the unpacked Corepack entry without installing
-dependencies. No runtime override or executable-permission repair is supplied.
+The Rust CLI runs through the WebAssembly runtime. Test the `@pnpm/wasm`
+package with `--wasm-package`. This mode installs the package locally and
+globally with npm, exercises all four bin aliases and local `npx` dispatch,
+then runs the CLI workflows:
 
 ```sh
-node pnpm/wasm/pack-wrapper.mjs
-node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wrapper-package target/pnpm-webcontainer-wrapper.tgz
+pnpm pack:pnpm:wasm
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
 ```
 
-Both Rust CLI modes exercise update, lockfile-only and frozen/offline installs,
+The workflows cover update, lockfile-only and frozen/offline installs,
 configuration, command failures, `dlx`, `create`, workspace scripts and bins,
 interactive build approval, rebuild, pack, and a Vite build. Expected failures
 assert their exit status and diagnostic. These are representative workflow
 tests, not a claim that every command or native dependency works in a browser.
-
-To test actual Corepack dispatch, prepare an integrity-pinned offline cache on
-the host, then import it with Corepack inside the WebContainer. The cache helper
-runs pinned Corepack through `pnpm dlx` and serves the exact wrapper tarball from
-a temporary local registry. This mode runs the workflows through Corepack with
-its network access disabled:
-
-```sh
-node pnpm/tasks/ecosystem-e2e/webcontainer/corepack-cache.mjs target/pnpm-webcontainer-wrapper.tgz target/pnpm-webcontainer-corepack.tgz
-node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wrapper-package target/pnpm-webcontainer-wrapper.tgz --corepack-cache target/pnpm-webcontainer-corepack.tgz
-```
-
-This validates cached Corepack selection, not a cold download. Corepack 0.36.0's
-download path currently hits a WebContainer `Hash.digest()` host error before
-pnpm starts. Direct-runtime version-switch rejection remains covered by the
-other Rust CLI modes; the Corepack mode keeps its project pinned to the cached
-version.
 
 ### Rust WASM host probe
 

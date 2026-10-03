@@ -30,26 +30,16 @@ export function packageWorkflowSteps (entry) {
   ]
 }
 
-export function wrapperSelectionSteps (corepackCache) {
+export function packageInstallSteps () {
   return [
-    ...(corepackCache ? [
-      { name: 'install Corepack', command: 'npm', args: ['install', '--prefix', '../corepack-cli', 'corepack@0.36.0'] },
-      { name: 'Corepack imports cache and selects the regular wrapper', command: 'node', args: ['../pnpm/corepack-fixture.mjs'], expectOutput: 'corepack-cached-wrapper-ok' },
-    ] : []),
-    { name: 'install regular pnpm package with npm', command: 'npm', args: ['install', '--prefix', '../installed', '../pnpm/pnpm-wrapper.tgz'] },
-    { name: 'regular package selects WASM automatically', command: '../installed/node_modules/.bin/pnpm', args: ['store', 'path'], expectOutput: 'v11-wasm' },
-    { name: 'npx dispatches the installed regular package', command: 'npx', args: ['--no-install', 'pnpm', '--version'], cwd: 'installed', expectOutput: '12.' },
+    { name: 'install @pnpm/wasm with npm', command: 'npm', args: ['install', '--prefix', '../installed', '../pnpm/pnpm-wasm.tgz'] },
+    { name: 'installed package is @pnpm/wasm', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('../installed/node_modules/@pnpm/wasm/package.json').name, '@pnpm/wasm')"] },
+    { name: 'installed package runs WASM', command: '../installed/node_modules/.bin/pnpm', args: ['store', 'path'], expectOutput: 'v11-wasm' },
+    { name: 'npx dispatches the installed package', command: 'npx', args: ['--no-install', 'pnpm', '--version'], cwd: 'installed', expectOutput: '12.' },
     ...aliasSteps('../installed/node_modules/.bin'),
-    { name: 'install regular package globally', command: 'npm', args: ['install', '--global', '--prefix', '../global', '../pnpm/pnpm-wrapper.tgz'] },
-    { name: 'global pnpm selects WASM on PATH', command: 'node', args: ['-e', "const env = { ...process.env, PATH: require('node:path').resolve('../global/bin') + ':' + process.env.PATH }; process.stdout.write(require('node:child_process').execFileSync('pnpm', ['store', 'path'], { env, encoding: 'utf8' }))"], expectOutput: 'v11-wasm' },
+    { name: 'install @pnpm/wasm globally', command: 'npm', args: ['install', '--global', '--prefix', '../global', '../pnpm/pnpm-wasm.tgz'] },
+    { name: 'global pnpm runs WASM on PATH', command: 'node', args: ['-e', "const env = { ...process.env, PATH: require('node:path').resolve('../global/bin') + ':' + process.env.PATH }; process.stdout.write(require('node:child_process').execFileSync('pnpm', ['store', 'path'], { env, encoding: 'utf8' }))"], expectOutput: 'v11-wasm' },
     ...aliasSteps('../global/bin'),
-    { name: 'verify unpacked wrapper has no node_modules', command: 'node', args: ['-e', "require('node:assert/strict').equal(require('node:fs').existsSync('../pnpm/corepack/package/node_modules'), false)"] },
-    { name: 'unpacked Corepack entry selects WASM automatically', command: 'node', args: ['../pnpm/corepack/package/bin/pnpm.mjs', 'store', 'path'], expectOutput: 'v11-wasm' },
-    { name: 'unpacked Corepack pnpx entry', command: 'node', args: ['../pnpm/corepack/package/bin/pnpx.mjs', 'semver@7.6.3', '6.7.8'], expectOutput: '6.7.8' },
-    { name: 'install regular package without lifecycle scripts', command: 'npm', args: ['install', '--ignore-scripts', '--prefix', '../unscripted', '../pnpm/pnpm-wrapper.tgz'] },
-    { name: 'scriptless package selects WASM automatically', command: '../unscripted/node_modules/.bin/pnpm', args: ['store', 'path'], expectOutput: 'v11-wasm' },
-    ...aliasSteps('../unscripted/node_modules/.bin'),
-    { name: 'scriptless Corepack entry selects WASM automatically', command: 'node', args: ['../unscripted/node_modules/pnpm/bin/pnpm.mjs', 'store', 'path'], expectOutput: 'v11-wasm' },
   ]
 }
 

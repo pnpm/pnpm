@@ -81,24 +81,16 @@ jobs:
       - name: Test shared libraries in a WebContainer
         run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
 
-      - name: Package standalone WASM pnpm
+      - name: Package @pnpm/wasm
         run: pnpm pack:pnpm:wasm
 
       - name: Test the packaged pnpm CLI in a WebContainer
         run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
 
-      - name: Package regular pnpm wrapper
-        run: node pnpm/wasm/pack-wrapper.mjs
-
-      - name: Test automatic runtime selection and core workflows
-        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wrapper-package target/pnpm-webcontainer-wrapper.tgz
-
       - name: Upload WASM build outputs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pnpm-wasm
-          path: |
-            target/pnpm-wasm.tgz
-            target/pnpm-webcontainer-wrapper.tgz
+          path: target/pnpm-wasm.tgz
           retention-days: 7
           if-no-files-found: error

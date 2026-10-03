@@ -3,30 +3,35 @@ id: webcontainers
 title: StackBlitz WebContainers
 ---
 
-The experimental WebAssembly distribution runs pnpm's Rust CLI inside a
-StackBlitz WebContainer. The npm package selects WebAssembly automatically in
-WebContainers. It requires Node.js 22.13 or newer and shared WebAssembly memory.
-Native pnpm installations continue to use the native executable.
+The experimental `@pnpm/wasm` package runs pnpm inside a StackBlitz
+WebContainer. It requires Node.js 22.13 or newer and shared WebAssembly memory.
+The regular `pnpm` package runs a native executable, which WebContainers cannot
+execute.
 
 ## Install pnpm
 
-Install a release that includes WebContainer support through npm:
+Install `@pnpm/wasm` with npm. It provides the `pnpm`, `pn`, `pnpx`, and `pnx`
+commands:
 
 ```sh
-npm install pnpm@12
-npx pnpm --version
-npx pnpm install
+npm install --global @pnpm/wasm
+pnpm --version
+pnpm install
 ```
 
-The package includes the WebAssembly runtime, so no separate WASM package or
-runtime setting is needed. Its launchers also work when npm skips installation
-scripts. Global installation works with a writable npm prefix.
+Global installation needs a writable npm prefix. You can also add `@pnpm/wasm`
+to a project and run it with `npx pnpm`.
 
-The Corepack entry point selects the same runtime. A cold download with Corepack
-0.36.0 failed in the tested WebContainer runtime's streaming hash implementation
-before pnpm started. Use npm if Corepack reports a hash-related host error.
-The npm package is larger because it includes that payload; native installations
-still launch the native executable directly.
+Corepack and the `packageManager` field install the regular `pnpm` package,
+so they cannot select this distribution. Projects that pin a different
+package-manager version receive `ERR_PNPM_UNSUPPORTED_RUNTIME` when switching
+would require installing a native distribution.
+To keep using the installed WebAssembly distribution for such a project, disable
+automatic version switching for the command:
+
+```sh
+npm_config_manage_package_manager_versions=false pnpm install
+```
 
 ## Build the distribution
 
@@ -39,27 +44,10 @@ pnpm build:pnpm:wasm
 pnpm pack:pnpm:wasm
 ```
 
-The result is `target/pnpm-wasm.tgz`. The `pnpm WebAssembly` CI workflow also
-uploads this tarball after its browser tests pass.
-
-Copy the tarball into the WebContainer, then install it with npm:
-
-```sh
-npm install --global ./pnpm-wasm.tgz
-pnpm --version
-pnpm install
-```
-
-The standalone tarball is useful for testing a build before release. Native
-executable archives cannot run inside a WebContainer. Projects that pin a different
-package-manager version receive `ERR_PNPM_UNSUPPORTED_RUNTIME` when switching
-would require installing a native distribution.
-To keep using the installed WebAssembly distribution for such a project, disable
-automatic version switching for the command:
-
-```sh
-npm_config_manage_package_manager_versions=false pnpm install
-```
+The result is `target/pnpm-wasm.tgz`, the `@pnpm/wasm` package. The `pnpm
+WebAssembly` CI workflow also uploads this tarball after its browser tests pass.
+Copy it into the WebContainer and install it with
+`npm install --global ./pnpm-wasm.tgz`.
 
 ## Runtime differences
 
@@ -107,6 +95,5 @@ Automatic provenance signing, Cargo workspace integration, `pnpm setup`,
 `pnpm self-update`, and `pnpm pack-app` are unavailable in this distribution.
 These operations fail explicitly before performing unsupported work.
 
-To update pnpm in a WebContainer, install the newer pnpm release with npm or
-select it through Corepack. For a standalone test build, install the newer
-`pnpm-wasm.tgz` package with npm.
+To update pnpm in a WebContainer, install a newer version of `@pnpm/wasm` with
+npm.
