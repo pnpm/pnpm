@@ -131,6 +131,14 @@ test('the store is created in the pnpm home directory when the project directory
   expect(canLinkMock).not.toHaveBeenCalled()
 })
 
+test('an error other than a permission error from the project directory is rethrown', async () => {
+  touchMock.mockRejectedValueOnce(Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }))
+  await expect(getStorePath({
+    pkgRoot: ROOT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).rejects.toThrow('ENOSPC')
+})
+
 test('fail when pnpm home directory is not defined', async () => {
   expect(() => getStorePath({
     pkgRoot: 'pkgRoot',
