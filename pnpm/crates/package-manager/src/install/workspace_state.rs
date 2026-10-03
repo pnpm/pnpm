@@ -152,12 +152,7 @@ fn ensure_gvs_builds_complete(
     lockfile_root: &Path,
 ) -> Option<()> {
     if gvs_build_markers_may_require_recovery(check.config)
-        && gvs_build_marker_present(
-            lockfile.get().ok().flatten()?,
-            check.config,
-            lockfile_root,
-            super::effective_node_version(check.config, check.manifest).as_deref(),
-        )
+        && gvs_build_marker_present(lockfile.get().ok().flatten()?, check.config, lockfile_root)
     {
         return None;
     }

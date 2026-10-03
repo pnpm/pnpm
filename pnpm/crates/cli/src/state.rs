@@ -305,13 +305,15 @@ pub(crate) fn check_root_project_engine(
     else {
         return Ok(());
     };
-    let configured_node = config.node_version
-        .clone()
-        .or_else(|| {
-            use_manifest_runtime
-                .then(|| node_version_from_engines_runtime(manifest.value()))
-                .flatten()
-        });
+    let manifest_runtime =
+        use_manifest_runtime.then(|| node_version_from_engines_runtime(manifest.value())).flatten();
+    let configured_node = pnpm_deps_restorer::target_node_version(
+        pnpm_deps_restorer::TargetNodeUse::Compatibility,
+        config.node_version.as_deref(),
+        manifest_runtime.as_deref(),
+        None,
+    )
+    .map(ToString::to_string);
     let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
     let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
     let current = Engine { node: host.node_version, pnpm: None };

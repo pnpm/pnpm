@@ -21,7 +21,6 @@ pub(in super::super) fn gvs_build_marker_present(
     wanted: &Lockfile,
     config: &Config,
     lockfile_dir: &Path,
-    effective_node_version: Option<&str>,
 ) -> bool {
     if !gvs_build_markers_may_require_recovery(config) {
         return false;
@@ -46,7 +45,7 @@ pub(in super::super) fn gvs_build_marker_present(
     }
     let layout = crate::virtual_store_layout_for_lockfile(
         config,
-        installability_node_version(wanted, config, effective_node_version),
+        None,
         wanted,
         Some(&policy),
         Some(lockfile_dir),
@@ -132,23 +131,6 @@ pub(super) fn hash_dir_marker(
         return MarkerProbe::Found;
     }
     MarkerProbe::None
-}
-/// The effective Node version participates only when materialization would
-/// run installability checks; constraint-free materialization keys the layout
-/// to the detected host Node.
-pub(super) fn installability_node_version<'a>(
-    wanted: &Lockfile,
-    config: &Config,
-    effective_node_version: Option<&'a str>,
-) -> Option<&'a str> {
-    let (Some(snapshots), Some(packages)) = (&wanted.snapshots, &wanted.packages) else {
-        return None;
-    };
-    (!config.force
-        && !snapshots.is_empty()
-        && crate::any_installability_constraint(snapshots, packages))
-    .then_some(effective_node_version)
-    .flatten()
 }
 /// Probe the slots this lockfile's own layout resolves to.
 pub(super) fn any_slot_build_marker(

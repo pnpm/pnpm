@@ -264,7 +264,6 @@ impl<'w> InstallScope<'w> {
             frozen_lockfile: install.lockfile_policy.frozen,
             resolve_only: mode.resolve_only,
             disable_optimistic_repeat_install: install.lockfile_policy.disable_optimistic_repeat,
-            effective_node_version: mode.effective_node_version.as_deref(),
         })
     }
 }
