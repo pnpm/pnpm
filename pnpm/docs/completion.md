@@ -32,6 +32,12 @@ pnpm completion fish > ~/.config/fish/completions/pnpm.fish
 
 Since v12.4.0, the generated completions cover the [`pn` alias](./pnpm-cli.md#short-aliases) as well, in Bash, Fish, PowerShell, and Zsh.
 
+`pnpm exec <TAB>` suggests commands from the selected project's
+`node_modules/.bin`. Use `--dir` or `--workspace-root` to select another
+project. Suggestions stop after the command name; completion of the command's
+own arguments is not supported. A custom `modulesDir` setting does not change
+the directory used for these suggestions.
+
 ## g-plane/pnpm-shell-completion
 
 [pnpm-shell-completion] is a shell plugin maintained by Pig Fang on GitHub.
