@@ -1,5 +1,6 @@
 use super::{
-    IndexFetcher, LockedEntry, MAX_INDEX_TOTAL_BYTES, index_budget_has_room, over_index_budget,
+    IndexFetcher, LockedEntry, MAX_INDEX_TOTAL_BYTES, StaleEntry, index_budget_has_room,
+    over_index_budget,
 };
 use crate::server::StripedLocks;
 use std::{
@@ -50,7 +51,8 @@ async fn cached_unlocked_leaves_stale_entries() {
     let one_hour_ago = SystemTime::now() - Duration::from_hours(1);
     write_with_mtime(&stale_path, "old contents", one_hour_ago);
 
-    let result = IndexFetcher::cached_entry(&stale_path, Duration::from_mins(1), false).await;
+    let result =
+        IndexFetcher::cached_entry(&stale_path, Duration::from_mins(1), StaleEntry::Keep).await;
 
     assert!(result.is_none(), "stale entry must be a cache miss");
     assert!(stale_path.exists(), "unlocked check must preserve stale entry on disk");

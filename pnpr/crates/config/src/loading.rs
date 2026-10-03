@@ -209,7 +209,7 @@ impl Config {
         let storage = build_storage_config(&mut file, base_dir);
         let backend = build_backend_config(file.backend, base_dir)?;
         let cors = build_cors_config(file.cors)?;
-        reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
+        reject_removed_blocks(file.packages.as_ref(), file.groups.as_ref())?;
         let features = build_features(
             !file.registries.is_empty(),
             file.resolver,

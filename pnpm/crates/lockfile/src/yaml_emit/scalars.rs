@@ -1,4 +1,7 @@
-use super::{INDENT, resolves_implicitly};
+use super::{
+    INDENT, resolves_implicitly,
+    style::{CollectionStyle, ScalarLines},
+};
 
 /// Scalar styles, mirroring the fork's `STYLE_*` constants. `Folded` never
 /// occurs here because `lineWidth` is `-1`.
@@ -12,11 +15,16 @@ enum ScalarStyle {
 /// Render a string scalar. Mirrors the fork's `writeScalar` under the lockfile
 /// options (`quotingType` single, `noCompatMode`, `lineWidth: -1`,
 /// `forceQuotes` off).
-pub(super) fn write_scalar(string: &str, level: usize, single_line: bool, inblock: bool) -> String {
+pub(super) fn write_scalar(
+    string: &str,
+    level: usize,
+    lines: ScalarLines,
+    style: CollectionStyle,
+) -> String {
     if string.is_empty() {
         return "''".to_string();
     }
-    match choose_scalar_style(string, single_line, inblock) {
+    match choose_scalar_style(string, lines, style) {
         ScalarStyle::Plain => string.to_string(),
         ScalarStyle::Single => format!("'{}'", string.replace('\'', "''")),
         ScalarStyle::Double => format!(r#""{}""#, escape_string(string)),
@@ -32,9 +40,9 @@ pub(super) fn write_scalar(string: &str, level: usize, single_line: bool, inbloc
 }
 
 /// Mirrors the fork's `chooseScalarStyle` under lockfile options.
-fn choose_scalar_style(string: &str, single_line_only: bool, inblock: bool) -> ScalarStyle {
+fn choose_scalar_style(string: &str, lines: ScalarLines, style: CollectionStyle) -> ScalarStyle {
     let chars: Vec<u32> = string.chars().map(u32::from).collect();
-    let Some(scan) = scan_scalar(&chars, single_line_only, inblock) else {
+    let Some(scan) = scan_scalar(&chars, lines, style) else {
         return ScalarStyle::Double;
     };
     if scan.has_line_break {
@@ -53,21 +61,24 @@ struct ScalarScan {
     has_line_break: bool,
 }
 
-/// A `single_line_only` scalar has nowhere to put a line break, so a line
-/// feed counts as unprintable rather than selecting the literal style.
-fn scan_scalar(chars: &[u32], single_line_only: bool, inblock: bool) -> Option<ScalarScan> {
+/// A [`ScalarLines::OneLine`] scalar has nowhere to put a line break, so a
+/// line feed forces the double-quoted style instead of the literal one.
+fn scan_scalar(chars: &[u32], lines: ScalarLines, style: CollectionStyle) -> Option<ScalarScan> {
     let mut scan = ScalarScan {
         plain: is_plain_safe_first(chars[0]) && is_plain_safe_last(chars[chars.len() - 1]),
         has_line_break: false,
     };
     let mut prev: Option<u32> = None;
     for &char in chars {
-        if char == CHAR_LINE_FEED && !single_line_only {
-            scan.has_line_break = true;
+        if char == CHAR_LINE_FEED {
+            match lines {
+                ScalarLines::Multiline => scan.has_line_break = true,
+                ScalarLines::OneLine => return None,
+            }
         } else if !is_printable(char) {
             return None;
         }
-        scan.plain = scan.plain && is_plain_safe(char, prev, inblock);
+        scan.plain = scan.plain && is_plain_safe(char, prev, style);
         prev = Some(char);
     }
     Some(scan)
@@ -145,10 +156,14 @@ fn is_plain_safe_last(code: u32) -> bool {
     !is_whitespace(code) && code != CHAR_COLON
 }
 
-fn is_plain_safe(code: u32, prev: Option<u32>, inblock: bool) -> bool {
+fn is_plain_safe(code: u32, prev: Option<u32>, style: CollectionStyle) -> bool {
     let code_is_ns_or_ws = is_ns_char_or_whitespace(code);
     let code_is_ns = code_is_ns_or_ws && !is_whitespace(code);
-    let base = code_is_ns_or_ws && (inblock || !is_flow_indicator(code));
+    let indicator_is_safe = match style {
+        CollectionStyle::Block => true,
+        CollectionStyle::Flow => !is_flow_indicator(code),
+    };
+    let base = code_is_ns_or_ws && indicator_is_safe;
     let prev_is_colon = prev == Some(CHAR_COLON);
     let prev_is_ns =
         prev.is_some_and(|prev| is_ns_char_or_whitespace(prev) && !is_whitespace(prev));

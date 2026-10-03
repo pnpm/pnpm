@@ -1,6 +1,6 @@
 use super::{
-    ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver, TreeCtx,
-    WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
+    DependencySpec, HashSet, NodeKind, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver,
+    TreeCtx, WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
     claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
     opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
     resolve_catalog_child_specs, resolve_wanted_cached, resolves_children_through_catalogs,
@@ -32,7 +32,11 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.is_link || !claim_children_warmup(ctx, &pending.identity.id) {
+    match pending.kind {
+        NodeKind::Link => return,
+        NodeKind::Leaf | NodeKind::Branch => {}
+    }
+    if !claim_children_warmup(ctx, &pending.identity.id) {
         return;
     }
     warm_result_children(
@@ -68,12 +72,12 @@ pub(super) async fn warm_result_children<Chain>(
     let declaring_dir = declaring_manifest_dir(ctx, result);
     specs
         .iter()
-        .map(|(name, range, optional, injected)| {
+        .map(|spec| {
             let wanted = WantedDependency {
-                alias: Some(name.clone()),
-                bare_specifier: Some(range.clone()),
-                optional: Some(*optional),
-                injected: injected.then_some(true),
+                alias: Some(spec.alias.clone()),
+                bare_specifier: Some(spec.range.clone()),
+                optional: Some(spec.optional),
+                injected: spec.injected.then_some(true),
                 ..WantedDependency::default()
             };
             let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
@@ -91,14 +95,14 @@ pub(super) fn warm_child_specs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     through_catalogs: bool,
-) -> Option<Vec<ChildSpec>> {
+) -> Option<Vec<DependencySpec>> {
     let specs = extract_children(result).ok()?;
     let specs = if peer_shadowed.is_empty() {
         specs
     } else {
         specs
             .into_iter()
-            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
+            .filter(|spec| spec.optional || !peer_shadowed.contains(&spec.alias))
             .collect()
     };
     let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else { return Some(specs) };

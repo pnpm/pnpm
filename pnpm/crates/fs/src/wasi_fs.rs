@@ -308,21 +308,34 @@ pub(crate) fn open_lock(path: &Path) -> io::Result<std::fs::File> {
 }
 
 /// Try to hold a host process lease until this file is closed.
-pub fn try_lock_file(file: &std::fs::File, exclusive: bool) -> Result<(), std::fs::TryLockError> {
-    use std::os::fd::AsRawFd;
-    // SAFETY: the file keeps its descriptor alive throughout the host call.
-    match unsafe { host::try_lock(file.as_raw_fd(), u32::from(exclusive)) } {
+pub fn try_lock_file(
+    file: &std::fs::File,
+    mode: crate::LockMode,
+) -> Result<(), std::fs::TryLockError> {
+    match host_try_lock(file, mode) {
         0 => Ok(()),
         libc::EAGAIN => Err(std::fs::TryLockError::WouldBlock),
         errno => Err(std::fs::TryLockError::Error(io::Error::from_raw_os_error(errno))),
     }
 }
 
+/// The host takes the mode as an `exclusive` flag and answers with an errno.
+fn host_try_lock(file: &std::fs::File, mode: crate::LockMode) -> i32 {
+    use std::os::fd::AsRawFd;
+    let exclusive = match mode {
+        crate::LockMode::Exclusive => 1,
+        crate::LockMode::Shared => 0,
+    };
+    // SAFETY: the borrow keeps the descriptor open across the call, and
+    // the host takes both arguments by value.
+    unsafe { host::try_lock(file.as_raw_fd(), exclusive) }
+}
+
 /// Acquire a host file lease, failing after 30 seconds of contention.
-pub fn lock_file(file: &std::fs::File, exclusive: bool) -> io::Result<()> {
+pub fn lock_file(file: &std::fs::File, mode: crate::LockMode) -> io::Result<()> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
-        match try_lock_file(file, exclusive) {
+        match try_lock_file(file, mode) {
             Ok(()) => return Ok(()),
             Err(std::fs::TryLockError::WouldBlock) => {
                 if std::time::Instant::now() >= deadline {

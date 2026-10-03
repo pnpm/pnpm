@@ -3,7 +3,7 @@
 //! leaf classification, and whether it is deprecated.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{engines_runtime_dependencies, is_truthy};
+use pnpm_package_manifest::{DependencyGroup, engines_runtime_dependencies, is_truthy};
 use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    CatalogAnchor, Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
-    dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
+    CatalogAnchor, DependencySpec, Deprecation, ResolveDependencyTreeError,
+    catalogs::resolve_catalog_specifier, dependency_is_injected, lock_recoverable,
+    tree_ctx::TreeCtx,
 };
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
@@ -148,29 +149,34 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
 /// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
 pub(super) fn extract_children(
     result: &pnpm_resolving_resolver_base::ResolveResult,
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
+    collect_deps(manifest, DependencyGroup::Prod, &parent, &bundled, &mut out)?;
     let mut optional = Vec::new();
-    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
+    collect_deps(manifest, DependencyGroup::Optional, &parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
         let dependency_positions: HashMap<String, usize> = out
             .iter()
             .enumerate()
-            .map(|(index, (name, ..))| (name.clone(), index))
+            .map(|(index, spec)| (spec.alias.clone(), index))
             .collect();
         for spec in optional {
-            match dependency_positions.get(&spec.0) {
-                Some(&index) => out[index].2 = true,
+            match dependency_positions.get(&spec.alias) {
+                Some(&index) => out[index].optional = true,
                 None => out.push(spec),
             }
         }
     }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
-        out.push((name.to_string(), specifier, false, false));
+        out.push(DependencySpec {
+            alias: name.to_string(),
+            range: specifier,
+            optional: false,
+            injected: false,
+        });
     }
     out.sort_unstable();
     Ok(out)
@@ -206,13 +212,15 @@ fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
 /// package bundles that alias.
 fn collect_deps(
     manifest: &Value,
-    key: &str,
-    optional: bool,
+    group: DependencyGroup,
     parent: &str,
     bundled: &HashSet<&str>,
-    out: &mut Vec<ChildSpec>,
+    out: &mut Vec<DependencySpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
-    let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
+    let Some(map) = manifest.get::<&str>(group.into()).and_then(Value::as_object) else {
+        return Ok(());
+    };
+    let optional = declares_optional_dependencies(group);
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
             if !crate::is_valid_dependency_alias(name) {
@@ -224,15 +232,22 @@ fn collect_deps(
             if bundled.contains(name.as_str()) {
                 continue;
             }
-            out.push((
-                name.clone(),
-                range_str.to_string(),
+            out.push(DependencySpec {
+                alias: name.clone(),
+                range: range_str.to_string(),
                 optional,
-                dependency_is_injected(manifest, name),
-            ));
+                injected: dependency_is_injected(manifest, name),
+            });
         }
     }
     Ok(())
+}
+
+fn declares_optional_dependencies(group: DependencyGroup) -> bool {
+    match group {
+        DependencyGroup::Optional => true,
+        DependencyGroup::Prod | DependencyGroup::Dev | DependencyGroup::Peer => false,
+    }
 }
 
 fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String {

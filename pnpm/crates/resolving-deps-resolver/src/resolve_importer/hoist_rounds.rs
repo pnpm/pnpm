@@ -1,7 +1,7 @@
 use super::{
-    Arc, BTreeMap, CandidatePeerRanges, DirectDep, HashMap, HashSet, HoistMissingScope,
-    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
-    PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver, WantedSpec,
+    Arc, BTreeMap, CandidatePeerRanges, DependencySpec, DirectDep, HashMap, HashSet,
+    HoistMissingScope, HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases,
+    PeerDiscoveryResult, PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver,
     WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
@@ -212,9 +212,9 @@ impl ImporterHoistState {
         // `dependenciesMeta` from any manifest, so `injected`
         // defaults to `false`: the hoist path constructs a fresh
         // wanted dependency without threading the per-dep meta.
-        let new_wanted: Vec<WantedSpec> = hoisted
+        let new_wanted: Vec<DependencySpec> = hoisted
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(alias, range)| DependencySpec { alias, range, optional: false, injected: false })
             .collect();
         let new_direct = extend_tree(
             &self.ctx,
@@ -387,9 +387,9 @@ impl ImporterHoistState {
         // confirmed a preferred version is in scope. Treating them as
         // non-optional matches the required-peer arm above; `injected`
         // also defaults to `false` for the same reason.
-        let new_wanted: Vec<WantedSpec> = hoisted_optional
+        let new_wanted: Vec<DependencySpec> = hoisted_optional
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(alias, range)| DependencySpec { alias, range, optional: false, injected: false })
             .collect();
         let new_direct = extend_tree(
             &self.ctx,

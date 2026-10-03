@@ -213,19 +213,29 @@ pub(in super::super) enum ChildrenRecording {
 }
 
 impl ChildrenRecording {
-    /// The children to hang on the recording walk's own node, plus
-    /// whether the recording staled the children the package's other
-    /// occurrence nodes realized — the flag that gates
-    /// [`fn@make_non_owner_nodes_lazy`].
+    /// Whether the other occurrence nodes of the package can no longer
+    /// trust the children they realized: this walk published over stale
+    /// edges, or `claim` found the children context changed.
+    pub(in super::super) fn stales_other_occurrences(self, claim: &ChildrenOwnerClaim) -> bool {
+        match self {
+            ChildrenRecording::PublishedOverStale => true,
+            ChildrenRecording::Declined | ChildrenRecording::Published => {
+                !claim.children_context_unchanged
+            }
+        }
+    }
+
+    /// The children to hang on the recording walk's own node, with the
+    /// recording itself: [`ChildrenRecording::PublishedOverStale`] is what
+    /// gates [`fn@make_non_owner_nodes_lazy`].
     pub(in super::super) fn into_children(
         self,
         realized: BTreeMap<String, NodeId>,
-    ) -> (TreeChildren, bool) {
+    ) -> (TreeChildren, ChildrenRecording) {
         match self {
-            ChildrenRecording::Declined => (TreeChildren::Lazy, false),
-            ChildrenRecording::Published => (TreeChildren::Realized(Arc::new(realized)), false),
-            ChildrenRecording::PublishedOverStale => {
-                (TreeChildren::Realized(Arc::new(realized)), true)
+            ChildrenRecording::Declined => (TreeChildren::Lazy, self),
+            ChildrenRecording::Published | ChildrenRecording::PublishedOverStale => {
+                (TreeChildren::Realized(Arc::new(realized)), self)
             }
         }
     }

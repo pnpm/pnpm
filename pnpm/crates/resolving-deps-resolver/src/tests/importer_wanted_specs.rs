@@ -1,5 +1,7 @@
 use super::{DependencyGroup, PackageManifest};
-use crate::resolve_dependency_tree::{ResolveDependencyTreeError, importer_direct_wanted_specs};
+use crate::resolve_dependency_tree::{
+    DependencySpec, ResolveDependencyTreeError, importer_direct_wanted_specs,
+};
 use pretty_assertions::assert_eq;
 
 #[expect(
@@ -43,7 +45,15 @@ fn regular_dep_wins_over_own_peer_with_auto_install_peers() {
         None,
     )
     .unwrap();
-    assert_eq!(wanted, vec![("foo".to_string(), "workspace:*".to_string(), false, false)]);
+    assert_eq!(
+        wanted,
+        vec![DependencySpec {
+            alias: "foo".to_string(),
+            range: "workspace:*".to_string(),
+            optional: false,
+            injected: false,
+        }],
+    );
 }
 
 #[test]
@@ -59,7 +69,15 @@ fn peer_only_dep_is_wanted_with_auto_install_peers() {
         None,
     )
     .unwrap();
-    assert_eq!(wanted, vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)]);
+    assert_eq!(
+        wanted,
+        vec![DependencySpec {
+            alias: "peer-only".to_string(),
+            range: "^2.0.0".to_string(),
+            optional: false,
+            injected: false,
+        }],
+    );
 }
 
 #[test]
@@ -76,7 +94,15 @@ fn peer_only_dep_is_not_wanted_without_auto_install_peers() {
         None,
     )
     .unwrap();
-    assert_eq!(wanted, vec![("regular".to_string(), "^1.0.0".to_string(), false, false)]);
+    assert_eq!(
+        wanted,
+        vec![DependencySpec {
+            alias: "regular".to_string(),
+            range: "^1.0.0".to_string(),
+            optional: false,
+            injected: false,
+        }],
+    );
 }
 
 #[test]
@@ -93,7 +119,15 @@ fn later_regular_group_range_replaces_earlier_one() {
         None,
     )
     .unwrap();
-    assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
+    assert_eq!(
+        wanted,
+        vec![DependencySpec {
+            alias: "foo".to_string(),
+            range: "^2.0.0".to_string(),
+            optional: true,
+            injected: false,
+        }],
+    );
 }
 
 /// Matches `filterDependenciesByType` in `@pnpm/pkg-manifest.utils`
@@ -115,7 +149,15 @@ fn regular_dep_range_wins_over_dev_range_of_same_alias() {
         None,
     )
     .unwrap();
-    assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
+    assert_eq!(
+        wanted,
+        vec![DependencySpec {
+            alias: "foo".to_string(),
+            range: "1.0.0".to_string(),
+            optional: false,
+            injected: false,
+        }],
+    );
 }
 
 #[test]

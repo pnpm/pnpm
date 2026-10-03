@@ -1,7 +1,8 @@
 use super::{
     Arc, BTreeMap, ChildAliases, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
-    DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs, PeersCacheItem,
-    ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker, insert_parent_ref,
+    DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs, PeerWalkMode,
+    PeersCacheItem, ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker,
+    insert_parent_ref,
 };
 
 impl Walker<'_> {}
@@ -15,9 +16,11 @@ impl Walker<'_> {
         node_id: &NodeId,
         pkg_id: &Arc<str>,
     ) -> Option<Arc<Vec<ChildEdge>>> {
-        if !self.traversal.discovery
-            || !matches!(self.tree.dependencies_tree[node_id].children, TreeChildren::Lazy)
-        {
+        match self.traversal.mode {
+            PeerWalkMode::Final => return None,
+            PeerWalkMode::Discovery => {}
+        }
+        if !matches!(self.tree.dependencies_tree[node_id].children, TreeChildren::Lazy) {
             return None;
         }
         Some(
@@ -51,7 +54,7 @@ impl Walker<'_> {
                 }
                 let child_node_id = self.child_node_id_for_edge(edge, Some(provider_children));
                 let child_output = self.resolve_deferred_edge(edge, child_node_id, depth, walk);
-                child_outputs.push(&edge.alias, child_output, &child_aliases, false);
+                child_outputs.push(&edge.alias, child_output, &child_aliases, self.traversal.mode);
             }
         }
         child_outputs
@@ -105,7 +108,7 @@ impl Walker<'_> {
                     continue;
                 }
                 let child_output = self.resolve_node(child_node_id, walk);
-                child_outputs.push(alias, child_output, &child_aliases, !self.traversal.discovery);
+                child_outputs.push(alias, child_output, &child_aliases, self.traversal.mode);
             }
         }
         child_outputs
@@ -124,16 +127,22 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
     ) {
-        if !self.traversal.discovery {
-            self.nodes.external_peers.insert(
-                node_id.clone(),
-                Arc::clone(result.all_resolved_peers),
-            );
-            self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(result.all_missing_peers));
-            self.nodes.children_missing_peers.insert(
-                node_id.clone(),
-                Arc::clone(result.missing_peers_of_children),
-            );
+        match self.traversal.mode {
+            PeerWalkMode::Final => {
+                self.nodes.external_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.all_resolved_peers),
+                );
+                self.nodes.missing_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.all_missing_peers),
+                );
+                self.nodes.children_missing_peers.insert(
+                    node_id.clone(),
+                    Arc::clone(result.missing_peers_of_children),
+                );
+            }
+            PeerWalkMode::Discovery => {}
         }
         if result.is_pure {
             self.caches.pure_pkgs.insert(Arc::clone(pkg_id), result.dep_path.clone());

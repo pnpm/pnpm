@@ -4,9 +4,10 @@
 //! which occurrence of a package records its children.
 
 pub(super) use children_ownership::{
-    ChildrenOwner, ChildrenOwnerClaim, RecordedChildren, RecordedChildrenContext,
-    claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
+    ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
+    RecordedChildrenContext, claim_children_owner, claim_children_warmup, insert_tree_node,
+    is_current_children_owner, make_non_owner_nodes_lazy, record_children, recorded_children_match,
+    register_peer_dep_names,
 };
 
 pub(super) use cache_keys::{
@@ -51,8 +52,8 @@ use crate::{
 };
 
 use super::{
-    DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth,
-    UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
+    DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
+    UpdateDepth, UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
 };
 
 type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
@@ -61,11 +62,14 @@ type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 /// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
 pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 
-/// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
-/// `(child_alias, child_range, child_optional, child_injected)` tuples extracted from
-/// a resolved package's manifest's `dependencies` plus
-/// `optionalDependencies` sections.
-pub(super) type ChildSpec = (String, String, bool, bool);
+/// What registering a package in the workspace's package table found, with
+/// the table's shared id either way.
+pub(super) enum PackageRegistration {
+    /// This occurrence created the entry.
+    Created(Arc<str>),
+    /// Another occurrence created it first.
+    Existing(Arc<str>),
+}
 
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
@@ -127,7 +131,7 @@ pub(crate) struct WorkspaceTreeStorage {
 
 #[derive(Default)]
 pub(crate) struct WorkspaceChildrenState {
-    pub(super) specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
+    pub(super) specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<DependencySpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
     /// it a level seeds — see [`fn@warm_children_resolutions`].

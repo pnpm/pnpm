@@ -1,7 +1,7 @@
 use super::{
     Arc, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, TreeChildren, order_test_shape, package, peer_cycle_fixture,
-    peer_cycle_graph_keys, resolve_peers, resolve_peers_workspace,
+    ResolvePeersOptions, ResolvedTree, TreeChildren, WorkspacePeerSettings, order_test_shape,
+    package, peer_cycle_fixture, peer_cycle_graph_keys, resolve_peers, resolve_peers_workspace,
 };
 
 /// End-to-end shape of a cycle package under canonical cycle-breaking:
@@ -154,9 +154,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
             &mut tree,
             &importers,
             std::path::Path::new("/repo"),
-            false,
-            false,
-            true,
+            WorkspacePeerSettings { resolve_peers_from_workspace_root: true, ..Default::default() },
             ResolvePeersOptions::default(),
         );
         let mut keys: Vec<String> = result.graph

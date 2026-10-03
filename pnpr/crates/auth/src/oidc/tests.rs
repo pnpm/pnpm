@@ -1,5 +1,5 @@
 use super::{
-    OidcState, token_payload, verify_workload,
+    MetadataFreshness, OidcState, token_payload, verify_workload,
     workload::{binding_matches, validate_times},
 };
 use axum::{
@@ -299,9 +299,9 @@ async fn refresh_is_bounded_and_recovers_after_expiration() {
     let (provider, task) = mock_provider().await;
     let state = OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap();
     let configured = state.providers.get("example").unwrap();
-    state.metadata(configured, false).await.unwrap();
+    state.metadata(configured, MetadataFreshness::Cached).await.unwrap();
     for _ in 0..3 {
-        state.metadata(configured, true).await.unwrap();
+        state.metadata(configured, MetadataFreshness::Refetched).await.unwrap();
     }
     assert_eq!(*provider.key_requests.lock().unwrap(), 1);
     configured.metadata.lock().await.attempted_at = Some(
@@ -309,7 +309,7 @@ async fn refresh_is_bounded_and_recovers_after_expiration() {
             .checked_sub(Duration::from_secs(31))
             .unwrap(),
     );
-    state.metadata(configured, true).await.unwrap();
+    state.metadata(configured, MetadataFreshness::Refetched).await.unwrap();
     assert_eq!(*provider.key_requests.lock().unwrap(), 2);
     task.abort();
 }
@@ -429,10 +429,9 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
         Instant::now().checked_sub(Duration::from_secs(31));
     provider.discovery.delay_discovery.store(true, std::sync::atomic::Ordering::Relaxed);
     let refreshing = Arc::clone(&state);
-    let refresh =
-        tokio::spawn(
-            async move { refreshing.metadata(&refreshing.providers["example"], true).await },
-        );
+    let refresh = tokio::spawn(async move {
+        refreshing.metadata(&refreshing.providers["example"], MetadataFreshness::Refetched).await
+    });
     tokio::time::timeout(Duration::from_secs(2), provider.discovery.discovery_started.notified())
         .await
         .unwrap();

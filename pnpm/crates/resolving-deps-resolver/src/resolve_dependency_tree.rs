@@ -393,25 +393,12 @@ where
         .with_pnpmfile_hook(opts.pnpmfile_hook)
         .with_read_package_log(opts.read_package_log)
         .with_auto_install_peers(opts.auto_install_peers);
-    let optional_names = importer_optional_dependency_names(manifest);
-    let injected_names = importer_injected_dependency_names(manifest);
-    let mut wanted: Vec<WantedSpec> = Vec::new();
-    for (name, range) in manifest.dependencies(dependency_groups) {
-        if !crate::is_valid_dependency_alias(name) {
-            return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                parent: "The current package".to_string(),
-                alias: name.to_string(),
-            });
-        }
-        let optional = optional_names.contains(name);
-        let injected = injected_names.contains(name);
-        wanted.push((name.to_string(), range.to_string(), optional, injected));
-    }
+    let wanted = root_wanted_specs(manifest, dependency_groups)?;
     record_changed_direct_deps(&ctx, pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
     let parent_pkg_aliases = ParentPkgAliases::root(
         wanted
             .iter()
-            .map(|(alias, ..)| alias.clone())
+            .map(|spec| spec.alias.clone())
             .collect(),
     );
     let direct = extend_tree(
@@ -423,6 +410,35 @@ where
     )
     .await?;
     Ok(ctx.into_resolved_tree(direct))
+}
+
+/// The root manifest's dependencies in `dependency_groups`, each checked
+/// to be an installable alias.
+fn root_wanted_specs<DependencyGroupList>(
+    manifest: &PackageManifest,
+    dependency_groups: DependencyGroupList,
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError>
+where
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+{
+    let optional_names = importer_optional_dependency_names(manifest);
+    let injected_names = importer_injected_dependency_names(manifest);
+    let mut wanted = Vec::new();
+    for (name, range) in manifest.dependencies(dependency_groups) {
+        if !crate::is_valid_dependency_alias(name) {
+            return Err(ResolveDependencyTreeError::InvalidDependencyName {
+                parent: "The current package".to_string(),
+                alias: name.to_string(),
+            });
+        }
+        wanted.push(DependencySpec {
+            alias: name.to_string(),
+            range: range.to_string(),
+            optional: optional_names.contains(name),
+            injected: injected_names.contains(name),
+        });
+    }
+    Ok(wanted)
 }
 
 fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
@@ -439,17 +455,19 @@ fn dependency_meta_is_injected(meta: &Value) -> bool {
         .unwrap_or(false)
 }
 
-/// One spec carried through [`extend_tree`] and the importer-side
-/// orchestrator: `(alias, range, optional, injected)`. `injected`
-/// reflects the importer manifest's `dependenciesMeta[alias].injected`
-/// flag, threaded onto [`WantedDependency::injected`] so the workspace
-/// resolver branch picks the `file:` resolution shape for that one
-/// dep even when the global [`pnpm_resolving_resolver_base::ResolverProjectOptions::inject_workspace_packages`]
-/// is off. Hoisted-peer arms in
-/// [`fn@crate::resolve_importer::resolve_importer`] default this to
-/// `false` — peers picked up via auto-install don't carry per-dep
-/// meta from any manifest.
-pub(crate) type WantedSpec = (String, String, bool, bool);
+/// One dependency as a manifest declares it, before resolution.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DependencySpec {
+    pub alias: String,
+    pub range: String,
+    /// Declared under `optionalDependencies`.
+    pub optional: bool,
+    /// The importer manifest's `dependenciesMeta[alias].injected` flag. It
+    /// picks the `file:` resolution shape for this one dependency even when
+    /// [`pnpm_resolving_resolver_base::ResolverProjectOptions::inject_workspace_packages`]
+    /// is off.
+    pub injected: bool,
+}
 
 /// `injected: Some(true)` only when the importer manifest's
 /// `dependenciesMeta[name].injected = true` opted this dep in. Otherwise
@@ -459,9 +477,10 @@ pub(crate) type WantedSpec = (String, String, bool, bool);
 /// produce identical behavior — but keeping `None` aligns the
 /// [`WantedKey`](workspace_ctx::WantedKey) cache buckets across the two pacquet branches that
 /// surface `injected`.
-pub(crate) fn wanted_from_spec((name, range, optional, injected): WantedSpec) -> WantedDependency {
+pub(crate) fn wanted_from_spec(spec: DependencySpec) -> WantedDependency {
+    let DependencySpec { alias, range, optional, injected } = spec;
     WantedDependency {
-        alias: Some(name),
+        alias: Some(alias),
         bare_specifier: Some(range),
         optional: Some(optional),
         injected: injected.then_some(true),
@@ -486,7 +505,7 @@ pub(crate) fn wanted_from_spec((name, range, optional, injected): WantedSpec) ->
 pub async fn extend_tree<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    wanted: Vec<WantedSpec>,
+    wanted: Vec<DependencySpec>,
     importer_id: &str,
     parent_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<Vec<DirectDep>, ResolveDependencyTreeError>
@@ -552,7 +571,7 @@ struct DirectRoot<'r> {
 async fn seed_direct<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    spec: WantedSpec,
+    spec: DependencySpec,
     root: &DirectRoot<'_>,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where

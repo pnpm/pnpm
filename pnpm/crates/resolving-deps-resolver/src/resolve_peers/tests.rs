@@ -13,7 +13,7 @@ mod behavior;
 mod tarball_peers;
 
 use super::{
-    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
+    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspacePeerSettings,
     context::peer_id_pair,
     resolve_peers, resolve_peers_workspace,
     test_support::{
