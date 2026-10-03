@@ -137,7 +137,8 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
 /// Sort path strings the way pnpm's `localeCompare(b, 'en')` orders a
 /// tarball's file listing.
 pub fn sort_paths_en_locale(paths: &mut [String]) {
-    let collator = en_collator();
+    let en = en_collator();
+    let collator = en.as_borrowed();
     paths.sort_by(|left, right| collator.compare(left, right));
 }
 

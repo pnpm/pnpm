@@ -134,7 +134,8 @@ fn compression_ordered_entries<'a>(
     // Grouping by extension and basename keeps the same file name from
     // every template directory adjacent, so DEFLATE's window matches the
     // repeated content instead of storing each copy in full.
-    let collator = en_collator();
+    let en = en_collator();
+    let collator = en.as_borrowed();
     entries.sort_by(|left, right| {
         collator
             .compare(&left.ext, &right.ext)
