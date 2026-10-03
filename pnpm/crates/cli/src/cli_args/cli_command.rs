@@ -25,6 +25,7 @@ use super::{
     dlx::DlxArgs,
     docs::DocsArgs,
     doctor::DoctorArgs,
+    edit::EditArgs,
     env::EnvArgs,
     exec::ExecArgs,
     fetch::FetchArgs,

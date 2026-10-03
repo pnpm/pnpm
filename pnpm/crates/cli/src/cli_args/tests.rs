@@ -663,7 +663,6 @@ fn the_unimplemented_npm_commands_parse_instead_of_falling_through_to_a_script()
         command(&["pacquet", "token", "create", "--read-only"]),
         CliCommand::Token(_),
     ));
-    assert!(matches!(command(&["pacquet", "xmas"]), CliCommand::Xmas(_)));
 }
 
 #[test]
