@@ -312,21 +312,22 @@ pub fn try_lock_file(
     file: &std::fs::File,
     mode: crate::LockMode,
 ) -> Result<(), std::fs::TryLockError> {
-    use std::os::fd::AsRawFd;
-    // SAFETY: the file keeps its descriptor alive throughout the host call.
-    match unsafe { host::try_lock(file.as_raw_fd(), host_lock_flag(mode)) } {
+    match host_try_lock(file, mode) {
         0 => Ok(()),
         libc::EAGAIN => Err(std::fs::TryLockError::WouldBlock),
         errno => Err(std::fs::TryLockError::Error(io::Error::from_raw_os_error(errno))),
     }
 }
 
-/// The host takes the mode as its `exclusive` flag.
-fn host_lock_flag(mode: crate::LockMode) -> u32 {
-    match mode {
+/// The host takes the mode as an `exclusive` flag and answers with an errno.
+fn host_try_lock(file: &std::fs::File, mode: crate::LockMode) -> i32 {
+    use std::os::fd::AsRawFd;
+    let exclusive = match mode {
         crate::LockMode::Exclusive => 1,
         crate::LockMode::Shared => 0,
-    }
+    };
+    // SAFETY: the file keeps its descriptor alive throughout the host call.
+    unsafe { host::try_lock(file.as_raw_fd(), exclusive) }
 }
 
 /// Acquire a host file lease, failing after 30 seconds of contention.
