@@ -8,7 +8,7 @@ import type {
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { getWantedDependencies, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { ImporterToResolve } from './index.js'
 import type { ImporterToResolveGeneric } from './resolveDependencyTree.js'
 import { safeIsInnerLink } from './safeIsInnerLink.js'
@@ -68,8 +68,8 @@ export async function toResolveImporter (
 
 function getExistingDependencies (
   project: ImporterToResolve,
-  nonLinkedDependencies: WantedDependency[]
-): WantedDependency[] {
+  nonLinkedDependencies: ManifestWantedDependency[]
+): ManifestWantedDependency[] {
   return nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
     .map((dependency) => project.hookOwnedAliases?.has(dependency.alias)
@@ -137,8 +137,8 @@ function prefIsLocalTarball (bareSpecifier: string): boolean {
   return bareSpecifier.startsWith('file:') && LOCAL_TARBALL_PATTERN.test(bareSpecifier)
 }
 
-async function partitionLinkedPackages (
-  dependencies: WantedDependency[],
+async function partitionLinkedPackages<Dependency extends WantedDependency> (
+  dependencies: Dependency[],
   opts: {
     projectDir: string
     hideAlienModules: boolean
@@ -147,8 +147,8 @@ async function partitionLinkedPackages (
     globalVirtualStoreDir: string
     workspacePackages?: WorkspacePackages
   }
-): Promise<WantedDependency[]> {
-  const nonLinkedDependencies: WantedDependency[] = []
+): Promise<Dependency[]> {
+  const nonLinkedDependencies: Dependency[] = []
   await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||

@@ -53,6 +53,23 @@ test('returns unused for specifier not using catalog protocol', () => {
   expect(resolveFromCatalog(catalogs, { alias: 'bar', bareSpecifier: '^2.0.0' })).toEqual({ type: 'unused' })
 })
 
+test('returns unused for an aliasless selector outside the catalog protocol', () => {
+  expect(resolveFromCatalog({}, { bareSpecifier: 'jsr:@foo/bar' })).toEqual({ type: 'unused' })
+})
+
+test('an aliasless catalog selector does not resolve a package named undefined', () => {
+  const result = resolveFromCatalog({ default: { undefined: '1.0.0' } }, { bareSpecifier: 'catalog:' })
+
+  expect(result).toMatchObject({
+    type: 'misconfiguration',
+    catalogName: 'default',
+    error: {
+      code: 'ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC',
+      message: "No catalog entry 'undefined' was found for catalog 'default'.",
+    },
+  })
+})
+
 describe('misconfiguration', () => {
   function resolveFromCatalogOrThrow (catalogs: Catalogs, wantedDependency: WantedDependency) {
     const result = resolveFromCatalog(catalogs, wantedDependency)

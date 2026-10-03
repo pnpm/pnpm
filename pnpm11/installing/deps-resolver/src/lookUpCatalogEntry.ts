@@ -26,6 +26,7 @@ export function getCatalogExistingVersionFromSnapshot (
   wantedLockfile: LockfileObject,
   wantedDependency: WantedDependency
 ): string | undefined {
+  if (wantedDependency.alias == null) return undefined
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
