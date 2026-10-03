@@ -26,6 +26,7 @@ pub mod dist_tag;
 pub mod dlx;
 pub mod docs;
 pub mod doctor;
+pub mod edit;
 pub mod env;
 pub mod exec;
 pub mod fetch;

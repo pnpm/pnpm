@@ -20,7 +20,7 @@ const hasOutdatedDepsFixture = testFixtures.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
   prepareEmpty()
-  const result = execPnpmSync(['xmas'])
+  const result = execPnpmSync(['profile'])
 
   expect(result.status).not.toBe(0)
   const output = result.stdout.toString() + result.stderr.toString()

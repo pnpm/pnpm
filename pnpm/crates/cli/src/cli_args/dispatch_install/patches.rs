@@ -1,11 +1,32 @@
 use super::{
-    CommandFuture, Config, Context, DefaultReporter, InstallArgs, NdjsonReporter, PatchArgs,
-    PatchCommitArgs, PatchRemoveArgs, Path, ReporterType, RunCtx, SilentReporter,
+    CommandFuture, Config, Context, DefaultReporter, EditArgs, InstallArgs, NdjsonReporter,
+    PatchArgs, PatchCommitArgs, PatchRemoveArgs, Path, ReporterType, RunCtx, SilentReporter,
     anchor_active_project, installed_project_config, keeps_project_lockfiles,
 };
 use crate::State;
 use indexmap::IndexMap;
 use std::sync::atomic::Ordering;
+
+pub(in super::super) fn edit<'a>(
+    ctx: &RunCtx<'a>,
+    args: EditArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = ctx.prepared_config();
+    let manifest_path = ctx.locations.manifest_path;
+    let effective_reporter = ctx.effective_reporter;
+    Ok(Box::pin(async move {
+        let config = installed_project_config(config.await?, manifest_path);
+        let command_state = State::init(manifest_path.to_path_buf(), config, true)
+            .wrap_err("initialize the state")?;
+        match effective_reporter.load(Ordering::Relaxed).into() {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                Box::pin(args.run::<DefaultReporter>(command_state)).await
+            }
+            ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)).await,
+            ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)).await,
+        }
+    }))
+}
 
 pub(in super::super) fn patch<'a>(
     ctx: &RunCtx<'a>,
