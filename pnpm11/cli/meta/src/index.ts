@@ -1,4 +1,7 @@
-import { findPnpmEntryScript, findPnpmExecutable } from './selfEntry.js'
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { findPnpmEntryScript, findPnpmExecutable, realpathOrUndefined } from './selfEntry.js'
 
 export { isPnpxExecutable } from './selfEntry.js'
 
@@ -70,6 +73,36 @@ function findSelfEntryScript (): string | undefined {
 
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
   return env.COREPACK_ROOT != null
+}
+
+/**
+ * The Homebrew formula (`pnpm`, `pnpm@11`, ...) that installed the pnpm
+ * running now, or `undefined` when Homebrew did not install it.
+ */
+export function findHomebrewFormula (): string | undefined {
+  const selfPath = detectIfCurrentPkgIsExecutable() ? process.execPath : import.meta.filename
+  const realPath = realpathOrUndefined(selfPath)
+  return realPath == null ? undefined : homebrewFormulaOf(realPath)
+}
+
+/**
+ * The Homebrew formula whose keg holds `realPath`. A keg is
+ * `<cellar>/<formula>/<version>/`, and Homebrew writes `INSTALL_RECEIPT.json`
+ * into every keg it installs.
+ */
+export function homebrewFormulaOf (realPath: string): string | undefined {
+  for (let keg = path.dirname(realPath); keg !== path.dirname(keg); keg = path.dirname(keg)) {
+    const formulaDir = path.dirname(keg)
+    const formula = path.basename(formulaDir)
+    if (
+      path.basename(path.dirname(formulaDir)) === 'Cellar' &&
+      (formula === 'pnpm' || formula.startsWith('pnpm@')) &&
+      fs.existsSync(path.join(keg, 'INSTALL_RECEIPT.json'))
+    ) {
+      return formula
+    }
+  }
+  return undefined
 }
 
 /**

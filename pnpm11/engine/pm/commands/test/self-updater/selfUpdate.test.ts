@@ -25,9 +25,11 @@ const mockPackageManager = {
   name: 'pnpm',
   version: '9.0.0',
 }
+const findHomebrewFormula = jest.fn<typeof actualModule.findHomebrewFormula>()
 jest.unstable_mockModule('@pnpm/cli.meta', () => {
   return {
     ...actualModule,
+    findHomebrewFormula,
     packageManager: mockPackageManager,
   }
 })
@@ -35,6 +37,7 @@ const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, lin
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
+  findHomebrewFormula.mockReturnValue(undefined)
   await setupMockAgent()
   getMockAgent().enableNetConnect()
 })
@@ -201,6 +204,17 @@ test('self-update', async () => {
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update refuses to update a pnpm installed by Homebrew', async () => {
+  findHomebrewFormula.mockReturnValue('pnpm@11')
+  const opts = prepare()
+
+  await expect(selfUpdate.handler(opts, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW',
+    hint: 'Update it with Homebrew instead: brew upgrade pnpm@11',
+  })
+  expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
 })
 
 test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () => {
