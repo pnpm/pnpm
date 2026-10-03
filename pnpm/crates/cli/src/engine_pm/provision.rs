@@ -131,11 +131,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    let program = engine_bin(&engine.bin_dir, name)
-        .ok_or_else(|| EngineError::MissingEngineBin {
-            name,
-            dir: engine.bin_dir.display().to_string(),
-        })?;
+    let program = engine.program(pm)?;
 
     let mut bin_dirs = vec![engine.bin_dir];
     let mut private_installs: Vec<_> = engine.private_install.into_iter().collect();
