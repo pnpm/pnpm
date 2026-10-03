@@ -2,12 +2,15 @@ use crate::{filter::FilterError, process::Command};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::OnceLock,
 };
 
 use indexmap::IndexMap;
 use wax::{Glob, Program};
 
 mod catalogs;
+#[cfg(test)]
+mod tests;
 
 /// Options for [`get_changed_projects`].
 pub struct GetChangedProjectsOptions<'a> {
@@ -222,18 +225,12 @@ fn git_diff_names(
     manifest_path: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
-    // git before 2.28 rejects `--no-relative` but ignores this setting.
-    cmd.args([
-        "-c",
-        "diff.relative=false",
-        "diff",
-        "--name-only",
-        "--no-renames",
-        "--end-of-options",
-        commit,
-        "--",
-    ])
-    .arg(working_dir);
+    cmd.args(["diff", "--name-only", "--no-renames"]);
+    if git_supports_no_relative() {
+        cmd.arg("--no-relative");
+    }
+    cmd.args(["--end-of-options", commit, "--"])
+        .arg(working_dir);
     if working_dir != workspace_dir {
         cmd.arg(manifest_path);
     }
@@ -250,6 +247,34 @@ fn git_diff_names(
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Whether git accepts `git diff --no-relative`, which keeps a
+/// `diff.relative=true` setting from printing paths relative to the workspace
+/// directory. git added both the flag and the setting in 2.28, so an older git
+/// rejects the flag and already prints paths from the repository root. An
+/// unreadable `git --version` counts as supported.
+fn git_supports_no_relative() -> bool {
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+    *SUPPORTED.get_or_init(|| {
+        let Ok(output) = Command::new("git").arg("--version").output() else {
+            return true;
+        };
+        parse_git_version(&String::from_utf8_lossy(&output.stdout))
+            .is_none_or(|version| version >= (2, 28))
+    })
+}
+
+/// The major and minor version from `git --version` output, such as
+/// `git version 2.39.3 (Apple Git-145)` or `git version 2.45.1.windows.1`.
+fn parse_git_version(output: &str) -> Option<(u32, u32)> {
+    let mut parts = output
+        .trim()
+        .strip_prefix("git version ")?
+        .split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    Some((major, minor))
 }
 
 pub(crate) fn strip_final_newline(text: &str) -> &str {
