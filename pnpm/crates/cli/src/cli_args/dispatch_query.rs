@@ -128,19 +128,16 @@ pub(super) fn outdated<'a>(
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
+    if args.names_packages() {
+        let config = (ctx.loaders.config)()?;
+        return Ok(Box::pin(async move { exit_if_vulnerable(args.run_packages(config).await?) }));
+    }
     let command_state = ctx.prepared_state(true);
     macro_rules! run_audit {
         ($reporter:ty, $command_state:ident) => {
-            Box::pin(async move {
-                if args.run::<$reporter>($command_state).await? == AuditOutcome::Vulnerable {
-                    #[expect(
-                        clippy::exit,
-                        reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
-                    )]
-                    std::process::exit(1);
-                }
-                Ok(())
-            })
+            Box::pin(
+                async move { exit_if_vulnerable(args.run::<$reporter>($command_state).await?) },
+            )
         };
     }
     let effective_reporter = ctx.effective_reporter;
@@ -154,6 +151,17 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
             ReporterType::Silent => run_audit!(SilentReporter, command_state).await,
         }
     }))
+}
+
+fn exit_if_vulnerable(outcome: AuditOutcome) -> miette::Result<()> {
+    if outcome == AuditOutcome::Vulnerable {
+        #[expect(
+            clippy::exit,
+            reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
+        )]
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<CommandFuture<'a>> {

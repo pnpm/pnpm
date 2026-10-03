@@ -26,6 +26,24 @@ Since v11, `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bu
 
 ## Commands
 
+### Audit packages without a project
+
+```sh
+pnpm audit minimist@1.2.5
+pnpm audit lodash@4 express@4 --json
+```
+
+Pass one or more package names, optionally followed by a version, range, or
+tag, to audit them and their dependencies before installing them. pnpm resolves
+them in a temporary project and removes it afterwards. The current project is
+not changed, and package build scripts do not run.
+
+Each package name may appear only once per invocation. `--dev` treats the
+requested packages as development dependencies; `--prod` takes precedence if
+both flags are given. `--fix`, `--interactive`, `--ignore`, and
+`--ignore-unfixable` cannot be combined with package names because they modify
+a project. The other audit options also apply to package audits.
+
 ### signatures
 
 Added in: v11.1.0
