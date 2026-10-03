@@ -487,10 +487,7 @@ fn foo_packument(upstream_url: &str) -> Value {
         },
     })
 }
-
-// --------------------------------------------------------------------
 // Registry routing (RFC: registries for pnpr).
-// --------------------------------------------------------------------
 
 /// Mock a one-version packument plus its tarball for `pkg` on `server`,
 /// returning the tarball bytes.
