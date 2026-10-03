@@ -128,14 +128,11 @@ pub enum MaxUsers {
 }
 
 impl MaxUsers {
-    /// Translate an explicit YAML value into [`MaxUsers`]. Verdaccio
-    /// accepts any signed integer here; negative anything other than
-    /// `-1` is nonsense and is treated as "disabled" to err on the
-    /// side of rejecting unsafe configs. An omitted key never reaches
-    /// this function — it maps to [`MaxUsers::Disabled`] in
-    /// [`build_auth_config`], so there is no YAML spelling for
-    /// "unlimited".
-    pub(super) fn from_yaml(value: i64) -> Self {
+    /// Translate an explicit number into [`MaxUsers`]. Negative values
+    /// map to [`MaxUsers::Disabled`]; non-negative values map to
+    /// [`MaxUsers::Limited`].
+    #[must_use]
+    pub fn from_explicit(value: i64) -> Self {
         if value < 0 { MaxUsers::Disabled } else { MaxUsers::Limited(value as u64) }
     }
 }
@@ -157,7 +154,7 @@ pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig 
         oidc: file.oidc.clone(),
         htpasswd: HtpasswdConfig {
             file: htpasswd_file,
-            max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
+            max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_explicit),
         },
         tokens: TokensConfig { file: tokens_file },
     }
