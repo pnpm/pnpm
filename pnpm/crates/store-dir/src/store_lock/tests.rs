@@ -1,4 +1,5 @@
 use super::{StoreDir, global_operation_lock_path, operation_lock_path};
+use pnpm_fs::LockMode;
 use std::fs::{File, TryLockError};
 use tempfile::tempdir;
 
@@ -14,7 +15,7 @@ fn open_lock_file(store: &StoreDir) -> File {
 fn assert_global_prune_barrier_is_blocked() {
     let file = pnpm_fs::open_secure_lock_file(&global_operation_lock_path().unwrap()).unwrap();
     assert!(matches!(
-        pnpm_fs::try_lock_file(&file, pnpm_fs::LockMode::Exclusive),
+        pnpm_fs::try_lock_file(&file, LockMode::Exclusive),
         Err(TryLockError::WouldBlock)
     ));
 }
@@ -28,7 +29,7 @@ fn prune_waits_for_store_consumers() {
     assert_global_prune_barrier_is_blocked();
 
     drop(consumer);
-    pnpm_fs::try_lock_file(&open_lock_file(&store), pnpm_fs::LockMode::Exclusive).unwrap();
+    pnpm_fs::try_lock_file(&open_lock_file(&store), LockMode::Exclusive).unwrap();
 }
 
 #[test]
@@ -49,7 +50,7 @@ fn prune_waits_for_frozen_store_consumers() {
     assert_global_prune_barrier_is_blocked();
 
     drop(consumer);
-    pnpm_fs::try_lock_file(&open_lock_file(&store), pnpm_fs::LockMode::Exclusive).unwrap();
+    pnpm_fs::try_lock_file(&open_lock_file(&store), LockMode::Exclusive).unwrap();
 }
 
 #[test]

@@ -7,6 +7,7 @@ use std::{
 };
 
 use super::StoreIndexError;
+use pnpm_fs::LockMode;
 
 /// Keeps every connection in this process behind one process-lifetime lease.
 /// SQLite's dotfile VFS cannot recover a dead owner's lock by itself.
@@ -48,7 +49,7 @@ fn acquire_inner(database: &Path, recover: bool) -> io::Result<Arc<IndexLease>> 
     }
     let path = pnpm_fs::secure_user_lock_file_path("pnpm-wasm-sqlite", &database, "lock")?;
     let file = pnpm_fs::open_secure_lock_file(&path)?;
-    pnpm_fs::lock_file(&file, pnpm_fs::LockMode::Exclusive)?;
+    pnpm_fs::lock_file(&file, LockMode::Exclusive)?;
     if recover {
         remove_abandoned_dotfile(&database)?;
     }

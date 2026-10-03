@@ -1,5 +1,6 @@
 use super::metadata_file::MetadataFile;
 use miette::{IntoDiagnostic, Result, WrapErr};
+use pnpm_fs::LockMode;
 use std::{fs, path::PathBuf};
 
 pub(crate) struct MetadataMutation {
@@ -39,7 +40,7 @@ impl MetadataMutation {
         let lock = pnpm_fs::open_secure_lock_file(&lock_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("open metadata transaction lock {}", lock_path.display()))?;
-        pnpm_fs::lock_file(&lock, pnpm_fs::LockMode::Exclusive)
+        pnpm_fs::lock_file(&lock, LockMode::Exclusive)
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!("acquire metadata transaction lock {}", lock_path.display())

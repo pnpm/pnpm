@@ -11,6 +11,7 @@
 
 use crate::process::Command;
 use pnpm_crypto_hash::create_short_hash;
+use pnpm_fs::LockMode;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -264,7 +265,7 @@ fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
         .create(true)
         .truncate(false)
         .open(directory.join("lock"))?;
-    pnpm_fs::try_lock_file(&file, pnpm_fs::LockMode::Exclusive).map_err(std::io::Error::other)?;
+    pnpm_fs::try_lock_file(&file, LockMode::Exclusive).map_err(std::io::Error::other)?;
     Ok(file)
 }
 
