@@ -160,13 +160,10 @@ pub(super) fn upstream_org_package_is_visible(
         )
         && authorize(state, identity, resolved, name, Action::Access).is_ok()
 }
-
-// --------------------------------------------------------------------
 // npm team API — read-only views over the config-declared `teams:` maps.
 // Team membership is part of the registry configuration (it feeds the
 // compiled access lists), so the API serves listings and rejects
 // mutations with an explicit "config-managed" error.
-// --------------------------------------------------------------------
 
 /// The hosted registry whose teams `@{scope}` addresses: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the

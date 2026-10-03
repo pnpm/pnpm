@@ -122,7 +122,6 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
 
     drop(dirs.dir);
 }
-// ----------------------------------------------------------------------------
 // Fresh-install lockfile generation
 //
 // These tests exercise a *fresh* install — the path that converts the
