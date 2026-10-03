@@ -17,6 +17,8 @@ pnpm version -r [--dry-run]
 
 When run inside a git repository, `pnpm version` creates a git commit and an annotated tag for the bump. The working tree must be clean (see `--no-git-checks` below) and commits/tags can be disabled with `--no-git-tag-version`. Git commits and tags are always skipped in recursive mode because multiple packages may be bumped to different versions in a single run.
 
+If a bumped package has a neighboring `jsr.json` or `jsr.jsonc` with a string `version` field, pnpm updates that version too. Formatting and comments are preserved. This also applies to recursive bumps and releases from change intents. Version commits include the updated JSR manifests.
+
 ## Usage
 
 ```sh
