@@ -114,6 +114,7 @@ importers:
             workspace: super::WorkspaceProjects {
                 packages: None,
                 manifests_by_dir: Box::leak(Box::default()),
+                catalogs: Box::leak(Box::default()),
             },
             optional_exclusions: super::OptionalDependencyExclusions { ignored, allow_unresolved },
             parsed_overrides: None,

@@ -112,6 +112,7 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
+            catalogs: check.catalogs,
         },
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),

@@ -1,7 +1,14 @@
 mod spec;
 
+#[cfg(test)]
+mod tests;
+
 use super::manifest::ImporterSatisfactionCheck;
 use crate::install::lockfile_freshness::FreshnessCheckError;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -32,6 +39,7 @@ struct LocalDepContext<'a> {
     dir: &'a Path,
     lockfile_dir: &'a Path,
     workspace_root: &'a Path,
+    catalogs: &'a Catalogs,
 }
 
 impl LocalDepContext<'_> {
@@ -136,6 +144,7 @@ fn check_single_dep_spec_directory_freshness(
             dir: &local_dep_dir,
             lockfile_dir: check.lockfile_dir,
             workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
+            catalogs: check.workspace.catalogs,
         };
         check_single_directory_dep_freshness(check, &dep, snapshot, pkg_meta)?;
     }
@@ -249,8 +258,21 @@ fn check_recorded_peer_specs_match(
         let recorded_spec = pkg_meta.peer_dependencies
             .as_ref()
             .and_then(|p| p.get(*name));
-        if recorded_spec.map(String::as_str) != Some(spec) {
+        if recorded_spec.map(String::as_str) == Some(spec) {
+            continue;
+        }
+        if dep.catalogs.is_empty() {
             return Err(dep.outdated());
+        }
+        let wanted =
+            WantedDependency { alias: (*name).to_string(), bare_specifier: (*spec).to_string() };
+        match resolve_from_catalog(dep.catalogs, &wanted, CatalogAnchor::AsWritten) {
+            CatalogResolutionResult::Found(found)
+                if recorded_spec == Some(&found.resolution.specifier) => {}
+            CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+                return Err(FreshnessCheckError::InvalidCatalog(misconfiguration.error));
+            }
+            _ => return Err(dep.outdated()),
         }
     }
     Ok(())
