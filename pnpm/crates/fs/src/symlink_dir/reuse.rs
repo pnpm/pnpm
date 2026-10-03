@@ -1,5 +1,5 @@
-use super::{ForceSymlinkOutcome, TriedOnce, force_symlink_inner, read_symlink_dir_once};
-use std::{io, path::Path};
+use super::{ForceSymlinkOutcome, TriedOnce, force_symlink_inner};
+use std::{fs, io, path::Path};
 
 /// [`force_symlink_inner`] behind a read of the existing link, so a link that
 /// already points at `target` is reused without a create attempt.
@@ -12,7 +12,7 @@ pub(super) fn force_symlink(
     link: &Path,
     create_symlink: fn(&Path, &Path) -> io::Result<()>,
 ) -> io::Result<ForceSymlinkOutcome> {
-    if read_symlink_dir_once(link)
+    if fs::read_link(link)
         .is_ok_and(|existing| existing_symlink_up_to_date(target, link, &existing))
     {
         return Ok(ForceSymlinkOutcome { reused: true, warning: None });
