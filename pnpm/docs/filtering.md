@@ -166,6 +166,8 @@ commits on `<since>` are not selected. Uncommitted changes are still included.
 In a shallow clone that lacks the merge base, pnpm compares against `<since>`
 directly.
 
+This selector requires Git 2.24 or newer.
+
 A project also counts as changed when:
 
 * a version it takes from a [catalog](catalogs.md) changes in

@@ -43,6 +43,7 @@ pub fn get_changed_projects(
     opts: &GetChangedProjectsOptions<'_>,
 ) -> Result<ChangedProjects, FilterError> {
     let repo_root = find_repo_root(opts.workspace_dir);
+    check_git_version(git_version())?;
     let base = merge_base(commit, opts.workspace_dir)?;
     let ChangedDirsResult {
         changed_dirs,
@@ -226,7 +227,7 @@ fn git_diff_names(
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only", "--no-renames"]);
-    if git_supports_no_relative() {
+    if git_supports_no_relative(git_version()) {
         cmd.arg("--no-relative");
     }
     cmd.args(["--end-of-options", commit, "--"])
@@ -249,19 +250,36 @@ fn git_diff_names(
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+/// The oldest git the `[<since>]` selector runs on: `git diff` and
+/// `git merge-base` need `--end-of-options`.
+pub(crate) const MIN_GIT_VERSION: (u32, u32) = (2, 24);
+
+/// An unknown version passes, so a failing git reports its own error.
+fn check_git_version(version: Option<(u32, u32)>) -> Result<(), FilterError> {
+    match version {
+        Some(found) if found < MIN_GIT_VERSION => Err(FilterError::GitTooOld { found }),
+        _ => Ok(()),
+    }
+}
+
 /// Whether git accepts `git diff --no-relative`, which keeps a
 /// `diff.relative=true` setting from printing paths relative to the workspace
 /// directory. git added both the flag and the setting in 2.28, so an older git
 /// rejects the flag and already prints paths from the repository root. An
-/// unreadable `git --version` counts as supported.
-fn git_supports_no_relative() -> bool {
-    static SUPPORTED: OnceLock<bool> = OnceLock::new();
-    *SUPPORTED.get_or_init(|| {
-        let Ok(output) = Command::new("git").arg("--version").output() else {
-            return true;
-        };
+/// unknown version counts as supported.
+fn git_supports_no_relative(version: Option<(u32, u32)>) -> bool {
+    version.is_none_or(|version| version >= (2, 28))
+}
+
+/// The installed git's major and minor version, read once per process.
+fn git_version() -> Option<(u32, u32)> {
+    static VERSION: OnceLock<Option<(u32, u32)>> = OnceLock::new();
+    *VERSION.get_or_init(|| {
+        let output = Command::new("git")
+            .arg("--version")
+            .output()
+            .ok()?;
         parse_git_version(&String::from_utf8_lossy(&output.stdout))
-            .is_none_or(|version| version >= (2, 28))
     })
 }
 

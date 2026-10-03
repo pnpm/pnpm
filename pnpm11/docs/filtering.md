@@ -160,6 +160,8 @@ commits on `<since>` are not selected. Uncommitted changes are still included.
 In a shallow clone that lacks the merge base, pnpm compares against `<since>`
 directly.
 
+This selector requires Git 2.24 or newer.
+
 A change to a version in a [catalog](./catalogs.md) in `pnpm-workspace.yaml`
 selects the projects that use that catalog entry. A project that files were
 moved out of is selected when Git detects the move as a rename.

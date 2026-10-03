@@ -12,7 +12,7 @@ import * as micromatch from 'micromatch'
 import * as yaml from 'yaml'
 
 import { formatDirGlob, formatDirGlobCandidate } from './dirGlob.js'
-import { gitSupportsNoRelative } from './gitVersion.js'
+import { checkGitVersion, getGitVersion, gitSupportsNoRelative } from './gitVersion.js'
 
 type ChangeType = 'source' | 'test'
 
@@ -38,6 +38,7 @@ export async function getChangedProjects (
   const workingDir = opts.workingDir ?? opts.workspaceDir
   const repoRoot = findRepoRoot(opts.workspaceDir)
 
+  checkGitVersion(await getGitVersion())
   const base = await getMergeBase(commit, opts.workspaceDir)
   const { changedDirs, workspaceManifestChanged } = await getChangedDirsSinceCommit({
     commit: base,
@@ -414,7 +415,7 @@ async function diffFileNames (commit: string, diffPaths: string[], workspaceDir:
         // ones are C-quoted with octal escapes when they contain non-ASCII
         // characters.
         '-z',
-        ...(await gitSupportsNoRelative() ? ['--no-relative'] : []),
+        ...(gitSupportsNoRelative(await getGitVersion()) ? ['--no-relative'] : []),
         '--no-renames',
         // Keeps an option-like `<since>` (`--output=...`) from being
         // parsed as a git option — git rejects it as a bad revision.
