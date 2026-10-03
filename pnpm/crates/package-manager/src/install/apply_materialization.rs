@@ -1,4 +1,4 @@
-pub(super) mod completion;
+pub(in crate::install) mod completion;
 
 use completion::{
     MaterializedProjectScriptsInputs, ReportInstallCompletionInputs, ResolveOnlyCompletionInputs,

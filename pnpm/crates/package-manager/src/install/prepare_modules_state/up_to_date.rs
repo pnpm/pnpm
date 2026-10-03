@@ -1,7 +1,7 @@
 use super::super::{
     Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
-    ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
-    frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
+    ResolutionVerifier, Stage, StageLog, SystemTime, build_workspace_state, frozen_tree_intact,
+    gvs_build_marker_present, has_newly_allowed_ignored_builds,
     hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
     map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
     recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
@@ -238,10 +238,6 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
     )?;
     refresh_up_to_date_workspace::<Reporter>(&context);
-    Reporter::emit(&LogEvent::Summary(SummaryLog {
-        level: LogLevel::Debug,
-        prefix: context.projects.prefix.to_string(),
-    }));
     Ok(())
 }
 // Verification must reject tampering before this policy can report ignored builds.
