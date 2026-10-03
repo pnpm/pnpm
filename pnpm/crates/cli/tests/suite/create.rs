@@ -1,8 +1,8 @@
 #[cfg(unix)]
 use assert_cmd::prelude::*;
-#[cfg(unix)]
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
+use std::{fs, path::Path};
 
 /// `pacquet create` with no template name is an error, mirroring pnpm's
 /// `create`, which throws `ERR_PNPM_MISSING_ARGS` when given no arguments.
@@ -166,6 +166,118 @@ fn create_accepts_shell_mode_flag() {
         content, "[]",
         "shell mode flag should be parsed/consumed by the CLI and not forwarded",
     );
+
+    drop(root);
+}
+
+/// Add `templates/*` and `packages/*` to the workspace, with a `packages/app`
+/// project to run `create` from, and a template project named `name` whose
+/// bin writes its arguments to `local.txt` and its `PATH` to `path.txt` in
+/// the working directory.
+fn add_workspace_template(workspace: &Path, name: &str) {
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut text = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    text.push_str("packages:\n  - templates/*\n  - packages/*\n");
+    fs::write(&workspace_yaml, text).expect("write pnpm-workspace.yaml");
+
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create packages/app");
+    fs::write(app.join("package.json"), r#"{ "name": "app" }"#).expect("write app manifest");
+
+    let template = workspace.join("templates/template");
+    fs::create_dir_all(&template).expect("create the template project");
+    let manifest = serde_json::json!({ "name": name, "version": "1.0.0", "bin": "cli.js" });
+    fs::write(template.join("package.json"), manifest.to_string())
+        .expect("write template manifest");
+    fs::write(
+        template.join("cli.js"),
+        concat!(
+            "#!/usr/bin/env node\n",
+            "const fs = require('fs')\n",
+            "fs.writeFileSync('local.txt', JSON.stringify(process.argv.slice(2)))\n",
+            "fs.writeFileSync('path.txt', process.env.PATH)\n",
+        ),
+    )
+    .expect("write template bin");
+}
+
+/// Inside a workspace, `pacquet create <name>` runs the workspace project
+/// named `create-<name>` rather than the registry package, in the process
+/// cwd and with the remaining arguments forwarded.
+#[test]
+fn create_runs_workspace_template() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    add_workspace_template(&workspace, "create-local-kit");
+    let app = workspace.join("packages/app");
+
+    let output = pacquet
+        .with_current_dir(&app)
+        .with_args(["create", "local-kit", "--extra-arg"])
+        .output()
+        .expect("run pacquet create");
+    assert!(
+        output.status.success(),
+        "create failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let content = fs::read_to_string(app.join("local.txt")).expect("the template bin should run");
+    assert_eq!(content, r#"["--extra-arg"]"#);
+
+    let path = fs::read_to_string(app.join("path.txt")).expect("read path.txt");
+    let deps_bin_dir = dunce::canonicalize(&workspace)
+        .expect("canonicalize the workspace")
+        .join("templates/template/node_modules/.bin");
+    assert!(
+        std::env::split_paths(&path).any(|dir| dir == deps_bin_dir),
+        "the template's dependency bins should be on PATH\nPATH: {path}",
+    );
+
+    drop(root);
+}
+
+/// `pacquet create @scope/<name>` runs the workspace project named
+/// `@scope/create-<name>`.
+#[test]
+fn create_runs_scoped_workspace_template() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    add_workspace_template(&workspace, "@local/create-kit");
+
+    let output = pacquet
+        .with_args(["create", "@local/kit"])
+        .output()
+        .expect("run pacquet create");
+    assert!(
+        output.status.success(),
+        "create failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let content =
+        fs::read_to_string(workspace.join("local.txt")).expect("the template bin should run");
+    assert_eq!(content, "[]");
+
+    drop(root);
+}
+
+/// A name with a version asks for the registry package even when a
+/// workspace project has the same name.
+#[cfg(unix)]
+#[test]
+fn create_with_version_ignores_workspace_template() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    add_workspace_template(&workspace, "create-touch-file-one-bin");
+
+    pacquet
+        .with_args(["create", "touch-file-one-bin@1.0.0"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("touch.txt").exists(), "the registry package should run");
+    assert!(!workspace.join("local.txt").exists(), "the workspace template must not run");
 
     drop(root);
 }
