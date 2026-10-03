@@ -10,6 +10,8 @@
 //! The npm registry accepts the v0.3 bundle, so no legacy-compatibility path
 //! is needed.
 
+mod gitlab_parameters;
+
 use std::time::Duration;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -29,6 +31,7 @@ use crate::{
         is_gitlab, truthy_env,
     },
 };
+use gitlab_parameters::gitlab_parameters;
 
 const IN_TOTO_STATEMENT_V1_TYPE: &str = "https://in-toto.io/Statement/v1";
 const IN_TOTO_STATEMENT_V01_TYPE: &str = "https://in-toto.io/Statement/v0.1";
@@ -317,6 +320,7 @@ fn gitlab_statement<Sys: EnvVar>(subject: &Value) -> Value {
                     "digest": { "sha1": env::<Sys>("CI_COMMIT_SHA") },
                     "entryPoint": env::<Sys>("CI_JOB_NAME"),
                 },
+                "parameters": gitlab_parameters::<Sys>(),
                 "environment": {
                     "name": env::<Sys>("CI_RUNNER_DESCRIPTION"),
                     "architecture": env::<Sys>("CI_RUNNER_EXECUTABLE_ARCH"),
