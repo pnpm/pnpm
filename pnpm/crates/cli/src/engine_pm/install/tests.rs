@@ -124,7 +124,8 @@ fn native_engine_replaces_the_placeholder_interpreter_in_existing_shims() {
         pnpm_fs::file_mode::make_file_executable(&file).expect("make executable");
     }
     let bins = link_engine_bins(&slot, "pnpm", true).expect("replace native engine");
-    let output = std::process::Command::new(bins.join("pnpm")).output().expect("run linked engine");
+    let output =
+        std::process::Command::new(bins.bin_dir.join("pnpm")).output().expect("run linked engine");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(output.stdout, b"native engine");
 }
