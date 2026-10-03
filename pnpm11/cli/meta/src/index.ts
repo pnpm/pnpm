@@ -1,7 +1,6 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
-import { findPnpmEntryScript, findPnpmExecutable } from './selfEntry.js'
+import { findPnpmEntryScript, findPnpmExecutable, realpathOrUndefined } from './selfEntry.js'
 
 export { isPnpxExecutable } from './selfEntry.js'
 
@@ -81,7 +80,8 @@ export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boo
  */
 export function findHomebrewFormula (): string | undefined {
   const selfPath = detectIfCurrentPkgIsExecutable() ? process.execPath : import.meta.filename
-  return homebrewFormulaOf(fs.realpathSync(selfPath))
+  const realPath = realpathOrUndefined(selfPath)
+  return realPath == null ? undefined : homebrewFormulaOf(realPath)
 }
 
 /**
