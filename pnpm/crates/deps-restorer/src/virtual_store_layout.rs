@@ -22,10 +22,7 @@
 mod graph_hash;
 use graph_hash::GvsHasher;
 
-use crate::{
-    AllowBuildPolicy,
-    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
-};
+use crate::AllowBuildPolicy;
 use pnpm_config::Config;
 use pnpm_graph_hasher::{
     detect_node_major, engine_name, format_global_virtual_store_path,
@@ -398,16 +395,23 @@ fn is_gvs_slot_contained(store_dir: &Path, key: &PackageKey, slot_dir: &Path) ->
 #[must_use]
 pub fn virtual_store_layout_for_lockfile(
     config: &Config,
-    effective_node_version: Option<&str>,
+    manifest_runtime_pin: Option<&str>,
     lockfile: &Lockfile,
     allow_build_policy: Option<&AllowBuildPolicy>,
     lockfile_dir: Option<&Path>,
 ) -> VirtualStoreLayout {
     let engine = if config.enable_global_virtual_store {
-        find_runtime_node_major(&lockfile.importers)
-            .or_else(|| effective_node_version.and_then(parse_major_from_version))
-            .or_else(detect_node_major)
-            .map(|major| engine_name(major, None, None))
+        let lockfile_runtime_pin =
+            crate::installability::find_root_runtime_node_version(&lockfile.importers);
+        let runtime_pin = lockfile_runtime_pin.as_deref().or(manifest_runtime_pin);
+        crate::target_node::target_node_major(
+            crate::target_node::TargetNodeUse::Execution,
+            config.node_version.as_deref(),
+            runtime_pin,
+            None,
+        )
+        .or_else(detect_node_major)
+        .map(|major| engine_name(major, None, None))
     } else {
         None
     };
