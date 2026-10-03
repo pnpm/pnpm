@@ -1,10 +1,13 @@
 use super::{
     Config, Context, DefaultReporter, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION,
-    PackageManager, PackageManagerCheck, Path, PreCommandPlan, Reporter, SilentReporter,
-    SwitchPlan, SwitchSource, SwitchTarget, assert_release_is_installable, config_deps,
-    error_causes, global_warn, install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
+    PackageManager, PackageManagerCheck, Path, PreCommandPlan, Reporter, SwitchPlan, SwitchSource,
+    SwitchTarget, assert_release_is_installable, config_deps, error_causes, global_warn,
+    install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
 };
-use crate::cli_args::dlx::exit_unless_success;
+use crate::cli_args::{
+    dlx::exit_unless_success,
+    reporter::{CliReporter, EventFilter},
+};
 
 /// Carry out what the pre-command checks planned. Returns whether the command
 /// has already been run by a delegated pnpm, in which case the caller is done.
@@ -107,13 +110,15 @@ async fn install_switch_target(
                 return Ok(None);
             }
             assert_release_is_installable(&version)?;
-            let engine = Box::pin(install_engine_from_env::<SilentReporter>(
+            let quiet = EventFilter::All.apply();
+            let engine = Box::pin(install_engine_from_env::<CliReporter>(
                 config,
                 PackageManager::Pnpm,
                 &env,
                 &version,
             ))
             .await?;
+            drop(quiet);
             Ok(Some((version, engine)))
         }
         SwitchSource::Resolve {
@@ -184,7 +189,8 @@ async fn install_resolved_switch_target(
         return Ok(None);
     }
     assert_release_is_installable(&version)?;
-    let engine = Box::pin(install_engine_to_store::<SilentReporter>(
+    let _quiet = EventFilter::All.apply();
+    let engine = Box::pin(install_engine_to_store::<CliReporter>(
         config,
         PackageManager::Pnpm,
         env_root,

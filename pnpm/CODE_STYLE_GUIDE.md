@@ -798,15 +798,15 @@ fn install_step<R: Reporter>(prefix: String) {
 }
 ```
 
-Production callers turbofish at the entry point:
+Production callers turbofish at the entry point. The CLI's entry point is `CliReporter` (`crates/cli/src/cli_args/reporter.rs`), which picks the sink per event:
 
 ```rust
-Install { /* ... */ }.run::<NdjsonReporter>().await
+Install { /* ... */ }.run::<CliReporter>().await
 ```
 
 Tests use the no-op `SilentReporter` when they don't care about emits, or a recording fake when they do (see [Testing](#testing-the-emit) below).
 
-The generic monomorphises away — there's no runtime cost. The ergonomic cost is one `<R: Reporter>` per intermediate fn and one turbofish at the production entry point. When threading reaches into a struct, add `<R: Reporter>` to the impl method or carry an install-scoped state field that the relevant emit depends on (see `link_file::log_method_once`'s `&AtomicU8` parameter for an example of the latter — the function dedupes per-install rather than per-process).
+The generic costs nothing at runtime, but every distinct `R` compiles its own copy of the code generic over it. So the CLI instantiates commands with `CliReporter` rather than once per sink: change the sink with `select_reporter`, and hide events with `EventFilter` rather than a wrapper `Reporter` type. The ergonomic cost is one `<R: Reporter>` per intermediate fn and one turbofish at the production entry point. When threading reaches into a struct, add `<R: Reporter>` to the impl method or carry an install-scoped state field that the relevant emit depends on (see `link_file::log_method_once`'s `&AtomicU8` parameter for an example of the latter — the function dedupes per-install rather than per-process).
 
 #### Where to put the emit
 

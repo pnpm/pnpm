@@ -1,14 +1,14 @@
 use super::{
-    AccessArgs, CommandFuture, Config, DefaultReporter, DeprecateArgs, DistTagArgs, LoginArgs,
-    LogoutArgs, NdjsonReporter, OwnerArgs, PingArgs, ReporterType, RunCtx, SearchArgs,
-    SilentReporter, StarArgs, StarsArgs, TeamArgs, UndeprecateArgs, UnpublishArgs, UnstarArgs,
-    ViewArgs,
+    AccessArgs, CommandFuture, Config, DeprecateArgs, DistTagArgs, LoginArgs, LogoutArgs,
+    OwnerArgs, PingArgs, RunCtx, SearchArgs, StarArgs, StarsArgs, TeamArgs, UndeprecateArgs,
+    UnpublishArgs, UnstarArgs, ViewArgs,
 };
+use crate::cli_args::reporter::CliReporter;
 
 // `whoami` is a read-only registry query: it resolves the default registry's
 // auth header from config and GETs `-/whoami`, with no lockfile or install
-// pipeline. It needs an async future for the request but no reporter-typed
-// fan-out, so it dispatches off `config()` like the other read-only commands.
+// pipeline. It needs an async future for the request and no reporter, so it
+// dispatches off `config()` like the other read-only commands.
 pub(in super::super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
@@ -134,13 +134,7 @@ pub(in super::super) fn unpublish<'a>(
         }
         Ok(())
     }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(print_output::<DefaultReporter>(args, cfg))
-        }
-        ReporterType::Ndjson => Box::pin(print_output::<NdjsonReporter>(args, cfg)),
-        ReporterType::Silent => Box::pin(print_output::<SilentReporter>(args, cfg)),
-    })
+    Ok(Box::pin(print_output::<CliReporter>(args, cfg)))
 }
 
 pub(in super::super) fn team<'a>(
@@ -228,16 +222,7 @@ pub(in super::super) fn login<'a>(
     args: LoginArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.loaders.config)()?;
-    macro_rules! run_login {
-        ($reporter:ty) => {
-            Box::pin(async move { args.run::<$reporter>(config).await })
-        };
-    }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => run_login!(DefaultReporter),
-        ReporterType::Ndjson => run_login!(NdjsonReporter),
-        ReporterType::Silent => run_login!(SilentReporter),
-    })
+    Ok(Box::pin(async move { args.run::<CliReporter>(config).await }))
 }
 
 // `logout` revokes the registry auth token and removes it from `auth.ini`. It
@@ -251,16 +236,7 @@ pub(in super::super) fn logout<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.loaders.config)()?;
     let prefix = ctx.locations.dir.to_string_lossy().into_owned();
-    macro_rules! run_logout {
-        ($reporter:ty) => {
-            Box::pin(async move { args.run::<$reporter>(config, &prefix).await })
-        };
-    }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => run_logout!(DefaultReporter),
-        ReporterType::Ndjson => run_logout!(NdjsonReporter),
-        ReporterType::Silent => run_logout!(SilentReporter),
-    })
+    Ok(Box::pin(async move { args.run::<CliReporter>(config, &prefix).await }))
 }
 
 pub(in super::super) fn search<'a>(

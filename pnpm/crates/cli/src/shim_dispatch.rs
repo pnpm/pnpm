@@ -33,7 +33,10 @@ pub(crate) use runtime_env::{MaterializedRuntime, materialize_runtime};
 pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
 
 use crate::{
-    cli_args::package_manager::wanted_package_manager,
+    cli_args::{
+        package_manager::wanted_package_manager,
+        reporter::{CliReporter, EventFilter},
+    },
     engine_pm::{
         channel::{Channel, PackageManager},
         provision::{ProvisionedEngine, provision},
@@ -41,7 +44,6 @@ use crate::{
 };
 use derive_more::Display;
 use identity::{local_bin_identity, provider_of_target};
-
 use native_shim::{dispatch_legacy_shim, try_native_dispatch};
 use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
 use pnpm_config::{
@@ -52,12 +54,9 @@ use pnpm_config::{
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_reporter::SilentReporter;
 use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
-
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use serde_json::Value;
-
 use settings::{
     is_automatic_runtime, manifest_package_manager_pin, package_manager_runs_promptless,
     runtime_pin, trusted_package_manager_config, trusted_shim_settings, validate_candidate,
@@ -426,7 +425,8 @@ fn run_package_manager_from_pin(
     let state_dir = state_dir.to_path_buf();
     let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
         let config = Config::leak(trusted_package_manager_config(&state_dir)?);
-        provision::<SilentReporter>(config, pm, &spec).await
+        let _quiet = EventFilter::All.apply();
+        provision::<CliReporter>(config, pm, &spec).await
     });
     match result {
         Ok(engine) => {
