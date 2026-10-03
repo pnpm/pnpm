@@ -531,3 +531,38 @@ test('aborts when the install is ended by Ctrl+C on Windows', async () => {
   })).rejects.toBe(killed)
   expect(globalWarn).not.toHaveBeenCalled()
 })
+
+test('passes rawCliConfig flags to install command', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    issue: 'The lockfile is not up to date',
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+      dependencies: { foo: '1.0.0' },
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+    rawCliConfig: {
+      'lockfile-dir': '/custom/lockfile/dir',
+      registry: 'https://example.com',
+    },
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    [
+      'install',
+      '--config.lockfile-dir=/custom/lockfile/dir',
+      '--config.registry=https://example.com',
+    ],
+    expect.objectContaining({ cwd: process.cwd() })
+  )
+})

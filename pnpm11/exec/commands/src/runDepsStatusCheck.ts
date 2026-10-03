@@ -31,6 +31,7 @@ export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Proje
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
+  rawCliConfig?: Record<string, unknown>
 }
 
 export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions): Promise<void> {
@@ -47,15 +48,18 @@ export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (await installNotRequired(opts, upToDate, workspaceState)) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
-  const install = lockedInstall.bind(null, opts, command)
+  const installArgs = createInstallArgs(workspaceState?.settings)
+  const filterArgs = createFilterArgs(opts)
+  const executionCommand = ['install', ...installArgs, ...filterArgs, ...createCliConfigArgs(opts)]
+  const promptCommand = ['install', ...installArgs, ...filterArgs]
+  const install = lockedInstall.bind(null, opts, executionCommand)
 
   switch (opts.verifyDepsBeforeRun) {
     case 'install':
       await install()
       break
     case 'prompt':
-      if (await confirmInstall(opts, issue, command)) {
+      if (await confirmInstall(opts, issue, promptCommand)) {
         await install()
       }
       break
@@ -245,7 +249,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
       if (await installNotRequired(opts, upToDate, workspaceState)) return
-      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
+      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts), ...createCliConfigArgs(opts)]
     }
     runInstall(opts, command)
   } finally {
@@ -314,3 +318,13 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
     ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
   ]
 }
+
+export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawCliConfig'>): string[] {
+  if (!opts.rawCliConfig) return []
+  return Object.entries(opts.rawCliConfig).flatMap(([key, value]) => {
+    if (value === undefined || value === null) return []
+    const values = Array.isArray(value) ? value : [value]
+    return values.map((item) => `--config.${key}=${item}`)
+  })
+}
+

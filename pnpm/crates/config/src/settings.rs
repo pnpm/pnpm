@@ -1731,6 +1731,8 @@ pub struct Config {
     /// global virtual store.
     pub cli_setting_values: BTreeMap<String, String>,
 
+    pub raw_cli_config: Vec<(String, String)>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution

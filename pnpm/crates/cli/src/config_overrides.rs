@@ -128,6 +128,8 @@ pub struct ConfigOverrides {
     /// value parsed, for [`Config::cli_settings`].
     pub(super) settings: BTreeSet<String>,
 
+    pub(super) raw_cli_config: Vec<(String, String)>,
+
     /// The `--config.<key>=<value>` tokens no table above claims, by
     /// kebab-case setting name, for [`Config::cli_setting_values`].
     unported: BTreeMap<String, String>,
@@ -176,6 +178,19 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
+    pub(crate) fn raw_cli_config(&self) -> &[(String, String)] {
+        &self.raw_cli_config
+    }
+
+    fn record_raw_config(&mut self, arg: &OsString, key: &str, value: &str) {
+        if arg
+            .to_str()
+            .is_some_and(|s| s.starts_with("--config."))
+        {
+            self.raw_cli_config.push((key.to_string(), value.to_string()));
+        }
+    }
+
     pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
         self.shared_workspace_lockfile
     }
@@ -203,44 +218,65 @@ impl ConfigOverrides {
                 remaining.push(arg);
                 continue;
             }
-            // The token after a `--<setting> <value>` pair's flag, when the
-            // setting claims it — see [`claims_as_value`]. `None` when the
-            // flag ends argv, the token is already the child's, or it is
-            // not a value the setting takes, all of which leave the
-            // valueless flag for clap to report.
-            let mut following = |key: &str| {
-                let value = argv
-                    .peek()
-                    .filter(|&&(index, _)| !is_forwarded(passthrough_from, index))
-                    .and_then(|(_, token)| token.to_str())
-                    .filter(|token| claims_as_value(key, token))
-                    .map(str::to_owned)?;
-                argv.next();
-                Some(value)
-            };
-            match classify(&arg, &claimed_by_command) {
-                ConfigToken::WellFormed { key, value }
-                    if matches!(key, "state-dir" | "store-dir") =>
-                {
-                    remaining.push(OsString::from(format!("--{key}={value}")));
-                }
-                ConfigToken::WellFormed { key, value } => overrides.set(key, value),
-                ConfigToken::BooleanFollows(key) => {
-                    overrides.set(key, following(key).as_deref().unwrap_or("true"));
-                }
-                // A flag whose value is missing — because it ends argv, or
-                // because the token after it is one the setting does not
-                // take — goes back in place for clap to report; see
-                // [`classify`].
-                ConfigToken::ValueFollows(key) => match following(key) {
-                    Some(value) => overrides.set(key, &value),
-                    None => remaining.push(arg),
-                },
-                ConfigToken::Malformed => {}
-                ConfigToken::NotOurs => remaining.push(arg),
-            }
+            overrides.handle_arg(
+                arg,
+                passthrough_from,
+                &claimed_by_command,
+                &mut argv,
+                &mut remaining,
+            );
         }
         (overrides, remaining)
+    }
+
+    fn handle_arg<I>(
+        &mut self,
+        arg: OsString,
+        passthrough_from: Option<usize>,
+        claimed_by_command: &HashSet<&str>,
+        argv: &mut std::iter::Peekable<I>,
+        remaining: &mut Vec<OsString>,
+    ) where
+        I: Iterator<Item = (usize, OsString)>,
+    {
+        // The token after a `--<setting> <value>` pair's flag, when the
+        // setting claims it — see [`claims_as_value`]. `None` when the
+        // flag ends argv, the token is already the child's, or it is
+        // not a value the setting takes, all of which leave the
+        // valueless flag for clap to report.
+        let mut following = |key: &str| {
+            let value = argv
+                .peek()
+                .filter(|&&(index, _)| !is_forwarded(passthrough_from, index))
+                .and_then(|(_, token)| token.to_str())
+                .filter(|token| claims_as_value(key, token))
+                .map(str::to_owned)?;
+            argv.next();
+            Some(value)
+        };
+        match classify(&arg, claimed_by_command) {
+            ConfigToken::WellFormed { key, value } if matches!(key, "state-dir" | "store-dir") => {
+                self.record_raw_config(&arg, key, value);
+                remaining.push(OsString::from(format!("--{key}={value}")));
+            }
+            ConfigToken::WellFormed { key, value } => {
+                self.record_raw_config(&arg, key, value);
+                self.set(key, value);
+            }
+            ConfigToken::BooleanFollows(key) => {
+                self.set(key, following(key).as_deref().unwrap_or("true"));
+            }
+            // A flag whose value is missing — because it ends argv, or
+            // because the token after it is one the setting does not
+            // take — goes back in place for clap to report; see
+            // [`classify`].
+            ConfigToken::ValueFollows(key) => match following(key) {
+                Some(value) => self.set(key, &value),
+                None => remaining.push(arg),
+            },
+            ConfigToken::Malformed => {}
+            ConfigToken::NotOurs => remaining.push(arg),
+        }
     }
 
     fn set(&mut self, key: &str, value: &str) {

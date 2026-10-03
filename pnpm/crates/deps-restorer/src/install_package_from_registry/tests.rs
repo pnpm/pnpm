@@ -261,6 +261,7 @@ fn create_config(
         explicit_settings: Default::default(),
         cli_settings: Default::default(),
         cli_setting_values: Default::default(),
+        raw_cli_config: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
     }
