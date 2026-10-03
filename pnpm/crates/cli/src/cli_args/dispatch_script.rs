@@ -60,7 +60,7 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
 
 // `set-script` only rewrites `package.json#scripts`; it never touches the
 // lockfile or runs the install pipeline, so it dispatches synchronously off
-// the canonicalized `--dir` like `init`, with no reporter-typed fan-out.
+// the canonicalized `--dir` like `init`.
 pub(super) fn set_script<'a>(
     ctx: &RunCtx<'a>,
     args: SetScriptArgs,

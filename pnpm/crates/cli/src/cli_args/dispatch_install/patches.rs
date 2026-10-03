@@ -16,11 +16,8 @@ pub(in super::super) fn patch<'a>(
         let config = installed_project_config(config.await?, manifest_path);
         let command_state = State::init(manifest_path.to_path_buf(), config, false)
             .wrap_err("initialize the state")?;
-        Box::pin(async move {
-            args.run::<CliReporter>(dir, command_state).await?;
-            Ok(())
-        })
-        .await
+        Box::pin(args.run::<CliReporter>(dir, command_state)).await?;
+        Ok(())
     }))
 }
 
@@ -53,21 +50,17 @@ pub(in super::super) fn patch_commit<'a>(
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
-        Box::pin(async move {
-            let state = State::init(
-                manifest_path.to_path_buf(),
-                installed_project_config(config, manifest_path),
-                false,
-            )
-            .wrap_err("initialize the state")?;
-            if let Some(patched_dependencies) = Box::pin(args.run::<CliReporter>(dir, state)).await?
-            {
-                let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
-                Box::pin(InstallArgs::for_reresolving_install().run::<CliReporter>(state)).await?;
-            }
-            Ok(())
-        })
-        .await
+        let state = State::init(
+            manifest_path.to_path_buf(),
+            installed_project_config(config, manifest_path),
+            false,
+        )
+        .wrap_err("initialize the state")?;
+        if let Some(patched_dependencies) = Box::pin(args.run::<CliReporter>(dir, state)).await? {
+            let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
+            Box::pin(InstallArgs::for_reresolving_install().run::<CliReporter>(state)).await?;
+        }
+        Ok(())
     }))
 }
 
@@ -80,14 +73,11 @@ pub(in super::super) fn patch_remove<'a>(
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
-        Box::pin(async move {
-            let state = State::init(manifest_path.to_path_buf(), config, false)
-                .wrap_err("initialize the state")?;
-            let patched_dependencies = Box::pin(args.run(dir, state)).await?;
-            let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
-            Box::pin(InstallArgs::for_reresolving_install().run::<CliReporter>(state)).await?;
-            Ok(())
-        })
-        .await
+        let state = State::init(manifest_path.to_path_buf(), config, false)
+            .wrap_err("initialize the state")?;
+        let patched_dependencies = Box::pin(args.run(dir, state)).await?;
+        let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
+        Box::pin(InstallArgs::for_reresolving_install().run::<CliReporter>(state)).await?;
+        Ok(())
     }))
 }

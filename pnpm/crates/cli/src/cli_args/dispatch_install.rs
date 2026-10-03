@@ -72,7 +72,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
             config_dependencies,
             ecosystem_packages,
         };
-        let added = { Box::pin(pipeline.run::<CliReporter>()).await };
+        let added = Box::pin(pipeline.run::<CliReporter>()).await;
         update_notifier::settle(update_check, &added).await;
         added
     }))
@@ -122,7 +122,7 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
     args.apply_cli_config(config);
     let dir = ctx.locations.dir;
     let update_check = update_notifier::spawn(config, reporter_emit(selected_reporter()));
-    let install: CommandFuture<'a> = { Box::pin(args.run_global::<CliReporter>(config, dir)) };
+    let install: CommandFuture<'a> = Box::pin(args.run_global::<CliReporter>(config, dir));
     Ok(Box::pin(async move {
         let installed = install.await;
         update_notifier::settle(update_check, &installed).await;
@@ -267,56 +267,52 @@ fn install_with_config<'a>(
     let cfg = (ctx.loaders.config)()?;
     let reporter = selected_reporter();
     Ok(Box::pin(async move {
-        // Boxed for `clippy::large_stack_frames`: the install future would
-        // otherwise reserve its full size in this frame.
-        {
-            // Applied between `config()` and `State::init`, while
-            // the loaded `Config` is still mutable through
-            // `Config::leak`'s `&'static mut Config` return. How
-            // each `--flag` / `--no-flag` pair beats the configured
-            // value is `resolve_bool_override`'s contract.
-            let recursive_sort = cfg.sort;
-            args.lockfile.directory.apply_to(cfg, dir);
-            apply_install_cli_config(cfg, &args);
-            let frozen_lockfile = args.effective_frozen_lockfile(cfg);
-            let require_lockfile = frozen_lockfile;
-            // Config dependencies are workspace-level state: their
-            // `.pnpm-config` and env lockfile live at the lockfile /
-            // workspace root, not the CLI cwd. Use the same root
-            // `State::init` uses (`config.workspace_dir`, set when a
-            // `pnpm-workspace.yaml` is found), falling back to `--dir`
-            // for a single-package repo. Owned so it doesn't hold a
-            // borrow of `cfg` across the `&mut` `updateConfig` pass.
-            let config_root = derive_config_root(&mut *cfg, dir, reporter)
-                .wrap_err("derive workspace root and package manager policy")?;
-            let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
-            apply_allow_build(cfg, args.allow_build(), &allow_build_root)?;
-            let update_check = match update_check_policy {
-                UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
-                UpdateCheckPolicy::Skip => None,
-            };
-            // Resolve + install configurational dependencies, then
-            // run their `updateConfig` plugin hooks, before the main
-            // install. The env lockfile must land at the top of
-            // `pnpm-lock.yaml` before `State::init` loads the wanted
-            // lockfile, and `updateConfig` must mutate `cfg` (still
-            // `&'static mut`) before it's frozen and the install
-            // reads it. Mirrors pnpm running both at
-            // config-finalization.
-            let pipeline = InstallPipeline {
-                args,
-                cfg,
-                config_root,
-                prefix: dir.to_path_buf(),
-                manifest_path: manifest_path.to_path_buf(),
-                recursive_sort,
-                require_lockfile,
-                frozen_lockfile,
-            };
-            let installed = Box::pin(pipeline.run_with_config::<CliReporter>()).await;
-            update_notifier::settle(update_check, &installed).await;
-            installed
-        }
+        // Applied between `config()` and `State::init`, while
+        // the loaded `Config` is still mutable through
+        // `Config::leak`'s `&'static mut Config` return. How
+        // each `--flag` / `--no-flag` pair beats the configured
+        // value is `resolve_bool_override`'s contract.
+        let recursive_sort = cfg.sort;
+        args.lockfile.directory.apply_to(cfg, dir);
+        apply_install_cli_config(cfg, &args);
+        let frozen_lockfile = args.effective_frozen_lockfile(cfg);
+        let require_lockfile = frozen_lockfile;
+        // Config dependencies are workspace-level state: their
+        // `.pnpm-config` and env lockfile live at the lockfile /
+        // workspace root, not the CLI cwd. Use the same root
+        // `State::init` uses (`config.workspace_dir`, set when a
+        // `pnpm-workspace.yaml` is found), falling back to `--dir`
+        // for a single-package repo. Owned so it doesn't hold a
+        // borrow of `cfg` across the `&mut` `updateConfig` pass.
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
+            .wrap_err("derive workspace root and package manager policy")?;
+        let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+        apply_allow_build(cfg, args.allow_build(), &allow_build_root)?;
+        let update_check = match update_check_policy {
+            UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
+            UpdateCheckPolicy::Skip => None,
+        };
+        // Resolve + install configurational dependencies, then
+        // run their `updateConfig` plugin hooks, before the main
+        // install. The env lockfile must land at the top of
+        // `pnpm-lock.yaml` before `State::init` loads the wanted
+        // lockfile, and `updateConfig` must mutate `cfg` (still
+        // `&'static mut`) before it's frozen and the install
+        // reads it. Mirrors pnpm running both at
+        // config-finalization.
+        let pipeline = InstallPipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+            require_lockfile,
+            frozen_lockfile,
+        };
+        let installed = Box::pin(pipeline.run_with_config::<CliReporter>()).await;
+        update_notifier::settle(update_check, &installed).await;
+        installed
     }))
 }
 

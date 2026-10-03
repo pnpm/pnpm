@@ -106,7 +106,7 @@ pub(super) fn outdated<'a>(
     let command_state = ctx.prepared_state(false);
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
-        let outcome = { args.run::<CliReporter>(command_state).await? };
+        let outcome = args.run::<CliReporter>(command_state).await?;
         if outcome == OutdatedOutcome::Outdated {
             #[expect(
                 clippy::exit,
@@ -122,17 +122,14 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
     let command_state = ctx.prepared_state(true);
     Ok(Box::pin(async move {
         let command_state = command_state.await?;
-        Box::pin(async move {
-            if args.run::<CliReporter>(command_state).await? == AuditOutcome::Vulnerable {
-                #[expect(
-                    clippy::exit,
-                    reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
-                )]
-                std::process::exit(1);
-            }
-            Ok(())
-        })
-        .await
+        if Box::pin(args.run::<CliReporter>(command_state)).await? == AuditOutcome::Vulnerable {
+            #[expect(
+                clippy::exit,
+                reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
+            )]
+            std::process::exit(1);
+        }
+        Ok(())
     }))
 }
 

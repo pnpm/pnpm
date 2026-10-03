@@ -7,8 +7,8 @@ use crate::cli_args::reporter::CliReporter;
 
 // `whoami` is a read-only registry query: it resolves the default registry's
 // auth header from config and GETs `-/whoami`, with no lockfile or install
-// pipeline. It needs an async future for the request but no reporter-typed
-// fan-out, so it dispatches off `config()` like the other read-only commands.
+// pipeline. It needs an async future for the request and no reporter, so it
+// dispatches off `config()` like the other read-only commands.
 pub(in super::super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {

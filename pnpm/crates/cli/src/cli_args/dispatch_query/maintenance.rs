@@ -168,8 +168,7 @@ pub(in super::super) fn self_update<'a>(
 // global packages dir, writes the alias scripts, and persists `PNPM_HOME` /
 // PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
 // a reporter for the "Installing pnpm CLI globally" log but no project
-// config or lockfile, so it dispatches off `ctx.locations.dir` like the other
-// reporter-typed commands.
+// config or lockfile, so it dispatches off `ctx.locations.dir`.
 pub(in super::super) fn setup<'a>(
     ctx: &RunCtx<'a>,
     args: SetupArgs,

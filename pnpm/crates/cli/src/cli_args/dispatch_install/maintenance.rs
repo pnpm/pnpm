@@ -1,8 +1,8 @@
 use super::{
     super::{dispatch_script, rebuild, script_override},
-    ApproveBuildsArgs, CommandFuture, Config, Context, DedupeArgs, DedupePipeline, DeployArgs,
+    ApproveBuildsArgs, CommandFuture, Context, DedupeArgs, DedupePipeline, DeployArgs,
     DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs, InstallPipeline,
-    LinkArgs, Path, PruneArgs, PrunePipeline, RebuildArgs, RunCtx, RuntimeArgs, UnlinkArgs,
+    LinkArgs, PruneArgs, PrunePipeline, RebuildArgs, RunCtx, RuntimeArgs, UnlinkArgs,
     apply_install_cli_config, apply_update_config, derive_config_root, global,
     installed_project_config, resolve_bool_override, warn_about_config_root,
 };
@@ -26,14 +26,10 @@ pub(in super::super) fn deploy<'a>(
     }
     apply_install_cli_config(cfg, &args.install_args);
     Ok(Box::pin(async move {
-        // Boxed for `clippy::large_stack_frames`: the deploy future would
-        // otherwise reserve its full size in this frame.
-        {
-            let config_root = derive_config_root(&mut *cfg, dir, reporter)
-                .wrap_err("derive workspace root and package manager policy")?;
-            let pipeline = DeployPipeline { args, cfg, config_root };
-            Box::pin(pipeline.run::<CliReporter>(dir)).await?;
-        }
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
+            .wrap_err("derive workspace root and package manager policy")?;
+        let pipeline = DeployPipeline { args, cfg, config_root };
+        Box::pin(pipeline.run::<CliReporter>(dir)).await?;
         Ok(())
     }))
 }
@@ -213,20 +209,12 @@ pub(in super::super) fn env<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.global_config)()?;
     let dir = ctx.locations.dir;
-    env_with_reporter::<CliReporter>(args, config, dir)
-}
-
-fn env_with_reporter<'a, Reporter: pnpm_reporter::Reporter + 'static>(
-    args: EnvArgs,
-    config: &'static Config,
-    dir: &'a Path,
-) -> miette::Result<CommandFuture<'a>> {
-    Ok(match args.subcommand::<Reporter>(config)? {
+    Ok(match args.subcommand::<CliReporter>(config)? {
         EnvSubcommand::Use { package_name } => {
-            Box::pin(EnvArgs::run_use::<Reporter>(package_name, config, dir))
+            Box::pin(EnvArgs::run_use::<CliReporter>(package_name, config, dir))
         }
         EnvSubcommand::Remove { versions } => {
-            Box::pin(EnvArgs::run_remove::<Reporter>(versions, config, dir))
+            Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
         }
         EnvSubcommand::List { version_spec } => Box::pin(async move {
             println!("{}", EnvArgs::run_list(version_spec, config).await?);
@@ -248,16 +236,13 @@ pub(in super::super) fn approve_builds<'a>(
     let manifest_path = ctx.locations.manifest_path;
     Ok(Box::pin(async move {
         let config = installed_project_config(config.await?, manifest_path);
-        Box::pin(async move {
-            let Some((rebuild_state, build_packages)) =
-                args.prepare::<CliReporter>(dir, config, config, manifest_path)?
-            else {
-                return Ok(());
-            };
-            let selected =
-                rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
-            rebuild::run_rebuild::<CliReporter>(&rebuild_state, selected, None).await
-        })
-        .await
+        let Some((rebuild_state, build_packages)) =
+            args.prepare::<CliReporter>(dir, config, config, manifest_path)?
+        else {
+            return Ok(());
+        };
+        let selected =
+            rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+        Box::pin(rebuild::run_rebuild::<CliReporter>(&rebuild_state, selected, None)).await
     }))
 }

@@ -236,19 +236,21 @@ impl EventFilter {
         }
     }
 
-    /// Apply this filter until the returned guard drops.
+    /// Apply this filter until the returned guard drops, which restores the
+    /// filter that was active before, so guards can nest.
     #[must_use]
     pub(crate) fn apply(self) -> EventFilterGuard {
-        EVENT_FILTER.store(self as u8, Ordering::Relaxed);
-        EventFilterGuard
+        EventFilterGuard { previous: EVENT_FILTER.swap(self as u8, Ordering::Relaxed) }
     }
 }
 
-pub(crate) struct EventFilterGuard;
+pub(crate) struct EventFilterGuard {
+    previous: u8,
+}
 
 impl Drop for EventFilterGuard {
     fn drop(&mut self) {
-        EVENT_FILTER.store(EventFilter::None as u8, Ordering::Relaxed);
+        EVENT_FILTER.store(self.previous, Ordering::Relaxed);
     }
 }
 
