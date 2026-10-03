@@ -4,7 +4,10 @@ use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
-use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
+use crate::{
+    NetworkError, PackageTag, RegistryError,
+    package_distribution::{AttestationsDist, PackageDistribution},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -262,6 +265,40 @@ pub struct TrustedPublisher {
     pub id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oidc_config_id: Option<String>,
+}
+
+/// Fields read while comparing trust evidence across published versions.
+#[derive(Debug, Clone, Deserialize)]
+pub struct VersionTrustMetadata {
+    /// npm's publisher and approver markers.
+    #[serde(
+        default,
+        rename = "_npmUser",
+        alias = "_npm_user",
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent"
+    )]
+    pub npm_user: Option<NpmUser>,
+    /// Distribution metadata containing provenance attestations.
+    #[serde(default)]
+    pub dist: Option<VersionTrustDist>,
+}
+
+/// Trust-relevant fields from a version's distribution metadata.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionTrustDist {
+    /// Provenance and its optional registry URL.
+    #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent")]
+    pub attestations: Option<AttestationsDist>,
+}
+
+impl From<&PackageVersion> for VersionTrustMetadata {
+    fn from(version: &PackageVersion) -> Self {
+        VersionTrustMetadata {
+            npm_user: version.npm_user.clone(),
+            dist: Some(VersionTrustDist { attestations: version.dist.attestations.clone() }),
+        }
+    }
 }
 
 impl PartialEq for PackageVersion {
