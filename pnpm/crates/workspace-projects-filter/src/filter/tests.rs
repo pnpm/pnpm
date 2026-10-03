@@ -953,6 +953,34 @@ mod changed_packages {
     }
 
     #[test]
+    fn select_changed_packages_in_nested_workspace_with_diff_relative_config() {
+        let repo = TempDir::new().expect("create tempdir");
+        let repo_dir = repo.path();
+        init_repo(repo_dir);
+        git(repo_dir, &["config", "diff.relative", "true"]);
+
+        let ws_dir = repo_dir.join("nested");
+        let pkg_a_dir = ws_dir.join("package-a");
+        let pkg_b_dir = ws_dir.join("package-b");
+        touch(&pkg_a_dir.join("file.js"));
+        touch(&pkg_b_dir.join("file.js"));
+        commit_all(repo_dir);
+
+        fs::write(pkg_a_dir.join("file.js"), "changed").expect("write file");
+
+        let graph = graph_of(&[&pkg_a_dir, &pkg_b_dir]);
+
+        assert_eq!(
+            selected(
+                &graph,
+                &[diff_selector("HEAD")],
+                &FilterWorkspaceProjectsOptions { workspace_dir: ws_dir, ..Default::default() },
+            ),
+            [pkg_a_dir.to_string_lossy().into_owned()],
+        );
+    }
+
+    #[test]
     fn select_packages_with_catalog_changes() {
         let workspace = TempDir::new().expect("create tempdir");
         let workspace_dir = workspace.path();
