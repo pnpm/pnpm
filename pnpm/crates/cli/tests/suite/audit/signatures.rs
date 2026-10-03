@@ -253,6 +253,33 @@ fn audit_signatures_fails_when_keys_endpoint_errors() {
 }
 
 #[test]
+fn audit_signatures_fails_when_keys_response_is_too_large() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let keys_mock = registry
+        .mock("GET", "/-/npm/v1/keys")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(" ".repeat(2 * 1024 * 1024))
+        .create();
+    write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("signatures")
+        .output()
+        .expect("run audit signatures");
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert!(stderr.contains("ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL"), "stderr:\n{stderr}");
+    assert!(stderr.contains("larger than 1048576 bytes"), "stderr:\n{stderr}");
+    keys_mock.assert();
+}
+
+#[test]
 fn audit_signatures_follows_a_keys_redirect_with_the_target_tls_settings() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..

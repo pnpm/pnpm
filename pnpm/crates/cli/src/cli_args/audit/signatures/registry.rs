@@ -58,6 +58,8 @@ pub(super) fn parse_timestamp(value: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(value).ok().map(|datetime| datetime.timestamp_millis())
 }
 
+const MAX_KEYS_RESPONSE_BYTES: usize = 1024 * 1024;
+
 pub(super) async fn fetch_registry_keys(
     registry: &str,
     config: &Config,
@@ -69,11 +71,12 @@ pub(super) async fn fetch_registry_keys(
     // Registries such as GitLab redirect this endpoint to registry.npmjs.org,
     // so each hop must use the settings of its own URL, not the registry's.
     let response = http_client
-        .get_bytes_with_auth_and_retry(
+        .get_limited_bytes_with_auth_and_retry(
             &keys_url,
             &config.auth_headers,
             Some("application/json"),
             retry_opts_from_config(config),
+            MAX_KEYS_RESPONSE_BYTES,
         )
         .await
         .map_err(|source| SignaturesError::KeysNetwork {
@@ -93,6 +96,13 @@ pub(super) async fn fetch_registry_keys(
             url: display_url,
             status,
             body: sanitize_response_body(&body),
+        });
+    }
+
+    if response.body_truncated {
+        return Err(SignaturesError::KeysNetwork {
+            url: display_url,
+            reason: format!("the response is larger than {MAX_KEYS_RESPONSE_BYTES} bytes"),
         });
     }
 

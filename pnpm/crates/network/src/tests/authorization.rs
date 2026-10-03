@@ -213,11 +213,12 @@ async fn auth_and_retry_sends_plain_http_credentials_for_each_redirect_target() 
     )]);
 
     let response = client
-        .get_bytes_with_auth_and_retry(
+        .get_limited_bytes_with_auth_and_retry(
             "http://registry.example/start",
             &auth_headers,
             None,
             crate::RetryOpts::default(),
+            usize::MAX,
         )
         .await
         .expect("follow the redirect through the proxy");
@@ -226,6 +227,21 @@ async fn auth_and_retry_sends_plain_http_credentials_for_each_redirect_target() 
     assert_eq!(response.body, b"ok");
     start_mock.assert_async().await;
     final_mock.assert_async().await;
+}
+
+#[test]
+fn auth_is_withheld_after_a_downgrade_to_plain_http() {
+    let auth_headers = AuthHeaders::from_creds_map([(
+        nerf_dart("https://registry.example/"),
+        "Bearer registry-token".to_string(),
+    )]);
+    let from_https =
+        crate::requests::authorize_without_downgrade(&auth_headers, "https://registry.example/a");
+    assert_eq!(from_https("https://registry.example/b").as_deref(), Some("Bearer registry-token"));
+    assert_eq!(from_https("http://registry.example/b"), None);
+    let from_http =
+        crate::requests::authorize_without_downgrade(&auth_headers, "http://registry.example/a");
+    assert_eq!(from_http("http://registry.example/b").as_deref(), Some("Bearer registry-token"));
 }
 
 // Regression for <https://github.com/pnpm/pnpm/issues/14646>: an
