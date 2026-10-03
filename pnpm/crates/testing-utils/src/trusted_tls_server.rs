@@ -36,15 +36,9 @@ pub struct TrustedTlsServer {
 impl TrustedTlsServer {
     #[must_use]
     pub fn start(body: &str) -> Self {
-        let cert = CertificateDer::from_pem_slice(include_bytes!("fixtures/tls/server.crt"))
-            .expect("parse server certificate");
-        let key = PrivateKeyDer::from_pem_slice(include_bytes!("fixtures/tls/server.key"))
-            .expect("parse server key");
-        let config = Arc::new(
-            ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(vec![cert], key)
-                .expect("configure trusted TLS server"),
+        let config = server_config(
+            include_bytes!("fixtures/tls/server.crt"),
+            include_bytes!("fixtures/tls/server.key"),
         );
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind TLS server");
         let url = format!("https://{}", listener.local_addr().expect("TLS server address"));
@@ -65,6 +59,17 @@ impl TrustedTlsServer {
     pub fn ca_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fixtures/tls/ca.pem")
     }
+}
+
+pub(crate) fn server_config(cert_pem: &[u8], key_pem: &[u8]) -> Arc<ServerConfig> {
+    let cert = CertificateDer::from_pem_slice(cert_pem).expect("parse server certificate");
+    let key = PrivateKeyDer::from_pem_slice(key_pem).expect("parse server key");
+    Arc::new(
+        ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .expect("configure TLS server"),
+    )
 }
 
 /// Read one request's head off `stream` and answer it with `response`.

@@ -144,7 +144,7 @@ pub(super) async fn fetch_packument(
         .await
         .map_err(|source| SignaturesError::PackumentNetwork {
             url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
+            reason: redact_url_credentials(&walk_reqwest_chain(&source)),
         })?;
 
     let status = response.status().as_u16();
@@ -153,7 +153,7 @@ pub(super) async fn fetch_packument(
         .await
         .map_err(|source| SignaturesError::PackumentNetwork {
             url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
+            reason: redact_url_credentials(&walk_reqwest_chain(&source)),
         })?;
     if status == 404 {
         return Ok(None);
