@@ -67,6 +67,38 @@ fn self_update_loads_config_and_reaches_the_resolver() {
     drop(global_home);
 }
 
+/// The executable is copied into a fake keg rather than linked, because
+/// pnpm detects Homebrew from its canonical path.
+#[test]
+fn self_update_refuses_a_pnpm_installed_by_homebrew() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let keg_bin = root
+        .path()
+        .join("Cellar")
+        .join("pnpm")
+        .join("12.0.0")
+        .join("bin");
+    fs::create_dir_all(&keg_bin).expect("create the keg bin directory");
+    let brewed_pnpm = keg_bin.join(format!("pnpm{}", std::env::consts::EXE_SUFFIX));
+    fs::copy(pacquet.get_program(), &brewed_pnpm).expect("copy the pnpm binary");
+
+    let output = Command::new(&brewed_pnpm)
+        .current_dir(&workspace)
+        .envs(
+            pacquet
+                .get_envs()
+                .filter_map(|(key, value)| Some((key, value?))),
+        )
+        .arg("self-update")
+        .output()
+        .expect("run the Homebrew pnpm");
+
+    assert!(!output.status.success(), "self-update must refuse a Homebrew pnpm");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW"), "stderr={stderr}");
+    assert!(stderr.contains("brew upgrade pnpm"), "stderr={stderr}");
+}
+
 #[test]
 fn self_update_switches_the_global_pnpm_when_the_project_pin_is_already_current() {
     let mut project = PinnedProject::pinned_to(NEWER_PNPM, NEWER_PNPM);

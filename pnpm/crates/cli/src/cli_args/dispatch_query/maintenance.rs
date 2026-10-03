@@ -173,9 +173,7 @@ pub(in super::super) fn self_update<'a>(
     ctx: &RunCtx<'a>,
     args: SelfUpdateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    // Refuse corepack before loading project config, so a broken `.npmrc`
-    // / workspace config can't mask the corepack refusal.
-    super::super::self_update::reject_if_corepack()?;
+    super::super::self_update::reject_externally_managed()?;
     let config = (ctx.loaders.config_self_update)()?;
     let dir = ctx.locations.dir;
     macro_rules! run_self_update {

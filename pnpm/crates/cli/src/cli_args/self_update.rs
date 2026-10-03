@@ -12,6 +12,9 @@
 pub(crate) mod install_pnpm;
 pub(crate) mod verify_engine;
 
+pub(crate) use externally_managed::reject_externally_managed;
+
+mod externally_managed;
 mod global_bin;
 
 use crate::config_deps::{self, EnginePolicyViolation};
@@ -19,7 +22,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use global_bin::{link_into_global_bin, link_into_legacy_home_dir};
 use miette::{Context, Diagnostic};
-use pnpm_config::{Config, Host, PNPM_VERSION, default_pnpm_home_dir, standalone_install_command};
+use pnpm_config::{Config, Host, PNPM_VERSION, default_pnpm_home_dir};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -55,6 +58,13 @@ pub(crate) enum SelfUpdateError {
         help("Install pnpm with the standalone script instead: {install_command}")
     )]
     CantSelfUpdateInCorepack { install_command: &'static str },
+
+    #[display("pnpm cannot update itself when it is installed by Homebrew")]
+    #[diagnostic(
+        code(ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW),
+        help("Update it with Homebrew instead: brew upgrade {formula}")
+    )]
+    CantSelfUpdateInHomebrew { formula: String },
 
     #[display(r#"Cannot find "{specifier}" version of pnpm"#)]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
@@ -171,25 +181,6 @@ fn enforce_resolution_policy(
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(SelfUpdateError::MinimumReleaseAgeDenied.into()),
     }
-}
-
-/// Refuse to self-update under corepack (which manages its own updates).
-/// Checked in the dispatcher *before* project config is loaded, so a broken
-/// `.npmrc` / workspace config can't mask the corepack refusal.
-pub(crate) fn reject_if_corepack() -> miette::Result<()> {
-    if cfg!(target_family = "wasm") {
-        return Err(miette::miette!(
-            code = "ERR_PNPM_WASM_SELF_UPDATE_UNSUPPORTED",
-            "Update this WebAssembly distribution by installing a newer version of @pnpm/wasm"
-        ));
-    }
-    if is_executed_by_corepack() {
-        return Err(SelfUpdateError::CantSelfUpdateInCorepack {
-            install_command: standalone_install_command(),
-        }
-        .into());
-    }
-    Ok(())
 }
 
 impl SelfUpdateArgs {
@@ -434,12 +425,6 @@ fn is_installed_globally(global_pkg_dir: Option<&Path>, version: &str) -> miette
     Ok(install_pnpm::find_global_engines(global_pkg_dir, version)?
         .iter()
         .any(|(pkg, alias)| install_pnpm::pnpm_executable_path(&pkg.install_dir, alias).exists()))
-}
-
-/// `true` when pnpm is running under corepack, which manages its own
-/// updates (corepack sets `COREPACK_ROOT`).
-fn is_executed_by_corepack() -> bool {
-    std::env::var_os("COREPACK_ROOT").is_some()
 }
 
 fn coerce_major(version: &str) -> Option<u64> {

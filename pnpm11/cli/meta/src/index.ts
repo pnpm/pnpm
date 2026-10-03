@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { findPnpmEntryScript, findPnpmExecutable } from './selfEntry.js'
 
 export { isPnpxExecutable } from './selfEntry.js'
@@ -70,6 +73,30 @@ function findSelfEntryScript (): string | undefined {
 
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
   return env.COREPACK_ROOT != null
+}
+
+/**
+ * The Homebrew formula (`pnpm`, `pnpm@11`, ...) that installed the pnpm
+ * running now, or `undefined` when Homebrew did not install it.
+ */
+export function findHomebrewFormula (): string | undefined {
+  const selfPath = detectIfCurrentPkgIsExecutable() ? process.execPath : import.meta.filename
+  return homebrewFormulaOf(fs.realpathSync(selfPath))
+}
+
+/**
+ * The Homebrew formula whose keg holds `realPath`. Every keg lives at
+ * `<cellar>/<formula>/<version>/`.
+ */
+export function homebrewFormulaOf (realPath: string): string | undefined {
+  const segments = realPath.split(path.sep)
+  for (let index = 0; index + 2 < segments.length; index++) {
+    const formula = segments[index + 1]
+    if (segments[index] === 'Cellar' && (formula === 'pnpm' || formula.startsWith('pnpm@'))) {
+      return formula
+    }
+  }
+  return undefined
 }
 
 /**

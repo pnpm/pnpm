@@ -1,4 +1,5 @@
 use super::{
+    externally_managed::homebrew_formula,
     global_bin::{
         finish_retirement, link_into_global_bin, link_into_legacy_home_dir, refresh_global_shims,
         retire_standalone_executable,
@@ -18,6 +19,16 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+
+#[test]
+fn homebrew_formula_names_the_keg_that_holds_the_executable() {
+    let formula = |exe: &str| homebrew_formula(Path::new(exe));
+    assert_eq!(formula("/opt/homebrew/Cellar/pnpm/12.8.1/bin/pnpm").as_deref(), Some("pnpm"));
+    assert_eq!(formula("/usr/local/Cellar/pnpm@11/11.2.0/bin/pnpm").as_deref(), Some("pnpm@11"));
+    assert_eq!(formula("/opt/homebrew/Cellar/node/24.0.0/bin/pnpm"), None);
+    assert_eq!(formula("/opt/homebrew/Cellar/pnpm"), None);
+    assert_eq!(formula("/home/user/.local/share/pnpm/pnpm"), None);
+}
 
 #[test]
 fn version_constraint_preserves_pinning_style() {
