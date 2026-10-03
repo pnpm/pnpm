@@ -26,7 +26,7 @@ use std::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
-use crate::package_version::{PackageVersion, deserialize_deprecated_field};
+use crate::package_version::{PackageVersion, VersionTrustMetadata, deserialize_deprecated_field};
 
 /// Single-field view of a version manifest for
 /// [`PackageVersions::is_deprecated`] — same normalization as
@@ -52,6 +52,7 @@ struct VersionSlot {
     /// the fragment could not be read, so a failed mirror read is
     /// retried. A populated `parsed` takes precedence over it.
     deprecated: OnceLock<bool>,
+    trust: OnceLock<Option<Arc<VersionTrustMetadata>>>,
 }
 
 /// A mirror file held open for on-demand fragment reads, counted
@@ -190,6 +191,7 @@ impl Clone for VersionSlot {
         VersionSlot {
             source: self.source.clone(),
             deprecated: self.deprecated.clone(),
+            trust: self.trust.clone(),
             parsed: match self.parsed.get() {
                 Some(value) => OnceLock::from(value.clone()),
                 None => OnceLock::new(),
@@ -203,6 +205,7 @@ impl VersionSlot {
         VersionSlot {
             source: FragmentSource::None,
             deprecated: OnceLock::new(),
+            trust: OnceLock::new(),
             parsed: OnceLock::from(Some(Arc::new(manifest))),
         }
     }
@@ -235,6 +238,34 @@ impl PackageVersions {
     #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
         self.slot(version)?.hydrate(version)
+    }
+
+    /// Reads the fields used by trust-downgrade checks without hydrating
+    /// the rest of a historical version manifest. Successful lookups and
+    /// decode failures are cached per version.
+    #[must_use]
+    pub fn trust_metadata(&self, version: &str) -> Option<&VersionTrustMetadata> {
+        let slot = self.slot(version)?;
+        slot.trust
+            .get_or_init(|| {
+                if let Some(Some(parsed)) = slot.parsed.get() {
+                    return Some(Arc::new(VersionTrustMetadata::from(parsed.as_ref())));
+                }
+                let json = slot.source.json()?;
+                match serde_json::from_str::<VersionTrustMetadata>(&json) {
+                    Ok(trust) => Some(Arc::new(trust)),
+                    Err(error) => {
+                        tracing::warn!(
+                            target: "pnpm_registry",
+                            %error,
+                            version,
+                            "skipping registry version with undecodable trust metadata",
+                        );
+                        None
+                    }
+                }
+            })
+            .as_deref()
     }
 
     /// Whether the packument lists `version`. Never hydrates.
@@ -372,6 +403,7 @@ impl PackageVersions {
                             },
                             parsed: OnceLock::new(),
                             deprecated: OnceLock::new(),
+                            trust: OnceLock::new(),
                         },
                     )
                 })
@@ -398,6 +430,7 @@ impl PackageVersions {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
                             deprecated: OnceLock::new(),
+                            trust: OnceLock::new(),
                         },
                     )
                 })
@@ -469,6 +502,7 @@ impl<'de> Deserialize<'de> for PackageVersions {
                             source: FragmentSource::Raw(Arc::from(raw)),
                             parsed: OnceLock::new(),
                             deprecated: OnceLock::new(),
+                            trust: OnceLock::new(),
                         },
                     )
                 })
