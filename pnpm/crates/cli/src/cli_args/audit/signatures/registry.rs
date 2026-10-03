@@ -69,7 +69,7 @@ pub(super) async fn fetch_registry_keys(
     // Registries such as GitLab redirect this endpoint to registry.npmjs.org,
     // so each hop must use the settings of its own URL, not the registry's.
     let response = http_client
-        .get_bytes_with_secure_auth_and_retry(
+        .get_bytes_with_auth_and_retry(
             &keys_url,
             &config.auth_headers,
             Some("application/json"),

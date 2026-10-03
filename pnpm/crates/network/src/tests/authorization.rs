@@ -174,6 +174,60 @@ async fn secure_auth_is_re_evaluated_for_each_redirect_target() {
     target_mock.assert_async().await;
 }
 
+/// Plain HTTP registries keep their credentials, while a redirect target on
+/// another host gets only its own. A proxy stands in for both hosts, so the
+/// registry URL is not a loopback address.
+#[tokio::test]
+async fn auth_and_retry_sends_plain_http_credentials_for_each_redirect_target() {
+    let mut proxy = mockito::Server::new_async().await;
+    let start_mock = proxy
+        .mock("GET", "/start")
+        .match_header("host", "registry.example")
+        .match_header("authorization", "Bearer registry-token")
+        .with_status(302)
+        .with_header("location", "http://mirror.example/final")
+        .expect(1)
+        .create_async()
+        .await;
+    let final_mock = proxy
+        .mock("GET", "/final")
+        .match_header("host", "mirror.example")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
+    let proxy_config =
+        ProxyConfig { https_proxy: None, http_proxy: Some(proxy.url()), no_proxy: None };
+    let client = ThrottledClient::for_installs(
+        &proxy_config,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("valid proxy");
+    let auth_headers = AuthHeaders::from_creds_map([(
+        nerf_dart("http://registry.example/"),
+        "Bearer registry-token".to_string(),
+    )]);
+
+    let response = client
+        .get_bytes_with_auth_and_retry(
+            "http://registry.example/start",
+            &auth_headers,
+            None,
+            crate::RetryOpts::default(),
+        )
+        .await
+        .expect("follow the redirect through the proxy");
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, b"ok");
+    start_mock.assert_async().await;
+    final_mock.assert_async().await;
+}
+
 // Regression for <https://github.com/pnpm/pnpm/issues/14646>: an
 // unreadable `ca` entry contributes no trust anchor and the client
 // still builds, the way Node ignores CA material it cannot parse.

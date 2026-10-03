@@ -48,6 +48,20 @@ impl ThrottledClient {
         retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit).await
     }
 
+    /// Retry a complete GET like [`Self::get_bytes_with_secure_auth_and_retry`],
+    /// with credentials from [`AuthHeaders::for_url`] at every hop, so plain
+    /// HTTP registries receive their credentials too.
+    pub async fn get_bytes_with_auth_and_retry(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        retry_opts: RetryOpts,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        let authorize = |url: &str| auth_headers.for_url(url);
+        retry::get_bytes(self, url, authorize, accept, retry_opts, usize::MAX).await
+    }
+
     /// Negotiate an ecosystem's metadata representation while retaining the
     /// shared request budget and URL-scoped authorization on redirects.
     pub async fn get_bytes_with_secure_auth_and_accept(
@@ -67,11 +81,23 @@ impl ThrottledClient {
         accept: Option<&str>,
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
+        let authorize = |url: &str| auth_headers.for_secure_url(url);
+        self.get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit).await
+    }
+
+    /// Follow a GET's redirects, attaching `authorize`'s header for each hop's URL.
+    pub(super) async fn get_limited_bytes_with_scoped_auth(
+        &self,
+        url: &str,
+        authorize: impl Fn(&str) -> Option<String> + Sync,
+        accept: Option<&str>,
+        body_limit: usize,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
         let (response, _guard) = self.get_response_with_scoped_headers(url, |mut request, url| {
             if let Some(accept) = accept {
                 request = request.header(reqwest::header::ACCEPT, accept);
             }
-            if let Some(authorization) = auth_headers.for_secure_url(url) {
+            if let Some(authorization) = authorize(url) {
                 request = request.header("authorization", authorization);
             }
             request
