@@ -10,6 +10,8 @@
 //! The npm registry accepts the v0.3 bundle, so no legacy-compatibility path
 //! is needed.
 
+mod gitlab_parameters;
+
 use std::time::Duration;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -444,8 +446,6 @@ pub enum ProvenanceGenError {
         source: String,
     },
 }
-
-mod gitlab_parameters;
 
 #[cfg(test)]
 mod tests;
