@@ -2,8 +2,7 @@ use super::{
     CommandFuture, Config, Context, InstallArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs, Path,
     RunCtx, anchor_active_project, installed_project_config, keeps_project_lockfiles,
 };
-use crate::State;
-use crate::cli_args::reporter::CliReporter;
+use crate::{State, cli_args::reporter::CliReporter};
 use indexmap::IndexMap;
 
 pub(in super::super) fn patch<'a>(

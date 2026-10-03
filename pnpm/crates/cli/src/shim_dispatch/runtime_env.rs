@@ -5,8 +5,14 @@
 //! another process holds that lock, the runtime is installed into a
 //! [`PrivateInstall`] of this process's own instead, and runs from there.
 
-use crate::cli_args::reporter::{CliReporter, EventFilter};
-use crate::{State, cli_args::add::add_package, slot_lock};
+use crate::{
+    State,
+    cli_args::{
+        add::add_package,
+        reporter::{CliReporter, EventFilter},
+    },
+    slot_lock,
+};
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{Config, Host, NodeLinker};
 use pnpm_crypto_hash::create_hex_hash;

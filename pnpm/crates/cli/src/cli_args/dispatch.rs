@@ -14,12 +14,11 @@ use super::{
         configure_max_log_level, reporter_emit,
     },
 };
-use crate::cli_args::reporter::{select_reporter, selected_reporter};
 use crate::{
+    cli_args::reporter::{select_reporter, selected_reporter},
     config_deps::prepare_config,
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
 };
-
 use configuration::{
     ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_color_override,
     apply_location_overrides, apply_project_selectors, apply_run_output_config,

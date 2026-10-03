@@ -6,8 +6,7 @@ use super::{
     apply_install_cli_config, apply_update_config, derive_config_root, global,
     installed_project_config, resolve_bool_override, warn_about_config_root,
 };
-use crate::cli_args::reporter::CliReporter;
-use crate::cli_args::reporter::selected_reporter;
+use crate::cli_args::reporter::{CliReporter, selected_reporter};
 
 pub(in super::super) fn deploy<'a>(
     ctx: &RunCtx<'a>,

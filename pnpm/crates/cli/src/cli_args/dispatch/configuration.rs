@@ -4,8 +4,10 @@ use super::{
     now_millis, prepare_config, prints_json_errors,
     warn_shared_workspace_lockfile_outside_workspace,
 };
-use crate::cli_args::reporter::CliReporter;
-use crate::config_overrides::{ConfigOverrides, apply_registry_override};
+use crate::{
+    cli_args::reporter::CliReporter,
+    config_overrides::{ConfigOverrides, apply_registry_override},
+};
 use pnpm_hooks::PnpmfileHooks;
 use std::sync::Arc;
 

@@ -62,10 +62,11 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use crate::cli_args::reporter::{CliReporter, EventFilter};
-use crate::config_deps::prepare_config;
+use crate::{
+    cli_args::reporter::{CliReporter, EventFilter},
+    config_deps::prepare_config,
+};
 use clap::CommandFactory;
-
 use pnpm_config::Config;
 
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {

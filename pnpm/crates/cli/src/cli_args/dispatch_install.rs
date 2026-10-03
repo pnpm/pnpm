@@ -40,12 +40,11 @@ use super::{
     update_notifier,
     workspace_option::workspace_link_root,
 };
-use crate::cli_args::reporter::CliReporter;
-use crate::cli_args::reporter::selected_reporter;
-use crate::package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan};
-
+use crate::{
+    cli_args::reporter::{CliReporter, selected_reporter},
+    package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan},
+};
 use miette::Context;
-
 use pnpm_config::Config;
 use std::path::{Path, PathBuf};
 

@@ -4,8 +4,10 @@ use super::{
     SwitchTarget, assert_release_is_installable, config_deps, error_causes, global_warn,
     install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
 };
-use crate::cli_args::dlx::exit_unless_success;
-use crate::cli_args::reporter::{CliReporter, EventFilter};
+use crate::cli_args::{
+    dlx::exit_unless_success,
+    reporter::{CliReporter, EventFilter},
+};
 
 /// Carry out what the pre-command checks planned. Returns whether the command
 /// has already been run by a delegated pnpm, in which case the caller is done.

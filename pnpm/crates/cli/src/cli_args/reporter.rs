@@ -337,3 +337,6 @@ pub(crate) fn configure_color(mode: ColorMode) {
         ColorMode::Never => owo_colors::set_override(false),
     }
 }
+
+#[cfg(test)]
+mod tests;
