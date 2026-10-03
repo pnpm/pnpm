@@ -1,11 +1,11 @@
 use super::{
     super::{clean::run as clean_builtin, dispatch_script, script_override},
     BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture, Config,
-    ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DefaultReporter,
-    DocsArgs, DoctorArgs, DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NdjsonReporter,
-    NotImplementedError, PrefixArgs, RepoArgs, ReporterType, RootArgs, RunCtx, SelfUpdateArgs,
-    SetupArgs, ShimArgs, SilentReporter, StoreCommand, TasksArgs, WithArgs,
+    ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DocsArgs, DoctorArgs,
+    DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NotImplementedError, PrefixArgs, RepoArgs,
+    RootArgs, RunCtx, SelfUpdateArgs, SetupArgs, ShimArgs, StoreCommand, TasksArgs, WithArgs,
 };
+use crate::cli_args::reporter::CliReporter;
 
 // `doctor` reports on the installation and its environment, so it needs config
 // resolved but no lockfile or install pipeline. It returns the rendered report
@@ -131,17 +131,9 @@ pub(in super::super) fn repo<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
-        }),
-        ReporterType::Ndjson => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir).await
-        }),
-        ReporterType::Silent => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir).await
-        }),
-    })
+    Ok(Box::pin(
+        async move { args.run::<pnpm_network_web_auth::Host, CliReporter>(cfg, dir).await },
+    ))
 }
 
 pub(in super::super) fn docs<'a>(
@@ -157,16 +149,7 @@ pub(in super::super) fn with<'a>(
     args: WithArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
-    macro_rules! run_with {
-        ($reporter:ty) => {
-            Box::pin(args.run::<$reporter>(config))
-        };
-    }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => run_with!(DefaultReporter),
-        ReporterType::Ndjson => run_with!(NdjsonReporter),
-        ReporterType::Silent => run_with!(SilentReporter),
-    })
+    Ok(Box::pin(args.run::<CliReporter>(config)))
 }
 
 pub(in super::super) fn self_update<'a>(
@@ -178,24 +161,14 @@ pub(in super::super) fn self_update<'a>(
     super::super::self_update::reject_if_corepack()?;
     let config = (ctx.loaders.config_self_update)()?;
     let dir = ctx.locations.dir;
-    macro_rules! run_self_update {
-        ($reporter:ty) => {
-            Box::pin(args.run::<$reporter>(config, dir))
-        };
-    }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => run_self_update!(DefaultReporter),
-        ReporterType::Ndjson => run_self_update!(NdjsonReporter),
-        ReporterType::Silent => run_self_update!(SilentReporter),
-    })
+    Ok(Box::pin(args.run::<CliReporter>(config, dir)))
 }
 
 // `setup` makes pnpm available globally: it installs the CLI into the
 // global packages dir, writes the alias scripts, and persists `PNPM_HOME` /
 // PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
 // a reporter for the "Installing pnpm CLI globally" log but no project
-// config or lockfile, so it dispatches off `ctx.locations.dir` like the other
-// reporter-typed commands.
+// config or lockfile, so it dispatches off `ctx.locations.dir`.
 pub(in super::super) fn setup<'a>(
     ctx: &RunCtx<'a>,
     args: SetupArgs,
@@ -210,16 +183,7 @@ pub(in super::super) fn setup<'a>(
         return dispatch_script::run(ctx, run_args);
     }
     let dir = ctx.locations.dir;
-    macro_rules! run_setup {
-        ($reporter:ty) => {
-            Box::pin(args.run::<$reporter>(dir))
-        };
-    }
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => run_setup!(DefaultReporter),
-        ReporterType::Ndjson => run_setup!(NdjsonReporter),
-        ReporterType::Silent => run_setup!(SilentReporter),
-    })
+    Ok(Box::pin(args.run::<CliReporter>(dir)))
 }
 
 pub(in super::super) fn store<'a>(
@@ -228,13 +192,7 @@ pub(in super::super) fn store<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter() {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(command.run::<DefaultReporter>(config, dir))
-        }
-        ReporterType::Ndjson => Box::pin(command.run::<NdjsonReporter>(config, dir)),
-        ReporterType::Silent => Box::pin(command.run::<SilentReporter>(config, dir)),
-    })
+    Ok(Box::pin(command.run::<CliReporter>(config, dir)))
 }
 
 pub(in super::super) fn cache<'a>(

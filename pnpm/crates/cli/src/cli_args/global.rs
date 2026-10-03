@@ -87,45 +87,8 @@ use shims::{
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs, io,
-    marker::PhantomData,
     path::{Path, PathBuf},
 };
-
-/// Forward resolution diagnostics while hiding install-tree events from the
-/// lockfile-only comparison pass.
-struct GlobalUpdateResolutionReporter<Sink>(PhantomData<Sink>);
-
-impl<Sink: Reporter> Reporter for GlobalUpdateResolutionReporter<Sink> {
-    fn emit(event: &LogEvent) {
-        let is_terminal_up_to_date = matches!(
-            event,
-            LogEvent::Pnpm(PnpmLog { message, .. }) if message == "Already up to date",
-        );
-        if !is_terminal_up_to_date
-            && !matches!(
-                event,
-                LogEvent::PackageManifest(_)
-                    | LogEvent::Root(_)
-                    | LogEvent::Stats(_)
-                    | LogEvent::Summary(_),
-            )
-        {
-            Sink::emit(event);
-        }
-    }
-}
-
-/// `update -g` closes with one completion summary of its own, so the groups it
-/// materializes along the way must not each close with theirs.
-struct GlobalUpdateMaterializationReporter<Sink>(PhantomData<Sink>);
-
-impl<Sink: Reporter> Reporter for GlobalUpdateMaterializationReporter<Sink> {
-    fn emit(event: &LogEvent) {
-        if !matches!(event, LogEvent::Summary(_)) {
-            Sink::emit(event);
-        }
-    }
-}
 
 /// Errors specific to global package management, carrying the
 /// `ERR_PNPM_`-prefixed codes.
