@@ -1,7 +1,7 @@
-use super::EventFilter;
+use super::{CliReporter, EventFilter, ReporterType, select_reporter};
 use pnpm_reporter::{
     GlobalLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog,
-    RemovedRoot, RootLog, RootMessage, StatsLog, StatsMessage, SummaryLog,
+    RemovedRoot, Reporter, RootLog, RootMessage, StatsLog, StatsMessage, SummaryLog,
 };
 
 fn summary() -> LogEvent {
@@ -101,4 +101,12 @@ fn a_nested_guard_restores_the_outer_filter() {
     assert_eq!(EventFilter::current(), EventFilter::All);
     drop(outer);
     assert_eq!(EventFilter::current(), EventFilter::None);
+}
+
+#[test]
+fn a_fatal_error_is_returned_for_rendering_only_without_a_filter() {
+    select_reporter(ReporterType::Default);
+    assert_eq!(CliReporter::report_fatal_error("failed".to_string()).as_deref(), Some("failed"));
+    let _quiet = EventFilter::All.apply();
+    assert_eq!(CliReporter::report_fatal_error("failed".to_string()), None);
 }

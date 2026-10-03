@@ -1,7 +1,9 @@
 use clap::ValueEnum;
 use pnpm_config::ColorMode;
 use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
-use pnpm_reporter::{LogEvent, NdjsonReporter, PnpmLog, Reporter, SilentReporter};
+use pnpm_reporter::{
+    GlobalLog, LogEvent, LogLevel, NdjsonReporter, PnpmLog, Reporter, SilentReporter,
+};
 use std::{
     path::Path,
     sync::atomic::{AtomicU8, Ordering},
@@ -174,7 +176,13 @@ impl Reporter for CliReporter {
         reporter_emit(selected_reporter())(event);
     }
 
+    /// While a filter is set, the error is emitted through it as a `Global`
+    /// error event, so [`EventFilter::All`] stays silent.
     fn report_fatal_error(message: String) -> Option<String> {
+        if EventFilter::current() != EventFilter::None {
+            Self::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Error, message }));
+            return None;
+        }
         match selected_reporter() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 DefaultReporter::report_fatal_error(message)
