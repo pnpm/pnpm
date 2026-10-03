@@ -235,7 +235,7 @@ catalog:
   '@commitlint/config-conventional': ^21.2.3
   '@commitlint/prompt-cli': ^21.2.3
   '@cyclonedx/cyclonedx-library': 10.3.0
-  '@emnapi/wasi-threads': 1.2.1
+  '@emnapi/wasi-threads': 2.1.0
   '@eslint/js': ^10.0.1
   '@inquirer/prompts': ^8.7.2
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
@@ -253,7 +253,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.28
+  '@rushstack/worker-pool': 0.7.29
   '@stylistic/eslint-plugin': ^5.10.0
   '@tybys/wasm-util': 0.10.4
   '@types/adm-zip': ^0.5.8
@@ -289,7 +289,7 @@ catalog:
   '@types/semver': 7.8.0
   '@types/spdx-expression-parse': 4.0.0
   '@types/ssri': ^7.1.5
-  '@types/tar-stream': ^3.1.4
+  '@types/tar-stream': ^3.1.5
   '@types/touch': ^3.1.5
   '@types/validate-npm-package-name': ^4.0.2
   '@types/which': ^3.0.4
@@ -297,10 +297,10 @@ catalog:
   '@types/yarnpkg__lockfile': ^1.1.9
   '@types/yauzl': ^3.4.0
   '@types/zkochan__table': npm:@types/table@6.3.2
-  '@typescript-eslint/utils': ^8.70.1
+  '@typescript-eslint/utils': ^8.71.0
   '@typescript/native-preview': 7.0.0-dev.20260707.2
   '@webcontainer/api': ^1.6.4
-  '@yarnpkg/core': 4.9.1
+  '@yarnpkg/core': 4.9.2
   '@yarnpkg/extensions': 2.0.7
   '@yarnpkg/fslib': ^3.1.5
   '@yarnpkg/lockfile': ^1.1.0
@@ -353,7 +353,7 @@ catalog:
   empathic: ^2.1.0
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.11.0
+  eslint: ^10.12.0
   eslint-plugin-import-x: ^4.17.1
   eslint-plugin-jest: ^29.16.6
   eslint-plugin-n: ^18.4.0
@@ -404,7 +404,7 @@ catalog:
   lru-cache: ^11.5.3
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memfs: ^4.79.0
+  memfs: ^4.80.0
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.0
@@ -487,7 +487,7 @@ catalog:
   strip-comments-strings: 1.2.0
   symlink-dir: ^10.0.3
   tar: ^7.5.22
-  tar-stream: ^3.2.1
+  tar-stream: ^3.2.2
   # tempy >=3.1.0 uses temp-dir 3.x which has an async fs.realpath() in its
   # module init. When esbuild bundles this into its __esm lazy-init pattern,
   # the async operation deadlocks and the pnpm binary hangs on startup.
@@ -501,7 +501,7 @@ catalog:
   # yet (https://github.com/typescript-eslint/typescript-eslint/issues/10940); the
   # 7.x compiler ships separately as @typescript/native-preview (tsgo).
   typescript: 6.0.3
-  typescript-eslint: ^8.70.1
+  typescript-eslint: ^8.71.0
   uid-number: 0.0.6
   # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
   # Node.js >=22.13.
