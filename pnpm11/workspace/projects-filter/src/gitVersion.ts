@@ -28,7 +28,10 @@ async function readGitVersion (): Promise<GitVersion | undefined> {
   }
 }
 
-/** An unknown version passes, so a failing git reports its own error. */
+/**
+ * Throws `ERR_PNPM_FILTER_CHANGED` for a git older than the minimum. An
+ * unknown version passes, so a failing git reports its own error.
+ */
 export function checkGitVersion (version: GitVersion | undefined): void {
   if (version != null && !isAtLeast(version, MIN_GIT_VERSION)) {
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. The [<since>] selector requires git ${MIN_GIT_VERSION.major}.${MIN_GIT_VERSION.minor} or newer, but git ${version.major}.${version.minor} is installed.`)
