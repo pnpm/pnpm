@@ -713,12 +713,21 @@ jobs:
         # 0xC0000135 before main. Only the CLI links the CRT statically: the
         # NAPI cdylib is loaded into node.exe and keeps the dynamic CRT, which
         # is why this is not in `.cargo/config.toml`.
+        #
+        # The CLI never unwinds (panic = "abort"), so Linux builds drop the
+        # unwind tables rustc forces there. The NAPI addon unwinds and keeps
+        # them. The per-target variable adds to the ppc64le rustflags in
+        # `.cargo/config.toml`; RUSTFLAGS would replace them.
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
         run: |
           if [[ "$TARGET" == *-pc-windows-msvc ]]; then
             export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C target-feature=+crt-static"
+          fi
+          if [[ "$TARGET" == *-unknown-linux-* ]]; then
+            target_var=$(tr 'a-z-' 'A-Z_' <<< "$TARGET")
+            export "CARGO_TARGET_${target_var}_RUSTFLAGS=-C force-unwind-tables=no"
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
