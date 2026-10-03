@@ -1,26 +1,35 @@
 use super::{
     super::{
-        InstallError, InstallRunOptions, LogEvent, LogLevel, PreparedModulesState, Reporter,
+        InstallError, LogEvent, LogLevel, PreparedModulesState, RebuildOptions, Reporter,
         SummaryLog,
     },
     Dispatched,
     dispatch::{Decided, Settled, SettledProjects},
+    execution::wait_for_workspace_dependencies,
     manifests::installed_project_manifests,
 };
-use crate::install::{
-    apply_materialization::completion::{
-        MaterializedProjectScriptsInputs, run_materialized_project_scripts,
+use crate::{
+    WorkspaceInstallSelection,
+    install::{
+        apply_materialization::completion::{
+            MaterializedProjectScriptsInputs, run_materialized_project_scripts,
+        },
+        state_options::ProjectScriptSelection,
     },
-    state_options::ProjectScriptSelection,
 };
+
+/// The parts of the run options that pick which projects run scripts.
+/// The rest is not `Sync`, so it cannot be held across an `.await`.
+pub(super) type ScriptOptions<'a, 'selection> =
+    (Option<&'a WorkspaceInstallSelection<'selection>>, Option<&'a RebuildOptions>);
 
 /// The prepared modules state to materialize, or `None` once an install whose
 /// tree was found up to date is closed. Unless the repeat-install check found
 /// nothing changed, the projects still run their own lifecycle scripts, as they
 /// do after a materializing install.
-pub(super) fn finish_prepared<'install, Reporter: self::Reporter>(
+pub(super) async fn finish_prepared<'install, Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
-    options: &InstallRunOptions<'_, '_>,
+    options: ScriptOptions<'_, '_>,
     decided: Decided,
     prepared: Option<PreparedModulesState<'install>>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
@@ -28,6 +37,11 @@ pub(super) fn finish_prepared<'install, Reporter: self::Reporter>(
         return Ok(Some(decided.with_modules(modules)));
     }
     if !settled.projects.scope.project_scripts_current {
+        let dedicated = settled.owned.projects.dedicated.as_ref();
+        wait_for_workspace_dependencies(dedicated.and_then(|dedicated| {
+            dedicated.dependencies_installed.clone()
+        }))
+        .await?;
         run_up_to_date_project_scripts::<Reporter>(settled, options, decided.root_preinstall_ran)?;
     }
     Reporter::emit(&LogEvent::Summary(SummaryLog {
@@ -39,7 +53,7 @@ pub(super) fn finish_prepared<'install, Reporter: self::Reporter>(
 
 fn run_up_to_date_project_scripts<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
-    options: &InstallRunOptions<'_, '_>,
+    (selection, rebuild): ScriptOptions<'_, '_>,
     root_preinstall_ran: bool,
 ) -> Result<(), InstallError> {
     let Settled {
@@ -49,14 +63,13 @@ fn run_up_to_date_project_scripts<Reporter: self::Reporter>(
         projects: SettledProjects { workspace, project_manifests, .. },
         ..
     } = settled;
-    let selection = options.selection.as_ref();
     let installed_project_manifests = installed_project_manifests(project_manifests, selection);
     run_materialized_project_scripts::<Reporter>(MaterializedProjectScriptsInputs {
         request: ProjectScriptSelection {
             mutation: install.execution.mutation,
             manifest_dir: workspace.dirs.manifest_dir,
             workspace: selection,
-            rebuild: options.rebuild.as_ref(),
+            rebuild,
             include_dev: mode.included.dev_dependencies,
         },
         config: install.context.config,

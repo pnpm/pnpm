@@ -212,7 +212,8 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         installs_only: install.execution.installs_only,
     })
     .await?;
-    finish_prepared::<Reporter>(settled, options, decided, prepared)
+    let script_options = (options.selection.as_ref(), options.rebuild.as_ref());
+    finish_prepared::<Reporter>(settled, script_options, decided, prepared).await
 }
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,

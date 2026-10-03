@@ -286,7 +286,7 @@ impl<'a> RunExecution<'a> {
         }
     }
 }
-async fn wait_for_workspace_dependencies(
+pub(super) async fn wait_for_workspace_dependencies(
     dependencies_installed: Option<crate::WorkspaceDependenciesInstalled>,
 ) -> Result<(), InstallError> {
     let Some(dependencies_installed) = dependencies_installed else { return Ok(()) };
