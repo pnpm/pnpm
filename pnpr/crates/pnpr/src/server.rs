@@ -313,12 +313,9 @@ fn loggable_uri(uri: &axum::http::Uri) -> String {
     }
     uri.to_string()
 }
-
-// --------------------------------------------------------------------
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
 // in `router_with_auth_and_osv`), each with a `/~<name>/`-addressed twin.
-// --------------------------------------------------------------------
 
 /// The registry a `~<name>` path segment addresses, or `None` for a segment
 /// that is not one. A bare `~` names no registry, so it reads as "not a
@@ -443,10 +440,7 @@ fn private_no_cache(mut response: Response) -> Response {
 fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
     state.inner.storage.for_hosted(org.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
-
-// --------------------------------------------------------------------
 // Helpers.
-// --------------------------------------------------------------------
 
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
 /// unpublish, packument update) targets, or the [`Response`] to return. A
