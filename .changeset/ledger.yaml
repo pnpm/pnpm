@@ -23,6 +23,10 @@
   dir: pnpm11/auth/commands
   intents:
     - webcontainer-async-fs-errors
+"@pnpm/auth.commands@1100.3.13":
+  dir: pnpm11/auth/commands
+  intents:
+    - login-cross-origin-redirect
 "@pnpm/bins.cmd-shim@1100.0.0":
   dir: pnpm11/bins/cmd-shim
   intents:
@@ -94,6 +98,10 @@
   dir: pnpm11/bins/linker
   intents:
     - shim-helpers-without-default-path
+"@pnpm/bins.linker@1100.0.36":
+  dir: pnpm11/bins/linker
+  intents:
+    - fresh-build-launchers
 "@pnpm/bins.remover@1100.0.16":
   dir: pnpm11/bins/remover
   intents:
@@ -144,6 +152,10 @@
   dir: pnpm11/building/after-install
   intents:
     - fix-concurrent-store-readers
+"@pnpm/building.after-install@1103.0.9":
+  dir: pnpm11/building/after-install
+  intents:
+    - fresh-build-launchers
 "@pnpm/building.commands@1100.1.17":
   dir: pnpm11/building/commands
   intents:
@@ -205,6 +217,10 @@
     - patched-engines-engine-strict
     - remove-failed-optional-dependency
     - webcontainer-async-fs-errors
+"@pnpm/building.during-install@1102.2.6":
+  dir: pnpm11/building/during-install
+  intents:
+    - skip-failed-optional-build-on-repeat-install
 "@pnpm/building.pkg-requires-build@1100.0.11":
   dir: pnpm11/building/pkg-requires-build
   intents:
@@ -340,6 +356,10 @@
   dir: pnpm11/cli/default-reporter
   intents:
     - quiet-install-diagnostics
+"@pnpm/cli.default-reporter@1100.3.23":
+  dir: pnpm11/cli/default-reporter
+  intents:
+    - warn-optional-fetch-failure-v11
 "@pnpm/cli.default-reporter@1100.3.8":
   dir: pnpm11/cli/default-reporter
   intents:
@@ -356,6 +376,10 @@
   dir: pnpm11/cli/meta
   intents:
     - npm-execpath-running-pnpm
+"@pnpm/cli.meta@1100.1.2":
+  dir: pnpm11/cli/meta
+  intents:
+    - homebrew-self-update
 "@pnpm/cli.parse-cli-args@1100.1.6":
   dir: pnpm11/cli/parse-cli-args
   intents:
@@ -398,6 +422,10 @@
   dir: pnpm11/config/matcher
   intents:
     - republish-all-lib-packages
+"@pnpm/config.matcher@1100.0.3":
+  dir: pnpm11/config/matcher
+  intents:
+    - witty-bears-sing
 "@pnpm/config.normalize-registries@1100.0.11":
   dir: pnpm11/config/normalize-registries
   intents:
@@ -561,6 +589,11 @@
   intents:
     - config-prototype-keys
     - validate-allow-builds-setting
+"@pnpm/config.reader@1102.3.3":
+  dir: pnpm11/config/reader
+  intents:
+    - validate-allow-unused-patches-setting
+    - validate-ignored-optional-dependencies-and-required-scripts
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -615,6 +648,10 @@
   dir: pnpm11/core/core-loggers
   intents:
     - deprecation-notices-stay-out-of-the-output
+"@pnpm/core-loggers@1101.0.2":
+  dir: pnpm11/core/core-loggers
+  intents:
+    - warn-optional-fetch-failure-v11
 "@pnpm/crypto.hash@1100.0.2":
   dir: pnpm11/crypto/hash
   intents:
@@ -854,6 +891,10 @@
     - dev-install-optional-subdependencies
     - engine-key-root-runtime
     - link-file-dep-inside-package
+"@pnpm/deps.graph-builder@1101.1.3":
+  dir: pnpm11/deps/graph-builder
+  intents:
+    - skip-absent-dependency-links
 "@pnpm/deps.graph-hasher@1100.2.12":
   dir: pnpm11/deps/graph-hasher
   intents:
@@ -1188,6 +1229,13 @@
   dir: pnpm11/engine/pm/commands
   intents:
     - shim-helpers-without-default-path
+"@pnpm/engine.pm.commands@1102.1.7":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - homebrew-self-update
+    - range-pin-respects-minimum-release-age
+    - self-update-replaces-standalone-exe
+    - x64-musl-switch-to-pnpm-10
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -1378,10 +1426,19 @@
   dir: pnpm11/exec/commands
   intents:
     - run-recursive-fixes
+"@pnpm/exec.commands@1101.1.8":
+  dir: pnpm11/exec/commands
+  intents:
+    - run-after-failed-pre-run-install
+    - verify-deps-check-selected-project-dependencies
 "@pnpm/exec.esm-node-path-loader@1100.0.0":
   dir: pnpm11/exec/esm-node-path-loader
   intents:
     - gvs-esm-node-path-loader
+"@pnpm/exec.esm-node-path-loader@1100.0.1":
+  dir: pnpm11/exec/esm-node-path-loader
+  intents:
+    - gvs-esm-loader-commonjs-entry-point
 "@pnpm/exec.lifecycle@1100.1.15":
   dir: pnpm11/exec/lifecycle
   intents:
@@ -1449,6 +1506,10 @@
   intents:
     - lifecycle-tmp-dir-failure
     - wait-for-zombie-with-threads
+"@pnpm/exec.npm-lifecycle@1100.0.4":
+  dir: pnpm11/exec/npm-lifecycle
+  intents:
+    - one-process-group-watchdog
 "@pnpm/exec.pnpm-cli-runner@1100.0.2":
   dir: pnpm11/exec/pnpm-cli-runner
   intents:
@@ -2032,6 +2093,10 @@
     - audit-fix-ignore-dependencies
     - filtered-update-missing-package
     - import-constructor-package
+"@pnpm/installing.commands@1101.4.4":
+  dir: pnpm11/installing/commands
+  intents:
+    - hoisted-delegated-directories
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -2058,6 +2123,10 @@
   intents:
     - gentle-spiders-raise
     - skip-importer-compatibility-db
+"@pnpm/installing.context@1101.0.9":
+  dir: pnpm11/installing/context
+  intents:
+    - env-only-lockfile
 "@pnpm/installing.dedupe.check@1100.1.5":
   dir: pnpm11/installing/dedupe/check
   intents:
@@ -2244,6 +2313,10 @@
     - add-constructor-package
     - custom-resolver-unhandled-rejection
     - deps-installer-constructor-package
+"@pnpm/installing.deps-installer@1104.2.3":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - frozen-install-absent-workspace-project
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -2354,6 +2427,10 @@
   dir: pnpm11/installing/deps-resolver
   intents:
     - deps-installer-constructor-package
+"@pnpm/installing.deps-resolver@1102.2.6":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - frozen-lockfile-workspace-dependencies-meta
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -2436,6 +2513,14 @@
   dir: pnpm11/installing/deps-restorer
   intents:
     - deps-restorer-fixes
+"@pnpm/installing.deps-restorer@1103.2.3":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - hoisted-delegated-directories
+    - hoisted-filtered-install-after-filtered-install
+    - hoisted-filtered-install-keeps-packages
+    - preserve-workspace-hoist-conflicts
+    - warn-optional-fetch-failure-v11
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -2499,6 +2584,10 @@
   dir: pnpm11/installing/linking/hoist
   intents:
     - hoist-constructor-dependency
+"@pnpm/installing.linking.hoist@1100.0.36":
+  dir: pnpm11/installing/linking/hoist
+  intents:
+    - preserve-workspace-hoist-conflicts
 "@pnpm/installing.linking.modules-cleaner@1100.1.15":
   dir: pnpm11/installing/linking/modules-cleaner
   intents:
@@ -2646,6 +2735,10 @@
   intents:
     - peer-cycle-patch-hash
     - prototype-named-projects-and-files
+"@pnpm/lockfile.fs@1100.2.12":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - env-only-lockfile
 "@pnpm/lockfile.fs@1100.2.4":
   dir: pnpm11/lockfile/fs
   intents:
@@ -2963,6 +3056,11 @@
   dir: pnpm11/network/fetch
   intents:
     - undici-7-29-1
+"@pnpm/network.fetch@1100.1.21":
+  dir: pnpm11/network/fetch
+  intents:
+    - login-cross-origin-redirect
+    - slow-link-fetch-concurrency
 "@pnpm/network.fetch@1100.1.8":
   dir: pnpm11/network/fetch
   intents:
@@ -3092,6 +3190,10 @@
   dir: pnpm11/pkg-manifest/commands
   intents:
     - republish-all-lib-packages
+"@pnpm/pkg-manifest.commands@1100.1.32":
+  dir: pnpm11/pkg-manifest/commands
+  intents:
+    - pkg-get-recursive-duplicate-names
 "@pnpm/pkg-manifest.reader@1100.0.12":
   dir: pnpm11/pkg-manifest/reader
   intents:
@@ -3316,6 +3418,10 @@
   dir: pnpm11/registry-access/client
   intents:
     - login-existing-user
+"@pnpm/registry-access.client@1100.1.23":
+  dir: pnpm11/registry-access/client
+  intents:
+    - login-cross-origin-redirect
 "@pnpm/registry-access.commands@1100.5.0":
   dir: pnpm11/registry-access/commands
   intents:
@@ -3692,6 +3798,11 @@
     - time-based-cutoff-is-not-a-release-age-violation
     - time-based-mature-fallback
     - webcontainer-async-fs-errors
+"@pnpm/resolving.npm-resolver@1104.2.4":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - release-age-upgrade-keeps-full-etag
+    - revalidate-uncacheable-registry-metadata
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -3737,6 +3848,10 @@
   dir: pnpm11/resolving/registry/types
   intents:
     - refetch-uncacheable-registry-metadata
+"@pnpm/resolving.registry.types@1100.2.3":
+  dir: pnpm11/resolving/registry/types
+  intents:
+    - release-age-upgrade-keeps-full-etag
 "@pnpm/resolving.resolver-base@1100.5.4":
   dir: pnpm11/resolving/resolver-base
   intents:
@@ -3930,6 +4045,10 @@
     - injected-dep-unbuilt-publish-directory
     - quiet-walls-link
     - time-based-mature-fallback
+"@pnpm/store.controller-types@1101.3.3":
+  dir: pnpm11/store/controller-types
+  intents:
+    - hoisted-delegated-directories
 "@pnpm/store.controller@1102.0.8":
   dir: pnpm11/store/controller
   intents:
@@ -3949,6 +4068,10 @@
   dir: pnpm11/store/controller
   intents:
     - webcontainer-async-fs-errors
+"@pnpm/store.controller@1102.2.3":
+  dir: pnpm11/store/controller
+  intents:
+    - hoisted-delegated-directories
 "@pnpm/store.create-cafs-store@1100.0.21":
   dir: pnpm11/store/create-cafs-store
   intents:
@@ -3992,6 +4115,10 @@
   dir: pnpm11/store/path
   intents:
     - warn-bypassed-home-store
+"@pnpm/store.path@1100.1.1":
+  dir: pnpm11/store/path
+  intents:
+    - store-path-unwritable-cwd
 "@pnpm/store.pkg-finder@1100.0.25":
   dir: pnpm11/store/pkg-finder
   intents:
@@ -4122,6 +4249,10 @@
   dir: pnpm11/worker
   intents:
     - fix-concurrent-store-readers
+"@pnpm/worker@1100.4.7":
+  dir: pnpm11/worker
+  intents:
+    - redact-integrity-error-url
 "@pnpm/workspace.commands@1100.1.31":
   dir: pnpm11/workspace/commands
   intents:
@@ -4234,6 +4365,10 @@
   dir: pnpm11/workspace/projects-filter
   intents:
     - filter-fixes
+"@pnpm/workspace.projects-filter@1100.0.47":
+  dir: pnpm11/workspace/projects-filter
+  intents:
+    - filter-since-old-git
 "@pnpm/workspace.projects-graph@1100.0.28":
   dir: pnpm11/workspace/projects-graph
   intents:
@@ -6400,6 +6535,19 @@ pacquet@12.9.0:
     - wasm-webcontainers
     - witty-bears-sing
     - x64-musl-switch-to-pnpm-10
+pacquet@12.9.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - audit-signatures-keys-redirect-tls
+    - compact-trust-history
+    - filter-git-filenames
+    - filter-since-old-git
+    - frozen-injected-catalog-peers
+    - gitlab-provenance-invocation-parameters
+    - homebrew-self-update
+    - repeat-install-runs-project-scripts
+    - smaller-pnpm-binary
+    - wasm-separate-package
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
@@ -7217,3 +7365,36 @@ pnpm@11.28.3:
     - unknown-option-reaches-pinned-pnpm
     - validate-allow-builds-setting
     - wait-for-zombie-with-threads
+pnpm@11.28.4:
+  dir: pnpm11/pnpm
+  intents:
+    - env-only-lockfile
+    - filter-since-old-git
+    - fresh-build-launchers
+    - frozen-install-absent-workspace-project
+    - frozen-lockfile-workspace-dependencies-meta
+    - gvs-esm-loader-commonjs-entry-point
+    - hoisted-delegated-directories
+    - hoisted-filtered-install-after-filtered-install
+    - hoisted-filtered-install-keeps-packages
+    - homebrew-self-update
+    - login-cross-origin-redirect
+    - one-process-group-watchdog
+    - pkg-get-recursive-duplicate-names
+    - preserve-workspace-hoist-conflicts
+    - range-pin-respects-minimum-release-age
+    - redact-integrity-error-url
+    - release-age-upgrade-keeps-full-etag
+    - revalidate-uncacheable-registry-metadata
+    - run-after-failed-pre-run-install
+    - self-update-replaces-standalone-exe
+    - skip-absent-dependency-links
+    - skip-failed-optional-build-on-repeat-install
+    - slow-link-fetch-concurrency
+    - store-path-unwritable-cwd
+    - validate-allow-unused-patches-setting
+    - validate-ignored-optional-dependencies-and-required-scripts
+    - verify-deps-check-selected-project-dependencies
+    - warn-optional-fetch-failure-v11
+    - witty-bears-sing
+    - x64-musl-switch-to-pnpm-10
