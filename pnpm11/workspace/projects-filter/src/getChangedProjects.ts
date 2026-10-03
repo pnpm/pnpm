@@ -407,13 +407,15 @@ async function diffFileNames (commit: string, diffPaths: string[], workspaceDir:
   try {
     return (
       await execa('git', [
+        // git before 2.28 rejects `--no-relative` but ignores this setting.
+        '-c',
+        'diff.relative=false',
         'diff',
         '--name-only',
         // NUL-terminated names are printed verbatim. Newline-terminated
         // ones are C-quoted with octal escapes when they contain non-ASCII
         // characters.
         '-z',
-        '--no-relative',
         '--no-renames',
         // Keeps an option-like `<since>` (`--output=...`) from being
         // parsed as a git option — git rejects it as a bad revision.

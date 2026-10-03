@@ -222,10 +222,12 @@ fn git_diff_names(
     manifest_path: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
+    // git before 2.28 rejects `--no-relative` but ignores this setting.
     cmd.args([
+        "-c",
+        "diff.relative=false",
         "diff",
         "--name-only",
-        "--no-relative",
         "--no-renames",
         "--end-of-options",
         commit,
