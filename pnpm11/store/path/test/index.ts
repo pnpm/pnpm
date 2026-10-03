@@ -12,9 +12,10 @@ const ROOT_PROJECT = path.join(DRIVE_ROOT, 'src', 'workspace', 'project')
 const SANDBOX_ROOT = path.join(DRIVE_ROOT, 'sandbox')
 const SANDBOX_PROJECT = path.join(SANDBOX_ROOT, 'project')
 
+const touchMock = jest.fn<(file: string) => Promise<void>>()
 jest.unstable_mockModule('touch', () => {
   return {
-    default: jest.fn(),
+    default: touchMock,
   }
 })
 jest.unstable_mockModule('root-link-target', () => {
@@ -119,6 +120,23 @@ test('the store is created in the project when only the project directory is lin
     path.join(SANDBOX_PROJECT, 'tmp'),
     path.join(SANDBOX_ROOT, 'tmp', 'tmp')
   )
+})
+
+test('the store is created in the pnpm home directory when the project directory is not writable', async () => {
+  touchMock.mockRejectedValueOnce(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
+  expect(await getStorePath({
+    pkgRoot: ROOT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+  expect(canLinkMock).not.toHaveBeenCalled()
+})
+
+test('an error other than a permission error from the project directory is rethrown', async () => {
+  touchMock.mockRejectedValueOnce(Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }))
+  await expect(getStorePath({
+    pkgRoot: ROOT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).rejects.toThrow('ENOSPC')
 })
 
 test('fail when pnpm home directory is not defined', async () => {

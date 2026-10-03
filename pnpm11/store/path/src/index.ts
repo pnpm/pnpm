@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { STORE_VERSION } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { rimraf } from '@zkochan/rimraf'
 import { canLink } from 'can-link'
 import { pathAbsolute } from 'path-absolute'
@@ -55,9 +55,14 @@ export function getStorePathInPnpmHome (pnpmHomeDir: string): string {
 
 async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
   const tempFile = pathTemp(pkgRoot)
-  if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })
-  await touch(tempFile)
   const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
+  try {
+    if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })
+    await touch(tempFile)
+  } catch (err: unknown) {
+    if (isPermissionError(err)) return storeInHomeDir
+    throw err
+  }
   if (await canLinkToSubdir(tempFile, homedir)) {
     await fs.unlink(tempFile)
     // If the project is on the drive on which the OS home directory
@@ -81,6 +86,11 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
   } finally {
     await fs.unlink(tempFile)
   }
+}
+
+function isPermissionError (err: unknown): boolean {
+  return isError(err) && 'code' in err &&
+    (err.code === 'EACCES' || err.code === 'EPERM' || err.code === 'EROFS')
 }
 
 async function canLinkToSubdir (fileToLink: string, dir: string): Promise<boolean> {
