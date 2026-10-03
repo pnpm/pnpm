@@ -12,6 +12,7 @@ import * as micromatch from 'micromatch'
 import * as yaml from 'yaml'
 
 import { formatDirGlob, formatDirGlobCandidate } from './dirGlob.js'
+import { gitSupportsNoRelative } from './gitVersion.js'
 
 type ChangeType = 'source' | 'test'
 
@@ -413,7 +414,7 @@ async function diffFileNames (commit: string, diffPaths: string[], workspaceDir:
         // ones are C-quoted with octal escapes when they contain non-ASCII
         // characters.
         '-z',
-        '--no-relative',
+        ...(await gitSupportsNoRelative() ? ['--no-relative'] : []),
         '--no-renames',
         // Keeps an option-like `<since>` (`--output=...`) from being
         // parsed as a git option — git rejects it as a bad revision.
