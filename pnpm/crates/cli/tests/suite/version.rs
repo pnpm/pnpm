@@ -604,7 +604,8 @@ fn version_flag_fails_when_the_project_pins_another_package_manager() {
 /// the binary directly. On musl, pnpm 9.3.0 installs as JavaScript `pnpm`,
 /// which has no native binary to run.
 #[test]
-#[cfg(all(unix, not(target_env = "musl")))]
+#[cfg_attr(not(unix), ignore = "the spy requires a POSIX shell shim")]
+#[cfg_attr(target_env = "musl", ignore = "pnpm 9.3.0 installs as JavaScript on musl")]
 fn switching_runs_the_native_binary_of_the_pinned_pnpm_without_its_shell_shim() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -649,7 +650,6 @@ fn switching_runs_the_native_binary_of_the_pinned_pnpm_without_its_shell_shim() 
 
 /// The `pnpm` bin of the one engine installed under `links`, at
 /// `<scope>/<name>/<version>/<hash>/bin/pnpm`.
-#[cfg(all(unix, not(target_env = "musl")))]
 fn engine_shim(links: &Path) -> PathBuf {
     let shims: Vec<_> = walkdir::WalkDir::new(links)
         .into_iter()
