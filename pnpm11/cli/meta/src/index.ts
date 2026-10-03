@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { findPnpmEntryScript, findPnpmExecutable, realpathOrUndefined } from './selfEntry.js'
@@ -85,14 +86,19 @@ export function findHomebrewFormula (): string | undefined {
 }
 
 /**
- * The Homebrew formula whose keg holds `realPath`. Every keg lives at
- * `<cellar>/<formula>/<version>/`.
+ * The Homebrew formula whose keg holds `realPath`. A keg is
+ * `<cellar>/<formula>/<version>/`, and Homebrew writes `INSTALL_RECEIPT.json`
+ * into every keg it installs.
  */
 export function homebrewFormulaOf (realPath: string): string | undefined {
-  const segments = realPath.split(path.sep)
-  for (let index = 0; index + 2 < segments.length; index++) {
-    const formula = segments[index + 1]
-    if (segments[index] === 'Cellar' && (formula === 'pnpm' || formula.startsWith('pnpm@'))) {
+  for (let keg = path.dirname(realPath); keg !== path.dirname(keg); keg = path.dirname(keg)) {
+    const formulaDir = path.dirname(keg)
+    const formula = path.basename(formulaDir)
+    if (
+      path.basename(path.dirname(formulaDir)) === 'Cellar' &&
+      (formula === 'pnpm' || formula.startsWith('pnpm@')) &&
+      fs.existsSync(path.join(keg, 'INSTALL_RECEIPT.json'))
+    ) {
       return formula
     }
   }

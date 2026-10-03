@@ -30,17 +30,17 @@ pub(crate) fn reject_externally_managed() -> miette::Result<()> {
 }
 
 /// The Homebrew formula (`pnpm`, `pnpm@11`, ...) whose keg holds `exe`, a
-/// canonical path. Every keg lives at `<cellar>/<formula>/<version>/`.
+/// canonical path. A keg is `<cellar>/<formula>/<version>/`, and Homebrew
+/// writes `INSTALL_RECEIPT.json` into every keg it installs.
 pub(super) fn homebrew_formula(exe: &Path) -> Option<String> {
-    let components: Vec<_> = exe.iter().collect();
-    components
-        .windows(3)
-        .find_map(|window| {
-            let [cellar, formula, _version] = window else { return None };
-            let formula = formula.to_str()?;
-            (*cellar == "Cellar" && (formula == "pnpm" || formula.starts_with("pnpm@"))).then(
-                || formula.to_string(),
-            )
+    exe.ancestors()
+        .find_map(|keg| {
+            let formula_dir = keg.parent()?;
+            let formula = formula_dir.file_name()?.to_str()?;
+            let is_pnpm_keg = formula_dir.parent()?.file_name()? == "Cellar"
+                && (formula == "pnpm" || formula.starts_with("pnpm@"))
+                && keg.join("INSTALL_RECEIPT.json").is_file();
+            is_pnpm_keg.then(|| formula.to_string())
         })
 }
 

@@ -1,6 +1,8 @@
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, homebrewFormulaOf, isExecutedByCorepack } from '@pnpm/cli.meta'
 
 describe('detectIfCurrentPkgIsExecutable()', () => {
@@ -32,16 +34,30 @@ describe('isExecutedByCorepack()', () => {
 })
 
 describe('homebrewFormulaOf()', () => {
-  const fromSegments = (...segments: string[]) => path.join(path.sep, ...segments)
+  let root: string
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-cli-meta-'))
+  })
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  function createKeg (formula: string, { receipt }: { receipt: boolean }): string {
+    const keg = path.join(root, 'Cellar', formula, '1.0.0')
+    const entry = path.join(keg, 'lib', 'node_modules', 'pnpm', 'dist', 'pnpm.mjs')
+    fs.mkdirSync(path.dirname(entry), { recursive: true })
+    if (receipt) fs.writeFileSync(path.join(keg, 'INSTALL_RECEIPT.json'), '{}')
+    return entry
+  }
 
   test('returns the formula whose keg holds the path', () => {
-    expect(homebrewFormulaOf(fromSegments('opt', 'homebrew', 'Cellar', 'pnpm', '12.8.1', 'bin', 'pnpm'))).toBe('pnpm')
-    expect(homebrewFormulaOf(fromSegments('usr', 'local', 'Cellar', 'pnpm@11', '11.2.0', 'lib', 'node_modules', 'pnpm', 'dist', 'pnpm.mjs'))).toBe('pnpm@11')
+    expect(homebrewFormulaOf(createKeg('pnpm', { receipt: true }))).toBe('pnpm')
+    expect(homebrewFormulaOf(createKeg('pnpm@11', { receipt: true }))).toBe('pnpm@11')
   })
 
   test('returns undefined outside a pnpm keg', () => {
-    expect(homebrewFormulaOf(fromSegments('opt', 'homebrew', 'Cellar', 'node', '24.0.0', 'bin', 'pnpm'))).toBeUndefined()
-    expect(homebrewFormulaOf(fromSegments('opt', 'homebrew', 'Cellar', 'pnpm'))).toBeUndefined()
-    expect(homebrewFormulaOf(fromSegments('home', 'user', '.local', 'share', 'pnpm', 'pnpm'))).toBeUndefined()
+    expect(homebrewFormulaOf(createKeg('node', { receipt: true }))).toBeUndefined()
+    expect(homebrewFormulaOf(createKeg('pnpm@10', { receipt: false }))).toBeUndefined()
+    expect(homebrewFormulaOf(path.join(root, 'pnpm.mjs'))).toBeUndefined()
   })
 })

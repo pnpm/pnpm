@@ -22,12 +22,24 @@ use std::{
 
 #[test]
 fn homebrew_formula_names_the_keg_that_holds_the_executable() {
-    let formula = |exe: &str| homebrew_formula(Path::new(exe));
-    assert_eq!(formula("/opt/homebrew/Cellar/pnpm/12.8.1/bin/pnpm").as_deref(), Some("pnpm"));
-    assert_eq!(formula("/usr/local/Cellar/pnpm@11/11.2.0/bin/pnpm").as_deref(), Some("pnpm@11"));
-    assert_eq!(formula("/opt/homebrew/Cellar/node/24.0.0/bin/pnpm"), None);
-    assert_eq!(formula("/opt/homebrew/Cellar/pnpm"), None);
-    assert_eq!(formula("/home/user/.local/share/pnpm/pnpm"), None);
+    let root = tempfile::tempdir().expect("create temp dir");
+    let keg = |formula: &str, receipt: bool| {
+        let keg = root
+            .path()
+            .join("Cellar")
+            .join(formula)
+            .join("1.0.0");
+        fs::create_dir_all(keg.join("bin")).expect("create the keg");
+        if receipt {
+            fs::write(keg.join("INSTALL_RECEIPT.json"), "{}").expect("write the receipt");
+        }
+        keg.join("bin").join("pnpm")
+    };
+    assert_eq!(homebrew_formula(&keg("pnpm", true)).as_deref(), Some("pnpm"));
+    assert_eq!(homebrew_formula(&keg("pnpm@11", true)).as_deref(), Some("pnpm@11"));
+    assert_eq!(homebrew_formula(&keg("node", true)), None);
+    assert_eq!(homebrew_formula(&keg("pnpm@10", false)), None);
+    assert_eq!(homebrew_formula(&root.path().join("pnpm")), None);
 }
 
 #[test]

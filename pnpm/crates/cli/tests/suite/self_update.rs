@@ -68,18 +68,20 @@ fn self_update_loads_config_and_reaches_the_resolver() {
 }
 
 /// The executable is copied into a fake keg rather than linked, because
-/// pnpm detects Homebrew from its canonical path.
+/// pnpm detects Homebrew from its canonical path and the keg's install receipt.
 #[test]
 fn self_update_refuses_a_pnpm_installed_by_homebrew() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let keg_bin = root
+    let keg = root
         .path()
         .join("Cellar")
         .join("pnpm")
-        .join("12.0.0")
-        .join("bin");
-    fs::create_dir_all(&keg_bin).expect("create the keg bin directory");
-    let brewed_pnpm = keg_bin.join(format!("pnpm{}", std::env::consts::EXE_SUFFIX));
+        .join("12.0.0");
+    fs::create_dir_all(keg.join("bin")).expect("create the keg bin directory");
+    fs::write(keg.join("INSTALL_RECEIPT.json"), "{}").expect("write the install receipt");
+    let brewed_pnpm = keg
+        .join("bin")
+        .join(format!("pnpm{}", std::env::consts::EXE_SUFFIX));
     fs::copy(pacquet.get_program(), &brewed_pnpm).expect("copy the pnpm binary");
 
     let output = Command::new(&brewed_pnpm)
