@@ -5,12 +5,9 @@ use super::{
     serve_revision_tarball, serve_search, serve_tarball, serve_version_manifest, set_dist_tag,
     update_packument,
 };
-
-// --------------------------------------------------------------------
 // Path shapes. Each names only the segments its handlers read: the
 // `/~<name>/` registration captures a `registry` segment too, and the
 // `-rev` routes capture a revision token pnpr does not track.
-// --------------------------------------------------------------------
 
 /// A package addressed by a single segment: an unscoped name, or a scoped name
 /// percent-encoded as `@scope%2Fname`.
@@ -58,10 +55,7 @@ pub(super) struct DistTagPath {
 pub(super) struct DigestPath {
     pub(super) digest: String,
 }
-
-// --------------------------------------------------------------------
 // Package reads — packument, version manifest, tarball.
-// --------------------------------------------------------------------
 
 /// `GET {base}/{pkg}`.
 pub(super) async fn get_packument(
@@ -158,10 +152,7 @@ pub(super) async fn get_search(
     // so they must never land in a shared HTTP cache.
     private_no_cache(serve_search(&state, &identity, registry.as_deref(), &query).await)
 }
-
-// --------------------------------------------------------------------
 // Package writes — publish, unpublish, dist-tags.
-// --------------------------------------------------------------------
 
 /// `PUT {base}/{pkg}`.
 pub(super) async fn put_package(
