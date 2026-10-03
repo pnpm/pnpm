@@ -255,3 +255,15 @@ fn specified_scripts_regexp_sorted_alphabetical() {
         vec!["build:a".to_string(), "build:m".to_string(), "build:z".to_string()],
     );
 }
+
+#[test]
+fn specified_scripts_regexp_sorted_utf16_code_units() {
+    let manifest = json!({ "scripts": {
+        "build:\u{e000}": "echo bmp",
+        "build:\u{10000}": "echo astral",
+    }});
+    assert_eq!(
+        ScriptSelector::new("/^build:.*/").unwrap().select(&manifest, false),
+        vec!["build:\u{10000}".to_string(), "build:\u{e000}".to_string()],
+    );
+}

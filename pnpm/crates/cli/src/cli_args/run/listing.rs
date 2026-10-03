@@ -47,7 +47,7 @@ impl<'a> ScriptSelector<'a> {
             .map(|(script, _)| script.clone())
             .collect();
         if !sequential {
-            keys.sort();
+            keys.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
         }
         keys
     }
