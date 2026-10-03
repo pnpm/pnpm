@@ -407,7 +407,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
         with:
           tool: just
 
@@ -980,7 +980,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: bencherdev/bencher@8d75325c3bc59403a2186a056b472c4f49d42838 # v0.6.12
+        uses: bencherdev/bencher@f80847436d7157936b40525db4c2a1064124f04a # v0.6.13
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the
