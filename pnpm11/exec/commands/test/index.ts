@@ -883,6 +883,28 @@ test('RegExp script matching executes multiple scripts in alphabetical order whe
   expect(outputLog).toBe('amz')
 })
 
+test('RegExp script matching executes non-BMP Unicode scripts in UTF-16 alphabetical order when sequential is not set', async () => {
+  prepare({
+    scripts: {
+      'build:\u{e000}': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'e\')"',
+      'build:\u{10000}': 'node -e "require(\'fs\').appendFileSync(\'./order.log\', \'u\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: '',
+    workspaceConcurrency: 1,
+  }, ['/^build:.*/'])
+
+  const outputLog = fs.readFileSync(path.join(process.cwd(), 'order.log'), 'utf-8')
+  expect(outputLog).toBe('ue')
+})
+
 test('passing --sequential option sets effective workspaceConcurrency to 1 for matched scripts without timing flakes', async () => {
   prepare({
     scripts: {
