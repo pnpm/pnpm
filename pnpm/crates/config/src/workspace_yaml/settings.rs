@@ -385,7 +385,6 @@ pub struct WorkspaceSettings {
     pub side_effects_cache_readonly: Option<bool>,
     /// `metadataCache` from `pnpm-workspace.yaml`. See
     /// [`Config::metadata_cache`](crate::settings::Config::metadata_cache).
-    /// Default `true`.
     pub metadata_cache: Option<bool>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,

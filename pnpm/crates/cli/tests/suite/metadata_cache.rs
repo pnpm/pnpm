@@ -173,8 +173,10 @@ fn append_workspace_setting(workspace: &Path, setting: &str) {
 
 /// The `v11/metadata*` mirror directories under `cache_dir`.
 fn metadata_mirrors(cache_dir: &Path) -> Vec<String> {
-    let Ok(entries) = fs::read_dir(cache_dir.join("v11")) else {
-        return Vec::new();
+    let entries = match fs::read_dir(cache_dir.join("v11")) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(error) => panic!("read metadata cache at {cache_dir:?}: {error}"),
     };
     let mut mirrors: Vec<String> = entries
         .map(|entry| {
