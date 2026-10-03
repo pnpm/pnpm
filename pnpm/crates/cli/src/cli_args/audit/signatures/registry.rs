@@ -1,6 +1,7 @@
 use super::{
     BTreeMap, Config, Deserialize, HashMap, SignaturesError, ThrottledClient, encode_package_name,
     redact_url_credentials, retry_opts_from_config, sanitize_response_body, send_with_retry,
+    walk_reqwest_chain,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,32 +66,23 @@ pub(super) async fn fetch_registry_keys(
     let registry_url = with_trailing_slash(registry);
     let keys_url = format!("{registry_url}-/npm/v1/keys");
     let display_url = redact_url_credentials(&keys_url);
-    let authorization = config.auth_headers.for_url(&registry_url);
-    // Keep the throttle guard alive until the body is fully read; dropping it
-    // before `response.text()` would release the concurrency permit while the
-    // socket is still draining (see [`send_with_retry`]).
-    let (_guard, response) =
-        send_with_retry(http_client, &keys_url, retry_opts_from_config(config), |client| {
-            let mut request = client.get(&keys_url).header("accept", "application/json");
-            if let Some(value) = &authorization {
-                request = request.header("authorization", value);
-            }
-            request
-        })
+    // Registries such as GitLab redirect this endpoint to registry.npmjs.org,
+    // so each hop must use the settings of its own URL, not the registry's.
+    let response = http_client
+        .get_bytes_with_auth_and_retry(
+            &keys_url,
+            &config.auth_headers,
+            Some("application/json"),
+            retry_opts_from_config(config),
+        )
         .await
         .map_err(|source| SignaturesError::KeysNetwork {
             url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
+            reason: redact_url_credentials(&walk_reqwest_chain(&source)),
         })?;
 
-    let status = response.status().as_u16();
-    let body = response
-        .text()
-        .await
-        .map_err(|source| SignaturesError::KeysNetwork {
-            url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
-        })?;
+    let status = response.status.as_u16();
+    let body = String::from_utf8_lossy(&response.body);
     // npm registries answer 404 (no signing) and 400 the same way: there is no
     // trust root, so the registry's packages are simply not audited.
     if status == 404 || status == 400 {
@@ -138,7 +130,9 @@ pub(super) async fn fetch_packument(
     let packument_url = format!("{registry_url}{}", encode_package_name(name));
     let display_url = redact_url_credentials(&packument_url);
     let authorization = config.auth_headers.for_url(&registry_url);
-    // Hold the throttle guard until the body is read; see `fetch_registry_keys`.
+    // Keep the throttle guard alive until the body is fully read; dropping it
+    // before `response.text()` would release the concurrency permit while the
+    // socket is still draining (see [`send_with_retry`]).
     let (_guard, response) =
         send_with_retry(http_client, &packument_url, retry_opts_from_config(config), |client| {
             let mut request = client.get(&packument_url).header("accept", "application/json");
@@ -150,7 +144,7 @@ pub(super) async fn fetch_packument(
         .await
         .map_err(|source| SignaturesError::PackumentNetwork {
             url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
+            reason: redact_url_credentials(&walk_reqwest_chain(&source)),
         })?;
 
     let status = response.status().as_u16();
@@ -159,7 +153,7 @@ pub(super) async fn fetch_packument(
         .await
         .map_err(|source| SignaturesError::PackumentNetwork {
             url: display_url.clone(),
-            reason: redact_url_credentials(&source.to_string()),
+            reason: redact_url_credentials(&walk_reqwest_chain(&source)),
         })?;
     if status == 404 {
         return Ok(None);
