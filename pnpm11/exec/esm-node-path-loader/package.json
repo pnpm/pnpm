@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.esm-node-path-loader",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Builds the NODE_OPTIONS flag that restores NODE_PATH resolution for ESM imports",
   "keywords": [
     "pnpm",

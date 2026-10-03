@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.prepare-package",
-  "version": "1100.0.40",
+  "version": "1100.0.41",
   "description": "Prepares a Git-hosted package",
   "keywords": [
     "pnpm",
