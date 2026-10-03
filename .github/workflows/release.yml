@@ -260,6 +260,8 @@ jobs:
     # an upstream Node.js SEA bug independent of signing; see pack-app docs.
     # npm trusted publishing still requires this publish job to run on GitHub-hosted macOS.
     runs-on: macos-latest
+    env:
+      PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -277,9 +279,13 @@ jobs:
         with:
           runtime: node@26.11.1
       - name: Build TypeScript executable artifacts
+        env:
+          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
         run: pn --filter=@pnpm/exe run build-artifacts
 
       - name: Verify TypeScript npm packages
+        env:
+          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
         # Inspect the same tarballs that publish will upload before the first
         # immutable npm publish, including the generated platform packages.
         # zizmor: ignore[adhoc-packages] -- This smoke test intentionally
@@ -394,12 +400,99 @@ jobs:
           file "$smoke_dir/node_modules/@pnpm/exe/pnpm"
           "$smoke_dir/node_modules/@pnpm/exe/pnpm" --version
 
+      - name: Archive TypeScript executable artifacts
+        run: |
+          tar czf ts-executable-artifacts.tar.gz \
+            pnpm11/pnpm/artifacts/darwin-arm64 \
+            pnpm11/pnpm/artifacts/linux-x64 \
+            pnpm11/pnpm/artifacts/linux-arm64 \
+            pnpm11/pnpm/artifacts/linux-x64-musl \
+            pnpm11/pnpm/artifacts/win32-x64 \
+            pnpm11/pnpm/artifacts/win32-arm64 \
+            pnpm11/pnpm/artifacts/exe/dist \
+            pnpm11/pnpm/artifacts/verify-binary.mjs
+
+      - name: Upload TypeScript executable artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: ts-executable-artifacts
+          path: ts-executable-artifacts.tar.gz
+
+  verify-ts-executables:
+    name: Verify TypeScript pnpm executable (${{ matrix.target }})
+    needs:
+      - validate-release-ref
+      - plan
+      - verify-ts-release
+    if: needs.plan.outputs.ts == 'true' || inputs.verify_ts_release
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            target-args: "linux x64 glibc"
+            type: native
+          - os: ubuntu-24.04
+            target: linux-x64-musl
+            target-args: "linux x64 musl"
+            type: alpine
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            target-args: "linux arm64 glibc"
+            type: native
+          - os: windows-latest
+            target: win32-x64
+            target-args: "win32 x64"
+            type: native
+          - os: windows-11-arm
+            target: win32-arm64
+            target-args: "win32 arm64"
+            type: native
+          - os: macos-latest
+            target: darwin-arm64
+            target-args: "darwin arm64"
+            type: native
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Download TypeScript executable artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ts-executable-artifacts
+
+      - name: Extract artifacts
+        shell: bash
+        run: tar xzf ts-executable-artifacts.tar.gz
+
+      - name: Install Node
+        if: matrix.type != 'alpine'
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          runtime: node@22
+          install: false
+
+      - name: Verify executable on native host
+        if: matrix.type == 'native'
+        shell: bash
+        run: |
+          cd pnpm11/pnpm/artifacts/${{ matrix.target }}
+          node ../verify-binary.mjs ${{ matrix.target-args }}
+
+      - name: Verify executable in Alpine container (musl)
+        if: matrix.type == 'alpine'
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work/pnpm11/pnpm/artifacts/${{ matrix.target }} alpine:latest sh -c "apk add --no-cache nodejs && node ../verify-binary.mjs ${{ matrix.target-args }}"
+
   release:
     name: Release the TypeScript pnpm CLI
     needs:
       - validate-release-ref
       - plan
       - verify-ts-release
+      - verify-ts-executables
     if: needs.plan.outputs.ts == 'true' && !inputs.verify_ts_release
     permissions:
       id-token: write  # Required for OIDC
@@ -407,6 +500,8 @@ jobs:
       attestations: write  # for actions/attest-build-provenance
     runs-on: macos-latest
     environment: release
+    env:
+      PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -444,6 +539,8 @@ jobs:
       # each stage operation in a token-free step also prevents an accidental
       # fallback to token authentication.
       - name: Build TypeScript executable artifacts
+        env:
+          PNPM_RELEASE_VERIFIED_TARGETS: 'darwin-arm64,linux-x64,linux-arm64,linux-x64-musl,win32-x64,win32-arm64'
         run: pn --filter=@pnpm/exe run build-artifacts
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured on npm,
@@ -1101,6 +1198,160 @@ jobs:
           # can reach the binary.
           node "$smoke_dir/node_modules/pnpm/bin/pnpm.mjs" --version
 
+  verify-rust-executables:
+    name: Verify pnpm (Rust) executable (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    needs:
+      - plan
+      - build-rust
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            type: native
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            type: native
+          - os: ubuntu-24.04
+            target: linux-x64-musl
+            type: alpine
+          - os: ubuntu-24.04-arm
+            target: linux-arm64-musl
+            type: alpine
+          - os: windows-latest
+            target: win32-x64
+            type: native
+          - os: windows-11-arm
+            target: win32-arm64
+            type: native
+          - os: macos-15-intel
+            target: darwin-x64
+            type: native
+          - os: macos-latest
+            target: darwin-arm64
+            type: native
+          - os: ubuntu-24.04
+            target: linux-ppc64
+            type: qemu-ppc64
+          - os: ubuntu-24.04
+            target: linux-riscv64
+            type: qemu-riscv64
+          - os: ubuntu-24.04
+            target: linux-s390x
+            type: qemu-s390x
+          # Note: freebsd-x64, android-arm64, and android-x64 are cross-compiled
+          # but omitted from execution smoke tests due to lack of FreeBSD/Android
+          # kernel environments on standard GitHub Actions runners.
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: binaries-rust-${{ matrix.target }}
+
+      - name: Extract archive (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pnpm-smoke"
+          7z x pnpm-${{ matrix.target }}.zip -o"$RUNNER_TEMP/pnpm-smoke"
+
+      - name: Extract archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p "$RUNNER_TEMP/pnpm-smoke"
+          tar xzf pnpm-${{ matrix.target }}.tar.gz -C "$RUNNER_TEMP/pnpm-smoke"
+
+      - name: Smoke-test native binary
+        if: matrix.type == 'native'
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          cd "$RUNNER_TEMP/pnpm-smoke"
+          if [ -f pnpm.exe ]; then
+            BIN="$PWD/pnpm.exe"
+          else
+            BIN="$PWD/pnpm"
+            chmod +x "$BIN"
+          fi
+          actual=$("$BIN" --version)
+          echo "pnpm --version: $actual"
+          test "$actual" = "$VERSION"
+          mkdir -p "$RUNNER_TEMP/pnpm-smoke-install"
+          cd "$RUNNER_TEMP/pnpm-smoke-install"
+          cat > package.json << 'EOF'
+          {
+            "name": "smoke-test",
+            "version": "1.0.0",
+            "dependencies": {
+              "is-positive": "1.0.0"
+            }
+          }
+          EOF
+          "$BIN" install --no-frozen-lockfile
+          test -d node_modules/is-positive
+
+      - name: Smoke-test Alpine musl binary
+        if: matrix.type == 'alpine'
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          docker run --rm -v "$RUNNER_TEMP/pnpm-smoke:/smoke" -w /smoke alpine:latest sh -c '
+            set -euo pipefail
+            chmod +x ./pnpm
+            actual=$(./pnpm --version)
+            echo "pnpm --version: $actual"
+            test "$actual" = "'"$VERSION"'"
+            mkdir -p /smoke/test-project && cd /smoke/test-project
+            printf '%s\n' '{"name":"smoke-test","version":"1.0.0","dependencies":{"is-positive":"1.0.0"}}' > package.json
+            /smoke/pnpm install --no-frozen-lockfile
+            test -d node_modules/is-positive
+          '
+
+      - name: Smoke-test Linux ppc64le (QEMU)
+        if: matrix.type == 'qemu-ppc64'
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user libc6-ppc64el-cross libgcc-s1-ppc64el-cross
+          cd "$RUNNER_TEMP/pnpm-smoke"
+          chmod +x ./pnpm
+          actual=$(qemu-ppc64le -L /usr/powerpc64le-linux-gnu ./pnpm --version)
+          echo "pnpm --version (ppc64le): $actual"
+          test "$actual" = "$VERSION"
+
+      - name: Smoke-test Linux riscv64 (QEMU)
+        if: matrix.type == 'qemu-riscv64'
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user libc6-riscv64-cross libgcc-s1-riscv64-cross
+          cd "$RUNNER_TEMP/pnpm-smoke"
+          chmod +x ./pnpm
+          actual=$(qemu-riscv64 -L /usr/riscv64-linux-gnu ./pnpm --version)
+          echo "pnpm --version (riscv64): $actual"
+          test "$actual" = "$VERSION"
+
+      - name: Smoke-test Linux s390x (QEMU)
+        if: matrix.type == 'qemu-s390x'
+        env:
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user libc6-s390x-cross libgcc-s1-s390x-cross
+          cd "$RUNNER_TEMP/pnpm-smoke"
+          chmod +x ./pnpm
+          actual=$(qemu-s390x -L /usr/s390x-linux-gnu ./pnpm --version)
+          echo "pnpm --version (s390x): $actual"
+          test "$actual" = "$VERSION"
+
   publish-rust:
     name: Publish pnpm (Rust) and @pnpm/napi to npm
     runs-on: ubuntu-latest
@@ -1116,6 +1367,7 @@ jobs:
       - build-rust-napi
       - build-wasm-payload
       - verify-rust-artifacts
+      - verify-rust-executables
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1207,6 +1459,7 @@ jobs:
       - build-rust
       - build-rust-napi
       - publish-rust
+      - verify-rust-executables
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
