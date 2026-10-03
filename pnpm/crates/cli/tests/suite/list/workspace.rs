@@ -316,6 +316,18 @@ fn changed_files_ignore_pattern_is_respected() {
         )
         .expect("write package.json");
     }
+    let unicode_projects =
+        [("\u{4e2d}\u{6587}", "project-chinese"), ("\u{d55c}\u{ae00}", "project-korean")];
+    for (dir_name, name) in unicode_projects {
+        let dir = workspace.join(dir_name);
+        fs::create_dir_all(&dir).expect("create Unicode project dir");
+        fs::write(
+            dir.join("package.json"),
+            json!({ "name": name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write package.json");
+        fs::write(dir.join("index.js"), "original").expect("write tracked file");
+    }
     let write_workspace_yaml = |extra: &str| {
         fs::write(workspace.join("pnpm-workspace.yaml"), format!("packages:\n  - '*'\n{extra}"))
             .expect("write pnpm-workspace.yaml");
@@ -339,6 +351,7 @@ fn changed_files_ignore_pattern_is_respected() {
     git(&["init", "--initial-branch=main"]);
     git(&["config", "user.email", "x@y.z"]);
     git(&["config", "user.name", "xyz"]);
+    git(&["config", "--local", "core.quotePath", "true"]);
     git(&["init", "--bare", &remote.to_string_lossy()]);
     git(&["add", "."]);
     git(&["commit", "-m", "init", "--no-gpg-sign"]);
@@ -351,6 +364,8 @@ fn changed_files_ignore_pattern_is_respected() {
         .expect("write changed file");
     fs::write(workspace.join("project-3-ignored-by-pattern").join("README.md"), "")
         .expect("write changed file");
+    fs::write(workspace.join("project-3-ignored-by-pattern").join("\u{68c0}\u{67e5}.js"), "")
+        .expect("write ignored Unicode file");
     let buildscript_dir = workspace.join("project-4-ignored-by-pattern").join("a/b/c");
     fs::create_dir_all(&buildscript_dir).expect("create nested dirs");
     fs::write(buildscript_dir.join("buildscript.js"), "").expect("write changed file");
@@ -359,11 +374,15 @@ fn changed_files_ignore_pattern_is_respected() {
     fs::write(cache_dir.join("index.js"), "").expect("write changed file");
     git(&["add", "."]);
     git(&["commit", "-m", "changes", "--no-gpg-sign"]);
+    for (dir_name, _) in unicode_projects {
+        fs::write(workspace.join(dir_name).join("index.js"), "changed")
+            .expect("change tracked Unicode project file");
+    }
 
     // Left uncommitted, like upstream: `git diff <since>` also sees
     // working-tree changes to tracked files.
     write_workspace_yaml(
-        "changedFilesIgnorePattern:\n  - '**/{*.spec.js,*.md}'\n  - '**/buildscript.js'\n  - '**/cache/**'\n",
+        "changedFilesIgnorePattern:\n  - '**/{*.spec.js,*.md}'\n  - '**/buildscript.js'\n  - '**/cache/**'\n  - '**/\u{68c0}\u{67e5}.js'\n",
     );
 
     let changed_project_names = |extra_args: &[&str]| {
@@ -374,7 +393,11 @@ fn changed_files_ignore_pattern_is_respected() {
 
     assert_eq!(
         changed_project_names(&[]),
-        BTreeSet::from(["project-2-change-is-never-ignored".to_string()]),
+        BTreeSet::from([
+            "project-2-change-is-never-ignored".to_string(),
+            "project-chinese".to_string(),
+            "project-korean".to_string(),
+        ]),
     );
 
     // The empty CLI value overrides the yaml patterns with "no patterns".
@@ -385,6 +408,8 @@ fn changed_files_ignore_pattern_is_respected() {
             "project-3-ignored-by-pattern".to_string(),
             "project-4-ignored-by-pattern".to_string(),
             "project-5-ignored-by-pattern".to_string(),
+            "project-chinese".to_string(),
+            "project-korean".to_string(),
         ]),
     );
 

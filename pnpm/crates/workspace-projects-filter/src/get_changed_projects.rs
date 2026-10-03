@@ -131,14 +131,12 @@ fn classify_changed_path(changed_file: &str, test_globs: &[Glob<'_>]) -> (PathBu
     (dir, change_type)
 }
 
-fn process_diff_line(
-    raw_line: &str,
+fn process_diff_path(
+    file: &str,
     ctx: &DiffFilterContext<'_>,
     manifest_changed: &mut bool,
     changed_dirs: &mut IndexMap<PathBuf, ChangeType>,
 ) {
-    let file = raw_line.strip_prefix('"').unwrap_or(raw_line);
-    let file = file.strip_suffix('"').unwrap_or(file);
     if file.is_empty() {
         return;
     }
@@ -167,8 +165,7 @@ fn get_changed_dirs_since_commit(
     let working_dir = opts.working_dir.unwrap_or(opts.workspace_dir);
     let manifest_path = opts.workspace_dir.join(pnpm_workspace::WORKSPACE_MANIFEST_FILENAME);
 
-    let stdout = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_path)?;
-    let diff = strip_final_newline(&stdout);
+    let diff = git_diff_names(commit, opts.workspace_dir, working_dir, &manifest_path)?;
     if diff.is_empty() {
         return Ok(ChangedDirsResult {
             changed_dirs: IndexMap::new(),
@@ -189,8 +186,8 @@ fn get_changed_dirs_since_commit(
 
     let mut workspace_manifest_changed = false;
     let mut changed_dirs: IndexMap<PathBuf, ChangeType> = IndexMap::new();
-    for line in diff.split('\n') {
-        process_diff_line(line, &ctx, &mut workspace_manifest_changed, &mut changed_dirs);
+    for file in diff.split('\0') {
+        process_diff_path(file, &ctx, &mut workspace_manifest_changed, &mut changed_dirs);
     }
     Ok(ChangedDirsResult { changed_dirs, workspace_manifest_changed })
 }
@@ -226,7 +223,7 @@ fn git_diff_names(
     manifest_path: &Path,
 ) -> Result<String, FilterError> {
     let mut cmd = Command::new("git");
-    cmd.args(["diff", "--name-only", "--no-renames"]);
+    cmd.args(["diff", "--name-only", "-z", "--no-renames"]);
     if git_supports_no_relative(git_version()) {
         cmd.arg("--no-relative");
     }
