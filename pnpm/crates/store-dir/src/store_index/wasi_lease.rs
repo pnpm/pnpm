@@ -48,7 +48,7 @@ fn acquire_inner(database: &Path, recover: bool) -> io::Result<Arc<IndexLease>> 
     }
     let path = pnpm_fs::secure_user_lock_file_path("pnpm-wasm-sqlite", &database, "lock")?;
     let file = pnpm_fs::open_secure_lock_file(&path)?;
-    pnpm_fs::lock_file(&file, true)?;
+    pnpm_fs::lock_file(&file, pnpm_fs::LockMode::Exclusive)?;
     if recover {
         remove_abandoned_dotfile(&database)?;
     }
