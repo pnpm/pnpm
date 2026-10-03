@@ -4,20 +4,35 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
-const HOST: &str = "@pnpm.e2e/optional-peer-c-host@1.0.0";
+/// Declares `@pnpm.e2e/peer-c` as an optional peer.
+const OPTIONAL_PEER_HOST: &str = "@pnpm.e2e/optional-peer-c-host";
+
+/// Declares `@pnpm.e2e/peer-c` as a required peer.
+const REQUIRED_PEER_HOST: &str = "@pnpm.e2e/wants-peer-c-1";
 
 // <https://github.com/pnpm/pnpm/issues/16443>
 #[test]
 fn optional_peer_follows_the_version_its_provider_moves_to() {
-    assert_optional_peer_follows_provider("1.0.0", "1.0.1");
+    assert_peer_follows_provider(OPTIONAL_PEER_HOST, "1.0.0", "1.0.1");
 }
 
 #[test]
 fn optional_peer_follows_its_provider_down_to_an_older_version() {
-    assert_optional_peer_follows_provider("1.0.1", "1.0.0");
+    assert_peer_follows_provider(OPTIONAL_PEER_HOST, "1.0.1", "1.0.0");
 }
 
-fn assert_optional_peer_follows_provider(from: &str, to: &str) {
+#[test]
+fn required_peer_follows_the_version_its_provider_moves_to() {
+    assert_peer_follows_provider(REQUIRED_PEER_HOST, "1.0.0", "1.0.1");
+}
+
+// <https://github.com/pnpm/tasks/issues/61>
+#[test]
+fn required_peer_follows_its_provider_down_to_an_older_version() {
+    assert_peer_follows_provider(REQUIRED_PEER_HOST, "1.0.1", "1.0.0");
+}
+
+fn assert_peer_follows_provider(host: &str, from: &str, to: &str) {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -26,19 +41,25 @@ fn assert_optional_peer_follows_provider(from: &str, to: &str) {
         &workspace.join("package.json"),
         &serde_json::json!({
             "dependencies": {
-                "@pnpm.e2e/optional-peer-c-host": "1.0.0",
+                host: "1.0.0",
                 "provider": "file:provider",
             },
         }),
     );
     write_provider(&workspace, from);
     pnpm(&workspace, &["install", "--lockfile-only"]);
-    assert_eq!(host_keys(&workspace), [format!("{HOST}(@pnpm.e2e/peer-c@{from})")]);
+    assert_eq!(host_keys(&workspace, host), [format!("{host}@1.0.0(@pnpm.e2e/peer-c@{from})")]);
 
     write_provider(&workspace, to);
     pnpm(&workspace, &["install", "--lockfile-only"]);
-    assert_eq!(host_keys(&workspace), [format!("{HOST}(@pnpm.e2e/peer-c@{to})")]);
+    assert_eq!(host_keys(&workspace, host), [format!("{host}@1.0.0(@pnpm.e2e/peer-c@{to})")]);
     assert_eq!(peer_c_versions(&workspace), [to]);
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let settled = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    pnpm(&workspace, &["install", "--lockfile-only"]);
+    let repeated = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(settled == repeated, "a repeat install changed the lockfile:\n{repeated}");
 
     drop((root, mock_instance));
 }
@@ -71,10 +92,11 @@ fn pnpm(workspace: &Path, args: &[&str]) {
         .success();
 }
 
-fn host_keys(workspace: &Path) -> Vec<String> {
+fn host_keys(workspace: &Path, host: &str) -> Vec<String> {
+    let prefix = format!("{host}@");
     snapshot_keys(workspace)
         .into_iter()
-        .filter(|key| key.starts_with(HOST))
+        .filter(|key| key.starts_with(&prefix))
         .collect()
 }
 

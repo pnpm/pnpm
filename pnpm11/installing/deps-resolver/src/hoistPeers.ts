@@ -18,6 +18,12 @@ export interface HoistPeersOptions {
    * targeted peer are not reused, so the peer re-resolves.
    */
   isUpdateTarget?: (peerName: string) => boolean
+  /**
+   * The versions of each peer that only the wanted lockfile held when peer
+   * hoisting started. Taken once, before any importer hoists, so that the
+   * pick does not depend on the order in which concurrent importers resolve.
+   */
+  lockfileOnlyVersions?: Map<string, Set<string>>
   workspaceRootDeps: HoistableRootDep[]
   /**
    * Applies `overrides` to a peer nobody declares as a dependency. Such a
@@ -69,12 +75,16 @@ function pickHoistedPeerSpec (
   if (!preferredSelectors) {
     return opts.autoInstallPeers ? range : undefined
   }
-  return pickPreferredPeerSpec(preferredSelectors, { autoInstallPeers: opts.autoInstallPeers, range })
+  return pickPreferredPeerSpec(preferredSelectors, {
+    autoInstallPeers: opts.autoInstallPeers,
+    lockfileOnlyVersions: opts.lockfileOnlyVersions?.get(peerName),
+    range,
+  })
 }
 
 function pickPreferredPeerSpec (
   preferredSelectors: VersionSelectors,
-  { autoInstallPeers, range }: { autoInstallPeers: boolean, range: string }
+  { autoInstallPeers, lockfileOnlyVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, range: string }
 ): string | undefined {
   const { versions, nonVersions } = splitVersionSelectors(preferredSelectors)
   // Dedupe onto a preferred version only when it actually satisfies the
@@ -91,7 +101,7 @@ function pickPreferredPeerSpec (
   const rangeForMatch = getPeerVersionRange(range)
   const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
   const satisfyingVersion = isSemverRange
-    ? semver.maxSatisfying(versions, rangeForMatch, { includePrerelease: true })
+    ? maxSatisfyingDemotingLockfileOnly(versions, lockfileOnlyVersions, rangeForMatch)
     : null
   if (satisfyingVersion) {
     return [satisfyingVersion, ...nonVersions].join(' || ')
@@ -106,6 +116,34 @@ function pickPreferredPeerSpec (
   return [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions]
     .filter(spec => spec != null)
     .join(' || ')
+}
+
+/**
+ * The highest of `versions` satisfying `range`, or `null` when none does. A
+ * version in `lockfileOnly` is picked only when no other version satisfies
+ * `range`: its provider has moved on, so it must not outrank a version the
+ * install resolved.
+ */
+function maxSatisfyingDemotingLockfileOnly (versions: string[], lockfileOnly: Set<string> | undefined, range: string): string | null {
+  const resolved = lockfileOnly == null ? versions : versions.filter((version) => !lockfileOnly.has(version))
+  return semver.maxSatisfying(resolved, range, { includePrerelease: true }) ??
+    semver.maxSatisfying(versions, range, { includePrerelease: true })
+}
+
+/**
+ * The versions of each package that only the wanted lockfile pins. Resolving a
+ * version records it as a plain selector, so these are the weighted ones. A
+ * `Map`, because package names such as `constructor` are also prototype keys.
+ */
+export function getLockfileOnlyVersions (preferredVersions: PreferredVersions): Map<string, Set<string>> {
+  const lockfileOnlyVersions = new Map<string, Set<string>>()
+  for (const [name, selectors] of Object.entries(preferredVersions)) {
+    const versions = Object.keys(selectors).filter((version) => typeof selectors[version] !== 'string')
+    if (versions.length > 0) {
+      lockfileOnlyVersions.set(name, new Set(versions))
+    }
+  }
+  return lockfileOnlyVersions
 }
 
 function splitVersionSelectors (selectors: VersionSelectors): { versions: string[], nonVersions: string[] } {
