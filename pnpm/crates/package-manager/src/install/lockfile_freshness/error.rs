@@ -20,6 +20,9 @@ pub(crate) enum FreshnessCheckError {
     #[diagnostic(transparent)]
     InvalidOverrides(#[error(source)] pnpm_config_parse_overrides::ParseOverridesError),
 
+    #[diagnostic(transparent)]
+    InvalidCatalog(#[error(source)] pnpm_catalogs_resolver::CatalogResolutionError),
+
     /// A configured `patchedDependencies` patch file couldn't be read
     /// or hashed while computing the map to compare against the
     /// lockfile.
@@ -38,6 +41,7 @@ impl From<FreshnessCheckError> for InstallError {
                 InstallError::NoImporter { importer_id }
             }
             FreshnessCheckError::InvalidOverrides(inner) => InstallError::InvalidOverrides(inner),
+            FreshnessCheckError::InvalidCatalog(inner) => InstallError::CatalogResolution(inner),
             FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
                 InstallWithFreshLockfileError::CalcPatchHashes(inner),
             ),

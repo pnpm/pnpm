@@ -404,6 +404,7 @@ fn check_single_importer(
         workspace: WorkspaceProjects {
             packages: inputs.workspace_packages,
             manifests_by_dir: project_manifests,
+            catalogs: inputs.catalogs,
         },
         optional_exclusions: OptionalDependencyExclusions {
             ignored: ignored_optional_matcher,
