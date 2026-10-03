@@ -179,9 +179,9 @@ defaultRegistry: dockerhub
 ```
 
 An official Hub image is then pulled as `pnpr.example.com/library/alpine:latest`.
-For GHCR, use `https://ghcr.io/` and the full repository name. Private origins
-use the ordinary upstream [`auth:`](configuration.md#upstream-registries)
-configuration and access rules.
+For GHCR or Quay, use `https://ghcr.io/` or `https://quay.io/` and the full
+repository name. Private origins use the ordinary upstream
+[`auth:`](configuration.md#upstream-registries) configuration and access rules.
 
 pnpr negotiates repository-scoped pull tokens and restricts layer redirects to
 the origin's known CDN hosts, so configured credentials never travel to a layer

@@ -21,6 +21,10 @@ fn only_trusts_origin_specific_token_and_download_hosts() {
     assert!(oci_download_allowed(&hub, &cdn));
     assert!(!oci_download_allowed(&ghcr, &cdn));
     assert!(!oci_download_allowed(&hub, &Url::parse("http://127.0.0.1/layer").unwrap()));
+    let quay = Url::parse("https://quay.io/").unwrap();
+    let quay_cdn = Url::parse("https://cdn01.quay.io/layer").unwrap();
+    assert!(oci_download_allowed(&quay, &quay_cdn));
+    assert!(!oci_download_allowed(&hub, &quay_cdn));
 }
 
 #[tokio::test]
