@@ -48,15 +48,18 @@ export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (await installNotRequired(opts, upToDate, workspaceState)) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts), ...createCliConfigArgs(opts)]
-  const install = lockedInstall.bind(null, opts, command)
+  const installArgs = createInstallArgs(workspaceState?.settings)
+  const filterArgs = createFilterArgs(opts)
+  const executionCommand = ['install', ...installArgs, ...filterArgs, ...createCliConfigArgs(opts)]
+  const promptCommand = ['install', ...installArgs, ...filterArgs]
+  const install = lockedInstall.bind(null, opts, executionCommand)
 
   switch (opts.verifyDepsBeforeRun) {
     case 'install':
       await install()
       break
     case 'prompt':
-      if (await confirmInstall(opts, issue, command)) {
+      if (await confirmInstall(opts, issue, promptCommand)) {
         await install()
       }
       break
