@@ -9,6 +9,8 @@ This command will cause a package to be extracted in a temporary directory inten
 
 Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>` being the temporary directory you received) to generate a patchfile and register it into your top-level manifest via the [`patchedDependencies`] field.
 
+`pnpm install` lists the patched dependencies it installs under "Applied patches", including patched packages restored from the side-effects cache. Installs that put no patched packages in place omit the list.
+
 Usage:
 
 ```

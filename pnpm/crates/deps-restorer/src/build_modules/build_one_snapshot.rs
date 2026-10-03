@@ -7,7 +7,7 @@ mod side_effects;
 mod slot_to_build;
 use patched_engines::skip_incompatible_optional;
 use side_effects::{
-    FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
+    CachedBuild, FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
 };
 use slot_to_build::slot_to_build;
@@ -18,7 +18,6 @@ use super::{
     SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
     apply_patch_to_dir, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
     get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
-    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -52,9 +51,17 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // scripts / apply patches when they themselves are candidates.
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
-    if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
-        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
-        return Ok(());
+    match already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
+        CachedBuild::Restored => {
+            if !skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?
+                && candidate.patch.is_some()
+            {
+                context.progress.record_applied_patch(&candidate.name, &candidate.version);
+            }
+            return Ok(());
+        }
+        CachedBuild::Skipped => return Ok(()),
+        CachedBuild::Miss => {}
     }
 
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
@@ -128,6 +135,10 @@ fn build_candidate<Reporter: self::Reporter>(
             has_side_effects,
         },
     );
+
+    if is_patched {
+        context.progress.record_applied_patch(&candidate.name, &candidate.version);
+    }
 
     Ok(())
 }
@@ -317,19 +328,6 @@ fn apply_configured_patch<Reporter: self::Reporter>(
         return Ok(None);
     }
     Ok(Some(true))
-}
-
-// A removed GVS slot may have been imported pristine while its cached build row survived.
-fn global_slot_carries_overlay(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    overlay: &pnpm_store_dir::SideEffectsOverlay,
-) -> bool {
-    context.directories.layout.enable_global_virtual_store()
-        && context
-            .pkg_roots()
-            .canonical(snapshot_key)
-            .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay))
 }
 
 /// Whether the lifecycle scripts left side effects behind. `None` means an

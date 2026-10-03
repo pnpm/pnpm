@@ -10,9 +10,9 @@ use pnpm_default_reporter::{
     state::{Output, ReporterOptions, ReporterState},
 };
 use pnpm_reporter::{
-    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
-    FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog, IgnoredScriptsLog,
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    AddedRoot, AppliedPatchesLog, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog,
+    ExecutionTimeLog, FetchingProgressLog, FetchingProgressMessage, GlobalLog, HookLog,
+    IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
     LockfileVerificationMessage, LogEvent, LogLevel, NonDeprecatedAlternative, PackageImportMethod,
     PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PnpmErrorLog, PnpmLog,
     ProgressLog, ProgressMessage, RootLog, RootMessage, ScopeLog, SkippedOptionalDependencyLog,
@@ -222,6 +222,16 @@ fn ignored_scripts(names: &[&str]) -> LogEvent {
             .map(|name| (*name).to_string())
             .collect(),
         strict_dep_builds: false,
+    })
+}
+
+fn applied_patches(names: &[&str]) -> LogEvent {
+    LogEvent::AppliedPatches(AppliedPatchesLog {
+        level: LogLevel::Debug,
+        package_names: names
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
     })
 }
 
