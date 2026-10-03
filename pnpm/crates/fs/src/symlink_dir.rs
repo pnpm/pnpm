@@ -202,9 +202,9 @@ pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkO
     let target = to_native_separators(target);
     let link = to_native_separators(link);
     #[cfg(windows)]
-    return force_symlink_inner(&target, &link, TriedOnce::default(), windows::create);
+    return force_symlink(&target, &link, windows::create);
     #[cfg(not(windows))]
-    force_symlink_inner(&target, &link, TriedOnce::default(), symlink_dir)
+    force_symlink(&target, &link, symlink_dir)
 }
 
 fn force_symlink_inner(
@@ -302,28 +302,6 @@ fn is_reparse_point(path: &Path) -> bool {
         .is_ok_and(|meta| meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
 }
 
-/// Lexical "does the existing link resolve to the wanted target?"
-/// check: resolve the existing link's contents to an absolute path
-/// (using `link`'s parent dir when the contents are relative), then
-/// compare lexically against `wanted`. Single-level — does not follow
-/// chained symlinks.
-///
-/// Both sides pass through [`fn@crate::lexical_normalize`] before
-/// comparing. The `..` segments in the relative link contents
-/// [`symlink_dir`] writes must collapse before the comparison;
-/// without that, every up-to-date relative symlink reads as stale and
-/// pays an unlink + recreate.
-fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string: &Path) -> bool {
-    let existing_absolute = if existing_link_string.is_absolute() {
-        existing_link_string.to_path_buf()
-    } else {
-        link.parent()
-            .unwrap_or_else(|| Path::new(""))
-            .join(existing_link_string)
-    };
-    crate::lexical_normalize(&existing_absolute) == crate::lexical_normalize(wanted)
-}
-
 #[cfg(windows)]
 mod windows;
 
@@ -332,4 +310,6 @@ mod tests;
 
 mod absolute;
 mod replace;
+mod reuse;
 use replace::{TriedOnce, replace_unreadable_occupant};
+use reuse::{existing_symlink_up_to_date, force_symlink};
