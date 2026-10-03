@@ -417,103 +417,11 @@ fn write_flow_sequence(seq: &[Value], level: usize) -> String {
     format!("[{result}]")
 }
 
-impl TimestampScan<'_> {
-    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
-    fn date(&mut self) -> bool {
-        self.digits(4, 4)
-            && self.byte(b'-')
-            && self.digits(1, 2)
-            && self.byte(b'-')
-            && self.digits(1, 2)
-    }
-
-    fn byte(&mut self, expected: u8) -> bool {
-        if self.bytes.get(self.index) != Some(&expected) {
-            return false;
-        }
-        self.index += 1;
-        true
-    }
-
-    /// Consume between `min` and `max` digits, reporting whether at least
-    /// `min` were there.
-    fn digits(&mut self, min: usize, max: usize) -> bool {
-        let start = self.index;
-        while self.index < self.bytes.len()
-            && self.index - start < max
-            && self.bytes[self.index].is_ascii_digit()
-        {
-            self.index += 1;
-        }
-        self.index - start >= min
-    }
-
-    /// `(?:[Tt]|[ \t]+)`
-    fn time_separator(&mut self) -> bool {
-        match self.bytes.get(self.index) {
-            Some(b'T' | b't') => {
-                self.index += 1;
-                true
-            }
-            Some(b' ' | b'\t') => {
-                self.skip_spaces();
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn skip_spaces(&mut self) {
-        while matches!(self.bytes.get(self.index), Some(b' ' | b'\t')) {
-            self.index += 1;
-        }
-    }
-
-    /// `[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?`
-    fn time(&mut self) -> bool {
-        if !(self.digits(1, 2)
-            && self.byte(b':')
-            && self.digits(2, 2)
-            && self.byte(b':')
-            && self.digits(2, 2))
-        {
-            return false;
-        }
-        if self.byte(b'.') {
-            self.digits(0, usize::MAX);
-        }
-        true
-    }
-
-    /// `(?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?`, and nothing
-    /// after it.
-    fn timezone(&mut self) -> bool {
-        self.skip_spaces();
-        if self.index == self.bytes.len() {
-            return true;
-        }
-        match self.bytes.get(self.index) {
-            Some(b'Z') => self.index += 1,
-            Some(b'-' | b'+') => {
-                self.index += 1;
-                if !self.digits(1, 2) {
-                    return false;
-                }
-                if self.byte(b':') && !self.digits(2, 2) {
-                    return false;
-                }
-            }
-            _ => return false,
-        }
-        self.index == self.bytes.len()
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
 mod implicit;
-use implicit::{TimestampScan, resolves_implicitly};
+use implicit::resolves_implicitly;
 
 mod scalars;
 use scalars::write_scalar;
