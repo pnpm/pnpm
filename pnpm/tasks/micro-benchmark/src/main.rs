@@ -1,3 +1,4 @@
+mod trust_history;
 mod version_pick;
 mod workspace_resolution;
 mod workspace_sort;
@@ -33,6 +34,10 @@ struct CliArgs {
     /// no baseline: a regressed run can take minutes and several GiB.
     #[clap(long)]
     full_workspace_resolution: bool,
+
+    /// Measure compact and full trust-history scans over 1,000 releases.
+    #[clap(long, conflicts_with = "full_workspace_resolution")]
+    trust_history: bool,
 }
 
 fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
@@ -265,19 +270,23 @@ pub fn main() -> Result<(), String> {
     let CliArgs {
         save_baseline,
         full_workspace_resolution,
+        trust_history,
     } = CliArgs::parse();
     if full_workspace_resolution {
         workspace_resolution::run_full_workspace_resolution();
         return Ok(());
     }
-    let mut server = mockito::Server::new();
-    let root = get_project_root().unwrap();
-    let fixtures_folder = root.join("pnpm/tasks/micro-benchmark/fixtures");
-
     let mut criterion = Criterion::default().without_plots();
     if let Some(baseline) = save_baseline {
         criterion = criterion.save_baseline(baseline);
     }
+    if trust_history {
+        trust_history::bench_trust_history(&mut criterion);
+        return Ok(());
+    }
+    let mut server = mockito::Server::new();
+    let root = get_project_root().unwrap();
+    let fixtures_folder = root.join("pnpm/tasks/micro-benchmark/fixtures");
 
     let packument = fixtures_folder
         .join("lodash.json")
