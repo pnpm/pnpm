@@ -194,6 +194,7 @@ export type RunOpts =
   >
   & Partial<Pick<Config, 'filter' | 'filterProd'>>
   & Pick<ConfigContext, 'cliOptions'>
+  & Partial<Pick<ConfigContext, 'rawCliConfig'>>
   & (
     | { recursive?: false } & Partial<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>
     | { recursive: true } & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir'>>

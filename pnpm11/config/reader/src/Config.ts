@@ -80,6 +80,7 @@ export interface ConfigContext {
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
+  rawCliConfig?: Record<string, unknown>
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>
   packageManager: {

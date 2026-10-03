@@ -128,6 +128,8 @@ pub struct ConfigOverrides {
     /// value parsed, for [`Config::cli_settings`].
     pub(super) settings: BTreeSet<String>,
 
+    pub(super) raw_cli_config: Vec<(String, String)>,
+
     /// The `--config.<key>=<value>` tokens no table above claims, by
     /// kebab-case setting name, for [`Config::cli_setting_values`].
     unported: BTreeMap<String, String>,
@@ -176,6 +178,19 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
+    pub(crate) fn raw_cli_config(&self) -> &[(String, String)] {
+        &self.raw_cli_config
+    }
+
+    fn record_raw_config(&mut self, arg: &OsString, key: &str, value: &str) {
+        if arg
+            .to_str()
+            .is_some_and(|s| s.starts_with("--config."))
+        {
+            self.raw_cli_config.push((key.to_string(), value.to_string()));
+        }
+    }
+
     pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
         self.shared_workspace_lockfile
     }
@@ -222,9 +237,13 @@ impl ConfigOverrides {
                 ConfigToken::WellFormed { key, value }
                     if matches!(key, "state-dir" | "store-dir") =>
                 {
+                    overrides.record_raw_config(&arg, key, value);
                     remaining.push(OsString::from(format!("--{key}={value}")));
                 }
-                ConfigToken::WellFormed { key, value } => overrides.set(key, value),
+                ConfigToken::WellFormed { key, value } => {
+                    overrides.record_raw_config(&arg, key, value);
+                    overrides.set(key, value);
+                }
                 ConfigToken::BooleanFollows(key) => {
                     overrides.set(key, following(key).as_deref().unwrap_or("true"));
                 }

@@ -93,6 +93,7 @@ pub(crate) fn verify_deps_before_run(
     // A filtered `run` or `exec` only selected some of the workspace's
     // projects, so its install has to select the same ones.
     install_args.extend(install_selection_args(config));
+    install_args.extend(install_config_args(config));
     match config.verify_deps_before_run {
         VerifyDepsBeforeRun::Install => {
             locked_install(dir, selected_project_dirs, config, &install_args, reporter)
@@ -203,6 +204,7 @@ fn locked_install(
     match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
         Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
             install_args.extend(install_selection_args(config));
+            install_args.extend(install_config_args(config));
             spawn_install(dir, &install_args, reporter)
         }
         _ => Ok(()),
@@ -369,6 +371,13 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
     } else {
         format!("{selector}...")
     }
+}
+
+fn install_config_args(config: &Config) -> Vec<String> {
+    config.raw_cli_config
+        .iter()
+        .map(|(key, value)| format!("--config.{key}={value}"))
+        .collect()
 }
 
 #[cfg(test)]

@@ -138,7 +138,8 @@ async function readCommandConfig (
   parsedCliArgs: ParsedCliArgsWithBuiltIn,
   rejectUnknownOptions: boolean
 ): Promise<LoadedConfig | undefined> {
-  const { cmd, params: cliParams, options: cliOptions, unknownOptions, workspaceDir } = parsedCliArgs
+  const { cmd, params: cliParams, options: cliOptions, unknownOptions, workspaceDir, rawCliConfig } = parsedCliArgs
+  cliOptions.rawCliConfig = rawCliConfig
   const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
   if (cmd === 'link' && cliParams.length === 0) {
     cliOptions.global = true
