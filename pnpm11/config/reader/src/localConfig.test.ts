@@ -39,7 +39,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
   })
 })
 
-test('inheritDlxConfig copies auth and security policy keys from source to target', () => {
+test('inheritDlxConfig copies auth, security policy, and nodeDownloadMirrors from source to target', () => {
   const target: InheritableConfigPair = {
     config: {
       bin: 'foo',
@@ -59,6 +59,7 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       storeDir: '/path/to/custom/store/dir',
       registry: 'https://example.com/local-registry/',
       shamefullyHoist: false,
+      nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
       minimumReleaseAge: 1440,
       minimumReleaseAgeExclude: ['trusted-pkg'],
       minimumReleaseAgeStrict: true,
@@ -72,13 +73,12 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
     },
   })
 
-  // Auth keys and security/trust policy keys are inherited;
-  // project-structural keys (bin, cacheDir, shamefullyHoist) keep their target values.
   expect(target.config).toMatchObject({
     bin: 'foo',
     cacheDir: '/path/to/cache/dir',
     shamefullyHoist: true,
     registry: 'https://example.com/local-registry/',
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
     minimumReleaseAge: 1440,
     minimumReleaseAgeExclude: ['trusted-pkg'],
     minimumReleaseAgeStrict: true,
@@ -90,6 +90,5 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
     },
   })
-  // storeDir exists only on the source, must not be inherited.
   expect(target.config.storeDir).toBeUndefined()
 })
