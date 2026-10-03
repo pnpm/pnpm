@@ -81,6 +81,9 @@ impl EnvVar for GlEnv {
             "CI_PIPELINE_ID" => "999",
             "CI_CONFIG_PATH" => ".gitlab-ci.yml",
             "CI_JOB_URL" => "https://gitlab.com/pnpm/pnpm/-/jobs/555",
+            "CI_PROJECT_ID" => "123",
+            "CI_PROJECT_NAMESPACE_ID" => "456",
+            "CI_PIPELINE_SOURCE" => "push",
             _ => return None,
         };
         Some(value.to_owned())
@@ -106,6 +109,29 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
     );
     assert_eq!(predicate["materials"][0]["uri"], "git+https://gitlab.com/pnpm/pnpm");
     assert_eq!(predicate["materials"][0]["digest"]["sha1"], "abc123");
+}
+
+#[test]
+fn gitlab_statement_lists_the_set_ci_variables_as_invocation_parameters() {
+    let subject = json!([{ "name": "pkg:npm/pkg@1.0.0", "digest": { "sha512": "deadbeef" } }]);
+    let statement = gitlab_statement::<GlEnv>(&subject);
+
+    assert_eq!(
+        statement["predicate"]["invocation"]["parameters"],
+        json!({
+            "CI_COMMIT_SHA": "abc123",
+            "CI_CONFIG_PATH": ".gitlab-ci.yml",
+            "CI_JOB_ID": "555",
+            "CI_JOB_NAME": "publish",
+            "CI_JOB_URL": "https://gitlab.com/pnpm/pnpm/-/jobs/555",
+            "CI_PIPELINE_ID": "999",
+            "CI_PIPELINE_SOURCE": "push",
+            "CI_PROJECT_ID": "123",
+            "CI_PROJECT_NAMESPACE_ID": "456",
+            "CI_PROJECT_URL": "https://gitlab.com/pnpm/pnpm",
+            "CI_RUNNER_ID": "77",
+        }),
+    );
 }
 
 /// A GitHub-Actions provider that reuses [`GhEnv`]'s variable bodies.
