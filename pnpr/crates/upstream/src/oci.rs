@@ -295,7 +295,7 @@ fn token_realm_allowed(base: &Url, realm: &Url) -> bool {
                 && realm.path() == "/token"))
 }
 
-/// The configured origin and the public layer hosts used by Docker Hub and GHCR.
+/// The configured origin and the public layer hosts used by Docker Hub, GHCR, and Quay.
 #[must_use]
 pub fn oci_download_allowed(base: &Url, target: &Url) -> bool {
     if !matches!(target.scheme(), "http" | "https")
@@ -320,6 +320,16 @@ pub fn oci_download_allowed(base: &Url, target: &Url) -> bool {
                 | "https://docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com",
         ),
         "https://ghcr.io" => origin == "https://pkg-containers.githubusercontent.com",
+        "https://quay.io" => matches!(
+            origin.as_str(),
+            "https://cdn.quay.io"
+                | "https://cdn01.quay.io"
+                | "https://cdn02.quay.io"
+                | "https://cdn03.quay.io"
+                | "https://cdn04.quay.io"
+                | "https://cdn05.quay.io"
+                | "https://cdn06.quay.io",
+        ),
         _ => false,
     }
 }
