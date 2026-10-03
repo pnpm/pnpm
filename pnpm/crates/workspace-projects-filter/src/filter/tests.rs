@@ -567,6 +567,8 @@ fn is_subdir_contract() {
 /// upstream's "select changed packages" suite. Each builds a real git
 /// repository in a temp directory.
 mod changed_packages {
+    mod git_pathnames;
+
     use super::{TestPkg, graph_project, node_at};
     use crate::{
         filter::{FilterError, FilterWorkspaceProjectsOptions, filter_workspace_projects},
