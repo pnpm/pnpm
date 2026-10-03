@@ -326,7 +326,8 @@ fn host_try_lock(file: &std::fs::File, mode: crate::LockMode) -> i32 {
         crate::LockMode::Exclusive => 1,
         crate::LockMode::Shared => 0,
     };
-    // SAFETY: the file keeps its descriptor alive throughout the host call.
+    // SAFETY: the borrow keeps the descriptor open across the call, and
+    // the host takes both arguments by value.
     unsafe { host::try_lock(file.as_raw_fd(), exclusive) }
 }
 
