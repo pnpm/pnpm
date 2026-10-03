@@ -259,22 +259,8 @@ fn root_runs_preinstall(scope: &RootHooksScope<'_>, normalized_root: &Path) -> b
 /// scripts this run fires: the projects the selection installs, or every
 /// project when there is none, stand in for the set the run materializes.
 fn root_runs_own_scripts(scope: &RootHooksScope<'_>, normalized_root: &Path) -> bool {
-    let materialized_project_manifests = match scope.scripts.workspace {
-        Some(selection) => {
-            let install_dirs = selection.install_dirs
-                .iter()
-                .map(|dir| pnpm_fs::lexical_normalize(dir))
-                .collect::<HashSet<_>>();
-            scope.project_manifests
-                .iter()
-                .filter(|(project_dir, _)| {
-                    install_dirs.contains(&pnpm_fs::lexical_normalize(project_dir))
-                })
-                .cloned()
-                .collect::<Vec<_>>()
-        }
-        None => scope.project_manifests.to_vec(),
-    };
+    let materialized_project_manifests =
+        installed_project_manifests(scope.project_manifests, scope.scripts.workspace);
     projects_running_own_scripts(&ProjectScriptsInputs {
         mutation: scope.scripts.mutation,
         workspace_root: scope.workspace_root,
@@ -286,6 +272,22 @@ fn root_runs_own_scripts(scope: &RootHooksScope<'_>, normalized_root: &Path) -> 
     })
     .iter()
     .any(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
+}
+/// The projects the selection installs, or every project when there is none.
+pub(super) fn installed_project_manifests<'manifest>(
+    project_manifests: &[(PathBuf, &'manifest PackageManifest)],
+    selection: Option<&crate::WorkspaceInstallSelection<'_>>,
+) -> Vec<(PathBuf, &'manifest PackageManifest)> {
+    let Some(selection) = selection else { return project_manifests.to_vec() };
+    let install_dirs = selection.install_dirs
+        .iter()
+        .map(|dir| pnpm_fs::lexical_normalize(dir))
+        .collect::<HashSet<_>>();
+    project_manifests
+        .iter()
+        .filter(|(project_dir, _)| install_dirs.contains(&pnpm_fs::lexical_normalize(project_dir)))
+        .cloned()
+        .collect()
 }
 /// `project_manifests` with the user's `packageExtensions` applied, matching
 /// what the resolver hands the rest of the install. pnpm's built-in

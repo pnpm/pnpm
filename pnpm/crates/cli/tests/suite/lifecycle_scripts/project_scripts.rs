@@ -1,3 +1,4 @@
+mod repeat_install;
 mod uninstall;
 
 use assert_cmd::prelude::*;

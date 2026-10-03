@@ -243,6 +243,8 @@ Added in: v10.1.0
 
 When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster.
 
+When the check finds that nothing changed, pnpm skips the install, including the projects' own lifecycle scripts, such as `prepare`. Set this to `false` to run those scripts on every install.
+
 ### requiredScripts
 
 Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail.

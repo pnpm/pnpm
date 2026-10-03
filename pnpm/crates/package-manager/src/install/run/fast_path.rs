@@ -32,29 +32,29 @@ pub(super) struct UpToDateCheck<'a> {
 /// already up to date" and the mutation would never be resolved or
 /// materialized. `pacquet update` is excluded through its seed policy: a
 /// compatible bump leaves the manifest byte-identical, which the check would
-/// likewise read as up to date and skip the registry re-resolution. Disabled
-/// under `--frozen-lockfile`: an explicit headless install should always go
-/// through the dispatch so a `NoLockfile` or `OutdatedLockfile` error still
-/// fires when the lockfile is missing or stale.
+/// likewise read as up to date and skip the registry re-resolution. A
+/// `--frozen-lockfile` install never short-circuits: it always goes through
+/// the dispatch so a `NoLockfile` or `OutdatedLockfile` error still fires
+/// when the lockfile is missing or stale. It only skips the projects' own
+/// lifecycle scripts when nothing changed.
 ///
 /// A `--filter` narrowing does not disqualify the run: the check validates the
 /// whole workspace (`project_manifests` covers every project even when only a
 /// subset is selected), and it refuses a workspace state a filtered install
 /// wrote, so "nothing changed" still means every selected project is
 /// materialized.
-pub(super) fn install_is_already_up_to_date(
+pub(super) fn repeat_install_verdict(
     check: &UpToDateCheck<'_>,
-) -> Result<bool, InstallError> {
+) -> Result<RepeatInstallVerdict, InstallError> {
     if !check.resolve_only {
         register_workspace_in_store(check.workspace.config, check.workspace.workspace_root);
     }
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
-        && !check.frozen_lockfile
         && !check.workspace.config.force
         && !check.disable_optimistic_repeat_install;
     if !eligible {
-        return Ok(false);
+        return Ok(RepeatInstallVerdict::Changed);
     }
     if let OptimisticRepeatInstallDecision::Skipped { reason } =
         check_optimistic_repeat_install(&check.workspace)
@@ -64,9 +64,27 @@ pub(super) fn install_is_already_up_to_date(
             reason,
             "repeat-install fast path skipped; running the full install",
         );
-        return Ok(false);
+        return Ok(RepeatInstallVerdict::Changed);
     }
-    build_state_allows_short_circuit(check)
+    if check.frozen_lockfile {
+        return Ok(RepeatInstallVerdict::UnchangedFrozen);
+    }
+    Ok(if build_state_allows_short_circuit(check)? {
+        RepeatInstallVerdict::Unchanged
+    } else {
+        RepeatInstallVerdict::Changed
+    })
+}
+/// What [`repeat_install_verdict`] found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RepeatInstallVerdict {
+    /// The install runs in full.
+    Changed,
+    /// The install short-circuits with "Already up to date".
+    Unchanged,
+    /// A `--frozen-lockfile` install that changed nothing. It still runs, but
+    /// the projects do not run their own lifecycle scripts.
+    UnchangedFrozen,
 }
 /// Whether the recorded build state lets the fast path stand.
 ///
@@ -125,7 +143,7 @@ pub(super) fn build_state_allows_short_circuit(
 /// have. An unchanged untracked hook does not count, as an unchanged
 /// pnpmfile does not. An unreadable lockfile or hook counts as changed. A
 /// missing lockfile leaves nothing to compare.
-pub(super) async fn pnpmfile_hook_override_changed(
+async fn pnpmfile_hook_override_changed(
     hooks: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
 ) -> bool {
@@ -191,5 +209,25 @@ pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path
             ?error,
             "Failed to register workspace root in the store project registry; install continues",
         );
+    }
+}
+
+impl super::RunExecution<'_> {
+    /// The repeat-install check for this run. An embedder's changed in-memory
+    /// hooks count as a change the check cannot see.
+    pub(super) async fn repeat_install_verdict(
+        &mut self,
+        scope: &super::InstallScope<'_>,
+    ) -> Result<RepeatInstallVerdict, InstallError> {
+        let embedder_hooks = self.owned.projects.pnpmfile_hook_override.clone();
+        self.check_custom_fetcher_reuse().await?;
+        let verdict =
+            scope.repeat_install_verdict(self.install, &self.owned, &self.mode, &self.workspace)?;
+        if verdict == RepeatInstallVerdict::Changed
+            || pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
+        {
+            return Ok(RepeatInstallVerdict::Changed);
+        }
+        Ok(verdict)
     }
 }

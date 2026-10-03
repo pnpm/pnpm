@@ -170,3 +170,44 @@ fn a_failure_stops_the_projects_waiting_for_their_workspace_dependencies() {
     assert!(workspace.join("broken-failing").exists());
     assert!(!workspace.join("app-ran").exists());
 }
+
+/// On a repeat install that finds a project's tree up to date, the project
+/// still runs its scripts only after the workspace projects it depends on
+/// ran theirs.
+#[test]
+fn an_up_to_date_project_runs_its_scripts_after_its_workspace_dependencies() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    lib_and_app(
+        workspace,
+        &serde_json::json!({
+            "postinstall": r#"node -e "setTimeout(() => require('fs').writeFileSync('../../lib-built', ''), 500)""#,
+        }),
+        &serde_json::json!({
+            "postinstall": r#"node -e "process.exit(require('fs').existsSync('../../lib-built') ? 0 : 1)""#,
+        }),
+    );
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&yaml_path, format!("{yaml}optimisticRepeatInstall: false\n"))
+        .expect("write pnpm-workspace.yaml");
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(workspace.join("lib-built")).expect("clear the first install's mark");
+
+    let output = pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8_lossy(&output);
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(
+        stdout.contains("Already up to date"),
+        "the repeat install must take the up-to-date path this test covers",
+    );
+}
