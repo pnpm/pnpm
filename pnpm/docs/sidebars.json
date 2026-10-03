@@ -239,6 +239,8 @@
         "logos",
         "limitations",
         "symlinked-node-modules-structure",
+        "store-loader",
+        "store-loader-compatibility",
         "how-peers-are-resolved",
         "lockfile",
         "uninstall",

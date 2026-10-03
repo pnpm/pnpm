@@ -1,0 +1,99 @@
+diff --git a/index.js b/index.js
+index 2d0388b17de6d0e4e4d0c04292aa7690fb9367aa..b7ce489cd0e84f15dd27fe06bbdb16efdcd0e577 100644
+--- a/index.js
++++ b/index.js
+@@ -1,3 +1,8 @@
++if (process.env.UNRS_RESOLVER_NODE_RESOLUTION === '1') {
++  module.exports = require('./node-resolution.cjs')
++  return
++}
++
+ // prettier-ignore
+ /* eslint-disable */
+ // @ts-nocheck
+diff --git a/node-resolution.cjs b/node-resolution.cjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0a2457a22815666d936ef8b2547ca28fa7b78c10
+--- /dev/null
++++ b/node-resolution.cjs
+@@ -0,0 +1,66 @@
++'use strict'
++
++const { createRequire, isBuiltin, registerHooks } = require('node:module')
++const path = require('node:path')
++
++// Opt-in Node semantics: aliases, tsconfig paths, and other unrs-specific
++// resolution policies are not applied in this mode.
++class ResolverFactory {
++  constructor(options = {}) {
++    this.options = options
++  }
++
++  static default() {
++    return new ResolverFactory()
++  }
++
++  cloneWithOptions(options) {
++    return new ResolverFactory({ ...this.options, ...options })
++  }
++
++  clearCache() {}
++
++  sync(directory, request) {
++    if (isBuiltin(request)) {
++      return { builtin: { resolved: request, isRuntimeModule: request.startsWith('node:') } }
++    }
++    const conditions = this.options.conditionNames
++    const hooks = conditions && registerHooks({
++      resolve(specifier, context, nextResolve) {
++        return nextResolve(specifier, { ...context, conditions })
++      },
++    })
++    try {
++      const requireFrom = createRequire(path.join(directory, '__unrs_resolve__.cjs'))
++      return { path: requireFrom.resolve(request) }
++    } catch (error) {
++      if (error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_MODULE_NOT_FOUND' ||
++          error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED' || error.code === 'ERR_PACKAGE_IMPORT_NOT_DEFINED' ||
++          error.code === 'ERR_PNPM_LOADER_UNDECLARED_DEPENDENCY') {
++        return { error: error.message }
++      }
++      throw error
++    } finally {
++      hooks?.deregister()
++    }
++  }
++
++  async async(directory, request) {
++    return this.sync(directory, request)
++  }
++
++  resolveFileSync(filename, request) {
++    return this.sync(path.dirname(filename), request)
++  }
++
++  async resolveFileAsync(filename, request) {
++    return this.resolveFileSync(filename, request)
++  }
++}
++
++module.exports = {
++  ResolverFactory,
++  EnforceExtension: { Auto: 0, Enabled: 1, Disabled: 2 },
++  ModuleType: { Module: 'module', CommonJs: 'commonjs', Json: 'json', Wasm: 'wasm', Addon: 'addon' },
++  sync: (directory, request, options) => new ResolverFactory(options).sync(directory, request),
++}
+diff --git a/package.json b/package.json
+index 6214d141fda5719227f13bf3b815dc69b0d08f53..bef4e2d859f0296140e162b43e495469d1d4de28 100644
+--- a/package.json
++++ b/package.json
+@@ -15,7 +15,8 @@
+     "browser.js",
+     "index.d.ts",
+     "index.js",
+-    "postinstall.js"
++    "postinstall.js",
++    "node-resolution.cjs"
+   ],
+   "main": "index.js",
+   "browser": "browser.js",

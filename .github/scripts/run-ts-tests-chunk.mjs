@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process'
+import console from 'node:console'
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
+import process from 'node:process'
 
 import { readTestDurations, selectChunk, taskWeight } from './ts-test-chunks.mjs'
 
@@ -179,6 +181,8 @@ async function runScriptTask (pkg) {
       await runCommand('node', ['--test', 'test/test.js', 'test/e2e.test.js'], { cwd: pkg.path })
     } else if (pkg.manifest.name === '@pnpm/eslint-config') {
       await runCommand('node', ['--test', 'test/perfectionist.test.js'], { cwd: pkg.path })
+    } else if (pkg.manifest.name === '@pnpm/esm-loader') {
+      await runCommand('node', ['--test', 'test/loader.test.mjs', 'scripts/test-unrs-resolver.mjs'], { cwd: pkg.path })
     } else {
       throw new Error(`Unsupported non-Jest .test script in ${relDir}: ${pkg.manifest.scripts['.test']}`)
     }

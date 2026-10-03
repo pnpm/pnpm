@@ -1184,7 +1184,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
   // lockfiles ends the check without reading it. A read that fails must not
   // surface as an unhandled rejection, which crashes the pnpm process.
   it('does not leave the failed read of an unused wanted lockfile unhandled', async () => {
-    const lastValidatedTimestamp = Date.now() - 10_000
+    const lastValidatedTimestamp = 1_700_000_000_123
     const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: [],
