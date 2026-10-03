@@ -53,6 +53,32 @@ The pnpm store is intended to be shared only between mutually trusted users, job
 
 :::
 
+### fallbackStoreDir
+
+* Default: **undefined**
+* Type: **path**
+
+A read-only store to copy packages from when they are missing from
+[`storeDir`](#storedir). pnpm verifies each copied file against its recorded
+hash, saves it in the writable store, and downloads the package if the fallback
+has no usable copy. This also works with `--offline` when the fallback contains
+the required packages.
+
+```yaml
+storeDir: .pnpm-store
+fallbackStoreDir: /mnt/shared-pnpm-store
+```
+
+Set it in `pnpm-workspace.yaml`, the [global configuration file](../cli/config.md),
+or `PNPM_CONFIG_FALLBACK_STORE_DIR`. Relative paths resolve like `storeDir`.
+
+The fallback store must stay unchanged throughout the install. Only use stores
+populated by mutually trusted users and processes, as described under
+[`storeDir`](#storedir). File checks detect corruption, not a malicious store index.
+
+This setting has no effect with [`frozenStore`](#frozenstore). Git dependencies,
+directory dependencies, and cached build outputs are not copied from the fallback.
+
 ### verifyStoreIntegrity
 
 * Default: **true**
