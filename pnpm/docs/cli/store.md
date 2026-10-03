@@ -19,6 +19,18 @@ time of unpacking.
 Functionally equivalent to [`pnpm add`], except this adds new packages to the
 store directly without modifying any projects or files outside of the store.
 
+Downloaded package tarballs can also warm the store for an offline install:
+
+```sh
+pnpm install --lockfile-only
+pnpm store add ./tarballs/*.tgz
+pnpm install --offline --frozen-lockfile
+```
+
+Each tarball must contain the package name and version recorded in the lockfile,
+and its bytes must match the lockfile's SHA-512 integrity. Lockfile entries with
+only SHA-1 integrity cannot reuse packages added this way.
+
 [`pnpm add`]: ./add.md
 
 ### prune
