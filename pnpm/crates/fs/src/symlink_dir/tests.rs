@@ -108,8 +108,6 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     );
 }
 
-/// A relink of an up-to-date link must not attempt a create: on macOS a
-/// `symlink()` that fails with `EEXIST` is the slow path of a relink.
 #[test]
 fn force_symlink_reuses_an_up_to_date_link_without_a_create_attempt() {
     fn refuse_to_create(_: &std::path::Path, _: &std::path::Path) -> std::io::Result<()> {
