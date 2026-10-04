@@ -10,7 +10,8 @@
 //!
 //! The flag is repeatable and the files are processed in order. The first
 //! value naming a variable wins, and a variable already present in the
-//! environment is never overridden. A missing or malformed file fails the
+//! environment is never overridden. A leading UTF-8 byte-order mark is
+//! tolerated. A missing or malformed file fails the
 //! command loudly rather than running with a partial environment. Parse
 //! errors name the file but never echo its contents: env files routinely
 //! hold secrets that must not leak into stderr and CI logs.
@@ -103,9 +104,17 @@ pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
     scan(argv).1
 }
 
+/// The UTF-8 byte-order mark Windows editors routinely prepend to a `.env`
+/// file. `dotenvy::from_path_iter` never runs the BOM removal that
+/// `Iter::load` performs, so without this the first key would carry a
+/// leading U+FEFF and fail to parse (or misname the variable).
+const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
 fn load_one(path: &Path) -> miette::Result<()> {
-    let pairs = dotenvy::from_path_iter(path).map_err(|error| EnvFileError::load(path, error))?;
-    for pair in pairs {
+    let bytes =
+        std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
+    let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
+    for pair in dotenvy::from_read_iter(stripped) {
         let (key, value) = pair.map_err(|error| EnvFileError::load(path, error))?;
         if value.contains('\0') {
             return Err(EnvFileError::nul(path, &key).into());
