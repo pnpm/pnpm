@@ -3,7 +3,7 @@ use super::runtime_env::managed_runtime_bin;
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
-    Candidate, find_candidate,
+    Candidate, ShimLaunch, find_candidate,
     identity::{
         MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
         read_shim_target_from_content, small_file_hash,
@@ -12,7 +12,6 @@ use super::{
     runtime_env::hardened_install_config,
     runtime_pin,
     trust::{append_trust_decision, read_trust_decision},
-    try_dispatch,
 };
 use crate::shim_dispatch::settings::apply_state_dir_setting;
 use pnpm_config::{Config, NodeLinker, ShimPolicy};
@@ -25,27 +24,33 @@ fn strings(items: &[&str]) -> Vec<OsString> {
         .collect()
 }
 
+/// Dispatch through a freshly detected launch, the way [`crate::main`]
+/// carries one verdict from its `--env-file` gate into the command.
+fn dispatch(argv: &[OsString]) -> Option<i32> {
+    ShimLaunch::detect(argv).dispatch(argv)
+}
+
 #[test]
 fn non_shim_argv_is_not_intercepted() {
-    assert!(try_dispatch(&strings(&["pnpm"])).is_none());
-    assert!(try_dispatch(&strings(&["pnpm", "install"])).is_none());
-    assert!(try_dispatch(&strings(&["pnpm", "add", "--shim"])).is_none());
+    assert!(dispatch(&strings(&["pnpm"])).is_none());
+    assert!(dispatch(&strings(&["pnpm", "install"])).is_none());
+    assert!(dispatch(&strings(&["pnpm", "add", "--shim"])).is_none());
 }
 
 #[test]
 fn malformed_legacy_shim_argv_fails_instead_of_running_the_cli() {
-    assert_eq!(try_dispatch(&strings(&["pnpm", "--shim"])), Some(1));
-    assert_eq!(try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool"])), Some(1));
+    assert_eq!(dispatch(&strings(&["pnpm", "--shim"])), Some(1));
+    assert_eq!(dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool"])), Some(1));
     assert_eq!(
-        try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "/g/pkg/cli", "x"])),
+        dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "/g/pkg/cli", "x"])),
         Some(1),
     );
     assert_eq!(
-        try_dispatch(&strings(&["pnpm", "--shim", "../tool", "/g/bin/tool", "/g/pkg/cli", "--"])),
+        dispatch(&strings(&["pnpm", "--shim", "../tool", "/g/bin/tool", "/g/pkg/cli", "--"])),
         Some(1),
     );
     assert_eq!(
-        try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "pkg:not valid", "--"])),
+        dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "pkg:not valid", "--"])),
         Some(1),
     );
 }
