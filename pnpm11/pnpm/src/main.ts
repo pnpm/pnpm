@@ -139,7 +139,6 @@ async function readCommandConfig (
   rejectUnknownOptions: boolean
 ): Promise<LoadedConfig | undefined> {
   const { cmd, params: cliParams, options: cliOptions, unknownOptions, workspaceDir, rawCliConfig } = parsedCliArgs
-  cliOptions.rawCliConfig = rawCliConfig
   const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
   if (cmd === 'link' && cliParams.length === 0) {
     cliOptions.global = true
@@ -151,6 +150,7 @@ async function readCommandConfig (
     globalDirShouldAllowWrite: cmd !== 'root' && cmd !== 'prefix',
     skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
     workspaceDir,
+    rawCliConfig,
     onlyInheritDlxSettingsFromLocal: cmd === 'dlx' || cmd === 'create',
     forSelfUpdate: cmd === 'self-update',
     printWarnings: !isSingleSettingRead(cmd, cliParams),

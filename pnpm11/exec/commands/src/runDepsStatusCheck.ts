@@ -48,18 +48,15 @@ export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (await installNotRequired(opts, upToDate, workspaceState)) return
 
-  const installArgs = createInstallArgs(workspaceState?.settings)
-  const filterArgs = createFilterArgs(opts)
-  const executionCommand = ['install', ...installArgs, ...filterArgs, ...createCliConfigArgs(opts)]
-  const promptCommand = ['install', ...installArgs, ...filterArgs]
-  const install = lockedInstall.bind(null, opts, executionCommand)
+  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
+  const install = lockedInstall.bind(null, opts, command)
 
   switch (opts.verifyDepsBeforeRun) {
     case 'install':
       await install()
       break
     case 'prompt':
-      if (await confirmInstall(opts, issue, promptCommand)) {
+      if (await confirmInstall(opts, issue, command)) {
         await install()
       }
       break
@@ -249,7 +246,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
       if (await installNotRequired(opts, upToDate, workspaceState)) return
-      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts), ...createCliConfigArgs(opts)]
+      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
     runInstall(opts, command)
   } finally {
@@ -266,7 +263,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
 function runInstall (opts: RunDepsStatusCheckOptions, command: string[]): void {
   const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
   try {
-    runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
+    runPnpmCli([...command, ...createCliConfigArgs(opts)], { cwd: opts.dir, loglevel, reporter: opts.reporter })
   } catch (err: unknown) {
     if (!isFailedInstall(err)) throw err
     globalWarn('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install.')
@@ -319,6 +316,11 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
   ]
 }
 
+/**
+ * The command line's `--config.*` options, which the install inherits. They
+ * stay out of the prompt, which could otherwise print a credential such as
+ * `--config.//registry.example/:_authToken=...`.
+ */
 export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawCliConfig'>): string[] {
   if (!opts.rawCliConfig) return []
   return Object.entries(opts.rawCliConfig).flatMap(([key, value]) => {
@@ -327,4 +329,3 @@ export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawC
     return values.map((item) => `--config.${key}=${item}`)
   })
 }
-

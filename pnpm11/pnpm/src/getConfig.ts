@@ -22,6 +22,7 @@ export async function getConfig (
     globalDirShouldAllowWrite?: boolean
     skipGlobalBinDirCheck?: boolean
     workspaceDir: string | undefined
+    rawCliConfig?: Record<string, unknown>
     onlyInheritDlxSettingsFromLocal?: boolean
     forSelfUpdate?: boolean
     printWarnings?: boolean
@@ -37,7 +38,7 @@ export async function getConfig (
     forSelfUpdate: opts.forSelfUpdate,
   })
   context.cliOptions = cliOptions
-  context.rawCliConfig = cliOptions.rawCliConfig as Record<string, unknown> | undefined
+  context.rawCliConfig = opts.rawCliConfig
   applyDerivedConfig(config)
 
   if (opts.excludeReporter) {

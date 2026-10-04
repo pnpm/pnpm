@@ -209,7 +209,6 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
   pnpmConfig.explicitlySetKeys = explicitlySetKeys
   pnpmConfig.cliOptions = cliOptions
-  pnpmConfig.rawCliConfig = cliOptions.rawCliConfig as Record<string, unknown> | undefined
   Object.assign(pnpmConfig, configFromCliOpts)
   pnpmConfig.configDir = configDir
   const state: ConfigBuildState = {

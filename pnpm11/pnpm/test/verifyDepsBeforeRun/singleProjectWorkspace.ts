@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -272,38 +272,28 @@ test('a failed install before the script is reported as a warning and the script
   expect(output).toContain('hello from script')
 })
 
-test('a pinned lockfile directory receives the lockfile when verify-deps-before-run triggers install', async () => {
-  const projects = preparePackages([
-    {
-      location: '.',
-      package: {
-        name: 'root',
-        private: true,
-      },
+test('the install started before a script writes the lockfile to a --config.lockfile-dir outside the project', async () => {
+  prepare({ name: 'root', private: true })
+  const projectDir = path.resolve('project')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'project',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
     },
-    {
-      name: 'project',
-      private: true,
-      dependencies: {
-        '@pnpm.e2e/foo': '100.0.0',
-      },
-      scripts: {
-        start: 'echo hello from script',
-      },
+    scripts: {
+      start: 'echo hello from script',
     },
-  ])
-
-  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+  }))
 
   const { stdout } = execPnpmSync([
     '--config.verify-deps-before-run=install',
     '--config.lockfile-dir=..',
     'start',
-  ], { cwd: projects.project.dir(), expectSuccess: true })
+  ], { cwd: projectDir, expectSuccess: true })
 
   expect(stdout.toString()).toContain('hello from script')
-  expect(fs.existsSync(path.resolve('pnpm-lock.yaml'))).toBe(true)
-  expect(fs.existsSync(path.resolve('project', 'pnpm-lock.yaml'))).toBe(false)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+  expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
 })
-
-

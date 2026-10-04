@@ -95,6 +95,30 @@ fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
 }
 
 #[test]
+fn raw_cli_config_keeps_only_the_dotted_tokens_before_the_separator() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.lockfileDir=..",
+        "--ignore-scripts",
+        "--config.store-dir=/store",
+        "run",
+        "build",
+        "--",
+        "--config.registry=https://example.test/",
+    ]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(
+        config.raw_cli_config,
+        [
+            ("lockfileDir".to_owned(), "..".to_owned()),
+            ("store-dir".to_owned(), "/store".to_owned()),
+        ],
+    );
+}
+
+#[test]
 fn registry_cli_override_normalizes_and_sets_every_registry_slot() {
     let mut config = Config::default();
     // No trailing slash on the input; it is normalized on the way in.

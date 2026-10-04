@@ -566,3 +566,26 @@ test('passes rawCliConfig flags to install command', async () => {
     expect.objectContaining({ cwd: process.cwd() })
   )
 })
+
+test('the prompt omits the forwarded --config flags that the confirmed install receives', async () => {
+  mockOutdatedStatus()
+  confirm.mockResolvedValue(true)
+
+  await withTTY(() => runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: { name: 'root', dependencies: { foo: '1.0.0' } },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'prompt',
+    rawCliConfig: { '//registry.example/:_authToken': 'secret' },
+  }))
+
+  expect(JSON.stringify(confirm.mock.calls)).not.toContain('secret')
+  expect(runPnpmCli).toHaveBeenCalledWith(
+    ['install', '--config.//registry.example/:_authToken=secret'],
+    expect.objectContaining({ cwd: process.cwd() })
+  )
+})

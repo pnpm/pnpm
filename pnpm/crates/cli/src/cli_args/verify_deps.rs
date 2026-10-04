@@ -93,21 +93,13 @@ pub(crate) fn verify_deps_before_run(
     // A filtered `run` or `exec` only selected some of the workspace's
     // projects, so its install has to select the same ones.
     install_args.extend(install_selection_args(config));
-    let mut execution_args = install_args.clone();
-    execution_args.extend(install_config_args(config));
     match config.verify_deps_before_run {
         VerifyDepsBeforeRun::Install => {
-            locked_install(dir, selected_project_dirs, config, &execution_args, reporter)
+            locked_install(dir, selected_project_dirs, config, &install_args, reporter)
         }
-        VerifyDepsBeforeRun::Prompt => prompt_install(
-            dir,
-            selected_project_dirs,
-            config,
-            &execution_args,
-            &install_args,
-            reporter,
-            issue,
-        ),
+        VerifyDepsBeforeRun::Prompt => {
+            prompt_install(dir, selected_project_dirs, config, &install_args, reporter, issue)
+        }
         VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync { issue }.into()),
         VerifyDepsBeforeRun::Warn => {
             warn(
@@ -206,13 +198,12 @@ fn locked_install(
         (None, false)
     });
     if !waited {
-        return spawn_install(dir, install_args, reporter);
+        return spawn_install(dir, config, install_args, reporter);
     }
     match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
         Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
             install_args.extend(install_selection_args(config));
-            install_args.extend(install_config_args(config));
-            spawn_install(dir, &install_args, reporter)
+            spawn_install(dir, config, &install_args, reporter)
         }
         _ => Ok(()),
     }
@@ -247,6 +238,7 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 #[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
+    config: &Config,
     install_args: &[String],
     reporter: ReporterType,
 ) -> miette::Result<()> {
@@ -255,6 +247,7 @@ fn spawn_install(
     command
         .args(["install", "--verify-deps-before-run-install", "--use-stderr"])
         .args(install_args)
+        .args(install_config_args(config))
         .current_dir(dir);
     match reporter {
         ReporterType::Default => {}
@@ -318,8 +311,7 @@ fn prompt_install(
     dir: &Path,
     selected_project_dirs: &[&Path],
     config: &Config,
-    execution_args: &[String],
-    prompt_args: &[String],
+    install_args: &[String],
     reporter: ReporterType,
     issue: String,
 ) -> miette::Result<()> {
@@ -328,14 +320,14 @@ fn prompt_install(
         return Err(VerifyDepsError::CannotPrompt { issue }.into());
     }
     let command = std::iter::once("install")
-        .chain(prompt_args.iter().map(String::as_str))
+        .chain(install_args.iter().map(String::as_str))
         .collect::<Vec<_>>()
         .join(" ");
     let message = format!(
         "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
     );
     match crate::confirm_prompt::confirm(&message, Some(true)) {
-        Ok(true) => locked_install(dir, selected_project_dirs, config, execution_args, reporter),
+        Ok(true) => locked_install(dir, selected_project_dirs, config, install_args, reporter),
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like
         // pnpm's ExitPromptError handler.
@@ -381,11 +373,13 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
     }
 }
 
-fn install_config_args(config: &Config) -> Vec<String> {
+/// The command line's `--config.*` tokens, which the install inherits.
+/// They stay out of the prompt, which could otherwise print a credential
+/// such as `--config.//registry.example/:_authToken=...`.
+fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
     config.raw_cli_config
         .iter()
         .map(|(key, value)| format!("--config.{key}={value}"))
-        .collect()
 }
 
 #[cfg(test)]

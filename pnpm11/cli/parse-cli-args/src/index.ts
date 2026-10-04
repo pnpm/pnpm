@@ -20,6 +20,7 @@ export interface ParsedCliArgs {
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
   workspaceDir: string | undefined
+  /** The `--config.<key>=<value>` options as given, keyed without the prefix. */
   rawCliConfig?: Record<string, unknown>
 }
 

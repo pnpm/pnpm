@@ -128,6 +128,8 @@ pub struct ConfigOverrides {
     /// value parsed, for [`Config::cli_settings`].
     pub(super) settings: BTreeSet<String>,
 
+    /// The `--config.<key>=<value>` tokens as given, in argv order, for
+    /// [`Config::raw_cli_config`].
     pub(super) raw_cli_config: Vec<(String, String)>,
 
     /// The `--config.<key>=<value>` tokens no table above claims, by
@@ -178,16 +180,12 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
-    pub(crate) fn raw_cli_config(&self) -> &[(String, String)] {
-        &self.raw_cli_config
-    }
-
-    fn record_raw_config(&mut self, arg: &OsString, key: &str, value: &str) {
+    fn record_raw_config(&mut self, arg: &OsStr, key: &str, value: &str) {
         if arg
             .to_str()
-            .is_some_and(|s| s.starts_with("--config."))
+            .is_some_and(|arg| arg.starts_with("--config."))
         {
-            self.raw_cli_config.push((key.to_string(), value.to_string()));
+            self.raw_cli_config.push((key.to_owned(), value.to_owned()));
         }
     }
 
@@ -229,15 +227,15 @@ impl ConfigOverrides {
         (overrides, remaining)
     }
 
-    fn handle_arg<I>(
+    fn handle_arg<Argv>(
         &mut self,
         arg: OsString,
         passthrough_from: Option<usize>,
         claimed_by_command: &HashSet<&str>,
-        argv: &mut std::iter::Peekable<I>,
+        argv: &mut std::iter::Peekable<Argv>,
         remaining: &mut Vec<OsString>,
     ) where
-        I: Iterator<Item = (usize, OsString)>,
+        Argv: Iterator<Item = (usize, OsString)>,
     {
         // The token after a `--<setting> <value>` pair's flag, when the
         // setting claims it — see [`claims_as_value`]. `None` when the
