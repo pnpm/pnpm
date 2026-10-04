@@ -238,14 +238,14 @@ fn the_pnpm_cli_cmd_shim_ends_the_batch_of_the_shim_it_replaces() {
     let laid_out = read_to_string(&shim).unwrap();
     assert!(laid_out.starts_with("@GOTO :pnpm\r\n"), "{laid_out}");
     assert!(
-        laid_out[batch_kept.len()..].starts_with("@GOTO :EOF\r\n:pnpm\r\n@SETLOCAL\r\n"),
+        laid_out[batch_kept.len()..].starts_with("@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"),
         "{laid_out}",
     );
 
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
     let plain = read_to_string(&shim).unwrap();
     assert!(plain.starts_with("@SETLOCAL\r\n"), "{plain}");
-    assert!(!plain.contains("@GOTO :EOF"), "{plain}");
+    assert!(!plain.contains("@EXIT /B"), "{plain}");
     assert!(laid_out.ends_with(&plain), "{laid_out}\n{plain}");
 
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();

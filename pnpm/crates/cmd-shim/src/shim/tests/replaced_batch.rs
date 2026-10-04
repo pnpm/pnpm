@@ -24,7 +24,7 @@ fn batchless_pnpm_cmd() -> String {
 /// The offset of the line that ends the replaced batch, or `None` when the
 /// shim has no such line.
 fn end_of_replaced_batch(shim: &str) -> Option<usize> {
-    shim.find("@GOTO :EOF\r\n")
+    shim.find("@EXIT /B %ERRORLEVEL%\r\n")
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn ends_the_replaced_batch_where_cmd_reads_on_and_jumps_over_that_line() {
         format!(
             "@GOTO :pnpm\r\n\
              @REM cmd.exe may still be running the pnpm.cmd this fil\r\n\
-             @GOTO :EOF\r\n\
+             @EXIT /B %ERRORLEVEL%\r\n\
              :pnpm\r\n\
              {shim}",
         ),
@@ -72,7 +72,7 @@ fn a_file_too_short_for_the_jump_is_replaced_as_is() {
 fn a_file_the_jump_fills_exactly_needs_no_padding() {
     let shim = batchless_pnpm_cmd();
     let laid_out = end_replaced_cmd_shim_batch(&shim, "@SETLOCAL  \r\n");
-    assert_eq!(laid_out, format!("@GOTO :pnpm\r\n@GOTO :EOF\r\n:pnpm\r\n{shim}"));
+    assert_eq!(laid_out, format!("@GOTO :pnpm\r\n@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n{shim}"));
 }
 
 /// cmd.exe is past the target's line, not past the file, when the target

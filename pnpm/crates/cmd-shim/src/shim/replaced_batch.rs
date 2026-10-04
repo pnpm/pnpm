@@ -16,9 +16,11 @@ use super::{BATCH_END, CODEPAGE_RESTORE_TRAILER};
 /// replaced batch.
 const JUMP_OVER: &str = "@GOTO :pnpm\r\n";
 const JUMP_TARGET: &str = ":pnpm\r\n";
-/// Ends the replaced batch when it has no code page to restore. `GOTO` leaves
-/// `%ERRORLEVEL%` alone, so that batch still ends with its target's exit code.
-const END_REPLACED_BATCH: &str = "@GOTO :EOF\r\n";
+/// Ends the replaced batch when it has no code page to restore, with its
+/// target's exit code. `GOTO :EOF` would leave `%ERRORLEVEL%` alone, but
+/// `cmd /c` reports the result of the last command it ran, and that `GOTO`
+/// succeeds.
+const END_REPLACED_BATCH: &str = "@EXIT /B %ERRORLEVEL%\r\n";
 
 const REM_LINE_MIN: usize = "@REM\r\n".len();
 /// Well under cmd.exe's line limit of 8191 characters.
