@@ -729,6 +729,16 @@ fn tasks_status_help_describes_concurrency_groups() {
     assert!(help.contains("[GROUPS]"));
 }
 
+/// [pnpm/pnpm#16580](https://github.com/pnpm/pnpm/issues/16580)
+#[test]
+fn runtime_help_names_the_set_subcommand() {
+    let error = CliArgs::try_parse_from(["pacquet", "runtime", "--help"]).unwrap_err();
+    assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
+    let help = error.to_string();
+    eprintln!("{help}");
+    assert!(help.contains("`set <name> [<version>]`"));
+}
+
 /// `--force` keeps skipping optional dependencies built for other
 /// platforms, so its help must not claim otherwise
 /// ([pnpm/pnpm#16435](https://github.com/pnpm/pnpm/issues/16435)).
