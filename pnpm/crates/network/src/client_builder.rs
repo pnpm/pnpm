@@ -318,7 +318,6 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
     default_headers.insert(USER_AGENT, user_agent);
     Client::builder()
         .http1_only()
-        // Request gzip and zstd and transparently decompress them.
         // Packuments are the largest payloads pulled during resolution, and
         // zstd shrinks them further than gzip. Tarballs are unaffected (no
         // `Content-Encoding`, so store-integrity verification still sees the
