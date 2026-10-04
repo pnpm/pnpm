@@ -3,7 +3,7 @@
 //!
 //! Unix-only by subject, not by harness. The tests send POSIX signals to a
 //! process group of their own; Windows delivers console control events
-//! instead, which needs its own tests rather than a port of these.
+//! instead, which `interrupt_windows` tests rather than porting these.
 #![cfg(unix)]
 
 use crate::_utils::terminal::{Terminal, spawn_without_terminal};
@@ -12,7 +12,8 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     ffi::OsString,
-    fs, io,
+    fs,
+    io::{self, Read},
     os::unix::process::ExitStatusExt,
     path::Path,
     process::{Child, Command, ExitStatus, Stdio},
@@ -261,10 +262,10 @@ fn ctrl_c_handled_by_a_command_lets_the_rest_of_the_script_run() {
 }
 
 /// The same shell, when the script never handles `SIGINT`, still ends
-/// pnpm with that signal. The child's status is a real interrupt, and
-/// pnpm reports it.
+/// pnpm with that signal. The user ended the script, so pnpm reports no
+/// lifecycle failure for it (pnpm/pnpm#16579).
 #[test]
-fn ctrl_c_still_reports_a_script_the_shell_could_not_keep_alive() {
+fn ctrl_c_ends_pnpm_with_the_signal_without_a_lifecycle_failure() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_running(&workspace, "test", "node dev.js", LINGERING_SCRIPT);
 
@@ -285,8 +286,8 @@ fn ctrl_c_still_reports_a_script_the_shell_could_not_keep_alive() {
         "an unhandled interrupt still ends pnpm with SIGINT\n{output}",
     );
     assert!(
-        output.contains("[ELIFECYCLE] Command failed with signal SIGINT."),
-        "an unhandled interrupt is still a lifecycle failure\n{output}",
+        !output.contains("ELIFECYCLE"),
+        "a script the user interrupted is not a lifecycle failure\n{output}",
     );
 
     drop(root);
@@ -591,6 +592,49 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
         "the main script should have handled an interrupt, not been terminated outright",
     );
     assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too");
+
+    drop(root);
+}
+
+/// Only the script an interrupt ended goes unreported. A later stage that
+/// fails on its own, after an earlier stage handled the interrupt and let
+/// the run go on, is a lifecycle failure as before (pnpm/pnpm#16579).
+#[test]
+fn a_script_failing_after_a_handled_interrupt_is_still_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "predev": "exec node pre.js", "dev": r#"exec node -e "process.exit(3)""# },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    fs::write(workspace.join("pre.js"), PRE_SCRIPT).expect("write the pre script");
+
+    let mut process = spawn_without_terminal(
+        pacquet
+            .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+            .with_args(["run", "dev"])
+            .with_stderr(Stdio::piped()),
+    );
+    wait_for_file(&workspace.join("pre-started.txt"), &mut process);
+    interrupt(&process);
+    let status = wait_for_shutdown(&mut process);
+    let mut stderr = String::new();
+    process.stderr
+        .take()
+        .expect("stderr is piped")
+        .read_to_string(&mut stderr)
+        .expect("read stderr");
+
+    assert!(
+        workspace.join("pre-shut-down.txt").exists(),
+        "the pre script should have handled the interrupt\n{stderr}",
+    );
+    assert!(
+        stderr.contains("[ELIFECYCLE] Command failed with exit code 3."),
+        "a script that fails on its own is still reported\n{stderr}",
+    );
+    assert_eq!(status.code(), Some(3), "the script exited 3, so pnpm does too\n{stderr}");
 
     drop(root);
 }

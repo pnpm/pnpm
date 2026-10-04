@@ -1,3 +1,4 @@
+pub mod console;
 pub mod terminal;
 
 use assert_cmd::prelude::*;
