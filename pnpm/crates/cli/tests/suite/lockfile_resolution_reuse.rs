@@ -42,11 +42,8 @@ fn compatible_package_range_update_skips_resolution() {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\n"),
-    )
-    .expect("enable trusted lockfile");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -420,11 +417,8 @@ fn peer_setting_change_on_a_peerless_lockfile_skips_resolution() {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\n"),
-    )
-    .expect("enable trusted lockfile");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -482,11 +476,8 @@ fn peer_setting_change_falls_back_when_the_lockfile_records_peers() {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\n"),
-    )
-    .expect("enable trusted lockfile");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
+        .expect("enable trusted lockfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
