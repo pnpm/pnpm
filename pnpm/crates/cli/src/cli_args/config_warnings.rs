@@ -4,7 +4,8 @@
 //! with `console.warn` — to stderr, outside the reporter, on every command
 //! and under every reporter — so they never mix into the stdout a script
 //! captures. Warnings emitted through the reporter stay on stdout; only
-//! config-load warnings belong here.
+//! config-load warnings and the project checks that run before the command
+//! belong here.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

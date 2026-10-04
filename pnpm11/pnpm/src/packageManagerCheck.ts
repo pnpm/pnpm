@@ -38,7 +38,7 @@ export async function handlePackageManagerAndRuntimes (opts: PackageManagerHandl
   }
   if (cmd != null && !cliOptions.global && !rejectUnknownOptions) {
     for (const runtime of getWantedRuntimes(context)) {
-      checkRuntime(runtime)
+      checkRuntime(runtime, config)
     }
   }
 }
@@ -50,7 +50,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
     // Global state belongs to the pnpm the user invoked, not to the
     // project, so a global command never switches to the pinned pnpm.
     if (!isRunningPnpmPinned(pm)) {
-      globalWarn('Using --global skips the package manager check for this project')
+      warnAboutProject(config, 'Using --global skips the package manager check for this project')
     }
     return
   }
@@ -69,7 +69,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
   // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
   // it only writes to the lockfile when the project opted in (via
   // `devEngines.packageManager`, or a v12+ `packageManager` pin).
-  checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
+  checkPackageManager(pm, { config, underCorepack: isExecutedByCorepack() })
   if (!opts.rejectUnknownOptions) {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
       await syncEnvLockfile(config, context)
@@ -116,7 +116,7 @@ function isRunningPnpmPinned (pm: EngineDependency): boolean {
   return !pm.version || semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })
 }
 
-function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boolean }): void {
+function checkPackageManager (pm: EngineDependency, opts: { config: Config, underCorepack: boolean }): void {
   if (!pm.name) return
   const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
   if (pm.name !== 'pnpm') {
@@ -124,7 +124,7 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
     if (shouldError) {
       throw new PnpmError('OTHER_PM_EXPECTED', msg)
     }
-    globalWarn(msg)
+    warnAboutProject(opts.config, msg)
     return
   }
   if (!pm.version) return
@@ -132,7 +132,7 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
     ? packageManager.version
     : undefined
   if (!currentPnpmVersion || semver.satisfies(currentPnpmVersion, pm.version, { includePrerelease: true })) return
-  reportPnpmVersionMismatch({
+  reportPnpmVersionMismatch(opts.config, {
     wantedVersion: pm.version,
     currentPnpmVersion,
     shouldError,
@@ -140,7 +140,7 @@ function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boole
   })
 }
 
-function reportPnpmVersionMismatch (mismatch: {
+function reportPnpmVersionMismatch (config: Config, mismatch: {
   wantedVersion: string
   currentPnpmVersion: string
   shouldError: boolean
@@ -155,7 +155,7 @@ function reportPnpmVersionMismatch (mismatch: {
     msg += '\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.'
   }
   if (!mismatch.shouldError) {
-    globalWarn(msg)
+    warnAboutProject(config, msg)
     return
   }
   const baseHint = 'If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"'
@@ -193,7 +193,7 @@ function listRuntimes (enginesRuntime: EngineDependency | EngineDependency[] | u
   return Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
 }
 
-function checkRuntime (runtime: EngineDependency): void {
+function checkRuntime (runtime: EngineDependency, config: Config): void {
   if (runtime.onFail == null || runtime.onFail === 'ignore' || runtime.onFail === 'download') return
   if (!runtime.name || !isRuntimeAlias(runtime.name)) return
   const runtimeName: RuntimeName = runtime.name
@@ -203,12 +203,13 @@ function checkRuntime (runtime: EngineDependency): void {
     const msg = wantedRange
       ? `This project requires an invalid ${displayName} version range: ${wantedRange}`
       : `This project requires a ${displayName} runtime but does not specify a version range`
-    failRuntimeCheck(runtime.onFail, msg)
+    failRuntimeCheck(config, runtime.onFail, msg)
     return
   }
   const currentVersion = getSystemRuntimeVersion(runtimeName)
   if (currentVersion == null) {
     failRuntimeCheck(
+      config,
       runtime.onFail,
       `This project requires ${displayName} ${wantedRange}, but ${displayName} was not found on the system`
     )
@@ -217,16 +218,31 @@ function checkRuntime (runtime: EngineDependency): void {
   if (semver.satisfies(currentVersion, wantedRange, { includePrerelease: true })) return
 
   failRuntimeCheck(
+    config,
     runtime.onFail,
     `This project requires ${displayName} ${wantedRange}. Your current ${displayName} is ${currentVersion}`
   )
 }
 
-function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
+function failRuntimeCheck (config: Config, onFail: 'error' | 'warn', message: string): void {
   if (onFail === 'error') {
     throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
   }
-  globalWarn(message)
+  warnAboutProject(config, message)
+}
+
+/**
+ * These warnings are not the command's output, so they go to stderr: a command
+ * such as `pnpm cache path` or `pnpm list --json` prints a value a script reads
+ * from stdout. The ndjson reporter, which writes to stderr, still receives them.
+ */
+function warnAboutProject (config: Config, message: string): void {
+  if (config.loglevel === 'silent' || config.loglevel === 'error' || config.reporter === 'silent') return
+  if (config.reporter === 'ndjson') {
+    globalWarn(message)
+    return
+  }
+  console.warn(formatWarn(message))
 }
 
 const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'

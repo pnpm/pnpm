@@ -22,7 +22,7 @@ use super::{
         package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
-    reporter::ReporterFlags,
+    reporter::{ReporterFlags, ReporterType, reporter_emit},
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{PackageManagerCheck, spawn_pnpm},
@@ -54,12 +54,12 @@ use lockfile::{
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pin::{PinOutcome, PinResolution, resolve_input_pin, switch_target};
 use pnpm_config::{ColorMode, Config, Host, PNPM_VERSION, PmOnFail};
-use pnpm_default_reporter::DefaultReporter;
+use pnpm_default_reporter::MaxLogLevel;
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes};
 use serde_json::Value;
 use std::{
@@ -309,6 +309,27 @@ fn global_warn(emit: fn(&LogEvent), message: &str) {
     emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
+/// The sink for the warnings the checks here raise. They are not the
+/// command's output, so the default reporter's go to stderr: a command such
+/// as `pnpm cache path` or `pnpm list --json` prints a value a script reads
+/// from stdout.
+fn pre_command_emit(reporter: ReporterType) -> fn(&LogEvent) {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => emit_warning_on_stderr,
+        ReporterType::Ndjson | ReporterType::Silent => reporter_emit(reporter),
+    }
+}
+
+/// The default reporter's rendering of a [`global_warn`] event, on stderr.
+fn emit_warning_on_stderr(event: &LogEvent) {
+    let LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }) = event else {
+        unreachable!("the pre-command checks emit only global warnings");
+    };
+    if pnpm_default_reporter::max_log_level() >= MaxLogLevel::Warn {
+        emit_config_warning(message);
+    }
+}
+
 /// Report a pinned pnpm that `pnpm --version` could not act on. Why the
 /// command carries on afterwards is documented on its caller in `lib.rs`.
 ///
@@ -316,7 +337,7 @@ fn global_warn(emit: fn(&LogEvent), message: &str) {
 /// miette renders. It carries the code and the help a diagnostic came
 /// with, which is what that rendering would have added.
 pub(crate) fn warn_pinned_pnpm_unusable(error: &miette::Report) {
-    global_warn(DefaultReporter::emit, &warning_for_unusable_pin(error));
+    global_warn(emit_warning_on_stderr, &warning_for_unusable_pin(error));
 }
 
 fn warning_for_unusable_pin(error: &miette::Report) -> String {
