@@ -30,6 +30,10 @@ When the project's `package.json` has a `packageManager` field set to pnpm (or a
 
 If the project does not pin pnpm, or the pin is being ignored via [`pmOnFail: ignore`](../settings/cli.md#pmonfail), `self-update` installs the resolved pnpm version globally and links it to `PNPM_HOME` so it becomes the active pnpm binary on your system.
 
+### When Homebrew or Corepack manages pnpm
+
+`pnpm self-update` fails if Homebrew installed pnpm or Corepack runs it. Update a Homebrew install with `brew upgrade pnpm` (or `brew upgrade pnpm@11` for a versioned formula).
+
 ## Project settings are ignored
 
 Since v11.18.0, `pnpm self-update` takes no instruction from the project it is run in:

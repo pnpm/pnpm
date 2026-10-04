@@ -69,7 +69,7 @@ function findOwningManifest (file: string): string | undefined {
   return find.file('package.json', { cwd: path.dirname(file) })
 }
 
-function realpathOrUndefined (file: string): string | undefined {
+export function realpathOrUndefined (file: string): string | undefined {
   try {
     return fs.realpathSync(file)
   } catch {

@@ -5,9 +5,9 @@ use super::{
         apply_materialization_result, materialize, prior_hoisted_dependencies,
         prior_hoisted_locations,
     },
-    Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
-    Verification, dispatch, load_lockfiles, pnpmfile_hook_override_changed,
-    report_already_up_to_date, settle_wanted_lockfile,
+    Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RepeatInstallVerdict,
+    RunExecution, Settled, Verification, dispatch, load_lockfiles, report_already_up_to_date,
+    settle_wanted_lockfile,
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
@@ -27,15 +27,13 @@ impl<'a> RunExecution<'a> {
         mut self,
         time_machine_exclusions: &mut super::super::TimeMachineExclusions,
     ) -> Result<InstallRunOutcome, InstallError> {
-        let scope = self.select_scope();
+        let mut scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        let embedder_hooks = self.owned.projects.pnpmfile_hook_override.clone();
-        self.check_custom_fetcher_reuse().await?;
-        if scope.is_already_up_to_date(self.install, &self.owned, &self.mode, &self.workspace)?
-            && !pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
-        {
+        let verdict = self.repeat_install_verdict(&scope).await?;
+        if verdict == RepeatInstallVerdict::Unchanged {
             return Ok(report_already_up_to_date::<Reporter>(self.workspace.prefix));
         }
+        scope.project_scripts_current = verdict == RepeatInstallVerdict::UnchangedFrozen;
         let mut loaded = load_lockfiles::<Reporter>(
             self.install,
             &mut self.owned,
@@ -288,7 +286,7 @@ impl<'a> RunExecution<'a> {
         }
     }
 }
-async fn wait_for_workspace_dependencies(
+pub(super) async fn wait_for_workspace_dependencies(
     dependencies_installed: Option<crate::WorkspaceDependenciesInstalled>,
 ) -> Result<(), InstallError> {
     let Some(dependencies_installed) = dependencies_installed else { return Ok(()) };

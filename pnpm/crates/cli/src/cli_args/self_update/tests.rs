@@ -1,4 +1,5 @@
 use super::{
+    externally_managed::homebrew_formula,
     global_bin::{
         finish_retirement, link_into_global_bin, link_into_legacy_home_dir, refresh_global_shims,
         retire_standalone_executable,
@@ -18,6 +19,28 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+
+#[test]
+fn homebrew_formula_names_the_keg_that_holds_the_executable() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let keg = |formula: &str, receipt: bool| {
+        let keg = root
+            .path()
+            .join("Cellar")
+            .join(formula)
+            .join("1.0.0");
+        fs::create_dir_all(keg.join("bin")).expect("create the keg");
+        if receipt {
+            fs::write(keg.join("INSTALL_RECEIPT.json"), "{}").expect("write the receipt");
+        }
+        keg.join("bin").join("pnpm")
+    };
+    assert_eq!(homebrew_formula(&keg("pnpm", true)).as_deref(), Some("pnpm"));
+    assert_eq!(homebrew_formula(&keg("pnpm@11", true)).as_deref(), Some("pnpm@11"));
+    assert_eq!(homebrew_formula(&keg("node", true)), None);
+    assert_eq!(homebrew_formula(&keg("pnpm@10", false)), None);
+    assert_eq!(homebrew_formula(&root.path().join("pnpm")), None);
+}
 
 #[test]
 fn version_constraint_preserves_pinning_style() {

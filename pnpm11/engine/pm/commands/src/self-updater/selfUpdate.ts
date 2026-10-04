@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { confirm } from '@inquirer/prompts'
 import { linkBins } from '@pnpm/bins.linker'
-import { isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
+import { findHomebrewFormula, isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, type PackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
@@ -85,6 +85,12 @@ export async function handler (
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
       hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
+    })
+  }
+  const homebrewFormula = findHomebrewFormula()
+  if (homebrewFormula != null) {
+    throw new PnpmError('CANT_SELF_UPDATE_IN_HOMEBREW', 'pnpm cannot update itself when it is installed by Homebrew', {
+      hint: `Update it with Homebrew instead: brew upgrade ${homebrewFormula}`,
     })
   }
   globalInfo('Checking for updates...')

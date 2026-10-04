@@ -12,6 +12,7 @@ use super::{
     lockfile_load::Loaded,
     manifests::{RootHooksScope, run_root_hooks},
     reject_frozen_with_update_checksums, run_pre_uninstall_hooks,
+    up_to_date_scripts::finish_prepared,
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
@@ -119,7 +120,7 @@ pub(super) struct Decided {
     pub(super) root_preinstall_ran: bool,
 }
 impl Decided {
-    fn with_modules(self, modules: PreparedModulesState<'_>) -> Dispatched<'_> {
+    pub(super) fn with_modules(self, modules: PreparedModulesState<'_>) -> Dispatched<'_> {
         let Decided {
             take_frozen_path,
             root_preinstall_ran,
@@ -183,7 +184,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         projects: SettledProjects { workspace, scope, project_manifests },
     } = settled;
     let verification = verification.take_inputs(options);
-    Ok(prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
+    let prepared = prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
         tree: settled.modules_tree(),
         lockfiles: crate::install::state_options::PreparedLockfiles {
             wanted: lockfiles.wanted.get(),
@@ -210,8 +211,9 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
 
         installs_only: install.execution.installs_only,
     })
-    .await?
-    .map(|modules| decided.with_modules(modules)))
+    .await?;
+    let script_options = (options.selection.as_ref(), options.rebuild.as_ref());
+    finish_prepared::<Reporter>(settled, script_options, decided, prepared).await
 }
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,

@@ -52,8 +52,8 @@ pub(super) fn prior_hoisted_locations(
     previous_modules_metadata.and_then(|modules| modules.hoisted_locations.as_ref())
 }
 
-/// Returns `Ok(None)` after completing an up-to-date install; the caller must return successfully
-/// without materializing.
+/// Returns `Ok(None)` after finding the tree up to date; the caller must run
+/// the projects' lifecycle scripts and close the install without materializing.
 pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, 'install>,
 ) -> Result<Option<PreparedModulesState<'install>>, InstallError> {

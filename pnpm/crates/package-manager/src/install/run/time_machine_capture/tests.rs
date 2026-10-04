@@ -38,6 +38,7 @@ fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {
             requested_importer_ids: None,
         },
         prune_stale_importers: false,
+        project_scripts_current: false,
     };
 
     assert_eq!(

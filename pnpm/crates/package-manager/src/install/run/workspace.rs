@@ -6,7 +6,8 @@ use super::{
         build_workspace_packages_map, configured_or_discovered_workspace_dir,
         get_catalogs_from_workspace_manifest, load_workspace_projects, lockfile_root_dir,
     },
-    InstallOwned, InstallView, RunMode, UpToDateCheck, install_is_already_up_to_date,
+    InstallOwned, InstallView, RepeatInstallVerdict, RunMode, UpToDateCheck,
+    repeat_install_verdict,
 };
 use pnpm_config::Config;
 
@@ -75,6 +76,9 @@ pub(super) struct InstallScope<'w> {
     pub(super) project_manifests: Vec<(PathBuf, &'w PackageManifest)>,
     pub(super) importers: ImporterSelection,
     pub(super) prune_stale_importers: bool,
+    /// A `--frozen-lockfile` repeat install found nothing changed, so an
+    /// up-to-date tree runs no project lifecycle scripts.
+    pub(super) project_scripts_current: bool,
 }
 /// The importers a selection narrows the run to.
 pub(super) struct ImporterSelection {
@@ -256,17 +260,17 @@ impl<'w> InstallScope<'w> {
             workspace_projects_are_overridden,
             config: install.context.config,
         });
-        Self { project_manifests, importers, prune_stale_importers }
+        Self { project_manifests, importers, prune_stale_importers, project_scripts_current: false }
     }
 
-    pub(super) fn is_already_up_to_date(
+    pub(super) fn repeat_install_verdict(
         &self,
         install: InstallView<'_>,
         owned: &InstallOwned,
         mode: &RunMode,
         workspace: &InstallWorkspace<'_>,
-    ) -> Result<bool, InstallError> {
-        install_is_already_up_to_date(&UpToDateCheck {
+    ) -> Result<RepeatInstallVerdict, InstallError> {
+        repeat_install_verdict(&UpToDateCheck {
             workspace: super::super::OptimisticRepeatInstallCheck {
                 config: install.context.config,
                 workspace_root: &workspace.dirs.workspace_root,

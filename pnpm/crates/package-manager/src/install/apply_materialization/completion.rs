@@ -56,17 +56,17 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
     Ok(true)
 }
 #[derive(Clone, Copy)]
-pub(super) struct MaterializedProjectScriptsInputs<'a, 'selection> {
+pub(in crate::install) struct MaterializedProjectScriptsInputs<'a, 'selection> {
     pub(crate) request: crate::install::state_options::ProjectScriptSelection<'a, 'selection>,
-    pub(super) config: &'static Config,
-    pub(super) node_linker: NodeLinker,
-    pub(super) workspace_root: &'a Path,
-    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    pub(super) materialized_current_lockfile: Option<&'a Lockfile>,
-    pub(super) root_preinstall_ran: bool,
+    pub(crate) config: &'static Config,
+    pub(crate) node_linker: NodeLinker,
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) materialized_current_lockfile: Option<&'a Lockfile>,
+    pub(crate) root_preinstall_ran: bool,
 }
-pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
+pub(in crate::install) fn run_materialized_project_scripts<Reporter: self::Reporter>(
     inputs: MaterializedProjectScriptsInputs<'_, '_>,
 ) -> Result<(), InstallError> {
     let projects_to_run = materialized_script_projects(&inputs);

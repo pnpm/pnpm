@@ -1,11 +1,9 @@
 use super::{
-    CommandFuture, Config, Context, DefaultReporter, InstallArgs, NdjsonReporter, PatchArgs,
-    PatchCommitArgs, PatchRemoveArgs, Path, ReporterType, RunCtx, SilentReporter,
-    anchor_active_project, installed_project_config, keeps_project_lockfiles,
+    CommandFuture, Config, Context, InstallArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs, Path,
+    RunCtx, anchor_active_project, installed_project_config, keeps_project_lockfiles,
 };
-use crate::State;
+use crate::{State, cli_args::reporter::CliReporter};
 use indexmap::IndexMap;
-use std::sync::atomic::Ordering;
 
 pub(in super::super) fn patch<'a>(
     ctx: &RunCtx<'a>,
@@ -14,34 +12,12 @@ pub(in super::super) fn patch<'a>(
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let config = installed_project_config(config.await?, manifest_path);
         let command_state = State::init(manifest_path.to_path_buf(), config, false)
             .wrap_err("initialize the state")?;
-        match effective_reporter.load(Ordering::Relaxed).into() {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(async move {
-                    args.run::<DefaultReporter>(dir, command_state).await?;
-                    Ok(())
-                })
-                .await
-            }
-            ReporterType::Ndjson => {
-                Box::pin(async move {
-                    args.run::<NdjsonReporter>(dir, command_state).await?;
-                    Ok(())
-                })
-                .await
-            }
-            ReporterType::Silent => {
-                Box::pin(async move {
-                    args.run::<SilentReporter>(dir, command_state).await?;
-                    Ok(())
-                })
-                .await
-            }
-        }
+        Box::pin(args.run::<CliReporter>(dir, command_state)).await?;
+        Ok(())
     }))
 }
 
@@ -72,36 +48,19 @@ pub(in super::super) fn patch_commit<'a>(
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
     let config = ctx.prepared_config();
-    macro_rules! run_patch_commit {
-        ($reporter:ty, $config:ident) => {
-            Box::pin(async move {
-                let state = State::init(
-                    manifest_path.to_path_buf(),
-                    installed_project_config($config, manifest_path),
-                    false,
-                )
-                .wrap_err("initialize the state")?;
-                if let Some(patched_dependencies) =
-                    Box::pin(args.run::<$reporter>(dir, state)).await?
-                {
-                    let state =
-                        reresolving_state(dir, manifest_path, $config, patched_dependencies)?;
-                    Box::pin(InstallArgs::for_reresolving_install().run::<$reporter>(state)).await?;
-                }
-                Ok(())
-            })
-        };
-    }
-    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let config = config.await?;
-        match effective_reporter.load(Ordering::Relaxed).into() {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                run_patch_commit!(DefaultReporter, config).await
-            }
-            ReporterType::Ndjson => run_patch_commit!(NdjsonReporter, config).await,
-            ReporterType::Silent => run_patch_commit!(SilentReporter, config).await,
+        let state = State::init(
+            manifest_path.to_path_buf(),
+            installed_project_config(config, manifest_path),
+            false,
+        )
+        .wrap_err("initialize the state")?;
+        if let Some(patched_dependencies) = Box::pin(args.run::<CliReporter>(dir, state)).await? {
+            let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
+            Box::pin(InstallArgs::for_reresolving_install().run::<CliReporter>(state)).await?;
         }
+        Ok(())
     }))
 }
 
@@ -112,27 +71,13 @@ pub(in super::super) fn patch_remove<'a>(
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
     let config = ctx.prepared_config();
-    macro_rules! run_patch_remove {
-        ($reporter:ty, $config:ident) => {
-            Box::pin(async move {
-                let state = State::init(manifest_path.to_path_buf(), $config, false)
-                    .wrap_err("initialize the state")?;
-                let patched_dependencies = Box::pin(args.run(dir, state)).await?;
-                let state = reresolving_state(dir, manifest_path, $config, patched_dependencies)?;
-                Box::pin(InstallArgs::for_reresolving_install().run::<$reporter>(state)).await?;
-                Ok(())
-            })
-        };
-    }
-    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
         let config = config.await?;
-        match effective_reporter.load(Ordering::Relaxed).into() {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                run_patch_remove!(DefaultReporter, config).await
-            }
-            ReporterType::Ndjson => run_patch_remove!(NdjsonReporter, config).await,
-            ReporterType::Silent => run_patch_remove!(SilentReporter, config).await,
-        }
+        let state = State::init(manifest_path.to_path_buf(), config, false)
+            .wrap_err("initialize the state")?;
+        let patched_dependencies = Box::pin(args.run(dir, state)).await?;
+        let state = reresolving_state(dir, manifest_path, config, patched_dependencies)?;
+        Box::pin(InstallArgs::for_reresolving_install().run::<CliReporter>(state)).await?;
+        Ok(())
     }))
 }

@@ -84,11 +84,11 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@12.9.0",
+  "packageManager": "pnpm@12.9.1",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.9.0",
+      "version": "12.9.1",
       "onFail": "download"
     },
     "runtime": {

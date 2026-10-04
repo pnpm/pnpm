@@ -2,8 +2,7 @@ pub(super) use fast_path::register_workspace_in_store;
 
 mod fast_path;
 use fast_path::{
-    UpToDateCheck, install_is_already_up_to_date, pnpmfile_hook_override_changed,
-    report_already_up_to_date,
+    RepeatInstallVerdict, UpToDateCheck, repeat_install_verdict, report_already_up_to_date,
 };
 
 mod dispatch;
@@ -29,6 +28,7 @@ use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
 mod time_machine_capture;
 mod uninstall_hooks;
+mod up_to_date_scripts;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use std::fs;
