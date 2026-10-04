@@ -75,6 +75,30 @@ it is located inside a workspace:
 pnpm install --ignore-workspace
 ```
 
+### --env-file &lt;path\>
+
+Added in: v12.10.0
+
+Load environment variables from a dotenv-style file before running. Repeat
+the flag to layer more files:
+
+```sh
+pnpm --env-file .env run build
+pnpm --env-file .env --env-file .env.local install
+```
+
+The first file naming a variable wins, and variables already in the
+environment are never overridden. The loaded variables are visible to config
+resolution (`PNPM_CONFIG_<KEY>` overrides and `${VAR}` tokens in user-level
+[`.npmrc`](./npmrc.md) files, so registry tokens can live in the env file
+instead of the shell), to lifecycle scripts, and to any pnpm the command
+dispatches to.
+
+Values support `$VAR` / `${VAR}` substitution from the environment and
+earlier entries, and `export ` prefixes, following dotenv conventions;
+single-quote a value to keep a literal `$`. A missing or malformed file
+fails the command.
+
 ## Commands
 
 For more information, see the documentation for individual CLI commands. Here is

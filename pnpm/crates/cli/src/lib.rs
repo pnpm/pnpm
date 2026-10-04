@@ -32,6 +32,7 @@ mod dialoguer_wasm;
 mod ecosystem_add;
 mod ecosystem_install;
 mod engine_pm;
+mod env_file;
 mod executable_link;
 mod fatal_error;
 mod flag_relocation;
@@ -156,10 +157,14 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let argv_with_alias = argv_with_alias_subcommand(argv);
-    let child_argv = argv_with_alias
-        .iter()
+    // `--env-file` is this binary's own option: an older pnpm a command
+    // dispatches to would reject the unknown flag, so it never reaches the
+    // child — the variables it names travel by environment inheritance
+    // instead (see `env_file`). The strip keeps the program name in place
+    // so the passthrough boundary still computes.
+    let child_argv = env_file::strip_flags(&argv_with_alias)
+        .into_iter()
         .skip(1)
-        .cloned()
         .collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps
@@ -177,6 +182,12 @@ fn run_cli() -> miette::Result<()> {
     let Some(mut args) = parse_or_answer(command, &argv, &child_argv, &config_overrides)? else {
         return Ok(());
     };
+    // Load `--env-file` variables before anything reads the environment:
+    // config resolution (`PNPM_CONFIG_<KEY>` overrides and `${VAR}` tokens
+    // in user-level `.npmrc` files) runs below, and a dispatched pnpm
+    // inherits them. Relative paths resolve from the invocation directory —
+    // no pass above changes it.
+    env_file::load(&args.env_file)?;
     configure_cli_args(&mut args)?;
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
@@ -208,6 +219,9 @@ fn parse_or_answer(
             print_version(argv, child_argv, config_overrides).map(|()| None)
         }
         Err(err) if err.kind() == clap::error::ErrorKind::UnknownArgument => {
+            // Best-effort `--env-file` load so a dispatched pnpm still gets
+            // the variables: the child argv no longer carries the flag.
+            env_file::load_from_argv(argv)?;
             if dispatched_unparsed_to_pinned_pnpm(argv, child_argv, config_overrides)? {
                 return Ok(None);
             }
