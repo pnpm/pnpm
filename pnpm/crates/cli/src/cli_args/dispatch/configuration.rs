@@ -402,20 +402,27 @@ fn apply_workspace_ordering_and_selection_config(
         workspace.ordering.no_reverse,
         cfg.reverse,
     );
-    if workspace.selection.include_workspace_root || workspace.selection.no_include_workspace_root {
+    apply_selection_settings(cfg, &workspace.selection.settings);
+}
+
+fn apply_selection_settings(
+    cfg: &mut Config,
+    settings: &crate::cli_args::cli_command::SelectionSettingArgs,
+) {
+    if settings.include_workspace_root || settings.no_include_workspace_root {
         cfg.cli_settings.insert("includeWorkspaceRoot".to_string());
     }
     cfg.include_workspace_root = super::resolve_bool_override(
-        workspace.selection.include_workspace_root,
-        workspace.selection.no_include_workspace_root,
+        settings.include_workspace_root,
+        settings.no_include_workspace_root,
         cfg.include_workspace_root,
     );
-    if workspace.selection.fail_if_no_match || workspace.selection.no_fail_if_no_match {
+    if settings.fail_if_no_match || settings.no_fail_if_no_match {
         cfg.cli_settings.insert("failIfNoMatch".to_string());
     }
     cfg.fail_if_no_match = super::resolve_bool_override(
-        workspace.selection.fail_if_no_match,
-        workspace.selection.no_fail_if_no_match,
+        settings.fail_if_no_match,
+        settings.no_fail_if_no_match,
         cfg.fail_if_no_match,
     );
 }
