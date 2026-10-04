@@ -172,5 +172,21 @@ fn load_rejects_nul_bytes_instead_of_panicking() {
     let message = format!("{error:?}");
     assert!(message.contains("nul.env"), "error names the file: {message}");
     assert!(message.contains("NUL"), "error names the cause: {message}");
+    assert!(!message.contains(key), "error must not echo the key: {message}");
     assert!(std::env::var_os(key).is_none(), "rejected value must not be set");
+}
+
+#[test]
+fn load_reports_invalid_utf8_as_a_parse_error() {
+    let dir = tempfile::tempdir().expect("create fixture dir");
+    let path = dir.path().join("invalid-utf8.env");
+    std::fs::write(&path, b"PACQUET_ENV_FILE_TEST_UTF8=\xFF\n").expect("write env file fixture");
+    let error = load(std::slice::from_ref(&path)).expect_err("invalid UTF-8 must fail");
+    let message = format!("{error:?}");
+    assert!(message.contains("invalid-utf8.env"), "error names the file: {message}");
+    assert!(message.contains("UTF-8"), "error names the cause: {message}");
+    assert!(
+        !message.contains("Failed to read"),
+        "a readable file must not report a read error: {message}",
+    );
 }

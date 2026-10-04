@@ -54,6 +54,16 @@ pub enum EnvFileError {
 impl EnvFileError {
     fn load(path: &Path, error: dotenvy::Error) -> Self {
         match error {
+            // `fs::read` yields raw bytes and never fails with
+            // `InvalidData`, so this is `read_line` rejecting non-UTF-8:
+            // the file is readable but malformed, hence a redacted parse
+            // error rather than a read error.
+            dotenvy::Error::Io(source) if source.kind() == std::io::ErrorKind::InvalidData => {
+                Self::Parse {
+                    path: path.to_owned(),
+                    message: "file contains invalid UTF-8".to_string(),
+                }
+            }
             dotenvy::Error::Io(source) => Self::Read { path: path.to_owned(), source },
             // dotenvy reports the offending line; only its position is
             // repeated here, so a malformed line cannot leak a secret into
@@ -66,13 +76,11 @@ impl EnvFileError {
         }
     }
 
-    /// A value with an embedded NUL byte, which `std::env::set_var` would
-    /// panic on instead of failing the command.
-    fn nul(path: &Path, key: &str) -> Self {
-        Self::Parse {
-            path: path.to_owned(),
-            message: format!("value for '{key}' contains a NUL byte"),
-        }
+    /// A key or value with an embedded NUL byte, which `std::env::set_var`
+    /// would panic on instead of failing the command. The key is omitted
+    /// from the message: it echoes env-file contents into stderr.
+    fn nul(path: &Path) -> Self {
+        Self::Parse { path: path.to_owned(), message: "value contains a NUL byte".to_string() }
     }
 }
 
@@ -116,8 +124,11 @@ fn load_one(path: &Path) -> miette::Result<()> {
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
     for pair in dotenvy::from_read_iter(stripped) {
         let (key, value) = pair.map_err(|error| EnvFileError::load(path, error))?;
-        if value.contains('\0') {
-            return Err(EnvFileError::nul(path, &key).into());
+        // `set_var` panics on a NUL byte in either half; `var_os` would
+        // report a NUL key as merely absent, so the guard below cannot be
+        // relied on to catch it.
+        if key.contains('\0') || value.contains('\0') {
+            return Err(EnvFileError::nul(path).into());
         }
         if std::env::var_os(&key).is_none() {
             // SAFETY: `load` runs on the main thread before `run_on_big_stack`

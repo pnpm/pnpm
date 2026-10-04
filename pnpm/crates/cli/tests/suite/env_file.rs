@@ -177,6 +177,33 @@ fn nul_valued_env_file_fails_loudly() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("nul.env"), "error must name the file: {stderr}");
     assert!(stderr.contains("NUL"), "error must name the cause: {stderr}");
+    assert!(!stderr.contains("PACQUET_ENV_FILE_TEST_NUL"), "error must not echo the key: {stderr}");
+
+    drop(root);
+}
+
+/// A file with invalid UTF-8 fails as a malformed file, not a read error:
+/// the file is readable, its contents are not valid dotenv input.
+#[test]
+fn invalid_utf8_env_file_fails_as_malformed() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("invalid-utf8.env"), b"PACQUET_ENV_FILE_TEST_UTF8=\xFF\n")
+        .expect("write invalid-utf8.env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--env-file", "invalid-utf8.env", "get", "registry"])
+        .output()
+        .expect("run pacquet with an invalid-UTF-8 --env-file");
+    assert!(!output.status.success(), "invalid UTF-8 must fail: {output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("invalid-utf8.env"), "error must name the file: {stderr}");
+    assert!(stderr.contains("UTF-8"), "error must name the cause: {stderr}");
+    assert!(
+        !stderr.contains("Failed to read"),
+        "a readable file must not report a read error: {stderr}",
+    );
 
     drop(root);
 }

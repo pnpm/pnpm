@@ -347,54 +347,51 @@ fn parse_legacy_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, ShimTarget,
     Some((name, Path::new(shim), target, args))
 }
 
-/// Whether this launch is a native shim invocation: the executable carries
-/// a shim name with a recorded global target. Mirrors the detection in
-/// [`try_native_dispatch`] without dispatching, so [`crate::main`] can
-/// leave arguments that belong to the shim target uninterpreted. An
-/// unreadable target still dispatches (to an error), so only the absence
-/// of a target file means this is pnpm itself.
-pub(super) fn is_native_shim_invocation() -> bool {
-    let Some(executable) = pnpm_executor::current_executable().ok() else {
-        return false;
-    };
-    let Some(file_name) = executable.file_name() else {
-        return false;
-    };
-    let Some(name) = shim_name(file_name) else {
-        return false;
-    };
-    let Some(bin_dir) = executable.parent() else {
-        return false;
-    };
-    // An unreadable target still dispatches (to an error), so only the
-    // absence of a target file means this is pnpm itself.
-    !matches!(native_shim_target(bin_dir, &name), Ok(None))
+/// The native-shim half of [`super::ShimLaunch`]: what the executing
+/// binary's name and sidecar say about this launch, read exactly once.
+pub(super) enum NativeLaunch {
+    /// Not a shim launch; run the CLI.
+    Cli,
+    /// Dispatch to the recorded global target.
+    Dispatch { name: String, bin_dir: PathBuf, target: ShimTarget },
+    /// The launch names a shim whose target cannot be used. The message is
+    /// already formatted for stderr; dispatch prints it and exits 1.
+    Broken(String),
 }
 
-/// Intercept a launch under a shim name. `None` means this is pnpm
-/// itself and the regular CLI should proceed.
-pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
-    let executable = pnpm_executor::current_executable().ok()?;
-    let name = shim_name(executable.file_name()?)?;
-    let bin_dir = executable.parent()?;
-    let target = match native_shim_target(bin_dir, &name) {
+/// Read the sidecar beside the executing binary once. An unreadable target
+/// still dispatches (to an error), so only the absence of a target file
+/// means this is pnpm itself.
+pub(super) fn resolve_native_launch() -> NativeLaunch {
+    let Some(executable) = pnpm_executor::current_executable().ok() else {
+        return NativeLaunch::Cli;
+    };
+    let Some(file_name) = executable.file_name() else {
+        return NativeLaunch::Cli;
+    };
+    let Some(name) = shim_name(file_name) else {
+        return NativeLaunch::Cli;
+    };
+    let Some(bin_dir) = executable.parent().map(Path::to_path_buf) else {
+        return NativeLaunch::Cli;
+    };
+    let target = match native_shim_target(&bin_dir, &name) {
         Ok(Some(target)) => target,
-        Ok(None) => return None,
+        Ok(None) => return NativeLaunch::Cli,
         Err(error) => {
-            eprintln!("pnpm: cannot read the global target of the {name} shim: {error}");
-            return Some(1);
+            return NativeLaunch::Broken(format!(
+                "pnpm: cannot read the global target of the {name} shim: {error}",
+            ));
         }
     };
     if let ShimTarget::Installed(path) = &target
         && same_file::is_same_file(path, &executable).unwrap_or(false)
     {
-        eprintln!("pnpm: the global target of the {name} shim points back at the shim");
-        return Some(1);
+        return NativeLaunch::Broken(format!(
+            "pnpm: the global target of the {name} shim points back at the shim",
+        ));
     }
-    let settings = trusted_shim_settings();
-    let invocation = super::ShimInvocation { name: &name, bin_dir, target: &target };
-    let args = argv.get(1..).unwrap_or_default();
-    Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
+    NativeLaunch::Dispatch { name, bin_dir, target }
 }
 
 fn executable_path(bin_dir: &Path, name: &str) -> PathBuf {
