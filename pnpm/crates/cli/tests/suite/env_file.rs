@@ -14,7 +14,7 @@ fn write_manifest(workspace: &std::path::Path) {
         "name": "test",
         "version": "0.0.0",
         "scripts": {
-            "print-env": "node -e \"process.stdout.write([process.env.PACQUET_ENV_FILE_SCRIPT, process.env.PACQUET_ENV_FILE_EXPORTED, process.env.PACQUET_ENV_FILE_QUOTED].join('|'))\"",
+            "print-env": r#"node -e "process.stdout.write([process.env.PACQUET_ENV_FILE_SCRIPT, process.env.PACQUET_ENV_FILE_EXPORTED, process.env.PACQUET_ENV_FILE_QUOTED].join('|'))""#,
         },
     })
     .to_string();
