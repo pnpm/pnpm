@@ -303,7 +303,7 @@ fn stdin_reaches_the_command_pnpm_runs() {
     );
 }
 
-/// pnpm 12.9.0 and older linked a `pnpm.cmd` that cmd.exe is still reading
+/// pnpm 12.8 and older linked a `pnpm.cmd` that cmd.exe is still reading
 /// while `pnpm.exe` runs. An update of the CLI from that shim, which is what
 /// `pnpm self-update` does, replaces the file while cmd.exe is still reading
 /// it. cmd.exe then reads on in the new file from where the old one's target
