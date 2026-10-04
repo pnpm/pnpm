@@ -3,7 +3,7 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
 import { getHoistableRootDeps } from './hoistableRootDeps.js'
-import { getHoistableOptionalPeers, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
+import { getHoistableOptionalPeers, getLockfileOnlyVersions, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
 import {
@@ -32,6 +32,8 @@ interface PeerHoisting {
   hoistedPeersUpdateDepths: number[]
   importerResults: PkgAddressesByImportersWithoutPeers[]
   importers: ImporterToResolve[]
+  /** See `HoistPeersOptions.lockfileOnlyVersions`. */
+  lockfileOnlyVersions?: Map<string, Set<string>>
   publishedBy?: Date
   /** The versions of the workspace root's direct dependencies. */
   rootDepVersions: Map<string, string>
@@ -73,6 +75,9 @@ async function startPeerHoisting (
     hoistedPeersUpdateDepths: [],
     importerResults,
     importers,
+    lockfileOnlyVersions: ctx.autoInstallPeers && ctx.allPreferredVersions != null
+      ? getLockfileOnlyVersions(ctx.allPreferredVersions)
+      : undefined,
     publishedBy,
     rootDepVersions: new Map<string, string>(),
     rootImporterIndex: -1,
@@ -135,6 +140,7 @@ function createImporterPeersHoister (hoisting: PeerHoisting, index: number): (mi
     autoInstallPeers: ctx.autoInstallPeers,
     allPreferredVersions: ctx.allPreferredVersions,
     isUpdateTarget: hoisting.hoistedPeersUpdateDepths[index] < 0 ? undefined : options.updateMatching,
+    lockfileOnlyVersions: hoisting.lockfileOnlyVersions,
     workspaceRootDeps: hoisting.workspaceRootDeps,
     overrideBareSpecifier: ctx.overrideBareSpecifier == null
       ? undefined

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -1163,4 +1164,41 @@ test.each([
     `@pnpm.e2e/peer-c@${peerC}`,
   ])
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version).toBe(`1.0.0(@pnpm.e2e/peer-c@${peerC})`)
+})
+
+// https://github.com/pnpm/tasks/issues/61
+test('an automatically installed peer dependency follows its provider down to an older version', async () => {
+  const project = prepareEmpty()
+  const writeProvider = (peerCVersion: string): void => {
+    fs.mkdirSync('provider', { recursive: true })
+    fs.writeFileSync('provider/package.json', JSON.stringify({
+      name: 'provider',
+      version: '1.0.0',
+      dependencies: { '@pnpm.e2e/peer-c': peerCVersion },
+    }))
+  }
+  const manifest: PackageManifest = {
+    name: 'root',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/wants-peer-c-1': '1.0.0',
+      provider: 'file:provider',
+    },
+  }
+  const opts = testDefaults({ autoInstallPeers: true, lockfileOnly: true })
+
+  writeProvider('1.0.1')
+  await install(manifest, opts)
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/wants-peer-c-1'].version).toBe('1.0.0(@pnpm.e2e/peer-c@1.0.1)')
+
+  writeProvider('1.0.0')
+  await install(manifest, opts)
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/wants-peer-c-1'].version).toBe('1.0.0(@pnpm.e2e/peer-c@1.0.0)')
+  expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    '@pnpm.e2e/peer-c@1.0.0',
+  ])
+
+  await install(manifest, opts)
+  expect(project.readLockfile()).toStrictEqual(lockfile)
 })
