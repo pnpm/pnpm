@@ -214,6 +214,71 @@ fn only_the_pnpm_cli_cmd_shims_end_their_batch_context() {
     }
 }
 
+/// Linking the pnpm CLI's bins over a `pnpm.cmd` that keeps its batch lays
+/// the new shim out so that cmd.exe, when still running the old one, ends that
+/// batch (see [`crate::shim::end_replaced_cmd_shim_batch`]). Linking over that
+/// layout writes the plain shim, which a further link leaves alone.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn the_pnpm_cli_cmd_shim_ends_the_batch_of_the_shim_it_replaces() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("bin");
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(&pkg_dir).unwrap();
+    let manifest = json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "pnpm.exe"}});
+    write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+    write_file(pkg_dir.join("pnpm.exe"), "MZ").unwrap();
+    let packages = vec![PackageBinSource::new(pkg_dir, Arc::new(manifest))];
+    let shim = bins_dir.join("pnpm.cmd");
+    create_dir_all(&bins_dir).unwrap();
+    let batch_kept = "@SETLOCAL\r\n@\"%~dp0\\..\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n";
+    write_file(&shim, batch_kept).unwrap();
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let laid_out = read_to_string(&shim).unwrap();
+    assert!(laid_out.starts_with("@GOTO :pnpm\r\n"), "{laid_out}");
+    assert!(
+        laid_out[batch_kept.len()..].starts_with("@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"),
+        "{laid_out}",
+    );
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let plain = read_to_string(&shim).unwrap();
+    assert!(plain.starts_with("@SETLOCAL\r\n"), "{plain}");
+    assert!(!plain.contains("@EXIT /B"), "{plain}");
+    assert!(laid_out.ends_with(&plain), "{laid_out}\n{plain}");
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert_eq!(read_to_string(&shim).unwrap(), plain);
+}
+
+/// A pnpm CLI run through an interpreter keeps its batch, so its shim is
+/// written as it is over a `pnpm.cmd` that keeps its batch too, and a further
+/// link leaves it alone.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn the_pnpm_cli_cmd_shim_for_an_interpreted_target_is_not_laid_out() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("bin");
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(pkg_dir.join("bin")).unwrap();
+    let manifest = json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "bin/pnpm.cjs"}});
+    write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+    write_file(pkg_dir.join("bin/pnpm.cjs"), "#!/usr/bin/env node\n").unwrap();
+    let packages = vec![PackageBinSource::new(pkg_dir, Arc::new(manifest))];
+    let shim = bins_dir.join("pnpm.cmd");
+    create_dir_all(&bins_dir).unwrap();
+    write_file(&shim, "@SETLOCAL\r\n@\"%~dp0\\..\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n").unwrap();
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let written = read_to_string(&shim).unwrap();
+    assert!(written.starts_with("@SETLOCAL\r\n"), "{written}");
+    assert!(written.contains("node.exe"), "{written}");
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert_eq!(read_to_string(&shim).unwrap(), written);
+}
+
 /// A bin directory this run created holds nothing, so the shim goes
 /// straight out. One that was already there is read first, because
 /// that is where an ordinary reinstall finds its shims.

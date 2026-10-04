@@ -11,6 +11,7 @@ use super::{
     link_symlinked_executable, linking_paths::LinkingPaths, symlink_already_points_at,
     target_requires_shim, windows_shim_policy::WindowsShimPolicy,
 };
+use crate::shim::{CmdShimBatch, end_replaced_cmd_shim_batch};
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
 /// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
@@ -156,7 +157,7 @@ where
         })?;
 
     let sh_body = spec.sh_body(runtime.as_ref())?;
-    let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
+    let windows_shims = windows_shim_bodies::<Sys>(&spec, runtime.as_ref());
 
     let current = existing_shim_is_current(existing_shim.as_deref(), &sh_body, &spec)
         && windows_shims_match::<Sys>(windows_shims.as_ref());
@@ -235,34 +236,56 @@ fn fresh_write_applies(spec: &ShimSpec<'_>) -> bool {
 
 /// The Windows sibling shims a write produces.
 struct WindowsShims {
-    cmd_path: PathBuf,
-    cmd_body: String,
+    cmd: CmdShim,
     powershell: Option<(PathBuf, String)>,
+}
+
+/// The `.cmd` sibling, together with the read of its path that laid its body
+/// out, so that the byte comparison deciding on a rewrite needs no second read.
+struct CmdShim {
+    path: PathBuf,
+    body: String,
+    /// What `path` held when `body` was laid out, read for a shim that ends
+    /// its batch before its target (see [`end_replaced_cmd_shim_batch`]).
+    replaced: Option<String>,
 }
 
 /// Generate the Windows siblings. They are off on Unix to match pnpm, and the
 /// bodies are computed only under `cfg!(windows)` so Unix builds stay off the
 /// `relative_target_windows` allocation path entirely.
-fn windows_shim_bodies(
+fn windows_shim_bodies<Sys: FsReadToString>(
     spec: &ShimSpec<'_>,
     runtime: Option<&ScriptRuntime>,
 ) -> Option<WindowsShims> {
     cfg!(windows).then(|| {
-        let cmd_path = with_extension_appended(spec.shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(
-            spec.target_path,
-            &cmd_path,
-            runtime,
-            spec.node_path,
-            spec.windows.cmd_batch,
-        );
+        let cmd = cmd_shim::<Sys>(spec, runtime);
         let powershell = spec.windows.powershell.then(|| {
             let ps1_path = with_extension_appended(spec.shim_path, "ps1");
             let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
             (ps1_path, ps1_body)
         });
-        WindowsShims { cmd_path, cmd_body, powershell }
+        WindowsShims { cmd, powershell }
     })
+}
+
+/// The `.cmd` sibling of `spec`. A shim that ends its batch before its target
+/// is laid out over what its path holds, so that cmd.exe, when it is still
+/// running what was there, does not read on into the new shim. A `.cmd` that
+/// cannot be read is replaced like a missing one.
+fn cmd_shim<Sys: FsReadToString>(spec: &ShimSpec<'_>, runtime: Option<&ScriptRuntime>) -> CmdShim {
+    let path = with_extension_appended(spec.shim_path, "cmd");
+    let body =
+        generate_cmd_shim(spec.target_path, &path, runtime, spec.node_path, spec.windows.cmd_batch);
+    if spec.windows.cmd_batch == CmdShimBatch::Kept {
+        return CmdShim { path, body, replaced: None };
+    }
+    match Sys::read_to_string(&path) {
+        Ok(replaced) => {
+            let body = end_replaced_cmd_shim_batch(&body, &replaced);
+            CmdShim { path, body, replaced: Some(replaced) }
+        }
+        Err(_) => CmdShim { path, body, replaced: None },
+    }
 }
 
 /// Whether the shim already on disk points at the right target.
@@ -314,10 +337,13 @@ where
     let Some(shims) = windows_shims else {
         return true;
     };
-    let cmd_ok = matches!(
-        Sys::read_to_string(&shims.cmd_path),
-        Ok(existing) if existing == shims.cmd_body,
-    );
+    let cmd_ok = match &shims.cmd.replaced {
+        Some(replaced) => *replaced == shims.cmd.body,
+        None => matches!(
+            Sys::read_to_string(&shims.cmd.path),
+            Ok(existing) if existing == shims.cmd.body,
+        ),
+    };
     // A suppressed `.ps1` is already gone, so there is nothing left to compare.
     let ps1_ok = shims.powershell.as_ref().is_none_or(|(ps1_path, ps1_body)| {
         matches!(Sys::read_to_string(ps1_path), Ok(existing) if &existing == ps1_body)
@@ -338,7 +364,7 @@ where
     let Some(shims) = windows_shims else {
         return Ok(());
     };
-    replace_shim::<Sys>(&shims.cmd_path, shims.cmd_body.as_bytes())?;
+    replace_shim::<Sys>(&shims.cmd.path, shims.cmd.body.as_bytes())?;
     if let Some((ps1_path, ps1_body)) = &shims.powershell {
         replace_shim::<Sys>(ps1_path, ps1_body.as_bytes())?;
     }
@@ -357,14 +383,7 @@ fn write_shim_fresh<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    let &ShimSpec {
-        target_path,
-        probe_path,
-        shim_path,
-        node_path,
-        windows,
-        ..
-    } = spec;
+    let &ShimSpec { probe_path, shim_path, .. } = spec;
     let runtime = cache
         .runtime_for::<Sys>(probe_path)
         .map_err(|error| LinkBinsError::ProbeShimSource {
@@ -379,22 +398,12 @@ where
     if Sys::write_new(shim_path, sh_body.as_bytes()).is_err() {
         return Ok(false);
     }
-    if cfg!(windows) {
-        // The Windows siblings keep the replace shape: a missing
-        // canonical shim proves nothing about `.cmd`/`.ps1` leftovers.
-        let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(
-            target_path,
-            &cmd_path,
-            runtime.as_ref(),
-            node_path,
-            windows.cmd_batch,
-        );
-        replace_shim::<Sys>(&cmd_path, cmd_body.as_bytes())?;
-        if windows.powershell {
-            let ps1_path = with_extension_appended(shim_path, "ps1");
-            let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
-            replace_shim::<Sys>(&ps1_path, ps1_body.as_bytes())?;
+    // The Windows siblings keep the replace shape: a missing
+    // canonical shim proves nothing about `.cmd`/`.ps1` leftovers.
+    if let Some(shims) = windows_shim_bodies::<Sys>(spec, runtime.as_ref()) {
+        replace_shim::<Sys>(&shims.cmd.path, shims.cmd.body.as_bytes())?;
+        if let Some((ps1_path, ps1_body)) = &shims.powershell {
+            replace_shim::<Sys>(ps1_path, ps1_body.as_bytes())?;
         }
     }
     chmod_tolerating_removal(shim_path, Sys::set_executable)?;
