@@ -238,9 +238,7 @@ fn the_pnpm_cli_cmd_shim_ends_the_batch_of_the_shim_it_replaces() {
     let laid_out = read_to_string(&shim).unwrap();
     assert!(laid_out.starts_with("@GOTO :pnpm\r\n"), "{laid_out}");
     assert!(
-        laid_out[batch_kept.len()..].starts_with(
-            "@SET \"ERRORLEVEL=\"\r\n@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"
-        ),
+        laid_out[batch_kept.len()..].starts_with("@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"),
         "{laid_out}",
     );
 

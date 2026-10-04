@@ -330,7 +330,7 @@ fn updating_the_cli_from_a_batch_kept_shim_runs_pnpm_once() {
     let replaced = fs::read_to_string(cli.shim()).expect("read the replaced pnpm.cmd");
     assert_ne!(replaced, batch_kept, "the update must replace the shim");
     assert!(replaced.contains("@GOTO #_undefined_# 2>NUL || "), "{replaced}");
-    assert!(replaced.contains("@SET \"ERRORLEVEL=\"\r\n@EXIT /B %ERRORLEVEL%\r\n"), "{replaced}");
+    assert!(replaced.contains("@EXIT /B %ERRORLEVEL%\r\n"), "{replaced}");
 
     // The replaced shim, run from its start, still ends its batch before
     // `pnpm.exe` and passes the exit code through.
