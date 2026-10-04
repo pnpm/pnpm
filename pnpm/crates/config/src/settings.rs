@@ -1732,6 +1732,10 @@ pub struct Config {
     /// global virtual store.
     pub cli_setting_values: BTreeMap<String, String>,
 
+    /// Every `--config.<key>=<value>` token of the command line, as given
+    /// and in argv order, for forwarding to a child pnpm the command spawns.
+    pub raw_cli_config: Vec<(String, String)>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution

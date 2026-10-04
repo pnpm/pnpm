@@ -31,6 +31,7 @@ export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Proje
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
+  rawCliConfig?: Record<string, unknown>
 }
 
 export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions): Promise<void> {
@@ -262,7 +263,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
 function runInstall (opts: RunDepsStatusCheckOptions, command: string[]): void {
   const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
   try {
-    runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
+    runPnpmCli([...command, ...createCliConfigArgs(opts)], { cwd: opts.dir, loglevel, reporter: opts.reporter })
   } catch (err: unknown) {
     if (!isFailedInstall(err)) throw err
     globalWarn('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install.')
@@ -313,4 +314,19 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
     ...(opts.filter ?? []).map((selector) => `--filter=${withDependencies(selector)}`),
     ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
   ]
+}
+
+/**
+ * The command line's `--config.*` options, which the install inherits. They
+ * stay out of the prompt, which could otherwise print a credential such as
+ * `--config.//registry.example/:_authToken=...`. `dir` is left out: the install
+ * starts in the resolved directory, where a relative value would resolve again.
+ */
+export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawCliConfig'>): string[] {
+  if (!opts.rawCliConfig) return []
+  return Object.entries(opts.rawCliConfig).flatMap(([key, value]) => {
+    if (key === 'dir' || value === undefined || value === null) return []
+    const values = Array.isArray(value) ? value : [value]
+    return values.map((item) => `--config.${key}=${item}`)
+  })
 }

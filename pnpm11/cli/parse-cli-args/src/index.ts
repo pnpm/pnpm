@@ -20,6 +20,8 @@ export interface ParsedCliArgs {
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
   workspaceDir: string | undefined
+  /** The `--config.<key>=<value>` options as given, keyed without the prefix. */
+  rawCliConfig?: Record<string, unknown>
 }
 
 export interface ParseCliArgsOptions {
@@ -304,21 +306,25 @@ function validateWorkspaceOptions (options: Record<string, unknown>, workspaceDi
 interface NormalizeOptionsResult {
   options: Record<string, unknown>
   unknownOptions: Map<string, string[]>
+  rawCliConfig: Record<string, unknown>
 }
 
 function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>): NormalizeOptionsResult {
   const standardOptionNames = []
   const normalizedOptions: Record<string, unknown> = {}
+  const rawCliConfig: Record<string, unknown> = {}
   for (const [optionName, optionValue] of Object.entries(options)) {
     if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
-      normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue
+      const key = optionName.substring(CUSTOM_OPTION_PREFIX.length)
+      normalizedOptions[key] = optionValue
+      rawCliConfig[key] = optionValue
       continue
     }
     normalizedOptions[optionName] = optionValue
     standardOptionNames.push(optionName)
   }
   const unknownOptions = getUnknownOptions(standardOptionNames, knownOptions)
-  return { options: normalizedOptions, unknownOptions }
+  return { options: normalizedOptions, unknownOptions, rawCliConfig }
 }
 
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {

@@ -80,6 +80,8 @@ export interface ConfigContext {
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
+  /** The `--config.<key>=<value>` options as given, forwarded to a child pnpm the command spawns. */
+  rawCliConfig?: Record<string, unknown>
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>
   packageManager: {

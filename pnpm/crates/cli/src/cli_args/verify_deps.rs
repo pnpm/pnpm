@@ -198,12 +198,12 @@ fn locked_install(
         (None, false)
     });
     if !waited {
-        return spawn_install(dir, install_args, reporter);
+        return spawn_install(dir, config, install_args, reporter);
     }
     match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
         Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
             install_args.extend(install_selection_args(config));
-            spawn_install(dir, &install_args, reporter)
+            spawn_install(dir, config, &install_args, reporter)
         }
         _ => Ok(()),
     }
@@ -238,6 +238,7 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 #[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
+    config: &Config,
     install_args: &[String],
     reporter: ReporterType,
 ) -> miette::Result<()> {
@@ -246,6 +247,7 @@ fn spawn_install(
     command
         .args(["install", "--verify-deps-before-run-install", "--use-stderr"])
         .args(install_args)
+        .args(install_config_args(config))
         .current_dir(dir);
     match reporter {
         ReporterType::Default => {}
@@ -369,6 +371,15 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
     } else {
         format!("{selector}...")
     }
+}
+
+/// The command line's `--config.*` tokens, which the install inherits.
+/// They stay out of the prompt, which could otherwise print a credential
+/// such as `--config.//registry.example/:_authToken=...`.
+fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
+    config.raw_cli_config
+        .iter()
+        .map(|(key, value)| format!("--config.{key}={value}"))
 }
 
 #[cfg(test)]
