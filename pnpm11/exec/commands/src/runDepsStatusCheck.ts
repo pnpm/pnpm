@@ -319,12 +319,13 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
 /**
  * The command line's `--config.*` options, which the install inherits. They
  * stay out of the prompt, which could otherwise print a credential such as
- * `--config.//registry.example/:_authToken=...`.
+ * `--config.//registry.example/:_authToken=...`. `dir` is left out: the install
+ * starts in the resolved directory, where a relative value would resolve again.
  */
 export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawCliConfig'>): string[] {
   if (!opts.rawCliConfig) return []
   return Object.entries(opts.rawCliConfig).flatMap(([key, value]) => {
-    if (value === undefined || value === null) return []
+    if (key === 'dir' || value === undefined || value === null) return []
     const values = Array.isArray(value) ? value : [value]
     return values.map((item) => `--config.${key}=${item}`)
   })

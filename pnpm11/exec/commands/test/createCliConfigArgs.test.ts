@@ -33,6 +33,17 @@ describe('createCliConfigArgs', () => {
     ])
   })
 
+  test('leaves out dir, which the install starts in', () => {
+    expect(createCliConfigArgs({
+      rawCliConfig: {
+        dir: 'project',
+        'lockfile-dir': '..',
+      },
+    })).toStrictEqual([
+      '--config.lockfile-dir=..',
+    ])
+  })
+
   test('ignores null and undefined values', () => {
     expect(createCliConfigArgs({
       rawCliConfig: {
