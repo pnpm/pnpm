@@ -29,11 +29,13 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let mut scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        let verdict = self.repeat_install_verdict(&scope).await?;
-        if verdict == RepeatInstallVerdict::Unchanged {
-            return Ok(report_already_up_to_date::<Reporter>(self.workspace.prefix));
-        }
-        scope.project_scripts_current = verdict == RepeatInstallVerdict::UnchangedFrozen;
+        scope.project_scripts_current = match self.repeat_install_verdict(&scope).await? {
+            RepeatInstallVerdict::Unchanged => {
+                return Ok(report_already_up_to_date::<Reporter>(self.workspace.prefix));
+            }
+            RepeatInstallVerdict::UnchangedFrozen => true,
+            RepeatInstallVerdict::Changed => false,
+        };
         let mut loaded = load_lockfiles::<Reporter>(
             self.install,
             &mut self.owned,
