@@ -234,7 +234,7 @@ function failRuntimeCheck (config: Config, onFail: 'error' | 'warn', message: st
 /**
  * These warnings are not the command's output, so they go to stderr: a command
  * such as `pnpm cache path` or `pnpm list --json` prints a value a script reads
- * from stdout. The ndjson reporter, which writes to stderr, still receives them.
+ * from stdout. The ndjson reporter still receives them as log records.
  */
 function warnAboutProject (config: Config, message: string): void {
   if (config.loglevel === 'silent' || config.loglevel === 'error' || config.reporter === 'silent') return
