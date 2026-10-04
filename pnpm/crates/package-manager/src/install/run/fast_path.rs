@@ -76,7 +76,11 @@ pub(super) fn repeat_install_verdict(
     })
 }
 /// What [`repeat_install_verdict`] found.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Deliberately not `PartialEq`: every reader has to `match` and name the
+/// variant it means, so adding one is a compile error rather than a silent
+/// fall into the negative case.
+#[derive(Debug, Clone, Copy)]
 pub(super) enum RepeatInstallVerdict {
     /// The install runs in full.
     Changed,
@@ -223,7 +227,11 @@ impl super::RunExecution<'_> {
         self.check_custom_fetcher_reuse().await?;
         let verdict =
             scope.repeat_install_verdict(self.install, &self.owned, &self.mode, &self.workspace)?;
-        if verdict == RepeatInstallVerdict::Changed
+        let changed = match verdict {
+            RepeatInstallVerdict::Changed => true,
+            RepeatInstallVerdict::Unchanged | RepeatInstallVerdict::UnchangedFrozen => false,
+        };
+        if changed
             || pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
         {
             return Ok(RepeatInstallVerdict::Changed);
