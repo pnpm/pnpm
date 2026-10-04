@@ -347,6 +347,30 @@ fn parse_legacy_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, ShimTarget,
     Some((name, Path::new(shim), target, args))
 }
 
+/// Whether this launch is a native shim invocation: the executable carries
+/// a shim name with a recorded global target. Mirrors the detection in
+/// [`try_native_dispatch`] without dispatching, so [`crate::main`] can
+/// leave arguments that belong to the shim target uninterpreted. An
+/// unreadable target still dispatches (to an error), so only the absence
+/// of a target file means this is pnpm itself.
+pub(super) fn is_native_shim_invocation() -> bool {
+    let Some(executable) = pnpm_executor::current_executable().ok() else {
+        return false;
+    };
+    let Some(file_name) = executable.file_name() else {
+        return false;
+    };
+    let Some(name) = shim_name(file_name) else {
+        return false;
+    };
+    let Some(bin_dir) = executable.parent() else {
+        return false;
+    };
+    // An unreadable target still dispatches (to an error), so only the
+    // absence of a target file means this is pnpm itself.
+    !matches!(native_shim_target(bin_dir, &name), Ok(None))
+}
+
 /// Intercept a launch under a shim name. `None` means this is pnpm
 /// itself and the regular CLI should proceed.
 pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {

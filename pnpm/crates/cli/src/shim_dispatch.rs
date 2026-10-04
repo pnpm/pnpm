@@ -75,6 +75,18 @@ mod trust;
 /// sibling `node` shim included, inherit.
 const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
 
+/// Whether this process was launched as a shim rather than as pnpm
+/// itself: a legacy shim's `--shim` invocation, or an executable carrying
+/// a native shim name with a recorded global target. When true, the
+/// arguments belong to the shim target and pnpm must not interpret them
+/// (in particular, it must not load `--env-file` files named there).
+pub(crate) fn is_shim_invocation(argv: &[OsString]) -> bool {
+    if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
+        return true;
+    }
+    native_shim::is_native_shim_invocation()
+}
+
 /// Intercept a launch under a shim name, or a legacy shim's `--shim`
 /// invocation of the dispatcher it replaced. `None` means this is pnpm
 /// itself and the regular CLI should proceed; `Some(code)` means the

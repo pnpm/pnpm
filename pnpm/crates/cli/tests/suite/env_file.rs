@@ -131,14 +131,18 @@ fn missing_env_file_fails_loudly() {
     drop(root);
 }
 
-/// A malformed file fails the command and names the file.
+/// A malformed file fails the command and names the file, without echoing
+/// its contents (env files routinely hold secrets).
 #[test]
 fn malformed_env_file_fails_loudly() {
     let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("malformed.env"), "THIS LINE HAS NO EQUALS\n")
-        .expect("write malformed.env");
+    fs::write(
+        workspace.join("malformed.env"),
+        "PACQUET_ENV_FILE_TEST_REDACTED_SECRET no equals here\n",
+    )
+    .expect("write malformed.env");
 
     let output = pacquet_in(&workspace)
         .with_args(["--env-file", "malformed.env", "get", "registry"])
@@ -147,6 +151,56 @@ fn malformed_env_file_fails_loudly() {
     assert!(!output.status.success(), "malformed file must fail: {output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("malformed.env"), "error must name the file: {stderr}");
+    assert!(
+        !stderr.contains("PACQUET_ENV_FILE_TEST_REDACTED_SECRET"),
+        "error must not echo file contents: {stderr}",
+    );
+
+    drop(root);
+}
+
+/// A value containing a NUL byte fails the command instead of panicking in
+/// `set_var`, and names the file and the cause.
+#[test]
+fn nul_valued_env_file_fails_loudly() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("nul.env"), b"PACQUET_ENV_FILE_TEST_NUL=before\0after\n")
+        .expect("write nul.env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--env-file", "nul.env", "get", "registry"])
+        .output()
+        .expect("run pacquet with a NUL-valued --env-file");
+    assert!(!output.status.success(), "NUL value must fail: {output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("nul.env"), "error must name the file: {stderr}");
+    assert!(stderr.contains("NUL"), "error must name the cause: {stderr}");
+
+    drop(root);
+}
+
+/// A UTF-8 byte-order mark does not break the first entry: Windows editors
+/// prepend one routinely, and dotenvy's own file loader tolerates it.
+#[test]
+fn bom_prefixed_env_file_loads() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace);
+    let mut contents = vec![0xEF, 0xBB, 0xBF];
+    contents.extend_from_slice(b"PACQUET_ENV_FILE_SCRIPT=from-bom-env\n");
+    fs::write(workspace.join(".env"), contents).expect("write .env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--env-file", ".env", "run", "print-env"])
+        .output()
+        .expect("run pacquet with a BOM-prefixed --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains("from-bom-env|"),
+        "script must see the BOM-prefixed variable; stdout: {stdout:?}",
+    );
 
     drop(root);
 }

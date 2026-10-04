@@ -96,8 +96,12 @@ dispatches to.
 
 Values support `$VAR` / `${VAR}` substitution from the environment and
 earlier entries, and `export ` prefixes, following dotenv conventions;
-single-quote a value to keep a literal `$`. A missing or malformed file
+single-quote a value to keep a literal `$`. A leading UTF-8 byte-order mark
+is tolerated. A missing or malformed file
 fails the command.
+
+The flag is pnpm's own: a shim invocation forwards its arguments to the
+shim target untouched and never loads env files.
 
 ## Commands
 

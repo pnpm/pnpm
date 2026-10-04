@@ -1,5 +1,5 @@
 use super::{load, scan, strip_flags};
-use std::{ffi::OsString, path::PathBuf, sync::Mutex};
+use std::{ffi::OsString, path::PathBuf};
 
 /// Build an argv (with a leading program name) from string slices.
 fn argv(tokens: &[&str]) -> Vec<OsString> {
@@ -117,15 +117,6 @@ fn strip_flags_keeps_everything_else() {
     assert_eq!(strings(&stripped), vec!["pnpm", "--recursive", "install"]);
 }
 
-/// The environment is process-global and unit tests run on threads sharing
-/// it, so every test that mutates it holds this lock and uses a key no
-/// other test touches.
-static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-fn unique_key(name: &str) -> String {
-    format!("PACQUET_ENV_FILE_TEST_{name}")
-}
-
 fn write_env_file(dir: &std::path::Path, name: &str, contents: &str) -> PathBuf {
     let path = dir.join(name);
     std::fs::write(&path, contents).expect("write env file fixture");
@@ -133,51 +124,7 @@ fn write_env_file(dir: &std::path::Path, name: &str, contents: &str) -> PathBuf 
 }
 
 #[test]
-fn load_layers_files_first_wins() {
-    let guard = ENV_LOCK.lock().expect("take the env lock");
-    let key = unique_key("FIRST_WINS");
-    // SAFETY: the env lock is held, so no other test thread observes this.
-    unsafe {
-        std::env::remove_var(&key);
-    }
-    let dir = tempfile::tempdir().expect("create fixture dir");
-    let first = write_env_file(dir.path(), "first.env", format!("{key}=first\n").as_str());
-    let second = write_env_file(dir.path(), "second.env", format!("{key}=second\n").as_str());
-
-    load(&[first, second]).expect("load env files");
-
-    assert_eq!(std::env::var(&key).expect("read layered var"), "first");
-    // SAFETY: the env lock is held, so no other test thread observes this.
-    unsafe {
-        std::env::remove_var(&key);
-    }
-    drop(guard);
-}
-
-#[test]
-fn load_never_overrides_the_environment() {
-    let guard = ENV_LOCK.lock().expect("take the env lock");
-    let key = unique_key("NO_OVERRIDE");
-    let dir = tempfile::tempdir().expect("create fixture dir");
-    let path = write_env_file(dir.path(), "override.env", format!("{key}=from-file\n").as_str());
-
-    // SAFETY: the env lock is held, so no other test thread observes this.
-    unsafe {
-        std::env::set_var(&key, "from-env");
-    }
-    load(std::slice::from_ref(&path)).expect("load env file");
-
-    assert_eq!(std::env::var(&key).expect("read guarded var"), "from-env");
-    // SAFETY: the env lock is held, so no other test thread observes this.
-    unsafe {
-        std::env::remove_var(&key);
-    }
-    drop(guard);
-}
-
-#[test]
 fn load_fails_loudly_on_a_missing_file() {
-    let _guard = ENV_LOCK.lock().expect("take the env lock");
     let missing = PathBuf::from("pacquet-env-file-test-does-not-exist.env");
     let error = load(std::slice::from_ref(&missing)).expect_err("missing file must fail");
     let message = format!("{error:?}");
@@ -189,7 +136,6 @@ fn load_fails_loudly_on_a_missing_file() {
 
 #[test]
 fn load_fails_loudly_on_a_malformed_file() {
-    let _guard = ENV_LOCK.lock().expect("take the env lock");
     let dir = tempfile::tempdir().expect("create fixture dir");
     let path = write_env_file(dir.path(), "malformed.env", "THIS LINE HAS NO EQUALS\n");
     let error = load(std::slice::from_ref(&path)).expect_err("malformed file must fail");
@@ -199,7 +145,6 @@ fn load_fails_loudly_on_a_malformed_file() {
 
 #[test]
 fn load_redacts_file_contents_from_parse_errors() {
-    let _guard = ENV_LOCK.lock().expect("take the env lock");
     let dir = tempfile::tempdir().expect("create fixture dir");
     let path = write_env_file(
         dir.path(),
@@ -217,8 +162,9 @@ fn load_redacts_file_contents_from_parse_errors() {
 
 #[test]
 fn load_rejects_nul_bytes_instead_of_panicking() {
-    let guard = ENV_LOCK.lock().expect("take the env lock");
-    let key = unique_key("NUL");
+    // Read-only: the load fails before setting anything, and the key is
+    // unique to this test, so no process-global mutation is involved.
+    let key = "PACQUET_ENV_FILE_TEST_NUL";
     let dir = tempfile::tempdir().expect("create fixture dir");
     let path = dir.path().join("nul.env");
     std::fs::write(&path, format!("{key}=before\0after\n")).expect("write env file fixture");
@@ -226,6 +172,5 @@ fn load_rejects_nul_bytes_instead_of_panicking() {
     let message = format!("{error:?}");
     assert!(message.contains("nul.env"), "error names the file: {message}");
     assert!(message.contains("NUL"), "error names the cause: {message}");
-    assert!(std::env::var_os(&key).is_none(), "rejected value must not be set");
-    drop(guard);
+    assert!(std::env::var_os(key).is_none(), "rejected value must not be set");
 }

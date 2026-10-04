@@ -74,8 +74,12 @@ pub fn main() -> ExitCode {
     set_panic_hook();
     // Load `--env-file` variables here, on the main thread before the
     // startup thread below exists: `std::env::set_var` must not run once
-    // another thread is alive (see `env_file`).
-    if let Err(error) = env_file::load_from_argv(&std::env::args_os().collect::<Vec<_>>()) {
+    // another thread is alive (see `env_file`). A shim launch is exempt:
+    // its arguments belong to the shim target and travel there untouched.
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    if !shim_dispatch::is_shim_invocation(&argv)
+        && let Err(error) = env_file::load_from_argv(&argv)
+    {
         report_fatal_error(&error);
         return ExitCode::FAILURE;
     }
