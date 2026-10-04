@@ -1,6 +1,7 @@
 * text eol=lf
 
 *.tgz binary
+*.zst binary
 
 # Test fixtures embed package.json/lockfiles that name real packages purely as
 # test data, never as dependencies we install. Mark the fixture trees as
