@@ -1,7 +1,7 @@
 //! `Ctrl+C` under `pnpm run` on Windows. The console delivers the event to
 //! every process attached to it at once, so the script, the shell running
 //! it and pnpm all have it by the time pnpm's handler runs. The status the
-//! shell then leaves is its own: `cmd` ends with `STATUS_CONTROL_C_EXIT`
+//! shell then leaves is its own: `cmd` ends with [`STATUS_CONTROL_C_EXIT`]
 //! once the command it ran has returned, PowerShell with 1. pnpm ends the
 //! same way and reports no lifecycle failure for a script the user ended
 //! (pnpm/pnpm#16579).
@@ -31,7 +31,7 @@ const STATUS_CONTROL_C_EXIT: i32 = 0xC000_013A_u32 as i32;
 const DEV_SCRIPT: &str =
     r#"node -e "require('node:fs').writeFileSync('started.txt', ''); setInterval(() => {}, 1000)""#;
 
-/// The default script shell, `cmd`, ends with `STATUS_CONTROL_C_EXIT` once
+/// The default script shell, `cmd`, ends with [`STATUS_CONTROL_C_EXIT`] once
 /// the command the console interrupted has returned, and pnpm ends with
 /// that status. The interrupt is the user's doing, so pnpm prints no
 /// `[ELIFECYCLE]` line for it.
@@ -41,7 +41,7 @@ fn ctrl_c_ends_pnpm_like_the_script_shell_without_a_lifecycle_failure() {
     assert_eq!(status.code(), Some(STATUS_CONTROL_C_EXIT), "pnpm ends as cmd did\n{output}");
     assert!(
         !output.contains("ELIFECYCLE"),
-        "a script the user interrupted is not a failure\n{output}"
+        "a script the user interrupted is not a failure\n{output}",
     );
 }
 
@@ -54,7 +54,7 @@ fn ctrl_c_under_a_powershell_script_shell_reports_no_lifecycle_failure() {
     assert_eq!(status.code(), Some(1), "pnpm ends as PowerShell did\n{output}");
     assert!(
         !output.contains("ELIFECYCLE"),
-        "a script the user interrupted is not a failure\n{output}"
+        "a script the user interrupted is not a failure\n{output}",
     );
 }
 
@@ -82,10 +82,10 @@ fn interrupt_run(args: &[&str]) -> (ExitStatus, String) {
     for stream in [
         process.stdout
             .take()
-            .map(|s| Box::new(s) as Box<dyn Read>),
+            .map(|stream| Box::new(stream) as Box<dyn Read>),
         process.stderr
             .take()
-            .map(|s| Box::new(s) as Box<dyn Read>),
+            .map(|stream| Box::new(stream) as Box<dyn Read>),
     ] {
         stream
             .expect("piped stream")

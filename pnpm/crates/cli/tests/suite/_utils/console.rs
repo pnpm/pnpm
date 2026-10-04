@@ -34,6 +34,7 @@ impl PrivateConsole {
     /// `Ctrl+C` at this console, which reaches every process attached to
     /// it, as a keypress does. This process ignores it (see
     /// [`PrivateConsole`]).
+    #[expect(clippy::unused_self, reason = "the event goes to the console this value attached")]
     pub fn press_ctrl_c(&self) {
         // SAFETY: plain FFI call with no pointer arguments. Group 0 is the
         // whole private console.

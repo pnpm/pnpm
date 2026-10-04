@@ -53,15 +53,15 @@ use std::{
 /// next interrupt ends pnpm instead.
 const RELAYED_INTERRUPTS: usize = 2;
 
-/// Whether a signal pnpm handles, or a console control event on Windows,
-/// has reached pnpm. The handlers set it, and `pnpm run` reads it once a
-/// script has ended: the user ended that script, so its status is not a
-/// lifecycle failure to report, and pnpm ends with it all the same
-/// (pnpm/pnpm#16579).
+/// Set by the signal and console handlers, read through
+/// [`was_interrupted`].
 static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 /// Whether an interrupt or a termination has reached pnpm while it was
-/// running a script. See [`INTERRUPTED`].
+/// running a script: a signal pnpm handles, or a console control event on
+/// Windows. `pnpm run` reads it once a script has ended. The user ended
+/// that script, so its status is not a lifecycle failure to report, and
+/// pnpm ends with it all the same (pnpm/pnpm#16579).
 #[must_use]
 pub fn was_interrupted() -> bool {
     INTERRUPTED.load(Ordering::Relaxed)
