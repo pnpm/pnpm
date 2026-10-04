@@ -7,7 +7,9 @@
 //! latter tells: it is written after every bin, and names the pnpm version
 //! that linked them, so a pnpm that links differently relinks under the lock.
 
-use super::{EnginePackages, InstalledEngine, compute_engine_slot, package_dir};
+use super::{
+    EnginePackages, InstalledEngine, compute_engine_slot, package_dir, pnpm_executable_path,
+};
 use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_fs::write_atomic;
 use pnpm_lockfile::EnvLockfile;
@@ -32,10 +34,8 @@ pub(super) fn linked_engine_bins(
     if !are_current(&bin_dir) {
         return None;
     }
-    let native_binary = package.links_native_binary.then(|| {
-        let executable = if cfg!(windows) { "pnpm.exe" } else { "pnpm" };
-        package_dir(&slot, package.wrapper).join(executable)
-    });
+    let native_binary =
+        package.links_native_binary.then(|| pnpm_executable_path(&slot, package.wrapper));
     Some(InstalledEngine { bin_dir, native_binary, private_install: None })
 }
 

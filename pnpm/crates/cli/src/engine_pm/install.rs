@@ -18,7 +18,7 @@
 
 use crate::{
     cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
+        install_pnpm::{link_exe_platform_binary, package_dir, pnpm_executable_path, run_install},
         verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
     },
     config_deps,
