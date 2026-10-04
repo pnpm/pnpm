@@ -90,6 +90,29 @@ fn existing_environment_wins_over_env_file() {
     drop(root);
 }
 
+/// A `pm` prefix still loads `--env-file`: the flag after `pm` is pnpm's own
+/// option, not a forwarded script argument.
+#[test]
+fn pm_prefix_still_loads_env_file() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace);
+    fs::write(workspace.join(".env"), "PACQUET_ENV_FILE_SCRIPT=from-env-file\n")
+        .expect("write .env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["pm", "--env-file", ".env", "run", "print-env"])
+        .output()
+        .expect("run pacquet with pm prefix and --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains("from-env-file|"),
+        "script must see the layered variables; stdout: {stdout:?}",
+    );
+
+    drop(root);
+}
+
 /// A missing file fails the command and names the file.
 #[test]
 fn missing_env_file_fails_loudly() {
