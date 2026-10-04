@@ -259,11 +259,10 @@ pub(super) fn apply_location_overrides(
     Ok(())
 }
 
-/// `--recursive` / `--filter` / `--filter-prod` / `--workspace-root` /
-/// `--fail-if-no-match` are CLI-only upstream (not `.npmrc` / yaml
-/// keys), so the global flags are threaded in here. Mirrors pnpm's
-/// `Config.recursive` / `.filter` / `.filterProd` / `.workspaceRoot` /
-/// `.failIfNoMatch`.
+/// `--recursive` / `--filter` / `--filter-prod` / `--workspace-root` are
+/// CLI-only upstream (not `.npmrc` / yaml keys), so the global flags are
+/// threaded in here. Mirrors pnpm's `Config.recursive` / `.filter` /
+/// `.filterProd` / `.workspaceRoot`.
 pub(super) struct ProjectSelectors<'a> {
     pub(super) recursive: bool,
     pub(super) recursive_from_command_line: bool,
@@ -271,7 +270,6 @@ pub(super) struct ProjectSelectors<'a> {
     pub(super) filter: &'a [String],
     pub(super) filter_prod: &'a [String],
     pub(super) workspace_root: bool,
-    pub(super) fail_if_no_match: bool,
 }
 
 pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelectors<'_>) {
@@ -289,7 +287,6 @@ pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelec
         cfg.filter.push("{.}...".to_string());
     }
     cfg.workspace_root = selectors.workspace_root;
-    cfg.fail_if_no_match = selectors.fail_if_no_match;
 }
 
 /// The CLI flags that shape what the command prints and how much of it
@@ -412,6 +409,14 @@ fn apply_workspace_ordering_and_selection_config(
         workspace.selection.include_workspace_root,
         workspace.selection.no_include_workspace_root,
         cfg.include_workspace_root,
+    );
+    if workspace.selection.fail_if_no_match || workspace.selection.no_fail_if_no_match {
+        cfg.cli_settings.insert("failIfNoMatch".to_string());
+    }
+    cfg.fail_if_no_match = super::resolve_bool_override(
+        workspace.selection.fail_if_no_match,
+        workspace.selection.no_fail_if_no_match,
+        cfg.fail_if_no_match,
     );
 }
 

@@ -262,8 +262,12 @@ pub struct WorkspaceSelectionArgs {
     pub workspace_root: bool,
     /// Exit with code 1 when the `--filter` / `--filter-prod` selectors
     /// match no workspace project.
-    #[clap(long = "fail-if-no-match", global = true)]
+    #[clap(long = "fail-if-no-match", global = true, overrides_with = "no_fail_if_no_match")]
     pub fail_if_no_match: bool,
+    /// Let a command run over an empty selection, overriding a
+    /// `failIfNoMatch: true` setting.
+    #[clap(long = "no-fail-if-no-match", global = true, overrides_with = "fail_if_no_match")]
+    pub no_fail_if_no_match: bool,
     /// Also run a recursive command on the root workspace project, which
     /// `run` / `exec` / `add` / `test` otherwise leave out.
     #[clap(
