@@ -36,6 +36,9 @@ use std::{
 /// Error type of [`StoreDir::prune`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PruneError {
+    #[display("Failed to read CAS loader references: {_0}")]
+    #[diagnostic(code(ERR_PNPM_STORE_LOADER_REFERENCES))]
+    LoaderReferences(#[error(source)] io::Error),
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] StoreLockError),
 
@@ -89,8 +92,11 @@ impl StoreDir {
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
     pub fn prune(&self) -> Result<(), PruneError> {
         let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
-        self.prune_global_virtual_store()?;
-        let stats = crate::prune_cas::prune_cas(self).map_err(PruneError::PruneCas)?;
+        let references = crate::loader_references::loader_references(self)
+            .map_err(PruneError::LoaderReferences)?;
+        self.prune_global_virtual_store(&references.package_roots)?;
+        let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
+            .map_err(PruneError::PruneCas)?;
         eprintln!(
             "Removed {} file{} ({} bytes)",
             stats.files,
@@ -112,7 +118,7 @@ impl StoreDir {
         Ok(())
     }
 
-    fn prune_global_virtual_store(&self) -> Result<(), PruneError> {
+    fn prune_global_virtual_store(&self, loader_roots: &[PathBuf]) -> Result<(), PruneError> {
         let links_dir = self.links();
         if !path_exists(&links_dir) {
             return Ok(());
@@ -128,7 +134,7 @@ impl StoreDir {
             projects.len(),
         );
 
-        let reachable = mark_reachable_slots(&links_dir, &projects)?;
+        let reachable = mark_reachable_slots(&links_dir, &projects, loader_roots)?;
         // Projects without the global virtual store register too, so no link
         // from any registered project leaves the slots' users as unknown as
         // an empty registry does.
@@ -154,6 +160,7 @@ impl StoreDir {
 fn mark_reachable_slots(
     links_dir: &Path,
     projects: &[PathBuf],
+    loader_roots: &[PathBuf],
 ) -> Result<HashSet<PathBuf>, PruneError> {
     // Canonicalize the links root once and pass it down. The
     // mark walk compares every target's canonical form against
@@ -164,12 +171,29 @@ fn mark_reachable_slots(
         dunce::canonicalize(links_dir).unwrap_or_else(|_| links_dir.to_path_buf());
     let mut reachable: HashSet<PathBuf> = HashSet::new();
     let mut visited: HashSet<PathBuf> = HashSet::new();
+    mark_loader_roots(loader_roots, &canonical_links, &mut reachable, &mut visited)?;
     for project_dir in projects {
         for modules_dir in find_all_node_modules_dirs(project_dir)? {
             walk_symlinks_to_store(&modules_dir, &canonical_links, &mut reachable, &mut visited)?;
         }
     }
     Ok(reachable)
+}
+
+fn mark_loader_roots(
+    loader_roots: &[PathBuf],
+    canonical_links: &Path,
+    reachable: &mut HashSet<PathBuf>,
+    visited: &mut HashSet<PathBuf>,
+) -> Result<(), PruneError> {
+    for root in loader_roots {
+        if let Some(slot) = store_slot_from_target(root, canonical_links) {
+            let directory = canonical_links.join(&slot).join("node_modules");
+            reachable.insert(slot);
+            walk_symlinks_to_store(&directory, canonical_links, reachable, visited)?;
+        }
+    }
+    Ok(())
 }
 
 /// Find every `node_modules/` directory under `project_dir`,
@@ -299,10 +323,14 @@ fn linked_store_slot(entry_path: &Path, canonical_links: &Path) -> Option<PathBu
             .map(|parent| parent.join(&target))
             .unwrap_or(target)
     };
+    store_slot_from_target(&absolute_target, canonical_links)
+}
+
+fn store_slot_from_target(absolute_target: &Path, canonical_links: &Path) -> Option<PathBuf> {
     // Canonicalise the target so a symlink-bearing path prefix doesn't fool
     // the `starts_with` check against the (already-canonical) links root.
     let canonical_target =
-        dunce::canonicalize(&absolute_target).unwrap_or_else(|_| absolute_target.clone());
+        dunce::canonicalize(absolute_target).unwrap_or_else(|_| absolute_target.to_path_buf());
 
     // Slot path is the segment after `canonical_links` up to (but excluding)
     // the first `node_modules` component. Layout:

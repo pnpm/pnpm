@@ -344,6 +344,7 @@ fn project_extra_env(
     extra_env: &HashMap<String, String>,
 ) -> HashMap<String, String> {
     let mut extra_env = extra_env.clone();
+    config.add_cas_loader_env(root, &mut extra_env);
     if let Some(pnp_path) = pnp_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
         extra_env.insert(

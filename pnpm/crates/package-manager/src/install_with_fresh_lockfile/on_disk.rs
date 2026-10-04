@@ -31,6 +31,7 @@ pub(super) fn build_extra_env(
     if let Some(node_options) = &config.node_options {
         env.insert("NODE_OPTIONS".to_string(), node_options.clone());
     }
+    config.add_cas_loader_env(workspace_root, &mut env);
     if matches!(node_linker, NodeLinker::Pnp) {
         let node_options = env.get("NODE_OPTIONS").map(String::as_str);
         env.insert(

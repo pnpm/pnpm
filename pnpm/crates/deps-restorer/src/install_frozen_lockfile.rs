@@ -261,6 +261,7 @@ fn build_extra_env(
     workspace_root: &std::path::Path,
 ) -> HashMap<String, String> {
     let mut extra_env = config.extra_env_with_node_options();
+    config.add_cas_loader_env(workspace_root, &mut extra_env);
     if matches!(node_linker, NodeLinker::Pnp) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
         extra_env.insert(

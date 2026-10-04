@@ -4,11 +4,37 @@ title: Experimental store loader
 
 The standalone `@pnpm/esm-loader` package lets Node.js load JavaScript and JSON directly from pnpm's content-addressable store. It reads a dependency manifest and store blobs without writing package directories or a `node_modules` directory for the application.
 
-This is an experimental runtime API. `pnpm install` does not yet generate its manifest or select this loader. Integration with an opt-in install mode and bin shims is planned separately. A standalone diagnostic can install explicitly opted-out packages and their dependency trees into the global virtual store.
+This is an experimental install mode. Enable it persistently in `pnpm-workspace.yaml` so install and execution commands use the same layout:
+
+```yaml
+nodeLinker: cas
+casMaterialize:
+  - vitest
+```
+
+Run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `.pnpm-store.json`, writes its bundled runtime to `.pnpm-store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly.
+
+`casMaterialize` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in CAS. Patched packages and their dependency trees are materialized automatically. Packages needing build scripts must be selected explicitly unless scripts are disabled. The normal build approval policy still applies.
+
+The mode enables the global virtual store. With the default layout, application state and bin shims live under `.pnpm`, and no application `node_modules` directory is created. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
+
+When switching an existing project, remove its old `node_modules` directories before installing. Changing the mode does not remove directories belonging to the previous layout.
+
+Add `.pnpm/`, `.pnpm-store.json`, and `.pnpm-store-loader.mjs` to `.gitignore`. These are generated, machine-local installation files. Reinstall after moving the project. CAS installs currently regenerate and verify their runtime manifest on repeat installs rather than using the optimistic installation shortcut.
+
+The loader is embedded in the pnpm executable and needs no separately installed runtime package. The standalone `@pnpm/esm-loader` API remains available for manual integration. Plain `node app.mjs` outside pnpm needs the explicit preload described below.
+
+`symlink: false` and `nodeExperimentalPackageMap` cannot be combined with this mode. Independent test-runner resolvers and direct filesystem reads can still require additional materialization or resolver integration; see the [compatibility report](./store-loader-compatibility.md).
 
 ## Running an application
 
-The loader requires Node.js 26.10.0 or later. It uses synchronous module hooks. Make the loader available separately from the application's dependencies, then preload its registration module:
+The loader requires Node.js 26.10.0 or later. After a CAS install, run Node directly with:
+
+```sh
+node --import ./.pnpm-store-loader.mjs app.mjs
+```
+
+For standalone integration, make the loader available separately from the application's dependencies and preload its registration module:
 
 ```sh
 PNPM_LOADER_MANIFEST=/absolute/path/to/.pnpm-store.json \
@@ -85,7 +111,7 @@ Point the package's manifest entry at its real GVS directory and set `resolution
 
 The application's dependency map still points to this package's instance ID. Imports originating inside the opted-out package use Node's normal resolution and its physical dependency links. The entry does not need a loader dependency map. Explicit paths to CAS modules remain loadable through the hooks. Map materialized transitive package instances to their GVS roots too, so application imports of those instances use the same modules. Multiple opted-out IDs can share a GVS root when pnpm deduplicates them.
 
-Use pnpm's normal installer to populate GVS; copying just the selected package's files does not create a complete opt-out. The installer owns graph hashes, package import, linking, build policy, and store registration. Retain the installation that references those entries so store pruning can track their usage. The loader itself does not install packages or register its manifest with store pruning.
+Use pnpm's normal installer to populate GVS; copying just the selected package's files does not create a complete opt-out. The installer owns graph hashes, package import, linking, build policy, and store registration. Retain the installation that references those entries so store pruning can track their usage. The standalone loader does not install packages or register its manifest with store pruning. Normal CAS installs register the project, and `pnpm store prune` preserves both manifest-referenced blobs and materialized dependency trees.
 
 This is an explicit compatibility fallback, not an install-time static analyzer. It can materialize a large dependency tree, but ordinary GVS entries can be reused across projects. Packages outside that tree stay in CAS. A tool that directly reads application dependencies outside its own tree may still need additional opt-outs or resolver integration.
 
@@ -101,7 +127,7 @@ Only declared dependencies are available through bare imports. There is no fallb
 
 This loader does not emulate a general filesystem. `import.meta.url`, `__filename`, `__dirname`, and `require.resolve()` for stored modules identify virtual locations. Passing them to ordinary `fs` APIs will not read store assets. Packages that read adjacent assets, scan directories, write into their package directory, or depend on a physical filename need materialization or a separate filesystem integration.
 
-Native addons, WebAssembly, TypeScript, extensionless source files, bundled `node_modules` directories, and package-internal symlinks are not supported by this initial runtime. Native addons may also require neighboring shared libraries, even if their build output is cached.
+Native addons, WebAssembly, TypeScript, bundled `node_modules` directories, and package-internal symlinks are not supported by this runtime. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
 
 Use `.mjs` or `"type": "module"` for ESM. Stored `.js` files without a package type are treated as CommonJS; Node's syntax detection for ambiguous `.js` files is not implemented. The resolver is not a promise of complete Node resolution parity.
 

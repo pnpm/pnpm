@@ -297,3 +297,14 @@ test('rejects native resolution for stored packages and unknown resolution modes
   setup.manifest.packages['example@1'] = { root: './physical', resolution: 'unknown' }
   assert.match(setup.run('', { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
 })
+
+test('runs a stored extensionless CommonJS bin as the main module', context => {
+  const setup = fixture(context)
+  setup.add('bin@1', {
+    'package.json': '{"name":"bin","main":"cli"}',
+    cli: "#!/usr/bin/env node\nif (require.main !== module) throw new Error('not main'); console.log('main bin')",
+  })
+  setup.manifest.packages['.'].dependencies.bin = 'bin@1'
+  const output = setup.run("import { createRequire, runMain } from 'node:module'; runMain(createRequire(import.meta.url).resolve('bin'))")
+  assert.equal(output.stdout.trim(), 'main bin')
+})

@@ -181,6 +181,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 
 * [modulesDir](./settings/node-modules.md#modulesdir)
 * [nodeLinker](./settings/node-modules.md#nodelinker)
+* [casMaterialize](./settings/node-modules.md#casmaterialize)
 * [nodeExperimentalPackageMap](./settings/node-modules.md#nodeexperimentalpackagemap)
 * [nodePackageMapType](./settings/node-modules.md#nodepackagemaptype)
 * [symlink](./settings/node-modules.md#symlink)

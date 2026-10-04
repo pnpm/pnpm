@@ -285,6 +285,9 @@ pub struct Config {
     /// Defines what linker should be used for installing Node packages.
     pub node_linker: NodeLinker,
 
+    /// Package names whose complete dependency trees use the global virtual store in CAS mode.
+    pub cas_materialize: Vec<String>,
+
     /// When true, pacquet writes `node_modules/.package-map.json` for
     /// Node's `--experimental-package-map` loader flag. Default
     /// `false`, matching pnpm's opt-in setting.

@@ -42,4 +42,3 @@ export function fixture (context) {
   }
   return { root, manifest, write, add, run }
 }
-

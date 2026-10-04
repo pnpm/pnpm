@@ -306,6 +306,7 @@ fn parse_node_linker(value: &str) -> Option<pnpm_config::NodeLinker> {
         "hoisted" => Some(pnpm_config::NodeLinker::Hoisted),
         "isolated" => Some(pnpm_config::NodeLinker::Isolated),
         "pnp" => Some(pnpm_config::NodeLinker::Pnp),
+        "cas" => Some(pnpm_config::NodeLinker::Cas),
         _ => None,
     }
 }

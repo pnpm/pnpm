@@ -21,6 +21,9 @@ mod tests;
 /// a failed build reports identically regardless of which path ran it.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum BuildPhaseError {
+    #[display("Failed to refresh CAS command shims: {_0}")]
+    #[diagnostic(code(ERR_PNPM_CAS_BINS))]
+    CasBins(#[error(source)] std::io::Error),
     /// `patchedDependencies` couldn't be resolved from
     /// `pnpm-workspace.yaml`.
     #[diagnostic(transparent)]
@@ -160,15 +163,29 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         strict_dep_builds: config.strict_dep_builds,
     }));
 
+    finish_bin_links(inputs, &build_output, &bin_state)?;
+    Ok(build_output)
+}
+
+fn finish_bin_links(
+    inputs: &BuildPhaseInputs<'_>,
+    build_output: &crate::BuildModulesOutput,
+    bin_state: &crate::build_options::BuildBinState,
+) -> Result<(), BuildPhaseError> {
+    let config = inputs.policy.config;
     // `virtual_store_only` links no importer bins, so there is nothing
     // for the pass below to re-resolve. Dependency *build* scripts still
     // ran above — only the importer-facing linking stops, matching
     // `pnpm fetch`.
     if config.virtual_store_only {
-        return Ok(build_output);
+        return Ok(());
     }
 
-    finish_dependency_bin_links(inputs, &build_output, &bin_state)?;
+    if config.node_linker == pnpm_config::NodeLinker::Cas {
+        finish_cas_bin_links(inputs, build_output, bin_state)?;
+        return Ok(());
+    }
+    finish_dependency_bin_links(inputs, build_output, bin_state)?;
 
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
@@ -186,7 +203,24 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         )?;
     }
 
-    Ok(build_output)
+    Ok(())
+}
+
+fn finish_cas_bin_links(
+    inputs: &BuildPhaseInputs<'_>,
+    build_output: &crate::BuildModulesOutput,
+    bin_state: &crate::build_options::BuildBinState,
+) -> Result<(), BuildPhaseError> {
+    let config = inputs.policy.config;
+    let selected =
+        crate::create_virtual_store::cas::materialized_snapshots(config, inputs.graph.snapshots);
+    let native_inputs = BuildPhaseInputs {
+        graph: crate::BuildPhaseGraph { snapshots: Some(&selected), ..inputs.graph },
+        ..*inputs
+    };
+    finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;
+    crate::cas::refresh_bins(config, inputs.directories.workspace_root, inputs.graph.importers)
+        .map_err(BuildPhaseError::CasBins)
 }
 
 fn finish_dependency_bin_links(

@@ -5,6 +5,7 @@ pub(crate) use std::process;
 
 pub mod build_graph;
 pub mod build_modules;
+pub mod cas;
 pub mod create_symlink_layout;
 pub mod create_virtual_dir_by_snapshot;
 pub mod create_virtual_store;

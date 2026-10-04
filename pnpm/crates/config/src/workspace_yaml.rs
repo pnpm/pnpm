@@ -212,7 +212,7 @@ macro_rules! identically_named_settings {
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
             hoist, shamefully_hoist,
-            node_linker, node_experimental_package_map, node_package_map_type,
+            node_linker, cas_materialize, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,

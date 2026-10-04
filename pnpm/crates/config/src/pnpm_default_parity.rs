@@ -235,6 +235,7 @@ fn node_linker_scalar(value: NodeLinker) -> Scalar {
         NodeLinker::Isolated => s("isolated"),
         NodeLinker::Hoisted => s("hoisted"),
         NodeLinker::Pnp => s("pnp"),
+        NodeLinker::Cas => s("cas"),
     }
 }
 

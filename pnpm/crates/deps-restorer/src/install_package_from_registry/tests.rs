@@ -31,6 +31,7 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        cas_materialize: Vec::new(),
         tools: std::collections::BTreeMap::new(),
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         network_concurrency_by_registry: std::collections::BTreeMap::new(),

@@ -262,7 +262,8 @@ fn prepare_exec_tasks(
         &full_task_graph,
         workspace_root,
         |_, _| Vec::new(),
-    );
+    )
+    .with_modules_dir(&config.modules_dir);
     let mut task_graph = resumed_exec_task_graph(
         args,
         &selection.selected,

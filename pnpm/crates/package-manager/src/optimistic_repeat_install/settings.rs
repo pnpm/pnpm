@@ -458,6 +458,7 @@ pub(crate) fn map_node_linker(linker: NodeLinker) -> WorkspaceStateNodeLinker {
         NodeLinker::Isolated => WorkspaceStateNodeLinker::Isolated,
         NodeLinker::Hoisted => WorkspaceStateNodeLinker::Hoisted,
         NodeLinker::Pnp => WorkspaceStateNodeLinker::Pnp,
+        NodeLinker::Cas => WorkspaceStateNodeLinker::Cas,
     }
 }
 

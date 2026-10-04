@@ -33,6 +33,7 @@ impl Config {
         virtual_store_dir_explicit: bool,
         global_virtual_store_dir_explicit: bool,
     ) {
+        self.apply_cas_layout();
         if !global_virtual_store_dir_explicit {
             self.global_virtual_store_dir = match &self.configured_virtual_store_dir {
                 Some(dir) if self.enable_global_virtual_store && virtual_store_dir_explicit => {
@@ -145,11 +146,15 @@ impl Config {
     ///
     /// [`explicit_settings`]: Self::explicit_settings
     pub fn anchor_lockfile_paths(&mut self, dir: &Path) {
-        self.modules_dir =
-            match self.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
-                Some(raw) => dir.join(raw),
-                None => dir.join("node_modules"),
-            };
+        self.modules_dir = match self.explicit_settings
+            .get("modulesDir")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some(raw) => dir.join(raw),
+            None => {
+                dir.join(if self.node_linker == NodeLinker::Cas { ".pnpm" } else { "node_modules" })
+            }
+        };
         match self.explicit_settings.get("virtualStoreDir").and_then(serde_json::Value::as_str) {
             Some(raw) if !self.enable_global_virtual_store => {
                 self.set_virtual_store_dir(dir.join(raw));
@@ -277,7 +282,11 @@ impl Config {
                 let raw = self.explicit_settings
                     .get("modulesDir")
                     .and_then(serde_json::Value::as_str)
-                    .unwrap_or("node_modules");
+                    .unwrap_or(if self.node_linker == NodeLinker::Cas {
+                        ".pnpm"
+                    } else {
+                        "node_modules"
+                    });
                 project_dir.join(raw)
             });
         pnpm_fs::lexical_normalize(&modules_dir)

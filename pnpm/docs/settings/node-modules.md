@@ -17,7 +17,7 @@ The directory in which dependencies will be installed (instead of
 ### nodeLinker
 
 * Default: **isolated**
-* Type: **isolated**, **hoisted**, **pnp**
+* Type: **isolated**, **hoisted**, **pnp**, **cas**
 
 Defines what linker should be used for installing Node packages.
 
@@ -30,9 +30,24 @@ Defines what linker should be used for installing Node packages.
 * **pnp** - no `node_modules`. Plug'n'Play is an innovative strategy for Node that is [used by Yarn Berry][pnp]. It is recommended to also set `symlink` setting to `false` when using `pnp` as
 your linker.
 
+* **cas** - experimental loading directly from the content-addressable store. pnpm preloads its Node.js loader for scripts and commands. Selected compatibility packages and their dependency trees use the global virtual store. See [Experimental store loader](../store-loader.md).
+
 [pnp]: https://yarnpkg.com/features/pnp
 [--preserve-symlinks]: https://nodejs.org/api/cli.html#cli_preserve_symlinks
 [`"bundledDependencies"`]: https://docs.npmjs.com/cli/v8/configuring-npm/package-json#bundleddependencies
+
+### casMaterialize
+
+* Default: **[]**
+* Type: **string[]**
+
+With `nodeLinker: cas`, materialize these package names and their complete dependency trees in the global virtual store. Names match all installed versions and peer contexts. Packages outside these trees load directly from CAS. Build approval settings still apply.
+
+```yaml
+nodeLinker: cas
+casMaterialize:
+  - vitest
+```
 
 ### nodeExperimentalPackageMap
 

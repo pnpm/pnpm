@@ -16,6 +16,10 @@ export function createStoreHooks (manifestURL) {
   const manifests = new Map()
   return {
     resolve (specifier, context, nextResolve) {
+      if (!context.parentURL && !isBuiltin(specifier)) {
+        const entry = storedEntry(specifier, store, manifests)
+        if (entry) return entry
+      }
       if (isBuiltin(specifier) || !context.parentURL?.startsWith('file:')) {
         return nextResolve(specifier, context)
       }
@@ -85,7 +89,7 @@ function moduleFormat (filename, store, manifests) {
   if (extension === '.mjs') return 'module'
   if (extension === '.cjs') return 'commonjs'
   if (extension === '.json') return 'json'
-  if (extension !== '.js') {
+  if (extension !== '.js' && extension !== '') {
     throw loaderError('ERR_PNPM_LOADER_UNSUPPORTED_FORMAT', `Cannot load ${extension || 'extensionless'} store file: ${filename}`)
   }
   const owner = store.owner(filename)
@@ -109,4 +113,10 @@ function validateAttributes (format, attributes = {}, url) {
   if (format !== 'json' && attributes.type === 'json') {
     throw loaderError('ERR_IMPORT_ATTRIBUTE_TYPE_INCOMPATIBLE', `Module ${url} is not JSON`)
   }
+}
+
+function storedEntry (specifier, store, manifests) {
+  const url = specifier.startsWith('file:') ? new URL(specifier) : path.isAbsolute(specifier) ? pathToFileURL(specifier) : null
+  if (!url || !store.files.has(fileURLToPath(url))) return null
+  return { url: url.href, format: moduleFormat(fileURLToPath(url), store, manifests), shortCircuit: true }
 }

@@ -221,6 +221,7 @@ pub struct WorkspaceSettings {
     pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
+    pub cas_materialize: Option<Vec<String>>,
     pub node_experimental_package_map: Option<bool>,
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,

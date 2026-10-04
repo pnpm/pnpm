@@ -244,7 +244,7 @@ fn modules_dir_exists(
 ) -> bool {
     match node_linker {
         NodeLinker::Hoisted => root_modules_dir_exists,
-        NodeLinker::Isolated | NodeLinker::Pnp => {
+        NodeLinker::Isolated | NodeLinker::Pnp | NodeLinker::Cas => {
             if is_root {
                 root_modules_dir_exists
             } else {

@@ -12,6 +12,7 @@ use std::{path::Path, sync::atomic::AtomicU8};
 /// Only values fixed for the whole install belong here. The skip set is
 /// the near miss: phases mutate it between one another, so it stays a
 /// parameter of its own.
+#[derive(Clone)]
 pub struct InstallContext<'a> {
     pub linker: crate::ModuleLinkerContext<'a>,
     pub config: &'static Config,

@@ -9,6 +9,7 @@ pub use project_registry::*;
 pub use prune::*;
 pub use store_dir::*;
 pub use store_index::*;
+pub use store_loader_manifest::*;
 pub use store_lock::{StoreLockError, StoreOperationLock};
 pub use symlinks::{SYMLINK_MODE, SideEffectsOverlay, is_symlink_mode, normalize_symlink_target};
 pub use upload::*;
@@ -26,3 +27,6 @@ mod store_dir;
 mod store_lock;
 mod symlinks;
 mod upload;
+
+mod loader_references;
+mod store_loader_manifest;

@@ -297,6 +297,9 @@ fn finish_apply<Reporter: self::Reporter>(
 fn write_applied_workspace_state<Reporter: self::Reporter>(
     inputs: &ApplyMaterializationInputs<'_, '_>,
 ) {
+    if inputs.projects.node_linker == pnpm_config::NodeLinker::Cas {
+        return;
+    }
     let phase_start = std::time::Instant::now();
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
     // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the

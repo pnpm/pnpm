@@ -25,8 +25,8 @@ impl<'a> CreateVirtualStore<'a> {
     /// recovered from `index.db` for the warm-batch slots — the
     /// bin linker uses these to avoid re-reading `package.json` per
     /// child. See [`PackageManifests`](crate::create_virtual_store::PackageManifests).
-    pub async fn run<Reporter: self::Reporter>(
-        mut self,
+    pub(super) async fn run_inner<Reporter: self::Reporter>(
+        &mut self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         let Some(wanted) = self.wanted()? else {
             return Ok(nothing_to_materialize(self.is_hoisted()));

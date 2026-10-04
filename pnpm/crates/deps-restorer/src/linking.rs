@@ -60,6 +60,9 @@ pub enum LinkPhaseError {
     #[display("failed to write PnP loader: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
+    #[display("Failed to write CAS installation: {_0}")]
+    #[diagnostic(code(ERR_PNPM_CAS_INSTALL))]
+    Cas(#[error(source)] std::io::Error),
 }
 
 impl From<HoistedLinkerError> for LinkPhaseError {
@@ -139,7 +142,7 @@ impl LinkPhaseOutput {
     }
 
     /// The result of a run that materialized nothing.
-    fn empty() -> Self {
+    pub(crate) fn empty() -> Self {
         LinkPhaseOutput {
             hoisted_dependencies: crate::HoistedDependencies::new(),
             hoisted_locations: BTreeMap::new(),
@@ -171,6 +174,9 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<LinkPhaseOutput, LinkPhaseError> {
+    if inputs.ctx.linker.kind == NodeLinker::Cas {
+        return crate::cas::link_phase(&inputs, skipped);
+    }
     let hoist = plan_hoist(&inputs, skipped);
 
     // `nodeLinker: hoisted` writes no virtual store — `CreateVirtualStore`

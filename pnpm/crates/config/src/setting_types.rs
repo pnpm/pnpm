@@ -111,6 +111,7 @@ pub enum NodeLinker {
     /// Yarn Berry. It is recommended to also set symlink setting to false when using pnp as
     /// your linker.
     Pnp,
+    Cas,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

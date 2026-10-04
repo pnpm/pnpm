@@ -31,6 +31,7 @@ pub(super) fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
         NodeLinker::Isolated => ModulesNodeLinker::Isolated,
         NodeLinker::Hoisted => ModulesNodeLinker::Hoisted,
         NodeLinker::Pnp => ModulesNodeLinker::Pnp,
+        NodeLinker::Cas => ModulesNodeLinker::Cas,
     }
 }
 

@@ -24,5 +24,6 @@ fn node_linker_str(node_linker: NodeLinker) -> &'static str {
         NodeLinker::Isolated => "isolated",
         NodeLinker::Hoisted => "hoisted",
         NodeLinker::Pnp => "pnp",
+        NodeLinker::Cas => "cas",
     }
 }
