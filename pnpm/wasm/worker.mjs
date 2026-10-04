@@ -12,9 +12,17 @@ import { createWasiImports, GuestExit } from './host/wasi-imports.mjs'
 const checkCancelled = createCancellationCheck(workerData.atomicControl)
 const postMessage = message => parentPort.postMessage(message)
 let originalInstance
-const handler = new ThreadMessageHandler({
+
+// Guest failures reach the supervisor through reportError. The default handler also posts a
+// thread-error message, which the thread manager treats as fatal and rethrows.
+class HostThreadMessageHandler extends ThreadMessageHandler {
+  reportError (error) {
+    reportError(error)
+  }
+}
+
+const handler = new HostThreadMessageHandler({
   postMessage,
-  onError: reportError,
   async onLoad ({ wasmModule, wasmMemory }) {
     const threads = new WASIThreads({
       wasi: { start () {}, initialize () {} },
