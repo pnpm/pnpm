@@ -350,7 +350,6 @@ impl CliArgs {
                 filter: &self.workspace.selection.filter,
                 filter_prod: &self.workspace.selection.filter_prod,
                 workspace_root: self.workspace.selection.workspace_root,
-                fail_if_no_match: self.workspace.selection.fail_if_no_match,
             },
         );
         apply_run_output_config(self, &mut cfg);

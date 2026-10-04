@@ -370,6 +370,7 @@ pub struct WorkspaceSettings {
     pub verify_store_integrity: Option<bool>,
     pub strict_store_pkg_content_check: Option<bool>,
     pub include_workspace_root: Option<bool>,
+    pub fail_if_no_match: Option<bool>,
     pub ignore_workspace_cycles: Option<bool>,
     pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store

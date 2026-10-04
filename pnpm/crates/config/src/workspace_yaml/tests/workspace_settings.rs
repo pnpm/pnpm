@@ -213,6 +213,17 @@ fn parses_include_workspace_root_from_yaml_and_applies() {
     assert!(config.include_workspace_root, "yaml override wins");
 }
 
+#[test]
+fn parses_fail_if_no_match_from_yaml_and_applies() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("failIfNoMatch: true\n").unwrap();
+    assert_eq!(settings.fail_if_no_match, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.fail_if_no_match);
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.fail_if_no_match);
+}
+
 /// The two workspace-cycle knobs are independent keys — one silences the
 /// report, the other promotes it to an error — so a file setting both is
 /// applied to both fields.

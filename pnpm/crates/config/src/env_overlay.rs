@@ -302,6 +302,7 @@ impl WorkspaceSettings {
             "STRICT_STORE_PKG_CONTENT_CHECK"
         );
         json_field!(settings, reader, include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
+        json_field!(settings, reader, fail_if_no_match, "FAIL_IF_NO_MATCH");
         json_field!(settings, reader, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
         json_field!(settings, reader, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
         json_field!(settings, reader, side_effects_cache, "SIDE_EFFECTS_CACHE");

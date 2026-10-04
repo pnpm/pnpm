@@ -1272,10 +1272,11 @@ pub struct Config {
     /// project. CLI-only, like [`Self::filter`].
     pub workspace_root: bool,
 
-    /// `--fail-if-no-match`: exit with code 1 when the `--filter` /
+    /// `failIfNoMatch` — exit with code 1 when the `--filter` /
     /// `--filter-prod` selectors select no workspace project, instead of
-    /// letting the command run over an empty selection. CLI-only, like
-    /// [`Self::filter`].
+    /// letting the command run over an empty selection. Universal
+    /// `--fail-if-no-match` / `--no-fail-if-no-match` flag,
+    /// `pnpm-workspace.yaml` key, and `PNPM_CONFIG_FAIL_IF_NO_MATCH`.
     pub fail_if_no_match: bool,
 
     /// `includeWorkspaceRoot` — whether a recursive command also runs on
