@@ -23,7 +23,7 @@ fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
     fs::write(
         &workspace_yaml_path,
         format!(
-            "{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\ncatalog:\n  '@pnpm.e2e/has-optional-peer-with-peer': ^1.0.0\n",
+            "{workspace_yaml}trustLockfile: true\ncatalog:\n  '@pnpm.e2e/has-optional-peer-with-peer': ^1.0.0\n",
         ),
     )
     .expect("write initial catalog");
@@ -387,7 +387,7 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
     fs::write(
         &workspace_yaml_path,
         format!(
-            "{workspace_yaml}trustLockfile: true\nfetchRetries: 0\nfetchTimeout: 1000\ncatalog:\n  '@pnpm.e2e/pkg-with-good-optional': ^1.0.0\n",
+            "{workspace_yaml}trustLockfile: true\ncatalog:\n  '@pnpm.e2e/pkg-with-good-optional': ^1.0.0\n",
         ),
     )
     .expect("write initial catalog");
