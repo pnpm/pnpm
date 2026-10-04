@@ -94,7 +94,7 @@ fn a_termination_of_pnpm_reaches_the_pnpm_it_switched_to() {
     let workdir = dir.path().to_path_buf();
     let switched = thread::spawn({
         let workdir = workdir.clone();
-        move || spawn_pnpm(&[bin_dir], [workdir], PackageManagerCheck::Enabled)
+        move || spawn_pnpm(&fake_pnpm, &[bin_dir], [workdir], PackageManagerCheck::Enabled)
     });
     let started = workdir.join("started");
     for _ in 0..600 {

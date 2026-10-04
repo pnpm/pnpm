@@ -599,6 +599,76 @@ fn version_flag_fails_when_the_project_pins_another_package_manager() {
     drop(root);
 }
 
+/// The pinned pnpm's bin is a shell script that forks several processes
+/// before it reaches the native binary, so the switch, and `pnpm with`, run
+/// the binary directly. On musl, pnpm 9.3.0 installs as JavaScript `pnpm`,
+/// which has no native binary to run.
+#[test]
+#[cfg_attr(not(unix), ignore = "the spy requires a POSIX shell shim")]
+#[cfg_attr(target_env = "musl", ignore = "pnpm 9.3.0 installs as JavaScript on musl")]
+fn switching_runs_the_native_binary_of_the_pinned_pnpm_without_its_shell_shim() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+    write_dev_engine_pin(&workspace, "9.3.0");
+    let with_version = || {
+        test_command(pacquet_in(&workspace), root.path())
+            .env("PNPM_CONFIG_REGISTRY", registry)
+            .args(["with", "9.3.0", "--version"])
+            .output()
+            .expect("run pacquet with 9.3.0 --version")
+    };
+    let switch_version = || version_output(root.path(), &workspace, registry);
+    // The first runs record the pin and relink the engine's bins, which would
+    // overwrite the spy below.
+    for output in [switch_version(), switch_version(), with_version(), with_version()] {
+        dbg!(&output);
+        assert!(output.status.success());
+    }
+
+    let shim = engine_shim(&root.path().join("pnpm-home/package-manager-store/v11/links"));
+    let shim_ran = root.path().join("shim-ran");
+    let script = fs::read_to_string(&shim).expect("read the engine's pnpm shim");
+    let (shebang, body) = script.split_once('\n').expect("the shim has a shebang");
+    fs::write(&shim, format!("{shebang}\necho ran >> '{}'\n{body}", shim_ran.display()))
+        .expect("add a spy to the engine's pnpm shim");
+
+    let assert_skips_the_shim = |command: &str, output: std::process::Output| {
+        dbg!(&output);
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+        assert!(!shim_ran.exists(), "{command} ran the pinned pnpm through its shell shim");
+    };
+    assert_skips_the_shim("the switch", switch_version());
+    assert_skips_the_shim("pnpm with", with_version());
+    let script = fs::read_to_string(&shim).expect("read the engine's pnpm shim");
+    assert!(script.contains("echo ran"), "the spy was overwritten, so it proves nothing");
+
+    drop((root, mock_instance));
+}
+
+/// The `pnpm` bin of the one engine installed under `links`, at
+/// `<scope>/<name>/<version>/<hash>/bin/pnpm`.
+fn engine_shim(links: &Path) -> PathBuf {
+    let shims: Vec<_> = walkdir::WalkDir::new(links)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
+        .map(|entry| entry.path().join("pnpm"))
+        .collect();
+    assert_eq!(
+        shims.len(),
+        1,
+        "expected one engine at {}/<scope>/<name>/<version>/<hash>/bin: {shims:?}",
+        links.display(),
+    );
+    shims
+        .into_iter()
+        .next()
+        .expect("one engine is installed")
+}
+
 fn write_dev_engine_pin(workspace: &Path, version: &str) {
     fs::write(
         workspace.join("package.json"),

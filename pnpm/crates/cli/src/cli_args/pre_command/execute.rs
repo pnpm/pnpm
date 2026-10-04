@@ -64,12 +64,17 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
         return Ok(false);
     };
 
-    let status = spawn_pnpm(
-        slice::from_ref(&engine.bin_dir),
-        child_argv.iter(),
-        PackageManagerCheck::Enabled,
-    )
-    .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status = engine
+        .program(PackageManager::Pnpm)
+        .and_then(|program| {
+            spawn_pnpm(
+                &program,
+                slice::from_ref(&engine.bin_dir),
+                child_argv.iter(),
+                PackageManagerCheck::Enabled,
+            )
+        })
+        .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     drop(engine);
     // End the way the delegated pnpm did: with its exit code, or with its
     // signal when a signal killed it.
