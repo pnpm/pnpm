@@ -17,9 +17,11 @@ The directory in which dependencies will be installed (instead of
 ### nodeLinker
 
 * Default: **isolated**
-* Type: **isolated**, **hoisted**, **pnp**, **cas**
+* Type: **isolated**, **hoisted**, **pnp**, **loaded**, or a loaded-linker object
 
-Defines what linker should be used for installing Node packages.
+Defines what linker should be used for installing Node packages. The existing scalar values remain supported. The experimental loaded linker also accepts an object with `type: loaded` and an optional `excluded` list. Other linker object forms are not supported yet.
+
+Configuration sources replace the whole `nodeLinker` value. A higher-priority scalar or an object without `excluded` clears exclusions from lower-priority sources. The environment variable `PNPM_CONFIG_NODE_LINKER` and `--config.node-linker` accept the object as JSON.
 
 * **isolated** - dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
 * **hoisted** - a flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or Yarn Classic. One of Yarn's libraries is used for hoisting, when this setting is used. Legitimate reasons to use this setting:
@@ -30,23 +32,24 @@ Defines what linker should be used for installing Node packages.
 * **pnp** - no `node_modules`. Plug'n'Play is an innovative strategy for Node that is [used by Yarn Berry][pnp]. It is recommended to also set `symlink` setting to `false` when using `pnp` as
 your linker.
 
-* **cas** - experimental loading directly from the content-addressable store. pnpm preloads its Node.js loader for scripts and commands. Selected compatibility packages and their dependency trees use the global virtual store. See [Experimental store loader](../store-loader.md).
+* **loaded** - experimental loading directly from the content-addressable store. pnpm preloads its Node.js loader for scripts and commands. Selected compatibility packages and their dependency trees use the global virtual store. See [Experimental store loader](../store-loader.md).
 
 [pnp]: https://yarnpkg.com/features/pnp
 [--preserve-symlinks]: https://nodejs.org/api/cli.html#cli_preserve_symlinks
 [`"bundledDependencies"`]: https://docs.npmjs.com/cli/v8/configuring-npm/package-json#bundleddependencies
 
-### casMaterialize
+### nodeLinker.excluded
 
 * Default: **[]**
 * Type: **string[]**
 
-With `nodeLinker: cas`, materialize these package names and their complete dependency trees in the global virtual store. Names match all installed versions and peer contexts. Packages outside these trees load directly from CAS. Build approval settings still apply.
+With `nodeLinker.type: loaded`, materialize these package names and their complete dependency trees in the global virtual store. Names match all installed versions and peer contexts. Packages outside these trees load directly from CAS. Build approval settings still apply.
 
 ```yaml
-nodeLinker: cas
-casMaterialize:
-  - vitest
+nodeLinker:
+  type: loaded
+  excluded:
+    - vitest
 ```
 
 ### nodeExperimentalPackageMap

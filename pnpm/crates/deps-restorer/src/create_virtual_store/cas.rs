@@ -8,7 +8,7 @@ impl CreateVirtualStore<'_> {
     pub async fn run<Report: Reporter>(
         mut self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
-        if self.ctx.linker.kind == NodeLinker::Cas {
+        if self.ctx.linker.kind == NodeLinker::Loaded {
             return Box::pin(self.run_cas::<Report>()).await;
         }
         self.run_inner::<Report>().await
@@ -48,7 +48,8 @@ pub(crate) fn materialized_snapshots(
     let mut pending: Vec<_> = snapshots
         .keys()
         .filter(|key| {
-            config.cas_materialize.contains(&key.name.to_string()) || crate::snapshot_has_patch(key)
+            config.node_linker_excluded.contains(&key.name.to_string())
+                || crate::snapshot_has_patch(key)
         })
         .cloned()
         .collect();

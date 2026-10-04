@@ -262,11 +262,11 @@ pub struct CreateVirtualStore<'a> {
 /// Error type of [`CreateVirtualStore`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualStoreError {
-    #[display("Cannot install with nodeLinker=cas: {message}")]
+    #[display("Cannot install with nodeLinker.type=loaded: {message}")]
     #[diagnostic(code(ERR_PNPM_CAS_CONFIGURATION))]
     CasConfiguration { message: &'static str },
     #[display(
-        "Package {package} needs materialization in CAS mode. Add its name to casMaterialize."
+        "Package {package} needs materialization with the loaded linker. Add its name to nodeLinker.excluded."
     )]
     #[diagnostic(code(ERR_PNPM_CAS_REQUIRES_MATERIALIZATION))]
     CasRequiresMaterialization { package: String },

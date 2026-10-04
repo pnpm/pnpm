@@ -29,6 +29,7 @@ pub use crate::{
     },
 };
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
+pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
@@ -61,6 +62,7 @@ mod ci_detection;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;
+mod node_linker;
 mod npmrc_auth;
 mod override_version_references;
 mod store_path;

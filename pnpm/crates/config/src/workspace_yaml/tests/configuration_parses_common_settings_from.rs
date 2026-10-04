@@ -30,7 +30,7 @@ packages:
     assert_eq!(settings.dedupe_peers, Some(true));
     assert_eq!(settings.auto_dedupe, Some(true));
     assert_eq!(settings.prefer_workspace_packages, Some(true));
-    assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
+    assert_eq!(settings.node_linker, Some(NodeLinker::Hoisted.into()));
     assert_eq!(settings.node_experimental_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
 }

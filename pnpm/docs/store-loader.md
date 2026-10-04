@@ -7,14 +7,15 @@ The standalone `@pnpm/esm-loader` package lets Node.js load JavaScript and JSON 
 This is an experimental install mode. Enable it persistently in `pnpm-workspace.yaml` so install and execution commands use the same layout:
 
 ```yaml
-nodeLinker: cas
-casMaterialize:
-  - vitest
+nodeLinker:
+  type: loaded
+  excluded:
+    - vitest
 ```
 
 Run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `.pnpm-store.json`, writes its bundled runtime to `.pnpm-store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly.
 
-`casMaterialize` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in CAS. Patched packages and their dependency trees are materialized automatically. Packages needing build scripts must be selected explicitly unless scripts are disabled. The normal build approval policy still applies.
+`nodeLinker.excluded` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in CAS. Patched packages and their dependency trees are materialized automatically. Packages needing build scripts must be selected explicitly unless scripts are disabled. The normal build approval policy still applies.
 
 The mode enables the global virtual store. With the default layout, application state and bin shims live under `.pnpm`, and no application `node_modules` directory is created. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
 

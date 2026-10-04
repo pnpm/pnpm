@@ -202,7 +202,7 @@ fn load_at_expands_env_placeholders_in_typed_fields() {
 
     assert_eq!(settings.color, Some(ColorMode::Auto));
     assert_eq!(settings.global_shims, Some(GlobalShimsSetting::Toggle(false)));
-    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
+    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated.into()));
     assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
 }
 

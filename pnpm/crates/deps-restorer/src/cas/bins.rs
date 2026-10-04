@@ -28,7 +28,7 @@ pub(super) fn write_bins(inputs: &BinInstall<'_>, manifest: &StoreManifest) -> i
         link_bins_of_packages::<Host>(
             &sources,
             &directory,
-            &crate::shim_link_options(inputs.config, pnpm_config::NodeLinker::Cas),
+            &crate::shim_link_options(inputs.config, pnpm_config::NodeLinker::Loaded),
         )
         .map_err(io::Error::other)?;
         super::bin_state::reconcile_bins(&sources, &directory)?;

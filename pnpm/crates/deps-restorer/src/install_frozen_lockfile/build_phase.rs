@@ -181,7 +181,7 @@ fn finish_bin_links(
         return Ok(());
     }
 
-    if config.node_linker == pnpm_config::NodeLinker::Cas {
+    if config.node_linker == pnpm_config::NodeLinker::Loaded {
         finish_cas_bin_links(inputs, build_output, bin_state)?;
         return Ok(());
     }

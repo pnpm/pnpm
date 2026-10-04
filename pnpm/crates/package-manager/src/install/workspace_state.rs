@@ -34,7 +34,7 @@ pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
     workspace_root: &Path,
     state: &WorkspaceState,
 ) {
-    if state.settings.node_linker == Some(pnpm_workspace_state::NodeLinker::Cas) {
+    if state.settings.node_linker == Some(pnpm_workspace_state::NodeLinker::Loaded) {
         return;
     }
     if let Err(error) = update_workspace_state(workspace_root, state) {

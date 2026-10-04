@@ -188,9 +188,9 @@ impl WorkspaceSettings {
                 reset_public_hoist_pattern(config, defaults);
             }
             "publicHoistPattern" => reset_public_hoist_pattern(config, defaults),
-            "casMaterialize" => config.cas_materialize.clone_from(&defaults.cas_materialize),
             "nodeLinker" => {
                 config.node_linker = defaults.node_linker;
+                config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
                 config.apply_prefer_symlinked_executables_derivation();
             }
             "preferSymlinkedExecutables" => {

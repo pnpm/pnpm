@@ -174,7 +174,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<LinkPhaseOutput, LinkPhaseError> {
-    if inputs.ctx.linker.kind == NodeLinker::Cas {
+    if inputs.ctx.linker.kind == NodeLinker::Loaded {
         return crate::cas::link_phase(&inputs, skipped);
     }
     let hoist = plan_hoist(&inputs, skipped);

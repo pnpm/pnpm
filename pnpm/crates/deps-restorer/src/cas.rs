@@ -130,7 +130,9 @@ fn package_files(inputs: &LinkPhaseInputs<'_>, id: &str) -> io::Result<BTreeMap<
             let relative = path
                 .strip_prefix(&files_dir)
                 .map_err(|_| {
-                    io::Error::other(format!("{id} has non-CAS files; add it to casMaterialize"))
+                    io::Error::other(format!(
+                        "{id} has non-CAS files; add it to nodeLinker.excluded",
+                    ))
                 })?;
             let hash = relative
                 .components()

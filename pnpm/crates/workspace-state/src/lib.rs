@@ -223,7 +223,7 @@ pub enum NodeLinker {
     Hoisted,
     Isolated,
     Pnp,
-    Cas,
+    Loaded,
 }
 
 /// Error returned by [`update_workspace_state`].

@@ -215,7 +215,7 @@ pub(in crate::cli_args) fn seed_config(
     Config {
         npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
         ignore_workspace,
-        cli_setting_values: config_overrides.unported_settings().clone(),
+        cli_setting_values: config_overrides.initial_setting_values(),
         ..Config::default()
     }
 }

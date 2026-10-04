@@ -296,7 +296,7 @@ impl<'a> ManifestDrift<'a> {
 /// The configuration alone can rule the fast path out, before anything is
 /// read from disk.
 fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
-    if config.node_linker == pnpm_config::NodeLinker::Cas {
+    if config.node_linker == pnpm_config::NodeLinker::Loaded {
         return Some("CAS installation requires manifest verification");
     }
     if !config.optimistic_repeat_install {

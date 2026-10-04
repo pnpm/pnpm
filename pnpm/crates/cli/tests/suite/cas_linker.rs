@@ -12,6 +12,44 @@ fn assert_no_node_modules(root: &Path) {
 }
 
 #[test]
+fn loaded_linker_cli_object_applies_exclusions_before_deriving_installation_layout() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .unwrap();
+    let flag = r#"--config.node-linker={"type":"loaded","excluded":["@pnpm.e2e/pkg-with-1-dep"]}"#;
+    pacquet
+        .with_args(["install", flag])
+        .assert()
+        .success();
+    assert_no_node_modules(&workspace);
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm-store.json")).unwrap()).unwrap();
+    assert_eq!(manifest["packages"]["@pnpm.e2e/pkg-with-1-dep@100.0.0"]["resolution"], "node");
+    let output = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_args(["config", "get", "nodeLinker", "--json", flag])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        serde_json::json!({"type": "loaded", "excluded": ["@pnpm.e2e/pkg-with-1-dep"]}),
+    );
+    drop((root, mock_instance));
+}
+
+#[test]
 fn cas_install_runs_scripts_bins_and_children_without_node_modules() {
     let CommandTempCwd {
         pacquet,
@@ -34,7 +72,7 @@ fn cas_install_runs_scripts_bins_and_children_without_node_modules() {
     .unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("nodeLinker: cas\n");
+    yaml.push_str("nodeLinker:\n  type: loaded\n");
     fs::write(yaml_path, yaml).unwrap();
     fs::write(workspace.join("app.cjs"), "const assert = require('node:assert/strict'); const value = require('@pnpm.e2e/pkg-with-1-dep')(); assert.equal(value.name, '@pnpm.e2e/dep-of-pkg-with-1-dep'); require('node:child_process').execFileSync(process.execPath, ['-e', `require('@pnpm.e2e/pkg-with-1-dep')()`], {stdio: 'inherit'}); console.log('CAS works');").unwrap();
     pacquet
@@ -106,7 +144,7 @@ fn cas_opt_out_materializes_complete_dependency_tree_in_gvs() {
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0","@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#).unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("nodeLinker: cas\ncasMaterialize:\n  - '@pnpm.e2e/pkg-with-1-dep'\n");
+    yaml.push_str("nodeLinker:\n  type: loaded\n  excluded:\n    - '@pnpm.e2e/pkg-with-1-dep'\n");
     fs::write(yaml_path, yaml).unwrap();
     pacquet
         .with_arg("install")
@@ -174,7 +212,7 @@ fn cas_workspace_preserves_workspace_and_alias_dependency_contexts() {
     fs::write(workspace.join("packages/child/index.cjs"), "require('node:assert/strict').equal(require('aliased')().name, '@pnpm.e2e/dep-of-pkg-with-1-dep'); module.exports = 42;").unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("nodeLinker: cas\npackages:\n  - packages/*\n");
+    yaml.push_str("nodeLinker:\n  type: loaded\npackages:\n  - packages/*\n");
     fs::write(yaml_path, yaml).unwrap();
     pacquet
         .with_arg("install")
@@ -218,7 +256,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
     .unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("nodeLinker: cas\n");
+    yaml.push_str("nodeLinker:\n  type: loaded\n");
     fs::write(&yaml_path, &yaml).unwrap();
     pacquet
         .with_arg("install")
@@ -226,7 +264,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
         .success();
     for materialize in [true, false] {
         let config = if materialize {
-            format!("{yaml}casMaterialize:\n  - '@pnpm.e2e/pkg-with-1-dep'\n")
+            format!("{yaml}  excluded:\n    - '@pnpm.e2e/pkg-with-1-dep'\n")
         } else {
             yaml.clone()
         };
@@ -272,16 +310,16 @@ fn cas_requires_opt_out_for_builds_and_links_generated_bins_after_building() {
     .unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("nodeLinker: cas\nallowBuilds:\n  '@pnpm.e2e/has-bin-and-needs-build': true\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n  '@pnpm.e2e/install-script-example': true\n");
+    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/has-bin-and-needs-build': true\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n  '@pnpm.e2e/install-script-example': true\nnodeLinker:\n  type: loaded\n");
     fs::write(&yaml_path, &yaml).unwrap();
     let failure = pacquet
         .with_arg("install")
         .assert()
         .failure();
-    assert!(String::from_utf8_lossy(&failure.get_output().stderr).contains("casMaterialize"));
+    assert!(String::from_utf8_lossy(&failure.get_output().stderr).contains("nodeLinker.excluded"));
     fs::write(
         &yaml_path,
-        format!("{yaml}casMaterialize:\n  - '@pnpm.e2e/has-bin-and-needs-build'\n"),
+        format!("{yaml}  excluded:\n    - '@pnpm.e2e/has-bin-and-needs-build'\n"),
     )
     .unwrap();
     Command::cargo_bin("pnpm")
@@ -317,7 +355,7 @@ fn cas_remove_prunes_command_shims_and_keeps_empty_install_runnable() {
     .unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("nodeLinker: cas\n");
+    yaml.push_str("nodeLinker:\n  type: loaded\n");
     fs::write(&yaml_path, yaml).unwrap();
     pacquet
         .with_arg("install")

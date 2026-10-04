@@ -146,15 +146,15 @@ impl Config {
     ///
     /// [`explicit_settings`]: Self::explicit_settings
     pub fn anchor_lockfile_paths(&mut self, dir: &Path) {
-        self.modules_dir = match self.explicit_settings
-            .get("modulesDir")
-            .and_then(serde_json::Value::as_str)
-        {
-            Some(raw) => dir.join(raw),
-            None => {
-                dir.join(if self.node_linker == NodeLinker::Cas { ".pnpm" } else { "node_modules" })
-            }
-        };
+        self.modules_dir =
+            match self.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
+                Some(raw) => dir.join(raw),
+                None => dir.join(if self.node_linker == NodeLinker::Loaded {
+                    ".pnpm"
+                } else {
+                    "node_modules"
+                }),
+            };
         match self.explicit_settings.get("virtualStoreDir").and_then(serde_json::Value::as_str) {
             Some(raw) if !self.enable_global_virtual_store => {
                 self.set_virtual_store_dir(dir.join(raw));
@@ -282,7 +282,7 @@ impl Config {
                 let raw = self.explicit_settings
                     .get("modulesDir")
                     .and_then(serde_json::Value::as_str)
-                    .unwrap_or(if self.node_linker == NodeLinker::Cas {
+                    .unwrap_or(if self.node_linker == NodeLinker::Loaded {
                         ".pnpm"
                     } else {
                         "node_modules"

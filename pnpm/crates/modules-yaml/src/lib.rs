@@ -255,7 +255,7 @@ pub enum NodeLinker {
     Hoisted,
     Isolated,
     Pnp,
-    Cas,
+    Loaded,
 }
 
 /// Pinned identifier for the `node_modules` layout pacquet emits.

@@ -5,7 +5,7 @@ use std::{collections::HashMap, path::Path};
 
 impl Config {
     pub(super) fn apply_cas_layout(&mut self) {
-        if self.node_linker != NodeLinker::Cas {
+        if self.node_linker != NodeLinker::Loaded {
             return;
         }
         self.enable_global_virtual_store = true;
@@ -19,7 +19,7 @@ impl Config {
     }
 
     pub fn add_cas_loader_env(&self, project: &Path, env: &mut HashMap<String, String>) {
-        if self.node_linker != NodeLinker::Cas || self.virtual_store_only {
+        if self.node_linker != NodeLinker::Loaded || self.virtual_store_only {
             return;
         }
         let loader = self.lockfile_dir_for(project).join(CAS_LOADER_FILENAME);

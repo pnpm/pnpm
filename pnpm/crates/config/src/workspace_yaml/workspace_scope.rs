@@ -93,7 +93,6 @@ impl WorkspaceSettings {
         self.modules_dir = None;
         self.package_configs = None;
         self.node_linker = None;
-        self.cas_materialize = None;
         self.symlink = None;
         self.lockfile = None;
         self.frozen_lockfile = None;
