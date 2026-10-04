@@ -293,6 +293,23 @@ test('a runtime mismatch warning keeps a printed value alone on stdout', async (
   expect(stdout.toString().trim().split('\n')).toHaveLength(1)
 })
 
+test('the runtime mismatch warning reaches stderr under the ndjson reporter', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--reporter=ndjson', 'cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
 test('--loglevel=error hides the runtime mismatch warning', async () => {
   prepare({
     devEngines: {

@@ -3,7 +3,6 @@ import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
-import { globalWarn } from '@pnpm/logger'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import semver from 'semver'
 
@@ -234,14 +233,11 @@ function failRuntimeCheck (config: Config, onFail: 'error' | 'warn', message: st
 /**
  * These warnings are not the command's output, so they go to stderr: a command
  * such as `pnpm cache path` or `pnpm list --json` prints a value a script reads
- * from stdout. The ndjson reporter still receives them as log records.
+ * from stdout. They bypass the reporter, as the ndjson one attaches after these
+ * checks and would drop them.
  */
 function warnAboutProject (config: Config, message: string): void {
   if (config.loglevel === 'silent' || config.loglevel === 'error' || config.reporter === 'silent') return
-  if (config.reporter === 'ndjson') {
-    globalWarn(message)
-    return
-  }
   console.warn(formatWarn(message))
 }
 
