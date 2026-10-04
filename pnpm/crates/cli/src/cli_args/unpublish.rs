@@ -1,7 +1,7 @@
 use super::deprecate::{
     DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, PackageSpec,
-    auth_header_for_registry, fetch_package_meta, package_url, parse_package_spec,
-    registry_for_package, registry_operation_error, registry_operation_failed,
+    auth_header_for_registry, fetch_package_meta, normalize_registry_url, package_url,
+    parse_package_spec, registry_for_package, registry_operation_error, registry_operation_failed,
     registry_write_error, write_error_for_status,
 };
 use clap::Args;
@@ -269,15 +269,15 @@ async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
         return Err(registry_write_error(response, "unpublish".to_string()).await.into());
     }
 
-    let registry_origin = registry_origin(registry_url)?;
+    let registry_url = normalize_registry_url(registry_url);
     for tarball in &tarballs {
         // Every delete bumps the packument revision; refetch for the current
         // one like the TypeScript CLI does.
         let updated: Packument =
             fetch_package_meta(mutation.registry, package_url, mutation.auth_header, &pkg.name)
                 .await?;
-        let pathname = tarball_pathname(tarball, registry_url)?;
-        let url = format!("{registry_origin}/{pathname}/-rev/{}", rev_str(updated.rev.as_deref()));
+        let pathname = tarball_pathname(tarball, &registry_url)?;
+        let url = format!("{registry_url}{pathname}/-rev/{}", rev_str(updated.rev.as_deref()));
         let response = send_mutation::<Sys, Reporter>(
             mutation,
             MutationRequest { method: &Method::DELETE, url: &url, json_body: None },
@@ -362,14 +362,6 @@ fn highest_version(versions: &Map<String, Value>) -> Option<String> {
         })
         .max_by(|(left, _), (right, _)| left.cmp(right))
         .map(|(_, ver_str)| ver_str.clone())
-}
-
-/// The `scheme://host[:port]` origin of the registry, which tarball URLs
-/// are deleted relative to.
-fn registry_origin(registry_url: &str) -> miette::Result<String> {
-    reqwest::Url::parse(registry_url)
-        .map(|url| url.origin().ascii_serialization())
-        .map_err(|source| registry_operation_error("build registry URL", source))
 }
 
 /// The tarball's pathname with the registry's own path prefix stripped, so
