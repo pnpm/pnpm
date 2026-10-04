@@ -94,7 +94,7 @@ fn a_target_line_without_a_line_break_ends_the_file() {
 }
 
 #[test]
-fn cmd_reads_on_before_the_code_page_restore_of_the_replaced_shim() {
+fn a_replaced_shim_that_switched_the_code_page_restores_it() {
     let shim = batchless_pnpm_cmd();
     let replaced = generate_cmd_shim(
         Path::new("/hömé/global/v11/abc/node_modules/pnpm/pnpm.exe"),
@@ -108,7 +108,10 @@ fn cmd_reads_on_before_the_code_page_restore_of_the_replaced_shim() {
         .expect("a non-ASCII shim restores the code page after its target");
     assert!(replaced[..restore].ends_with("  %*\r\n"), "{replaced}");
     let laid_out = end_replaced_cmd_shim_batch(&shim, &replaced);
-    assert_eq!(end_of_replaced_batch(&laid_out), Some(restore));
+    // The replaced batch runs its own restore, with its target's exit code.
+    assert!(laid_out[restore..].starts_with(&replaced[restore..]), "{laid_out}");
+    assert_eq!(end_of_replaced_batch(&laid_out), None);
+    assert!(laid_out.ends_with(&shim), "{laid_out}");
 }
 
 #[test]

@@ -12,11 +12,12 @@
 
 use super::{BATCH_END, CODEPAGE_RESTORE_TRAILER};
 
-/// The line a shim starts with when it jumps over its [`END_REPLACED_BATCH`].
+/// The line a shim starts with when it jumps over the lines that end the
+/// replaced batch.
 const JUMP_OVER: &str = "@GOTO :pnpm\r\n";
 const JUMP_TARGET: &str = ":pnpm\r\n";
-/// Ends the replaced shim's batch. `GOTO` leaves `%ERRORLEVEL%` alone, so that
-/// batch still ends with its target's exit code.
+/// Ends the replaced batch when it has no code page to restore. `GOTO` leaves
+/// `%ERRORLEVEL%` alone, so that batch still ends with its target's exit code.
 const END_REPLACED_BATCH: &str = "@GOTO :EOF\r\n";
 
 const REM_LINE_MIN: usize = "@REM\r\n".len();
@@ -30,35 +31,45 @@ const PADDING_NOTE: &str =
 /// Lay out `shim`, a [`CmdShimBatch::EndedBeforeTarget`] shim, to replace
 /// `replaced`, the `.cmd` file at its path.
 ///
-/// The result has `@GOTO :EOF` at the offset where cmd.exe reads on
-/// in `replaced`, and a leading `GOTO` that jumps over it when the shim runs
-/// from the start. `shim` is returned as is when `replaced` ends its batch
-/// before its target, since nothing reads on in it, and when that offset
-/// leaves no room for the jump.
+/// The result has the lines that end the replaced batch at the offset where
+/// cmd.exe reads on in `replaced`, and a leading `GOTO` that jumps over them
+/// when the shim runs from the start. `shim` is returned as is when `replaced`
+/// ends its batch before its target, since nothing reads on in it, and when
+/// that offset leaves no room for the jump.
 ///
 /// [`CmdShimBatch::EndedBeforeTarget`]: super::CmdShimBatch::EndedBeforeTarget
 #[must_use]
 pub fn end_replaced_cmd_shim_batch(shim: &str, replaced: &str) -> String {
-    let padding = batch_resume_offset(replaced)
-        .and_then(|offset| offset.checked_sub(JUMP_OVER.len()))
-        .and_then(rem_padding);
+    let Some(resume) = batch_resume(replaced) else {
+        return shim.to_string();
+    };
+    let padding = resume.offset.checked_sub(JUMP_OVER.len()).and_then(rem_padding);
     match padding {
-        Some(padding) => format!("{JUMP_OVER}{padding}{END_REPLACED_BATCH}{JUMP_TARGET}{shim}"),
+        Some(padding) => format!("{JUMP_OVER}{padding}{}{JUMP_TARGET}{shim}", resume.ending),
         None => shim.to_string(),
     }
 }
 
-/// The byte offset at which cmd.exe reads on in `shim` once its target has
-/// exited: the end of the last line before the code page restore when there is
-/// one, and of the last non-blank line otherwise. `None` when `shim` ends its
-/// batch before its target, or has no line at all.
-fn batch_resume_offset(shim: &str) -> Option<usize> {
+/// Where cmd.exe reads on in a replaced shim once its target has exited.
+struct BatchResume {
+    /// The end of the last line before the code page restore when there is
+    /// one, and of the last non-blank line otherwise.
+    offset: usize,
+    /// The lines the replaced batch runs from there: its code page restore,
+    /// which carries its target's exit code past the restore, or
+    /// [`END_REPLACED_BATCH`].
+    ending: &'static str,
+}
+
+/// `None` when `shim` ends its batch before its target, or has no line at all.
+fn batch_resume(shim: &str) -> Option<BatchResume> {
     if shim.contains(BATCH_END) {
         return None;
     }
-    let commands = shim
-        .find(CODEPAGE_RESTORE_TRAILER)
-        .map_or(shim, |trailer| &shim[..trailer]);
+    let (commands, ending) = match shim.find(CODEPAGE_RESTORE_TRAILER) {
+        Some(trailer) => (&shim[..trailer], CODEPAGE_RESTORE_TRAILER),
+        None => (shim, END_REPLACED_BATCH),
+    };
     let mut end = 0;
     let mut offset = 0;
     for line in commands.split_inclusive('\n') {
@@ -67,7 +78,7 @@ fn batch_resume_offset(shim: &str) -> Option<usize> {
             end = offset;
         }
     }
-    (end > 0).then_some(end)
+    (end > 0).then_some(BatchResume { offset: end, ending })
 }
 
 /// Exactly `len` bytes of `@REM` lines, the first carrying [`PADDING_NOTE`].
