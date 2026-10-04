@@ -119,6 +119,12 @@ pub struct CliArgs {
     /// loaded variables are visible to config resolution (`PNPM_CONFIG_<KEY>`
     /// overrides and `${VAR}` tokens in user-level `.npmrc` files), to
     /// lifecycle scripts, and to any pnpm the command dispatches to.
+    ///
+    /// The loading itself runs on the main thread before startup (see
+    /// `crate::env_file`), since `std::env::set_var` must not run once
+    /// another thread is alive. This field exists so clap still accepts,
+    /// validates, documents, and completes the flag — a valueless
+    /// `--env-file` is reported instead of silently ignored.
     #[clap(long = "env-file", value_name = "PATH", global = true)]
     pub env_file: Vec<PathBuf>,
     #[clap(flatten)]

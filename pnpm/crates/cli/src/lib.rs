@@ -72,6 +72,13 @@ pub fn main() -> ExitCode {
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
+    // Load `--env-file` variables here, on the main thread before the
+    // startup thread below exists: `std::env::set_var` must not run once
+    // another thread is alive (see `env_file`).
+    if let Err(error) = env_file::load_from_argv(&std::env::args_os().collect::<Vec<_>>()) {
+        report_fatal_error(&error);
+        return ExitCode::FAILURE;
+    }
     match run_on_big_stack(run_cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -161,12 +168,6 @@ fn run_cli() -> miette::Result<()> {
     let Some(mut args) = parse_or_answer(command, &argv, &child_argv, &config_overrides)? else {
         return Ok(());
     };
-    // Load `--env-file` variables before anything reads the environment:
-    // config resolution (`PNPM_CONFIG_<KEY>` overrides and `${VAR}` tokens
-    // in user-level `.npmrc` files) runs below, and a dispatched pnpm
-    // inherits them. Relative paths resolve from the invocation directory —
-    // no pass above changes it.
-    env_file::load(&args.env_file)?;
     configure_cli_args(&mut args)?;
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
@@ -198,9 +199,6 @@ fn parse_or_answer(
             print_version(argv, child_argv, config_overrides).map(|()| None)
         }
         Err(err) if err.kind() == clap::error::ErrorKind::UnknownArgument => {
-            // Best-effort `--env-file` load so a dispatched pnpm still gets
-            // the variables: the child argv no longer carries the flag.
-            env_file::load_from_argv(argv)?;
             if dispatched_unparsed_to_pinned_pnpm(argv, child_argv, config_overrides)? {
                 return Ok(None);
             }

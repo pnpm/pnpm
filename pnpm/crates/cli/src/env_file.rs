@@ -11,16 +11,23 @@
 //! The flag is repeatable and the files are processed in order. The first
 //! value naming a variable wins, and a variable already present in the
 //! environment is never overridden. A missing or malformed file fails the
-//! command loudly rather than running with a partial environment.
+//! command loudly rather than running with a partial environment. Parse
+//! errors name the file but never echo its contents: env files routinely
+//! hold secrets that must not leak into stderr and CI logs.
 //!
-//! `--env-file` is this binary's own option: [`strip_flags`] removes its
-//! tokens from the argv a dispatched pnpm receives (an older pnpm would
-//! reject the unknown flag), and the loaded variables travel by environment
-//! inheritance instead. Tokens past the passthrough point — script arguments
-//! after `--`, or after a `run`/`exec` script name — are left alone (see
+//! The load runs on the main thread before the startup thread exists, the
+//! only place `std::env::set_var` may run. `--env-file` is this binary's
+//! own option: [`strip_flags`] removes its tokens from the argv a
+//! dispatched pnpm receives (an older pnpm would reject the unknown flag),
+//! and the loaded variables travel by environment inheritance instead.
+//! Tokens past the passthrough point — script arguments after `--`, or
+//! after a `run`/`exec` script name — are left alone (see
 //! `crate::parse_boundary`).
 
-use crate::parse_boundary::{option_width, passthrough_from, union_arity};
+use crate::{
+    flag_relocation::ArgTable,
+    parse_boundary::{option_width, passthrough_from, union_arity},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
@@ -47,7 +54,23 @@ impl EnvFileError {
     fn load(path: &Path, error: dotenvy::Error) -> Self {
         match error {
             dotenvy::Error::Io(source) => Self::Read { path: path.to_owned(), source },
+            // dotenvy reports the offending line; only its position is
+            // repeated here, so a malformed line cannot leak a secret into
+            // stderr and CI logs.
+            dotenvy::Error::LineParse(_, index) => Self::Parse {
+                path: path.to_owned(),
+                message: format!("invalid dotenv entry (error at index {index})"),
+            },
             error => Self::Parse { path: path.to_owned(), message: error.to_string() },
+        }
+    }
+
+    /// A value with an embedded NUL byte, which `std::env::set_var` would
+    /// panic on instead of failing the command.
+    fn nul(path: &Path, key: &str) -> Self {
+        Self::Parse {
+            path: path.to_owned(),
+            message: format!("value for '{key}' contains a NUL byte"),
         }
     }
 }
@@ -62,11 +85,12 @@ pub fn load(paths: &[PathBuf]) -> miette::Result<()> {
     Ok(())
 }
 
-/// Scan `argv` for `--env-file` paths and load them. Best-effort fallback
-/// for command lines clap rejected with `UnknownArgument`: the child argv
-/// no longer carries the flag (see [`strip_flags`]), so the pnpm the
-/// command dispatches to can only inherit variables this process loads
-/// itself.
+/// Scan `argv` for `--env-file` paths and load them. Runs on the main
+/// thread before the startup thread exists (see [`crate::main`]), which is
+/// what makes the `set_var` calls in [`load`] sound. Best-effort by
+/// necessity: around an option this binary does not know, the width
+/// computation can only guess, but such a command line is rejected or
+/// forwarded to another pnpm anyway.
 pub fn load_from_argv(argv: &[OsString]) -> miette::Result<()> {
     load(&scan(argv).0)
 }
@@ -83,11 +107,13 @@ fn load_one(path: &Path) -> miette::Result<()> {
     let pairs = dotenvy::from_path_iter(path).map_err(|error| EnvFileError::load(path, error))?;
     for pair in pairs {
         let (key, value) = pair.map_err(|error| EnvFileError::load(path, error))?;
+        if value.contains('\0') {
+            return Err(EnvFileError::nul(path, &key).into());
+        }
         if std::env::var_os(&key).is_none() {
-            // SAFETY: `load` runs on the CLI startup path before the tokio
-            // runtime and rayon pool start, so the process is
-            // single-threaded and no other thread can be reading the
-            // environment concurrently.
+            // SAFETY: `load` runs on the main thread before `run_on_big_stack`
+            // spawns the startup thread, so no other thread exists that
+            // could access the environment concurrently.
             unsafe {
                 std::env::set_var(&key, &value);
             }
@@ -101,12 +127,11 @@ fn load_one(path: &Path) -> miette::Result<()> {
 ///
 /// Tokens past the passthrough point belong to the child command line, not
 /// to pnpm, so they are never claimed. A bare `--env-file` claims the next
-/// token only when the token does not start with `-`, mirroring clap (which
-/// would report the valueless flag instead); a valueless `--env-file` stays
-/// in place for clap to report. The `--env-file=<path>` form always carries
-/// its own value.
+/// token only when the token cannot spell an option (see
+/// [`claimable_value`]); a valueless `--env-file` stays in place for clap
+/// to report. The `--env-file=<path>` form always carries its own value.
 fn scan(argv: &[OsString]) -> (Vec<PathBuf>, Vec<OsString>) {
-    let passthrough = passthrough_from(argv);
+    let passthrough = child_argv_boundary(argv);
     let arity = union_arity();
     let mut paths = Vec::new();
     let mut remaining = Vec::with_capacity(argv.len());
@@ -116,38 +141,76 @@ fn scan(argv: &[OsString]) -> (Vec<PathBuf>, Vec<OsString>) {
             remaining.extend(argv[index..].iter().cloned());
             break;
         }
-        let token = &argv[index];
-        let text = token.to_str();
-        if let Some(path) = text.and_then(|text| text.strip_prefix("--env-file=")) {
-            paths.push(PathBuf::from(path));
-            index += 1;
-            continue;
+        if let Some((path, width)) = claim_env_file(argv, index, passthrough) {
+            paths.push(path);
+            index += width;
+        } else {
+            let end =
+                index + token_width(&argv[index], argv.get(index + 1), arity, argv.len() - index);
+            remaining.extend(argv[index..end].iter().cloned());
+            index = end;
         }
-        if text == Some("--env-file")
-            && let Some(path) = argv
-                .get(index + 1)
-                .and_then(|next| next.to_str())
-                .filter(|next| !next.starts_with('-'))
-                .filter(|_| passthrough.is_none_or(|boundary| index + 1 < boundary))
-        {
-            paths.push(PathBuf::from(path));
-            index += 2;
-            continue;
-        }
-        let width = text
-            .and_then(|text| {
-                option_width(
-                    text,
-                    argv.get(index + 1)
-                        .and_then(|next| next.to_str()),
-                    arity,
-                )
-            })
-            .unwrap_or(1);
-        remaining.extend(argv[index..index + width.min(argv.len() - index)].iter().cloned());
-        index += width;
     }
     (paths, remaining)
+}
+
+/// The first argv index that must reach the child untouched, over an argv
+/// that still carries the program name at index 0.
+///
+/// `pm` forces the built-in command but is not a subcommand of its own, so
+/// the boundary is computed as if the prefix were absent and shifted back
+/// afterwards. Without that, everything after a leading `pm` would look
+/// forwarded and `--env-file` would never be stripped.
+fn child_argv_boundary(argv: &[OsString]) -> Option<usize> {
+    let pm_prefix = usize::from(
+        argv.get(1)
+            .is_some_and(|token| token == "pm"),
+    );
+    passthrough_from(&argv[pm_prefix..]).map(|boundary| boundary + pm_prefix)
+}
+
+/// The `--env-file` path named at `index`, with the number of argv slots
+/// the flag occupies, or `None` when the token at `index` is not pnpm's
+/// `--env-file`.
+fn claim_env_file(
+    argv: &[OsString],
+    index: usize,
+    passthrough: Option<usize>,
+) -> Option<(PathBuf, usize)> {
+    let text = argv[index].to_str()?;
+    if let Some(path) = text.strip_prefix("--env-file=") {
+        return Some((PathBuf::from(path), 1));
+    }
+    if text != "--env-file" {
+        return None;
+    }
+    let value = argv
+        .get(index + 1)
+        .filter(|next| claimable_value(next))?;
+    if passthrough.is_some_and(|boundary| index + 1 >= boundary) {
+        return None;
+    }
+    Some((PathBuf::from(value), 2))
+}
+
+/// Whether `next` can be a bare `--env-file` value: anything but another
+/// option. A non-UTF-8 token cannot spell an option, so it is claimable
+/// (clap parses it into the path all the same).
+fn claimable_value(next: &OsString) -> bool {
+    next.to_str()
+        .is_none_or(|text| !text.starts_with('-'))
+}
+
+/// The argv slots the token at `index` occupies: its option width, or one
+/// slot for a positional or an unrecognized token. Clamped to `rest` so a
+/// trailing value-taking option leaves its flag in place for clap to
+/// report instead of running the scan past the end.
+fn token_width(token: &OsString, next: Option<&OsString>, arity: &ArgTable, rest: usize) -> usize {
+    token
+        .to_str()
+        .and_then(|text| option_width(text, next.and_then(|next| next.to_str()), arity))
+        .unwrap_or(1)
+        .min(rest)
 }
 
 #[cfg(test)]
