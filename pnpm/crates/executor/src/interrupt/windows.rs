@@ -37,6 +37,7 @@ unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::
     if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
         return 0;
     }
+    super::INTERRUPTED.store(true, Ordering::Relaxed);
     let mut still_listening = false;
     visit_targets(|entry, target| {
         still_listening |= interrupt_child(entry, target);

@@ -43,17 +43,29 @@
 use crate::ScriptExit;
 #[cfg(unix)]
 use std::sync::Once;
-#[cfg(windows)]
-use std::sync::atomic::AtomicBool;
 use std::{
     ptr,
-    sync::atomic::{AtomicI32, AtomicPtr, AtomicUsize, Ordering},
+    sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicUsize, Ordering},
 };
 
 /// The number of interrupts pnpm relays to a child before it stops
 /// waiting for that child. Once every child it reaches has had them, the
 /// next interrupt ends pnpm instead.
 const RELAYED_INTERRUPTS: usize = 2;
+
+/// Whether a signal pnpm handles, or a console control event on Windows,
+/// has reached pnpm. The handlers set it, and `pnpm run` reads it once a
+/// script has ended: the user ended that script, so its status is not a
+/// lifecycle failure to report, and pnpm ends with it all the same
+/// (pnpm/pnpm#16579).
+static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+
+/// Whether an interrupt or a termination has reached pnpm while it was
+/// running a script. See [`INTERRUPTED`].
+#[must_use]
+pub fn was_interrupted() -> bool {
+    INTERRUPTED.load(Ordering::Relaxed)
+}
 
 /// One running child: the process to signal, negated to address the whole
 /// process group when the child leads one, or `0` when the entry is free.
@@ -328,10 +340,11 @@ fn install_handler_for(signal: libc::c_int) {
 /// Pass `signal` on to the running children, or end pnpm when there is no
 /// longer anything to wait for.
 ///
-/// Everything it calls is async-signal-safe: atomic loads, `kill`,
-/// `signal`, `raise`, and `_exit`.
+/// Everything it calls is async-signal-safe: atomic loads and stores,
+/// `kill`, `signal`, `raise`, and `_exit`.
 #[cfg(unix)]
 extern "C" fn relay_signal(signal: libc::c_int) {
+    INTERRUPTED.store(true, Ordering::Relaxed);
     let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
     let mut still_listening = false;
     let reached = visit_targets(|entry, target| {

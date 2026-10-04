@@ -3,7 +3,7 @@
 //!
 //! Unix-only by subject, not by harness. The tests send POSIX signals to a
 //! process group of their own; Windows delivers console control events
-//! instead, which needs its own tests rather than a port of these.
+//! instead, which `interrupt_windows` tests rather than porting these.
 #![cfg(unix)]
 
 use crate::_utils::terminal::{Terminal, spawn_without_terminal};
@@ -261,10 +261,10 @@ fn ctrl_c_handled_by_a_command_lets_the_rest_of_the_script_run() {
 }
 
 /// The same shell, when the script never handles `SIGINT`, still ends
-/// pnpm with that signal. The child's status is a real interrupt, and
-/// pnpm reports it.
+/// pnpm with that signal. The user ended the script, so pnpm reports no
+/// lifecycle failure for it (pnpm/pnpm#16579).
 #[test]
-fn ctrl_c_still_reports_a_script_the_shell_could_not_keep_alive() {
+fn ctrl_c_ends_pnpm_with_the_signal_without_a_lifecycle_failure() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_running(&workspace, "test", "node dev.js", LINGERING_SCRIPT);
 
@@ -285,8 +285,8 @@ fn ctrl_c_still_reports_a_script_the_shell_could_not_keep_alive() {
         "an unhandled interrupt still ends pnpm with SIGINT\n{output}",
     );
     assert!(
-        output.contains("[ELIFECYCLE] Command failed with signal SIGINT."),
-        "an unhandled interrupt is still a lifecycle failure\n{output}",
+        !output.contains("ELIFECYCLE"),
+        "a script the user interrupted is not a lifecycle failure\n{output}",
     );
 
     drop(root);

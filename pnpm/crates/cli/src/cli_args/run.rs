@@ -22,7 +22,7 @@ use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::{
     ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, exit_like,
-    run_script,
+    run_script, was_interrupted,
 };
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,

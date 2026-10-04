@@ -80,6 +80,7 @@ mod install_stale_importers;
 mod install_state;
 mod install_test;
 mod interrupt;
+mod interrupt_windows;
 mod licenses;
 mod lifecycle_scripts;
 mod link;
