@@ -1,4 +1,4 @@
-use super::{CmdShimBatch, cmd_encoding::cmd_in_own_console, generate_cmd_shim};
+use super::{CmdShimBatch, ScriptRuntime, cmd_encoding::cmd_in_own_console, generate_cmd_shim};
 use crate::shim::end_replaced_cmd_shim_batch;
 use std::{
     fs,
@@ -7,7 +7,8 @@ use std::{
 };
 use tempfile::{TempDir, tempdir};
 
-/// `pnpm.cmd` as pnpm 12.9.0 and older linked it for the CLI.
+/// A `pnpm.cmd` that runs `pnpm.exe` as a command of its batch, so cmd.exe is
+/// still reading it while `pnpm.exe` runs.
 const BATCH_KEPT_PNPM_CMD: &str =
     "@SETLOCAL\r\n@\"%~dp0\\..\\global\\v11\\abc\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n";
 
@@ -24,7 +25,7 @@ fn batchless_pnpm_cmd() -> String {
 /// The offset of the line that ends the replaced batch, or `None` when the
 /// shim has no such line.
 fn end_of_replaced_batch(shim: &str) -> Option<usize> {
-    shim.find("@EXIT /B %ERRORLEVEL%\r\n")
+    shim.find("@SET \"ERRORLEVEL=\"\r\n@EXIT /B %ERRORLEVEL%\r\n")
 }
 
 #[test]
@@ -36,6 +37,7 @@ fn ends_the_replaced_batch_where_cmd_reads_on_and_jumps_over_that_line() {
         format!(
             "@GOTO :pnpm\r\n\
              @REM cmd.exe may still be running the pnpm.cmd this fil\r\n\
+             @SET \"ERRORLEVEL=\"\r\n\
              @EXIT /B %ERRORLEVEL%\r\n\
              :pnpm\r\n\
              {shim}",
@@ -60,6 +62,34 @@ fn a_shim_that_ends_its_batch_is_replaced_as_is() {
     assert_eq!(end_replaced_cmd_shim_batch(&shim, &laid_out), shim);
 }
 
+/// The policy asks for a shim that ends its batch, but an interpreted target
+/// gets one that keeps it. That shim is read to its end on every run, so a
+/// layout over it would be laid out again by the next link.
+#[test]
+fn a_shim_that_keeps_its_batch_is_not_laid_out() {
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let shim = generate_cmd_shim(
+        Path::new("/home/global/v11/def/node_modules/pnpm/bin/pnpm.cjs"),
+        Path::new("/home/bin/pnpm.cmd"),
+        Some(&runtime),
+        &[],
+        CmdShimBatch::EndedBeforeTarget,
+    );
+    assert!(!shim.contains("#_undefined_#"), "{shim}");
+    assert_eq!(end_replaced_cmd_shim_batch(&shim, BATCH_KEPT_PNPM_CMD), shim);
+}
+
+/// The marker that ends a batch counts only as a line of its own.
+#[test]
+fn a_comment_naming_the_batch_end_does_not_make_a_shim_end_its_batch() {
+    let shim = batchless_pnpm_cmd();
+    let replaced = format!(
+        "@SETLOCAL\r\n@REM @GOTO #_undefined_# 2>NUL || is not run here\r\n{BATCH_KEPT_PNPM_CMD}",
+    );
+    let laid_out = end_replaced_cmd_shim_batch(&shim, &replaced);
+    assert_eq!(end_of_replaced_batch(&laid_out), Some(replaced.len()));
+}
+
 #[test]
 fn a_file_too_short_for_the_jump_is_replaced_as_is() {
     let shim = batchless_pnpm_cmd();
@@ -72,7 +102,10 @@ fn a_file_too_short_for_the_jump_is_replaced_as_is() {
 fn a_file_the_jump_fills_exactly_needs_no_padding() {
     let shim = batchless_pnpm_cmd();
     let laid_out = end_replaced_cmd_shim_batch(&shim, "@SETLOCAL  \r\n");
-    assert_eq!(laid_out, format!("@GOTO :pnpm\r\n@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n{shim}"));
+    assert_eq!(
+        laid_out,
+        format!("@GOTO :pnpm\r\n@SET \"ERRORLEVEL=\"\r\n@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n{shim}"),
+    );
 }
 
 /// cmd.exe is past the target's line, not past the file, when the target
@@ -190,8 +223,11 @@ impl ReplacingShim {
     /// over it by the target.
     fn run_replacing_with(&self, replacement: &str) -> Output {
         fs::write(self.root.path().join("new-shim.txt"), replacement).unwrap();
+        // An `ERRORLEVEL` variable from the caller must not shadow the exit
+        // code of the target.
         let output = cmd_in_own_console()
             .args(["/d", "/c", "shim.cmd", "/d", "/c", "replace.cmd"])
+            .env("ERRORLEVEL", "0")
             .current_dir(self.root.path())
             .output()
             .unwrap();

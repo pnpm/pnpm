@@ -19,8 +19,10 @@ const JUMP_TARGET: &str = ":pnpm\r\n";
 /// Ends the replaced batch when it has no code page to restore, with its
 /// target's exit code. `GOTO :EOF` would leave `%ERRORLEVEL%` alone, but
 /// `cmd /c` reports the result of the last command it ran, and that `GOTO`
-/// succeeds.
-const END_REPLACED_BATCH: &str = "@EXIT /B %ERRORLEVEL%\r\n";
+/// succeeds. An `ERRORLEVEL` variable inherited from the caller would shadow
+/// the exit code, so it is cleared first, within the replaced batch's
+/// `SETLOCAL`.
+const END_REPLACED_BATCH: &str = "@SET \"ERRORLEVEL=\"\r\n@EXIT /B %ERRORLEVEL%\r\n";
 
 const REM_LINE_MIN: usize = "@REM\r\n".len();
 /// Well under cmd.exe's line limit of 8191 characters.
@@ -39,9 +41,16 @@ const PADDING_NOTE: &str =
 /// ends its batch before its target, since nothing reads on in it, and when
 /// that offset leaves no room for the jump.
 ///
+/// A `shim` that keeps its batch, as one for an interpreted target does
+/// whatever the policy asked for, is returned as is too: cmd.exe reads such a
+/// shim to its end on every run, so the next link would lay it out once more.
+///
 /// [`CmdShimBatch::EndedBeforeTarget`]: super::CmdShimBatch::EndedBeforeTarget
 #[must_use]
 pub fn end_replaced_cmd_shim_batch(shim: &str, replaced: &str) -> String {
+    if !ends_batch_before_target(shim) {
+        return shim.to_string();
+    }
     let Some(resume) = batch_resume(replaced) else {
         return shim.to_string();
     };
@@ -65,7 +74,7 @@ struct BatchResume {
 
 /// `None` when `shim` ends its batch before its target, or has no line at all.
 fn batch_resume(shim: &str) -> Option<BatchResume> {
-    if shim.contains(BATCH_END) {
+    if ends_batch_before_target(shim) {
         return None;
     }
     let (commands, ending) = match shim.find(CODEPAGE_RESTORE_TRAILER) {
@@ -81,6 +90,15 @@ fn batch_resume(shim: &str) -> Option<BatchResume> {
         }
     }
     (end > 0).then_some(BatchResume { offset: end, ending })
+}
+
+/// Whether `shim` is a [`CmdShimBatch::EndedBeforeTarget`] shim: one of its
+/// lines, not merely a comment, is the [`BATCH_END`] line.
+///
+/// [`CmdShimBatch::EndedBeforeTarget`]: super::CmdShimBatch::EndedBeforeTarget
+fn ends_batch_before_target(shim: &str) -> bool {
+    shim.lines()
+        .any(|line| line.starts_with(BATCH_END))
 }
 
 /// Exactly `len` bytes of `@REM` lines, the first carrying [`PADDING_NOTE`].

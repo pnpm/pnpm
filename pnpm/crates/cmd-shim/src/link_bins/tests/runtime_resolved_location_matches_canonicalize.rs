@@ -238,7 +238,9 @@ fn the_pnpm_cli_cmd_shim_ends_the_batch_of_the_shim_it_replaces() {
     let laid_out = read_to_string(&shim).unwrap();
     assert!(laid_out.starts_with("@GOTO :pnpm\r\n"), "{laid_out}");
     assert!(
-        laid_out[batch_kept.len()..].starts_with("@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"),
+        laid_out[batch_kept.len()..].starts_with(
+            "@SET \"ERRORLEVEL=\"\r\n@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"
+        ),
         "{laid_out}",
     );
 
@@ -250,6 +252,33 @@ fn the_pnpm_cli_cmd_shim_ends_the_batch_of_the_shim_it_replaces() {
 
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
     assert_eq!(read_to_string(&shim).unwrap(), plain);
+}
+
+/// A pnpm CLI run through an interpreter keeps its batch, so its shim is
+/// written as it is over a `pnpm.cmd` that keeps its batch too, and a further
+/// link leaves it alone.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn the_pnpm_cli_cmd_shim_for_an_interpreted_target_is_not_laid_out() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("bin");
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(pkg_dir.join("bin")).unwrap();
+    let manifest = json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "bin/pnpm.cjs"}});
+    write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+    write_file(pkg_dir.join("bin/pnpm.cjs"), "#!/usr/bin/env node\n").unwrap();
+    let packages = vec![PackageBinSource::new(pkg_dir, Arc::new(manifest))];
+    let shim = bins_dir.join("pnpm.cmd");
+    create_dir_all(&bins_dir).unwrap();
+    write_file(&shim, "@SETLOCAL\r\n@\"%~dp0\\..\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n").unwrap();
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let written = read_to_string(&shim).unwrap();
+    assert!(written.starts_with("@SETLOCAL\r\n"), "{written}");
+    assert!(written.contains("node.exe"), "{written}");
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert_eq!(read_to_string(&shim).unwrap(), written);
 }
 
 /// A bin directory this run created holds nothing, so the shim goes

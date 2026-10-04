@@ -240,7 +240,8 @@ struct WindowsShims {
     powershell: Option<(PathBuf, String)>,
 }
 
-/// The `.cmd` sibling.
+/// The `.cmd` sibling, together with the read of its path that laid its body
+/// out, so that the byte comparison deciding on a rewrite needs no second read.
 struct CmdShim {
     path: PathBuf,
     body: String,
