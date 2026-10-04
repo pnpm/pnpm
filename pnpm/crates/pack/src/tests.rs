@@ -235,7 +235,8 @@ fn en_collator_matches_javascript_locale_compare() {
     use super::collation::en_collator;
     use std::cmp::Ordering;
 
-    let collator = en_collator();
+    let en = en_collator();
+    let collator = en.as_borrowed();
     assert_eq!(collator.compare("é.txt", "z.txt"), Ordering::Less);
     assert_eq!(collator.compare("ä.txt", "b.txt"), Ordering::Less);
     assert_eq!(collator.compare("_a.js", "1a.js"), Ordering::Less);
@@ -245,6 +246,26 @@ fn en_collator_matches_javascript_locale_compare() {
     assert_eq!(collator.compare("a.txt", "B.txt"), Ordering::Less);
     assert_eq!(collator.compare("dir/x.js", "LICENSE"), Ordering::Less);
     assert_eq!(collator.compare("a.txt", "a.txt"), Ordering::Equal);
+}
+
+/// `en_collator` leaves out the per-locale tailorings, so it must order
+/// strings exactly as ICU4X's full compiled `en` collator does.
+#[test]
+fn en_collator_matches_full_compiled_en_collation() {
+    use super::collation::en_collator;
+    use icu_collator::{CollatorBorrowed, options::CollatorOptions};
+    use icu_locale_core::locale;
+
+    let full = CollatorBorrowed::try_new(locale!("en").into(), CollatorOptions::default()).unwrap();
+    let en = en_collator();
+    let root = en.as_borrowed();
+    let mut by_full: Vec<String> = ('\u{20}'..='\u{24FF}')
+        .flat_map(|char| [char.to_string(), format!("{char}\u{301}")])
+        .collect();
+    let mut by_root = by_full.clone();
+    by_full.sort_by(|left, right| full.compare(left, right));
+    by_root.sort_by(|left, right| root.compare(left, right));
+    assert!(by_full == by_root, "root-only `en` collation diverges from the full data");
 }
 
 /// A name ending in a bare dot has the extension `.`, which sorts ahead of
