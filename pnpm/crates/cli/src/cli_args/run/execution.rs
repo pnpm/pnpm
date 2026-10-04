@@ -4,9 +4,9 @@ use super::{
     ScriptOutput, ScriptSelector, ScriptsPrependNodePath, TaskCompletion, Value, env,
     exec_fallback, exit_like,
     injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
-    pnp_path_for_execution, run_script, schedule_graph, throw_or_filter_hidden_scripts,
-    was_interrupted,
+    interrupt_count, make_node_package_map_option, make_node_require_option,
+    package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
+    throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::concurrency_group::{
     SlotOutcome, acquire_concurrency_group_slot, with_held_group,
@@ -438,6 +438,7 @@ pub(in super::super) fn run_stage(
     let modules_bin_dir = ctx.dir
         .join(project_modules_dir_name(ctx))
         .join(".bin");
+    let interrupts_before = interrupt_count();
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
@@ -459,14 +460,16 @@ pub(in super::super) fn run_stage(
     })
     .map_err(miette::Report::new)?;
 
-    // A script the user interrupted is not a lifecycle failure. The
-    // interrupt ended it, and the status it leaves is the shell's rather
-    // than the script's: on Windows, `cmd` ends with `STATUS_CONTROL_C_EXIT`
-    // and PowerShell with 1 once the console's `Ctrl+C` has reached them,
-    // and a Bourne shell re-raises `SIGINT`. pnpm still ends the way the
-    // script did, so the terminal shows an interrupted command and nothing
-    // else (pnpm/pnpm#16579).
-    if !status.success() && !was_interrupted() {
+    // A script the user interrupted while it ran is not a lifecycle
+    // failure. The interrupt ended it, and the status it leaves is the
+    // shell's rather than the script's: on Windows, `cmd` ends with
+    // `STATUS_CONTROL_C_EXIT` and PowerShell with 1 once the console's
+    // `Ctrl+C` has reached them, and a Bourne shell re-raises `SIGINT`.
+    // pnpm still ends the way the script did, so the terminal shows an
+    // interrupted command and nothing else (pnpm/pnpm#16579). A script
+    // that fails on its own after an earlier stage handled an interrupt
+    // is still reported.
+    if !status.success() && interrupt_count() == interrupts_before {
         if let Some(signal) = status.signal_name() {
             eprintln!("[ELIFECYCLE] Command failed with signal {signal}.");
         } else if stage == "test" {

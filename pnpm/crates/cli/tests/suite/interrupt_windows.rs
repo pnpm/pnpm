@@ -107,17 +107,23 @@ fn write_project(dir: &Path) {
     fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
+/// Wait for the script to write `path`. A pnpm that exits first, or never
+/// starts the script, fails the test, with its process tree ended so that
+/// nothing of it outlives the test.
 fn wait_for_file(path: &Path, process: &mut Child) {
     let deadline = Instant::now() + Duration::from_mins(1);
     while !path.exists() {
-        assert!(Instant::now() < deadline, "the script never started");
-        assert!(
-            process
-                .try_wait()
-                .expect("poll pnpm")
-                .is_none(),
-            "pnpm exited before the script ran",
-        );
+        if process
+            .try_wait()
+            .expect("poll pnpm")
+            .is_some()
+        {
+            panic!("pnpm exited before the script ran");
+        }
+        if Instant::now() >= deadline {
+            let status = end_process_tree(process);
+            panic!("the script never started: {status:?}");
+        }
         sleep(Duration::from_millis(50));
     }
 }
@@ -131,12 +137,17 @@ fn wait_for_shutdown(process: &mut Child) -> ExitStatus {
             return status;
         }
         if Instant::now() >= deadline {
-            let _ = Command::new("taskkill")
-                .args(["/T", "/F", "/PID", &process.id().to_string()])
-                .status();
-            let status = process.wait().expect("wait for pnpm");
+            let status = end_process_tree(process);
             panic!("pnpm kept running after Ctrl+C: {status:?}");
         }
         sleep(Duration::from_millis(50));
     }
+}
+
+/// End pnpm together with everything it started, and reap it.
+fn end_process_tree(process: &mut Child) -> ExitStatus {
+    let _ = Command::new("taskkill")
+        .args(["/T", "/F", "/PID", &process.id().to_string()])
+        .status();
+    process.wait().expect("wait for pnpm")
 }

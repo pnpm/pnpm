@@ -43,9 +43,11 @@
 use crate::ScriptExit;
 #[cfg(unix)]
 use std::sync::Once;
+#[cfg(windows)]
+use std::sync::atomic::AtomicBool;
 use std::{
     ptr,
-    sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicUsize, Ordering},
+    sync::atomic::{AtomicI32, AtomicPtr, AtomicUsize, Ordering},
 };
 
 /// The number of interrupts pnpm relays to a child before it stops
@@ -53,18 +55,19 @@ use std::{
 /// next interrupt ends pnpm instead.
 const RELAYED_INTERRUPTS: usize = 2;
 
-/// Set by the signal and console handlers, read through
-/// [`was_interrupted`].
-static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+/// Counted up by the signal and console handlers, read through
+/// [`interrupt_count`].
+static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 
-/// Whether an interrupt or a termination has reached pnpm while it was
-/// running a script: a signal pnpm handles, or a console control event on
-/// Windows. `pnpm run` reads it once a script has ended. The user ended
-/// that script, so its status is not a lifecycle failure to report, and
-/// pnpm ends with it all the same (pnpm/pnpm#16579).
+/// How many interrupts and terminations have reached pnpm so far: signals
+/// pnpm handles, or console control events on Windows. `pnpm run` reads
+/// it before and after a script, so it can tell a script the user ended
+/// from one that failed on its own after an earlier, handled interrupt.
+/// The user ended the former, so its status is not a lifecycle failure to
+/// report, and pnpm ends with it all the same (pnpm/pnpm#16579).
 #[must_use]
-pub fn was_interrupted() -> bool {
-    INTERRUPTED.load(Ordering::Relaxed)
+pub fn interrupt_count() -> usize {
+    INTERRUPTS.load(Ordering::Relaxed)
 }
 
 /// One running child: the process to signal, negated to address the whole
@@ -340,11 +343,11 @@ fn install_handler_for(signal: libc::c_int) {
 /// Pass `signal` on to the running children, or end pnpm when there is no
 /// longer anything to wait for.
 ///
-/// Everything it calls is async-signal-safe: atomic loads and stores,
+/// Everything it calls is async-signal-safe: atomic loads and updates,
 /// `kill`, `signal`, `raise`, and `_exit`.
 #[cfg(unix)]
 extern "C" fn relay_signal(signal: libc::c_int) {
-    INTERRUPTED.store(true, Ordering::Relaxed);
+    INTERRUPTS.fetch_add(1, Ordering::Relaxed);
     let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
     let mut still_listening = false;
     let reached = visit_targets(|entry, target| {
