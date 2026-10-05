@@ -39,6 +39,12 @@ pnpm run "/^watch:/"
 
 The selector must be written as a regular expression literal — that is, wrapped in slashes — and quoted, so the shell does not mangle it. A plain string is always treated as a literal script name, and a script whose name matches the argument exactly takes precedence over regex matching.
 
+The pattern uses JavaScript regular expression syntax, including lookahead and lookbehind. Run every `hello:` script except `hello:b`:
+
+```sh
+pnpm run "/^hello:(?!b$).*$/"
+```
+
 Matching is not anchored, so `"/build:.*/"` also matches `prebuild:web`. Anchor the pattern with `^` and `$` when you need an exact prefix.
 
 Matched scripts run in lexicographical order, so the selection is deterministic regardless of the order the scripts appear in `package.json`. Since v12.2.0 they run concurrently, up to [`--workspace-concurrency`](./recursive.md#--workspace-concurrency), with each script's output prefixed by its name. To run them strictly one at a time, add [`--sequential`](#--sequential--s).

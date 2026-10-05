@@ -4724,6 +4724,7 @@ dependencies = [
  "rayon",
  "reflink-copy",
  "regex",
+ "regress",
  "reqwest",
  "rmp-serde",
  "rustc-hash 2.1.3",
@@ -7430,6 +7431,15 @@ name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+
+[[package]]
+name = "regress"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32eef8b209c3c1c15dbad02c1f30f9539f00dc7253e0cbcdaae442a50a09d7c1"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "replace_with"
