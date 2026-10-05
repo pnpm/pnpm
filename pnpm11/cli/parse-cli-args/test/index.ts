@@ -70,6 +70,14 @@ test('when running a global command inside a workspace, the workspace should be 
   expect(workspaceDir).toBeFalsy()
 })
 
+test('when reading the global config inside a workspace, the workspace should be ignored', async () => {
+  const { workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => commandName === 'config' ? { location: ['global', 'project'] } : {},
+  }, ['config', 'get', 'minimumReleaseAge', '--location=global'])
+  expect(workspaceDir).toBeFalsy()
+})
+
 test('when running with --ignore-workspace option inside a workspace, the workspace should be ignored', async () => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,

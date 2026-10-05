@@ -352,7 +352,7 @@ async function getWorkspaceDir (
   parsedOpts: Record<string, unknown>,
   renamedOptions?: Record<string, string>
 ): Promise<string | undefined> {
-  if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
+  if (parsedOpts['global'] || parsedOpts['location'] === 'global' || parsedOpts['ignore-workspace']) return undefined
   let dir = parsedOpts['dir']
   if (dir == null && renamedOptions != null) {
     for (const [from, to] of Object.entries(renamedOptions)) {

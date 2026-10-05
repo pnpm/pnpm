@@ -98,7 +98,12 @@ pub(in super::super) fn config<'a>(
     ctx: &RunCtx<'a>,
     args: ConfigArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run((ctx.loaders.config)()?, ctx.locations.dir)?;
+    let config = if args.reads_global_config() {
+        (ctx.loaders.global_config)()?
+    } else {
+        (ctx.loaders.config)()?
+    };
+    args.run(config, ctx.locations.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

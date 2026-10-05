@@ -291,6 +291,28 @@ test('pnpm config get shows settings from global config.yaml', () => {
   expect(configGet('package-extensions')).toBe('undefined')
 })
 
+// https://github.com/pnpm/pnpm/issues/16598
+test('pnpm config get --global and --location=global ignore the project pnpm-workspace.yaml', () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'hoisted' })
+
+  const XDG_CONFIG_HOME = path.resolve('.config')
+  fs.mkdirSync(path.join(XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
+  writeYamlFileSync(path.join(XDG_CONFIG_HOME, 'pnpm/config.yaml'), { dlxCacheMaxAge: 1234 })
+  const pnpm = (args: string[]) =>
+    execPnpmSync(args, { expectSuccess: true, env: { XDG_CONFIG_HOME } }).stdout.toString().trim()
+
+  expect(pnpm(['config', 'get', 'nodeLinker'])).toBe('hoisted')
+  expect(pnpm(['config', 'get', 'nodeLinker', '--global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', 'nodeLinker', '--location=global'])).toBe('undefined')
+  expect(pnpm(['get', 'nodeLinker', '--location=global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', 'dlxCacheMaxAge', '--location=global'])).toBe('1234')
+
+  const list = JSON.parse(pnpm(['config', 'list', '--location=global']))
+  expect(list).not.toHaveProperty('nodeLinker')
+  expect(list).toHaveProperty('dlxCacheMaxAge', 1234)
+})
+
 test('the path from "config get globalconfig" is the file that pnpm actually reads global settings from', () => {
   prepare()
 

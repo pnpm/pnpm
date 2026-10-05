@@ -47,6 +47,18 @@ impl ConfigArgs {
     pub(super) fn is_global(&self) -> bool {
         self.flags.global
     }
+
+    /// Whether this is a `get` / `list` the user scoped to the global config
+    /// with `--global` or `--location=global`. Such a read must not show the
+    /// project's settings.
+    pub(super) fn reads_global_config(&self) -> bool {
+        let explicitly_global = match self.flags.location {
+            Some(location) => location == ConfigLocation::Global,
+            None => self.flags.global,
+        };
+        explicitly_global
+            && matches!(self.command, ConfigSubcommand::Get(_) | ConfigSubcommand::List(_))
+    }
 }
 
 #[derive(Debug, Subcommand)]

@@ -276,3 +276,54 @@ fn config_get_registries_shows_a_registry_network_concurrency() {
 
     drop(root);
 }
+
+/// `--global` and `--location=global` scope a read to the global config, so
+/// the project's `pnpm-workspace.yaml` and `.npmrc` stay out of it.
+/// <https://github.com/pnpm/pnpm/issues/16598>
+#[test]
+fn global_get_and_list_ignore_the_project_settings() {
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "repro", "version": "1.0.0" }"#)
+        .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "minimumReleaseAge: 2880\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join(".npmrc"), "//project.test/:_authToken=project-token\n")
+        .expect("write .npmrc");
+    let config_home = root.path().join("xdg-config");
+    fs::create_dir_all(config_home.join("pnpm")).expect("create global config directory");
+    fs::write(config_home.join("pnpm/config.yaml"), "fetchRetries: 5\n")
+        .expect("write global config");
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    let run = |args: &[&str]| {
+        let output = pacquet_in(&workspace)
+            .with_env("XDG_CONFIG_HOME", &config_home)
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_args(args)
+            .output()
+            .expect("run pacquet");
+        eprintln!("{args:?} stderr={}", String::from_utf8_lossy(&output.stderr));
+        assert!(output.status.success());
+        String::from_utf8(output.stdout)
+            .expect("stdout is UTF-8")
+            .trim_end()
+            .to_string()
+    };
+
+    assert_eq!(run(&["config", "get", "minimumReleaseAge"]), "2880");
+    assert_eq!(run(&["config", "get", "minimumReleaseAge", "--global"]), "undefined");
+    assert_eq!(run(&["config", "get", "minimumReleaseAge", "--location=global"]), "undefined");
+    assert_eq!(run(&["get", "-g", "minimumReleaseAge"]), "undefined");
+    assert_eq!(run(&["config", "get", "//project.test/:_authToken", "--global"]), "undefined");
+    assert_eq!(run(&["config", "get", "fetchRetries", "--global"]), "5");
+
+    let list = run(&["config", "list", "--global"]);
+    eprintln!("list={list}");
+    assert!(!list.contains("minimumReleaseAge\""));
+    assert!(!list.contains("//project.test/"));
+    assert!(list.contains("\"fetchRetries\": 5"));
+
+    drop(root);
+}
