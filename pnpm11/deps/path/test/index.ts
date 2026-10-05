@@ -104,7 +104,7 @@ test('depPathToFilename()', () => {
   expect(depPathToFilename('abcd/'.repeat(200), 120)).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+ab_e7c10c3598ebbc0ca640b6524c68e602') // cspell:disable-line
   expect(depPathToFilename('/JSONSteam@1.0.0', 120)).toBe('JSONSteam@1.0.0_533d3b11e9111b7a24f914844c021ddf') // cspell:disable-line
 
-  expect(depPathToFilename('foo@git+https://github.com/something/foo#1234', 120)).toBe('foo@git+https+++github.com+something+foo+1234')
+  expect(depPathToFilename('foo@git+https://github.com/something/foo#1234', 120)).toMatch(/^foo@git\+https\+\+\+github.com\+something\+foo\+1234_[a-f0-9]{32}$/)
   expect(depPathToFilename('foo@https://codeload.github.com/something/foo/tar.gz/1234#path:packages/foo', 120)).toBe('foo@https+++codeload.github.com+something+foo+tar.gz+1234+path+packages+foo')
 })
 
@@ -202,7 +202,7 @@ test('depPathToFilename() escapes trailing dots and spaces', () => {
   expect(depPathToFilename('pkg@file:.', 120)).toBe('pkg@file++_f8a4bd4027dd0dda71549ddff4eb2bbb')
   expect(depPathToFilename('pkg@file:../dir ', 120)).toBe('pkg@file+..+dir+_58ccd8dce4811ac686d72920d5724090')
   expect(depPathToFilename('foo@1.0.0(pkg@file:..)', 120)).toBe('foo@1.0.0_pkg@file+++_532b5e0801878347427004a15da818ef')
-  expect(depPathToFilename('parent-pkg@file:++', 120)).toBe('parent-pkg@file+++')
+  expect(depPathToFilename('parent-pkg@file:++', 120)).toMatch(/^parent-pkg@file\+\+\+_[a-f0-9]{32}$/)
   expect(depPathToFilename('pkg@file:../project-2', 120)).toBe('pkg@file+..+project-2')
   expect(depPathToFilename('Parent-pkg@file:..', 120)).not.toBe(depPathToFilename('Parent-pkg@file:++', 120))
 })
@@ -231,5 +231,16 @@ test('packageRootLinkTarget() accepts only plain paths inside the package', () =
     'link:packages/c',
   ]) {
     expect(packageRootLinkTarget(reference)).toBeUndefined()
+  }
+})
+
+
+test('depPathToFilename keeps distinct tarball paths apart before and after shortening', () => {
+  const base = 'pkg@https://registry.example.com/objects/trusted'
+  for (const maxLength of [40, 120]) {
+    expect(depPathToFilename(`${base}+package.tgz`, maxLength)).not.toBe(
+      depPathToFilename(`${base}/package.tgz`, maxLength)
+    )
+    expect(depPathToFilename(`${base}+package.tgz`, maxLength).length).toBeLessThanOrEqual(maxLength)
   }
 })

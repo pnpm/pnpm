@@ -22,7 +22,11 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
     if trailing > 0 {
         let mut escaped = filename[..kept].to_string();
         escaped.extend(std::iter::repeat_n('+', trailing));
-        return hash_suffix_virtual_store_name(&escaped, &filename, max_length_without_hash);
+        let hash_input = if dep_path.contains('+') { dep_path } else { &filename };
+        return hash_suffix_virtual_store_name(&escaped, hash_input, max_length_without_hash);
+    }
+    if dep_path.contains('+') {
+        return hash_suffix_virtual_store_name(&filename, dep_path, max_length_without_hash);
     }
     shorten_virtual_store_name(filename, max_length_without_hash)
 }

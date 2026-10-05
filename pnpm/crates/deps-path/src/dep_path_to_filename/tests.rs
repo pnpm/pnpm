@@ -100,9 +100,20 @@ fn escaped_trailing_dots_do_not_collide_with_literal_plus() {
         dep_path_to_filename("parent-pkg@file:..", 120),
         dep_path_to_filename("parent-pkg@file:++", 120),
     );
-    assert_eq!(dep_path_to_filename("parent-pkg@file:++", 120), "parent-pkg@file+++");
+    assert!(dep_path_to_filename("parent-pkg@file:++", 120).starts_with("parent-pkg@file+++_"));
     assert_ne!(
         dep_path_to_filename("Parent-pkg@file:..", 120),
         dep_path_to_filename("Parent-pkg@file:++", 120),
     );
+}
+
+#[test]
+fn distinct_tarball_paths_stay_apart_before_and_after_shortening() {
+    let base = "pkg@https://registry.example.com/objects/trusted";
+    for max_length in [40, 120] {
+        let literal_plus = dep_path_to_filename(&format!("{base}+package.tgz"), max_length);
+        let separator = dep_path_to_filename(&format!("{base}/package.tgz"), max_length);
+        assert_ne!(literal_plus, separator);
+        assert!(literal_plus.len() <= max_length);
+    }
 }

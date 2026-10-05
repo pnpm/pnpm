@@ -108,6 +108,8 @@ detected, pnpm aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
 The directory with links to the store. All direct and indirect dependencies of
 the project are linked into this directory.
 
+Tarball dependencies whose URLs contain a literal `+` use a hashed directory name to keep them separate from URLs containing a path separator.
+
 This is a useful setting that can solve issues with long paths on Windows. If
 you have some dependencies with very long paths, you can select a virtual store
 in the root of your drive (for instance `C:\my-project-store`).
