@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-The pnpm binary is about 7 MB smaller.
+The pnpm binary is smaller. On macOS on Apple silicon, it is about 7 MB smaller.
