@@ -13,6 +13,10 @@ extend-exclude = [
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
 
+[default]
+# Virtual store directory names end in a hex hash.
+extend-ignore-re = ["_[0-9a-f]{32}\\b"]
+
 [default.extend-words]
 cafs   = "cafs"
 ect    = "ect"
