@@ -67,6 +67,7 @@ export PATH="$PATH:$PNPM_HOME""#,
 }
 
 #[test]
+#[cfg_attr(windows, ignore = "needs a POSIX sh on PATH")]
 fn posix_snippet_prepends_when_pnpm_home_is_already_on_path() {
     let mut opts = opts(false);
     opts.proxy_var_sub_dir = Some("bin");
