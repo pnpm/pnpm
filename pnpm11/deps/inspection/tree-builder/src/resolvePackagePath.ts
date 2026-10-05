@@ -50,25 +50,37 @@ function resolveHoistedPackagePath (opts: ResolvePackagePathOptions): string | u
 /**
  * Picks the copy that Node.js resolves from the parent package, or from the
  * project for a direct dependency: the one in the closest modules directory
- * above it. Copies under the edge's alias are preferred, since one depPath
- * gets a directory per alias it is installed under. Falls back to any copy
- * on disk, then to the first recorded one.
+ * above it. Copies on disk under the edge's alias are preferred, since one
+ * depPath gets a directory per alias it is installed under. Falls back to any
+ * copy on disk, then to the recorded one under the alias, then to the first
+ * recorded one.
  */
 function pickHoistedDir (recordedDirs: string[], opts: ResolvePackagePathOptions & { lockfileDir: string }): string {
-  const aliasSuffix = path.join(path.sep, opts.alias)
-  const aliasDirs = recordedDirs.filter((dir) => dir.endsWith(aliasSuffix))
-  const dirs = aliasDirs.length ? aliasDirs : recordedDirs
-  const existing = dirs.filter((dir) => fs.existsSync(dir))
+  const existing = recordedDirs.filter((dir) => fs.existsSync(dir))
+  const existingUnderAlias = existing.filter((dir) => isInstalledUnder(dir, opts.alias))
+  const candidates = existingUnderAlias.length ? existingUnderAlias : existing
   const resolveFrom = opts.parentDir ?? opts.projectDir
   if (resolveFrom) {
     const relativeModulesDir = getRelativeModulesDir(opts.lockfileDir, opts.modulesDir)
-    const closest = existing
+    const closest = candidates
       .map((dir) => ({ dir, ownerDir: getOwnerDir(dir, relativeModulesDir) }))
       .filter(({ ownerDir }) => isSameOrSubdir(ownerDir, resolveFrom))
       .sort((a, b) => b.ownerDir.length - a.ownerDir.length)[0]
     if (closest) return closest.dir
   }
-  return existing[0] ?? dirs[0]
+  return candidates[0] ??
+    recordedDirs.find((dir) => isInstalledUnder(dir, opts.alias)) ??
+    recordedDirs[0]
+}
+
+/**
+ * Whether `pkgDir` is `<modules dir>/<alias>`: its trailing segments spell the
+ * whole alias, not just the name of a scoped package.
+ */
+function isInstalledUnder (pkgDir: string, alias: string): boolean {
+  const aliasSuffix = path.join(path.sep, alias)
+  return pkgDir.endsWith(aliasSuffix) &&
+    !path.basename(pkgDir.slice(0, -aliasSuffix.length)).startsWith('@')
 }
 
 /**
@@ -88,16 +100,16 @@ function isSameOrSubdir (parent: string, dir: string): boolean {
 }
 
 /**
- * Probes `node_modules/<alias>` of the project and of the lockfile directory,
+ * Probes `<alias>` in the modules directory of the project and of the root,
  * because the hoisted linker places a dependency under its alias.
  */
 function findHoistedByAlias (opts: ResolvePackagePathOptions, lockfileDir: string): string | undefined {
   if (isUnsafePathComponent(opts.alias)) return undefined
   const relativeModulesDir = getRelativeModulesDir(lockfileDir, opts.modulesDir)
-  return [opts.projectDir, lockfileDir]
-    .filter((dir): dir is string => Boolean(dir))
-    .map((dir) => path.resolve(dir, relativeModulesDir, opts.alias))
-    .find((candidate) => candidateMatchesVersion(candidate, opts.version))
+  const rootModulesDir = opts.modulesDir ?? path.join(lockfileDir, 'node_modules')
+  const candidates = opts.projectDir ? [path.resolve(opts.projectDir, relativeModulesDir, opts.alias)] : []
+  candidates.push(path.join(rootModulesDir, opts.alias))
+  return candidates.find((candidate) => candidateMatchesVersion(candidate, opts.version))
 }
 
 /**

@@ -164,3 +164,54 @@ test('resolvePackagePath picks the hoisted copy installed under the edge alias',
     fs.rmSync(lockfileDir, { recursive: true, force: true })
   }
 })
+
+test('resolvePackagePath does not take a scoped hoisted copy for an unscoped alias', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-scoped-alias-'))
+  try {
+    for (const dir of ['node_modules/@scope/foo', 'node_modules/foo']) {
+      fs.mkdirSync(path.join(lockfileDir, dir), { recursive: true })
+    }
+    const opts = {
+      depPath: 'foo@1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+      virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+      modulesDir: path.join(lockfileDir, 'node_modules'),
+      nodeLinker: 'hoisted' as const,
+      hoistedLocations: { 'foo@1.0.0': ['node_modules/@scope/foo', 'node_modules/foo'] },
+      lockfileDir,
+      projectDir: lockfileDir,
+    }
+
+    expect(resolvePackagePath({ ...opts, alias: 'foo' })).toBe(path.join(lockfileDir, 'node_modules/foo'))
+    expect(resolvePackagePath({ ...opts, alias: '@scope/foo' })).toBe(path.join(lockfileDir, 'node_modules/@scope/foo'))
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
+test('resolvePackagePath prefers a hoisted copy on disk over a missing one under the alias', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-missing-alias-'))
+  try {
+    fs.mkdirSync(path.join(lockfileDir, 'node_modules/bar'), { recursive: true })
+
+    expect(resolvePackagePath({
+      depPath: 'foo@1.0.0',
+      name: 'foo',
+      alias: 'foo',
+      version: '1.0.0',
+      virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+      modulesDir: path.join(lockfileDir, 'node_modules'),
+      nodeLinker: 'hoisted',
+      hoistedLocations: { 'foo@1.0.0': ['node_modules/foo', 'node_modules/bar'] },
+      lockfileDir,
+      projectDir: lockfileDir,
+    })).toBe(path.join(lockfileDir, 'node_modules/bar'))
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})

@@ -305,7 +305,8 @@ fn resolve_package_path_picks_the_hoisted_copy_under_the_edge_alias() {
     let dir = tempfile::tempdir().unwrap();
     let foo_copy = dir.path().join("node_modules/foo");
     let bar_copy = dir.path().join("node_modules/bar");
-    for created in [&foo_copy, &bar_copy] {
+    let scoped_copy = dir.path().join("node_modules/@scope/foo");
+    for created in [&foo_copy, &bar_copy, &scoped_copy] {
         std::fs::create_dir_all(created).unwrap();
     }
 
@@ -319,7 +320,7 @@ fn resolve_package_path_picks_the_hoisted_copy_under_the_edge_alias() {
         is_hoisted: true,
         hoisted_dirs: std::collections::BTreeMap::from([(
             "foo@1.0.0".to_string(),
-            vec![foo_copy.clone(), bar_copy.clone()],
+            vec![scoped_copy.clone(), foo_copy.clone(), bar_copy.clone()],
         )]),
     };
     let ctx = EdgeContext {
@@ -333,4 +334,8 @@ fn resolve_package_path_picks_the_hoisted_copy_under_the_edge_alias() {
         |alias| super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", alias, &ctx);
     assert_eq!(resolve("foo"), foo_copy);
     assert_eq!(resolve("bar"), bar_copy);
+    assert_eq!(resolve("@scope/foo"), scoped_copy);
+
+    std::fs::remove_dir(&foo_copy).unwrap();
+    assert_ne!(resolve("foo"), foo_copy, "a copy on disk wins over a missing one under the alias");
 }

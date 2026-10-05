@@ -26,11 +26,9 @@ export function findHoistedPackageDirs (
   lockfileDir: string
 ): string[] {
   if (hoistedLocations == null) return []
-  const legacyDepPath = depPath.startsWith('/') ? depPath.slice(1) : `/${depPath}`
-  const locations = hoistedLocations[depPath] ??
-    hoistedLocations[removeSuffix(depPath)] ??
-    hoistedLocations[legacyDepPath] ??
-    []
+  const keys = [depPath, removeSuffix(depPath)]
+    .flatMap((key) => [key, key.startsWith('/') ? key.slice(1) : `/${key}`])
+  const locations = keys.map((key) => hoistedLocations[key]).find((recorded) => recorded != null) ?? []
   return locations
     .map((location) => hoistedPackageDir(lockfileDir, location))
     .filter((dir): dir is string => dir != null)

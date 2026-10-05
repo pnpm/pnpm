@@ -1,5 +1,5 @@
 use super::{
-    BuildDependentsOptions, DependencyGraph, EdgeContext, HashMap, Lockfile, ManifestSource, Path,
+    BuildDependentsOptions, DependencyGraph, EdgeContext, HashMap, Lockfile, ManifestSource,
     PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch, TreeNodeId, WalkCtx, get_pkg_info,
 };
 
@@ -42,7 +42,7 @@ pub fn resolve_package_nodes(
         graph: &DependencyGraph,
         resolved: &mut HashMap<TreeNodeId, ManifestSource>,
         node_id: &TreeNodeId,
-        parent_dir: Option<&Path>,
+        edge_ctx: &EdgeContext<'_>,
         depth: usize,
     ) {
         if depth >= super::super::MAX_WALK_DEPTH {
@@ -58,25 +58,39 @@ pub fn resolve_package_nodes(
             if resolved.contains_key(target) || !matches!(target, TreeNodeId::Package(_)) {
                 continue;
             }
-            let edge_ctx = EdgeContext {
+            let (_, manifest_source) = get_pkg_info(env, edge, edge_ctx);
+            let child_ctx = EdgeContext {
                 peers: None,
-                linked_path_base_dir: env.layout.modules_dir.clone(),
+                linked_path_base_dir: edge_ctx.linked_path_base_dir.clone(),
                 rewrite_link_version_dir: None,
-                parent_dir: parent_dir.map(Path::to_path_buf),
+                parent_dir: Some(manifest_source.path.clone()),
             };
-            let (_, manifest_source) = get_pkg_info(env, edge, &edge_ctx);
-            let target_path = manifest_source.path.clone();
             resolved.insert(target.clone(), manifest_source);
-            walk(env, graph, resolved, target, Some(&target_path), depth + 1);
+            walk(env, graph, resolved, target, &child_ctx, depth + 1);
         }
     }
 
     for node_id in graph.nodes.keys() {
-        if matches!(node_id, TreeNodeId::Importer(_)) {
-            walk(env, graph, &mut resolved, node_id, None, 0);
+        if let TreeNodeId::Importer(importer_id) = node_id {
+            walk(env, graph, &mut resolved, node_id, &importer_edge_ctx(env, importer_id), 0);
         }
     }
     resolved
+}
+
+/// The context of an importer's direct dependencies: hoisted copies
+/// are resolved from the importer's own directory.
+fn importer_edge_ctx(env: &PkgInfoEnv<'_>, importer_id: &str) -> EdgeContext<'static> {
+    EdgeContext {
+        peers: None,
+        linked_path_base_dir: crate::build::safe_importer_dir(
+            &env.layout.lockfile_dir,
+            importer_id,
+        )
+        .unwrap_or_else(|| env.layout.lockfile_dir.clone()),
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    }
 }
 
 pub(super) fn has_snapshot(ctx: &WalkCtx<'_>, dep_path: &PkgNameVerPeer) -> bool {

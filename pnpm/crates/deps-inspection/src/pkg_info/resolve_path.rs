@@ -46,32 +46,52 @@ pub fn resolve_package_path(
 
 /// The copy Node.js resolves from the parent package, or from the
 /// project for a direct dependency: the one in the closest modules
-/// directory above it. Copies under the edge's alias are preferred,
-/// since one dep path gets a directory per alias it is installed
-/// under. Falls back to any copy on disk, then to the first recorded
-/// one.
+/// directory above it. Copies on disk under the edge's alias are
+/// preferred, since one dep path gets a directory per alias it is
+/// installed under. Falls back to any copy on disk, then to the
+/// recorded one under the alias, then to the first recorded one.
 fn pick_hoisted_dir(
     recorded_dirs: &[PathBuf],
     relative_modules_dir: &Path,
     alias: &str,
     ctx: &EdgeContext<'_>,
 ) -> Option<PathBuf> {
-    let alias_dirs: Vec<PathBuf> = recorded_dirs
+    let existing: Vec<&PathBuf> = recorded_dirs
         .iter()
-        .filter(|dir| dir.ends_with(alias))
-        .cloned()
-        .collect();
-    let dirs = if alias_dirs.is_empty() { recorded_dirs } else { &alias_dirs };
-    let resolve_from = ctx.parent_dir.as_deref().unwrap_or(&ctx.linked_path_base_dir);
-    dirs.iter()
         .filter(|dir| dir.exists())
+        .collect();
+    let existing_under_alias: Vec<&PathBuf> = existing
+        .iter()
+        .copied()
+        .filter(|dir| is_installed_under(dir, alias))
+        .collect();
+    let candidates =
+        if existing_under_alias.is_empty() { &existing } else { &existing_under_alias };
+    let resolve_from = ctx.parent_dir.as_deref().unwrap_or(&ctx.linked_path_base_dir);
+    candidates
+        .iter()
+        .copied()
         .filter_map(|dir| Some((dir, owner_dir(dir, relative_modules_dir)?)))
         .filter(|(_, owner)| resolve_from.starts_with(owner))
         .max_by_key(|(_, owner)| owner.components().count())
         .map(|(dir, _)| dir)
-        .or_else(|| dirs.iter().find(|dir| dir.exists()))
-        .or_else(|| dirs.first())
+        .or_else(|| candidates.first().copied())
+        .or_else(|| recorded_dirs.iter().find(|dir| is_installed_under(dir, alias)))
+        .or_else(|| recorded_dirs.first())
         .cloned()
+}
+
+/// Whether `pkg_dir` is `<modules dir>/<alias>`: its trailing
+/// components spell the whole alias, not just the name of a scoped
+/// package.
+fn is_installed_under(pkg_dir: &Path, alias: &str) -> bool {
+    let alias_path = Path::new(alias);
+    pkg_dir.ends_with(alias_path)
+        && pkg_dir
+            .ancestors()
+            .nth(alias_path.components().count())
+            .and_then(Path::file_name)
+            .is_some_and(|name| !name.to_string_lossy().starts_with('@'))
 }
 
 /// The directory whose modules directory holds `pkg_dir`.
@@ -117,19 +137,18 @@ fn find_hoisted_dirs<'a>(
     hoisted_dirs: &'a std::collections::BTreeMap<String, Vec<PathBuf>>,
     dep_path: &PkgNameVerPeer,
 ) -> Option<&'a [PathBuf]> {
-    let key_str = dep_path.to_string();
-    let without_peer_str = dep_path.without_peer().to_string();
-    hoisted_dirs
-        .get(&key_str)
-        .or_else(|| hoisted_dirs.get(&without_peer_str))
-        .or_else(|| {
-            if let Some(stripped) = key_str.strip_prefix('/') {
-                hoisted_dirs.get(stripped)
-            } else {
-                hoisted_dirs.get(&format!("/{key_str}"))
-            }
-        })
+    [dep_path.to_string(), dep_path.without_peer().to_string()]
+        .iter()
+        .flat_map(|key| [key.clone(), legacy_dep_path(key)])
+        .find_map(|key| hoisted_dirs.get(&key))
         .map(Vec::as_slice)
+}
+
+/// `dep_path` with the leading `/` of old lockfile keys toggled.
+fn legacy_dep_path(dep_path: &str) -> String {
+    dep_path
+        .strip_prefix('/')
+        .map_or_else(|| format!("/{dep_path}"), str::to_string)
 }
 
 /// The hoisted linker places a dependency under its alias, so an
@@ -147,7 +166,7 @@ fn resolve_hoisted_fallback(
         if candidate_matches_version(&candidate_project, version) {
             return candidate_project;
         }
-        let candidate_lockfile = layout.lockfile_dir.join(&layout.relative_modules_dir).join(alias);
+        let candidate_lockfile = layout.modules_dir.join(alias);
         if candidate_matches_version(&candidate_lockfile, version) {
             return candidate_lockfile;
         }
