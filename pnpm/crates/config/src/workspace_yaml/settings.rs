@@ -1,5 +1,3 @@
-pub(crate) use super::parse_settings::parse_settings;
-
 use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, ErrorKind,
@@ -11,7 +9,7 @@ use super::{
     SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting, SupportedArchitectures,
     SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
     VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, fs,
-    redact_and_sanitize,
+    parse_settings_file, redact_and_sanitize,
 };
 
 /// `serde` helper for fields that need to distinguish "missing key"
@@ -783,8 +781,7 @@ impl WorkspaceSettings {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
-        let mut settings =
-            parse_settings::<SystemEnv>(&text).map_err(|err| err.into_load_error(path.clone()))?;
+        let mut settings = parse_settings_file::<SystemEnv>(&text, &path)?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;
@@ -844,8 +841,7 @@ impl WorkspaceSettings {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
-        let mut settings =
-            parse_settings::<SystemEnv>(&text).map_err(|err| err.into_load_error(path.clone()))?;
+        let mut settings = parse_settings_file::<SystemEnv>(&text, &path)?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;

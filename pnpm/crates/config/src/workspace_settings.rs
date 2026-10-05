@@ -213,8 +213,8 @@ impl Config {
             let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
             match fs::read_to_string(&yaml_path) {
                 Ok(text) => {
-                    let mut settings = crate::workspace_yaml::parse_settings::<Sys>(&text)
-                        .map_err(|err| err.into_load_error(yaml_path.clone()))?;
+                    let mut settings =
+                        crate::workspace_yaml::parse_settings_file::<Sys>(&text, &yaml_path)?;
                     settings.collect_key_issues(&text);
                     Some((env_dir, Some(settings)))
                 }

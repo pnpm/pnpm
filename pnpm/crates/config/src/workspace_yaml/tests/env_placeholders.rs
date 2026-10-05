@@ -1,5 +1,5 @@
 use super::{AuditLevel, ColorMode, EnvVar, NodeLinker, assert_eq};
-use crate::workspace_yaml::settings::parse_settings;
+use crate::workspace_yaml::parse_settings::parse_settings;
 use std::fmt::Write as _;
 
 struct Env;
@@ -104,6 +104,33 @@ fn unresolved_env_var_in_string_setting_fails_on_substitution() {
     let mut settings = parse_settings::<Env>("storeDir: ${PNPM_TEST_UNSET}\n").unwrap();
     let error = settings.substitute_env_untrusted::<Env>().unwrap_err();
     assert_eq!(error.to_string(), "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+}
+
+/// The placeholder at fault is found by halving, so it is reported however
+/// many unresolved placeholders the file carries ahead of it.
+#[test]
+fn an_unresolved_placeholder_behind_many_others_is_still_reported() {
+    let padding = (0..2000).fold(String::new(), |mut padding, index| {
+        let _ = writeln!(padding, "# ${{PNPM_TEST_UNSET_{index}}}");
+        padding
+    });
+
+    let error =
+        parse_settings::<Env>(&format!("{padding}nodeLinker: ${{PNPM_TEST_UNSET}}\n")).unwrap_err();
+
+    assert_eq!(error.to_string(), "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+}
+
+#[test]
+fn a_lossy_substitution_expands_the_settings_after_an_unresolved_one() {
+    let mut settings =
+        parse_settings::<Env>("storeDir: ${PNPM_TEST_UNSET}\nregistry: ${PNPM_TEST_REGISTRY}\n")
+            .unwrap();
+
+    settings.substitute_env_trusted_lossy::<Env>();
+
+    assert_eq!(settings.store_dir.as_deref(), Some(""));
+    assert_eq!(settings.registry.as_deref(), Some("https://registry.example.com/"));
 }
 
 /// A mistyped variable name puts whatever the environment holds under that

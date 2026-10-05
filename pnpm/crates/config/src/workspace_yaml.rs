@@ -1,8 +1,7 @@
 pub mod package_configs;
-pub mod parse_settings;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
-pub(crate) use parse_settings::parse_settings;
+pub(crate) use parse_settings::parse_settings_file;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
@@ -403,8 +402,8 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar, normalize_registry_url,
-    resolvable_placeholders, resolve_placeholders, substitute_json_string,
+    FirstUnresolved, Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar,
+    normalize_registry_url, resolvable_placeholders, resolve_placeholders, substitute_json_string,
     substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
     substitute_registry_entries,
 };
@@ -414,6 +413,8 @@ mod apply;
 mod resolved;
 
 mod reset;
+
+mod parse_settings;
 
 mod settings;
 
