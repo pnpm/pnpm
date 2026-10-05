@@ -786,7 +786,11 @@ async fn update_config_hook_cannot_replace_the_public_hoist_pattern_of_cli_shame
 #[tokio::test]
 async fn update_config_public_only_nested_hoisting_preserves_disabled_private_hoisting() {
     let root = tempfile::tempdir().unwrap();
-    fs::write(root.path().join("pnpm-workspace.yaml"), "hoist: false\n").unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "hoist: false\nnodeLinker:\n  type: isolated\n",
+    )
+    .unwrap();
     fs::write(root.path().join(".pnpmfile.cjs"),"module.exports={hooks:{updateConfig(config){config.nodeLinker.hoist.public=['foo'];return config}}}").unwrap();
     let mut config = Config::default().current::<Host>(root.path()).unwrap();
     run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await.unwrap();

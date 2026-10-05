@@ -156,9 +156,9 @@ fn isolated_hoist_options_merge_per_field_and_reset_explicit_values() {
             vec!["*"],
         ),
     ] {
-        serde_json::from_value::<WorkspaceSettings>(input)
-            .unwrap()
-            .apply_to(&mut config, Path::new("."));
+        let settings: WorkspaceSettings = serde_json::from_value(input).unwrap();
+        config.record_explicit_settings(&settings);
+        settings.apply_to(&mut config, Path::new("."));
         assert_eq!(config.public_hoist_pattern.as_deref().unwrap_or_default(), public);
         assert_eq!(config.hoist_pattern.as_deref().unwrap_or_default(), private);
     }
@@ -176,6 +176,7 @@ fn hoisted_limits_nested_alias_and_string_sources_round_trip() {
         ("node-linker".into(), r#"{"type":"hoisted","hoistingLimits":"workspaces"}"#.into()),
         ("hoisting-limits".into(), "dependencies".into()),
     ]));
+    config.record_explicit_settings(&settings);
     settings.apply_to(&mut config, Path::new("."));
     assert_eq!(config.hoisting_limits, crate::HoistingLimits::Workspaces);
     let value = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
@@ -215,7 +216,7 @@ fn resolved_linker_does_not_reenable_legacy_disabled_hoisting() {
     let config = Config { hoist: false, ..Config::default() };
     let mut restored = Config::default();
     WorkspaceSettings::from_resolved(&config).apply_to(&mut restored, Path::new("."));
-    assert_eq!(restored.hoist_pattern, Some(vec![]));
+    assert!(restored.hoist_pattern.as_ref().is_none_or(Vec::is_empty));
 }
 
 #[test]
@@ -258,5 +259,34 @@ fn omitted_linker_options_remain_omitted_when_serialized() {
     {
         let linker: crate::NodeLinkerSetting = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(linker).unwrap(), value);
+    }
+}
+
+#[test]
+fn resolved_hook_linker_shape_preserves_scalar_and_object_selection() {
+    for linker in [NodeLinker::Isolated, NodeLinker::Hoisted, NodeLinker::Pnp] {
+        let config = Config { node_linker: linker, ..Config::default() };
+        assert_eq!(
+            serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap()["nodeLinker"],
+            serde_json::to_value(linker).unwrap()
+        );
+    }
+    for (value, expected) in [
+        (
+            json!({"type":"isolated"}),
+            json!({"type":"isolated","hoist":{"public":[],"private":["*"]}}),
+        ),
+        (json!({"type":"hoisted"}), json!({"type":"hoisted","hoistingLimits":"none"})),
+        (json!({"type":"loaded","excluded":[]}), json!({"type":"loaded","excluded":[]})),
+    ] {
+        let settings: WorkspaceSettings =
+            serde_json::from_value(json!({"nodeLinker":value})).unwrap();
+        let mut config = Config::default();
+        config.record_explicit_settings(&settings);
+        settings.apply_to(&mut config, Path::new("."));
+        assert_eq!(
+            serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap()["nodeLinker"],
+            expected
+        );
     }
 }

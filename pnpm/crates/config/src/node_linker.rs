@@ -68,6 +68,11 @@ impl NodeLinkerSetting {
             Self::Options(NodeLinkerOptions::Loaded {
                 excluded: config.node_linker_excluded.clone(),
             })
+        } else if !config.explicit_settings
+            .get("nodeLinker")
+            .is_some_and(serde_json::Value::is_object)
+        {
+            Self::Type(config.node_linker)
         } else if config.node_linker == NodeLinker::Isolated {
             Self::Options(NodeLinkerOptions::Isolated {
                 hoist: Some(Some(HoistSetting::Patterns(IsolatedHoistPatterns {
