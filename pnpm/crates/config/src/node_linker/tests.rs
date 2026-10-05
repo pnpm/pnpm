@@ -53,7 +53,7 @@ fn node_linker_objects_reject_invalid_and_not_yet_supported_options() {
         json!({"type": "loaded", "excluded": "vitest"}),
         json!({"type": "loaded", "excluded": [false]}),
         json!({"type": "loaded", "hoist": false}),
-        json!({"type": "isolated", "hoist": {"public": []}}),
+        json!({"type": "isolated", "hoist": {"unknown": []}}),
     ] {
         assert!(serde_json::from_value::<WorkspaceSettings>(json!({"nodeLinker": value})).is_err());
     }
@@ -132,4 +132,88 @@ fn switching_loaded_linker_restores_layout_defaults_and_preserves_explicit_setti
         assert_eq!(config.enable_global_virtual_store, explicit);
         assert_eq!(config.install_state_dir, original.join(".pnpm"));
     }
+}
+
+#[test]
+fn isolated_hoist_options_merge_per_field_and_reset_explicit_values() {
+    let mut config = Config::default();
+    for (input, public, private) in [
+        (
+            json!({"shamefullyHoist": true, "nodeLinker": {"type": "isolated", "hoist": {"public": ["foo"], "private": ["*", "!foo"]}}}),
+            vec!["foo"],
+            vec!["*", "!foo"],
+        ),
+        (
+            json!({"nodeLinker": {"type": "isolated", "hoist": {"public": []}}}),
+            vec![],
+            vec!["*", "!foo"],
+        ),
+        (json!({"nodeLinker": {"type": "isolated", "hoist": false}}), vec![], vec![]),
+        (json!({"nodeLinker": {"type": "isolated", "hoist": null}}), vec![], vec!["*"]),
+        (
+            json!({"nodeLinker": {"type": "isolated", "hoist": {"public": null, "private": null}}}),
+            vec![],
+            vec!["*"],
+        ),
+    ] {
+        serde_json::from_value::<WorkspaceSettings>(input)
+            .unwrap()
+            .apply_to(&mut config, Path::new("."));
+        assert_eq!(config.public_hoist_pattern.as_deref().unwrap_or_default(), public);
+        assert_eq!(config.hoist_pattern.as_deref().unwrap_or_default(), private);
+    }
+    let value = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
+    assert_eq!(
+        value["nodeLinker"],
+        json!({"type":"isolated", "hoist":{"public":[], "private":["*"]}})
+    );
+}
+
+#[test]
+fn hoisted_limits_nested_alias_and_string_sources_round_trip() {
+    let mut config = Config::default();
+    let settings = WorkspaceSettings::from_string_values(&BTreeMap::from([
+        ("node-linker".into(), r#"{"type":"hoisted","hoistingLimits":"workspaces"}"#.into()),
+        ("hoisting-limits".into(), "dependencies".into()),
+    ]));
+    settings.apply_to(&mut config, Path::new("."));
+    assert_eq!(config.hoisting_limits, crate::HoistingLimits::Workspaces);
+    let value = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
+    assert_eq!(value["nodeLinker"], json!({"type":"hoisted", "hoistingLimits":"workspaces"}));
+    serde_json::from_value::<WorkspaceSettings>(
+        json!({"nodeLinker":{"type":"hoisted","hoistingLimits":null}}),
+    )
+    .unwrap()
+    .apply_to(&mut config, Path::new("."));
+    assert_eq!(config.hoisting_limits, crate::HoistingLimits::default());
+}
+
+#[test]
+fn environment_scoped_hoisting_overrides_lower_priority_flat_aliases() {
+    struct Environment;
+    impl EnvVar for Environment {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_NODE_LINKER").then(|| {
+                r#"{"type":"isolated","hoist":{"public":[],"private":["bar"]}}"#.into()
+            })
+        }
+    }
+    let mut config = Config::default();
+    serde_json::from_value::<WorkspaceSettings>(json!({"shamefullyHoist":true}))
+        .unwrap()
+        .apply_to(&mut config, Path::new("."));
+    WorkspaceSettings::from_pnpm_config_env::<Environment>().apply_to(&mut config, Path::new("."));
+    config.apply_shamefully_hoist_derivation();
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+    assert_eq!(config.hoist_pattern, Some(vec!["bar".into()]));
+    config.record_explicit_settings(&WorkspaceSettings::from_pnpm_config_env::<Environment>());
+    assert_eq!(config.explicit_settings["publicHoistPattern"], json!([]));
+}
+
+#[test]
+fn resolved_linker_does_not_reenable_legacy_disabled_hoisting() {
+    let config = Config { hoist: false, ..Config::default() };
+    let mut restored = Config::default();
+    WorkspaceSettings::from_resolved(&config).apply_to(&mut restored, Path::new("."));
+    assert_eq!(restored.hoist_pattern, Some(vec![]));
 }

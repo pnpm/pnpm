@@ -3,12 +3,19 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd, command_env::CommandTestExt, diagnostics::assert_diagnostic_contains,
+};
 use pretty_assertions::assert_eq;
 use std::{fs, process::Command};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_arg("--dir")
+        .with_arg(workspace)
+        .without_ambient_pnpm_config()
 }
 
 #[test]
@@ -337,5 +344,25 @@ fn global_get_and_list_ignore_the_project_settings() {
     assert!(from_env_workspace.status.success());
     assert_eq!(String::from_utf8_lossy(&from_env_workspace.stdout).trim_end(), "undefined");
 
+    drop(root);
+}
+
+#[test]
+fn config_set_get_scoped_linker_object_round_trips() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let value = r#"{"type":"isolated","hoist":{"public":["foo"],"private":[]}}"#;
+    pacquet_in(&workspace)
+        .with_args(["config", "set", "nodeLinker", value, "--json", "--location=project"])
+        .assert()
+        .success();
+    let output = pacquet_in(&workspace)
+        .with_args(["config", "get", "nodeLinker", "--json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
+        serde_json::from_str::<serde_json::Value>(value).unwrap()
+    );
     drop(root);
 }

@@ -26,6 +26,19 @@ pub(crate) fn recorded_supported_architectures_match(
             .as_ref()
 }
 
+pub(crate) fn recorded_hoisting_limits_match(
+    recorded: Option<&WorkspaceState>,
+    config: &Config,
+    linker: NodeLinker,
+) -> bool {
+    if linker != NodeLinker::Hoisted {
+        return true;
+    }
+    let live = serde_json::to_value(config.hoisting_limits)
+        .expect("serializing hoisting limits never fails");
+    recorded.and_then(|state| state.settings.hoisting_limits.as_deref()) == live.as_str()
+}
+
 pub(crate) fn settings_match(
     state: &WorkspaceState,
     config: &Config,
@@ -164,6 +177,7 @@ impl SettingsComparison<'_> {
             recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
         );
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
+        return_drift_if!(self, "hoistingLimits", recorded.hoisting_limits != live.hoisting_limits);
         return_drift_if!(
             self,
             "hoistWorkspacePackages",
@@ -348,6 +362,13 @@ pub(crate) fn current_settings(
         exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
+        hoisting_limits: (node_linker == NodeLinker::Hoisted).then(|| {
+            serde_json::to_value(config.hoisting_limits)
+                .expect("serializing hoisting limits never fails")
+                .as_str()
+                .expect("hoisting limits serialize as strings")
+                .to_string()
+        }),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(

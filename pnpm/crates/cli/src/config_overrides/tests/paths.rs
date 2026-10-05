@@ -23,7 +23,8 @@ fn extract_accepts_shamefully_hoist_cli_spellings() {
         let mut config = Config::default();
         overrides.apply(&mut config, Path::new("/workspace"));
         assert_eq!(config.shamefully_hoist, expected);
-        let expected_public_hoist_pattern = expected.then(|| vec!["*".to_string()]);
+        let expected_public_hoist_pattern =
+            Some(if expected { vec!["*".to_string()] } else { vec![] });
         assert_eq!(config.public_hoist_pattern, expected_public_hoist_pattern);
         assert_eq!(
             config.explicit_settings.get("shamefullyHoist"),
@@ -492,4 +493,19 @@ fn store_dir_override_matching_the_relocated_default_does_not_warn() {
 
     assert_eq!(config.store_dir.root(), relocated.join(STORE_VERSION));
     assert_eq!(config.bypassed_home_store_warning(), None);
+}
+
+#[test]
+fn node_linker_scoped_hoisting_wins_over_flat_cli_aliases() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pnpm",
+        "--shamefully-hoist",
+        "--config.node-linker={\"type\":\"isolated\",\"hoist\":{\"public\":[],\"private\":[\"foo\"]}}",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pnpm", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+    assert_eq!(config.hoist_pattern, Some(vec!["foo".into()]));
 }

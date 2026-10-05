@@ -479,13 +479,17 @@ impl Config {
 
     /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
     ///
-    /// This runs after all config sources have been merged because an explicit
-    /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
-    /// regardless of which source supplied either setting.
+    /// Sources normalize this alias before merging. This fallback handles direct overrides.
     pub fn apply_shamefully_hoist_derivation(&mut self) {
+        if self.explicit_settings.contains_key("publicHoistPattern")
+            && !(self.cli_settings.contains("shamefullyHoist")
+                && !self.cli_settings.contains("nodeLinker"))
+        {
+            return;
+        }
         match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
             Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
-            Some(false) => self.public_hoist_pattern = None,
+            Some(false) => self.public_hoist_pattern = Some(vec![]),
             None => {}
         }
     }

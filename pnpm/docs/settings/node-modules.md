@@ -17,11 +17,11 @@ The directory in which dependencies will be installed (instead of
 ### nodeLinker
 
 * Default: **isolated**
-* Type: **isolated**, **hoisted**, **pnp**, **loaded**, or a loaded-linker object
+* Type: **isolated**, **hoisted**, **pnp**, **loaded**, or a linker object
 
-Defines what linker should be used for installing Node packages. The existing scalar values remain supported. The experimental loaded linker also accepts an object with `type: loaded` and an optional `excluded` list. Other linker object forms are not supported yet.
+Defines what linker should be used for installing Node packages. The existing scalar values remain supported. Objects use `type` to select a linker and scope its options.
 
-Configuration sources replace the whole `nodeLinker` value. A higher-priority scalar or an object without `excluded` clears exclusions from lower-priority sources. The environment variable `PNPM_CONFIG_NODE_LINKER` and `--config.node-linker` accept the object as JSON.
+Configuration sources replace the linker type. Isolated hoist patterns and hoisted limits merge per field across sources. Arrays replace earlier arrays. A higher-priority scalar or an object without `excluded` clears exclusions from lower-priority sources. The environment variable `PNPM_CONFIG_NODE_LINKER` and `--config.node-linker` accept the object as JSON.
 
 * **isolated** - dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
 * **hoisted** - a flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or Yarn Classic. One of Yarn's libraries is used for hoisting, when this setting is used. Legitimate reasons to use this setting:
@@ -37,6 +37,34 @@ your linker.
 [pnp]: https://yarnpkg.com/features/pnp
 [--preserve-symlinks]: https://nodejs.org/api/cli.html#cli_preserve_symlinks
 [`"bundledDependencies"`]: https://docs.npmjs.com/cli/v8/configuring-npm/package-json#bundleddependencies
+
+### nodeLinker.hoist
+
+With `type: isolated`, configure public and private hoisting together:
+
+```yaml
+nodeLinker:
+  type: isolated
+  hoist:
+    public: []
+    private: ["*", "!some-package"]
+```
+
+The defaults are `public: []` and `private: ["*"]`. Public patterns take precedence when a package matches both lists. Each list accepts negated patterns. Packages matching neither list are not hoisted. `hoist: false` disables both lists. `hoist: true` or `hoist: null` restores both defaults. A null list restores that list's default; an empty list disables it.
+
+The flat `hoist`, `hoistPattern`, `publicHoistPattern`, and `shamefullyHoist` settings remain supported. Sources normalize aliases before applying their usual precedence. Within one source, `shamefullyHoist` overrides `publicHoistPattern`, then nested options override the corresponding flat settings. An omitted nested field preserves the value from earlier sources. `hoistWorkspacePackages` remains a shared flat setting.
+
+### nodeLinker.hoistingLimits
+
+With `type: hoisted`, use `hoistingLimits: none`, `workspaces`, or `dependencies` to control how far dependencies hoist. The default is `none`; null restores that default. The flat `hoistingLimits` alias remains supported, with the nested option taking precedence within one source.
+
+```yaml
+nodeLinker:
+  type: hoisted
+  hoistingLimits: workspaces
+```
+
+`pnpm config get nodeLinker` reports resolved options for object configuration and preserves scalar output for scalar configuration. `pnpm config set nodeLinker '{"type":"isolated","hoist":{"public":[],"private":["*"]}}' --json` writes an object. Hooks receive the same resolved shape. Shared store and directory settings remain outside `nodeLinker`.
 
 ### nodeLinker.excluded
 

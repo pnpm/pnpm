@@ -29,7 +29,7 @@ pub use crate::{
     },
 };
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
-pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
+pub use node_linker::{HoistSetting, IsolatedHoistPatterns, NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
@@ -168,9 +168,35 @@ fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
 ) {
-    let Ok(serde_json::Value::Object(map)) = serde_json::to_value(settings) else {
+    let Ok(serde_json::Value::Object(mut map)) = serde_json::to_value(settings) else {
         return;
     };
+    let mut normalized = WorkspaceSettings {
+        node_linker: settings.node_linker.clone(),
+        shamefully_hoist: settings.shamefully_hoist,
+        hoist: settings.hoist,
+        hoist_pattern: settings.hoist_pattern.clone(),
+        public_hoist_pattern: settings.public_hoist_pattern.clone(),
+        hoisting_limits: settings.hoisting_limits,
+        ..WorkspaceSettings::default()
+    };
+    normalized.normalize_linker_settings();
+    if let Ok(serde_json::Value::Object(linker_settings)) = serde_json::to_value(normalized) {
+        map.extend(
+            linker_settings
+                .into_iter()
+                .filter(|(key, value)| {
+                    matches!(
+                        key.as_str(),
+                        "hoist"
+                            | "hoistPattern"
+                            | "publicHoistPattern"
+                            | "hoistingLimits"
+                            | "shamefullyHoist"
+                    ) && !value.is_null()
+                }),
+        );
+    }
     for (key, value) in map {
         if key == "_auth" || value.is_null() {
             continue;

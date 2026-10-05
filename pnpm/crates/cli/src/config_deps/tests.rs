@@ -115,7 +115,7 @@ async fn update_config_shamefully_hoist_false_stops_public_hoisting() {
         .expect("run updateConfig hook");
 
     assert!(!config.shamefully_hoist);
-    assert_eq!(config.public_hoist_pattern, None);
+    assert_eq!(config.public_hoist_pattern, Some(vec![]));
     assert_eq!(
         config.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool),
         Some(false),

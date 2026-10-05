@@ -1306,3 +1306,16 @@ fn global_flag_and_global_location_are_the_same_scope() {
     assert!(!flags(true, Some(ConfigLocation::Project), false).is_global());
     assert!(!flags(false, None, false).is_global());
 }
+
+#[test]
+fn config_get_node_linker_reports_scoped_effective_hoisting() {
+    let mut config = pnpm_config::Config::default();
+    let settings: pnpm_config::WorkspaceSettings = serde_json::from_value(serde_json::json!({"nodeLinker":{"type":"isolated","hoist":{"public":["foo"],"private":[]}}})).unwrap();
+    config.record_explicit_settings(&settings);
+    settings.apply_to(&mut config, std::path::Path::new("."));
+    let result = config_get(&config, flags(true, None, false), "nodeLinker").unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&result).unwrap(),
+        serde_json::json!({"type":"isolated","hoist":{"public":["foo"],"private":[]}})
+    );
+}

@@ -79,6 +79,11 @@ pub(super) fn frozen_tree_up_to_date<'a>(
             context.recorded.state,
             context.repeat.supported_architectures,
         )
+        || !crate::optimistic_repeat_install::recorded_hoisting_limits_match(
+            context.recorded.state,
+            config,
+            context.tree.node_linker,
+        )
         || !build_state_unchanged(context, current, modules)
     {
         return None;

@@ -290,6 +290,13 @@ impl ConfigOverrides {
             hoist_pattern => "hoistPattern",
             public_hoist_pattern => "publicHoistPattern",
         );
+        if let Some(shamefully) = self.shamefully_hoist {
+            config.public_hoist_pattern = Some(if shamefully { vec!["*".into()] } else { vec![] });
+            config.explicit_settings.insert(
+                "publicHoistPattern".into(),
+                setting_value(&config.public_hoist_pattern),
+            );
+        }
         if self.shamefully_hoist.is_some()
             || self.hoist.is_some()
             || self.hoist_pattern.is_some()
@@ -356,7 +363,10 @@ impl ConfigOverrides {
     fn apply_linker_and_run_overrides(&self, config: &mut Config) {
         if let Some(value) = &self.node_linker {
             value.clone().apply_to(config);
-            config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
+            config.record_explicit_settings(&pnpm_config::WorkspaceSettings {
+                node_linker: Some(value.clone()),
+                ..pnpm_config::WorkspaceSettings::default()
+            });
             // A CLI-selected hoisted linker turns the default on just
             // like a yaml-selected one — pnpm merges CLI options before
             // its `nodeLinker` switch, so the derivation must see this

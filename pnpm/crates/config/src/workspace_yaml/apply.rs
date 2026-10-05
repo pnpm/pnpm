@@ -12,6 +12,7 @@ impl WorkspaceSettings {
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
     pub fn apply_to(mut self, config: &mut Config, base_dir: &Path) {
+        self.normalize_linker_settings();
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
