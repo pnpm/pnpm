@@ -41,7 +41,7 @@ mod tests {
                 Some("24.0.0"),
                 Some("22.0.0"),
             ),
-            Some("20.0.0")
+            Some("20.0.0"),
         );
         assert_eq!(
             target_node_major(
@@ -50,7 +50,7 @@ mod tests {
                 Some("24.0.0"),
                 Some("22.0.0"),
             ),
-            Some(20)
+            Some(20),
         );
     }
 
@@ -58,11 +58,11 @@ mod tests {
     fn compatibility_order_falls_back_to_runtime_pin() {
         assert_eq!(
             target_node_version(TargetNodeUse::Compatibility, None, Some("24.0.0"), Some("22.0.0"),),
-            Some("24.0.0")
+            Some("24.0.0"),
         );
         assert_eq!(
             target_node_major(TargetNodeUse::Compatibility, None, Some("24.0.0"), Some("22.0.0"),),
-            Some(24)
+            Some(24),
         );
     }
 
@@ -70,11 +70,11 @@ mod tests {
     fn compatibility_order_falls_back_to_host() {
         assert_eq!(
             target_node_version(TargetNodeUse::Compatibility, None, None, Some("22.0.0"),),
-            Some("22.0.0")
+            Some("22.0.0"),
         );
         assert_eq!(
             target_node_major(TargetNodeUse::Compatibility, None, None, Some("22.0.0"),),
-            Some(22)
+            Some(22),
         );
     }
 
@@ -87,7 +87,7 @@ mod tests {
                 Some("24.0.0"),
                 Some("22.0.0"),
             ),
-            Some("24.0.0")
+            Some("24.0.0"),
         );
         assert_eq!(
             target_node_major(
@@ -96,7 +96,7 @@ mod tests {
                 Some("24.0.0"),
                 Some("22.0.0"),
             ),
-            Some(24)
+            Some(24),
         );
     }
 
@@ -104,11 +104,11 @@ mod tests {
     fn execution_order_falls_back_to_host_and_ignores_config() {
         assert_eq!(
             target_node_version(TargetNodeUse::Execution, Some("20.0.0"), None, Some("22.0.0"),),
-            Some("22.0.0")
+            Some("22.0.0"),
         );
         assert_eq!(
             target_node_major(TargetNodeUse::Execution, Some("20.0.0"), None, Some("22.0.0"),),
-            Some(22)
+            Some(22),
         );
     }
 }
