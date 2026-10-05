@@ -6,9 +6,12 @@ import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import { prepareEmpty } from '@pnpm/prepare'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
+import { testDefaults } from '../utils/index.js'
 
 const GIT_COMMIT = '0123456789abcdef0123456789abcdef01234567'
 
@@ -531,6 +534,36 @@ test('rejects a registry-style depPath whose variations resolution hides a git v
   })
 })
 
+test('the npm verifier rejects a variations resolution whose inner tarball is not the registry tarball', async () => {
+  prepareEmpty()
+  const { resolutionVerifiers } = testDefaults()
+  const integrity = getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  const lockfile = makeLockfile({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+      resolution: {
+        type: 'variations',
+        variants: [
+          {
+            targets: [{ os: 'darwin' }],
+            resolution: {
+              integrity,
+              tarball: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
+            },
+          },
+          {
+            targets: [{ os: 'linux' }],
+            resolution: { integrity, tarball: 'https://evil.example/dep-of-pkg-with-1-dep-100.0.0.tgz' },
+          },
+        ],
+      },
+    },
+  })
+  await expect(verifyLockfileResolutions(lockfile, resolutionVerifiers)).rejects.toMatchObject({
+    code: 'ERR_PNPM_TARBALL_URL_MISMATCH',
+    message: expect.stringContaining('@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'),
+  })
+})
+
 test('does not flag artifact depPaths with non-registry resolutions', async () => {
   const lockfile = makeLockfile({
     'foo@git+https://example.com/foo.git#abc123': { resolution: { type: 'git', repo: 'https://example.com/foo.git', commit: 'abc123' }, version: '1.0.0' },
@@ -567,6 +600,24 @@ test('accepts a registry-style depPath backed by a custom resolver resolution', 
     'foo@1.0.0': { resolution: { type: 'custom:cdn', source: 'foo' } as never },
   })
   await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
+
+test('rejects a registry-style depPath whose variations resolution has a variant without a resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'variations', variants: [{ targets: [{ os: 'linux' }] }] } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('rejects a registry-style depPath backed by an empty variations resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'variations', variants: [] } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
 })
 
 test('rejects a registry-style depPath backed by a non-http(s) tarball URL', async () => {

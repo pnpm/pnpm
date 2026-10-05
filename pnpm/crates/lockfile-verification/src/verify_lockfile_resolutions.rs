@@ -358,6 +358,12 @@ fn dependency_alias_cache_identity() -> Arc<dyn ResolutionVerifier> {
     Arc::new(OfflineCheckCacheIdentity { policy, flag: "dependencyAliasCheck" })
 }
 
+fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert("variationResolutionCheck".to_string(), serde_json::Value::Bool(true));
+    Arc::new(OfflineCheckCacheIdentity { policy, flag: "variationResolutionCheck" })
+}
+
 /// Every verifier list that flows into the verification cache must
 /// carry the always-on offline structural checks' identities, so a
 /// record written before one of those rules existed cannot
@@ -374,7 +380,11 @@ pub(crate) fn with_offline_check_cache_identities(
     verifiers
         .iter()
         .cloned()
-        .chain([resolution_shape_cache_identity(), dependency_alias_cache_identity()])
+        .chain([
+            resolution_shape_cache_identity(),
+            dependency_alias_cache_identity(),
+            variation_resolution_cache_identity(),
+        ])
         .collect()
 }
 
@@ -413,9 +423,12 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
                 && tarball.git_hosted != Some(true)
                 && !is_git_hosted_tarball_url(&tarball.tarball)
         }
-        LockfileResolution::Variations(variations) => variations.variants
-            .iter()
-            .all(|variant| is_registry_shaped_resolution(&variant.resolution)),
+        LockfileResolution::Variations(variations) => {
+            !variations.variants.is_empty()
+                && variations.variants
+                    .iter()
+                    .all(|variant| is_registry_shaped_resolution(&variant.resolution))
+        }
         // Custom resolutions are opaque to the npm verifier — they are
         // fetched by a pnpmfile custom fetcher, never bound to the
         // registry's `dist.tarball`.

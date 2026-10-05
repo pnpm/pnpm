@@ -1075,3 +1075,75 @@ test('createNpmResolutionVerifier() routes to more specific scoped registry when
   expect(result).toMatchObject({ ok: true })
 })
 
+test('createNpmResolutionVerifier() inspects and verifies inner resolutions in variations wrapper', async () => {
+  const meta = {
+    name: 'var-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'var-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/var-pkg/-/var-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/var-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+
+  // Matching inner resolution passes
+  const validResult = await verifier.verify(
+    {
+      type: 'variations',
+      variants: [
+        {
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: {
+            integrity: FAKE_INTEGRITY,
+            tarball: 'https://registry.npmjs.org/var-pkg/-/var-pkg-1.0.0.tgz',
+          },
+        },
+      ],
+    } as unknown as Resolution,
+    { name: 'var-pkg', version: '1.0.0' }
+  )
+  expect(validResult).toMatchObject({ ok: true })
+
+  // Mismatched inner tarball URL is rejected
+  const mismatchedResult = await verifier.verify(
+    {
+      type: 'variations',
+      variants: [
+        {
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: {
+            integrity: FAKE_INTEGRITY,
+            tarball: 'https://attacker.example/var-pkg-1.0.0.tgz',
+          },
+        },
+      ],
+    } as unknown as Resolution,
+    { name: 'var-pkg', version: '1.0.0' }
+  )
+  expect(mismatchedResult).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+
+  // Missing integrity in variant is rejected
+  const missingIntegrityResult = await verifier.verify(
+    {
+      type: 'variations',
+      variants: [
+        {
+          targets: [{ os: 'linux', cpu: 'x64' }],
+          resolution: {
+            tarball: 'https://registry.npmjs.org/var-pkg/-/var-pkg-1.0.0.tgz',
+          },
+        },
+      ],
+    } as unknown as Resolution,
+    { name: 'var-pkg', version: '1.0.0' }
+  )
+  expect(missingIntegrityResult).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
