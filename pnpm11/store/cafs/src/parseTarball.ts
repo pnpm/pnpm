@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { PnpmError } from '@pnpm/error'
+import { assertBufferedTarballEntry } from './assertBufferedTarballEntry.js'
 
 export type OnTarballFile = (relativePath: string, mode: number, content: Buffer) => void
 
@@ -72,12 +72,8 @@ export function createTarballParser (onFile: OnTarballFile, createFileWriter?: C
     paxHeaderFileSize: undefined,
   }
   return {
-    push: (chunk) => {
-      pushChunk(state, chunk)
-    },
-    end: () => {
-      assertArchiveFinished(state)
-    },
+    push: (chunk) => pushChunk(state, chunk),
+    end: () => assertArchiveFinished(state),
   }
 }
 
@@ -170,11 +166,6 @@ function createEntryWriter (state: ParserState, entry: PendingEntry): void {
   if (sink) state.writer = { sink, remaining: entry.size }
 }
 
-function assertBufferedEntrySize (state: ParserState, entry: PendingEntry): void {
-  if (state.writer || state.maxBufferedEntrySize == null || entry.size <= state.maxBufferedEntrySize) return
-  throw new PnpmError('TARBALL_ENTRY_TOO_LARGE', `Tarball entry "${entry.fileName}" requires buffering ${entry.size} bytes, exceeding the ${state.maxBufferedEntrySize}-byte limit`)
-}
-
 function consumeHeader (state: ParserState): boolean {
   if (state.available === 0) return false
   // The archive ends with zero-filled blocks.
@@ -191,7 +182,7 @@ function consumeHeader (state: ParserState): boolean {
   if (entryHasContent(nextEntry.fileType)) {
     state.entry = nextEntry
     createEntryWriter(state, nextEntry)
-    assertBufferedEntrySize(state, nextEntry)
+    if (!state.writer) assertBufferedTarballEntry(nextEntry, state.maxBufferedEntrySize)
   } else {
     state.bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)
   }
