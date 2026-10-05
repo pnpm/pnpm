@@ -3,7 +3,7 @@
 // scripts until the install script replaces them with the native binary, which
 // infers the alias from its own name. Each test starts an alias through `sh`, as
 // a bin shim or a shell does: Apple's libc does not retry a shebang-less file
-// under a shell, so a bare spawn of one reaches it on Linux alone.
+// under a shell, so a bare spawn of one reaches it with glibc alone.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'

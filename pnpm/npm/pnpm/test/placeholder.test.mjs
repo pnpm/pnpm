@@ -21,18 +21,18 @@ const IS_UNIX = process.platform !== 'win32'
 // the kernel answers ENOEXEC. Every shell does, and so does glibc's `execvp` —
 // but Apple's libc does not, and Windows has neither. So a shim or a shell
 // reaches the placeholder wherever `sh` exists, while a bare `spawn` of it
-// reaches it on Linux alone.
-const HAS_A_SHELL = !IS_UNIX && 'Windows has no sh'
-const SPAWNS_A_SHEBANGLESS_FILE = process.platform !== 'linux' &&
-  `${process.platform} does not retry a shebang-less file under a shell`
+// reaches it with glibc alone.
+const NO_SH = !IS_UNIX && 'Windows has no sh'
+const SPAWNS_A_SHEBANGLESS_FILE = !process.report?.getReport().header.glibcVersionRuntime &&
+  `${process.platform} without glibc does not retry a shebang-less file under a shell`
 
 describe('placeholder bin', () => {
-  it('parses as an sh script', { skip: HAS_A_SHELL }, async () => {
+  it('parses as an sh script', { skip: NO_SH }, async () => {
     const result = await run('sh', ['-n', path.join(WRAPPER_DIR, 'pnpm')])
     assert.equal(result.status, 0, result.stderr)
   })
 
-  // Spawned with no shell in between, which only Linux resolves.
+  // Spawned with no shell in between, which only glibc resolves.
   it('runs the installed native binary', { skip: SPAWNS_A_SHEBANGLESS_FILE }, async () => {
     const fixture = createFixture()
 
@@ -48,7 +48,7 @@ describe('placeholder bin', () => {
   // does for the version store it delegates a `packageManager` pin to. Started
   // from a shell, as a user's `pnpm` is, so the symlink chain `$0` walks is
   // exercised on macOS too.
-  it('runs from a symlink to itself', { skip: HAS_A_SHELL }, async () => {
+  it('runs from a symlink to itself', { skip: NO_SH }, async () => {
     const fixture = createFixture()
     const binDir = path.join(fixture.dir, 'node_modules', '.bin')
     fs.mkdirSync(binDir, { recursive: true })
@@ -62,7 +62,7 @@ describe('placeholder bin', () => {
 
   // The kernel and the C library's PATH search hand the interpreter the path
   // they resolved, so $0 is bare only when a shell is given the name itself.
-  it('runs as a bare name handed to sh', { skip: HAS_A_SHELL }, async () => {
+  it('runs as a bare name handed to sh', { skip: NO_SH }, async () => {
     const fixture = createFixture()
     fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), path.join(fixture.dir, 'pnpm-link'))
 
@@ -77,7 +77,7 @@ describe('placeholder bin', () => {
   // ordinary character here, so the walk has to convert it to find the entry
   // point. The alias bins' tests cover the gate that keeps a Unix path off this
   // branch, and that every bin carrying the walk converts the same way.
-  it('runs from a native Windows $0', { skip: HAS_A_SHELL }, async () => {
+  it('runs from a native Windows $0', { skip: NO_SH }, async () => {
     const fixture = createFixture({ nestedUnder: ['C:', 'proj'] })
     const arg0 = 'C:\\proj\\pnpm\\pnpm'
     fs.copyFileSync(fixture.placeholder, path.join(fixture.dir, arg0))
@@ -90,7 +90,7 @@ describe('placeholder bin', () => {
   // What a bin linker writes for a target with no shebang, and the shape pnpm 11
   // leaves behind: an `exec` of the file itself, so the same shim keeps working
   // once the native binary takes its place.
-  it('runs from a bin shim that execs it', { skip: HAS_A_SHELL }, async () => {
+  it('runs from a bin shim that execs it', { skip: NO_SH }, async () => {
     const fixture = createFixture()
     const binDir = path.join(fixture.dir, 'node_modules', '.bin')
     fs.mkdirSync(binDir, { recursive: true })
@@ -106,7 +106,7 @@ describe('placeholder bin', () => {
   // `readlink` or `dirname` taken from there could report a directory of the
   // attacker's choosing and hand the call to another `bin/pnpm.mjs`. The walk
   // takes `readlink` from the system default path and needs no `dirname` at all.
-  it('does not use a readlink or dirname from the caller\'s PATH', { skip: HAS_A_SHELL }, async () => {
+  it('does not use a readlink or dirname from the caller\'s PATH', { skip: NO_SH }, async () => {
     const fixture = createFixture()
     const hijackDir = path.join(fixture.dir, 'hijack')
     fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
@@ -133,7 +133,7 @@ describe('placeholder bin', () => {
   // build sandbox. No test host is set up that way, so the placeholder's
   // `command -p` is rewritten to a `command` that searches a directory that does
   // not exist.
-  it('does not use a readlink from a node_modules or relative PATH entry when the default path lacks one', { skip: HAS_A_SHELL }, async () => {
+  it('does not use a readlink from a node_modules or relative PATH entry when the default path lacks one', { skip: NO_SH }, async () => {
     const fixture = createFixture()
     fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const hijackDir = path.join(fixture.dir, 'hijack')
@@ -164,7 +164,7 @@ describe('placeholder bin', () => {
 
   // Without a readlink the walk stops on the symlink's own directory, which
   // holds no entry point of ours. `command -p` is rewritten as above.
-  it('refuses to run when no readlink resolves its symlink', { skip: HAS_A_SHELL }, async () => {
+  it('refuses to run when no readlink resolves its symlink', { skip: NO_SH }, async () => {
     const fixture = createFixture()
     fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const link = path.join(fixture.dir, 'pnpm-link')
@@ -178,7 +178,7 @@ describe('placeholder bin', () => {
     assert.match(result.stderr, /could not resolve .* to a regular file/)
   })
 
-  it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
+  it('hands over to the entry point when no platform package is installed', { skip: NO_SH }, async () => {
     const fixture = createFixture({ installPlatformPackage: false })
 
     const result = await run('sh', [fixture.placeholder, '--version'], { env: { COREPACK_ENABLE_NETWORK: '0' } })
