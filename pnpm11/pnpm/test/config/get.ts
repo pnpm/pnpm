@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import PATH_NAME from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
@@ -299,8 +300,11 @@ test('pnpm config get --global and --location=global ignore the project pnpm-wor
   const XDG_CONFIG_HOME = path.resolve('.config')
   fs.mkdirSync(path.join(XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
   writeYamlFileSync(path.join(XDG_CONFIG_HOME, 'pnpm/config.yaml'), { dlxCacheMaxAge: 1234 })
+  // `--global` requires the global bin directory to be in PATH.
+  const PNPM_HOME = path.resolve('pnpm-home')
+  const env = { XDG_CONFIG_HOME, PNPM_HOME, [PATH_NAME]: path.join(PNPM_HOME, 'bin') }
   const pnpm = (args: string[]) =>
-    execPnpmSync(args, { expectSuccess: true, env: { XDG_CONFIG_HOME } }).stdout.toString().trim()
+    execPnpmSync(args, { expectSuccess: true, env }).stdout.toString().trim()
 
   expect(pnpm(['config', 'get', 'nodeLinker'])).toBe('hoisted')
   expect(pnpm(['config', 'get', 'nodeLinker', '--global'])).toBe('undefined')
