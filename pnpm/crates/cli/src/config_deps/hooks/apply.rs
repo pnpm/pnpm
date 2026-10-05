@@ -50,6 +50,10 @@ fn protect_cli_linker_options(config: &Config, delta: &mut Value) {
         || config.cli_settings.contains("shamefullyHoist");
     let private =
         config.cli_settings.contains("hoistPattern") || config.cli_settings.contains("hoist");
+    protect_hoist_options(linker, public, private);
+}
+
+fn protect_hoist_options(linker: &mut serde_json::Map<String, Value>, public: bool, private: bool) {
     if let Some(hoist) = linker.get_mut("hoist").and_then(Value::as_object_mut) {
         if public {
             hoist.remove("public");

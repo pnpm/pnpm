@@ -269,15 +269,7 @@ impl ConfigOverrides {
     /// lower layers' patterns back before a pattern on the same command
     /// line replaces them.
     fn apply_hoist_overrides(&self, config: &mut Config) {
-        if let Some(value) = self.virtual_store_only {
-            config.virtual_store_only = value;
-            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
-            if value {
-                config.apply_virtual_store_only_derivation();
-            } else {
-                config.restore_hoist_patterns_after_virtual_store_only();
-            }
-        }
+        self.apply_virtual_store_only_override(config);
         record_overrides!(
             self,
             config,
@@ -311,6 +303,18 @@ impl ConfigOverrides {
             }
             config.apply_shamefully_hoist_derivation();
             config.apply_virtual_store_only_derivation();
+        }
+    }
+
+    fn apply_virtual_store_only_override(&self, config: &mut Config) {
+        if let Some(value) = self.virtual_store_only {
+            config.virtual_store_only = value;
+            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
+            if value {
+                config.apply_virtual_store_only_derivation();
+            } else {
+                config.restore_hoist_patterns_after_virtual_store_only();
+            }
         }
     }
 
