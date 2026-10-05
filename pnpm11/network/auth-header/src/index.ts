@@ -145,39 +145,51 @@ function getAuthHeaderByURI (
   const scopedAuthHeaderLookup = scope ? lookup.scopedAuthHeaderValueByScope[scope] : undefined
   if (scopedAuthHeaderLookup) {
     const scopedAuth = getAuthHeaderByNerfedURI(
-      scopedAuthHeaderLookup.authHeaderValueByURI,
-      scopedAuthHeaderLookup.maxParts,
+      scopedAuthHeaderLookup,
       uri,
-      isSecure,
-      scopedAuthHeaderLookup.insecureUris
+      isSecure
     )
     if (scopedAuth) return scopedAuth
   }
-  return getAuthHeaderByNerfedURI(authHeaders.authHeaderValueByURI, lookup.maxParts, uri, isSecure, lookup.insecureUris)
+  return getAuthHeaderByNerfedURI(
+    {
+      authHeaderValueByURI: authHeaders.authHeaderValueByURI,
+      insecureUris: lookup.insecureUris,
+      maxParts: lookup.maxParts,
+    },
+    uri,
+    isSecure
+  )
+}
+
+interface LookupTarget {
+  authHeaderValueByURI: Record<string, string>
+  maxParts: number
+  insecureUris: Set<string>
 }
 
 function getAuthHeaderByNerfedURI (
-  authHeaders: Record<string, string>,
-  maxParts: number,
+  target: LookupTarget,
   uri: string,
-  isSecure: boolean,
-  insecureUris: Set<string>
+  isSecure: boolean
 ): string | undefined {
   const parsedUri = new URL(uri)
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
-  for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
+  for (let partCount = Math.min(parts.length, target.maxParts) - 1; partCount >= 3; partCount--) {
     const key = `${parts.slice(0, partCount).join('/')}/`
-    if (authHeaders[key]) {
-      if (isKeyAllowed(key, isSecure, insecureUris)) {
-        return authHeaders[key]
+    if (target.authHeaderValueByURI[key]) {
+      if (isKeyAllowed(key, isSecure, target.insecureUris)) {
+        return target.authHeaderValueByURI[key]
       }
       return undefined
     }
   }
-  const urlWithoutPort = removePort(parsedUri)
-  if (urlWithoutPort !== uri) {
-    return getAuthHeaderByNerfedURI(authHeaders, maxParts, urlWithoutPort, isSecure, insecureUris)
+  if (isSecure) {
+    const urlWithoutPort = removePort(parsedUri)
+    if (urlWithoutPort !== uri) {
+      return getAuthHeaderByNerfedURI(target, urlWithoutPort, isSecure)
+    }
   }
   return undefined
 }

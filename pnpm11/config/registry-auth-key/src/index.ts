@@ -15,6 +15,15 @@ export function nerfDart (url: string): string {
   return `//${rel.host}${rel.pathname}`
 }
 
+export function isUrlSecureForCredentials (url: string | URL): boolean {
+  try {
+    const parsed = typeof url === 'string' ? new URL(url) : url
+    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname))
+  } catch {
+    return false
+  }
+}
+
 export function isLoopbackHost (hostname: string): boolean {
   const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
   if (host.toLowerCase() === 'localhost') return true
@@ -26,14 +35,5 @@ export function isLoopbackHost (hostname: string): boolean {
     return host === '::1'
   }
   return false
-}
-
-export function isUrlSecureForCredentials (url: string | URL): boolean {
-  try {
-    const parsed = typeof url === 'string' ? new URL(url) : url
-    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname))
-  } catch {
-    return false
-  }
 }
 

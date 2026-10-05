@@ -190,3 +190,13 @@ test('getAuthHeaderByURI() does not leak unscoped HTTPS credentials when scoped 
   expect(getAuthHeaderByURI('http://reg.example/pkg', { pkgName: '@other/foo' })).toBeUndefined()
   expect(getAuthHeaderByURI('http://reg.example/pkg')).toBeUndefined()
 })
+
+test('getAuthHeaderByURI() does not allow HTTP credentials without port on a different port', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'root-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+  expect(getAuthHeaderByURI('http://insecure.lan:8080/pkg')).toBeUndefined()
+})

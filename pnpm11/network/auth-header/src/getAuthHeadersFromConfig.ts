@@ -26,17 +26,22 @@ export function getAuthHeadersFromCreds (
       authHeaders.authHeaderValueByURI[normalizedUri] = header
     }
     collectScopedAuthHeaders(registryConfig, normalizedUri, authHeaders.scopedAuthHeaderValueByURI)
-    collectNerfedAuthHeaders(registryConfig, uri, header, authHeaders)
+    collectNerfedAuthHeaders({ registryConfig, uri, header }, authHeaders)
   }
   return authHeaders
 }
 
+interface RegistryConfigEntry {
+  registryConfig: RegistryConfig
+  uri: string
+  header?: string
+}
+
 function collectNerfedAuthHeaders (
-  registryConfig: RegistryConfig,
-  uri: string,
-  header: string | undefined,
+  entry: RegistryConfigEntry,
   authHeaders: AuthHeaders
 ): void {
+  const { registryConfig, uri, header } = entry
   if (!uri.startsWith('http://') && !uri.startsWith('https://')) return
   let nerfed: string | undefined
   try {

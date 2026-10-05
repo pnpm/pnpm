@@ -38,8 +38,13 @@ pub(crate) fn package_scope(pkg_name: Option<&str>) -> Option<&str> {
 
 fn insert_or_upgrade(map: &mut HashMap<String, AuthEntry>, key: String, entry: AuthEntry) {
     if let Some(existing) = map.get_mut(&key) {
-        if entry.allow_insecure && !existing.allow_insecure {
-            *existing = entry;
+        let allow_insecure = existing.allow_insecure || entry.allow_insecure;
+        if matches!(entry.kind, AuthKind::TokenHelper(_))
+            || !matches!(existing.kind, AuthKind::TokenHelper(_))
+        {
+            *existing = AuthEntry { kind: entry.kind, allow_insecure };
+        } else {
+            existing.allow_insecure = allow_insecure;
         }
     } else {
         map.insert(key, entry);
