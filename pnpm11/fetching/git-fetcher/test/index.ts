@@ -394,6 +394,22 @@ test('reject a repository value that looks like a git option', async () => {
   expect(jest.mocked(execa)).not.toHaveBeenCalled()
 })
 
+test('reject an empty repository value', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: '0123456789012345678901234567890123456789',
+        repo: '',
+        type: 'git',
+      }, {
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow('Invalid git repository "". A repository must not be empty, begin with \'-\', or contain a null byte.')
+  expect(jest.mocked(execa)).not.toHaveBeenCalled()
+})
+
 test('reject a repository value that contains a null byte', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
