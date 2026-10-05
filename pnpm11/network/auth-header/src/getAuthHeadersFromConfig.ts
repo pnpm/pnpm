@@ -38,13 +38,18 @@ function collectNerfedAuthHeaders (
   authHeaders: AuthHeaders
 ): void {
   if (!uri.startsWith('http://') && !uri.startsWith('https://')) return
+  let nerfed: string | undefined
   try {
-    const nerfed = nerfDart(uri)
+    nerfed = nerfDart(uri)
+  } catch {
+    // Malformed URIs cannot produce a nerf dart and are skipped for nerfed lookup.
+  }
+  if (nerfed) {
     if (header && !authHeaders.authHeaderValueByURI[nerfed]) {
       authHeaders.authHeaderValueByURI[nerfed] = header
     }
     collectScopedAuthHeaders(registryConfig, nerfed, authHeaders.scopedAuthHeaderValueByURI)
-  } catch {}
+  }
 }
 
 

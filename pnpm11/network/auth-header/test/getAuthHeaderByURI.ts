@@ -150,3 +150,12 @@ test('getAuthHeaderByURI() allows cleartext HTTP when registry is in allowedInse
   expect(getAuthHeaderByURI('http://insecure.lan/')).toBe('Bearer lan-token')
   expect(getAuthHeaderByURI('http://other.lan/')).toBeUndefined()
 })
+
+test('getAuthHeaderByURI() does not allow cleartext HTTP when http entry only contains TLS settings', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'secure-token' } },
+    'http://insecure.lan/': { tls: { ca: 'some-ca' } },
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://insecure.lan/')).toBe('Bearer secure-token')
+})

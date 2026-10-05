@@ -1,5 +1,5 @@
 import { isUrlSecureForCredentials, nerfDart } from '@pnpm/config.registry-auth-key'
-import type { RegistryConfig } from '@pnpm/types'
+import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig } from '@pnpm/types'
 
 import { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'
 import { removePort } from './helpers/removePort.js'
@@ -44,6 +44,7 @@ function fallbackAuth (uri: string): string | undefined {
   try {
     return basicAuth(new URL(uri))
   } catch {
+    // Malformed URLs cannot have basic auth credentials and are ignored.
     return undefined
   }
 }
@@ -53,8 +54,8 @@ function collectInsecureUris (
   allowed?: string[] | Set<string>
 ): Set<string> {
   const insecureUris = new Set<string>()
-  for (const uri of Object.keys(configByUri)) {
-    if (uri.startsWith('http://') && !isUrlSecureForCredentials(uri)) {
+  for (const [uri, config] of Object.entries(configByUri)) {
+    if (uri.startsWith('http://') && !isUrlSecureForCredentials(uri) && hasCredentials(config)) {
       addInsecureUri(insecureUris, uri)
     }
   }
@@ -66,11 +67,25 @@ function collectInsecureUris (
   return insecureUris
 }
 
+function hasCredentials (registryConfig: RegistryConfig): boolean {
+  if (hasCreds(registryConfig[DEFAULT_REGISTRY_SCOPE])) return true
+  for (const [key, val] of Object.entries(registryConfig)) {
+    if (key.startsWith('@') && hasCreds(val as Creds)) return true
+  }
+  return false
+}
+
+function hasCreds (creds?: Creds): boolean {
+  return creds != null && Boolean(creds.authToken || creds.basicAuth || creds.tokenHelper)
+}
+
 function addInsecureUri (insecureUris: Set<string>, uri: string): void {
   if (uri.startsWith('http://') || uri.startsWith('https://')) {
     try {
       insecureUris.add(nerfDart(uri))
-    } catch {}
+    } catch {
+      // Malformed URIs cannot produce a nerf dart and are skipped.
+    }
   }
   insecureUris.add(uri.endsWith('/') ? uri : `${uri}/`)
 }
@@ -115,6 +130,7 @@ function getAuthHeaderByURI (
   try {
     parsedUri = new URL(uri)
   } catch {
+    // Malformed request URLs cannot be matched against registry auth keys.
     return undefined
   }
   const isSecure = isUrlSecureForCredentials(parsedUri)
