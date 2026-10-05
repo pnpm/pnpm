@@ -285,6 +285,9 @@ pub struct Config {
     /// Defines what linker should be used for installing Node packages.
     pub node_linker: NodeLinker,
 
+    /// Package names excluded from loaded linking; their complete trees use the global virtual store.
+    pub node_linker_excluded: Vec<String>,
+
     /// When true, pacquet writes `node_modules/.package-map.json` for
     /// Node's `--experimental-package-map` loader flag. Default
     /// `false`, matching pnpm's opt-in setting.
@@ -321,6 +324,9 @@ pub struct Config {
     /// Defaults to `false`, matching the TypeScript CLI.
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
+
+    /// Layout defaults restored when a hook switches away from the loaded linker.
+    pub loaded_layout_defaults: Option<(PathBuf, bool)>,
 
     /// The shared package store used when [`Self::enable_global_virtual_store`]
     /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from

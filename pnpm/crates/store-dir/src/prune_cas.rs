@@ -65,7 +65,10 @@ pub(crate) struct PruneCasStats {
     pub undecodable_packages: usize,
 }
 
-pub(crate) fn prune_cas(store_dir: &StoreDir) -> Result<PruneCasStats, PruneCasError> {
+pub(crate) fn prune_cas_with_references(
+    store_dir: &StoreDir,
+    referenced: &HashSet<PathBuf>,
+) -> Result<PruneCasStats, PruneCasError> {
     remove_tmp(store_dir)?;
 
     let mut stats = PruneCasStats::default();
@@ -78,9 +81,24 @@ pub(crate) fn prune_cas(store_dir: &StoreDir) -> Result<PruneCasStats, PruneCasE
         {
             continue;
         }
-        prune_shard(&shard.path(), &shard.file_name(), &mut removed_hashes, &mut stats)?;
+        prune_shard(
+            &shard.path(),
+            &shard.file_name(),
+            &mut removed_hashes,
+            &mut stats,
+            referenced,
+        )?;
     }
 
+    prune_index(store_dir, &removed_hashes, &mut stats)?;
+    Ok(stats)
+}
+
+fn prune_index(
+    store_dir: &StoreDir,
+    removed_hashes: &HashSet<String>,
+    stats: &mut PruneCasStats,
+) -> Result<(), PruneCasError> {
     let mut index = StoreIndex::open_in(store_dir).map_err(PruneCasError::StoreIndex)?;
     let mut rows_to_delete = Vec::new();
     index.for_each_raw(|key, data| {
@@ -105,7 +123,7 @@ pub(crate) fn prune_cas(store_dir: &StoreDir) -> Result<PruneCasStats, PruneCasE
     })?;
     stats.packages = rows_to_delete.len();
     index.delete_many(&rows_to_delete).map_err(PruneCasError::StoreIndex)?;
-    Ok(stats)
+    Ok(())
 }
 
 fn prune_shard(
@@ -113,31 +131,38 @@ fn prune_shard(
     shard_name: &OsStr,
     removed_hashes: &mut HashSet<String>,
     stats: &mut PruneCasStats,
+    referenced: &HashSet<PathBuf>,
 ) -> Result<(), PruneCasError> {
     for entry in read_entries(shard_dir)? {
         let path = entry.path();
-        let metadata = match fs::metadata(&path) {
-            Ok(metadata) => metadata,
-            Err(error) if error.kind() == ErrorKind::NotFound => continue,
-            Err(error) => return Err(PruneCasError::InspectFile { path, error }),
-        };
-        if !metadata.is_file() || hard_link_count(&path, &metadata)? != 1 {
+        if referenced.contains(&path) {
             continue;
         }
-        match fs::remove_file(&path) {
-            Ok(()) => {
-                stats.files += 1;
-                stats.bytes += metadata.len();
-            }
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Err(PruneCasError::RemoveFile { path, error }),
-        }
+        let Some(bytes) = remove_unlinked_file(&path)? else { continue };
+        stats.files += 1;
+        stats.bytes += bytes;
         let shard = shard_name.to_string_lossy();
         let file = entry.file_name();
         let file = file.to_string_lossy();
         removed_hashes.insert(format!("{shard}{}", file.strip_suffix("-exec").unwrap_or(&file)));
     }
     Ok(())
+}
+
+fn remove_unlinked_file(path: &Path) -> Result<Option<u64>, PruneCasError> {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(PruneCasError::InspectFile { path: path.to_path_buf(), error }),
+    };
+    if !metadata.is_file() || hard_link_count(path, &metadata)? != 1 {
+        return Ok(None);
+    }
+    match fs::remove_file(path) {
+        Ok(()) => Ok(Some(metadata.len())),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(PruneCasError::RemoveFile { path: path.to_path_buf(), error }),
+    }
 }
 
 fn read_entries(path: &Path) -> Result<Vec<fs::DirEntry>, PruneCasError> {

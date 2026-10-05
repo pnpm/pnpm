@@ -15,7 +15,7 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinker,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
     NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType, WorkspaceSettings, api::EnvVar,
@@ -182,7 +182,7 @@ impl WorkspaceSettings {
         string_field!(settings, reader, store_dir, "STORE_DIR");
         string_field!(settings, reader, state_dir, "STATE_DIR");
         string_field!(settings, reader, modules_dir, "MODULES_DIR");
-        enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinker);
+        enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinkerSetting);
         json_field!(
             settings,
             reader,

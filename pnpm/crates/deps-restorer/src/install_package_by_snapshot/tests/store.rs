@@ -71,6 +71,13 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
             custom_fetcher_session: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: pnpm_config::NodeLinker::Hoisted,
@@ -81,10 +88,6 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
             requester: "/project",
 
             allow_build_policy: &allow_build_policy,
-
-            logged_methods: &logged_methods,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         skipped: &skipped,
@@ -164,6 +167,13 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
             custom_fetcher_session: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: pnpm_config::NodeLinker::Hoisted,
@@ -174,10 +184,6 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
             requester: "/project",
 
             allow_build_policy: &allow_build_policy,
-
-            logged_methods: &logged_methods,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         skipped: &skipped,

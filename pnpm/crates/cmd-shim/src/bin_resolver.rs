@@ -44,9 +44,21 @@ pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
 /// rooted at `pkg_path`.
 ///
 /// An empty-string `bin` declares no command, as it does in pnpm v11.
+#[must_use]
 pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     manifest: &Value,
     pkg_path: &Path,
+) -> Vec<Command> {
+    get_bins_from_package_manifest_with_walk(manifest, pkg_path, |directory| {
+        Sys::walk_files(directory).map(Iterator::collect::<Vec<_>>)
+    })
+}
+
+/// Resolve bins with a caller-provided recursive file walk, including virtual files.
+pub fn get_bins_from_package_manifest_with_walk<Paths: IntoIterator<Item = PathBuf>>(
+    manifest: &Value,
+    pkg_path: &Path,
+    walk_files: impl FnOnce(&Path) -> std::io::Result<Paths>,
 ) -> Vec<Command> {
     let pkg_name = manifest.get("name").and_then(Value::as_str);
     if let Some(bin) = manifest
@@ -60,7 +72,7 @@ pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
         .and_then(|d| d.get("bin"))
         .and_then(Value::as_str)
     {
-        return commands_from_directories_bin::<Sys>(bin_dir_rel, pkg_path);
+        return commands_from_directories_bin(bin_dir_rel, pkg_path, walk_files);
     }
     Vec::new()
 }
@@ -69,9 +81,10 @@ pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
 /// [`Command`] per file, the `directories.bin` branch of bin resolution.
 ///
 /// Symlinks are not followed.
-fn commands_from_directories_bin<Sys: FsWalkFiles>(
+fn commands_from_directories_bin<Paths: IntoIterator<Item = PathBuf>>(
     bin_dir_rel: &str,
     pkg_path: &Path,
+    walk_files: impl FnOnce(&Path) -> std::io::Result<Paths>,
 ) -> Vec<Command> {
     let bin_dir = pkg_path.join(bin_dir_rel);
     if !is_subdir(pkg_path, &bin_dir) {
@@ -80,7 +93,7 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
     // Treat a top-level walk error as "no bins". The trait's production
     // impl already drops per-entry errors inside its iterator, so an `Err`
     // here only fires when the walker can't even open `bin_dir`.
-    let Ok(paths) = Sys::walk_files(&bin_dir) else {
+    let Ok(paths) = walk_files(&bin_dir) else {
         return Vec::new();
     };
     let mut commands = Vec::new();

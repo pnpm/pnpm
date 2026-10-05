@@ -121,8 +121,10 @@ pub(crate) fn validation_baseline_ms(
 /// created or stat'd, leaving the caller with the mtime-derived
 /// baseline.
 pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
-    let state_path = pnpm_workspace_state::get_file_path(workspace_root);
-    let parent = state_path.parent()?;
+    filesystem_now_ms_in_modules(&workspace_root.join("node_modules"))
+}
+
+pub(crate) fn filesystem_now_ms_in_modules(parent: &Path) -> Option<i64> {
     fs::create_dir_all(parent).ok()?;
     let probe = tempfile::tempfile_in(parent).ok()?;
     file_mtime_from_metadata(&probe.metadata().ok()?).map(|mtime| mtime.ms)

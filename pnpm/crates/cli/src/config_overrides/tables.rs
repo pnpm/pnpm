@@ -165,7 +165,7 @@ impl ConfigOverrides {
                 self.modules_dir = Some(value.to_string());
             }
             "node-linker" => {
-                self.node_linker = parse_enum(value);
+                self.node_linker = serde_json::from_str(value).ok().or_else(|| parse_enum(value));
             }
             "public-hoist-pattern" => {
                 self.public_hoist_pattern.get_or_insert_default().push(value.to_string());

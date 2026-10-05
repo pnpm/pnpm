@@ -190,6 +190,7 @@ impl WorkspaceSettings {
             "publicHoistPattern" => reset_public_hoist_pattern(config, defaults),
             "nodeLinker" => {
                 config.node_linker = defaults.node_linker;
+                config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
                 config.apply_prefer_symlinked_executables_derivation();
             }
             "preferSymlinkedExecutables" => {

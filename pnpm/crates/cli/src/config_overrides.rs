@@ -7,7 +7,7 @@ use apply::normalize_registry_url;
 
 use pnpm_config::{
     ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
-    LinkWorkspacePackages, NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail,
+    LinkWorkspacePackages, NodeLinkerSetting, PackageImportMethod, PmOnFail, RuntimeOnFail,
     SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
     naming_cases::to_kebab_case, resolve_child_concurrency,
 };
@@ -103,7 +103,7 @@ pub struct ConfigOverrides {
     /// whichever directory ends up anchoring the install.
     modules_dir: Option<String>,
     virtual_store_dir: Option<String>,
-    node_linker: Option<NodeLinker>,
+    node_linker: Option<NodeLinkerSetting>,
     optimistic_repeat_install: Option<bool>,
     package_import_method: Option<PackageImportMethod>,
     pm_on_fail: Option<PmOnFail>,
@@ -195,6 +195,15 @@ impl ConfigOverrides {
 
     pub(crate) fn unported_settings(&self) -> &BTreeMap<String, String> {
         &self.unported
+    }
+
+    pub(crate) fn initial_setting_values(&self) -> BTreeMap<String, String> {
+        let mut values = self.unported_settings().clone();
+        // Linker selection must reach directory derivation before command overrides run.
+        if let Some(linker) = &self.node_linker {
+            values.insert("node-linker".to_string(), setting_value(linker).to_string());
+        }
+        values
     }
 
     /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`](tokens::BARE_SETTING_FLAGS)

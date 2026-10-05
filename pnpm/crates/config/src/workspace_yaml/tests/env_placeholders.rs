@@ -21,14 +21,14 @@ impl EnvVar for Env {
 fn a_fallback_names_an_enum_variant() {
     let settings = parse_settings::<Env>("nodeLinker: ${PNPM_TEST_UNSET:-isolated}\n").unwrap();
 
-    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
+    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated.into()));
 }
 
 #[test]
 fn an_environment_value_wins_over_the_fallback() {
     let settings = parse_settings::<Env>("nodeLinker: ${PNPM_TEST_LINKER:-isolated}\n").unwrap();
 
-    assert_eq!(settings.node_linker, Some(NodeLinker::Hoisted));
+    assert_eq!(settings.node_linker, Some(NodeLinker::Hoisted.into()));
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn placeholders_the_document_reads_without_do_not_crowd_out_the_one_that_counts(
         parse_settings::<Env>(&format!("nodeLinker: ${{PNPM_TEST_UNSET:-isolated}}\n{padding}"))
             .unwrap();
 
-    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
+    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated.into()));
 }
 
 /// The second read must not turn a quoted scalar into the value it spells,

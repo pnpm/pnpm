@@ -60,6 +60,8 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
+url = { workspace = true }
+
 [dev-dependencies]
 pnpm-testing-utils = { workspace = true }
 

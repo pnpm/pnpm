@@ -180,6 +180,7 @@ pub(super) fn selected_scripts(
 /// non-default linker needs prepended to `NODE_OPTIONS`.
 pub(super) fn script_extra_env(config: &Config, dir: &Path) -> HashMap<String, String> {
     let mut extra_env = config.extra_env_with_node_options();
+    config.add_cas_loader_env(dir, &mut extra_env);
     if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
         extra_env.insert(

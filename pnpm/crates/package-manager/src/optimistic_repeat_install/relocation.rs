@@ -5,7 +5,7 @@
 use super::{
     Decision, Host, Lockfile, ManifestDrift, OptimisticRepeatInstallCheck, PackageManifest, Path,
     PathBuf, WorkspaceState, current_lockfile::assert_loaded_current_lockfile_records,
-    current_pnpmfiles, filesystem_now_ms, manifest_agreement::check_projects_content,
+    current_pnpmfiles, filesystem_now_ms_in_modules, manifest_agreement::check_projects_content,
     project_structure_matches, settle_repeat_install,
 };
 use std::{collections::BTreeSet, path::Component};
@@ -139,7 +139,9 @@ pub(super) fn rekeyed_validation_now(
     if drift.modified().is_empty() && !drift.lockfile_modified {
         Some(state.last_validated_timestamp)
     } else {
-        filesystem_now_ms(check.workspace_root)
+        filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
+            check.workspace_root,
+        ))
     }
 }
 

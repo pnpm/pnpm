@@ -5001,6 +5001,7 @@ dependencies = [
  "text-block-macros",
  "tokio",
  "tracing",
+ "url",
  "walkdir",
  "windows-sys 0.61.2",
 ]

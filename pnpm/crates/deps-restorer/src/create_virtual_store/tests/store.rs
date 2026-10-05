@@ -120,6 +120,13 @@ async fn cold_batch_links_slots_in_parallel() {
             supported_architectures: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: NodeLinker::Isolated,
@@ -130,10 +137,6 @@ async fn cold_batch_links_slots_in_parallel() {
             requester: &requester,
 
             allow_build_policy: &allow_build_policy,
-
-            logged_methods: &logged_methods,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
@@ -322,6 +325,13 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             supported_architectures: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: NodeLinker::Isolated,
@@ -332,10 +342,6 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             requester: &requester,
 
             allow_build_policy: &allow_build_policy,
-
-            logged_methods: &logged_methods,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },

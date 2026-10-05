@@ -1,3 +1,4 @@
+pub(crate) mod cas;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
@@ -261,6 +262,14 @@ pub struct CreateVirtualStore<'a> {
 /// Error type of [`CreateVirtualStore`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualStoreError {
+    #[display("Cannot install with nodeLinker.type=loaded: {message}")]
+    #[diagnostic(code(ERR_PNPM_CAS_CONFIGURATION))]
+    CasConfiguration { message: &'static str },
+    #[display(
+        "Package {package} needs materialization with the loaded linker. Add its name to nodeLinker.excluded."
+    )]
+    #[diagnostic(code(ERR_PNPM_CAS_REQUIRES_MATERIALIZATION))]
+    CasRequiresMaterialization { package: String },
     #[diagnostic(transparent)]
     InstallPackageBySnapshot(#[error(source)] InstallPackageBySnapshotError),
 

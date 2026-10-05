@@ -30,13 +30,13 @@ pub const PACKAGE_MAP_FILENAME: &str = ".package-map.json";
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct PackageMap {
-    packages: BTreeMap<String, PackageMapPackage>,
+    pub(crate) packages: BTreeMap<String, PackageMapPackage>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct PackageMapPackage {
-    url: String,
-    dependencies: BTreeMap<String, String>,
+    pub(crate) url: String,
+    pub(crate) dependencies: BTreeMap<String, String>,
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]

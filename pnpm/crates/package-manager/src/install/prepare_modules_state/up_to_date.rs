@@ -7,7 +7,7 @@ use super::super::{
     recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
     update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
-use crate::optimistic_repeat_install::{filesystem_now_ms, materialized_shape_matches};
+use crate::optimistic_repeat_install::{filesystem_now_ms_in_modules, materialized_shape_matches};
 
 /// Whether any package in the lockfile resolves to a local directory.
 ///
@@ -264,13 +264,19 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         context.projects.catalogs,
         context.projects.manifests,
         context.carried_state.filtered_install,
-        filesystem_now_ms(context.tree.workspace_root),
+        filesystem_now_ms_in_modules(&context.tree.config.workspace_state_modules_dir(
+            context.tree.workspace_root,
+        )),
     );
     state.settings.auto_dedupe = crate::install::recorded_auto_dedupe(
         context.tree.config,
         context.carried_state.recorded_auto_dedupe,
     );
-    update_workspace_state_or_warn::<Reporter>(context.tree.workspace_root, &state);
+    update_workspace_state_or_warn::<Reporter>(
+        context.tree.workspace_root,
+        &state,
+        context.tree.config,
+    );
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

@@ -4,6 +4,8 @@
 
 [files]
 extend-exclude = [
+  # Generated JavaScript contains minified dependency identifiers.
+  "pnpm/crates/deps-restorer/src/cas-loader.mjs.inc",
   # Generated SVG IDs and partial terminal-animation frames are not prose.
   "pnpm/docs/static/img/logos/pnpm-light-no-text.svg",
   "pnpm/docs/static/img/demos/pnpm-install.svg",
