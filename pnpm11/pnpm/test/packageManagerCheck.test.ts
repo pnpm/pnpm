@@ -197,10 +197,11 @@ test('devEngines.packageManager with onFail=warn should warn on version mismatch
     },
   })
 
-  const { status, stdout } = execPnpmSync(['install'])
+  const { status, stdout, stderr } = execPnpmSync(['install'])
 
   expect(status).toBe(0)
-  expect(stdout.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stdout.toString()).not.toContain('0.0.1')
 })
 
 test('devEngines.packageManager with onFail=ignore should not check version', async () => {
@@ -268,10 +269,62 @@ test('devEngines.runtime with onFail=warn should warn on Node.js version mismatc
   })
 
   const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
-  const output = stdout.toString() + stderr.toString()
 
   expect(status).toBe(0)
-  expect(output).toContain('This project requires Node.js 99999.0.0')
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+  expect(stdout.toString()).not.toContain('99999.0.0')
+})
+
+test('a runtime mismatch warning keeps a printed value alone on stdout', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+  expect(stdout.toString().trim().split('\n')).toHaveLength(1)
+})
+
+test('the runtime mismatch warning reaches stderr under the ndjson reporter', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--reporter=ndjson', 'cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('--loglevel=error hides the runtime mismatch warning', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--loglevel=error', 'cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stdout.toString() + stderr.toString()).not.toContain('99999.0.0')
 })
 
 test('devEngines.runtime with onFail=ignore should not check Node.js version', async () => {
@@ -744,15 +797,15 @@ test('devEngines.packageManager check runs even when pnpm is invoked via corepac
   // COREPACK_ROOT signals corepack-managed invocation (pnpm/pnpm#11397).
   // The check (and sync) must run regardless of how pnpm was invoked, since
   // different developers on the same project may use either path.
-  const { status, stdout } = execPnpmSync(['install'], {
+  const { status, stderr } = execPnpmSync(['install'], {
     env: { COREPACK_ROOT: '/fake/corepack' },
   })
 
   expect(status).toBe(0)
-  expect(stdout.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
   // Make sure the warning explains that pnpm did not switch the version
   // because corepack is in charge — otherwise the warning is confusing.
-  expect(stdout.toString()).toContain('Corepack invoked pnpm')
+  expect(stderr.toString()).toContain('Corepack invoked pnpm')
 })
 
 test('devEngines.packageManager onFail=download surfaces a regular error under corepack instead of switching versions', async () => {
