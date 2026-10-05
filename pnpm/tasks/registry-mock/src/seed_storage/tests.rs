@@ -15,10 +15,6 @@ fn write_fixture(fixtures: &Path, name: &str, version: &str) {
     .expect("write fixture manifest");
 }
 
-/// A fixture generation of the test's own making, built through the same
-/// `pnpr-fixtures` entry point the committed fixtures go through. The
-/// fixture tree is gone by the time this returns: `of` publishes the
-/// storage under `generated`, and the storage is what a generation reads.
 fn generation(packages: &[(&str, &str)], generated: &Path) -> FixtureGeneration {
     let fixtures = TempDir::new().expect("create fixture tree");
     for (name, version) in packages {
@@ -208,8 +204,6 @@ fn a_relaunch_of_one_generation_keeps_what_the_cache_holds() {
     let first = seed_generation(&current, root.path()).expect("seed the generation");
     assert!(first.seeded_files() > 0, "a fresh generation seeds its files");
 
-    // What `pnpr` and a benchmark scenario write into the directory
-    // between launches: neither is the generation's to remove.
     let proxy_entry = first.path().join("left-pad");
     fs::create_dir_all(&proxy_entry).expect("create proxy cache entry dir");
     fs::write(
@@ -271,9 +265,6 @@ fn seeding_a_directory_marked_for_another_generation_fails() {
     let first = generation(&[("@e2e/one", "1.0.0")], generated.path());
     let second = generation(&[("@e2e/two", "1.0.0")], generated.path());
 
-    // A caller that points `PNPM_REGISTRY_STORAGE` at a directory another
-    // generation already claimed a subdirectory of would otherwise have
-    // the first generation's files win.
     let foreign = root.path().join(second.fingerprint());
     fs::create_dir_all(&foreign).expect("create the foreign generation directory");
     fs::write(foreign.join(".fixture-generation"), first.fingerprint())
@@ -287,9 +278,6 @@ fn seeding_a_directory_marked_for_another_generation_fails() {
 
 #[test]
 fn an_unmarked_directory_is_finished_rather_than_served() {
-    // A seed that died partway leaves the files it reached and no marker.
-    // Serving that would be a partial generation, so the next launch has to
-    // complete it.
     let generated = TempDir::new().expect("create generated storage root");
     let root = TempDir::new().expect("create runtime storage root");
     let current = generation(&[("@e2e/kept", "1.0.0")], generated.path());
@@ -316,11 +304,6 @@ fn an_unmarked_directory_is_finished_rather_than_served() {
     );
 }
 
-/// The copy fallback is what runs where hard links are unavailable, which
-/// is every destination on another device or under an ACL that forbids
-/// them. It has to reach the same end state as the hard-link path, so it
-/// claims the destination the same way: an existing file is the cache's
-/// or a previous seed's and is left byte for byte as it is.
 #[test]
 fn the_copy_fallback_claims_the_destination_instead_of_overwriting_it() {
     let dir = TempDir::new().expect("create temp dir");

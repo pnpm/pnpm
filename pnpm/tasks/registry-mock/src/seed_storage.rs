@@ -1,11 +1,3 @@
-//! Reconcile the runtime storage a mock serves from with one fixture
-//! generation's storage.
-//!
-//! `pnpr` is pointed at a runtime directory rather than at the generated
-//! fixture storage so the proxy-cache entries it writes there survive a
-//! fixture rebuild. That directory therefore holds content no seed owns,
-//! which the reconcile below has to leave alone.
-
 use crate::runtime_storage_root;
 use pnpr_fixtures::FixtureGeneration;
 use std::{
@@ -15,18 +7,8 @@ use std::{
 };
 use walkdir::WalkDir;
 
-/// Which fixture generation a runtime directory was seeded for. Written
-/// only once the seed completes, so its absence means the directory holds
-/// an unfinished generation.
 const GENERATION_FILE: &str = ".fixture-generation";
 
-/// A runtime storage directory reconciled to one fixture generation, and
-/// so safe to hand `pnpr` as `--storage`.
-///
-/// [`seed_runtime_storage`] is the only constructor, so a directory
-/// reaches `pnpr` only once the generation being launched is in it. The
-/// mock therefore cannot be pointed at another generation's packuments
-/// without [`seed_runtime_storage`] doing so on purpose.
 #[derive(Debug)]
 pub struct RuntimeStorage {
     path: PathBuf,
@@ -39,39 +21,16 @@ impl RuntimeStorage {
         &self.path
     }
 
-    /// How many files this launch added. Zero once a generation's
-    /// directory is seeded, which is every launch after its first.
     #[must_use]
     pub fn seeded_files(&self) -> usize {
         self.seeded_files
     }
 }
 
-/// Seed the committed fixtures' generation into its own directory under
-/// the runtime storage root.
 pub fn seed_runtime_storage() -> io::Result<RuntimeStorage> {
     seed_generation(pnpr_fixtures::current(), runtime_storage_root())
 }
 
-// Keying the directory by fingerprint is what keeps a launch from serving
-// another generation: seeding a directory shared by every generation adds
-// files and removes none, so a packument the fixtures have since changed
-// would survive on disk and `pnpr` would serve it as authoritative. A path
-// named for the fingerprint can only hold the files that fingerprint covers.
-/// Reconcile `root`'s directory for `generation` with that generation's
-/// storage, and return it once it holds that generation's files alongside
-/// whatever `pnpr` has cached there. The directory is `<root>/<fingerprint>`.
-///
-/// Reconciliation is additive and deletes nothing. The proxy cache and the
-/// packages a benchmark scenario seeds in are not the generation's to
-/// remove, so a repeat launch of one generation keeps both.
-///
-/// # Errors
-///
-/// Fails if the directory is marked for another generation, meaning
-/// `PNPM_REGISTRY_STORAGE` points at a directory that is not a runtime
-/// root — one already holding a per-generation subdirectory for other
-/// fixtures, where seeding would serve whichever generation wrote first.
 fn seed_generation(generation: &FixtureGeneration, root: &Path) -> io::Result<RuntimeStorage> {
     let path = root.join(generation.fingerprint());
     let marker = path.join(GENERATION_FILE);
@@ -169,9 +128,6 @@ fn link_or_copy(src: &Path, dest: &Path) -> io::Result<LinkOutcome> {
     match fs::hard_link(src, dest) {
         Ok(()) => Ok(LinkOutcome::Created),
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(LinkOutcome::AlreadyExists),
-        // Hard links fail across devices and under some ACLs. The copy claims
-        // the destination the way `hard_link` does, so both paths agree an
-        // existing file is left alone; `fs::copy` would truncate it instead.
         Err(_) => copy_into_new_file(src, dest),
     }
 }
