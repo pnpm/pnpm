@@ -1,7 +1,7 @@
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type {
   ExtendedWantedDependency,
   ResolutionContext,

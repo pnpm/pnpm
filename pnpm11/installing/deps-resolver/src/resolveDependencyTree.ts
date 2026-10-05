@@ -11,7 +11,7 @@ import { partition } from 'ramda'
 import { buildTree } from './childrenResolution.js'
 import { createResolutionContext } from './createResolutionContext.js'
 import { collectDirectDependencySpecs, findStalePeerPins, releaseStalePeerPins } from './findStalePeerPins.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
   DependenciesTree,

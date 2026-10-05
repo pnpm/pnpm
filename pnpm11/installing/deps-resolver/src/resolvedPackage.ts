@@ -4,7 +4,7 @@ import type { PatchInfo } from '@pnpm/patching.types'
 import type { PackageResponse } from '@pnpm/store.controller-types'
 import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash } from '@pnpm/types'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type { InfoFromLockfile, PeerDependencies, ResolvedPackage } from './resolutionTypes.js'
 
 export function getManifestFromResponse (

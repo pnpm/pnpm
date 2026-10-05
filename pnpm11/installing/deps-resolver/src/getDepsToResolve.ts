@@ -21,7 +21,7 @@ import {
 import type { RegistryContext } from '@pnpm/types'
 import semver from 'semver'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type {
   ExtendedWantedDependency,
   InfoFromLockfile,
@@ -110,7 +110,7 @@ function chooseLockedReference (
 ): LockedReferenceChoice {
   const { alias } = wantedDependency
   if (!alias || lookup.staleOverrideTargets?.has(alias)) return {}
-  const satisfiesWanted = lookup.satisfiesWantedSpec.bind(null, wantedDependency)
+  const satisfiesWanted = lookup.satisfiesWantedSpec.bind(null, { alias, bareSpecifier: wantedDependency.bareSpecifier })
   const pinnedRef = lookup.resolvedDependencies[alias]
   if (pinnedRef && (satisfiesWanted(pinnedRef) || pinnedRef.startsWith('file:'))) {
     return reuseOrRaisePinnedReference(wantedDependency, pinnedRef, lookup)

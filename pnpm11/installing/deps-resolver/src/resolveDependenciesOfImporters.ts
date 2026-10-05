@@ -5,7 +5,6 @@ import { zipWith } from 'ramda'
 import semver from 'semver'
 
 import { getDepsToResolve } from './getDepsToResolve.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
 import { type CollectedDependencies, collectResolvedDependencies, indexResolvedDependencies } from './indexResolvedDependencies.js'
 import { getCatalogExistingVersionFromSnapshot, lookUpCatalogEntry } from './lookUpCatalogEntry.js'
 import { startResolvingPeers } from './missingPeers.js'
@@ -143,7 +142,7 @@ async function resolveDependenciesOfImporterDependency (
   // workspace. Replacing catalog protocol while resolving importers here before
   // resolving dependencies of packages outside of the workspace/monorepo.
   const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
-  const originalPrevSpecifier = (extendedWantedDep.wantedDependency as WantedDependency & { prevSpecifier?: string }).prevSpecifier
+  const originalPrevSpecifier = extendedWantedDep.wantedDependency.prevSpecifier
   const catalogSpecifier = originalPrevSpecifier != null &&
     parseCatalogProtocol(originalPrevSpecifier) != null &&
     isExplicitDistTagSpecifier(originalBareSpecifier)

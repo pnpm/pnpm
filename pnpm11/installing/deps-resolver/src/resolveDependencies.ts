@@ -14,7 +14,8 @@ import {
   updateChildrenResolutionNodes,
 } from './childrenResolution.js'
 import { getDepsToResolve, getLockedDependenciesOfPkg } from './getDepsToResolve.js'
-import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
+import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import { type CollectedDependencies, collectResolvedDependencies, indexResolvedDependencies } from './indexResolvedDependencies.js'
 import { getCatalogExistingVersionFromSnapshot, lookUpCatalogEntry } from './lookUpCatalogEntry.js'
 import { filterMissingPeers, startResolvingPeers } from './missingPeers.js'

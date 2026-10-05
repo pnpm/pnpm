@@ -2,7 +2,7 @@ import { parseBareSpecifier, pickMatchingLocalVersionOrNull } from '@pnpm/resolv
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 
 export function wantedDepIsLocallyAvailable (
   workspacePackages: WorkspacePackages,
