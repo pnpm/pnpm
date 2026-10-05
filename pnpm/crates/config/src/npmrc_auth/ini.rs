@@ -261,6 +261,7 @@ impl NpmrcAuth {
     }
 
     pub(super) fn warn_ignored_request_destination_env(&mut self, key: &str) {
+        let key = redact_npm_auth_key(key);
         self.warnings.push(format!(
             "Ignored project-level request destination {key:?}: environment variables are not expanded in repository-controlled registry or proxy URLs.",
         ));

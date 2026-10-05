@@ -1828,6 +1828,31 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
   expect(urlScopedWarning).toContain('https://pnpm.io/npmrc')
 })
 
+test('ignored project .npmrc warnings do not print the userinfo of URL-scoped keys', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', [
+    '//user:password@registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
+    '//user:password@attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
+    '',
+  ].join('\n'), 'utf8')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toEqual(expect.arrayContaining([
+    expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
+    expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
+  ]))
+  expect(warnings.join('\n')).not.toContain('user:password')
+})
+
 test('project .npmrc does not expand env variables in auth values', async () => {
   prepare()
 
