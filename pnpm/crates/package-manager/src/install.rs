@@ -23,7 +23,7 @@ pub use workspace_state::{
 };
 pub(crate) use workspace_state::{
     build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
-    update_workspace_state_or_warn, workspace_packages_for_freshness,
+    recorded_auto_dedupe, update_workspace_state_or_warn, workspace_packages_for_freshness,
 };
 
 mod entry_points;

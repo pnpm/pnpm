@@ -88,6 +88,15 @@ pub fn register_project(
         return Ok(());
     }
 
+    register_loaded_project(store_dir, project_dir)
+}
+
+/// Register a loader's ownership even when its store is inside the project.
+/// Pruning reads the manifest directly without recursively walking the registry link.
+pub fn register_loaded_project(
+    store_dir: &StoreDir,
+    project_dir: &Path,
+) -> Result<(), RegisterProjectError> {
     let registry_dir = store_dir.projects();
     fs::create_dir_all(&registry_dir)
         .map_err(|error| RegisterProjectError::CreateRegistryDir {

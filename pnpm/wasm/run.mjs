@@ -117,6 +117,8 @@ async function shutdown (runtime, errors) {
   }
   runtime.cancelFilesystemWaits()
   for (const control of runtime.atomicControls) cancelAtomicWaits(runtime.memory, control)
+  // The thread manager treats a worker exit it did not request as a crash and throws from its exit listener.
+  for (const worker of runtime.workers) worker.removeAllListeners('exit')
   await Promise.all(runtime.workers.map(worker => worker.terminate())).catch(error => errors.push(error))
   // Imports remain serviced until termination so pending RPC and thread-spawn waits can finish.
   for (const worker of runtime.workers) worker.removeAllListeners('message')

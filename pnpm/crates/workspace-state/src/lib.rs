@@ -142,6 +142,9 @@ pub struct WorkspaceStateSettings {
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_workspace_packages: Option<serde_json::Value>,
+    /// `lockfile.includeResolutionSettings`, recorded only while it is on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockfile_include_resolution_settings: Option<bool>,
     /// Minutes a published version must age before it may be installed.
     /// pnpm resolves this to a concrete `24 * 60` default, so it must be
     /// recorded for pnpm's all-key freshness check to stay on the fast
@@ -162,6 +165,8 @@ pub struct WorkspaceStateSettings {
     pub minimum_release_age_strict: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_linker: Option<NodeLinker>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_linker_excluded: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub optional: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -220,6 +225,7 @@ pub enum NodeLinker {
     Hoisted,
     Isolated,
     Pnp,
+    Loaded,
 }
 
 /// Error returned by [`update_workspace_state`].
@@ -257,7 +263,15 @@ pub fn update_workspace_state(
     workspace_dir: &Path,
     state: &WorkspaceState,
 ) -> Result<(), UpdateWorkspaceStateError> {
-    let file_path = get_file_path(workspace_dir);
+    update_workspace_state_in_modules(&workspace_dir.join("node_modules"), state)
+}
+
+/// Atomically write workspace state inside the selected installation directory.
+pub fn update_workspace_state_in_modules(
+    modules_dir: &Path,
+    state: &WorkspaceState,
+) -> Result<(), UpdateWorkspaceStateError> {
+    let file_path = modules_dir.join(WORKSPACE_STATE_FILENAME);
     let parent = file_path.parent().expect("workspace-state path always has a parent");
     pnpm_fs::create_dir_all_with_retry(parent)
         .map_err(|source| UpdateWorkspaceStateError::CreateDir {
@@ -280,7 +294,14 @@ pub fn update_workspace_state(
 pub fn load_workspace_state(
     workspace_dir: &Path,
 ) -> Result<Option<WorkspaceState>, LoadWorkspaceStateError> {
-    let file_path = get_file_path(workspace_dir);
+    load_workspace_state_in_modules(&workspace_dir.join("node_modules"))
+}
+
+/// Read workspace state inside the selected installation directory.
+pub fn load_workspace_state_in_modules(
+    modules_dir: &Path,
+) -> Result<Option<WorkspaceState>, LoadWorkspaceStateError> {
+    let file_path = modules_dir.join(WORKSPACE_STATE_FILENAME);
     let text = match fs::read_to_string(&file_path) {
         Ok(text) => text,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),

@@ -10,7 +10,7 @@ import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { createOtpContext, parsePackageSpec, rcOptionsTypes, readErrorBody, WEB_AUTH_FETCH_OPTIONS } from './common.js'
+import { createOtpContext, normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes, readErrorBody, WEB_AUTH_FETCH_OPTIONS } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -247,12 +247,12 @@ function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]
 }
 
 async function deleteTarballs (ctx: RegistryMutationContext, tarballs: string[]): Promise<void> {
-  const registryOrigin = new URL(ctx.registryUrl).origin
+  const registryUrl = normalizeRegistryUrl(ctx.registryUrl)
   /* eslint-disable no-await-in-loop -- each DELETE needs the revision produced by the previous one */
   for (const tarball of tarballs) {
     const updated = await fetchPackument(ctx.packageUrl, ctx.fetchFromRegistry, ctx.authHeader)
-    const tarballPathname = getTarballPathname(tarball, ctx.registryUrl)
-    const deleteResponse = await sendMutation(ctx, `${registryOrigin}/${tarballPathname}/-rev/${updated._rev}`, {
+    const tarballPathname = getTarballPathname(tarball, registryUrl)
+    const deleteResponse = await sendMutation(ctx, `${registryUrl}${tarballPathname}/-rev/${updated._rev}`, {
       method: 'DELETE',
     })
 

@@ -289,3 +289,16 @@ fn merging_unions_the_foreign_top_level_keys() {
     assert_eq!(merged.extra["bit"], serde_json::json!({ "depsRequiringBuild": ["ours"] }));
     assert_eq!(merged.extra["other-tool"], serde_json::json!(true));
 }
+
+#[test]
+fn a_merged_lockfile_records_no_resolution_settings() {
+    let recorded = OURS.replacen(
+        "importers:",
+        "settings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n  autoDedupe: true\nimporters:",
+        1,
+    );
+    for (ours, theirs) in [(recorded.as_str(), recorded.as_str()), (recorded.as_str(), THEIRS)] {
+        let settings = merged(ours, theirs).settings.unwrap();
+        assert_eq!(settings.resolution, crate::ResolutionSettings::default());
+    }
+}

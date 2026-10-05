@@ -1,7 +1,9 @@
-import path from 'path'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+import process from 'node:process'
 
 const config = {
-  resolver: path.join(import.meta.dirname, 'node_modules/ts-jest-resolver'),
+  resolver: createRequire(import.meta.url).resolve('ts-jest-resolver'),
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
     '^.+\\.tsx?$': path.join(import.meta.dirname, 'jest.transform.js'),
@@ -11,7 +13,7 @@ const config = {
   collectCoverage: true,
   coveragePathIgnorePatterns: ["/node_modules/"],
   testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "/test/(.+/)?utils/"],
-  modulePathIgnorePatterns: ['\/__fixtures__\/.*'],
+  modulePathIgnorePatterns: ['/__fixtures__/.*'],
   testTimeout: 4 * 60 * 1000, // 4 minutes
   setupFilesAfterEnv: [path.join(import.meta.dirname, "setupFilesAfterEnv.js")],
   maxWorkers: "50%",
@@ -24,7 +26,7 @@ if (process.env.PNPM_SCRIPT_SRC_DIR) {
 // We are running test script from pnpm command, this seems to confuse tests
 // Clean up env from pnpm variables so that nested pnpm runs won't get affected on config read
 for (const key of Object.keys(process.env)) {
-  if (/^p?npm_(config|package|lifecycle|node|command|execpath)(_|$)/ui.test(key)) {
+  if (/^p?npm_(?:config|package|lifecycle|node|command|execpath)(?:_|$)/iu.test(key)) {
     delete process.env[key]
   }
 }

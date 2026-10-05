@@ -239,16 +239,8 @@ fn command_in_dir(
     if let Some(name) = &project_name {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
-    let mut node_options = configured_node_options(config);
-    if let Some(pnp_path) = pnp_path_for_execution(config, project) {
-        node_options = Some(make_node_require_option(&pnp_path, node_options.as_deref()));
-    }
-    if let Some(package_map_path) = package_map_path_for_execution(config, project) {
-        node_options =
-            Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
-    }
     // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
-    if let Some(node_options) = node_options {
+    if let Some(node_options) = execution_node_options(config, project) {
         cmd.env("NODE_OPTIONS", node_options);
     }
 
@@ -334,4 +326,21 @@ fn command_search_path(
     }
     prepend.extend(pnpm_python_installer::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)
+}
+
+fn execution_node_options(config: &Config, project: &Path) -> Option<String> {
+    let mut node_options = configured_node_options(config);
+    if let Some(pnp_path) = pnp_path_for_execution(config, project) {
+        node_options = Some(make_node_require_option(&pnp_path, node_options.as_deref()));
+    }
+    if let Some(package_map_path) = package_map_path_for_execution(config, project) {
+        node_options =
+            Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
+    }
+    let mut loader_env = HashMap::new();
+    if let Some(options) = node_options.take() {
+        loader_env.insert("NODE_OPTIONS".to_string(), options);
+    }
+    config.add_cas_loader_env(project, &mut loader_env);
+    loader_env.remove("NODE_OPTIONS")
 }

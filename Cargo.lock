@@ -5001,6 +5001,7 @@ dependencies = [
  "text-block-macros",
  "tokio",
  "tracing",
+ "url",
  "walkdir",
  "windows-sys 0.61.2",
 ]
@@ -5699,6 +5700,8 @@ dependencies = [
  "flate2",
  "icu_collator",
  "icu_locale_core",
+ "icu_normalizer",
+ "icu_provider",
  "indexmap 2.14.0",
  "miette 7.6.0",
  "pathdiff",

@@ -47,7 +47,7 @@ pub(super) fn repeat_install_verdict(
     check: &UpToDateCheck<'_>,
 ) -> Result<RepeatInstallVerdict, InstallError> {
     if !check.resolve_only {
-        register_workspace_in_store(check.workspace.config, check.workspace.workspace_root);
+        register_workspace_in_store(check.workspace.config, check.workspace.workspace_root)?;
     }
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
@@ -76,7 +76,7 @@ pub(super) fn repeat_install_verdict(
     })
 }
 /// What [`repeat_install_verdict`] found.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(super) enum RepeatInstallVerdict {
     /// The install runs in full.
     Changed,
@@ -185,10 +185,22 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
 /// slots of an unregistered project.
 ///
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
-/// surfaced as `tracing::warn!` instead.
-pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
+/// surfaced as `tracing::warn!` instead. Loaded installs require durable
+/// registration because their blobs have no project hardlinks to protect them.
+/// A frozen store is externally managed and must not receive registry writes.
+pub(crate) fn register_workspace_in_store(
+    config: &Config,
+    workspace_root: &Path,
+) -> Result<(), InstallError> {
+    if config.frozen_store && config.node_linker == pnpm_config::NodeLinker::Loaded {
+        return Ok(());
+    }
+    if config.node_linker == pnpm_config::NodeLinker::Loaded {
+        return pnpm_store_dir::register_loaded_project(&config.store_dir, workspace_root)
+            .map_err(InstallError::RegisterLoadedProject);
+    }
     if config.frozen_store && !config.enable_global_virtual_store {
-        return;
+        return Ok(());
     }
     // Create the store root before calling `register_project` so its
     // `path_contains` guard can canonicalize the path instead of falling
@@ -210,6 +222,7 @@ pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path
             "Failed to register workspace root in the store project registry; install continues",
         );
     }
+    Ok(())
 }
 
 impl super::RunExecution<'_> {
@@ -223,7 +236,11 @@ impl super::RunExecution<'_> {
         self.check_custom_fetcher_reuse().await?;
         let verdict =
             scope.repeat_install_verdict(self.install, &self.owned, &self.mode, &self.workspace)?;
-        if verdict == RepeatInstallVerdict::Changed
+        let changed = match verdict {
+            RepeatInstallVerdict::Changed => true,
+            RepeatInstallVerdict::Unchanged | RepeatInstallVerdict::UnchangedFrozen => false,
+        };
+        if changed
             || pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
         {
             return Ok(RepeatInstallVerdict::Changed);

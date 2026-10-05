@@ -28,6 +28,8 @@ derive_more = { workspace = true }
 flate2 = { workspace = true }
 icu_collator = { workspace = true }
 icu_locale_core = { workspace = true }
+icu_normalizer = { workspace = true }
+icu_provider = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }

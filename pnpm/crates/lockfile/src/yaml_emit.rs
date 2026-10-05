@@ -102,7 +102,7 @@ pub(crate) fn to_string(value: Value) -> String {
 
 /// Reorder a lockfile document's keys to match pnpm's on-write ordering:
 /// `importers` / `packages` / `snapshots` / `catalogs` / `time` /
-/// `patchedDependencies` are sorted by their direct keys, each section's
+/// `patchedDependencies` / `settings` are sorted by their direct keys, each section's
 /// entries are deep-sorted (by the priority map for packages/snapshots, by the
 /// root priority for importers, lexically for catalogs), and finally the root
 /// keys are ordered by priority.
@@ -122,7 +122,7 @@ fn sort_lockfile_keys(value: Value) -> Value {
         root.insert("catalogs".to_string(), Value::Object(sorted));
     }
 
-    for section in ["time", "patchedDependencies"] {
+    for section in ["time", "patchedDependencies", "settings"] {
         if let Some(Value::Object(map)) = root.remove(section) {
             root.insert(section.to_string(), Value::Object(sort_direct_keys(map)));
         }

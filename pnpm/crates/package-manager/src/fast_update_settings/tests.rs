@@ -54,6 +54,7 @@ fn recorded_settings() -> LockfileSettings {
         exclude_links_from_lockfile: false,
         inject_workspace_packages: false,
         peers_suffix_max_length: None,
+        resolution: pnpm_lockfile::ResolutionSettings::default(),
     }
 }
 
@@ -66,6 +67,7 @@ fn records_every_setting_the_locked_graph_cannot_notice() {
         exclude_links_from_lockfile: true,
         inject_workspace_packages: true,
         peers_suffix_max_length: Some(10),
+        resolution: pnpm_lockfile::ResolutionSettings::default(),
     };
 
     let updated = try_fast_update_settings(
@@ -303,4 +305,36 @@ fn reports_no_update_when_the_settings_match() {
         )
         .is_none(),
     );
+}
+
+#[test]
+fn a_recorded_resolution_setting_change_needs_a_resolution() {
+    let manifest = manifest(json!({ "dependencies": { "foo": "^1.0.0" } }));
+    let settings = LockfileSettings {
+        resolution: pnpm_lockfile::ResolutionSettings {
+            auto_dedupe: Some(true),
+            ..pnpm_lockfile::ResolutionSettings::default()
+        },
+        ..recorded_settings()
+    };
+    assert!(
+        try_fast_update_settings(
+            &lockfile(PEERLESS_LOCKFILE),
+            &settings,
+            &[(PathBuf::from("/project"), &manifest)],
+        )
+        .is_none(),
+    );
+}
+
+#[test]
+fn unrecorded_resolution_settings_are_dropped_without_a_resolution() {
+    let manifest = manifest(json!({ "dependencies": { "foo": "^1.0.0" } }));
+    let mut recorded = lockfile(PEERLESS_LOCKFILE);
+    recorded.settings.as_mut().unwrap().resolution.auto_dedupe = Some(true);
+    let settings = LockfileSettings { auto_install_peers: false, ..recorded_settings() };
+    let updated =
+        try_fast_update_settings(&recorded, &settings, &[(PathBuf::from("/project"), &manifest)])
+            .expect("a peerless lockfile absorbs the change");
+    assert_eq!(updated.settings, Some(settings));
 }

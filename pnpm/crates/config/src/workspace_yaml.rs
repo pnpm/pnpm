@@ -4,18 +4,18 @@ pub use error::LoadWorkspaceYamlError;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
-    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, SideEffectsCacheSetting,
-    SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
-    decided_allow_builds,
+    DEFAULT_PYTHON_DOWNLOAD_URL, LockfileSetting, PackageExtension, PeerDependencyMeta,
+    PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings,
+    SideEffectsCacheSetting, SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings,
+    UpdateConfig, UpdateSettings, decided_allow_builds,
 };
 pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
-    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    NodeLinkerSetting, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
+    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
@@ -212,11 +212,11 @@ macro_rules! identically_named_settings {
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
             hoist, shamefully_hoist,
-            node_linker, node_experimental_package_map, node_package_map_type,
+            node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
-            lockfile, prefer_frozen_lockfile,
+            prefer_frozen_lockfile,
             deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
             merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
             offline, prefer_offline,
@@ -234,7 +234,7 @@ macro_rules! identically_named_settings {
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity,
             strict_store_pkg_content_check, frozen_store,
-            include_workspace_root,
+            include_workspace_root, fail_if_no_match,
             ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,
             block_exotic_subdeps,

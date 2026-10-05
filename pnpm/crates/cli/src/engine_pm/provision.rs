@@ -14,7 +14,10 @@ use miette::Context;
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::PrivateInstall;
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
 
 /// The Node.js line a JavaScript package manager runs on when the host has
 /// no `node` of its own. LTS is the conservative pick, and — being a stable
@@ -44,8 +47,12 @@ impl ProvisionedEngine {
     /// so the one the user typed is what runs. Only the engine's own
     /// directory answers: a managed Node.js behind it ships an `npm` and
     /// an `npx` of its own, which are not the versions that were asked
-    /// for.
+    /// for. The main program's own name runs the main program, which may be
+    /// a native binary its bin only wraps.
     pub(crate) fn command(&self, name: &str) -> PathBuf {
+        if self.program.file_stem() == Some(OsStr::new(name)) {
+            return self.program.clone();
+        }
         self.bin_dirs
             .first()
             .and_then(|bin_dir| engine_bin(bin_dir, name))
@@ -131,11 +138,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    let program = engine_bin(&engine.bin_dir, name)
-        .ok_or_else(|| EngineError::MissingEngineBin {
-            name,
-            dir: engine.bin_dir.display().to_string(),
-        })?;
+    let program = engine.program(pm)?;
 
     let mut bin_dirs = vec![engine.bin_dir];
     let mut private_installs: Vec<_> = engine.private_install.into_iter().collect();
@@ -168,3 +171,6 @@ async fn managed_node(
         .wrap_err("install a Node.js runtime to run the package manager with")
         .map(Some)
 }
+
+#[cfg(test)]
+mod tests;

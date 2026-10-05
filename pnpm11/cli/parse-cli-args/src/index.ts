@@ -20,6 +20,8 @@ export interface ParsedCliArgs {
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
   workspaceDir: string | undefined
+  /** The `--config.<key>=<value>` options as given, keyed without the prefix. */
+  rawCliConfig?: Record<string, unknown>
 }
 
 export interface ParseCliArgsOptions {
@@ -292,7 +294,7 @@ function handleRecursiveInvocation (
 
 function validateWorkspaceOptions (options: Record<string, unknown>, workspaceDir: string | undefined): void {
   if (!options['workspace-root']) return
-  if (options['global']) {
+  if (isGlobalScope(options)) {
     throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
   }
   if (!workspaceDir) {
@@ -304,21 +306,25 @@ function validateWorkspaceOptions (options: Record<string, unknown>, workspaceDi
 interface NormalizeOptionsResult {
   options: Record<string, unknown>
   unknownOptions: Map<string, string[]>
+  rawCliConfig: Record<string, unknown>
 }
 
 function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>): NormalizeOptionsResult {
   const standardOptionNames = []
   const normalizedOptions: Record<string, unknown> = {}
+  const rawCliConfig: Record<string, unknown> = {}
   for (const [optionName, optionValue] of Object.entries(options)) {
     if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
-      normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue
+      const key = optionName.substring(CUSTOM_OPTION_PREFIX.length)
+      normalizedOptions[key] = optionValue
+      rawCliConfig[key] = optionValue
       continue
     }
     normalizedOptions[optionName] = optionValue
     standardOptionNames.push(optionName)
   }
   const unknownOptions = getUnknownOptions(standardOptionNames, knownOptions)
-  return { options: normalizedOptions, unknownOptions }
+  return { options: normalizedOptions, unknownOptions, rawCliConfig }
 }
 
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {
@@ -346,7 +352,7 @@ async function getWorkspaceDir (
   parsedOpts: Record<string, unknown>,
   renamedOptions?: Record<string, string>
 ): Promise<string | undefined> {
-  if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
+  if (isGlobalScope(parsedOpts) || parsedOpts['ignore-workspace']) return undefined
   let dir = parsedOpts['dir']
   if (dir == null && renamedOptions != null) {
     for (const [from, to] of Object.entries(renamedOptions)) {
@@ -357,4 +363,10 @@ async function getWorkspaceDir (
     }
   }
   return findWorkspaceDir((dir ?? process.cwd()) as string)
+}
+
+/** `--location`, which only config commands accept, takes precedence over `--global`. */
+function isGlobalScope (parsedOpts: Record<string, unknown>): boolean {
+  if (parsedOpts['location'] != null) return parsedOpts['location'] === 'global'
+  return Boolean(parsedOpts['global'])
 }

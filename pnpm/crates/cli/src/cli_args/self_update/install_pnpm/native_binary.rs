@@ -58,10 +58,12 @@ fn normalized_arch<'a>(platform: &str, arch: &'a str) -> &'a str {
 /// when the hard link fails: with scripts disabled, this manual linking is
 /// the critical path, so a silent no-op would leave a "successful"
 /// self-update with a non-functional `pnpm`.
+///
+/// Returns the linked binary.
 pub(crate) fn link_exe_platform_binary(
     install_dir: &Path,
     wrapper_pkg_name: &str,
-) -> miette::Result<()> {
+) -> miette::Result<PathBuf> {
     let wrapper_dir = package_dir(install_dir, wrapper_pkg_name);
     if !wrapper_dir.exists() {
         let wrapper_display = wrapper_dir.display();
@@ -91,7 +93,7 @@ pub(crate) fn link_exe_platform_binary(
     } else if is_rust_wrapper(install_dir, wrapper_pkg_name) {
         link_aliases(&src, &wrapper_real_dir, "")?;
     }
-    Ok(())
+    Ok(dest)
 }
 
 fn is_rust_wrapper(install_dir: &Path, wrapper_pkg_name: &str) -> bool {

@@ -2116,6 +2116,8 @@ fn a_pinned_lockfile_dir_starts_an_install() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "the script must run:\n{stderr}");
     assert!(stderr.contains("Done in"), "the gate must install:\n{stderr}");
+    assert!(workspace.join("pnpm-lock.yaml").exists());
+    assert!(!project.join("pnpm-lock.yaml").exists());
 
     drop(root);
 }

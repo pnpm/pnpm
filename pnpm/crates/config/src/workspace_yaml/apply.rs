@@ -1,8 +1,8 @@
 use super::{
-    Config, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting, StoreDir,
-    UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar, normalize_registry_url,
-    overlay, overlay_some, overlay_tools, registries, resolve, resolve_child_concurrency,
-    warn_deprecated_pairing,
+    Config, LockfileSetting, Path, PnpmfileSetting, ProxyKeys, ProxyValue, SideEffectsCacheSetting,
+    StoreDir, UpdateConfig, WorkspaceSettings, decided_allow_builds, no_proxy_scalar,
+    normalize_registry_url, overlay, overlay_some, overlay_tools, registries, resolve,
+    resolve_child_concurrency, warn_deprecated_pairing,
 };
 
 impl WorkspaceSettings {
@@ -50,6 +50,7 @@ impl WorkspaceSettings {
         }
 
         identically_named_settings!(apply);
+        self.apply_lockfile(config);
 
         if let Some(macos_backup) = self.macos_backup.take() {
             overlay(&mut config.macos_backup.exclude_modules_dir, macos_backup.exclude_modules_dir);
@@ -121,6 +122,10 @@ impl WorkspaceSettings {
         overlay_some(&mut config.init_version, self.init_version.take());
         overlay_some(&mut config.save_prefix, self.save_prefix.take());
         overlay(&mut config.tag_version_prefix, self.tag_version_prefix.take());
+
+        if let Some(node_linker) = self.node_linker.take() {
+            node_linker.apply_to(config);
+        }
 
         overlay(&mut config.hoist_pattern, self.hoist_pattern.take());
         overlay(&mut config.public_hoist_pattern, self.public_hoist_pattern.take());
@@ -220,6 +225,21 @@ impl WorkspaceSettings {
                 if let Some(remote) = settings.remote {
                     config.remote_side_effects_cache.get_or_insert_default().overlay(remote);
                 }
+            }
+            None => {}
+        }
+    }
+
+    /// The section form turns the lockfile on, and a field it leaves out
+    /// takes its default, as in `sideEffectsCache`.
+    pub(super) fn apply_lockfile(&mut self, config: &mut Config) {
+        match self.lockfile.take() {
+            Some(LockfileSetting::Enabled(enabled)) => config.lockfile = enabled,
+            Some(LockfileSetting::Settings(settings)) => {
+                config.lockfile = true;
+                config.lockfile_include_resolution_settings = settings
+                    .include_resolution_settings
+                    .unwrap_or(false);
             }
             None => {}
         }

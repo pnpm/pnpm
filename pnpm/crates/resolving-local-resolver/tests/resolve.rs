@@ -158,6 +158,73 @@ async fn resolve_injected_directory() {
     assert_eq!(dir.directory, "..");
 }
 
+/// A path that cannot name a file on Windows (a `:` inside a component)
+/// is rejected with `ERROR_INVALID_NAME` there, and still reads as a
+/// missing directory (<https://github.com/pnpm/pnpm/issues/16590>).
+#[tokio::test]
+async fn resolve_directory_whose_name_cannot_exist() {
+    let (_tmp, project_dir) = fixture();
+    let wd = WantedLocalDependency {
+        bare_specifier: "./patch:got/.yarn/patches/got.patch".to_string(),
+        injected: false,
+    };
+
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let manifest = result.manifest.as_ref().expect("manifest");
+    assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("got.patch"));
+}
+
+/// A Yarn `patch:` specifier contains a `/`, so it reaches the local
+/// resolver by its path shape. Nothing exists at that path, so the
+/// protocol is reported.
+#[tokio::test]
+async fn resolve_missing_directory_with_unsupported_protocol() {
+    let (_tmp, project_dir) = fixture();
+    let specifier = "patch:got@npm%3A11.8.2#~/.yarn/patches/got-npm-11.8.2-c1eb105458.patch";
+    let wd = WantedLocalDependency { bare_specifier: specifier.to_string(), injected: false };
+
+    let err = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect_err("unsupported protocol");
+
+    let ResolveLocalError::UnsupportedProtocol(err) = err else {
+        panic!("expected UnsupportedProtocol, got {err:?}");
+    };
+    assert_eq!(err.protocol, "patch:");
+    assert_eq!(err.specifier, specifier);
+}
+
+/// The protocol check runs only once the directory is found missing.
+#[tokio::test]
+async fn resolve_existing_directory_whose_specifier_looks_like_a_protocol() {
+    let (tmp, project_dir) = fixture();
+    let linked = tmp
+        .path()
+        .join("inner")
+        .join("scheme:pkg")
+        .join("dir");
+    if fs::create_dir_all(&linked).is_err() {
+        // Windows cannot create a directory named this way.
+        return;
+    }
+    fs::write(linked.join("package.json"), r#"{"name":"linked","version":"1.0.0"}"#)
+        .expect("write package.json");
+    let wd =
+        WantedLocalDependency { bare_specifier: "scheme:pkg/dir".to_string(), injected: false };
+
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let manifest = result.manifest.as_ref().expect("manifest");
+    assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("linked"));
+}
+
 #[tokio::test]
 async fn resolve_workspace_directory() {
     let (_tmp, project_dir) = fixture();

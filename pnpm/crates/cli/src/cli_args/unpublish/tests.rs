@@ -1,6 +1,5 @@
 use super::{
-    Packument, UnpublishArgs, highest_version, registry_origin, rev_str, tarball_pathname,
-    versions_matching_range,
+    Packument, UnpublishArgs, highest_version, rev_str, tarball_pathname, versions_matching_range,
 };
 use mockito::Matcher;
 use pnpm_config::Config;
@@ -41,12 +40,6 @@ fn highest_version_picks_the_new_latest() {
         Some("1.0.1-beta.1"),
     );
     assert_eq!(highest_version(&versions(&[])), None);
-}
-
-#[test]
-fn registry_origin_drops_the_registry_path() {
-    let origin = registry_origin("https://registry.example.com:8443/npm/").expect("an origin");
-    assert_eq!(origin, "https://registry.example.com:8443");
 }
 
 #[test]
@@ -232,6 +225,46 @@ async fn a_partial_unpublish_shares_one_otp_across_the_put_and_the_tarball_delet
     assert_eq!(output, "Successfully unpublished 1 version(s) of test-pkg");
     get_mock.assert_async().await;
     challenge_mock.assert_async().await;
+    put_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+/// A registry mounted under a path gets the tarball `DELETE` under that
+/// path too, not at the host root.
+#[tokio::test]
+async fn a_partial_unpublish_deletes_the_tarball_under_the_registry_path() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    reset();
+
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/npm/", server.url());
+    let get_mock = server
+        .mock("GET", "/npm/test-pkg")
+        .with_status(200)
+        .with_body(two_version_packument(&format!("{}/npm", server.url())))
+        .expect(2)
+        .create_async()
+        .await;
+    let put_mock = server
+        .mock("PUT", "/npm/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create_async()
+        .await;
+    let tarball_mock = server
+        .mock("DELETE", "/npm/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create_async()
+        .await;
+
+    let output = unpublish_args(&registry, None, &["test-pkg@0.0.1"])
+        .execute::<FakeHost, RecordingReporter>(&Config::default())
+        .await
+        .expect("the unpublish succeeds");
+
+    assert_eq!(output, "Successfully unpublished 1 version(s) of test-pkg");
+    get_mock.assert_async().await;
     put_mock.assert_async().await;
     tarball_mock.assert_async().await;
 }

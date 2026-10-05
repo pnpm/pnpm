@@ -1,6 +1,7 @@
 pub use powershell::generate_pwsh_shim;
 pub use quoting::{cmd_escape, sh_single_quote};
 pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
+pub use replaced_batch::end_replaced_cmd_shim_batch;
 pub use sh::{
     generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
 };
@@ -311,7 +312,7 @@ fn generate_batchless_cmd_shim(quoted_target: &str, args: &str) -> String {
          @SETLOCAL EnableDelayedExpansion\r\n\
          @SET \"_PNPM_CMDLINE=!CMDCMDLINE:/c=!\"\r\n\
          @IF \"!_PNPM_CMDLINE!\"==\"!CMDCMDLINE!\" (ENDLOCAL & SET \"_PNPM_RESTORE_TITLE=1\") ELSE ENDLOCAL\r\n\
-         @GOTO #_undefined_# 2>NUL || (IF \"%_PNPM_RESTORE_TITLE%\"==\"1\" TITLE %COMSPEC%) & {restore_codepage}{target_command}\r\n",
+         {BATCH_END}(IF \"%_PNPM_RESTORE_TITLE%\"==\"1\" TITLE %COMSPEC%) & {restore_codepage}{target_command}\r\n",
     );
     if !cmd.is_ascii() {
         insert_utf8_codepage_switch(&mut cmd);
@@ -319,14 +320,20 @@ fn generate_batchless_cmd_shim(quoted_target: &str, args: &str) -> String {
     cmd
 }
 
+/// The start of the line that ends a [`CmdShimBatch::EndedBeforeTarget`]
+/// shim's batch and runs its target.
+const BATCH_END: &str = "@GOTO #_undefined_# 2>NUL || ";
+
+/// What a [`CmdShimBatch::Kept`] shim runs after its target when it switched
+/// the code page: the restore, with the target's exit code carried past it.
+const CODEPAGE_RESTORE_TRAILER: &str = "@SET \"_PNPM_EXIT_CODE=%ERRORLEVEL%\"\r\n\
+    @IF DEFINED _PNPM_CODEPAGE @\"%SystemRoot%\\System32\\chcp.com\" %_PNPM_CODEPAGE% >NUL\r\n\
+    @EXIT /B %_PNPM_EXIT_CODE%\r\n";
+
 fn with_utf8_codepage(mut cmd: String) -> String {
     if !cmd.is_ascii() {
         insert_utf8_codepage_switch(&mut cmd);
-        cmd.push_str(
-            "@SET \"_PNPM_EXIT_CODE=%ERRORLEVEL%\"\r\n\
-             @IF DEFINED _PNPM_CODEPAGE @\"%SystemRoot%\\System32\\chcp.com\" %_PNPM_CODEPAGE% >NUL\r\n\
-             @EXIT /B %_PNPM_EXIT_CODE%\r\n",
-        );
+        cmd.push_str(CODEPAGE_RESTORE_TRAILER);
     }
     cmd
 }
@@ -398,6 +405,8 @@ mod powershell;
 
 mod quoting;
 
-mod sh;
-
 mod relocatable;
+
+mod replaced_batch;
+
+mod sh;

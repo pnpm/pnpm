@@ -802,7 +802,7 @@ fn a_lost_workspace_state_write_warns_through_the_reporter() {
     let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     MESSAGES.lock().unwrap().clear();
     // Returns `()`: a lost cache write is not the command's failure.
-    update_workspace_state_or_warn::<RecordingReporter>(&blocker, &state);
+    update_workspace_state_or_warn::<RecordingReporter>(&blocker, &state, &Config::default());
     let recorded = MESSAGES.lock().unwrap().clone();
 
     assert_eq!(recorded.len(), 1, "exactly one warning, got: {recorded:?}");

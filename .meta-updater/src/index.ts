@@ -14,14 +14,13 @@ import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
-// The Rust products' npm wrapper packages. Their manifests are release
-// artifacts owned by the respective generate-packages.mjs scripts and are
-// versioned independently of the TypeScript packages, so none of the
-// normalizations below may touch them.
-const RUST_WRAPPER_PKGS = new Set([
+// These packages have their own release metadata and build pipelines;
+// the TypeScript package entry points, engine range, and Jest scripts do not apply.
+const NON_TYPESCRIPT_PKGS = new Set([
   'pacquet',
   '@pnpm/napi',
   '@pnpm/pnpr',
+  '@pnpm/esm-loader',
 ])
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
@@ -78,7 +77,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         if (!manifest) {
           return manifest
         }
-        if (manifest.name && RUST_WRAPPER_PKGS.has(manifest.name)) {
+        if (manifest.name && NON_TYPESCRIPT_PKGS.has(manifest.name)) {
           return manifest
         }
         if (manifest.name === 'monorepo-root') {

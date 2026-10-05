@@ -39,6 +39,7 @@ impl WorkspaceSettings {
         }
         let mut settings = identically_named_settings!(read);
 
+        settings.node_linker = Some(crate::NodeLinkerSetting::from_resolved(config));
         settings = settings.with_resolved_paths(config);
         settings = settings.with_resolved_presence(config);
         settings = settings.with_resolved_scripts(config);

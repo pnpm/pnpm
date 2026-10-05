@@ -532,6 +532,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
             exclude_links_from_lockfile: false,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
@@ -623,6 +624,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
             exclude_links_from_lockfile: false,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,

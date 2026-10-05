@@ -212,6 +212,23 @@ describe('unpublish: OTP challenges', () => {
     expect(deleteHeaders['npm-otp']).toBe('123456')
   })
 
+  test('a registry mounted under a path gets the tarball delete under that path', async () => {
+    const registryUrl = `${MOCK_REGISTRY}/npm/`
+    const packument = {
+      ...PACKUMENT,
+      versions: {
+        '0.0.1': { name: 'test-pkg', version: '0.0.1', dist: { tarball: `${registryUrl}test-pkg/-/test-pkg-0.0.1.tgz` } },
+        '0.0.2': { name: 'test-pkg', version: '0.0.2', dist: { tarball: `${registryUrl}test-pkg/-/test-pkg-0.0.2.tgz` } },
+      },
+    }
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/npm/test-pkg' }).reply(200, packument).times(2)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/npm/test-pkg/-rev/3-abc' }).reply(200, {})
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/npm/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc' }).reply(200, {})
+
+    await expect(unpublish.handler({ ...OPTS, registriesByScope: { default: registryUrl }, cliOptions: {} }, ['test-pkg@0.0.1']))
+      .resolves.toBe('Successfully unpublished 1 version(s) of test-pkg')
+  })
+
   test('the web-auth flow answers the challenge and its token is reused by the tarball delete', async () => {
     const restoreTty = overrideTty(true)
     const putOtpHeaders: Array<string | string[] | undefined> = []

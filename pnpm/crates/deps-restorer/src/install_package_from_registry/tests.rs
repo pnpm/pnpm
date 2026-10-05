@@ -31,6 +31,7 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        node_linker_excluded: Vec::new(),
         tools: std::collections::BTreeMap::new(),
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         network_concurrency_by_registry: std::collections::BTreeMap::new(),
@@ -82,6 +83,7 @@ fn create_config(
         symlink: false,
         install_state_dir: virtual_store_dir.to_path_buf(),
         configured_virtual_store_dir: None,
+        loaded_layout_defaults: None,
         enable_global_virtual_store: false,
         global_shims: Default::default(),
         virtual_store_only: false,
@@ -117,6 +119,7 @@ fn create_config(
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
+        lockfile_include_resolution_settings: false,
         registry: "https://registry.npmjs.com/".to_string(),
         scope: None,
         registries_by_scope: Default::default(),
@@ -261,6 +264,7 @@ fn create_config(
         explicit_settings: Default::default(),
         cli_settings: Default::default(),
         cli_setting_values: Default::default(),
+        raw_cli_config: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
     }

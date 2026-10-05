@@ -1,3 +1,4 @@
+pub(crate) mod cas;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
@@ -115,7 +116,15 @@ pub struct CasPrefetch {
     /// strict/lenient asymmetry documented there: a survivor propagates
     /// its error, a skipped snapshot swallows it.
     cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
-    task: tokio::task::JoinHandle<PrefetchResult>,
+    task: PrefetchTask,
+}
+
+/// The warm-cache prefetch [`CasPrefetch`] carries.
+enum PrefetchTask {
+    Running(tokio::task::JoinHandle<PrefetchResult>),
+    /// Settled and verified by an earlier pass over a superset of the
+    /// snapshots. See [`cas::retain_fetch_pass_rows`].
+    Settled(Box<PrefetchResult>),
 }
 
 impl CasPrefetch {
@@ -168,13 +177,16 @@ impl CasPrefetch {
         // `CreateVirtualStore::settle_prefetch`. Under a global virtual
         // store or an unchanged lockfile that is few or none of the rows
         // read here.
-        let task = tokio::spawn(prefetch_cas_paths(
+        let keys = prefetch_keys(&cache_keys);
+        #[cfg(test)]
+        tests::record_prefetch_start(&keys);
+        let task = PrefetchTask::Running(tokio::spawn(prefetch_cas_paths(
             store_index.clone(),
             store_dir,
-            prefetch_keys(&cache_keys),
+            keys,
             PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
             SharedVerifiedFilesCache::clone(&verified_files_cache),
-        ));
+        )));
         CasPrefetch { store_index, verified_files_cache, cache_keys, task }
     }
 }
@@ -261,6 +273,14 @@ pub struct CreateVirtualStore<'a> {
 /// Error type of [`CreateVirtualStore`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualStoreError {
+    #[display("Cannot install with nodeLinker.type=loaded: {message}")]
+    #[diagnostic(code(ERR_PNPM_CAS_CONFIGURATION))]
+    CasConfiguration { message: &'static str },
+    #[display(
+        "Package {package} needs materialization with the loaded linker. Add its name to nodeLinker.excluded."
+    )]
+    #[diagnostic(code(ERR_PNPM_CAS_REQUIRES_MATERIALIZATION))]
+    CasRequiresMaterialization { package: String },
     #[diagnostic(transparent)]
     InstallPackageBySnapshot(#[error(source)] InstallPackageBySnapshotError),
 
@@ -518,6 +538,7 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
 }
 
 mod partition;
+mod settle;
 mod snapshot_plan;
 
 #[cfg(test)]

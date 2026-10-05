@@ -2,9 +2,9 @@ use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
-    LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
-    PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
-    PeerDependencyRules, Pipe, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
+    LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinkerSetting,
+    NodePackageMapType, PackageConfigsSetting, PackageExtension, PackageImportMethod, Path,
+    PathBuf, PeerDependencyRules, Pipe, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
     RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
     SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath, SideEffectsCacheSetting,
     SupportedArchitectures, SystemEnv, TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig,
@@ -220,7 +220,7 @@ pub struct WorkspaceSettings {
     pub macos_backup: Option<MacosBackupSettings>,
     pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
-    pub node_linker: Option<NodeLinker>,
+    pub node_linker: Option<NodeLinkerSetting>,
     pub node_experimental_package_map: Option<bool>,
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
@@ -264,7 +264,7 @@ pub struct WorkspaceSettings {
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,
-    pub lockfile: Option<bool>,
+    pub lockfile: Option<LockfileSetting>,
     /// `lockfileDir` from `pnpm-workspace.yaml` or the global
     /// `config.yaml`. Resolved against the workspace dir like the other
     /// path-valued fields. See [`Config::lockfile_dir`](crate::settings::Config::lockfile_dir).
@@ -370,6 +370,7 @@ pub struct WorkspaceSettings {
     pub verify_store_integrity: Option<bool>,
     pub strict_store_pkg_content_check: Option<bool>,
     pub include_workspace_root: Option<bool>,
+    pub fail_if_no_match: Option<bool>,
     pub ignore_workspace_cycles: Option<bool>,
     pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store

@@ -17,9 +17,9 @@ use selection::{
 
 use super::{
     BTreeMap, HoistedDependencies, Host, InstallError, Lockfile, Materialized, Reporter,
-    build_workspace_state, update_workspace_state_or_warn,
+    build_workspace_state, recorded_auto_dedupe, update_workspace_state_or_warn,
 };
-use crate::optimistic_repeat_install::filesystem_now_ms;
+use crate::optimistic_repeat_install::filesystem_now_ms_in_modules;
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(crate) completion: crate::install::state_options::ApplyCompletionContext,
@@ -298,9 +298,6 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
     inputs: &ApplyMaterializationInputs<'_, '_>,
 ) {
     let phase_start = std::time::Instant::now();
-    // Write `node_modules/.pnpm-workspace-state-v1.json`.
-    // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the
-    // moment this file is missing, forcing `pnpm install` to rerun.
     let mut state = build_workspace_state::<Host>(
         &inputs.projects.workspace_root,
         inputs.completion.config,
@@ -310,11 +307,20 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         &inputs.completion.catalogs,
         inputs.projects.importers.manifests,
         inputs.projects.filtered_install,
-        filesystem_now_ms(&inputs.projects.workspace_root),
+        filesystem_now_ms_in_modules(&inputs.completion.config.workspace_state_modules_dir(
+            &inputs.projects.workspace_root,
+        )),
     );
-    state.settings.auto_dedupe = (inputs.completion.config.auto_dedupe
-        && inputs.materialized.fresh_lockfile.is_some())
-    .then_some(true);
-    update_workspace_state_or_warn::<Reporter>(&inputs.projects.workspace_root, &state);
+    state.settings.auto_dedupe = recorded_auto_dedupe(
+        inputs.completion.config,
+        (inputs.completion.config.auto_dedupe
+            && inputs.materialized.fresh_lockfile.is_some())
+        .then_some(true),
+    );
+    update_workspace_state_or_warn::<Reporter>(
+        &inputs.projects.workspace_root,
+        &state,
+        inputs.completion.config,
+    );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 }

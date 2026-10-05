@@ -36,6 +36,11 @@ fn derive_lockfile(config: &mut Config) {
     }
 }
 
+fn reset_lockfile(config: &mut Config, defaults: &Config) {
+    config.lockfile_include_resolution_settings = defaults.lockfile_include_resolution_settings;
+    derive_lockfile(config);
+}
+
 /// The hoist pattern `hoist` allows: the one still set, or the default,
 /// and none at all while hoisting is off. A `virtualStoreOnly` install
 /// still in force keeps both patterns empty.
@@ -172,7 +177,7 @@ impl WorkspaceSettings {
                 config.package_lock = defaults.package_lock;
                 derive_lockfile(config);
             }
-            "lockfile" => derive_lockfile(config),
+            "lockfile" => reset_lockfile(config, defaults),
             "hoist" => {
                 config.hoist = defaults.hoist;
                 reset_hoist_pattern(config, defaults);
@@ -185,6 +190,7 @@ impl WorkspaceSettings {
             "publicHoistPattern" => reset_public_hoist_pattern(config, defaults),
             "nodeLinker" => {
                 config.node_linker = defaults.node_linker;
+                config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
                 config.apply_prefer_symlinked_executables_derivation();
             }
             "preferSymlinkedExecutables" => {

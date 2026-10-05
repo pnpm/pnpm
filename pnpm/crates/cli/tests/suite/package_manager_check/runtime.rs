@@ -34,7 +34,43 @@ fn dev_engines_runtime_with_on_fail_warn_warns_about_a_node_version_mismatch() {
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
 
     assert_success(&output);
-    assert_contains(&output_text(&output), "This project requires Node.js 99999.0.0");
+    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
+    assert!(!stdout(&output).contains("99999.0.0"), "the warning leaked into stdout");
+}
+
+#[test]
+fn a_runtime_mismatch_warning_keeps_a_printed_value_alone_on_stdout() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_runtime(
+        &workspace,
+        "devEngines",
+        &serde_json::json!({
+            "name": "node", "version": "99999.0.0", "onFail": "warn",
+        }),
+    );
+
+    let output = run(pacquet, root.path(), &["cache", "path"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
+    assert_eq!(stdout(&output).lines().count(), 1, "stdout:\n{}", stdout(&output));
+}
+
+#[test]
+fn loglevel_error_hides_the_runtime_mismatch_warning() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_runtime(
+        &workspace,
+        "devEngines",
+        &serde_json::json!({
+            "name": "node", "version": "99999.0.0", "onFail": "warn",
+        }),
+    );
+
+    let output = run(pacquet, root.path(), &["--loglevel=error", "cache", "path"]);
+
+    assert_success(&output);
+    assert!(!output_text(&output).contains("99999.0.0"), "unexpected mention of the pinned range");
 }
 
 #[test]

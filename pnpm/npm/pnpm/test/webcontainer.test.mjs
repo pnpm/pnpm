@@ -13,7 +13,8 @@ import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BIN_NAMES = ['pnpm', 'pn', 'pnpx', 'pnx']
 
-for (const entry of ['bin/pnpm.mjs', 'bin/pnpx.mjs', ...BIN_NAMES]) {
+// The bins hand over to `bin/pnpm.mjs` when a shell runs them.
+for (const entry of ['bin/pnpm.mjs', 'bin/pnpx.mjs']) {
   test(`${entry} points WebContainer users to @pnpm/wasm without downloading a native binary`, t => {
     const fixture = createFixture(t)
     const result = runEntry(fixture, entry, ['--version'])
@@ -23,12 +24,12 @@ for (const entry of ['bin/pnpm.mjs', 'bin/pnpx.mjs', ...BIN_NAMES]) {
   })
 }
 
-test('WebContainer installation preserves its Node launchers', t => {
+test('WebContainer installation leaves the placeholder bins in place', t => {
   const fixture = createFixture(t)
   const installed = runEntry(fixture, 'install.js', [], { npm_lifecycle_event: 'preinstall' })
   assert.equal(installed.status, 0, installed.stderr)
   for (const name of BIN_NAMES) {
-    assert.match(fs.readFileSync(path.join(fixture, name), 'utf8'), /^#!\/usr\/bin\/env node\n/)
+    assert.deepEqual(fs.readFileSync(path.join(fixture, name)), fs.readFileSync(path.join(WRAPPER_DIR, name)))
   }
 })
 

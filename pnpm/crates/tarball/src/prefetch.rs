@@ -172,15 +172,32 @@ impl PrefetchResult {
                 ?cache_key,
                 "store-index entry failed integrity check; leaving it to the per-snapshot lookup",
             );
-            self.cas_paths.remove(cache_key);
-            self.manifests.remove(cache_key);
-            self.side_effects_maps.remove(cache_key);
-            self.side_effects.remove(cache_key);
-            self.remote_side_effects_quarantine.remove(cache_key);
-            self.requires_build.remove(cache_key);
-            self.requires_prepare.remove(cache_key);
+            self.remove_row(cache_key);
         }
         failed.len()
+    }
+
+    /// Drop every row whose key `keep` rejects, along with its pending
+    /// files check.
+    pub fn retain_rows(&mut self, keep: impl Fn(&str) -> bool) {
+        self.cas_paths.retain(|cache_key, _| keep(cache_key));
+        self.manifests.retain(|cache_key, _| keep(cache_key));
+        self.side_effects_maps.retain(|cache_key, _| keep(cache_key));
+        self.side_effects.retain(|cache_key, _| keep(cache_key));
+        self.remote_side_effects_quarantine.retain(|cache_key, _| keep(cache_key));
+        self.requires_build.retain(|cache_key, _| keep(cache_key));
+        self.requires_prepare.retain(|cache_key, _| keep(cache_key));
+        self.pending_checks.retain(|cache_key, _| keep(cache_key));
+    }
+
+    fn remove_row(&mut self, cache_key: &str) {
+        self.cas_paths.remove(cache_key);
+        self.manifests.remove(cache_key);
+        self.side_effects_maps.remove(cache_key);
+        self.side_effects.remove(cache_key);
+        self.remote_side_effects_quarantine.remove(cache_key);
+        self.requires_build.remove(cache_key);
+        self.requires_prepare.remove(cache_key);
     }
 }
 

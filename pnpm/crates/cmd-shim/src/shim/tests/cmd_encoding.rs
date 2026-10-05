@@ -202,7 +202,7 @@ fn node_executable() -> std::path::PathBuf {
 /// `cmd.exe` in a console of its own. The code page belongs to the console, so
 /// a test that switches it would otherwise race every other process attached to
 /// the test runner's console.
-fn cmd_in_own_console() -> Command {
+pub(super) fn cmd_in_own_console() -> Command {
     let command = Command::new("cmd.exe");
     #[cfg(windows)]
     let command = {

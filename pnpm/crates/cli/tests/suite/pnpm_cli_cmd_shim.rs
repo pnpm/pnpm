@@ -10,6 +10,7 @@
 //! else.
 #![cfg(windows)]
 
+use crate::_utils::console::PrivateConsole;
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
@@ -18,17 +19,14 @@ use std::{
     fs,
     io::{Read, Write},
     os::windows::process::CommandExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     thread::sleep,
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
 use windows_sys::Win32::System::{
-    Console::{
-        AllocConsole, CTRL_BREAK_EVENT, CTRL_C_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
-        SetConsoleCtrlHandler,
-    },
+    Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, GenerateConsoleCtrlEvent},
     Threading::CREATE_NEW_PROCESS_GROUP,
 };
 
@@ -55,19 +53,7 @@ impl GlobalCli {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         let pnpm_home = root.path().join("pnpm-hömé");
         let package_dir = root.path().join("cli");
-        fs::create_dir_all(&package_dir).expect("create the CLI package dir");
-        fs::copy(cargo_bin_pnpm(), package_dir.join("pnpm.exe")).expect("copy pnpm.exe");
-        fs::write(
-            package_dir.join("package.json"),
-            json!({
-                "name": "pnpm",
-                "version": "12.0.0",
-                "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
-                "files": ["pnpm.exe"],
-            })
-            .to_string(),
-        )
-        .expect("write the CLI package manifest");
+        write_cli_package(&package_dir, "12.0.0");
         fs::create_dir_all(pnpm_home.join("bin")).expect("create the global bin dir");
         // A global install anchors its config at the pnpm home, so the
         // per-test store and cache go there.
@@ -152,6 +138,31 @@ impl GlobalCli {
 
 fn cargo_bin_pnpm() -> PathBuf {
     assert_cmd::cargo::cargo_bin("pnpm")
+}
+
+/// The pnpm CLI as the package `pnpm` at `version`, with this build as its
+/// executable.
+fn write_cli_package(package_dir: &Path, version: &str) {
+    fs::create_dir_all(package_dir).expect("create the CLI package dir");
+    fs::copy(cargo_bin_pnpm(), package_dir.join("pnpm.exe")).expect("copy pnpm.exe");
+    fs::write(
+        package_dir.join("package.json"),
+        json!({
+            "name": "pnpm",
+            "version": version,
+            "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
+            "files": ["pnpm.exe"],
+        })
+        .to_string(),
+    )
+    .expect("write the CLI package manifest");
+}
+
+/// The quoted `pnpm.exe` path on the shim's target line.
+fn quoted_target(shim: &str) -> &str {
+    let start = shim.rfind(r#""%~dp0\"#).expect("the shim quotes its target");
+    let end = shim[start..].find(r#".exe""#).expect("the target is pnpm.exe");
+    &shim[start..start + end + r#".exe""#.len()]
 }
 
 fn run(mut command: Command) -> Output {
@@ -290,6 +301,45 @@ fn stdin_reaches_the_command_pnpm_runs() {
     );
 }
 
+/// pnpm 12.8 and older linked a `pnpm.cmd` that cmd.exe is still reading
+/// while `pnpm.exe` runs. An update of the CLI from that shim, which is what
+/// `pnpm self-update` does, replaces the file while cmd.exe is still reading
+/// it. cmd.exe then reads on in the new file from where the old one's target
+/// line ended, which must neither run a piece of the new shim nor the update
+/// again (pnpm/pnpm#16573).
+#[test]
+fn updating_the_cli_from_a_batch_kept_shim_runs_pnpm_once() {
+    let cli = GlobalCli::install();
+    let shim = fs::read_to_string(cli.shim()).expect("read pnpm.cmd");
+    let target = quoted_target(&shim);
+    let batch_kept = format!("@SETLOCAL\r\n@{target}  %*\r\n");
+    fs::write(cli.shim(), &batch_kept).expect("write the batch-kept shim");
+
+    let update = cli.root.path().join("cli-update");
+    write_cli_package(&update, "12.0.1");
+    let output =
+        run(cli.via_cmd(&format!(r#"add -g --ignore-scripts "file:{}""#, update.display())));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{output:?}");
+    assert!(!stderr.contains("is not recognized"), "cmd.exe ran a line of the new shim:\n{stderr}");
+    assert_eq!(stdout.matches("Done in ").count(), 1, "pnpm ran more than once:\n{stdout}");
+
+    let replaced = fs::read_to_string(cli.shim()).expect("read the replaced pnpm.cmd");
+    assert_ne!(replaced, batch_kept, "the update must replace the shim");
+    assert!(replaced.contains("@GOTO #_undefined_# 2>NUL || "), "{replaced}");
+    assert!(replaced.contains("@EXIT /B %ERRORLEVEL%\r\n"), "{replaced}");
+
+    // The replaced shim, run from its start, still ends its batch before
+    // `pnpm.exe` and passes the exit code through.
+    let from_cmd = run(cli.via_cmd("run exit-3"));
+    assert_eq!(from_cmd.status.code(), Some(3), "{from_cmd:?}");
+    assert!(
+        !String::from_utf8_lossy(&from_cmd.stderr).contains("is not recognized"),
+        "{from_cmd:?}",
+    );
+}
+
 /// Ctrl+C at the console reaches every process attached to it. With the batch
 /// context already gone, cmd.exe exits along with pnpm instead of asking about
 /// a batch job.
@@ -399,44 +449,4 @@ fn assert_interrupt_asks_nothing(interrupt: Interrupt) {
         "cmd.exe asked to terminate a batch job after {interrupt:?}:\n{stdout}",
     );
     assert!(status.is_some(), "cmd.exe kept running after {interrupt:?}");
-}
-
-/// A console of this test process's own, so the batch job prompt and the
-/// control events stay away from whatever console runs the test suite. Each
-/// test runs in its own process under nextest, so the swap affects no other
-/// test.
-///
-/// Ctrl+C handling is switched back on, because the test runner may have
-/// started this process with it off, and children inherit that. A handler then
-/// keeps this process itself alive through a Ctrl+C sent to the whole console.
-struct PrivateConsole;
-
-impl PrivateConsole {
-    fn attach() -> Self {
-        // SAFETY: plain FFI calls. Detaching fails harmlessly when the process
-        // has no console to begin with. `survive_ctrl_c` is a `'static` function
-        // that touches no state, so it is sound to call on any thread.
-        unsafe {
-            FreeConsole();
-            assert_ne!(AllocConsole(), 0, "AllocConsole: {}", std::io::Error::last_os_error());
-            SetConsoleCtrlHandler(None, 0);
-            SetConsoleCtrlHandler(Some(survive_ctrl_c), 1);
-        }
-        PrivateConsole
-    }
-}
-
-impl Drop for PrivateConsole {
-    fn drop(&mut self) {
-        // SAFETY: plain FFI calls; the handler removed is the one `attach` added.
-        unsafe {
-            SetConsoleCtrlHandler(Some(survive_ctrl_c), 0);
-            FreeConsole();
-        }
-    }
-}
-
-/// Reports every console control event as handled.
-unsafe extern "system" fn survive_ctrl_c(_event: u32) -> windows_sys::core::BOOL {
-    1
 }

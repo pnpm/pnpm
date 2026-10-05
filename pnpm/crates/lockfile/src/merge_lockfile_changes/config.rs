@@ -4,11 +4,13 @@ use std::collections::BTreeMap;
 
 use super::{Winner, take_changed, winner};
 
+/// A merged graph is no resolution's output, so it records no
+/// [`crate::ResolutionSettings`] and the next install re-resolves it.
 pub(super) fn merge_settings(
     ours: Option<&LockfileSettings>,
     theirs: Option<&LockfileSettings>,
 ) -> Option<LockfileSettings> {
-    match (ours, theirs) {
+    let merged = match (ours, theirs) {
         (None, None) => None,
         (Some(ours), None) => Some(ours.clone()),
         (None, Some(theirs)) => Some(theirs.clone()),
@@ -21,8 +23,13 @@ pub(super) fn merge_settings(
                 || theirs.inject_workspace_packages,
             peers_suffix_max_length: ours.peers_suffix_max_length
                 .or(theirs.peers_suffix_max_length),
+            resolution: crate::ResolutionSettings::default(),
         }),
-    }
+    };
+    merged.map(|settings| LockfileSettings {
+        resolution: crate::ResolutionSettings::default(),
+        ..settings
+    })
 }
 
 pub(super) fn merge_catalogs(

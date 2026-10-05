@@ -1,6 +1,6 @@
 use super::{
     BTreeSet, Command, CommandCargoExt, CommandExtra, CommandTempCwd, DEP, HELLO, LEGEND, PKG,
-    Path, Value, canonical, fs, json, recursive_project_names, run_ok, setup_registry,
+    Path, Value, canonical, fs, json, pacquet_in, recursive_project_names, run_ok, setup_registry,
     write_workspace,
 };
 
@@ -200,6 +200,45 @@ fn fail_if_no_match_exits_non_zero_when_the_filter_matches_nothing() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
+
+    drop(root);
+}
+
+/// `failIfNoMatch` in `pnpm-workspace.yaml` is the setting half of
+/// `--fail-if-no-match`, and `--no-fail-if-no-match` turns it back off.
+#[test]
+fn fail_if_no_match_setting_is_read_from_the_workspace_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", json!({ "name": "project-1", "version": "1.0.0" }))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nfailIfNoMatch: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let list_unmatched = |extra_args: &[&str]| {
+        pacquet_in(&workspace, ["list", "--filter=not-exists"].iter().chain(extra_args))
+            .output()
+            .expect("spawn pacquet list")
+    };
+
+    let output = list_unmatched(&[]);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let output = list_unmatched(&["--no-fail-if-no-match"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
 
     drop(root);
 }

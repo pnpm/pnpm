@@ -29,7 +29,8 @@ pub struct RuntimeArgs {
     #[clap(short = 'P', long = "save-prod")]
     pub save_prod: bool,
 
-    /// Runtime subcommand and arguments.
+    /// Subcommand and its arguments: `set <name> [<version>]`, where `<name>`
+    /// is `node`, `deno`, or `bun`.
     pub params: Vec<String>,
 }
 

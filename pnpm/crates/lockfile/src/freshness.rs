@@ -42,6 +42,9 @@ pub struct ResolutionSettingsCheck<'a> {
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
+    /// The values `lockfile.includeResolutionSettings` records, or `None`
+    /// when that setting is off and they go uncompared.
+    pub resolution_settings: Option<&'a crate::ResolutionSettings>,
 }
 
 /// What [`check_lockfile_settings`] compares the lockfile's
@@ -264,6 +267,14 @@ pub enum StalenessReason {
     )]
     PnpmfileChecksumChanged { lockfile: Option<String>, config: Option<String> },
 
+    /// A setting `lockfile.includeResolutionSettings` records differs from
+    /// the current config. An unrecorded value counts as different, so
+    /// turning that setting on re-resolves the lockfile once.
+    #[display(
+        "`{setting}` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    ResolutionSettingChanged { setting: crate::ResolutionSetting, lockfile: String, config: String },
+
     /// A local directory or injected workspace dependency has changed
     /// on disk (its dependencies were added, removed, or updated).
     #[display("local dependency {name:?} at {path:?} is outdated")]
@@ -304,6 +315,9 @@ impl StalenessReason {
             StalenessReason::PnpmfileChecksumChanged { .. } => Some("pnpmfileChecksum"),
             StalenessReason::InjectWorkspacePackagesChanged { .. } => {
                 Some("settings.injectWorkspacePackages")
+            }
+            StalenessReason::ResolutionSettingChanged { setting, .. } => {
+                Some(setting.lockfile_key())
             }
             // Not a setting: the lockfile disagrees with itself rather than
             // with any configured value, so it gets its own error rather
@@ -484,7 +498,28 @@ fn check_recorded_settings(
         });
     }
 
-    Ok(())
+    check_resolution_settings(settings, check.resolution_settings)
+}
+
+fn check_resolution_settings(
+    settings: Option<&crate::LockfileSettings>,
+    expected: Option<&crate::ResolutionSettings>,
+) -> Result<(), StalenessReason> {
+    let Some(expected) = expected else { return Ok(()) };
+    let unrecorded = crate::ResolutionSettings::default();
+    let recorded = settings.map_or(&unrecorded, |settings| &settings.resolution);
+    match recorded.first_difference(expected) {
+        None => Ok(()),
+        Some(difference) => Err(StalenessReason::ResolutionSettingChanged {
+            setting: difference.setting,
+            lockfile: describe_setting_value(difference.recorded.as_ref()),
+            config: describe_setting_value(difference.expected.as_ref()),
+        }),
+    }
+}
+
+fn describe_setting_value(value: Option<&serde_json::Value>) -> String {
+    value.map_or_else(|| "unset".to_string(), ToString::to_string)
 }
 
 fn check_pnpmfile_checksum(

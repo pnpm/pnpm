@@ -19,7 +19,7 @@ const REAL_ENDIANNESS = Object.getOwnPropertyDescriptor(os, 'endianness')
 
 const wrapperDir = path.resolve(fileURLToPath(import.meta.url), '../..')
 const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'package.json'), 'utf8'))
-const HAS_A_SHELL = process.platform === 'win32' && 'Windows requires a command shim'
+const NO_SH = process.platform === 'win32' && 'Windows has no sh'
 
 test('npm installs a shim that runs the native pnpm binary', (t) => {
   assert.equal(wrapperManifest.bin.pnpm, 'pnpm')
@@ -73,16 +73,18 @@ test('npm installs global Windows shims that name the native executable with --l
   }
 })
 
-// The published Node launcher remains executable when lifecycle scripts are blocked.
+// npm's bin points straight at the placeholder rather than naming an
+// interpreter for it, which is what keeps it working once the native binary
+// takes the same path. Windows has no shell that could run it instead.
 test('the shim runs pnpm through Node.js when npm skipped the install scripts', {
-  skip: HAS_A_SHELL,
+  skip: NO_SH,
 }, (t) => {
   const { prefix, fixtureDir } = installFixtureWithNpm(t, ['--ignore-scripts'])
   const placeholder = fs.readFileSync(path.join(fixtureDir, 'pnpm'), 'utf8')
   const installedPlaceholder = path.join(prefix, 'lib', 'node_modules', 'pnpm-install-fixture', 'pnpm')
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 
-  assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  assert.equal(runThroughShell(path.join(prefix, 'bin', 'pnpm'), ['works']), 'fixture:works\n')
   // The binary never arrived, so the placeholder is still what the shim runs.
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 })
@@ -92,7 +94,7 @@ test('the shim runs pnpm through Node.js when npm skipped the install scripts', 
 // Its two bin-link shapes are covered separately: a shim that execs the target,
 // and a symlink to it.
 test('pnpm links a shim that runs the placeholder when it skipped the build scripts', {
-  skip: HAS_A_SHELL,
+  skip: NO_SH,
 }, (t) => {
   const { projectDir } = installFixtureWithPnpm(t, [])
   const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
@@ -104,21 +106,43 @@ test('pnpm links a shim that runs the placeholder when it skipped the build scri
 // The shape `installPnpmToTools` produces for the version store a
 // `packageManager` pin is delegated to.
 test('pnpm links a symlink that runs the placeholder when executables are symlinked', {
-  skip: HAS_A_SHELL,
+  skip: NO_SH,
 }, (t) => {
   const { projectDir } = installFixtureWithPnpm(t, ['--config.node-linker=hoisted'])
   const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
   assert.equal(fs.lstatSync(bin).isSymbolicLink(), true)
 
-  assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  assert.equal(runThroughShell(bin, ['works']), 'fixture:works\n')
 })
 
-test('pnpm links native aliases after an approved fresh install', { skip: HAS_A_SHELL }, t => {
+// The constraint ../pnpm explains. Published pnpm 11 releases depend on it, so
+// no change elsewhere in this repository can lift it.
+test('every bin is shebang-less', () => {
+  for (const file of Object.values(wrapperManifest.bin)) {
+    assert.doesNotMatch(fs.readFileSync(path.join(wrapperDir, file), 'utf8'), /^#!/, `${file} must not carry a shebang`)
+  }
+})
+
+// The order those pnpm 11 releases install in: bins linked while the
+// placeholders are in place, then the native binary moved onto them, with no
+// relink afterwards.
+test('a bin shim linked before the native binary arrived runs the native binary', { skip: NO_SH }, t => {
+  const { projectDir } = installFixtureWithPnpm(t, [])
+  const installedWrapper = path.join(projectDir, 'node_modules', 'pnpm-install-fixture')
+  execFileSync(process.execPath, ['install.js'], {
+    cwd: installedWrapper,
+    env: { ...process.env, npm_lifecycle_event: 'preinstall' },
+    stdio: 'pipe',
+  })
+  assertPnpmNativeAliases(projectDir)
+})
+
+test('pnpm links native aliases after an approved fresh install', { skip: NO_SH }, t => {
   const { projectDir } = installFixtureWithPnpm(t, [], { ignoreScripts: false })
   assertPnpmNativeAliases(projectDir)
 })
 
-test('pnpm replaces Node shims after rebuilding a previously blocked install', { skip: HAS_A_SHELL }, t => {
+test('pnpm replaces Node shims after rebuilding a previously blocked install', { skip: NO_SH }, t => {
   const { projectDir, tempDir } = installFixtureWithPnpm(t, [])
   const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
   assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
@@ -340,6 +364,19 @@ function assertNativeAliases (binDirectory) {
       env: { ...process.env, PATH: path.join(binDirectory, 'no-node-on-path') },
     }), 'fixture:works\n')
   }
+}
+
+/**
+ * Run `bin` from a shell, as a user's `pnpm` is run. A shebang-less bin is
+ * reached only that way without glibc, which retries ENOEXEC under `/bin/sh`
+ * itself. Throws when it exits non-zero.
+ *
+ * @param {string} bin Absolute path to the bin to run.
+ * @param {string[]} args Arguments to pass to it.
+ * @returns {string} Its stdout, decoded as UTF-8.
+ */
+function runThroughShell (bin, args) {
+  return execFileSync('sh', [bin, ...args], { encoding: 'utf8' })
 }
 
 function runNpm (args, cwd) {

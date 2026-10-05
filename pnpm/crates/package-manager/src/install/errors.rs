@@ -30,6 +30,9 @@ pub(super) fn map_fresh_lockfile_error(error: InstallWithFreshLockfileError) -> 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallError {
     #[diagnostic(transparent)]
+    RegisterLoadedProject(#[error(source)] pnpm_store_dir::RegisterProjectError),
+
+    #[diagnostic(transparent)]
     StoreLock(#[error(source)] pnpm_store_dir::StoreLockError),
 
     /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the

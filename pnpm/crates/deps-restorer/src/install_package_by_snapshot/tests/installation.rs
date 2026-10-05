@@ -201,6 +201,13 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
             custom_fetcher_session: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: pnpm_config::NodeLinker::Hoisted,
@@ -211,10 +218,6 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
             requester: "/project",
 
             allow_build_policy: &allow_build_policy,
-
-            logged_methods: &logged_methods,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         skipped: &skipped,

@@ -18,13 +18,14 @@
 
 use crate::{
     cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, run_install},
+        install_pnpm::{link_exe_platform_binary, package_dir, pnpm_executable_path, run_install},
         verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
     },
     config_deps,
     engine_pm::{
         channel::{EnginePackages, PackageManager},
         error::EngineError,
+        provision::engine_bin,
     },
     slot_lock,
 };
@@ -52,6 +53,8 @@ use std::{
 pub(crate) struct InstalledEngine {
     /// The directory holding the engine's linked bins.
     pub(crate) bin_dir: PathBuf,
+    /// The host's native binary, for an engine that ships one.
+    pub(crate) native_binary: Option<PathBuf>,
     /// The private directory the engine was installed into when its shared
     /// slot was held. It is removed when dropped, and the engine runs from
     /// it, so it lives for as long as the engine may run.
@@ -59,8 +62,16 @@ pub(crate) struct InstalledEngine {
 }
 
 impl InstalledEngine {
-    fn shared(bin_dir: PathBuf) -> Self {
-        Self { bin_dir, private_install: None }
+    /// The executable that runs `pm` itself. A native binary runs directly:
+    /// on POSIX its bin is a shell script that forks several more processes
+    /// before it reaches the binary, on every run.
+    pub(crate) fn program(&self, pm: PackageManager) -> miette::Result<PathBuf> {
+        let name = pm.name();
+        let dir = || self.bin_dir.display().to_string();
+        self.native_binary
+            .clone()
+            .or_else(|| engine_bin(&self.bin_dir, name))
+            .ok_or_else(|| EngineError::MissingEngineBin { name, dir: dir() }.into())
     }
 }
 
@@ -143,8 +154,8 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
         config.store_dir.lock_for_use().wrap_err("lock the package-manager engine store")?;
     // An engine already in its slot, with its bins linked, skips both the
     // signature check and the install.
-    if let Some(bin_dir) = linked_engine_bins(config, env, package, version) {
-        return Ok(InstalledEngine::shared(bin_dir));
+    if let Some(engine) = linked_engine_bins(config, env, package, version) {
+        return Ok(engine);
     }
 
     // A task runner that pins `packageManager` spawns many `pnpm run`
@@ -157,33 +168,30 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     // whose bins are missing or were linked by another pnpm is relinked here,
     // under the lock, since other processes may be running the engine from it.
     if lock.is_some() {
-        if let Some(bin_dir) = linked_engine_bins(config, env, package, version) {
-            return Ok(InstalledEngine::shared(bin_dir));
+        if let Some(engine) = linked_engine_bins(config, env, package, version) {
+            return Ok(engine);
         }
         if let Some(slot) = populated_engine_slot(config, env, package, version) {
-            return link_engine_bins(&slot, package.wrapper, package.links_native_binary)
-                .map(InstalledEngine::shared);
+            return link_engine_bins(&slot, package.wrapper, package.links_native_binary);
         }
     }
 
     verify_registry_engine::<Reporter>(config, pm, env, version, package).await?;
 
     match lock {
-        Some(_lock) => install_engine_into_slot::<Reporter>(config, pm, version, package)
-            .await
-            .map(InstalledEngine::shared),
+        Some(_lock) => install_engine_into_slot::<Reporter>(config, pm, version, package).await,
         None => install_engine_privately::<Reporter>(config, pm, version, package).await,
     }
 }
 
 /// Install the engine into its slot in the global virtual store, under the
-/// slot lock, and return its linked bin directory.
+/// slot lock, and return it linked.
 async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     pm: PackageManager,
     version: &str,
     package: EnginePackages,
-) -> miette::Result<PathBuf> {
+) -> miette::Result<InstalledEngine> {
     let package_name = package.wrapper;
     // Install into a throwaway directory with the global virtual store
     // enabled, so the engine itself materializes in `<store>/links/...`
@@ -234,9 +242,9 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         None,
     ))
     .await?;
-    let bin_dir =
+    let engine =
         link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)?;
-    Ok(InstalledEngine { bin_dir, private_install: Some(private_install) })
+    Ok(InstalledEngine { private_install: Some(private_install), ..engine })
 }
 
 /// Take the host-wide lock guarding this engine's slot, or `None` when
@@ -367,22 +375,22 @@ fn package_manager_home(global_pkg_dir: &Path) -> &Path {
 /// slot or a private install directory — for running: the host's native
 /// binary into the wrapper when the engine ships one (replicating the
 /// wrapper's preinstall, which the install skips), and the wrapper's bins
-/// into `<install_root>/bin`, which is returned.
+/// into `<install_root>/bin`.
 fn link_engine_bins(
     install_root: &Path,
     package_name: &str,
     links_native_binary: bool,
-) -> miette::Result<PathBuf> {
+) -> miette::Result<InstalledEngine> {
     let pkg_dir = package_dir(install_root, package_name);
     let bin_dir = install_root.join("bin");
-    if links_native_binary {
-        link_exe_platform_binary(install_root, package_name)?;
-    }
+    let native_binary = links_native_binary
+        .then(|| link_exe_platform_binary(install_root, package_name))
+        .transpose()?;
     link_bins(&pkg_dir, &bin_dir)?;
     linked_bins::mark_current(&bin_dir)
         .into_diagnostic()
         .wrap_err("record the linked package manager bins")?;
-    Ok(bin_dir)
+    Ok(InstalledEngine { bin_dir, native_binary, private_install: None })
 }
 
 /// The global-virtual-store slot the selected engine wrapper resolves to, or `None`

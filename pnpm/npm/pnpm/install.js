@@ -1,7 +1,11 @@
 #!/usr/bin/env node
-// Native installs replace the Node entry points with the host binary. npm's
-// Windows shims must then be regenerated against pnpm.exe; Corepack and
-// installations that block lifecycle scripts keep the Node entry points.
+// Native installs replace every bin with the host binary, so `pnpm` runs with
+// no Node.js startup per call. The bins it replaces are shebang-less for the
+// reason ./pnpm gives. npm's Windows shims still target the extensionless path
+// after the `bin` rewrite, so postinstall asks npm to regenerate them against
+// `pnpm.exe`. Installs that block lifecycle scripts keep the placeholders,
+// which reach pnpm through Node.js wherever a shell runs them. Corepack runs no
+// lifecycle scripts and enters through `bin/pnpm.mjs`.
 import console from 'node:console'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -32,7 +36,7 @@ function setup () {
     return
   }
 
-  // The Node launchers stay in place there and point to `@pnpm/wasm`.
+  // The placeholders stay in place there and point to `@pnpm/wasm`.
   if ('webcontainer' in process.versions) {
     return
   }

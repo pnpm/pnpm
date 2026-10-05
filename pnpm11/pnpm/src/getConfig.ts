@@ -22,8 +22,10 @@ export async function getConfig (
     globalDirShouldAllowWrite?: boolean
     skipGlobalBinDirCheck?: boolean
     workspaceDir: string | undefined
+    rawCliConfig?: Record<string, unknown>
     onlyInheritDlxSettingsFromLocal?: boolean
     forSelfUpdate?: boolean
+    ignoreProjectNpmrc?: boolean
     printWarnings?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
@@ -35,8 +37,10 @@ export async function getConfig (
     workspaceDir: opts.workspaceDir,
     onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
     forSelfUpdate: opts.forSelfUpdate,
+    ignoreProjectNpmrc: opts.ignoreProjectNpmrc,
   })
   context.cliOptions = cliOptions
+  context.rawCliConfig = opts.rawCliConfig
   applyDerivedConfig(config)
 
   if (opts.excludeReporter) {

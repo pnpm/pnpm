@@ -353,6 +353,44 @@ impl VirtualStoreLayout {
         // pushes it as a single component).
         join_global_virtual_store_path(&self.package_store_dir, &suffix)
     }
+
+    /// Whether `key`'s virtual-store slot is lexically contained within the store
+    /// (and within the package directory in global-virtual-store mode).
+    #[must_use]
+    pub fn is_slot_contained(&self, key: &PackageKey) -> bool {
+        let slot_dir = self.slot_dir(key);
+        if !pnpm_fs::is_subdir(&self.package_store_dir, &slot_dir) {
+            return false;
+        }
+        if self.enable_global_virtual_store() {
+            return is_gvs_slot_contained(&self.package_store_dir, key, &slot_dir);
+        }
+        true
+    }
+}
+
+fn is_gvs_slot_contained(store_dir: &Path, key: &PackageKey, slot_dir: &Path) -> bool {
+    let name = key.name.to_string();
+    let prefix = if name.starts_with('@') { "" } else { "@/" };
+    let package_dir = pnpm_fs::join_slash_separated_path(store_dir, &format!("{prefix}{name}"));
+    if !pnpm_fs::is_subdir(&package_dir, slot_dir) {
+        return false;
+    }
+    let parent_norm = pnpm_fs::lexical_normalize(&package_dir);
+    let child_norm = pnpm_fs::lexical_normalize(slot_dir);
+    let Ok(relative) = child_norm.strip_prefix(&parent_norm) else {
+        return false;
+    };
+    let mut components = relative.components();
+    let (
+        Some(std::path::Component::Normal(version)),
+        Some(std::path::Component::Normal(_hash)),
+        None,
+    ) = (components.next(), components.next(), components.next())
+    else {
+        return false;
+    };
+    is_single_gvs_path_component(&version.to_string_lossy())
 }
 
 /// Build a lockfile's layout using the root project's runtime pin, effective
@@ -535,10 +573,7 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
 }
 
 fn is_single_gvs_path_component(value: &str) -> bool {
-    let mut components = Path::new(value).components();
-    !value.contains(['/', '\\'])
-        && matches!(components.next(), Some(std::path::Component::Normal(_)))
-        && components.next().is_none()
+    pnpm_package_name::is_valid_package_version(value)
 }
 
 /// Stands in for the version of a snapshot resolved from a local

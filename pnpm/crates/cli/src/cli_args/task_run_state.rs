@@ -151,6 +151,12 @@ impl TaskRunStateContext {
         Self { state_dir, latest_state_path, invocation, keys_by_id, ids_by_key }
     }
 
+    pub fn with_modules_dir(mut self, modules_dir: &Path) -> Self {
+        self.state_dir = modules_dir.join(STATE_DIR);
+        self.latest_state_path = self.state_dir.join(LATEST_STATE_FILE);
+        self
+    }
+
     pub fn read_completed_tasks(&self) -> miette::Result<Option<HashSet<TaskKey>>> {
         let Some(latest_run) = self.resumable_latest_run()? else { return Ok(None) };
         let (run, finished) = match self.newest_state(&latest_run) {

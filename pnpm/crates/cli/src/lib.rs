@@ -470,6 +470,7 @@ fn configure_cli_args(args: &mut CliArgs) -> miette::Result<()> {
     args.promote_recursive_for_filter();
     args.apply_local_prefix()?;
     args.apply_workspace_root()?;
+    args.ignore_workspace_for_global_config_read();
     args.promote_recursive_by_default();
     args.configure_reporter();
     cli_args::sudo_guard::check_sudo(&args.command)?;

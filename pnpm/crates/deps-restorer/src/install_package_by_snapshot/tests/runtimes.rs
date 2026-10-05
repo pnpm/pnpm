@@ -268,6 +268,13 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
             custom_fetcher_session: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &logged_methods,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: pnpm_config::NodeLinker::Hoisted,
@@ -278,10 +285,6 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
             requester: "/project",
 
             allow_build_policy: &allow_build_policy,
-
-            logged_methods: &logged_methods,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         skipped: &skipped,
@@ -349,6 +352,13 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
             custom_fetcher_session: None,
         },
         ctx: &crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: &warm_logged,
+                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: None,
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &layout,
                 kind: pnpm_config::NodeLinker::Hoisted,
@@ -359,13 +369,9 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
             requester: "/project",
 
             allow_build_policy: &allow_build_policy,
-
             // Deliberately not the cold run's counter: the assertion
             // below is that the warm path logs its import method on its
             // own.
-            logged_methods: &warm_logged,
-            git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-            dir_clone_cache: None,
         },
 
         skipped: &skipped,

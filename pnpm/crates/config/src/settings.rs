@@ -285,6 +285,9 @@ pub struct Config {
     /// Defines what linker should be used for installing Node packages.
     pub node_linker: NodeLinker,
 
+    /// Package names excluded from loaded linking; their complete trees use the global virtual store.
+    pub node_linker_excluded: Vec<String>,
+
     /// When true, pacquet writes `node_modules/.package-map.json` for
     /// Node's `--experimental-package-map` loader flag. Default
     /// `false`, matching pnpm's opt-in setting.
@@ -321,6 +324,9 @@ pub struct Config {
     /// Defaults to `false`, matching the TypeScript CLI.
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
+
+    /// Layout defaults restored when a hook switches away from the loaded linker.
+    pub loaded_layout_defaults: Option<(PathBuf, bool)>,
 
     /// The shared package store used when [`Self::enable_global_virtual_store`]
     /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from
@@ -588,6 +594,12 @@ pub struct Config {
 
     /// Add the full URL to the package's tarball to every entry in pnpm-lock.yaml.
     pub lockfile_include_tarball_url: bool,
+
+    /// Record `autoDedupe`, `dedupeInjectedDeps`, `dedupePeerDependents` and
+    /// `linkWorkspacePackages` in the lockfile's `settings`, so a lockfile
+    /// resolved under other values counts as outdated. The
+    /// `lockfile.includeResolutionSettings` setting.
+    pub lockfile_include_resolution_settings: bool,
 
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
@@ -1272,10 +1284,11 @@ pub struct Config {
     /// project. CLI-only, like [`Self::filter`].
     pub workspace_root: bool,
 
-    /// `--fail-if-no-match`: exit with code 1 when the `--filter` /
+    /// `failIfNoMatch` — exit with code 1 when the `--filter` /
     /// `--filter-prod` selectors select no workspace project, instead of
-    /// letting the command run over an empty selection. CLI-only, like
-    /// [`Self::filter`].
+    /// letting the command run over an empty selection. Universal
+    /// `--fail-if-no-match` / `--no-fail-if-no-match` flag,
+    /// `pnpm-workspace.yaml` key, and `PNPM_CONFIG_FAIL_IF_NO_MATCH`.
     pub fail_if_no_match: bool,
 
     /// `includeWorkspaceRoot` — whether a recursive command also runs on
@@ -1730,6 +1743,10 @@ pub struct Config {
     /// read the final settings, such as the lockfile-dir anchoring and the
     /// global virtual store.
     pub cli_setting_values: BTreeMap<String, String>,
+
+    /// Every `--config.<key>=<value>` token of the command line, as given
+    /// and in argv order, for forwarding to a child pnpm the command spawns.
+    pub raw_cli_config: Vec<(String, String)>,
 
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,

@@ -285,7 +285,8 @@ impl RecursiveRun<'_, '_> {
             &full_task_graph,
             self.workspace_root,
             |node, script| self.script_commands(node, script),
-        );
+        )
+        .with_modules_dir(&self.config.modules_dir);
         let mut task_graph = resume_task_graph(
             &task_run_state_context,
             self.args,

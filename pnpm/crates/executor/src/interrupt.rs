@@ -55,6 +55,21 @@ use std::{
 /// next interrupt ends pnpm instead.
 const RELAYED_INTERRUPTS: usize = 2;
 
+/// Counted up by the signal and console handlers, read through
+/// [`interrupt_count`].
+static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
+
+/// How many interrupts and terminations have reached pnpm so far: signals
+/// pnpm handles, or console control events on Windows. `pnpm run` reads
+/// it before and after a script, so it can tell a script the user ended
+/// from one that failed on its own after an earlier, handled interrupt.
+/// The user ended the former, so its status is not a lifecycle failure to
+/// report, and pnpm ends with it all the same (pnpm/pnpm#16579).
+#[must_use]
+pub fn interrupt_count() -> usize {
+    INTERRUPTS.load(Ordering::Relaxed)
+}
+
 /// One running child: the process to signal, negated to address the whole
 /// process group when the child leads one, or `0` when the entry is free.
 ///
@@ -328,10 +343,11 @@ fn install_handler_for(signal: libc::c_int) {
 /// Pass `signal` on to the running children, or end pnpm when there is no
 /// longer anything to wait for.
 ///
-/// Everything it calls is async-signal-safe: atomic loads, `kill`,
-/// `signal`, `raise`, and `_exit`.
+/// Everything it calls is async-signal-safe: atomic loads and updates,
+/// `kill`, `signal`, `raise`, and `_exit`.
 #[cfg(unix)]
 extern "C" fn relay_signal(signal: libc::c_int) {
+    INTERRUPTS.fetch_add(1, Ordering::Relaxed);
     let shared_with_group = signal == libc::SIGINT && holds_the_terminal();
     let mut still_listening = false;
     let reached = visit_targets(|entry, target| {

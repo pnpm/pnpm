@@ -134,6 +134,7 @@ impl ConfigOverrides {
     /// relative path-valued setting outside a workspace.
     pub fn apply(&self, config: &mut Config, dir: &Path) {
         self.record_cli_settings(config);
+        config.raw_cli_config.clone_from(&self.raw_cli_config);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -353,8 +354,8 @@ impl ConfigOverrides {
     }
 
     fn apply_linker_and_run_overrides(&self, config: &mut Config) {
-        if let Some(value) = self.node_linker {
-            config.node_linker = value;
+        if let Some(value) = &self.node_linker {
+            value.clone().apply_to(config);
             config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
             // A CLI-selected hoisted linker turns the default on just
             // like a yaml-selected one — pnpm merges CLI options before

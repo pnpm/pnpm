@@ -2,7 +2,7 @@
 //! [`super::get_hoistable_optional_peers`].
 
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, sync::LazyLock};
 
 use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
@@ -34,6 +34,9 @@ fn missing(name: &str, range: &str) -> (String, MissingPeerInfo) {
     (name.to_string(), MissingPeerInfo { range: range.to_string() })
 }
 
+static NOTHING_RESOLVED: LazyLock<HashMap<String, HashSet<String>>> =
+    LazyLock::new(HashMap::default);
+
 fn opts(
     auto_install_peers: bool,
     all_preferred_versions: &PreferredVersions,
@@ -44,6 +47,7 @@ fn opts(
         workspace_root_deps: &[],
         override_bare_specifier: None,
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     }
 }
 
@@ -508,6 +512,7 @@ fn installs_auto_installed_peer_at_the_overridden_specifier() {
         workspace_root_deps: &root_deps,
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^16.5.1 || ^17.0.0 || ^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -526,6 +531,7 @@ fn override_does_not_install_a_peer_nothing_provides_without_auto_install_peers(
         workspace_root_deps: &[],
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     assert_eq!(result, BTreeMap::new());
@@ -542,6 +548,7 @@ fn leaves_a_deduplicating_hoist_to_the_graph_without_auto_install_peers() {
         workspace_root_deps: &[],
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -565,6 +572,7 @@ fn override_redirects_the_workspace_roots_hoist_without_auto_install_peers() {
         workspace_root_deps: &root_deps,
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -583,6 +591,7 @@ fn passes_the_importer_directory_to_the_overrider() {
         workspace_root_deps: &[],
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace/packages/app"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
@@ -600,6 +609,7 @@ fn leaves_peer_removed_by_an_override_uninstalled() {
         workspace_root_deps: &[],
         override_bare_specifier: Some(&overrider),
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     assert_eq!(result, BTreeMap::new());
@@ -697,6 +707,7 @@ fn skips_a_workspace_root_dep_without_a_specifier_in_favor_of_one_with() {
         workspace_root_deps: &root_deps,
         override_bare_specifier: None,
         project_dir: Path::new("/workspace"),
+        resolved_versions: &NOTHING_RESOLVED,
     };
     let result = hoist_peers(&opts, &[missing("postcss", "^8.0.0")]);
     let mut expected = BTreeMap::new();
@@ -762,4 +773,44 @@ fn get_hoistable_optional_peers_stays_unbounded_when_the_root_specifier_has_no_v
     let mut expected = BTreeMap::new();
     expected.insert("postcss".to_string(), "9.0.0".to_string());
     assert_eq!(result, expected);
+}
+
+fn pick_required_peer(candidates: &[&str], range: &str, resolved: &[&str]) -> Option<String> {
+    let preferred = PreferredVersions::from([(
+        "peer".to_string(),
+        candidates
+            .iter()
+            .map(|version| (version.to_string(), plain(VersionSelectorType::Version)))
+            .collect(),
+    )]);
+    let resolved_versions = HashMap::from_iter([(
+        "peer".to_string(),
+        resolved
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    )]);
+    let opts =
+        HoistPeersOptions { resolved_versions: &resolved_versions, ..opts(true, &preferred) };
+    hoist_peers(&opts, &[missing("peer", range)]).remove("peer")
+}
+
+/// pnpm/tasks#61: a provider that moved its exact dependency down leaves
+/// the old, higher version behind only as a lockfile candidate.
+#[test]
+fn required_peer_prefers_a_run_resolved_version_over_a_stale_locked_one() {
+    let picked = pick_required_peer(&["1.0.0", "1.0.1"], "1", &["1.0.0"]);
+    assert_eq!(picked.as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn required_peer_takes_the_highest_run_resolved_version() {
+    let picked = pick_required_peer(&["1.0.0", "1.0.1", "1.0.2"], "1", &["1.0.0", "1.0.1"]);
+    assert_eq!(picked.as_deref(), Some("1.0.1"));
+}
+
+#[test]
+fn required_peer_falls_back_when_no_run_resolved_version_satisfies_the_range() {
+    let picked = pick_required_peer(&["1.0.0", "2.0.0"], "2", &["1.0.0"]);
+    assert_eq!(picked.as_deref(), Some("2.0.0"));
 }

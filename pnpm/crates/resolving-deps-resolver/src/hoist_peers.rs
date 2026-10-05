@@ -53,6 +53,9 @@ pub struct HoistPeersOptions<'a> {
     /// Directory of the importer the peers are hoisted into. Only read
     /// to resolve a local override target; see [`DependencyOverrider`].
     pub project_dir: &'a Path,
+    /// The versions of each peer that this run has resolved. A satisfying
+    /// one wins over a version that only the wanted lockfile holds.
+    pub resolved_versions: &'a HashMap<String, HashSet<String>>,
 }
 
 /// Pick a specifier for each missing required peer. Returns a map of
@@ -97,7 +100,7 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
     let Some(selectors) = opts.all_preferred_versions.get(peer_name) else {
         return opts.auto_install_peers.then(|| range.to_string());
     };
-    preferred_version_specifier(opts, selectors, range)
+    preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
 }
 
 /// Dedupe onto a preferred version only when it actually satisfies the wanted
@@ -113,13 +116,28 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
 fn preferred_version_specifier(
     opts: &HoistPeersOptions<'_>,
     selectors: &VersionSelectors,
+    resolved_versions: Option<&HashSet<String>>,
     range: &str,
 ) -> Option<String> {
     let (versions, non_versions) = split_version_selectors(selectors);
     let range_for_match = get_peer_version_range(range);
     let is_semver_range = range_for_match.parse::<Range>().is_ok();
-    let satisfying_version =
-        if is_semver_range { max_satisfying(&versions, &range_for_match) } else { None };
+    // A version that only the wanted lockfile holds is a weight whose
+    // provider has moved on, so it must not outrank one this run resolved.
+    let satisfying_version = is_semver_range
+        .then(|| {
+            resolved_versions
+                .and_then(|resolved| {
+                    let in_run: Vec<&str> = versions
+                        .iter()
+                        .copied()
+                        .filter(|version| resolved.contains(*version))
+                        .collect();
+                    max_satisfying(&in_run, &range_for_match)
+                })
+                .or_else(|| max_satisfying(&versions, &range_for_match))
+        })
+        .flatten();
     if let Some(satisfying) = satisfying_version {
         let mut parts: Vec<&str> = vec![satisfying];
         parts.extend(non_versions.iter().copied());
@@ -351,7 +369,7 @@ fn find_workspace_root_dep<'a>(
 /// Highest version from `versions` that satisfies `range` under npm's
 /// `includePrerelease` semantics. Returns `None` if no candidate
 /// satisfies.
-fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
+fn max_satisfying<'a>(versions: &[&'a str], range: &str) -> Option<&'a str> {
     let parsed_range = IncludePrereleaseRange::parse(range);
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {

@@ -20,6 +20,7 @@ use std::{
 mod cmd_encoding;
 mod pwsh_encoding;
 mod relocatable;
+mod replaced_batch;
 
 #[test]
 fn parses_env_node_shebang() {

@@ -38,7 +38,8 @@ fn pm_on_fail_warn_downgrades_the_other_package_manager_failure_to_a_warning() {
     let output = run(pacquet, root.path(), &["install", "--config.pm-on-fail=warn"]);
 
     assert_success(&output);
-    assert_contains(&output_text(&output), "This project is configured to use yarn");
+    assert_contains(&stderr(&output), "This project is configured to use yarn");
+    assert!(!stdout(&output).contains("yarn"), "the warning leaked into stdout");
 }
 
 #[test]

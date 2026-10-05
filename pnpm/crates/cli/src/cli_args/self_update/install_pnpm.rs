@@ -186,7 +186,7 @@ fn reject_broken_install(
 }
 
 /// The native pnpm executable linked into an installed engine wrapper.
-pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
+pub(crate) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
     package_dir(install_dir, package_name)
         .join(if host_platform() == "win32" { "pnpm.exe" } else { "pnpm" })
 }

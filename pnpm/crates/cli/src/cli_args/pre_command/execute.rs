@@ -1,7 +1,7 @@
 use super::{
-    Config, Context, DefaultReporter, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION,
-    PackageManager, PackageManagerCheck, Path, PreCommandPlan, Reporter, SwitchPlan, SwitchSource,
-    SwitchTarget, assert_release_is_installable, config_deps, error_causes, global_warn,
+    Config, Context, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION, PackageManager,
+    PackageManagerCheck, Path, PreCommandPlan, SwitchPlan, SwitchSource, SwitchTarget,
+    assert_release_is_installable, config_deps, emit_warning_on_stderr, error_causes, global_warn,
     install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
 };
 use crate::cli_args::{
@@ -64,12 +64,17 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
         return Ok(false);
     };
 
-    let status = spawn_pnpm(
-        slice::from_ref(&engine.bin_dir),
-        child_argv.iter(),
-        PackageManagerCheck::Enabled,
-    )
-    .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status = engine
+        .program(PackageManager::Pnpm)
+        .and_then(|program| {
+            spawn_pnpm(
+                &program,
+                slice::from_ref(&engine.bin_dir),
+                child_argv.iter(),
+                PackageManagerCheck::Enabled,
+            )
+        })
+        .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     drop(engine);
     // End the way the delegated pnpm did: with its exit code, or with its
     // signal when a signal killed it.
@@ -86,7 +91,7 @@ async fn mature_version_to_record(config: &Config, range: &str, running: &str) -
         Ok(version) => Some(version),
         Err(error) => {
             global_warn(
-                DefaultReporter::emit,
+                emit_warning_on_stderr,
                 &format!(
                     "Skipped recording pnpm v{running} in pnpm-lock.yaml because it could not be checked against minimumReleaseAge: {}",
                     error_causes(&error),

@@ -1,6 +1,7 @@
 pub(super) mod options;
 
 pub use commands::CliCommand;
+pub use selection_settings::SelectionSettingArgs;
 
 use super::{
     access::AccessArgs,
@@ -260,26 +261,8 @@ pub struct WorkspaceSelectionArgs {
     /// Run the command on the root workspace project.
     #[clap(short = 'w', long = "workspace-root", global = true)]
     pub workspace_root: bool,
-    /// Exit with code 1 when the `--filter` / `--filter-prod` selectors
-    /// match no workspace project.
-    #[clap(long = "fail-if-no-match", global = true)]
-    pub fail_if_no_match: bool,
-    /// Also run a recursive command on the root workspace project, which
-    /// `run` / `exec` / `add` / `test` otherwise leave out.
-    #[clap(
-        long = "include-workspace-root",
-        global = true,
-        overrides_with = "no_include_workspace_root"
-    )]
-    pub include_workspace_root: bool,
-    /// Leave the root workspace project out of a recursive command,
-    /// overriding an `includeWorkspaceRoot: true` setting.
-    #[clap(
-        long = "no-include-workspace-root",
-        global = true,
-        overrides_with = "include_workspace_root"
-    )]
-    pub no_include_workspace_root: bool,
+    #[clap(flatten)]
+    pub settings: SelectionSettingArgs,
     /// Glob patterns naming test files, used by the `[since]` `--filter`
     /// selector to decide which changes count.
     #[clap(long = "test-pattern", global = true)]
@@ -390,3 +373,4 @@ fn parse_color_mode(value: &str) -> Result<pnpm_config::ColorMode, &'static str>
 impl CliArgs {}
 
 mod commands;
+mod selection_settings;

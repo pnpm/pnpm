@@ -591,6 +591,41 @@ fn install_reports_a_missing_version_as_no_matching_version() {
     drop((root, mock_instance));
 }
 
+/// A specifier with a protocol no resolver supports, such as Yarn's
+/// `patch:`, is `ERR_PNPM_UNSUPPORTED_PROTOCOL` naming the protocol, not a
+/// link to a directory that does not exist
+/// (<https://github.com/pnpm/pnpm/issues/16590>).
+#[test]
+fn install_reports_an_unsupported_protocol() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "got": "patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_PROTOCOL"), "{stderr}");
+    assert!(flatten_report(&stderr).contains(r#"Unsupportedprotocol"patch:""#), "{stderr}");
+
+    drop((root, mock_instance));
+}
+
 /// A package the registry has never heard of is `ERR_PNPM_FETCH_404`
 /// with pnpm's "not in the npm registry, or you have no permission"
 /// hint — not a bare HTTP-client message (pnpm/pnpm#13319).

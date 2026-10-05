@@ -1,4 +1,4 @@
-use super::prune_cas;
+use super::{PruneCasError, PruneCasStats, prune_cas_with_references};
 use crate::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
 use std::{collections::HashMap, fs};
 
@@ -157,4 +157,8 @@ fn keeps_undecodable_rows_and_prunes_the_rest() {
             .unwrap(),
         ["a-unreadable"],
     );
+}
+
+fn prune_cas(store: &StoreDir) -> Result<PruneCasStats, PruneCasError> {
+    prune_cas_with_references(store, &std::collections::HashSet::new())
 }

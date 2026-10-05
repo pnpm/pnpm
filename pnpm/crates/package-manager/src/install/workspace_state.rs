@@ -21,7 +21,7 @@ use super::{
 };
 use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
 use pnpm_reporter::Reporter;
-use pnpm_workspace_state::update_workspace_state;
+use pnpm_workspace_state::update_workspace_state_in_modules;
 
 /// Persist `.pnpm-workspace-state-v1.json`, warning instead of failing
 /// the command when the write is lost.
@@ -33,8 +33,10 @@ use pnpm_workspace_state::update_workspace_state;
 pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
     workspace_root: &Path,
     state: &WorkspaceState,
+    config: &Config,
 ) {
-    if let Err(error) = update_workspace_state(workspace_root, state) {
+    let modules_dir = config.workspace_state_modules_dir(workspace_root);
+    if let Err(error) = update_workspace_state_in_modules(&modules_dir, state) {
         tracing::warn!(
             target: "pacquet::install",
             ?error,
@@ -122,7 +124,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         return None;
     }
     ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
-    super::run::register_workspace_in_store(check.config, &lockfile_root);
+    super::run::register_workspace_in_store(check.config, &lockfile_root).ok()?;
     let project_count = workspace_projects.as_ref().map(Vec::len);
     Some(UpToDateWorkspace { root: state_root, project_count })
 }
@@ -379,6 +381,20 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         record_hoisted_modules_dirs(&mut state.projects, project_manifests);
     }
     state
+}
+
+/// The `autoDedupe` an install records in the workspace state.
+///
+/// With `lockfile.includeResolutionSettings`, the lockfile records
+/// `autoDedupe` and its freshness check holds that value to the config, so
+/// every install that kept the lockfile records the config's value.
+/// Otherwise only a resolving install establishes the dedupe baseline, and
+/// `established` is what this write knows of it.
+pub(crate) fn recorded_auto_dedupe(config: &Config, established: Option<bool>) -> Option<bool> {
+    if config.lockfile && config.lockfile_include_resolution_settings {
+        return config.auto_dedupe.then_some(true);
+    }
+    established
 }
 
 /// Set [`ProjectEntry::has_modules_dir`] for each project the hoisted

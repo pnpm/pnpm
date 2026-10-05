@@ -7,7 +7,9 @@
 //! latter tells: it is written after every bin, and names the pnpm version
 //! that linked them, so a pnpm that links differently relinks under the lock.
 
-use super::{EnginePackages, compute_engine_slot, package_dir};
+use super::{
+    EnginePackages, InstalledEngine, compute_engine_slot, package_dir, pnpm_executable_path,
+};
 use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_fs::write_atomic;
 use pnpm_lockfile::EnvLockfile;
@@ -18,7 +20,7 @@ use std::{
 
 const MARKER: &str = ".pnpm-engine-linked";
 
-/// The engine's bin directory, when its global-virtual-store slot is
+/// The engine, when its global-virtual-store slot is
 /// populated and this pnpm finished linking its bins. Writes nothing, so it
 /// needs no lock.
 pub(super) fn linked_engine_bins(
@@ -26,9 +28,15 @@ pub(super) fn linked_engine_bins(
     env: &EnvLockfile,
     package: EnginePackages,
     version: &str,
-) -> Option<PathBuf> {
-    let bin_dir = populated_engine_slot(config, env, package, version)?.join("bin");
-    are_current(&bin_dir).then_some(bin_dir)
+) -> Option<InstalledEngine> {
+    let slot = populated_engine_slot(config, env, package, version)?;
+    let bin_dir = slot.join("bin");
+    if !are_current(&bin_dir) {
+        return None;
+    }
+    let native_binary =
+        package.links_native_binary.then(|| pnpm_executable_path(&slot, package.wrapper));
+    Some(InstalledEngine { bin_dir, native_binary, private_install: None })
 }
 
 /// The engine's global-virtual-store slot, when it is already populated. The

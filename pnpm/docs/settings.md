@@ -181,6 +181,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 
 * [modulesDir](./settings/node-modules.md#modulesdir)
 * [nodeLinker](./settings/node-modules.md#nodelinker)
+* [nodeLinker.excluded](./settings/node-modules.md#nodelinkerexcluded)
 * [nodeExperimentalPackageMap](./settings/node-modules.md#nodeexperimentalpackagemap)
 * [nodePackageMapType](./settings/node-modules.md#nodepackagemaptype)
 * [symlink](./settings/node-modules.md#symlink)
@@ -223,6 +224,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [frozenLockfile](./settings/store.md#frozenlockfile)
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)
+* [lockfile.includeResolutionSettings](./settings/store.md#lockfileincluderesolutionsettings)
 * [gitBranchLockfile](./settings/store.md#gitbranchlockfile)
 * [mergeGitBranchLockfilesBranchPattern](./settings/store.md#mergegitbranchlockfilesbranchpattern)
 * [peersSuffixMaxLength](./settings/store.md#peerssuffixmaxlength)

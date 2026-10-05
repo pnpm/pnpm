@@ -15,7 +15,7 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinker,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
     NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType, WorkspaceSettings, api::EnvVar,
@@ -182,7 +182,7 @@ impl WorkspaceSettings {
         string_field!(settings, reader, store_dir, "STORE_DIR");
         string_field!(settings, reader, state_dir, "STATE_DIR");
         string_field!(settings, reader, modules_dir, "MODULES_DIR");
-        enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinker);
+        enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinkerSetting);
         json_field!(
             settings,
             reader,
@@ -302,6 +302,7 @@ impl WorkspaceSettings {
             "STRICT_STORE_PKG_CONTENT_CHECK"
         );
         json_field!(settings, reader, include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
+        json_field!(settings, reader, fail_if_no_match, "FAIL_IF_NO_MATCH");
         json_field!(settings, reader, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
         json_field!(settings, reader, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
         json_field!(settings, reader, side_effects_cache, "SIDE_EFFECTS_CACHE");

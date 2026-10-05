@@ -182,10 +182,10 @@ impl ImporterHoistState {
             .iter()
             .map(|(n, info)| (n.clone(), info.clone()))
             .collect();
-        let hoist_preferred = self.ctx.preferred_versions_for_names(
-            &self.selection.preferred_versions,
-            missing_as_pairs.iter().map(|(name, _)| name.as_str()),
-        );
+        let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
+        let hoist_preferred =
+            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
+        let resolved_versions = self.ctx.run_resolved_versions(names());
         let hoisted = hoist_peers(
             &HoistPeersOptions {
                 auto_install_peers: self.policy.peers.auto_install_peers,
@@ -193,6 +193,7 @@ impl ImporterHoistState {
                 workspace_root_deps: self.hoist_root_deps(),
                 override_bare_specifier: self.selection.override_bare_specifier.as_deref(),
                 project_dir: &self.project_dir,
+                resolved_versions: &resolved_versions,
             },
             &missing_as_pairs,
         );

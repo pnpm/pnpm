@@ -4,13 +4,13 @@ use super::{
     Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
     OptimisticRepeatInstallCheck, Path, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
+    filesystem_now_ms_in_modules, first_lockfile_requiring_conflict_safe_install,
     first_project_missing_modules_dir, first_selected_project_missing_from_current_lockfile,
     first_selected_project_missing_modules_dir, first_setting_drift,
     modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
     project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now, relocated_state},
-    update_workspace_state, wanted_lockfile_file_has_content,
+    wanted_lockfile_file_has_content,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -83,8 +83,13 @@ pub fn check_deps_status_before_run(
     }
 
     let projects_to_check = drift.projects_to_check(modified);
-    let filesystem_now =
-        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
+    let filesystem_now = check.is_workspace_install
+        .then(|| {
+            filesystem_now_ms_in_modules(&check.config.workspace_state_modules_dir(
+                check.workspace_root,
+            ))
+        })
+        .flatten();
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
@@ -318,7 +323,8 @@ fn record_content_check_state(
         state.filtered_install,
         filesystem_now,
     );
-    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
+    new_state.settings.auto_dedupe =
+        crate::install::recorded_auto_dedupe(config, state.settings.auto_dedupe);
     // The gate ignored `dev`/`optional`/`production` drift above;
     // writing today's (default-group) values here would clobber what
     // the last real install recorded and flip its next repeat-install
@@ -326,7 +332,7 @@ fn record_content_check_state(
     new_state.settings.dev = state.settings.dev;
     new_state.settings.optional = state.settings.optional;
     new_state.settings.production = state.settings.production;
-    refresh_content_check_state(workspace_root, &new_state);
+    refresh_content_check_state(check, &new_state);
 }
 
 /// Read-only twin of [`crate::optimistic_repeat_install::regenerate_wanted_lockfile_if_missing`](crate::optimistic_repeat_install::settle::regenerate_wanted_lockfile_if_missing) for the
@@ -403,8 +409,14 @@ fn lockfile_conflict_drift(
     None
 }
 
-fn refresh_content_check_state(workspace_root: &std::path::Path, new_state: &WorkspaceState) {
-    if let Err(error) = update_workspace_state(workspace_root, new_state) {
+fn refresh_content_check_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    new_state: &WorkspaceState,
+) {
+    let modules_dir = check.config.workspace_state_modules_dir(check.workspace_root);
+    if let Err(error) =
+        pnpm_workspace_state::update_workspace_state_in_modules(&modules_dir, new_state)
+    {
         tracing::warn!(
             target: "pacquet::run",
             ?error,
