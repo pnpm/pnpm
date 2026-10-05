@@ -356,7 +356,7 @@ redundant_feature_names = "warn"
 wildcard_dependencies = "warn"
 
 [profile.release]
-opt-level = 3
+opt-level = "s"
 lto = "fat"
 codegen-units = 1
 strip = "symbols"
