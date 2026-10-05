@@ -900,3 +900,44 @@ fn scheme_less_child_credential_authorized_under_trusted_http_root() {
     );
     assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
 }
+
+#[test]
+fn http_and_https_token_helpers_at_same_registry_path_do_not_share_cached_token() {
+    fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
+        let token = command
+            .get(1)
+            .cloned()
+            .unwrap_or_default();
+        Ok(TokenHelperOutput { success: true, stdout: token, stderr: String::new() })
+    }
+
+    let mut headers_a = AuthHeaders::from_parts_with_token_helpers(
+        HashMap::new(),
+        HashMap::new(),
+        HashMap::from([
+            ("http://reg.example/".to_owned(), vec!["echo".to_owned(), "http-token".to_owned()]),
+            ("https://reg.example/".to_owned(), vec!["echo".to_owned(), "https-token".to_owned()]),
+        ]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+    headers_a.allow_insecure_host("http://reg.example/");
+
+    assert_eq!(headers_a.for_url("https://reg.example/pkg").as_deref(), Some("Bearer https-token"));
+    assert_eq!(headers_a.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+
+    let mut headers_b = AuthHeaders::from_parts_with_token_helpers(
+        HashMap::new(),
+        HashMap::new(),
+        HashMap::from([
+            ("http://reg.example/".to_owned(), vec!["echo".to_owned(), "http-token".to_owned()]),
+            ("https://reg.example/".to_owned(), vec!["echo".to_owned(), "https-token".to_owned()]),
+        ]),
+        HashMap::new(),
+    )
+    .with_token_helper_runner(runner);
+    headers_b.allow_insecure_host("http://reg.example/");
+
+    assert_eq!(headers_b.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+    assert_eq!(headers_b.for_url("https://reg.example/pkg").as_deref(), Some("Bearer https-token"));
+}

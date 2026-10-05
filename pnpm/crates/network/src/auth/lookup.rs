@@ -178,7 +178,7 @@ impl TokenHelpers {
         match &entry.kind {
             AuthKind::Header(value) => Some(value.clone()),
             AuthKind::TokenHelper(command) => {
-                let cache_key = format!("{scope}\u{0}{key}");
+                let cache_key = format!("{:?}\u{0}{scope}\u{0}{key}", entry.origin);
                 // Take the per-key cell out under the global lock, then
                 // release it *before* running the helper.
                 let cell = {
