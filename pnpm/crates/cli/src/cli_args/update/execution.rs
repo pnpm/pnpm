@@ -208,7 +208,7 @@ impl UpdateArgs {
                 version: pnpm_package_manager::UpdateVersionOptions {
                     latest: self.selection.latest,
                     patches: self.selection.patches,
-                    save_exact: self.save.exact || state.config.save_exact,
+                    range_spec_style: self.range_spec_style(state.config),
                     save: !self.save.no_save,
                 },
             },
