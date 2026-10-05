@@ -1,0 +1,6 @@
+## 1101.6.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/error@1100.2.2
