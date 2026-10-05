@@ -32,7 +32,7 @@ fn run(workspace: &Path, args: &[&str]) {
 }
 
 /// A workspace whose registry drops `peerDependenciesMeta` from the
-/// metadata of `WITH_PEERS`, with `minimumReleaseAge` on.
+/// metadata of [`WITH_PEERS`], with `minimumReleaseAge` on.
 fn setup(specifier: &str) -> (tempfile::TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry_with_own_storage();
