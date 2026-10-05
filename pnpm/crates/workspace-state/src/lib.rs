@@ -142,6 +142,9 @@ pub struct WorkspaceStateSettings {
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_workspace_packages: Option<serde_json::Value>,
+    /// `lockfile.includeResolutionSettings`, recorded only while it is on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockfile_include_resolution_settings: Option<bool>,
     /// Minutes a published version must age before it may be installed.
     /// pnpm resolves this to a concrete `24 * 60` default, so it must be
     /// recorded for pnpm's all-key freshness check to stay on the fast

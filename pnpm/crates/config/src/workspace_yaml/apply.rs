@@ -226,16 +226,16 @@ impl WorkspaceSettings {
         }
     }
 
-    /// The section form turns the lockfile on.
+    /// The section form turns the lockfile on, and a field it leaves out
+    /// takes its default, as in `sideEffectsCache`.
     pub(super) fn apply_lockfile(&mut self, config: &mut Config) {
         match self.lockfile.take() {
             Some(LockfileSetting::Enabled(enabled)) => config.lockfile = enabled,
             Some(LockfileSetting::Settings(settings)) => {
                 config.lockfile = true;
-                overlay(
-                    &mut config.lockfile_include_resolution_settings,
-                    settings.include_resolution_settings,
-                );
+                config.lockfile_include_resolution_settings = settings
+                    .include_resolution_settings
+                    .unwrap_or(false);
             }
             None => {}
         }

@@ -141,6 +141,12 @@ impl SettingsComparison<'_> {
         );
         return_drift_if!(self, "dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
+        return_drift_if!(
+            self,
+            "lockfile.includeResolutionSettings",
+            recorded.lockfile_include_resolution_settings
+                != live.lockfile_include_resolution_settings,
+        );
         return_drift_if!(self, "dev", recorded.dev != live.dev);
         None
     }
@@ -328,6 +334,9 @@ pub(crate) fn current_settings(
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         dedupe_peers: Some(config.dedupe_peers),
         auto_dedupe: config.auto_dedupe.then_some(true),
+        lockfile_include_resolution_settings: config
+            .lockfile_include_resolution_settings
+            .then_some(true),
         dev: Some(included.dev_dependencies),
         // Mirror pnpm's writer, which omits the key for its `undefined`
         // default and records a concrete value only when forced. pacquet

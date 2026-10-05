@@ -208,3 +208,17 @@ fn recording_resolution_settings_rejects_delegated_resolution() {
     assert!(stderr.contains("ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER"), "{stderr}");
     drop((root, npmrc_info));
 }
+
+#[test]
+fn turning_the_setting_on_records_the_settings_on_the_next_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_injected_workspace(&workspace, "");
+    install(&workspace, &["install"]);
+    write_injected_workspace(&workspace, RECORDING);
+    install(&workspace, &["install"]);
+    assert_eq!(recorded(&workspace).dedupe_injected_deps, Some(true));
+    install(&workspace, &["install", "--frozen-lockfile"]);
+    drop((root, mock_instance));
+}
