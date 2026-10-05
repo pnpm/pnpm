@@ -1,20 +1,20 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
-    default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
-    default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
-    default_tag_version_prefix, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, workspace_yaml,
+    InitType, LinkWorkspacePackages, LoadedLayoutDefaults, LogLevel, NodeLinker,
+    NodePackageMapType, PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail,
+    ProjectConfig, PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault,
+    StoreDir, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues,
+    default_cache_dir, default_child_concurrency, default_enable_global_virtual_store,
+    default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
+    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
+    default_fetch_warn_timeout_ms, default_git_shallow_hosts, default_hoist_pattern,
+    default_install_state_dir, default_modules_cache_max_age, default_modules_dir,
+    default_peers_suffix_max_length, default_public_hoist_pattern, default_registry,
+    default_state_dir, default_store_dir, default_tag_version_prefix, default_unsafe_perm,
+    default_user_agent, default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci,
+    npmrc_auth, side_effects_cache_remote_env, workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -326,7 +326,7 @@ pub struct Config {
     pub enable_global_virtual_store: bool,
 
     /// Layout defaults restored when a hook switches away from the loaded linker.
-    pub loaded_layout_defaults: Option<(PathBuf, bool)>,
+    pub loaded_layout_defaults: Option<LoadedLayoutDefaults>,
 
     /// The shared package store used when [`Self::enable_global_virtual_store`]
     /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from

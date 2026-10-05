@@ -1,24 +1,35 @@
 pub use pnpm_store_dir::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
 
 use crate::{Config, NodeLinker};
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+
+/// The modules layout the loaded linker overrode.
+///
+/// That linker forces `enableGlobalVirtualStore` on and points the modules
+/// dir at `.pnpm`, so these are the values to put back.
+#[derive(Debug, Clone)]
+pub struct LoadedLayoutDefaults {
+    pub modules_dir: PathBuf,
+    pub enable_global_virtual_store: bool,
+}
 
 impl Config {
     pub(super) fn apply_cas_layout(&mut self) {
         if self.node_linker == NodeLinker::Loaded {
-            self.loaded_layout_defaults.get_or_insert_with(|| {
-                (self.modules_dir.clone(), self.enable_global_virtual_store)
+            self.loaded_layout_defaults.get_or_insert_with(|| LoadedLayoutDefaults {
+                modules_dir: self.modules_dir.clone(),
+                enable_global_virtual_store: self.enable_global_virtual_store,
             });
             self.enable_global_virtual_store = true;
             if !self.explicit_settings.contains_key("modulesDir") {
                 self.modules_dir.set_file_name(".pnpm");
             }
-        } else if let Some((modules_dir, global_store)) = self
-            .loaded_layout_defaults
-            .take()
-        {
+        } else if let Some(defaults) = self.loaded_layout_defaults.take() {
             if !self.explicit_settings.contains_key("modulesDir") {
-                self.modules_dir = modules_dir;
+                self.modules_dir = defaults.modules_dir;
                 if self.modules_dir
                     .file_name()
                     .is_some_and(|name| name == ".pnpm")
@@ -29,7 +40,7 @@ impl Config {
             self.enable_global_virtual_store = self.explicit_settings
                 .get("enableGlobalVirtualStore")
                 .and_then(serde_json::Value::as_bool)
-                .unwrap_or(global_store);
+                .unwrap_or(defaults.enable_global_virtual_store);
         }
         self.follow_modules_dir_with_install_state_dir();
     }
