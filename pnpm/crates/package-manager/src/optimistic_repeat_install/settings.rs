@@ -1,6 +1,5 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
-mod hoisting;
 pub(crate) use hoisting::recorded_hoisting_limits_match;
 
 use super::{
@@ -8,6 +7,8 @@ use super::{
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
     WorkspaceStateSettings, WorkspaceStateTrustPolicy,
 };
+
+mod hoisting;
 
 /// Whether the `supportedArchitectures` recorded by the last install
 /// matches `live` (today's CLI-merged value). Read from the workspace
