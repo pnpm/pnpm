@@ -30,10 +30,7 @@ fn bash_settings_with_proxy_variable() {
     assert_eq!(
         settings,
         r#"export PNPM_HOME='/home/user/.pnpm'
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac"#,
+export PATH="$PNPM_HOME:$PATH""#,
     );
 }
 
@@ -42,13 +39,7 @@ fn bash_settings_without_proxy_variable() {
     let mut opts = opts(false);
     opts.proxy_var_name = None;
     let settings = render_posix_settings(HOME, &opts);
-    assert_eq!(
-        settings,
-        r#"case ":$PATH:" in
-  *":"'/home/user/.pnpm'":"*) ;;
-  *) export PATH='/home/user/.pnpm':$PATH ;;
-esac"#,
-    );
+    assert_eq!(settings, "export PATH='/home/user/.pnpm':$PATH");
 }
 
 #[test]
@@ -59,10 +50,7 @@ fn bash_settings_with_proxy_var_sub_dir() {
     assert_eq!(
         settings,
         r#"export PNPM_HOME='/home/user/.pnpm'
-case ":$PATH:" in
-  *":$PNPM_HOME/bin:"*) ;;
-  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
-esac"#,
+export PATH="$PNPM_HOME/bin:$PATH""#,
     );
 }
 
@@ -74,11 +62,29 @@ fn bash_settings_appending_to_the_end_of_path() {
     assert_eq!(
         settings,
         r#"export PNPM_HOME='/home/user/.pnpm'
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac"#,
+export PATH="$PATH:$PNPM_HOME""#,
     );
+}
+
+#[test]
+#[cfg_attr(windows, ignore = "needs a POSIX sh on PATH")]
+fn posix_snippet_prepends_when_pnpm_home_is_already_on_path() {
+    let mut opts = opts(false);
+    opts.proxy_var_sub_dir = Some("bin");
+    let pnpm_home = "/home/user/.local/share/pnpm";
+    let settings = render_posix_settings(pnpm_home, &opts);
+    let script = format!(
+        "PATH=\"/usr/local/bin:{pnpm_home}/bin:/usr/bin\"\n{settings}\nprintf '%s' \"$PATH\"\n",
+    );
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .expect("run the setup snippet under sh");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "sh failed: {stderr}");
+    let path = String::from_utf8(output.stdout).expect("utf-8 path");
+    assert_eq!(path, format!("{pnpm_home}/bin:/usr/local/bin:{pnpm_home}/bin:/usr/bin"));
 }
 
 #[test]
@@ -89,9 +95,7 @@ fn fish_settings_with_proxy_var_sub_dir() {
     assert_eq!(
         settings,
         r#"set -gx PNPM_HOME '/home/user/.pnpm'
-if not string match -q -- "$PNPM_HOME/bin" $PATH
-  set -gx PATH "$PNPM_HOME/bin" $PATH
-end"#,
+set -gx PATH "$PNPM_HOME/bin" $PATH"#,
     );
 }
 
@@ -100,12 +104,7 @@ fn fish_settings_without_proxy_variable() {
     let mut opts = opts(false);
     opts.proxy_var_name = None;
     let settings = render_fish_settings(HOME, &opts);
-    assert_eq!(
-        settings,
-        r"if not string match -q -- '/home/user/.pnpm' $PATH
-  set -gx PATH '/home/user/.pnpm' $PATH
-end",
-    );
+    assert_eq!(settings, "set -gx PATH '/home/user/.pnpm' $PATH");
 }
 
 #[test]

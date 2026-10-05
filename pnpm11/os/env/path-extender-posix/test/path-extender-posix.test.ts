@@ -43,19 +43,13 @@ describe('Bash', () => {
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -70,18 +64,12 @@ esac
         changeType: 'appended',
       },
       oldSettings: '',
-      newSettings: `case ":$PATH:" in
-  *":${pnpmHomeDir}:"*) ;;
-  *) export PATH="${pnpmHomeDir}:$PATH" ;;
-esac`,
+      newSettings: `export PATH="${pnpmHomeDir}:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
-case ":$PATH:" in
-  *":${pnpmHomeDir}:"*) ;;
-  *) export PATH="${pnpmHomeDir}:$PATH" ;;
-esac
+export PATH="${pnpmHomeDir}:$PATH"
 # pnpm end
 `)
   })
@@ -99,19 +87,13 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME/bin:"*) ;;
-  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME/bin:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME/bin:"*) ;;
-  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
-esac
+export PATH="$PNPM_HOME/bin:$PATH"
 # pnpm end
 `)
   })
@@ -129,19 +111,13 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac`,
+export PATH="$PATH:$PNPM_HOME"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac
+export PATH="$PATH:$PNPM_HOME"
 # pnpm end
 `)
   })
@@ -157,18 +133,12 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -176,10 +146,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -191,34 +158,22 @@ esac
         changeType: 'skipped',
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     await expect(
       addDirToPosixEnvPath(pnpmHomeDir, {
@@ -231,10 +186,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -247,24 +199,15 @@ esac
         changeType: 'modified',
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
   it('should keep the lines between two pnpm sections when overwriting (pnpm/pnpm#12282)', async () => {
@@ -274,10 +217,7 @@ export PNPM_HOME="duplicate_block"
     fs.writeFileSync(configFile, `# user config
 # pnpm
 export PNPM_HOME="old_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 # content between sections that must not be deleted
 ${duplicateSection}
@@ -292,10 +232,7 @@ ${duplicateSection}
     expect(configContent).toBe(`# user config
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 # content between sections that must not be deleted
 ${duplicateSection}
@@ -325,19 +262,13 @@ describe('Zsh', () => {
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -345,10 +276,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -360,24 +288,15 @@ esac
         changeType: 'skipped',
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
   it('should target config file in custom directory when ZDOTDIR is present', async () => {
@@ -398,10 +317,7 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     const customConfigContent = fs.readFileSync(customConfigFile, 'utf8')
@@ -409,10 +325,7 @@ esac`,
     expect(customConfigContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
     process.env.ZDOTDIR = ''
@@ -440,19 +353,13 @@ describe('ksh', () => {
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -470,19 +377,13 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac`,
+export PATH="$PATH:$PNPM_HOME"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac
+export PATH="$PATH:$PNPM_HOME"
 # pnpm end
 `)
   })
@@ -498,18 +399,12 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -517,10 +412,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -532,34 +424,22 @@ esac
         changeType: 'skipped',
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     await expect(
       addDirToPosixEnvPath(pnpmHomeDir, {
@@ -572,10 +452,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -588,24 +465,15 @@ esac
         changeType: 'modified',
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
 })
@@ -639,19 +507,13 @@ describe('Dash', () => {
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -669,19 +531,13 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac`,
+export PATH="$PATH:$PNPM_HOME"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac
+export PATH="$PATH:$PNPM_HOME"
 # pnpm end
 `)
   })
@@ -697,18 +553,12 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -716,10 +566,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -731,34 +578,22 @@ esac
         changeType: 'skipped',
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     await expect(
       addDirToPosixEnvPath(pnpmHomeDir, {
@@ -771,10 +606,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -787,24 +619,15 @@ esac
         changeType: 'modified',
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
 })
@@ -838,19 +661,13 @@ describe('sh', () => {
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -868,19 +685,13 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac`,
+export PATH="$PATH:$PNPM_HOME"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PATH:$PNPM_HOME" ;;
-esac
+export PATH="$PATH:$PNPM_HOME"
 # pnpm end
 `)
   })
@@ -896,18 +707,12 @@ esac
       },
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end
 `)
   })
@@ -915,10 +720,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -930,34 +732,22 @@ esac
         changeType: 'skipped',
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     await expect(
       addDirToPosixEnvPath(pnpmHomeDir, {
@@ -970,10 +760,7 @@ esac
     fs.writeFileSync(configFile, `
 # pnpm
 export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -986,24 +773,15 @@ esac
         changeType: 'modified',
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac`,
+export PATH="$PNPM_HOME:$PATH"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+export PATH="$PNPM_HOME:$PATH"
 # pnpm end`)
   })
 })
@@ -1030,17 +808,13 @@ describe('Fish', () => {
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end`,
+set -gx PATH "$PNPM_HOME" $PATH`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end
+set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end
 `)
   })
@@ -1059,17 +833,13 @@ end
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- "$PNPM_HOME/bin" $PATH
-  set -gx PATH "$PNPM_HOME/bin" $PATH
-end`,
+set -gx PATH "$PNPM_HOME/bin" $PATH`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- "$PNPM_HOME/bin" $PATH
-  set -gx PATH "$PNPM_HOME/bin" $PATH
-end
+set -gx PATH "$PNPM_HOME/bin" $PATH
 # pnpm end
 `)
   })
@@ -1085,16 +855,12 @@ end
         changeType: 'appended',
       },
       oldSettings: '',
-      newSettings: `if not string match -q -- "${pnpmHomeDir}" $PATH
-  set -gx PATH "${pnpmHomeDir}" $PATH
-end`,
+      newSettings: `set -gx PATH "${pnpmHomeDir}" $PATH`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
-if not string match -q -- "${pnpmHomeDir}" $PATH
-  set -gx PATH "${pnpmHomeDir}" $PATH
-end
+set -gx PATH "${pnpmHomeDir}" $PATH
 # pnpm end
 `)
   })
@@ -1113,17 +879,13 @@ end
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH $PATH "$PNPM_HOME"
-end`,
+set -gx PATH $PATH "$PNPM_HOME"`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH $PATH "$PNPM_HOME"
-end
+set -gx PATH $PATH "$PNPM_HOME"
 # pnpm end
 `)
   })
@@ -1139,16 +901,12 @@ end
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end`,
+set -gx PATH "$PNPM_HOME" $PATH`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end
+set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end
 `)
   })
@@ -1157,9 +915,7 @@ end
     fs.writeFileSync(configFile, `
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end
+set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -1171,21 +927,15 @@ end
         changeType: 'skipped',
       },
       oldSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end`,
+set -gx PATH "$PNPM_HOME" $PATH`,
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end`,
+set -gx PATH "$PNPM_HOME" $PATH`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end
+set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end`)
   })
   it('should fail if the shell already has PNPM_HOME set to a different directory', async () => {
@@ -1207,9 +957,7 @@ set -gx PATH "$PNPM_HOME" $PATH
     fs.writeFileSync(configFile, `
 # pnpm
 set -gx PNPM_HOME "pnpm_home"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end
+set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end`, 'utf8')
     const report = await addDirToPosixEnvPath(pnpmHomeDir, {
       proxyVarName: 'PNPM_HOME',
@@ -1222,21 +970,15 @@ end
         changeType: 'modified',
       },
       oldSettings: `set -gx PNPM_HOME "pnpm_home"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end`,
+set -gx PATH "$PNPM_HOME" $PATH`,
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end`,
+set -gx PATH "$PNPM_HOME" $PATH`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
-  set -gx PATH "$PNPM_HOME" $PATH
-end
+set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end`)
   })
 })

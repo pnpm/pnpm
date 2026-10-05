@@ -88,22 +88,23 @@ fn setup_shell(
 /// interpolates the directory into double quotes — where a value containing
 /// `$(...)` / backticks would execute when the rc file is sourced.
 fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
+    // Always export PATH. Skipping the export when the directory is already
+    // present leaves a later entry ahead of pnpm after macOS VS Code sources
+    // ~/.zshrc again.
     if let Some(proxy) = opts.proxy_var_name {
         let path_ref = match opts.proxy_var_sub_dir {
             Some(sub_dir) => format!("${proxy}/{sub_dir}"),
             None => format!("${proxy}"),
         };
         format!(
-            "export {proxy}={value}\ncase \":$PATH:\" in\n  *\":{path_ref}:\"*) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
+            "export {proxy}={value}\nexport PATH=\"{path_value}\"",
             value = sh_quote(dir),
             path_value = create_path_value(opts.position, &path_ref),
         )
     } else {
         let quoted = sh_quote(dir);
-        format!(
-            "case \":$PATH:\" in\n  *\":\"{quoted}\":\"*) ;;\n  *) export PATH={path_value} ;;\nesac",
-            path_value = create_path_value(opts.position, &quoted),
-        )
+        let path_value = create_path_value(opts.position, &quoted);
+        format!("export PATH={path_value}")
     }
 }
 
@@ -155,19 +156,15 @@ fn render_fish_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
             Some(sub_dir) => format!("${proxy}/{sub_dir}"),
             None => format!("${proxy}"),
         };
-        let match_pattern = match opts.proxy_var_sub_dir {
-            Some(_) => format!(r#""{path_ref}""#),
-            None => path_ref.clone(),
-        };
         format!(
-            "set -gx {proxy} {value}\nif not string match -q -- {match_pattern} $PATH\n  set -gx PATH {path_value}\nend",
+            "set -gx {proxy} {value}\nset -gx PATH {path_value}",
             value = fish_quote(dir),
             path_value = create_fish_path_value(opts.position, &format!(r#""{path_ref}""#)),
         )
     } else {
         let quoted = fish_quote(dir);
         format!(
-            "if not string match -q -- {quoted} $PATH\n  set -gx PATH {path_value}\nend",
+            "set -gx PATH {path_value}",
             path_value = create_fish_path_value(opts.position, &quoted),
         )
     }
