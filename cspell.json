@@ -4,7 +4,8 @@
     "**/nodeReleaseKeys.d.ts",
     "**/node_release_keys.rs",
     "bench-work-env/**",
-    "target/**"
+    "target/**",
+    "vendor/**"
   ],
   "words": [
     "abrt",
@@ -41,6 +42,7 @@
     "bryntum",
     "btrfs",
     "buildx",
+    "Bunzip",
     "cafile",
     "cafs",
     "camelcase",
