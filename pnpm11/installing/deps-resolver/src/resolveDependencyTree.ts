@@ -116,6 +116,11 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   force: boolean
   forceFullResolution: boolean
   /**
+   * The wanted lockfile was written under the current hooks and settings, so
+   * a package reused from it keeps the peer dependencies it records.
+   */
+  lockedPeersAreCurrent?: boolean
+  /**
    * Aliases whose lockfile pins are not reused, because an override that may
    * have produced them no longer applies.
    */

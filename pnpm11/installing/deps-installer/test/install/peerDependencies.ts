@@ -2689,3 +2689,34 @@ test.each([true, false])('an optional peer that is also a regular dependency is 
 
   expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/16615
+test('adding an unrelated dependency keeps the peer dependencies a locked package records', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-optional-peers@1.0.0', '@pnpm.e2e/peer-a@1.0.0', '@pnpm.e2e/peer-b@1.0.0'],
+    testDefaults()
+  )
+
+  // A registry whose metadata omits peerDependenciesMeta records the optional
+  // peer as required, unlike the package.json in the store.
+  const lockfile = project.readLockfile()
+  const snapshotKey = Object.keys(lockfile.snapshots).find((key) => key.startsWith('@pnpm.e2e/abc-optional-peers@'))!
+  lockfile.packages['@pnpm.e2e/abc-optional-peers@1.0.0'].peerDependenciesMeta = {
+    '@pnpm.e2e/peer-c': { optional: true },
+  }
+  lockfile.snapshots[snapshotKey] = {
+    dependencies: {
+      '@pnpm.e2e/peer-a': '1.0.0',
+      '@pnpm.e2e/peer-b': '1.0.0',
+    },
+  }
+  fs.writeFileSync(WANTED_LOCKFILE, JSON.stringify(lockfile))
+
+  await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults())
+
+  const lockfileAfter = project.readLockfile()
+  expect(lockfileAfter.packages['@pnpm.e2e/abc-optional-peers@1.0.0']).toStrictEqual(lockfile.packages['@pnpm.e2e/abc-optional-peers@1.0.0'])
+  expect(lockfileAfter.snapshots[snapshotKey]).toStrictEqual(lockfile.snapshots[snapshotKey])
+})
