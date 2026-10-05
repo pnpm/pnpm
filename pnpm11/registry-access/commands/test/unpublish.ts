@@ -229,6 +229,17 @@ describe('unpublish: OTP challenges', () => {
       .resolves.toBe('Successfully unpublished 1 version(s) of test-pkg')
   })
 
+  test('getTarballPathname strips registry path prefix only at path segment boundary', () => {
+    expect(unpublish.getTarballPathname('https://registry.example.com/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/'))
+      .toBe('pkg/-/pkg-1.0.0.tgz')
+    expect(unpublish.getTarballPathname('https://registry.example.com/npm/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/npm/'))
+      .toBe('pkg/-/pkg-1.0.0.tgz')
+    expect(unpublish.getTarballPathname('https://registry.example.com/npm/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/npm'))
+      .toBe('pkg/-/pkg-1.0.0.tgz')
+    expect(unpublish.getTarballPathname('https://registry.example.com/npm2/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/npm'))
+      .toBe('npm2/pkg/-/pkg-1.0.0.tgz')
+  })
+
   test('the web-auth flow answers the challenge and its token is reused by the tarball delete', async () => {
     const restoreTty = overrideTty(true)
     const putOtpHeaders: Array<string | string[] | undefined> = []
