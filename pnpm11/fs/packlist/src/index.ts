@@ -180,7 +180,7 @@ function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
     return false
   }
   if (!lstat.isSymbolicLink()) {
-    return true
+    return !realTargetEscapes(pkgDir, absPath, false)
   }
   return isInternalSymlink(pkgDir, relFile, absPath)
 }
@@ -207,7 +207,7 @@ function isInternalSymlink (pkgDir: string, relFile: string, absPath: string): b
   if (isEscapingRelativePath(relToPkg)) {
     return false
   }
-  return !realTargetEscapes(pkgDir, absPath)
+  return !realTargetEscapes(pkgDir, absPath, true)
 }
 
 function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
@@ -220,7 +220,7 @@ function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
   return normalizedArchive === '..' || normalizedArchive.startsWith('../')
 }
 
-function realTargetEscapes (pkgDir: string, absPath: string): boolean {
+function realTargetEscapes (pkgDir: string, absPath: string, isSymlink = true): boolean {
   try {
     const realTarget = fs.realpathSync(absPath)
     const realPkgDir = fs.realpathSync(pkgDir)
@@ -229,7 +229,7 @@ function realTargetEscapes (pkgDir: string, absPath: string): boolean {
     if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
-    return false
+    return !isSymlink
   }
 }
 
@@ -262,7 +262,7 @@ function mapToPackedPaths (pkgDir: string, files: string[], packedDirs: Map<Tree
  * separately by packedLocation().
  */
 function buildRootTree (pkgDir: string, pkg: Record<string, unknown>, boundary: string): { tree: TreeNode, packedDirs: Map<TreeNode, string[]> } {
-  const bundledDeps = getRootBundledDeps(pkg)
+  const bundledDeps = getRootBundledDeps(pkg).filter(isSafeBundleName)
   // npm-packlist's gatherBundles() iterates package.bundleDependencies directly,
   // so the field must be an array. Normalize true/undefined to an explicit list.
   const normalizedPkg = normalizePackage(pkg)
@@ -395,7 +395,7 @@ function getRootBundledDeps (pkg: Record<string, unknown>): string[] {
 function getNestedBundledDeps (pkg: Record<string, unknown>): string[] {
   const dependencies = (pkg.dependencies ?? {}) as Record<string, string>
   const optionalDependencies = (pkg.optionalDependencies ?? {}) as Record<string, string>
-  return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)]
+  return [...Object.keys(dependencies), ...Object.keys(optionalDependencies)].filter(isSafeBundleName)
 }
 
 interface ResolvedDependency {

@@ -87,6 +87,24 @@ describe('addFilesFromDir() with recordSymlinks', () => {
     expect(hasUnrecordedSymlinks).toBe(true)
     expect(filesIndex.get('sub/absolute.js')!.mode).not.toBe(SYMLINK_MODE)
   })
+
+  itOnPosix('ignores listed files traversing a directory symlink that escapes the package root', () => {
+    const storeDir = temporaryDirectory()
+    const outsideDir = temporaryDirectory()
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'SECRET')
+
+    const srcDir = temporaryDirectory()
+    fs.writeFileSync(path.join(srcDir, 'index.js'), '// code')
+    fs.mkdirSync(path.join(srcDir, 'node_modules'))
+    fs.symlinkSync(outsideDir, path.join(srcDir, 'node_modules/bundled-dep'))
+
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir, {
+      files: ['index.js', 'node_modules/bundled-dep/secret.txt'],
+    })
+
+    expect(filesIndex.has('index.js')).toBe(true)
+    expect(filesIndex.has('node_modules/bundled-dep/secret.txt')).toBe(false)
+  })
 })
 
 describe('restoring symlinks from side effects', () => {
