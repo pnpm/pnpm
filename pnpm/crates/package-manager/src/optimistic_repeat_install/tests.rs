@@ -988,8 +988,8 @@ fn linked_sibling_decision_for_spec(
 
 #[test]
 fn scoped_hoisted_limits_are_recorded_for_install_freshness() {
-    let mut config = pnpm_config::Config::default();
-    config.node_linker = pnpm_config::NodeLinker::Hoisted;
+    let mut config =
+        pnpm_config::Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..Default::default() };
     let first = current_settings(&config, config.node_linker, isolated_included(), None);
     config.hoisting_limits = pnpm_config::HoistingLimits::Workspaces;
     let second = current_settings(&config, config.node_linker, isolated_included(), None);
