@@ -147,7 +147,7 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
     : undefined
   const files = (await walkPackage(tree, packlistOpts))
     .map((file) => file.replace(/^\.[/\\]/, ''))
-    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file))
+    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file, boundary))
   return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
 }
 
@@ -173,16 +173,16 @@ function isEscapingRelativePath (rel: string): boolean {
   return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
 }
 
-function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
+function isInternalFileOrSymlink (pkgDir: string, relFile: string, boundary = pkgDir): boolean {
   const absPath = path.join(pkgDir, relFile)
   const lstat = lstatIfExists(absPath, ['ENOENT'])
   if (lstat == null) {
     return false
   }
   if (!lstat.isSymbolicLink()) {
-    return !realTargetEscapes(pkgDir, absPath, false)
+    return !realTargetEscapes(boundary, absPath, false)
   }
-  return isInternalSymlink(pkgDir, relFile, absPath)
+  return isInternalSymlink(pkgDir, relFile, absPath, boundary)
 }
 
 function lstatIfExists (filePath: string, missingCodes: string[]): fs.Stats | undefined {
@@ -194,7 +194,7 @@ function lstatIfExists (filePath: string, missingCodes: string[]): fs.Stats | un
   }
 }
 
-function isInternalSymlink (pkgDir: string, relFile: string, absPath: string): boolean {
+function isInternalSymlink (pkgDir: string, relFile: string, absPath: string, boundary = pkgDir): boolean {
   let linkTarget = fs.readlinkSync(absPath)
   if (path.isAbsolute(linkTarget)) {
     linkTarget = path.relative(path.dirname(absPath), linkTarget)
@@ -207,7 +207,7 @@ function isInternalSymlink (pkgDir: string, relFile: string, absPath: string): b
   if (isEscapingRelativePath(relToPkg)) {
     return false
   }
-  return !realTargetEscapes(pkgDir, absPath, true)
+  return !realTargetEscapes(boundary, absPath, true)
 }
 
 function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
@@ -220,11 +220,11 @@ function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
   return normalizedArchive === '..' || normalizedArchive.startsWith('../')
 }
 
-function realTargetEscapes (pkgDir: string, absPath: string, isSymlink = true): boolean {
+function realTargetEscapes (boundary: string, absPath: string, isSymlink = true): boolean {
   try {
     const realTarget = fs.realpathSync(absPath)
-    const realPkgDir = fs.realpathSync(pkgDir)
-    return isEscapingRelativePath(path.relative(realPkgDir, realTarget))
+    const realBoundary = fs.realpathSync(boundary)
+    return isEscapingRelativePath(path.relative(realBoundary, realTarget))
   } catch (err: unknown) {
     if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
