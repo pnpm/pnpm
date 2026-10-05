@@ -808,3 +808,22 @@ fn tar_metadata_limits_bound_sparse_extension_chains() {
         .unwrap();
     assert_eq!(entry.size(), 1);
 }
+
+#[test]
+fn buffered_tar_entry_diagnostics_escape_terminal_controls() {
+    let mut header = tar::Header::new_gnu();
+    header.set_path("package/README.\x1b[31m\u{009b}31m.md").unwrap();
+    header.set_size(crate::MAX_TARBALL_METADATA_BYTES + 1);
+    header.set_entry_type(tar::EntryType::Regular);
+    header.set_cksum();
+    let mut archive = tar::Archive::new(&header.as_bytes()[..]);
+    let mut entries = archive.entries().unwrap();
+    let mut entry = entries.next().unwrap().unwrap();
+    let error = crate::read_buffered_tar_entry(&mut entry).unwrap_err();
+    let message = error.to_string();
+    assert_eq!(error.kind(), ErrorKind::InvalidData);
+    assert!(message.contains(r"\u{1b}"));
+    assert!(message.contains(r"\u{9b}"));
+    assert!(!message.contains('\x1b'));
+    assert!(!message.contains('\u{009b}'));
+}

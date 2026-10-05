@@ -609,7 +609,10 @@ pub fn read_buffered_tar_entry(
             std::io::ErrorKind::InvalidData,
             format!(
                 "tar entry {} is {size} bytes, which exceeds the {}-byte buffered entry limit",
-                entry.path()?.display(),
+                entry
+                    .path()?
+                    .to_string_lossy()
+                    .escape_debug(),
                 crate::MAX_TARBALL_METADATA_BYTES,
             ),
         ));

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { inspect } from 'node:util'
 import { createGunzip, type Gunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
@@ -210,7 +211,7 @@ function acceptBufferedEntrySize (size: number, filename: string, context: Packe
   if (size <= MAX_BUFFERED_ENTRY_SIZE) return true
   context.handleError(new PnpmError(
     'PUBLISH_EXTRACT_MANIFEST_READ',
-    `Failed to read the archive ${context.tarballPath}: tar entry ${filename} is ${size} bytes, which exceeds the ${MAX_BUFFERED_ENTRY_SIZE}-byte buffered entry limit`
+    `Failed to read the archive ${context.tarballPath}: tar entry ${inspect(filename, { colors: false })} is ${size} bytes, which exceeds the ${MAX_BUFFERED_ENTRY_SIZE}-byte buffered entry limit`
   ))
   return false
 }

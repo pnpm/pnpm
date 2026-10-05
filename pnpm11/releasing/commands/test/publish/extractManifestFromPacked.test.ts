@@ -263,20 +263,25 @@ describe('isTarballPath', () => {
   })
 })
 
-test.each(['package/package.json', 'package/README.md'])('rejects oversized buffered entry %s before reading its payload', async (filename) => {
+test.each(['package/package.json', 'package/README.md', 'package/README.\x1b[31m\x9b31m.md'])('rejects oversized buffered entry %s before reading its payload', async (filename) => {
   prepareEmpty()
   const tarballPath: TarballPath = 'oversized.tgz'
-  await createTarball(tarballPath, { [filename]: '' })
+  await createTarball(tarballPath, { 'package/placeholder': '' })
   const header = gunzipSync(fs.readFileSync(tarballPath)).subarray(0, 512)
+  header.fill(0, 0, 100)
+  header.write(filename, 0, 'utf8')
   header.write((64 * 1024 * 1024 + 1).toString(8).padStart(11, '0') + '\0', 124, 'ascii')
   header.fill(0x20, 148, 156)
   const checksum = header.reduce((total, byte) => total + byte, 0)
   header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 'ascii')
   fs.writeFileSync(tarballPath, gzipSync(header))
-  await expect(extractPublishManifestFromPacked(tarballPath)).rejects.toMatchObject({
+  const extraction = extractPublishManifestFromPacked(tarballPath)
+  await expect(extraction).rejects.toMatchObject({
     code: 'ERR_PNPM_PUBLISH_EXTRACT_MANIFEST_READ',
-    message: expect.stringContaining(filename),
+    message: expect.stringContaining(filename.replaceAll('\x1b', '\\x1B').replaceAll('\x9b', '\\x9B')),
   })
+  await expect(extraction).rejects.toHaveProperty('message', expect.not.stringContaining('\x1b'))
+  await expect(extraction).rejects.toHaveProperty('message', expect.not.stringContaining('\x9b'))
   if (filename.endsWith('package.json')) {
     await expect(extractManifestFromPacked(tarballPath)).rejects.toMatchObject({
       code: 'ERR_PNPM_PUBLISH_EXTRACT_MANIFEST_READ',
