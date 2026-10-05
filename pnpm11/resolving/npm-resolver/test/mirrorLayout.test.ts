@@ -241,3 +241,13 @@ test('hasVersionManifest reads presence without parsing a lazy manifest', async 
   expect(hasVersionManifest(loaded!.versions, '3.0.0')).toBe(false)
   expect(hasVersionManifest({ '1.0.0': null } as unknown as PackageMeta['versions'], '1.0.0')).toBe(false)
 })
+
+test('an index record over 64 MiB is a cache miss', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const headers = '{}'
+  // Valid JSON once the padding is skipped, so only the size bound rejects it.
+  const index = `${' '.repeat(64 * 1024 * 1024)}{"name":"foo","distTags":{},"versions":[]}`
+  fs.writeFileSync(pkgMirror, `pnpm-meta-v1 ${headers.length} ${index.length}\n${headers}${index}`)
+
+  expect(await loadMeta(pkgMirror)).toBeNull()
+})
