@@ -348,13 +348,16 @@ fn remove_legacy_homedir_shims(pnpm_home_dir: &Path) {
 
 /// Render the user-facing summary of what changed.
 fn render_setup_output(report: &PathExtenderReport) -> String {
-    if report.old_settings == report.new_settings {
-        return "No changes to the environment were made. Everything is already up to date."
-            .to_string();
-    }
     let mut output = Vec::new();
     if let Some(config_file) = &report.config_file {
         output.push(report_config_change(config_file));
+    }
+    if report.old_settings == report.new_settings {
+        output.push(
+            "No changes to the environment were made. Everything is already up to date.".to_string(
+            ),
+        );
+        return output.join("\n\n");
     }
     output.push(format!("The following configuration changes were made:\n{}", report.new_settings));
     match &report.config_file {

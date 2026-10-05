@@ -309,12 +309,13 @@ export async function handler (
 }
 
 function renderSetupOutput (report: PathExtenderReport): string {
-  if (report.oldSettings === report.newSettings) {
-    return 'No changes to the environment were made. Everything is already up to date.'
-  }
   const output = []
   if (report.configFile) {
     output.push(reportConfigChange(report.configFile))
+  }
+  if (report.oldSettings === report.newSettings) {
+    output.push('No changes to the environment were made. Everything is already up to date.')
+    return output.join('\n\n')
   }
   output.push(`The following configuration changes were made:
 ${report.newSettings}`)
