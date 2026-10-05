@@ -76,7 +76,7 @@ export async function installConfigDepsAndLoadHooks (
     // self-update — and its `customResolvers`/`customFetchers` would take over
     // the pnpm download the trusted bootstrap registry is there to protect.
     // Pnpmfiles from trusted sources (the `pnpmfile` setting, the global
-    // pnpmfile) are still loaded.
+    // pnpmfile, config-dependency plugins) are still loaded.
     forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {

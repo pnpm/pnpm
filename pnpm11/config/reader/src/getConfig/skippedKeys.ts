@@ -30,9 +30,6 @@ export const SCHEMA_DIRECTIVE_KEY = '$schema'
  */
 export const SELF_UPDATE_SKIPPED_SETTINGS = [
   'ci',
-  'configDependencies',
-  'globalPnpmfile',
-  'pnpmfile',
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
   'minimumReleaseAgeIgnoreMissingTime',
