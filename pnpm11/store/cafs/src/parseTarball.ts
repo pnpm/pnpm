@@ -12,6 +12,7 @@ const FILE_TYPE_HARD_LINK: number = '1'.charCodeAt(0)
 const FILE_TYPE_SYMLINK: number = '2'.charCodeAt(0)
 const FILE_TYPE_DIRECTORY: number = '5'.charCodeAt(0)
 const SPACE: number = ' '.charCodeAt(0)
+const NEWLINE: number = '\n'.charCodeAt(0)
 const SLASH: number = '/'.charCodeAt(0)
 const BACKSLASH: number = '\\'.charCodeAt(0)
 const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
@@ -322,11 +323,14 @@ function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, li
   while (cursor < end && buffer[cursor] !== SPACE) {
     cursor++
   }
+  if (cursor >= end) {
+    throw new Error('Invalid PAX record format: missing space delimiter')
+  }
 
   // The format of a PAX header line is "%d %s=%s\n"
   const strLen: string = buffer.toString('utf-8', lineStart, cursor)
   const len: number = parseInt(strLen, 10)
-  if (!len) {
+  if (isNaN(len) || len <= 0 || lineStart + len > end || lineStart + len <= cursor) {
     throw new Error(`Invalid length in PAX record: ${strLen}`)
   }
 
@@ -334,6 +338,9 @@ function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, li
   cursor++
 
   const lineEnd: number = lineStart + len
+  if (buffer[lineEnd - 1] !== NEWLINE) {
+    throw new Error('Invalid PAX record format: missing newline terminator')
+  }
   return { record: buffer.toString('utf-8', cursor, lineEnd - 1), lineEnd }
 }
 
@@ -355,7 +362,7 @@ function applyPaxRecord (state: ParserState, record: string, global: boolean): v
 
 function parsePaxSize (record: string, equalSign: number, global: boolean): number {
   const size: number = parseInt(record.slice(equalSign + 1), 10)
-  if (isNaN(size) || size < 0) {
+  if (isNaN(size) || size < 0 || !Number.isSafeInteger(size)) {
     throw new Error(`Invalid size in PAX record: ${record}`)
   }
   if (global) {
@@ -371,8 +378,8 @@ function entryHasContent (fileType: number): boolean {
 /**
  * An entry's content is followed by zeros up to the next 512-byte block boundary.
  */
-function paddingOf (size: number): number {
-  return (BLOCK_SIZE - (size & 0x1ff)) & 0x1ff
+export function paddingOf (size: number): number {
+  return (BLOCK_SIZE - (size % BLOCK_SIZE)) % BLOCK_SIZE
 }
 
 /**

@@ -14,7 +14,7 @@ import {
   createCafs,
   getFilePathByModeInCafs,
 } from '../src/index.js'
-import { createTarballParser } from '../src/parseTarball.js'
+import { createTarballParser, paddingOf } from '../src/parseTarball.js'
 
 const testFixtures = fixtures(import.meta.dirname)
 
@@ -389,6 +389,45 @@ test('an entry whose size is not a number is rejected', () => {
   expect(() => parseTarballEntries(tarContent)).toThrow('Invalid file size for TAR header at offset 0')
 })
 
+test('paddingOf computes correct block padding without 32-bit truncation', () => {
+  expect(paddingOf(0)).toBe(0)
+  expect(paddingOf(512)).toBe(0)
+  expect(paddingOf(1)).toBe(511)
+  expect(paddingOf(511)).toBe(1)
+  expect(paddingOf(513)).toBe(511)
+  const fourGib = 4 * 1024 * 1024 * 1024
+  expect(paddingOf(fourGib)).toBe(0)
+  expect(paddingOf(fourGib + 1)).toBe(511)
+  expect(paddingOf(fourGib + 511)).toBe(1)
+  expect(paddingOf(fourGib + 512)).toBe(0)
+  expect(paddingOf(fourGib + 513)).toBe(511)
+})
+
+test('rejects PAX header with negative length', () => {
+  const tarContent = createTarballWithPaxHeader('-12 path=bad\n')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid length in PAX record: -12')
+})
+
+test('rejects PAX header with length exceeding buffer', () => {
+  const tarContent = createTarballWithPaxHeader('999999 path=bad\n')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid length in PAX record: 999999')
+})
+
+test('rejects PAX header without space delimiter', () => {
+  const tarContent = createTarballWithPaxHeader('1234567890')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid PAX record format: missing space delimiter')
+})
+
+test('rejects PAX header without newline terminator', () => {
+  const tarContent = createTarballWithPaxHeader('12 path=badX')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid PAX record format: missing newline terminator')
+})
+
+test('rejects PAX header with invalid or negative size', () => {
+  const negativeSizePax = createTarballWithPaxHeader('14 size=-1000\n')
+  expect(() => parseTarballEntries(negativeSizePax)).toThrow('Invalid size in PAX record: size=-1000')
+})
+
 test('nothing is written to the store from a malformed archive', () => {
   const storeDir = temporaryDirectory()
   const validEntry = createTarballWithEntry('package/index.js', 'module.exports = 1').subarray(0, 1024)
@@ -515,6 +554,36 @@ function createTarballWithEntry (
   const endMarker = Buffer.alloc(1024, 0)
 
   return Buffer.concat([header, contentBlock, endMarker])
+}
+
+function createTarballWithPaxHeader (
+  paxRecord: string | Buffer,
+  entryPath: string = 'package/index.js',
+  entryContent: string = 'module.exports = 1'
+): Buffer {
+  const paxPayload = typeof paxRecord === 'string' ? Buffer.from(paxRecord, 'utf8') : paxRecord
+  const paxBlock = Buffer.alloc(Math.ceil(paxPayload.length / 512) * 512, 0)
+  paxPayload.copy(paxBlock)
+
+  const paxHeader = Buffer.alloc(512, 0)
+  paxHeader.write('PaxHeader/test', 0, 14, 'utf8')
+  paxHeader.write('0000644\0', 100, 8, 'utf8')
+  paxHeader.write('0000000\0', 108, 8, 'utf8')
+  paxHeader.write('0000000\0', 116, 8, 'utf8')
+  paxHeader.write(paxPayload.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'utf8')
+  paxHeader.write('00000000000\0', 136, 12, 'utf8')
+  paxHeader[156] = 'x'.charCodeAt(0)
+  paxHeader.write('ustar\0', 257, 6, 'utf8')
+  paxHeader.write('00', 263, 2, 'utf8')
+  paxHeader.fill(' ', 148, 156)
+  let checksum = 0
+  for (const byte of paxHeader) {
+    checksum += byte
+  }
+  paxHeader.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'utf8')
+
+  const normalEntry = createTarballWithEntry(entryPath, entryContent)
+  return Buffer.concat([paxHeader, paxBlock, normalEntry])
 }
 
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
