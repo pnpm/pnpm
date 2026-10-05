@@ -295,7 +295,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
   const calls = gitCalls()
   const expectedCalls = [
     ['git', [...prefixGitArgs(), 'init']],
-    ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', resolution.repo]],
+    ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', '--', resolution.repo]],
     [
       'git',
       [...prefixGitArgs(), 'fetch', '--depth', '1', 'origin', resolution.commit],
@@ -358,6 +358,71 @@ test('reject a commit value that looks like a git option', async () => {
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('Invalid git commit hash "--upload-pack=touch /tmp/pwned"')
+  expect(jest.mocked(execa)).not.toHaveBeenCalled()
+})
+
+test('the invalid commit error redacts credentials and strips control characters', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const err = await fetch(createCafsStore(storeDir),
+    {
+      commit: 'main\u001b[2J',
+      repo: 'https://secret-user:secret-password@example.com/repo.git',
+      type: 'git',
+    }, {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    }).then(() => undefined, (error: unknown) => error as Error)
+  expect(err?.message).toContain('Invalid git commit hash')
+  expect(err?.message).not.toContain('secret-')
+  expect(err?.message).not.toContain('\u001b')
+  expect(jest.mocked(execa)).not.toHaveBeenCalled()
+})
+
+test('reject a repository value that looks like a git option', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: '0123456789012345678901234567890123456789',
+        repo: '--upload-pack=touch /tmp/pwned',
+        type: 'git',
+      }, {
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow('Invalid git repository "--upload-pack=touch /tmp/pwned". A repository must not be empty, begin with \'-\', or contain a null byte.')
+  expect(jest.mocked(execa)).not.toHaveBeenCalled()
+})
+
+test('reject an empty repository value', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: '0123456789012345678901234567890123456789',
+        repo: '',
+        type: 'git',
+      }, {
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow('Invalid git repository "". A repository must not be empty, begin with \'-\', or contain a null byte.')
+  expect(jest.mocked(execa)).not.toHaveBeenCalled()
+})
+
+test('reject a repository value that contains a null byte', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  await expect(
+    fetch(createCafsStore(storeDir),
+      {
+        commit: '0123456789012345678901234567890123456789',
+        repo: 'https://example.com/\0/repo.git',
+        type: 'git',
+      }, {
+        filesIndexFile: path.join(storeDir, 'index.json'),
+      })
+  ).rejects.toThrow('Invalid git repository "https://example.com//repo.git". A repository must not be empty, begin with \'-\', or contain a null byte.')
   expect(jest.mocked(execa)).not.toHaveBeenCalled()
 })
 
@@ -591,7 +656,7 @@ test('git runs with terminal and ssh prompts disabled, so a passphrase prompt ca
 
   expect(jest.mocked(execa)).toHaveBeenCalledWith(
     'git',
-    [...prefixGitArgs(), 'clone', 'git@github.com:acme/widget.git', expect.any(String)],
+    [...prefixGitArgs(), 'clone', '--', 'git@github.com:acme/widget.git', expect.any(String)],
     expect.objectContaining({
       env: expect.objectContaining({
         GIT_TERMINAL_PROMPT: '0',
