@@ -159,17 +159,16 @@ async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions):
   }
   const globalWarnings: string[] = []
   const localWarnings: string[] = []
-  let final: GetConfigResult
-  let localSrc: GetConfigResult
-  try {
-    [final, localSrc] = await Promise.all([
-      getConfig({ ...globalCfgOpts, warnings: globalWarnings }),
-      getConfig({ ...localOpts, warnings: localWarnings }),
-    ])
-  } finally {
-    // Both loads read the user-level config, so they report its warnings twice.
-    warnings.push(...new Set([...globalWarnings, ...localWarnings]))
-  }
+  const results = await Promise.allSettled([
+    getConfig({ ...globalCfgOpts, warnings: globalWarnings }),
+    getConfig({ ...localOpts, warnings: localWarnings }),
+  ])
+  // Both loads read the user-level config, so they report its warnings twice.
+  warnings.push(...new Set([...globalWarnings, ...localWarnings]))
+  const [final, localSrc] = results.map((result) => {
+    if (result.status === 'rejected') throw result.reason
+    return result.value
+  })
   inheritDlxConfig(final, localSrc)
   return { ...final, warnings }
 }
@@ -214,8 +213,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
   })
-  const warnings = opts.warnings ?? []
-  warnings.push(...npmrcResult.warnings)
+  opts.warnings?.push(...npmrcResult.warnings)
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')
@@ -237,7 +235,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     npmrcResult,
     pnpmConfig,
     registrySetOnCommandLine: explicitlySetKeys.has('registry'),
-    warnings,
+    warnings: opts.warnings ?? npmrcResult.warnings,
   }
   return { configDir, state, globalDepsBuildConfig, globalYamlConfig }
 }
