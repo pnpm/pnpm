@@ -557,6 +557,48 @@ fn exec_preserves_a_detached_process_after_success_when_node_launches_pnpm() {
     drop(root);
 }
 
+/// PowerShell that starts a Node process with `CREATE_BREAKAWAY_FROM_JOB`,
+/// which writes `$env:BREAKAWAY_MARKER` after a delay, then exits 1. Exits 2
+/// if the breakaway spawn is refused.
+#[cfg(target_os = "windows")]
+const BREAKAWAY_SPAWN_SCRIPT: &str = r#"
+Add-Type -Name P -Namespace W -MemberDefinition @"
+[StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct SI { public int cb; public string r, d, t; public int x,y,xs,ys,xc,yc,fa,fl; public short sw, r2; public IntPtr r3, i, o, e; }
+[StructLayout(LayoutKind.Sequential)] public struct PI { public IntPtr hp, ht; public int pid, tid; }
+[DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern bool CreateProcessW(string app, System.Text.StringBuilder cmd, IntPtr pa, IntPtr ta, bool inh, uint flags, IntPtr env, string cwd, ref SI si, out PI pi);
+"@
+# DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB
+$flags = [uint32](0x8 -bor 0x200 -bor 0x01000000)
+$cmd = '"' + (Get-Command node).Source + '" -e "setTimeout(() => require(`fs`).writeFileSync(process.env.BREAKAWAY_MARKER, ``), 2000)"'
+$si = New-Object W.P+SI; $si.cb = [Runtime.InteropServices.Marshal]::SizeOf($si); $pi = New-Object W.P+PI
+$ok = [W.P]::CreateProcessW([NullString]::Value, [Text.StringBuilder]$cmd, [IntPtr]::Zero, [IntPtr]::Zero, $false, $flags, [IntPtr]::Zero, [NullString]::Value, [ref]$si, [ref]$pi)
+if (-not $ok) { "CreateProcessW failed: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"; exit 2 }
+exit 1
+"#;
+
+#[cfg(target_os = "windows")]
+#[test]
+fn exec_lets_a_breakaway_process_outlive_a_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let script_path = workspace.join("breakaway.ps1");
+    let marker_path = workspace.join("breakaway-marker.txt");
+    fs::write(&script_path, BREAKAWAY_SPAWN_SCRIPT).expect("write breakaway script");
+
+    let output = pacquet
+        .with_env("BREAKAWAY_MARKER", &marker_path)
+        .with_args(["exec", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+        .with_arg(&script_path)
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(1), "the breakaway spawn should succeed: {stdout}");
+
+    let marker_exists = wait_for_file(&marker_path);
+    assert!(marker_exists, "the breakaway process should survive a failed pnpm exec");
+
+    drop(root);
+}
+
 #[cfg(target_os = "windows")]
 #[test]
 fn exec_cleans_up_a_detached_process_after_failure() {

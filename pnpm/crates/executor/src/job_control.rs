@@ -4,7 +4,9 @@
 //! reaches only the direct child. A Job Object with `KILL_ON_JOB_CLOSE` lets
 //! the OS terminate the whole process tree after an error, panic, or
 //! interrupt. Successful commands disarm the job so a process deliberately
-//! detached by a script can outlive pacquet. On Unix the kernel's
+//! detached by a script can outlive pacquet. A descendant created with
+//! `CREATE_BREAKAWAY_FROM_JOB` leaves the job, so it outlives pacquet even
+//! after a failure. On Unix the kernel's
 //! process-group and signal model already provides cleanup, so setup is a
 //! no-op.
 //!
@@ -103,9 +105,9 @@ pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
     };
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-        SetInformationJobObject,
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JobObjectExtendedLimitInformation, SetInformationJobObject,
     };
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -119,7 +121,10 @@ pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
             return None;
         }
         let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        // Not `SILENT_BREAKAWAY_OK`: that would release every descendant and
+        // leave nothing for `KILL_ON_JOB_CLOSE` to clean up.
+        info.BasicLimitInformation.LimitFlags =
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
         let set = SetInformationJobObject(
             job,
             JobObjectExtendedLimitInformation,
