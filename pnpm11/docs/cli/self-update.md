@@ -3,7 +3,7 @@ id: self-update
 title: pnpm self-update
 ---
 
-Updates pnpm to the latest version or the one specified. Workspace settings cannot disable verification of downloaded pnpm binaries.
+Updates pnpm to the latest version or the one specified.
 
 ```
 pnpm self-update [<version>]
