@@ -531,6 +531,47 @@ test('rejects a registry-style depPath whose variations resolution hides a git v
   })
 })
 
+function findEvilVariantTarball (resolution: unknown): { ok: false, code: string, reason: string } | undefined {
+  const variants = (resolution as { variants?: Array<{ resolution?: { tarball?: string } }> })?.variants
+  const evil = variants?.find((variant) => {
+    const tarball = variant.resolution?.tarball
+    if (tarball == null) return false
+    try {
+      return new URL(tarball).hostname === 'evil.com'
+    } catch {
+      return false
+    }
+  })
+  if (evil != null) {
+    return { ok: false, code: 'TARBALL_URL_MISMATCH', reason: 'inner variant tarball URL is untrusted' }
+  }
+  return undefined
+}
+
+test('rejects a registry-style depPath whose variations resolution fails policy verifier', async () => {
+  const verifier: ResolutionVerifier = {
+    verify: async (resolution) => findEvilVariantTarball(resolution) ?? { ok: true },
+    policy: { tarballUrlBinding: true },
+    canTrustPastCheck: () => true,
+  }
+  const lockfile = makeLockfile({
+    'foo@1.0.0': {
+      resolution: {
+        type: 'variations',
+        variants: [
+          {
+            targets: [{ os: 'linux' }],
+            resolution: { integrity: 'sha512-deadbeef', tarball: 'https://evil.com/foo.tgz' } as never,
+          },
+        ],
+      } as never,
+    },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    code: 'ERR_PNPM_TARBALL_URL_MISMATCH',
+  })
+})
+
 test('does not flag artifact depPaths with non-registry resolutions', async () => {
   const lockfile = makeLockfile({
     'foo@git+https://example.com/foo.git#abc123': { resolution: { type: 'git', repo: 'https://example.com/foo.git', commit: 'abc123' }, version: '1.0.0' },
@@ -562,11 +603,22 @@ test('rejects a registry-style depPath with a non-boolean gitHosted flag', async
   })
 })
 
-test('accepts a registry-style depPath backed by a custom resolver resolution', async () => {
+test('rejects a registry-style depPath backed by a custom resolver resolution', async () => {
   const lockfile = makeLockfile({
     'foo@1.0.0': { resolution: { type: 'custom:cdn', source: 'foo' } as never },
   })
-  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('rejects a registry-style depPath backed by an empty variations resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'variations', variants: [] } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
 })
 
 test('rejects a registry-style depPath backed by a non-http(s) tarball URL', async () => {

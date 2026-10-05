@@ -99,6 +99,43 @@ snapshots:
 }
 
 #[tokio::test]
+async fn rejects_registry_style_key_with_empty_variations_resolution() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {type: variations, variants: []}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("registry-style key with an empty variations resolution must be rejected");
+    let VerifyError::ResolutionShapeMismatch { count, breakdown } = err else {
+        panic!("expected ResolutionShapeMismatch, got {err:?}");
+    };
+    assert_eq!(count, 1);
+    assert!(breakdown.contains("acme@1.0.0"), "breakdown: {breakdown}");
+}
+
+#[tokio::test]
 async fn accepts_artifact_keys_with_non_registry_resolutions() {
     let lockfile = parse(
         "lockfileVersion: '9.0'

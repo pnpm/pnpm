@@ -56,6 +56,11 @@ const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
   canTrustPastCheck: (cached) => cached.dependencyAliasCheck === true,
 }
 
+const VARIATION_RESOLUTION_CACHE_IDENTITY: VerifierCacheIdentity = {
+  policy: { variationResolutionCheck: true },
+  canTrustPastCheck: (cached) => cached.variationResolutionCheck === true,
+}
+
 /**
  * Every verifier list that flows into the verification cache must carry
  * the always-on offline structural checks' identities, so a record
@@ -68,7 +73,7 @@ const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
  * resolution it just produced).
  */
 export function withOfflineCheckCacheIdentities (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
-  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY]
+  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
 }
 
 export interface VerifyLockfileResolutionsOptions {
@@ -370,18 +375,15 @@ function isRegistryShapedResolution (resolution: unknown): boolean {
     variants?: unknown
   }
   if (type === 'variations') return areRegistryShapedVariants(variants)
-  // Custom resolver protocols (`type: 'custom:*'`) are a legitimate
-  // non-registry source the user opted into. They can only be materialized by
-  // a project-configured custom fetcher — an unrecognized custom type throws at
-  // fetch time (see @pnpm/fetching.pick-fetcher) — so a forged custom type
-  // cannot launder an artifact past this gate into a build.
-  if (typeof type === 'string' && type.startsWith('custom:')) return true
+  // Custom resolutions are opaque to the npm verifier — they are
+  // fetched by a pnpmfile custom fetcher, never bound to the
+  // registry's `dist.tarball`.
   if (type != null) return false
   return isRegistryShapedTarballResolution(gitHosted, tarball)
 }
 
 function areRegistryShapedVariants (variants: unknown): boolean {
-  return Array.isArray(variants) && variants.every(
+  return Array.isArray(variants) && variants.length > 0 && variants.every(
     (variant) => isRegistryShapedResolution((variant as { resolution?: unknown })?.resolution)
   )
 }
