@@ -219,3 +219,31 @@ fn nonexistent_loader_roots_cannot_escape_links_through_parent_components() {
         Some(slot),
     );
 }
+
+#[test]
+fn loaded_project_with_nonhidden_local_store_does_not_mark_unused_store_slots() {
+    let project = tempdir().unwrap();
+    let store = StoreDir::new(project.path().join("store"));
+    let live = make_slot(&store.links(), "@", "live", "1", "hash");
+    let dead_parent = make_slot(&store.links(), "@", "dead-parent", "1", "hash");
+    let dead_child = make_slot(&store.links(), "@", "dead-child", "1", "hash");
+    symlink_dir(
+        &dead_child.join("node_modules/dead-child"),
+        &dead_parent.join("node_modules/dead-child"),
+    )
+    .unwrap();
+    crate::register_loaded_project(&store, project.path()).unwrap();
+    fs::write(
+        project.path().join(crate::CAS_MANIFEST_FILENAME),
+        serde_json::json!({
+            "version": 1, "storeDir": store.root(),
+            "packages": {"live": {"root": live.join("node_modules/live"), "resolution": "node"}}
+        })
+        .to_string(),
+    )
+    .unwrap();
+    store.prune().unwrap();
+    assert!(live.is_dir());
+    assert!(!dead_parent.exists());
+    assert!(!dead_child.exists());
+}
