@@ -2,7 +2,7 @@ use super::{
     AllowBuild, AuditConfig, AuditLevel, AuditSettings, BTreeMap, BTreeSet, CargoSettings,
     CatalogMode, ConfigDependency, Deserialize, Deserializer, DroppedKeys, EnvVar, ErrorKind,
     GLOBAL_CONFIG_YAML_FILENAME, HashMap, HoistingLimits, IgnoredAny, IndexMap, InitType,
-    LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker, NodePackageMapType,
+    LinkWorkspacePackages, LoadWorkspaceYamlError, LockfileSetting, NodeLinker, NodePackageMapType,
     PackageConfigsSetting, PackageExtension, PackageImportMethod, Path, PathBuf,
     PeerDependencyRules, Pipe, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
     RegistryEntry, RemoteSideEffectsCacheSettings, ResolutionMode, RuntimeOnFail,
@@ -264,7 +264,7 @@ pub struct WorkspaceSettings {
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,
-    pub lockfile: Option<bool>,
+    pub lockfile: Option<LockfileSetting>,
     /// `lockfileDir` from `pnpm-workspace.yaml` or the global
     /// `config.yaml`. Resolved against the workspace dir like the other
     /// path-valued fields. See [`Config::lockfile_dir`](crate::settings::Config::lockfile_dir).

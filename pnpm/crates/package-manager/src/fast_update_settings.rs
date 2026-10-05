@@ -1,6 +1,8 @@
 use crate::fast_update_compose::Drift;
 use pnpm_config::Config;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot};
+use pnpm_lockfile::{
+    ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot, ResolutionSettings,
+};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::{
     collections::{HashMap, HashSet},
@@ -19,6 +21,25 @@ pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings
         peers_suffix_max_length: (config.peers_suffix_max_length
             != pnpm_config::default_peers_suffix_max_length())
         .then_some(config.peers_suffix_max_length),
+        resolution: resolution_settings_from_config(config),
+    }
+}
+
+/// The values `lockfile.includeResolutionSettings` records, all unset when
+/// that setting is off.
+pub(crate) fn resolution_settings_from_config(config: &Config) -> ResolutionSettings {
+    if !config.lockfile_include_resolution_settings {
+        return ResolutionSettings::default();
+    }
+    ResolutionSettings {
+        auto_dedupe: Some(config.auto_dedupe),
+        dedupe_injected_deps: Some(config.dedupe_injected_deps),
+        dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
+        link_workspace_packages: Some(
+            crate::optimistic_repeat_install::settings::link_workspace_packages_to_json(
+                config.link_workspace_packages,
+            ),
+        ),
     }
 }
 
@@ -31,6 +52,7 @@ pub(crate) enum ChangedSetting {
     ExcludeLinksFromLockfile,
     PeersSuffixMaxLength,
     InjectWorkspacePackages,
+    ResolutionSettings,
 }
 
 /// Whether the lockfile's recorded `settings` block drifted from the
@@ -101,6 +123,12 @@ fn changed_settings(
     {
         changed.push(ChangedSetting::InjectWorkspacePackages);
     }
+    // Unrecorded settings are dropped on write rather than compared.
+    if settings.resolution != ResolutionSettings::default()
+        && recorded.map(|recorded| &recorded.resolution) != Some(&settings.resolution)
+    {
+        changed.push(ChangedSetting::ResolutionSettings);
+    }
     changed
 }
 
@@ -120,6 +148,8 @@ fn setting_cannot_affect_lockfile(
         ChangedSetting::InjectWorkspacePackages => {
             has_no_injectable_dependencies(lockfile, manifests, workspace_package_names)
         }
+        // Only a resolution under the recorded values may record them.
+        ChangedSetting::ResolutionSettings => false,
     }
 }
 

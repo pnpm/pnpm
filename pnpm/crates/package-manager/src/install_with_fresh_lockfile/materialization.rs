@@ -79,28 +79,30 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
             prefix: install.projects.lockfile_dir.display().to_string(),
             stage: Stage::ResolutionDone,
         }));
-        FreshMaterialization {
-            install,
-            resources: MaterializationResources {
-                tarball_mem_cache: owned.fetching.tarball_mem_cache,
-                lockfile_specifier_manifests:
-                    manifest_transforms::apply_overrides_to_specifier_manifests(
-                        owned.projects.lockfile_specifier_manifests,
-                        resolved.overrides.versions_overrider.as_deref(),
-                    ),
-                catalogs: owned.projects.catalogs,
-                node_version: owned.node_version,
-                early_host_detection: owned.early_host_detection,
-                deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
-                lockfile_verification_gate: owned.lockfile_verification_gate,
-                resolution_observer: setup.completion_observer,
-            },
-            shape: setup.shape,
-            stores: setup.stores.into(),
-            custom_fetcher_session: setup.chain.custom_fetcher_session,
-            resolved,
-        }
-        .run()
+        Box::pin(
+            FreshMaterialization {
+                install,
+                resources: MaterializationResources {
+                    tarball_mem_cache: owned.fetching.tarball_mem_cache,
+                    lockfile_specifier_manifests:
+                        manifest_transforms::apply_overrides_to_specifier_manifests(
+                            owned.projects.lockfile_specifier_manifests,
+                            resolved.overrides.versions_overrider.as_deref(),
+                        ),
+                    catalogs: owned.projects.catalogs,
+                    node_version: owned.node_version,
+                    early_host_detection: owned.early_host_detection,
+                    deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
+                    lockfile_verification_gate: owned.lockfile_verification_gate,
+                    resolution_observer: setup.completion_observer,
+                },
+                shape: setup.shape,
+                stores: setup.stores.into(),
+                custom_fetcher_session: setup.chain.custom_fetcher_session,
+                resolved,
+            }
+            .run(),
+        )
         .await
     })
 }

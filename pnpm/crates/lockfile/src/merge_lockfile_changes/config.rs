@@ -21,6 +21,13 @@ pub(super) fn merge_settings(
                 || theirs.inject_workspace_packages,
             peers_suffix_max_length: ours.peers_suffix_max_length
                 .or(theirs.peers_suffix_max_length),
+            // Values the two sides disagree on describe neither resolution,
+            // so they are left unrecorded and the next install re-resolves.
+            resolution: if ours.resolution == theirs.resolution {
+                ours.resolution.clone()
+            } else {
+                crate::ResolutionSettings::default()
+            },
         }),
     }
 }

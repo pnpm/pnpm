@@ -130,6 +130,10 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
             exclude_links_from_lockfile: marker != "fresh",
             inject_workspace_packages: marker == "fresh",
             peers_suffix_max_length: Some(if marker == "fresh" { 2000 } else { 1000 }),
+            resolution: pnpm_lockfile::ResolutionSettings {
+                auto_dedupe: Some(marker == "fresh"),
+                ..Default::default()
+            },
         }),
         catalogs: Some(catalogs),
         overrides: Some(IndexMap::from([(

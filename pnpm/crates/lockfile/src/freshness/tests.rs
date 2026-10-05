@@ -36,6 +36,7 @@ fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
             inject_workspace_packages: false,
             peers_suffix_max_length: crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
             pnpmfile_checksum: PnpmfileChecksumCheck::Current(None),
+            resolution_settings: None,
         },
     }
 }

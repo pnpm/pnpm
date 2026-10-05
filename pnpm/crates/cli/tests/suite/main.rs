@@ -91,6 +91,7 @@ mod local_tarball_dependency;
 mod lockfile_dir;
 mod lockfile_only;
 mod lockfile_resolution_reuse;
+mod lockfile_resolution_settings;
 mod lockfile_verification;
 mod login;
 mod loglevel;

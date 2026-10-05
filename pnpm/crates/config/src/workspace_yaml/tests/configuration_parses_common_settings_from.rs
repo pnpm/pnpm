@@ -25,7 +25,7 @@ packages:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.store_dir.as_deref(), Some("../my-store"));
     assert_eq!(settings.registry.as_deref(), Some("https://reg.example"));
-    assert_eq!(settings.lockfile, Some(false));
+    assert_eq!(settings.lockfile, Some(crate::workspace_yaml::LockfileSetting::Enabled(false)));
     assert_eq!(settings.auto_install_peers, Some(true));
     assert_eq!(settings.dedupe_peers, Some(true));
     assert_eq!(settings.auto_dedupe, Some(true));
@@ -136,6 +136,22 @@ registry: https://reg.example
     assert!(!config.lockfile);
     assert_eq!(config.registry, "https://reg.example/");
     assert_ne!(before_registry, config.registry);
+}
+
+#[test]
+fn the_lockfile_section_turns_the_lockfile_on() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("lockfile:\n  includeResolutionSettings: true\n").unwrap();
+    let mut config = Config::new();
+    config.lockfile = false;
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.lockfile);
+    assert!(config.lockfile_include_resolution_settings);
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("lockfile: true\n").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.lockfile_include_resolution_settings);
 }
 
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /

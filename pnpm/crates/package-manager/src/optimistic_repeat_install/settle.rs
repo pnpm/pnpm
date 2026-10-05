@@ -82,7 +82,8 @@ pub(super) fn settle_repeat_install(
         state.filtered_install,
         filesystem_now,
     );
-    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
+    new_state.settings.auto_dedupe =
+        crate::install::recorded_auto_dedupe(config, state.settings.auto_dedupe);
     if let Err(error) = update_workspace_state(workspace_root, &new_state) {
         tracing::warn!(
             target: "pacquet::install",

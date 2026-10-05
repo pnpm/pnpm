@@ -214,6 +214,22 @@ impl Default for PythonSettings {
 pub const DEFAULT_PYTHON_DOWNLOAD_URL: &str =
     "https://github.com/astral-sh/python-build-standalone/releases";
 
+/// `lockfile` as written: either a bare boolean, or the section that turns
+/// the lockfile on and configures what it records.
+#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LockfileSetting {
+    Enabled(bool),
+    Settings(LockfileSettings),
+}
+
+/// What the lockfile records beyond the resolved dependency graph.
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LockfileSettings {
+    pub include_resolution_settings: Option<bool>,
+}
+
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration
 /// carrying all three parts.
 #[derive(Debug, PartialEq, serde::Serialize, Deserialize)]

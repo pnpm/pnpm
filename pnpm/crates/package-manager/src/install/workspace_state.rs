@@ -381,6 +381,20 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     state
 }
 
+/// The `autoDedupe` an install records in the workspace state.
+///
+/// With `lockfile.includeResolutionSettings`, the lockfile records
+/// `autoDedupe` and its freshness check holds that value to the config, so
+/// every install that kept the lockfile records the config's value.
+/// Otherwise only a resolving install establishes the dedupe baseline, and
+/// `established` is what this write knows of it.
+pub(crate) fn recorded_auto_dedupe(config: &Config, established: Option<bool>) -> Option<bool> {
+    if config.lockfile && config.lockfile_include_resolution_settings {
+        return config.auto_dedupe.then_some(true);
+    }
+    established
+}
+
 /// Set [`ProjectEntry::has_modules_dir`] for each project the hoisted
 /// install left with its own modules directory.
 fn record_hoisted_modules_dirs(

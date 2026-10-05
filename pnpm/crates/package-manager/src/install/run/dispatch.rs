@@ -96,6 +96,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
 
     let take_frozen_path = take_frozen_path
         && super::frozen_local_tarballs::local_tarballs_keep_frozen_path(settled).await?;
+    super::auto_dedupe::suggest_recording_auto_dedupe::<Reporter>(settled, take_frozen_path);
 
     if take_frozen_path && mode.lockfile_only {
         finish_dispatched_lockfile::<Reporter>(

@@ -1,6 +1,6 @@
 use super::{
     super::{
-        PackageManifest, Path, PathBuf, UpdateSeedPolicy,
+        LogEvent, LogLevel, PackageManifest, Path, PathBuf, PnpmLog, Reporter, UpdateSeedPolicy,
         auto_dedupe_baseline::{AutoDedupeBaseline, BaselineInputs},
     },
     InstallScope, RunExecution,
@@ -75,14 +75,25 @@ impl RunExecution<'_> {
 }
 
 impl Settled<'_, '_> {
-    /// Whether a `--lockfile-only` install that `autoDedupe` would otherwise
-    /// always resolve may trust the record and take the up-to-date path: the
-    /// lockfile it loaded is the file on disk that a deduplicating resolution
-    /// recorded writing under the same inputs.
+    /// Whether an install that `autoDedupe` would otherwise always resolve
+    /// may take the up-to-date path. Either the lockfile it loaded is the file
+    /// on disk that a deduplicating resolution recorded writing under the same
+    /// inputs, or the lockfile itself records `autoDedupe`, which the freshness
+    /// check then holds to the config.
     pub(super) fn trusts_dedupe_record(self) -> bool {
         let config = self.install.context.config;
         self.install.lockfile_policy.prefer_frozen.unwrap_or(config.prefer_frozen_lockfile)
-            && self.recorded_lockfile_matches()
+            && (self.recorded_lockfile_matches() || self.lockfile_records_auto_dedupe())
+    }
+
+    fn lockfile_records_auto_dedupe(self) -> bool {
+        self.install.context.config.lockfile_include_resolution_settings
+            && self.lockfiles.wanted.loaded.is_some_and(|lockfile| {
+                lockfile.settings
+                    .as_ref()
+                    .and_then(|settings| settings.resolution.auto_dedupe)
+                    == Some(true)
+            })
     }
 
     fn recorded_lockfile_matches(self) -> bool {
@@ -92,3 +103,27 @@ impl Settled<'_, '_> {
         self.lockfiles.wanted.loaded.is_some_and(|lockfile| baseline.matches(lockfile))
     }
 }
+
+/// Suggest `lockfile.includeResolutionSettings` to an install that resolves
+/// with `autoDedupe` and writes a lockfile that does not record it.
+pub(super) fn suggest_recording_auto_dedupe<Reporter: self::Reporter>(
+    settled: Settled<'_, '_>,
+    take_frozen_path: bool,
+) {
+    let config = settled.install.context.config;
+    if take_frozen_path
+        || !config.auto_dedupe
+        || !config.lockfile
+        || config.lockfile_include_resolution_settings
+        || settled.install.execution.dry_run
+    {
+        return;
+    }
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Info,
+        message: AUTO_DEDUPE_NOT_RECORDED.to_string(),
+        prefix: settled.projects.workspace.prefix.clone(),
+    }));
+}
+
+const AUTO_DEDUPE_NOT_RECORDED: &str = "The lockfile does not record that it was resolved with autoDedupe, so installs that are not frozen resolve it again. To record it, set lockfile.includeResolutionSettings to true in pnpm-workspace.yaml.";

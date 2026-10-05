@@ -151,6 +151,33 @@ modify the lockfile.
 
 Add the full URL to the package's tarball to every entry in `pnpm-lock.yaml`.
 
+### lockfile.includeResolutionSettings
+
+Added in: v12.10.0
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, pnpm records these settings in the `settings` section of `pnpm-lock.yaml`:
+
+* [autoDedupe](./dependency-resolution.md#autodedupe)
+* [dedupeInjectedDeps](../workspaces.md#dedupeinjecteddeps)
+* [dedupePeerDependents](./peer-dependencies.md#dedupepeerdependents)
+* [linkWorkspacePackages](../workspaces.md#linkworkspacepackages)
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  includeResolutionSettings: true
+```
+
+A lockfile that records other values than the current settings is outdated. `pnpm install` resolves it again, and `pnpm install --frozen-lockfile` fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`. Turning this setting on makes the next install resolve the lockfile once.
+
+With `autoDedupe`, an install reuses a lockfile that records `autoDedupe: true` when nothing else changed. This also holds on a machine that did not write the lockfile, such as a server that runs `pnpm install --frozen-lockfile` and then `pnpm run`.
+
+pnpm v11 and earlier v12 versions do not keep these settings and remove them when they rewrite the lockfile. pnpm v12 versions before v12.10.0 fail to read a `pnpm-workspace.yaml` that sets `lockfile` to an object. Turn this setting on when everyone working on the project uses v12.10.0 or later.
+
+This setting needs local dependency resolution, so an install that is not frozen fails when `pnprServer` is set.
+
 ### gitBranchLockfile
 
 * Default: **false**

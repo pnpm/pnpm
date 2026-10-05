@@ -117,6 +117,7 @@ fn create_config(
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
+        lockfile_include_resolution_settings: false,
         registry: "https://registry.npmjs.com/".to_string(),
         scope: None,
         registries_by_scope: Default::default(),
