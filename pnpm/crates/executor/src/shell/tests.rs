@@ -15,7 +15,7 @@ fn posix_default_is_sh_minus_c() {
     assert_eq!(
         shell,
         SelectedShell {
-            program: Path::new("sh").to_path_buf(),
+            program: Path::new("/bin/sh").to_path_buf(),
             args: vec![os("-c")],
             windows_verbatim_args: false,
         },

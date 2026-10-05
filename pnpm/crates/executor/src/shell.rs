@@ -103,7 +103,7 @@ pub fn select_shell(
     if is_windows {
         let comspec = env::var_os("ComSpec")
             .or_else(|| env::var_os("COMSPEC"))
-            .map_or_else(|| PathBuf::from("cmd"), PathBuf::from);
+            .map_or_else(default_windows_shell, PathBuf::from);
         return Ok(SelectedShell {
             program: comspec,
             args: cmd_exe_args(),
@@ -112,7 +112,7 @@ pub fn select_shell(
     }
 
     Ok(SelectedShell {
-        program: PathBuf::from("sh"),
+        program: PathBuf::from("/bin/sh"),
         args: vec![OsString::from("-c")],
         windows_verbatim_args: false,
     })
@@ -178,6 +178,13 @@ fn shell_program_name(program: &Path) -> String {
         name.truncate(name.len() - 4);
     }
     name
+}
+
+fn default_windows_shell() -> PathBuf {
+    let system_root = env::var_os("SystemRoot")
+        .or_else(|| env::var_os("windir"))
+        .map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+    system_root.join("System32").join("cmd.exe")
 }
 
 fn cmd_exe_args() -> Vec<OsString> {
