@@ -321,9 +321,9 @@ fn global_get_and_list_ignore_the_project_settings() {
 
     let list = run(&["config", "list", "--global"]);
     eprintln!("list={list}");
-    assert!(!list.contains("minimumReleaseAge\""));
+    assert!(!list.contains(r#"minimumReleaseAge""#));
     assert!(!list.contains("//project.test/"));
-    assert!(list.contains("\"fetchRetries\": 5"));
+    assert!(list.contains(r#""fetchRetries": 5"#));
 
     drop(root);
 }
