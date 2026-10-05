@@ -110,3 +110,35 @@ snapshots:
     .expect_err("uppercased git-host tarball must be rejected");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
 }
+
+#[tokio::test]
+async fn accepts_semver_key_backed_by_custom_resolution() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {type: 'custom:e2e', integrity: sha512-deadbeef}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("custom resolution under a semver key must be accepted");
+}

@@ -429,13 +429,13 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
                     .iter()
                     .all(|variant| is_registry_shaped_resolution(&variant.resolution))
         }
-        // Custom resolutions are opaque to the npm verifier — they are
-        // fetched by a pnpmfile custom fetcher, never bound to the
-        // registry's `dist.tarball`.
+        // Custom resolver protocols (`type: "custom:*"`) can only be materialized
+        // by a project-configured custom fetcher, which owns its own trust
+        // decision (allowBuilds included).
+        LockfileResolution::Custom(_) => true,
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
-        | LockfileResolution::Binary(_)
-        | LockfileResolution::Custom(_) => false,
+        | LockfileResolution::Binary(_) => false,
     }
 }
 

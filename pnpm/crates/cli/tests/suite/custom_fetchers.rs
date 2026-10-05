@@ -76,7 +76,7 @@ fn installed_version(workspace: &Path) -> String {
 fn custom_fetcher_delegates_a_custom_typed_resolution_on_fresh_and_frozen_installs() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
 
     write_manifest(&workspace, "^100.0.0");
     fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(mock_instance.url(), true))
@@ -93,6 +93,7 @@ fn custom_fetcher_delegates_a_custom_typed_resolution_on_fresh_and_frozen_instal
     );
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(&cache_dir).expect("remove cache_dir");
     pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
