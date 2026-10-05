@@ -1,14 +1,10 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
-pub(crate) use hoisting::recorded_hoisting_limits_match;
-
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
     WorkspaceStateSettings, WorkspaceStateTrustPolicy,
 };
-
-mod hoisting;
 
 /// Whether the `supportedArchitectures` recorded by the last install
 /// matches `live` (today's CLI-merged value). Read from the workspace
@@ -168,7 +164,6 @@ impl SettingsComparison<'_> {
             recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
         );
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
-        return_drift_if!(self, "hoistingLimits", recorded.hoisting_limits != live.hoisting_limits);
         return_drift_if!(
             self,
             "hoistWorkspacePackages",
@@ -353,7 +348,6 @@ pub(crate) fn current_settings(
         exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
-        hoisting_limits: hoisting::recorded_hoisting_limits(config, node_linker),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(

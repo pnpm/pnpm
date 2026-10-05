@@ -30,7 +30,6 @@ fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
 }
 
 fn filter_hook_delta(config: &Config, mut delta: Value) -> Value {
-    protect_cli_linker_options(config, &mut delta);
     if let Some(delta) = delta.as_object_mut() {
         delta.remove("macosBackup");
         delta.retain(|key, _| {
@@ -39,31 +38,6 @@ fn filter_hook_delta(config: &Config, mut delta: Value) -> Value {
         });
     }
     delta
-}
-
-fn protect_cli_linker_options(config: &Config, delta: &mut Value) {
-    let Some(linker) = delta.get_mut("nodeLinker").and_then(Value::as_object_mut) else { return };
-    if config.cli_settings.contains("hoistingLimits") {
-        linker.remove("hoistingLimits");
-    }
-    let public = config.cli_settings.contains("publicHoistPattern")
-        || config.cli_settings.contains("shamefullyHoist");
-    let private =
-        config.cli_settings.contains("hoistPattern") || config.cli_settings.contains("hoist");
-    protect_hoist_options(linker, public, private);
-}
-
-fn protect_hoist_options(linker: &mut serde_json::Map<String, Value>, public: bool, private: bool) {
-    if let Some(hoist) = linker.get_mut("hoist").and_then(Value::as_object_mut) {
-        if public {
-            hoist.remove("public");
-        }
-        if private {
-            hoist.remove("private");
-        }
-    } else if public || private {
-        linker.remove("hoist");
-    }
 }
 
 fn apply_hook_execution_changes(

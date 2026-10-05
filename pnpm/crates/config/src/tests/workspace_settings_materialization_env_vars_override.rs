@@ -269,7 +269,7 @@ pub fn shamefully_hoist_false_disables_public_hoisting() {
 
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
-    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+    assert_eq!(config.public_hoist_pattern, None);
 }
 
 #[test]

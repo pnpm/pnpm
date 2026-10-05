@@ -309,16 +309,15 @@ fn frozen_short_circuit_requires_recorded_workspace_state() {
 #[cfg(unix)]
 #[test]
 fn a_moved_tree_with_relative_bins_is_reused() {
-    let state = WorkspaceState {
-        settings: pnpm_workspace_state::WorkspaceStateSettings {
-            hoisting_limits: Some("none".into()),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
     for node_linker in [NodeLinker::Isolated, NodeLinker::Hoisted] {
         assert!(
-            short_circuits_over_a_bin(node_linker, true, ROOT_BIN, RELATIVE_TARGET, Some(&state),),
+            short_circuits_over_a_bin(
+                node_linker,
+                true,
+                ROOT_BIN,
+                RELATIVE_TARGET,
+                Some(&WorkspaceState::default()),
+            ),
             "{node_linker:?}",
         );
     }

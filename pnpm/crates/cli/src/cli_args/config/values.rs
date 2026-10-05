@@ -211,12 +211,6 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
     if kebab == "registry" {
         return Some(Value::String(config.registry.clone()));
     }
-    if kebab == "node-linker"
-        && config.explicit_settings.get("nodeLinker").is_some_and(Value::is_object)
-    {
-        return pnpm_config::WorkspaceSettings::from_resolved(config).node_linker
-            .and_then(|value| serde_json::to_value(value).ok());
-    }
     if config_types::is_type_key(&kebab) {
         return Some(lookup_typed_config(config, &kebab));
     }
@@ -322,13 +316,6 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
     let mut result: Map<String, Value> = Map::new();
     for (key, value) in &config.explicit_settings {
         result.insert(key.clone(), value.clone());
-    }
-    if result.get("nodeLinker").is_some_and(Value::is_object) {
-        result.insert(
-            "nodeLinker".into(),
-            serde_json::to_value(pnpm_config::WorkspaceSettings::from_resolved(config).node_linker)
-                .expect("serializing linker settings never fails"),
-        );
     }
     result.remove("namedRegistries");
     result.insert(

@@ -188,7 +188,11 @@ impl WorkspaceSettings {
                 reset_public_hoist_pattern(config, defaults);
             }
             "publicHoistPattern" => reset_public_hoist_pattern(config, defaults),
-            "nodeLinker" => reset_node_linker(config, defaults),
+            "nodeLinker" => {
+                config.node_linker = defaults.node_linker;
+                config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
+                config.apply_prefer_symlinked_executables_derivation();
+            }
             "preferSymlinkedExecutables" => {
                 config.prefer_symlinked_executables = None;
                 config.apply_prefer_symlinked_executables_derivation();
@@ -248,14 +252,4 @@ impl WorkspaceSettings {
         }
         true
     }
-}
-
-fn reset_node_linker(config: &mut Config, defaults: &Config) {
-    config.node_linker = defaults.node_linker;
-    config.hoist = defaults.hoist;
-    reset_hoist_pattern(config, defaults);
-    reset_public_hoist_pattern(config, defaults);
-    config.hoisting_limits = defaults.hoisting_limits;
-    config.node_linker_excluded.clone_from(&defaults.node_linker_excluded);
-    config.apply_prefer_symlinked_executables_derivation();
 }

@@ -128,7 +128,7 @@ fn read_text(text: &str) -> Option<WorkspaceSettings> {
 ///
 /// Stand-alone helper rather than reaching for `serde_with` (not in
 /// the workspace deps) — the body is one line.
-pub(crate) fn deserialize_double_option<'de, Value, De>(
+pub(super) fn deserialize_double_option<'de, Value, De>(
     deserializer: De,
 ) -> Result<Option<Option<Value>>, De::Error>
 where

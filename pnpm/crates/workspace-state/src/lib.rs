@@ -137,8 +137,6 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoist_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hoisting_limits: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ignored_optional_dependencies: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_workspace_packages: Option<bool>,

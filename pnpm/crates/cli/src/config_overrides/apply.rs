@@ -269,7 +269,15 @@ impl ConfigOverrides {
     /// lower layers' patterns back before a pattern on the same command
     /// line replaces them.
     fn apply_hoist_overrides(&self, config: &mut Config) {
-        self.apply_virtual_store_only_override(config);
+        if let Some(value) = self.virtual_store_only {
+            config.virtual_store_only = value;
+            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
+            if value {
+                config.apply_virtual_store_only_derivation();
+            } else {
+                config.restore_hoist_patterns_after_virtual_store_only();
+            }
+        }
         record_overrides!(
             self,
             config,
@@ -282,13 +290,6 @@ impl ConfigOverrides {
             hoist_pattern => "hoistPattern",
             public_hoist_pattern => "publicHoistPattern",
         );
-        if let Some(shamefully) = self.shamefully_hoist {
-            config.public_hoist_pattern = Some(if shamefully { vec!["*".into()] } else { vec![] });
-            config.explicit_settings.insert(
-                "publicHoistPattern".into(),
-                setting_value(&config.public_hoist_pattern),
-            );
-        }
         if self.shamefully_hoist.is_some()
             || self.hoist.is_some()
             || self.hoist_pattern.is_some()
@@ -303,18 +304,6 @@ impl ConfigOverrides {
             }
             config.apply_shamefully_hoist_derivation();
             config.apply_virtual_store_only_derivation();
-        }
-    }
-
-    fn apply_virtual_store_only_override(&self, config: &mut Config) {
-        if let Some(value) = self.virtual_store_only {
-            config.virtual_store_only = value;
-            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
-            if value {
-                config.apply_virtual_store_only_derivation();
-            } else {
-                config.restore_hoist_patterns_after_virtual_store_only();
-            }
         }
     }
 
@@ -367,10 +356,7 @@ impl ConfigOverrides {
     fn apply_linker_and_run_overrides(&self, config: &mut Config) {
         if let Some(value) = &self.node_linker {
             value.clone().apply_to(config);
-            config.record_explicit_settings(&pnpm_config::WorkspaceSettings {
-                node_linker: Some(value.clone()),
-                ..pnpm_config::WorkspaceSettings::default()
-            });
+            config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
             // A CLI-selected hoisted linker turns the default on just
             // like a yaml-selected one — pnpm merges CLI options before
             // its `nodeLinker` switch, so the derivation must see this

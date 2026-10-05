@@ -346,23 +346,3 @@ fn global_get_and_list_ignore_the_project_settings() {
 
     drop(root);
 }
-
-#[test]
-fn config_set_get_scoped_linker_object_round_trips() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let value = r#"{"type":"isolated","hoist":{"public":["foo"],"private":[]}}"#;
-    pacquet_in(&workspace)
-        .with_args(["config", "set", "nodeLinker", value, "--json", "--location=project"])
-        .assert()
-        .success();
-    let output = pacquet_in(&workspace)
-        .with_args(["config", "get", "nodeLinker", "--json"])
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    assert_eq!(
-        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
-        serde_json::from_str::<serde_json::Value>(value).unwrap(),
-    );
-    drop(root);
-}

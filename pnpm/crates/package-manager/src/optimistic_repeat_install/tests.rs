@@ -985,27 +985,3 @@ fn linked_sibling_decision_for_spec(
         manifest_freshness: crate::ManifestFreshness::Mtime,
     })
 }
-
-#[test]
-fn scoped_hoisted_limits_are_recorded_for_install_freshness() {
-    let mut config =
-        pnpm_config::Config { node_linker: pnpm_config::NodeLinker::Hoisted, ..Default::default() };
-    let first = current_settings(&config, config.node_linker, isolated_included(), None);
-    config.hoisting_limits = pnpm_config::HoistingLimits::Workspaces;
-    let second = current_settings(&config, config.node_linker, isolated_included(), None);
-    assert_eq!(first.hoisting_limits.as_deref(), Some("none"));
-    assert_eq!(second.hoisting_limits.as_deref(), Some("workspaces"));
-    let state = pnpm_workspace_state::WorkspaceState { settings: first, ..Default::default() };
-    assert!(!super::settings::recorded_hoisting_limits_match(
-        Some(&state),
-        &config,
-        config.node_linker
-    ));
-    let state = pnpm_workspace_state::WorkspaceState { settings: second, ..Default::default() };
-    assert!(super::settings::recorded_hoisting_limits_match(
-        Some(&state),
-        &config,
-        config.node_linker
-    ));
-    assert!(!super::settings::recorded_hoisting_limits_match(None, &config, config.node_linker));
-}

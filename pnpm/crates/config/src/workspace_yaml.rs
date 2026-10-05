@@ -9,8 +9,8 @@ pub use sections::{
     SideEffectsCacheSetting, SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings,
     UpdateConfig, UpdateSettings, decided_allow_builds,
 };
+pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, WorkspaceSettings};
-pub(crate) use settings::{deserialize_double_option, parse_settings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,

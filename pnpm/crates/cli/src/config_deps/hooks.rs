@@ -281,35 +281,7 @@ pub(super) fn config_delta(input: &Value, output: &Value) -> Value {
     let mut delta = serde_json::Map::new();
     for (key, value) in output_obj {
         if input_obj.get(key) != Some(value) {
-            let value = if key == "nodeLinker" {
-                linker_delta(input_obj.get(key), value)
-            } else {
-                value.clone()
-            };
-            delta.insert(key.clone(), value);
-        }
-    }
-    Value::Object(delta)
-}
-
-fn linker_delta(input: Option<&Value>, output: &Value) -> Value {
-    let (Some(input), Some(output)) = (input.and_then(Value::as_object), output.as_object()) else {
-        return output.clone();
-    };
-    if input.get("type") != output.get("type") {
-        return Value::Object(output.clone());
-    }
-    let mut delta = output.clone();
-    if input.get("hoistingLimits") == output.get("hoistingLimits") {
-        delta.remove("hoistingLimits");
-    }
-    if let (Some(input), Some(output)) = (
-        input.get("hoist").and_then(Value::as_object),
-        delta.get_mut("hoist").and_then(Value::as_object_mut),
-    ) {
-        output.retain(|key, value| input.get(key) != Some(value));
-        if output.is_empty() {
-            delta.remove("hoist");
+            delta.insert(key.clone(), value.clone());
         }
     }
     Value::Object(delta)

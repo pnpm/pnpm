@@ -115,7 +115,7 @@ async fn update_config_shamefully_hoist_false_stops_public_hoisting() {
         .expect("run updateConfig hook");
 
     assert!(!config.shamefully_hoist);
-    assert_eq!(config.public_hoist_pattern, Some(vec![]));
+    assert_eq!(config.public_hoist_pattern, None);
     assert_eq!(
         config.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool),
         Some(false),
@@ -781,20 +781,4 @@ async fn update_config_hook_cannot_replace_the_public_hoist_pattern_of_cli_shame
         .expect("run updateConfig hook");
 
     assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
-}
-
-#[tokio::test]
-async fn update_config_public_only_nested_hoisting_preserves_disabled_private_hoisting() {
-    let root = tempfile::tempdir().unwrap();
-    fs::write(
-        root.path().join("pnpm-workspace.yaml"),
-        "hoist: false\nnodeLinker:\n  type: isolated\n",
-    )
-    .unwrap();
-    fs::write(root.path().join(".pnpmfile.cjs"),"module.exports={hooks:{updateConfig(config){config.nodeLinker.hoist.public=['foo'];return config}}}").unwrap();
-    let mut config = Config::default().current::<Host>(root.path()).unwrap();
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await.unwrap();
-    assert!(!config.hoist);
-    assert!(config.hoist_pattern.as_ref().is_none_or(Vec::is_empty));
-    assert_eq!(config.public_hoist_pattern, Some(vec!["foo".into()]));
 }
