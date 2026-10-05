@@ -308,10 +308,16 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     );
     assert!(!output.status.success(), "selected manifest mismatch must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let error: Value = stderr
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("stderr records are JSON"))
+        .find(|record| record["level"] == "error")
+        .expect("fatal error record");
+    let message = error["message"].as_str().expect("error message");
     assert!(
-        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
-            && stderr.contains(r#"Cannot install with "frozen-lockfile""#)
-            && stderr.contains("pnpm-lock.yaml is not up"),
+        error["code"] == "ERR_PNPM_OUTDATED_LOCKFILE"
+            && message.contains(r#"Cannot install with "frozen-lockfile""#)
+            && message.contains("pnpm-lock.yaml is not up"),
         "expected the existing frozen-lockfile mismatch diagnostic:\n{stderr}",
     );
 }

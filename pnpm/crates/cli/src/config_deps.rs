@@ -26,8 +26,8 @@ use pnpm_config::{
     known_settings::is_known_setting_key, resolve_configured_state_dir,
 };
 use pnpm_env_installer::{
-    ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
-    resolve_package_manager_integrities,
+    ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
+    resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
@@ -292,6 +292,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let mut options = context.options(root_dir, frozen_lockfile);
+    options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
     let store_index = store_index::StoreIndexSession::attach(
         &mut options,
         context.store.dir,
@@ -319,6 +320,22 @@ struct EnvInstallerContext {
 }
 
 impl EnvInstallerContext {
+    fn resolution_verifiers(
+        &self,
+        config: &Config,
+    ) -> Result<Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>> {
+        pnpm_package_manager::build_resolution_verifiers(
+            config,
+            Arc::clone(&self.network.http_client),
+            None,
+            Some(Arc::clone(&self.network.auth_headers)),
+            None,
+            None,
+            None,
+        )
+        .into_diagnostic()
+    }
+
     /// Context for resolving the project's `configDependencies`, using the
     /// project's configured registries and network settings.
     fn new(config: &Config) -> Result<Self> {
@@ -393,6 +410,10 @@ impl EnvInstallerContext {
         frozen_lockfile: bool,
     ) -> ConfigDepsInstallOptions<'a> {
         ConfigDepsInstallOptions {
+            verification: ConfigDependencyVerification {
+                registries: &self.network.registries,
+                resolution_verifiers: Vec::new(),
+            },
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: &self.network.http_client,
                 auth_headers: &self.network.auth_headers,
@@ -411,8 +432,6 @@ impl EnvInstallerContext {
             store_index: None,
             store_index_writer: None,
             root_dir,
-
-            registries: &self.network.registries,
 
             frozen_lockfile,
         }

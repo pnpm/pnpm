@@ -63,9 +63,9 @@ pub(super) fn signature_packages(
         return Ok(None);
     };
     let lockfile = lockfile.as_ref();
-    let env_lockfile = EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
+    let env_lockfile = read_audit_env_lockfile(lockfile_dir)?;
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
+    let env_lockfile = env_lockfile.as_ref();
     let registries: HashMap<String, String> = state.config
         .resolved_registries()
         .into_iter()
@@ -77,12 +77,51 @@ pub(super) fn signature_packages(
                 let registry = pick_registry_for_package(&registries, name, None);
                 versions
                     .iter()
-                    .map(move |version| signatures::SignaturePackage {
-                        name: name.clone(),
-                        registry: registry.clone(),
-                        version: version.clone(),
+                    .flat_map(move |version| {
+                        let name = name.clone();
+                        let version = version.clone();
+                        let registry = registry.clone();
+                        signature_integrities(&format!("{name}@{version}"), lockfile, env_lockfile)
+                            .into_iter()
+                            .map(move |integrity| signatures::SignaturePackage {
+                                integrity,
+                                name: name.clone(),
+                                registry: registry.clone(),
+                                version: version.clone(),
+                            })
                     })
             })
             .collect(),
     ))
+}
+
+fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
+    EnvLockfile::read(lockfile_dir)
+        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))
+}
+
+fn signature_integrities(
+    package_id: &str,
+    lockfile: &Lockfile,
+    env_lockfile: Option<&EnvLockfile>,
+) -> Vec<Option<String>> {
+    let Ok(key) = package_id.parse::<pnpm_lockfile::PackageKey>() else {
+        return vec![None];
+    };
+    let mut integrities: Vec<Option<String>> = [
+        lockfile.packages
+            .as_ref()
+            .and_then(|packages| packages.get(&key)),
+        env_lockfile.and_then(|env| env.packages.get(&key)),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|package| package.resolution.integrity().map(ToString::to_string))
+    .collect();
+    if integrities.is_empty() {
+        integrities.push(None);
+    }
+    integrities.sort_unstable();
+    integrities.dedup();
+    integrities
 }

@@ -3,12 +3,19 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd, command_env::CommandTestExt, diagnostics::assert_diagnostic_contains,
+};
 use pretty_assertions::assert_eq;
 use std::{fs, process::Command};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_arg("--dir")
+        .with_arg(workspace)
+        .without_ambient_pnpm_config()
 }
 
 #[test]

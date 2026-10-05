@@ -267,17 +267,34 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
   }
   // Windows strips trailing dots and spaces from path segments. Hashing
   // the unescaped name keeps it apart from a literal `+` path.
-  const hashInput = filename
+  const escapesAmbiguously = hasAmbiguousEscape(depPath)
+  const hashInput = escapesAmbiguously ? depPath : filename
   let end = filename.length
   while (end > 0 && (filename[end - 1] === '.' || filename[end - 1] === ' ')) end--
   const escapedTrailing = end < filename.length
   if (escapedTrailing) {
     filename = filename.substring(0, end) + '+'.repeat(filename.length - end)
   }
-  if (escapedTrailing || filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
+  if (escapesAmbiguously || escapedTrailing || filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(hashInput)}`
   }
   return filename
+}
+
+/**
+ * Whether escaping the URL or path of a non-registry dependency could map two
+ * distinct dep paths to one name. Only `/` after the scheme escapes unambiguously.
+ */
+function hasAmbiguousEscape (depPath: string): boolean {
+  const pkgId = depPath.split('(', 1)[0].replace(/^\//, '')
+  const isFileDepPath = pkgId.startsWith('file:')
+  const versionSeparator = pkgId.indexOf('@', 1)
+  if (!isFileDepPath && versionSeparator === -1) return false
+  const version = isFileDepPath ? pkgId : pkgId.slice(versionSeparator + 1)
+  const schemeEnd = version.indexOf(':')
+  if (schemeEnd === -1 || parseRegistryQualifiedVersion(version) != null) return false
+  const location = version.slice(schemeEnd + 1).replace(/^\/\//, '')
+  return /[+\\:*?"<>|#]/.test(location)
 }
 
 function depPathToFilenameUnescaped (depPath: string): string {

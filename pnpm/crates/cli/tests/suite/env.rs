@@ -18,6 +18,7 @@ struct EnvOutput {
 fn run_env(args: &[&str]) -> EnvOutput {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
     let output = pacquet
+        .with_env("PNPM_HOME", root.path().join("pnpm_home"))
         .with_args(args)
         .output()
         .unwrap_or_else(|error| panic!("run pacquet env {args:?}: {error}"));

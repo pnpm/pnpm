@@ -2,7 +2,7 @@ import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import { isError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type {
   DirectoryFetcher,
   DirectoryFetcherOptions,
@@ -25,11 +25,10 @@ export interface CreateDirectoryFetcherOptions {
 export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
 ): { directory: DirectoryFetcher } {
-  const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const packageImportMethod = opts?.localDirPackageImportMethod ?? 'hardlink'
   const fetchFromDir = opts?.includeOnlyPackageFiles
     ? fetchPackageFilesFromDir.bind(null, packageImportMethod)
-    : fetchAllFilesFromDir.bind(null, readFileStat, packageImportMethod)
+    : fetchAllFilesFromDir.bind(null, opts ?? {}, packageImportMethod)
 
   const directoryFetcher: DirectoryFetcher = async (cafs, resolution, opts) => {
     // Use path.resolve so absolute directories (e.g. cross-drive Windows paths
@@ -92,15 +91,15 @@ export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Pro
   if (opts.includeOnlyPackageFiles) {
     return fetchPackageFilesFromDir(packageImportMethod, dir)
   }
-  const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
-  return fetchAllFilesFromDir(readFileStat, packageImportMethod, dir)
+  return fetchAllFilesFromDir(opts, packageImportMethod, dir)
 }
 
 async function fetchAllFilesFromDir (
-  readFileStat: ReadFileStat,
+  opts: CreateDirectoryFetcherOptions,
   packageImportMethod: LocalDirPackageImportMethod,
   dir: string
 ): Promise<FetchResult> {
+  const readFileStat = await createReadFileStat(dir, opts)
   const { filesMap, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
@@ -114,6 +113,23 @@ async function fetchAllFilesFromDir (
     packageImportMethod,
     manifest,
     requiresBuild,
+  }
+}
+
+async function createReadFileStat (dir: string, opts: CreateDirectoryFetcherOptions): Promise<ReadFileStat> {
+  const readStat = opts.resolveSymlinks === true ? realFileStat : fileStat
+  if (opts.includeOnlyPackageFiles !== false) return readStat
+  const root = await fs.realpath(dir)
+  return async (filePath) => {
+    const result = await readStat(filePath)
+    if (result == null) return null
+    if (!(await fs.lstat(filePath)).isSymbolicLink()) return result
+    const realPath = await fs.realpath(filePath)
+    const relative = path.relative(root, realPath)
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new PnpmError('INVALID_PATH', `Path "${filePath}" is outside the package directory "${dir}"`)
+    }
+    return result
   }
 }
 

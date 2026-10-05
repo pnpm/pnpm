@@ -1,3 +1,5 @@
+pub use failure::DependencyResolutionError;
+
 pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
 
 pub use reuse::real_package_name_of;
@@ -41,6 +43,7 @@ use crate::{
 };
 
 mod catalogs;
+mod failure;
 mod finalized;
 mod importer;
 mod manifest;
@@ -216,6 +219,9 @@ pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 /// Error envelope returned by the tree walker.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveDependencyTreeError {
+    #[diagnostic(transparent)]
+    DependencyContext(#[error(source)] DependencyResolutionError),
+
     /// One of the resolver chain calls failed (network, parse, etc.).
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
@@ -262,10 +268,13 @@ pub enum ResolveDependencyTreeError {
     /// would erase the locked entries and make the lockfile differ
     /// depending on which machine ran the install
     /// (<https://github.com/pnpm/pnpm/issues/12853>).
-    #[diagnostic(help(
-        "This optional dependency is not skipped, because the lockfile contains a resolution for it. Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile."
-    ))]
-    LockedOptionalResolutionFailure(#[error(not(source))] Box<ResolveDependencyTreeError>),
+    #[diagnostic(
+        forward(0),
+        help(
+            "This optional dependency is not skipped, because the lockfile contains a resolution for it. Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile."
+        )
+    )]
+    LockedOptionalResolutionFailure(#[error(source)] Box<ResolveDependencyTreeError>),
 
     /// No resolver in the chain claimed the spec, raised with the
     /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` code.

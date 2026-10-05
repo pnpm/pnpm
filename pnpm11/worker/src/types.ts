@@ -13,7 +13,8 @@ export interface InitStoreMessage {
 
 export interface TarballExtractMessage {
   type: 'extract'
-  buffer: Buffer
+  buffer?: Buffer
+  tarballFile?: string
   storeDir: string
   integrity?: string
   filesIndexFile: string

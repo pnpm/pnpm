@@ -108,6 +108,8 @@ detected, pnpm aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
 The directory with links to the store. All direct and indirect dependencies of
 the project are linked into this directory.
 
+Dependencies installed from a URL or local path get a hash suffix on their directory name when the part after the scheme contains `+`, `#`, `:`, `?`, or another character that is not allowed in file names. This keeps distinct URLs in separate directories.
+
 This is a useful setting that can solve issues with long paths on Windows. If
 you have some dependencies with very long paths, you can select a virtual store
 in the root of your drive (for instance `C:\my-project-store`).

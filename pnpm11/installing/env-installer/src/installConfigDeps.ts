@@ -61,6 +61,30 @@ export async function installConfigDeps (
   }
 }
 
+/**
+ * Whether `node_modules/.pnpm-config` already links every config dependency
+ * to the global virtual store entry derived from the env lockfile, and every
+ * host-compatible optional subdependency is materialized. The store path is
+ * keyed by integrity, so a lockfile entry that changed the package bytes
+ * never counts as installed.
+ */
+export async function areConfigDepsInstalled (
+  envLockfile: EnvLockfile,
+  opts: Pick<InstallConfigDepsOpts, 'registriesByScope' | 'rootDir' | 'storeDir'>
+): Promise<boolean> {
+  const normalizedDeps = normalizeFromLockfile(envLockfile, opts.registriesByScope)
+  const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
+  const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
+  const installed = await Promise.all(Object.entries(normalizedDeps).map(async ([pkgName, pkg]) => {
+    const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, calcConfigDepRelPath(pkgName, pkg), 'node_modules', pkgName)
+    if (!await symlinkPointsTo(path.join(configModulesDir, pkgName), pkgDirInGlobalVirtualStore)) return false
+    return (pkg.optionalSubdeps ?? [])
+      .filter((subdep) => isSubdepCompatible(subdep))
+      .every((subdep) => fs.existsSync(path.join(subdepDirInGlobalVirtualStore(globalVirtualStoreDir, subdep), 'package.json')))
+  }))
+  return installed.every(Boolean)
+}
+
 interface ConfigDepInstallContext {
   configModulesDir: string
   existingConfigDeps: string[]
@@ -308,17 +332,25 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
   await Promise.all(compatibleSubdeps.map((subdep) => installOptionalSubdep(opts, subdep)))
 }
 
-function isSubdepInstallable (opts: InstallOptionalSubdepsOpts, subdep: NormalizedSubdep): boolean {
-  if (!subdep.os && !subdep.cpu && !subdep.libc) return true
+function isSubdepCompatible (subdep: NormalizedSubdep): boolean {
+  return platformIncompatibility(subdep) == null
+}
+
+function platformIncompatibility (subdep: NormalizedSubdep): ReturnType<typeof checkPackage> {
+  if (!subdep.os && !subdep.cpu && !subdep.libc) return null
   // Use checkPackage rather than packageIsInstallable: the latter emits a
   // user-visible warn for every incompatible variant, which would fire on
   // every install since the env lockfile records all platform variants for
   // portability. We log skipped subdeps at debug instead.
-  const error = checkPackage(
+  return checkPackage(
     `${subdep.name}@${subdep.version}`,
     { os: subdep.os, cpu: subdep.cpu, libc: subdep.libc },
     {}
   )
+}
+
+function isSubdepInstallable (opts: InstallOptionalSubdepsOpts, subdep: NormalizedSubdep): boolean {
+  const error = platformIncompatibility(subdep)
   if (error == null) return true
   skippedOptionalDependencyLogger.debug({
     details: error.toString(),
@@ -330,22 +362,26 @@ function isSubdepInstallable (opts: InstallOptionalSubdepsOpts, subdep: Normaliz
   return false
 }
 
-async function installOptionalSubdep (opts: InstallOptionalSubdepsOpts, subdep: NormalizedSubdep): Promise<void> {
+function subdepDirInGlobalVirtualStore (globalVirtualStoreDir: string, subdep: NormalizedSubdep): string {
   const subdepFullPkgId = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
   const subdepRelPath = calcLeafGlobalVirtualStorePath(subdepFullPkgId, subdep.name, subdep.version)
-  const subdepDirInGlobalVirtualStore = safeJoinModulesDir(path.join(opts.globalVirtualStoreDir, subdepRelPath, 'node_modules'), subdep.name)
+  return safeJoinModulesDir(path.join(globalVirtualStoreDir, subdepRelPath, 'node_modules'), subdep.name)
+}
+
+async function installOptionalSubdep (opts: InstallOptionalSubdepsOpts, subdep: NormalizedSubdep): Promise<void> {
+  const subdepDir = subdepDirInGlobalVirtualStore(opts.globalVirtualStoreDir, subdep)
   await importPackageIfMissing(opts, {
     id: `${subdep.name}@${subdep.version}`,
     resolution: subdep.resolution,
-    targetDir: subdepDirInGlobalVirtualStore,
+    targetDir: subdepDir,
   })
   const linkPath = safeJoinModulesDir(opts.parentNodeModulesDir, subdep.name)
-  if (await symlinkPointsTo(linkPath, subdepDirInGlobalVirtualStore)) {
+  if (await symlinkPointsTo(linkPath, subdepDir)) {
     return
   }
   opts.reportStarted()
   await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
-  await symlinkDir(subdepDirInGlobalVirtualStore, linkPath)
+  await symlinkDir(subdepDir, linkPath)
 }
 
 async function symlinkPointsTo (linkPath: string, expectedTarget: string): Promise<boolean> {

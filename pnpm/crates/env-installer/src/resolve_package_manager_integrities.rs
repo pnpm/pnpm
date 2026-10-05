@@ -142,7 +142,7 @@ async fn record_package(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<Vec<EnvPackage>, ConfigDepError> {
-    let registry = opts.pick_registry(&package.name);
+    let registry = opts.verification.pick_registry(&package.name);
     let mut metadata =
         package_metadata(&package.name, &package.version, &package.result, registry, false)
             .map_err(ConfigDepError::LockfileForm)?;

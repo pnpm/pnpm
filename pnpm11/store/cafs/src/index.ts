@@ -12,7 +12,7 @@ import type {
 } from '@pnpm/store.cafs-types'
 
 import { addFilesFromDir } from './addFilesFromDir.js'
-import { addFilesFromTarball, addFilesFromTarballBounded } from './addFilesFromTarball.js'
+import { addFilesFromTarball, addFilesFromTarballBounded, addFilesFromTarballFile } from './addFilesFromTarball.js'
 import {
   buildFileMapsFromIndex,
   checkPkgFilesIntegrity,
@@ -77,6 +77,7 @@ export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean, recordSymlinks?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
   addFilesFromTarballBounded: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => Promise<AddToStoreResult>
+  addFilesFromTarballFile: (tarballFile: string, readManifest?: boolean, ignore?: (filename: string) => boolean) => Promise<AddToStoreResult>
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
@@ -89,7 +90,9 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
     addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
       addFilesFromTarball(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
     addFilesFromTarballBounded: async (tarballBuffer, readManifest, callIgnore) =>
-      addFilesFromTarballBounded(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
+      addFilesFromTarballBounded(addBuffer, tarballBuffer, { readManifest, ignore: combineIgnore(ignoreFile, callIgnore), storeDir }),
+    addFilesFromTarballFile: async (tarballFile, readManifest, callIgnore) =>
+      addFilesFromTarballFile(addBuffer, tarballFile, { readManifest, ignore: combineIgnore(ignoreFile, callIgnore), storeDir }),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }

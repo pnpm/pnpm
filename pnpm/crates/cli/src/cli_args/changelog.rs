@@ -278,6 +278,7 @@ fn registry_for(config: &Config, name: &str) -> String {
 /// bytes; a gzip bomb truncates past the cap and simply yields no entry.
 fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
     let mut archive = Archive::new(GzDecoder::new(gzipped_tarball).take(MAX_TARBALL_BYTES));
+    archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
         if entry.path().ok()?.to_str() == Some(entry_name) {

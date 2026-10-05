@@ -58,6 +58,8 @@ packages:
   - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpm/wasm
   - pnpr/npm/pnpr
+  - '!vendor/**'
+  - '!bench-work-env/**'
   - '!**/example/**'
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
@@ -331,7 +333,6 @@ catalog:
   # Keep bole 5 until the published @pnpm/logger ships with bole 6.
   bole: ^5.0.29
   boxen: npm:@zkochan/boxen@5.1.2
-  bz2: 1.0.1
   c8: ^12.0.0
   camelcase: ^9.0.0
   camelcase-keys: ^10.0.3
@@ -469,6 +470,7 @@ catalog:
   safe-execa: ^0.3.0
   safe-promise-defer: ^2.0.0
   sanitize-filename: ^1.6.4
+  seek-bzip: 2.0.0
   semver: ^7.8.5
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4

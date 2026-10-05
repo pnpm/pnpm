@@ -232,7 +232,12 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
     )
     .await
     .expect_err("declined spec must error");
-    match err {
+    let ResolveDependencyTreeError::DependencyContext(context) = err else {
+        panic!("expected dependency context, got {err:?}");
+    };
+    assert_eq!(context.alias, "foo");
+    assert_eq!(context.specifier, "git+ssh://example.com");
+    match *context.source {
         ResolveDependencyTreeError::SpecNotSupported { specifier } => {
             assert_eq!(specifier, "foo@git+ssh://example.com");
         }

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Untyped third-party modules expose opaque values. */
 declare module 'bole' {
   const anything: any
   export = anything
@@ -25,7 +25,7 @@ declare module '@zkochan/libnpx/index' {
 }
 
 declare module '@pnpm/byline' {
-  import type { Readable } from 'stream'
+  import type { Readable } from 'node:stream'
   function byline (stream: Readable): Readable
   export = byline
 }
@@ -117,7 +117,7 @@ declare module '@pnpm/patch-package/dist/patch/parse.js' {
 }
 
 declare module 'ramda/src/map' {
-  function map <K extends string | number | symbol, V, U> (fn: (x: V) => U, obj: Record<K, V>): Record<K, U>
+  function map <Key extends string | number | symbol, SourceValue, MappedValue> (fn: (value: SourceValue) => MappedValue, obj: Record<Key, SourceValue>): Record<Key, MappedValue>
   export = map
 }
 
@@ -131,11 +131,19 @@ declare module 'picomatch' {
   export = anything
 }
 
-declare module 'bz2' {
-  interface Bz2Exports {
-    decompress: (data: Uint8Array | Buffer) => Uint8Array
+declare module 'seek-bzip' {
+  interface Input {
+    readByte: () => number
+    read: (buffer: Uint8Array, offset: number, length: number) => number
   }
-  const bz2: Bz2Exports
-  export default bz2
+  interface Output {
+    writeByte: (byte: number) => void
+  }
+  const Bunzip: {
+    decode: {
+      (input: Uint8Array | Input): Buffer
+      (input: Uint8Array | Input, output: Output): void
+    }
+  }
+  export = Bunzip
 }
-

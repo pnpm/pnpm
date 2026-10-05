@@ -27,6 +27,7 @@ fn sign_b64(key: &SigningKey, message: &str) -> String {
 
 fn package() -> SignaturePackage {
     SignaturePackage {
+        integrity: Some("sha512-abc".to_string()),
         name: "foo".to_string(),
         registry: "https://registry.example.com/".to_string(),
         version: "1.0.0".to_string(),
@@ -162,4 +163,79 @@ fn render_announces_absence_of_signing_keys() {
         output.contains("No dependencies were installed from a registry with signing keys"),
         "{output}",
     );
+}
+
+#[test]
+fn process_version_rejects_missing_lockfile_integrity() {
+    let mut pkg = package();
+    pkg.integrity = None;
+    let packument = serde_json::from_value(serde_json::json!({
+        "versions": {"1.0.0": {"dist": {"integrity": "sha512-registry", "signatures": []}}}
+    }))
+    .unwrap();
+    let mut result = SignatureVerificationResult::default();
+    super::process_version(&pkg, &packument, &[], &mut result);
+    assert_eq!(result.verified, 0);
+    assert_eq!(result.invalid.len(), 1);
+    assert_eq!(
+        result.invalid[0].reason.as_deref(),
+        Some("Missing lockfile integrity for foo@1.0.0"),
+    );
+}
+
+#[test]
+fn process_version_verifies_the_recorded_artifact() {
+    let key = signing_key();
+    let pkg = package();
+    let signature = sign_b64(&key, "foo@1.0.0:sha512-abc");
+    let packument = serde_json::from_value(serde_json::json!({
+        "versions": {"1.0.0": {"dist": {
+            "integrity": "sha512-different",
+            "signatures": [{"keyid": "test", "sig": signature}]
+        }}}
+    }))
+    .unwrap();
+    let mut result = SignatureVerificationResult::default();
+    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], &mut result);
+    assert_eq!(result.verified, 1);
+    assert!(result.invalid.is_empty());
+}
+
+#[test]
+fn process_version_rejects_signature_for_different_artifact() {
+    let key = signing_key();
+    let pkg = package();
+    let signature = sign_b64(&key, "foo@1.0.0:sha512-different");
+    let packument = serde_json::from_value(serde_json::json!({
+        "versions": {"1.0.0": {"dist": {
+            "integrity": "sha512-different",
+            "signatures": [{"keyid": "test", "sig": signature}]
+        }}}
+    }))
+    .unwrap();
+    let mut result = SignatureVerificationResult::default();
+    super::process_version(&pkg, &packument, &[ecdsa_key(&key, "test", None)], &mut result);
+    assert_eq!(result.verified, 0);
+    assert_eq!(result.invalid.len(), 1);
+    assert_eq!(result.invalid[0].integrity.as_deref(), Some("sha512-abc"));
+}
+
+#[test]
+fn process_version_reports_missing_lockfile_integrity_before_registry_problems() {
+    let mut pkg = package();
+    pkg.integrity = None;
+    let packuments = [
+        serde_json::json!({ "versions": {"1.0.0": {"dist": {"signatures": "malformed"}}} }),
+        serde_json::json!({ "versions": {} }),
+    ];
+    for packument in packuments {
+        let packument = serde_json::from_value(packument).unwrap();
+        let mut result = SignatureVerificationResult::default();
+        super::process_version(&pkg, &packument, &[], &mut result);
+        assert_eq!(
+            result.invalid[0].reason.as_deref(),
+            Some("Missing lockfile integrity for foo@1.0.0"),
+        );
+        assert_eq!(result.invalid[0].resolved, None);
+    }
 }

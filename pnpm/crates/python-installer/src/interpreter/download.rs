@@ -377,6 +377,7 @@ fn unpack(archive: &Path, directory: &Path) -> Result<()> {
     std::fs::create_dir_all(parent).into_diagnostic()?;
     let staged = tempfile::TempDir::new_in(parent).into_diagnostic()?;
     let mut unpacked = tar::Archive::new(reader(archive, INTERPRETER_BOUNDS)?);
+    unpacked.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     unpacked.set_preserve_permissions(true);
     unpacked
         .unpack(staged.path())
@@ -414,6 +415,7 @@ const INTERPRETER_BOUNDS: Bounds = Bounds { bytes: 512 * 1024 * 1024, entries: 5
 /// leaving a partial unpacking to be cleaned up.
 fn within(archive: &Path, bounds: Bounds) -> Result<()> {
     let mut read = tar::Archive::new(reader(archive, bounds)?);
+    read.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     let entries = read
         .entries()
         .into_diagnostic()

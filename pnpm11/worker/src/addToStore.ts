@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
+
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { isError, PnpmError } from '@pnpm/error'
@@ -62,13 +65,18 @@ interface TarballIntegrityFailure {
 }
 
 export async function addTarballToStore (
-  { buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage
+  { buffer, tarballFile, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage
 ): Promise<AddTarballToStoreResult | TarballIntegrityFailure> {
-  const integrityFailure = integrity ? checkTarballIntegrity(buffer, integrity) : undefined
+  if (buffer == null && tarballFile == null) throw new Error('Tarball extraction has no source')
+  const calculatedIntegrity = tarballFile != null ? await hashTarballFile(tarballFile, integrity) : undefined
+  const integrityFailure = checkIntegrity({ buffer, integrity, calculatedIntegrity })
   if (integrityFailure) return integrityFailure
   const cafs = getCafs(storeDir)
   const ignore = ignoreFilePattern ? makeIgnoreFromPattern(ignoreFilePattern) : undefined
-  const added = describeAddedPkgFiles(cafs, await cafs.addFilesFromTarballBounded(buffer, true, ignore), appendManifest)
+  const addedFiles = tarballFile != null
+    ? await cafs.addFilesFromTarballFile(tarballFile, true, ignore)
+    : await cafs.addFilesFromTarballBounded(buffer!, true, ignore)
+  const added = describeAddedPkgFiles(cafs, addedFiles, appendManifest)
   const requiresBuild = pkgRequiresBuild(added.bundledManifest, added.filesIntegrity)
   const pkgFilesIndex: PackageFilesIndex = {
     requiresBuild,
@@ -79,7 +87,7 @@ export async function addTarballToStore (
   const packedFilesIndex = packToShared(pkgFilesIndex)
   const indexWrites: IndexWrite[] = [{ key: filesIndexFile, buffer: packedFilesIndex }]
   if (!integrity) {
-    integrity = calcIntegrity(buffer)
+    integrity = calculatedIntegrity ?? calcIntegrity(buffer!)
     if (pkgId) {
       indexWrites.push({ key: storeIndexKey(integrity, pkgId), buffer: packedFilesIndex })
     }
@@ -96,17 +104,35 @@ export async function addTarballToStore (
   }
 }
 
+function checkIntegrity (opts: { buffer?: Buffer, integrity?: string, calculatedIntegrity?: string }): TarballIntegrityFailure | undefined {
+  if (!opts.integrity) return undefined
+  return opts.calculatedIntegrity != null
+    ? compareTarballIntegrity(opts.calculatedIntegrity, opts.integrity)
+    : checkTarballIntegrity(opts.buffer!, opts.integrity)
+}
+
+async function hashTarballFile (tarballFile: string, integrity?: string): Promise<string> {
+  const algorithm = integrity ? parseIntegrity(integrity).algorithm : 'sha512'
+  const hash = createHash(algorithm)
+  for await (const chunk of createReadStream(tarballFile)) hash.update(chunk)
+  return formatIntegrity(algorithm, hash.digest('hex'))
+}
+
 function checkTarballIntegrity (buffer: Buffer, integrity: string): TarballIntegrityFailure | undefined {
-  const { algorithm, hexDigest } = parseIntegrity(integrity)
-  const calculatedHash = hashBuffer(algorithm, buffer)
-  if (calculatedHash === hexDigest) return undefined
+  const { algorithm } = parseIntegrity(integrity)
+  return compareTarballIntegrity(formatIntegrity(algorithm, hashBuffer(algorithm, buffer)), integrity)
+}
+
+function compareTarballIntegrity (found: string, expected: string): TarballIntegrityFailure | undefined {
+  const { algorithm, hexDigest } = parseIntegrity(expected)
+  if (parseIntegrity(found).hexDigest === hexDigest) return undefined
   return {
     status: 'error',
     error: {
       type: 'integrity_validation_failed',
       algorithm,
-      expected: integrity,
-      found: formatIntegrity(algorithm, calculatedHash),
+      expected,
+      found,
     },
   }
 }

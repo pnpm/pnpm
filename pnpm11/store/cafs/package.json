@@ -38,11 +38,11 @@
     "@pnpm/store.file-mode": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "bz2": "catalog:",
     "is-gzip": "catalog:",
     "is-subdir": "catalog:",
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
+    "seek-bzip": "catalog:",
     "semver": "catalog:",
     "strip-bom": "catalog:"
   },

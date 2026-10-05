@@ -514,6 +514,12 @@ test('createNpmResolutionVerifier() rejects a registry tarball with no integrity
   expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 
+test.each([undefined, null])('createNpmResolutionVerifier() skips an absent resolution for lockfile repair: %s', async (resolution) => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(resolution as unknown as Resolution, { name: 'foo', version: '1.0.0' })
+  expect(result).toEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() rejects a canonical registry entry stripped down to {}', async () => {
   // A tampered lockfile can delete both the tarball URL and integrity from a canonical
   // registry entry; the URL is reconstructed from name+version, so it must still be rejected.

@@ -76,8 +76,8 @@ pub use parent_pkg_aliases::ParentPkgAliases;
 pub use pnpm_deps_path::DepPath;
 pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
-    Deprecation, DeprecationLogFn, FinalizedChild, FinalizedPackage, FinalizedPackageFn,
-    ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
+    DependencyResolutionError, Deprecation, DeprecationLogFn, FinalizedChild, FinalizedPackage,
+    FinalizedPackageFn, ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
     SkippedOptionalDependency, SkippedOptionalDependencyParent, SkippedOptionalLogFn, TreeCtx,
     UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine, WorkspaceTreeCtx, extend_tree,
     real_package_name_of, resolve_dependency_tree,

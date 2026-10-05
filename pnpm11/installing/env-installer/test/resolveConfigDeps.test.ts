@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
-import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
@@ -194,4 +194,28 @@ test('fails with frozenLockfile', async () => {
     storeDir,
     frozenLockfile: true,
   })).rejects.toThrow('Cannot resolve configDependencies with "frozen-lockfile"')
+})
+
+test('adding a configuration dependency verifies the config dependencies already in the lockfile', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies['my-config'] = { specifier: '1.0.0', version: '1.0.0' }
+  lockfile.packages['my-config@1.0.0'] = {
+    resolution: { integrity: 'sha512-ZGVm', tarball: `https://codeload.github.com/evil/config/tar.gz/${'a'.repeat(40)}` },
+  }
+  lockfile.snapshots['my-config@1.0.0'] = {}
+  await writeEnvLockfile(process.cwd(), lockfile)
+
+  await expect(resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
+    configDependencies: { 'my-config': '1.0.0' },
+    registriesByScope: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP' })
+  expect((await readEnvLockfile(process.cwd()))!.packages['@pnpm.e2e/foo@100.0.0']).toBeUndefined()
 })

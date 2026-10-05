@@ -73,7 +73,7 @@ fn record_optional_subdep(
     subdep_version: &str,
     result: &ResolveResult,
 ) -> Result<(), ConfigDepError> {
-    let registry = opts.pick_registry(subdep_name);
+    let registry = opts.verification.pick_registry(subdep_name);
     let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}")
         .parse()
         .map_err(|_| ConfigDepError::BadConfigDep {

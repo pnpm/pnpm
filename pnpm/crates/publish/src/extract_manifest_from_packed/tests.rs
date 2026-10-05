@@ -309,3 +309,60 @@ fn publish_manifest_leaves_readme_unset_without_a_tarball_readme() {
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
     assert!(manifest.get("readme").is_none());
 }
+
+#[test]
+fn rejects_oversized_tar_metadata_before_reading_payload() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("metadata.tgz");
+    let mut header = tar::Header::new_gnu();
+    header.set_path("metadata").unwrap();
+    header.set_entry_type(tar::EntryType::XHeader);
+    header.set_size(pnpm_tarball::MAX_TARBALL_METADATA_BYTES + 1);
+    header.set_cksum();
+    let file = std::fs::File::create(&path).unwrap();
+    let mut gzip = GzEncoder::new(file, Compression::default());
+    gzip.write_all(header.as_bytes()).unwrap();
+    gzip.finish().unwrap();
+    let path = path.to_str().unwrap();
+    for error in [
+        extract_manifest_from_packed(path).unwrap_err(),
+        extract_publish_manifest_from_packed(path).unwrap_err(),
+    ] {
+        match error {
+            ExtractManifestError::Read { source, .. } => {
+                assert!(source.to_string().contains("exceeds the"));
+            }
+            error => panic!("expected metadata limit error, got {error:?}"),
+        }
+    }
+}
+
+#[test]
+fn rejects_oversized_buffered_entries_before_reading_payload() {
+    let directory = TempDir::new().unwrap();
+    for name in ["package/package.json", "package/README.md"] {
+        let path = directory.path().join("buffered.tgz");
+        let mut header = tar::Header::new_gnu();
+        header.set_path(name).unwrap();
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_size(pnpm_tarball::MAX_TARBALL_METADATA_BYTES + 1);
+        header.set_cksum();
+        let file = std::fs::File::create(&path).unwrap();
+        let mut gzip = GzEncoder::new(file, Compression::default());
+        gzip.write_all(header.as_bytes()).unwrap();
+        gzip.finish().unwrap();
+        let path = path.to_str().unwrap();
+        let error = extract_publish_manifest_from_packed(path).unwrap_err();
+        match error {
+            ExtractManifestError::Read { source, .. } => {
+                assert!(source.to_string().contains("buffered entry limit"));
+                assert!(source.to_string().contains(name));
+            }
+            error => panic!("expected buffered entry limit error, got {error:?}"),
+        }
+        if name.ends_with("package.json") {
+            let error = extract_manifest_from_packed(path).unwrap_err();
+            assert!(error.to_string().contains("buffered entry limit"));
+        }
+    }
+}

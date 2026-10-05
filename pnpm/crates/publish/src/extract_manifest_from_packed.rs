@@ -35,6 +35,7 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
+    archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     let entries = archive.entries().map_err(read_err)?;
 
     for entry in entries {
@@ -43,8 +44,7 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
         if normalize_entry_path(&path) != "package/package.json" {
             continue;
         }
-        let mut text = String::new();
-        entry.read_to_string(&mut text).map_err(read_err)?;
+        let text = read_packed_text(&mut entry).map_err(read_err)?;
         return parse_manifest(&text)
             .map_err(|source| ExtractManifestError::Parse {
                 tarball_path: tarball_path.to_owned(),
@@ -71,6 +71,7 @@ pub fn extract_publish_manifest_from_packed(
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
+    archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     let PackedEntries { manifest_text, readme } =
         scan_packed_entries(&mut archive).map_err(read_err)?;
 
@@ -114,8 +115,7 @@ fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Resul
         let mut entry = entry?;
         let normalized = normalize_entry_path(&entry.path()?);
         if normalized == "package/package.json" {
-            let mut text = String::new();
-            entry.read_to_string(&mut text)?;
+            let text = read_packed_text(&mut entry)?;
             manifest_text = Some(text);
         } else if entry.header().entry_type().is_file()
             && let Some(name) = root_file_name(&normalized)
@@ -127,8 +127,7 @@ fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Resul
                     .map(|current| (current.kind, current.name.as_str())),
             )
         {
-            let mut bytes = Vec::new();
-            entry.read_to_end(&mut bytes)?;
+            let bytes = pnpm_tarball::read_buffered_tar_entry(&mut entry)?;
             let text = decode_readme(bytes);
             readme = Some(PackedReadme { kind, name: name.to_owned(), text });
         }
@@ -215,3 +214,8 @@ pub struct PublishArchiveMissingManifestError {
 
 #[cfg(test)]
 mod tests;
+
+fn read_packed_text(entry: &mut tar::Entry<'_, impl Read>) -> io::Result<String> {
+    let bytes = pnpm_tarball::read_buffered_tar_entry(entry)?;
+    String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}

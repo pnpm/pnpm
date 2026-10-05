@@ -431,9 +431,6 @@ catalogs:
     boxen:
       specifier: npm:@zkochan/boxen@5.1.2
       version: 5.1.2
-    bz2:
-      specifier: 1.0.1
-      version: 1.0.1
     c8:
       specifier: ^12.0.0
       version: 12.0.0
@@ -794,6 +791,9 @@ catalogs:
     sanitize-filename:
       specifier: ^1.6.4
       version: 1.6.4
+    seek-bzip:
+      specifier: 2.0.0
+      version: 2.0.0
     semver:
       specifier: ^7.8.5
       version: 7.8.5
@@ -6807,6 +6807,9 @@ importers:
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/resolving.tarball-url':
         specifier: workspace:*
         version: link:../../resolving/tarball-url
@@ -9827,9 +9830,6 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
-      bz2:
-        specifier: 'catalog:'
-        version: 1.0.1
       is-gzip:
         specifier: 'catalog:'
         version: 2.0.0
@@ -9842,6 +9842,9 @@ importers:
       rename-overwrite:
         specifier: 'catalog:'
         version: 7.0.1
+      seek-bzip:
+        specifier: 'catalog:'
+        version: 2.0.0
       semver:
         specifier: 'catalog:'
         version: 7.8.5
@@ -14055,9 +14058,6 @@ packages:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
 
-  bz2@1.0.1:
-    resolution: {integrity: sha512-TRUFsKDme+nCMKa1lMx3dkLGh4KvgmCq8/xh/MTMEXAtjPqSC/NqPTzpy5auBZxrJTJX/yjWM0pHxMbpVGc+UQ==}
-
   c8@12.0.0:
     resolution: {integrity: sha512-4zpJvrd1nKWutnnKC2pXkFmb6iM1l+ffN//o1CzlTNwW7GSOs9a1xrLqkC48nU8oEkjmPZLPiwMsIaOvoF4Pqg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
@@ -14313,6 +14313,10 @@ packages:
   commander@2.9.0:
     resolution: {integrity: sha512-bmkUukX8wAOjHdN26xj5c4ctEV22TQ7dQYhSmuckKhToXrkUn0iIaolHdIxYYqD55nhpSPA9zPQ1yP57GdXP2A==}
     engines: {node: '>= 0.6.x'}
+
+  commander@6.2.1:
+    resolution: {integrity: sha512-U7VdrJFnJgo4xjrHpTzu0yrHPGImdsmD95ZlgYSEajAn2JKzDhDTPG9kBTefmObL2w/ngeZnilk+OV9CG3d7UA==}
+    engines: {node: '>= 6'}
 
   comment-json@4.6.2:
     resolution: {integrity: sha512-R2rze/hDX30uul4NZoIZ76ImSJLFxn/1/ZxtKC1L77y2X1k+yYu1joKbAtMA2Fg3hZrTOiw0I5mwVMo0cf250w==}
@@ -17310,6 +17314,10 @@ packages:
   scslre@0.3.0:
     resolution: {integrity: sha512-3A6sD0WYP7+QrjbfNA2FN3FsOaGGFoekCVgTyypy53gPxhbkCIjtO6YWgdrfM+n/8sI8JeXZOIxsHjMTNxQ4nQ==}
     engines: {node: ^14.0.0 || >=16.0.0}
+
+  seek-bzip@2.0.0:
+    resolution: {integrity: sha512-SMguiTnYrhpLdk3PwfzHeotrcwi8bNV4iemL9tx9poR/yeaMYwB9VzR1w7b57DuWpuqR8n6oZboi0hj3AxZxQg==}
+    hasBin: true
 
   semver-range-intersect@0.3.1:
     resolution: {integrity: sha512-dZAVI9Gdl3uBvs1CBK1KHeCyiZDn4X14DW4C+QFQj+0k+l9L+pY1swt4KVt1hGU2dP77but4vx+N5XeYQsDteQ==}
@@ -21682,8 +21690,6 @@ snapshots:
 
   bytes@3.1.2: {}
 
-  bz2@1.0.1: {}
-
   c8@12.0.0:
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
@@ -21933,6 +21939,8 @@ snapshots:
   commander@2.9.0:
     dependencies:
       graceful-readlink: 1.0.1
+
+  commander@6.2.1: {}
 
   comment-json@4.6.2:
     dependencies:
@@ -25235,6 +25243,10 @@ snapshots:
       '@eslint-community/regexpp': 4.12.2
       refa: 0.12.1
       regexp-ast-analysis: 0.7.1
+
+  seek-bzip@2.0.0:
+    dependencies:
+      commander: 6.2.1
 
   semver-range-intersect@0.3.1:
     dependencies:

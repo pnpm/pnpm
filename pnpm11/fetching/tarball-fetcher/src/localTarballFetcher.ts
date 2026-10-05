@@ -6,6 +6,8 @@ import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 
+import { MAX_BUFFERED_DOWNLOAD_SIZE } from './remoteTarballFetcher.js'
+
 const isAbsolutePath = /^\/|^[A-Z]:/i
 
 interface Resolution {
@@ -17,11 +19,13 @@ interface Resolution {
 export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
-    const buffer = gfs.readFileSync(tarball)
+    const source = gfs.statSync(tarball).size > MAX_BUFFERED_DOWNLOAD_SIZE
+      ? { tarballFile: tarball }
+      : { buffer: gfs.readFileSync(tarball) }
     const result = await addFilesFromTarball({
       storeDir: cafs.storeDir,
       storeIndex,
-      buffer,
+      ...source,
       filesIndexFile: opts.filesIndexFile,
       integrity: resolution.integrity,
       readManifest: opts.readManifest,

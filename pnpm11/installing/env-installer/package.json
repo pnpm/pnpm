@@ -53,6 +53,7 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

@@ -306,6 +306,7 @@ pub(crate) fn read_bundled_manifest(
     tarball_path: &str,
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let mut payload = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -333,6 +334,7 @@ fn read_bundled_manifest_streaming(
     tarball_path: &str,
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
     let mut archive = Archive::new(reader);
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let mut payload: Option<Vec<u8>> = None;
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -353,8 +355,8 @@ fn read_bundled_manifest_streaming(
         if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
             return Err(oversized_manifest_error(file_size));
         }
-        let mut data = Vec::with_capacity(file_size as usize);
-        entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
+        let data =
+            crate::read_buffered_tar_entry(&mut entry).map_err(TarballError::ReadTarballEntries)?;
         payload = Some(data);
     }
     let Some(payload) = payload else { return Ok((None, false)) };

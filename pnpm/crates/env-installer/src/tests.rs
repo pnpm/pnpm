@@ -1,7 +1,7 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, install_config_deps, is_package_manager_resolved,
-    pnpm_engine_packages, prune_env_lockfile, resolve_and_install_config_deps,
-    resolve_package_manager_integrities,
+    ConfigDepError, ConfigDependencyVerification, ConfigDepsInstallOptions, install_config_deps,
+    is_package_manager_resolved, pnpm_engine_packages, prune_env_lockfile,
+    resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
@@ -144,6 +144,22 @@ fn options<'a>(
     frozen: bool,
 ) -> ConfigDepsInstallOptions<'a> {
     ConfigDepsInstallOptions {
+        verification: ConfigDependencyVerification {
+            registries: &harness.registries,
+            resolution_verifiers: pnpm_package_manager::build_resolution_verifiers(
+                &pnpm_config::Config {
+                    registry: harness.registry_url.clone(),
+                    ..Default::default()
+                },
+                Arc::new(ThrottledClient::default()),
+                None,
+                Some(Arc::new(AuthHeaders::default())),
+                None,
+                None,
+                None,
+            )
+            .unwrap(),
+        },
         fetching: pnpm_tarball::ArchiveFetchOptions {
             http_client: &harness.http_client,
             auth_headers: &harness.auth_headers,
@@ -167,8 +183,6 @@ fn options<'a>(
         store_index: None,
         store_index_writer: None,
         root_dir,
-
-        registries: &harness.registries,
 
         frozen_lockfile: frozen,
     }
