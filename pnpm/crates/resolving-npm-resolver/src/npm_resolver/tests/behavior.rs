@@ -742,14 +742,17 @@ async fn store_peek_bypassed_when_the_current_version_is_reopened() {
     mock.assert_async().await;
 }
 
+/// An exact spec has one answer, but the store's copy of its `package.json`
+/// is not the metadata a fresh resolution reads. Skipping the request here
+/// makes `pnpm dedupe` write a different lockfile than `pnpm install`.
 #[tokio::test]
-async fn reopened_exact_version_still_peeks_the_store() {
+async fn reopened_exact_version_reads_registry_metadata_over_a_disagreeing_store() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
         .with_status(200)
         .with_body(PACKAGE_BODY)
-        .expect(0)
+        .expect(1)
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
@@ -767,6 +770,7 @@ async fn reopened_exact_version_still_peeks_the_store() {
                 manifest: Some(json!({
                     "name": "acme",
                     "version": "1.0.0",
+                    "peerDependencies": { "peer": "*" },
                 })),
                 ..Default::default()
             },
@@ -808,9 +812,12 @@ async fn reopened_exact_version_still_peeks_the_store() {
         .resolve(&wanted, &opts)
         .await
         .unwrap()
-        .expect("should resolve the locked version from the store");
+        .expect("should resolve the locked version");
     let name_ver = result.package.name_ver.as_ref().expect("name_ver");
     assert_eq!(name_ver.suffix.to_string(), "1.0.0");
+    let manifest = result.package.manifest.as_deref().expect("manifest");
+    dbg!(manifest);
+    assert!(manifest.get("peerDependencies").is_none());
     mock.assert_async().await;
 }
 

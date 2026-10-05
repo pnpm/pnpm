@@ -137,6 +137,7 @@ mod publish;
 mod publish_recursive;
 mod python;
 mod rebuild_recursive;
+mod registry_metadata_mismatch;
 mod relocated_install;
 mod remove;
 mod removed_overrides;

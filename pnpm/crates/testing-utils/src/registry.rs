@@ -79,6 +79,15 @@ impl TestRegistry {
         );
         pnpr_fixtures::set_dist_tag(storage, package, version, tag);
     }
+
+    /// See [`pnpr_fixtures::remove_version_field`]. Needs a registry of the
+    /// test's own, as [`Self::set_dist_tag`] does.
+    pub fn remove_version_field(&self, package: &str, version: &str, field: &str) {
+        let storage = self.storage.as_deref().expect(
+            "editing metadata needs a registry of the test's own — start it with add_mocked_registry_with_own_storage",
+        );
+        pnpr_fixtures::remove_version_field(storage, package, version, field);
+    }
 }
 
 #[derive(Debug)]
