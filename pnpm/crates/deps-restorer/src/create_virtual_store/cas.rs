@@ -37,10 +37,11 @@ impl CreateVirtualStore<'_> {
             ..self.ctx.clone()
         };
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
-        let (fetched, prefetch) = installer.run_retaining::<Report>(Some(selected)).await?;
+        let materialized_snapshots = (!selected.is_empty()).then_some(selected);
+        let (fetched, prefetch) = installer.run_retaining::<Report>(materialized_snapshots).await?;
         validate_cas_builds(&fetched, selected, installer.ctx.config)?;
         installer.ctx = &materialize_context;
-        installer.entries.snapshots = (!selected.is_empty()).then_some(selected);
+        installer.entries.snapshots = materialized_snapshots;
         installer.fetching.cas_prefetch = prefetch;
         let mut materialized = installer.run_inner::<Report>().await?;
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
