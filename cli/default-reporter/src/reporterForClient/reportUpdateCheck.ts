@@ -48,10 +48,10 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
   // `pnpm self-update` replaces the pnpm that PNPM_HOME manages. Corepack
-  // refuses it outright, and an install that another package manager owns is
-  // resolved from that manager's bin directory rather than pnpm's home, so a
-  // self-update would land beside the executable in use instead of replacing
-  // it. The installer is the command that updates either one.
+  // refuses it outright. Without PNPM_HOME, pnpm was typically installed by
+  // another package manager and is resolved from that manager's bin directory,
+  // so a self-update would land beside the executable in use instead of
+  // replacing it. The installer is the command that updates either one.
   if (isExecutedByCorepack(opts.env) || !opts.env.PNPM_HOME) {
     return standaloneInstallCommand(opts.proc)
   }
