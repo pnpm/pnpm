@@ -41,6 +41,12 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
+/**
+ * Resolvers whose package id pins the package contents. A local directory can
+ * change under the same id, so its manifest stays the source of truth.
+ */
+const IMMUTABLE_CONTENT_RESOLVERS = new Set(['git-repository', 'jsr-registry', 'named-registry', 'npm-registry'])
+
 export async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
@@ -273,7 +279,14 @@ function keepLockedPeerDependencies (
   pkg: PackageManifest
 ): void {
   const snapshot = currentPkg.dependencyLockfile
-  if (!ctx.lockedPeersAreCurrent || options.update || snapshot == null || pkgResponse.body.updated) return
+  if (
+    !ctx.lockedPeersAreCurrent ||
+    options.update ||
+    snapshot == null ||
+    pkgResponse.body.updated ||
+    pkgResponse.body.resolvedVia == null ||
+    !IMMUTABLE_CONTENT_RESOLVERS.has(pkgResponse.body.resolvedVia)
+  ) return
   delete pkg.peerDependencies
   delete pkg.peerDependenciesMeta
   if (snapshot.peerDependencies != null) {

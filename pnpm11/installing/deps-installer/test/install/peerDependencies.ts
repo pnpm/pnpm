@@ -2720,3 +2720,29 @@ test('adding an unrelated dependency keeps the peer dependencies a locked packag
   expect(lockfileAfter.packages['@pnpm.e2e/abc-optional-peers@1.0.0']).toStrictEqual(lockfile.packages['@pnpm.e2e/abc-optional-peers@1.0.0'])
   expect(lockfileAfter.snapshots[snapshotKey]).toStrictEqual(lockfile.snapshots[snapshotKey])
 })
+
+test('a local directory dependency records the peer dependencies its package.json declares now', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('local-pkg')
+  const localManifest = {
+    name: 'local-pkg',
+    version: '1.0.0',
+    peerDependencies: { '@pnpm.e2e/peer-a': '^1.0.0' },
+  }
+  fs.writeFileSync('local-pkg/package.json', JSON.stringify(localManifest))
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['file:./local-pkg', '@pnpm.e2e/peer-a@1.0.0'],
+    testDefaults()
+  )
+
+  fs.writeFileSync('local-pkg/package.json', JSON.stringify({
+    ...localManifest,
+    peerDependenciesMeta: { '@pnpm.e2e/peer-a': { optional: true } },
+  }))
+  await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults())
+
+  expect(project.readLockfile().packages['local-pkg@file:local-pkg'].peerDependenciesMeta).toStrictEqual({
+    '@pnpm.e2e/peer-a': { optional: true },
+  })
+})
