@@ -36,7 +36,8 @@ fn ndjson_reports_fatal_resolution_errors_with_codes_and_prefix() {
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0]["name"], "pnpm");
         assert_eq!(errors[0]["code"], code);
-        assert_eq!(errors[0]["prefix"], fixture.workspace.display().to_string());
+        let prefix = dunce::canonicalize(&fixture.workspace).expect("canonicalize project path");
+        assert_eq!(errors[0]["prefix"], prefix.display().to_string());
         assert!(
             errors[0]["message"]
                 .as_str()
