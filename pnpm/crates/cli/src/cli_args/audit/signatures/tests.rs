@@ -179,7 +179,7 @@ fn process_version_rejects_missing_lockfile_integrity() {
     assert_eq!(result.invalid.len(), 1);
     assert_eq!(
         result.invalid[0].reason.as_deref(),
-        Some("Missing lockfile integrity for foo@1.0.0")
+        Some("Missing lockfile integrity for foo@1.0.0"),
     );
 }
 

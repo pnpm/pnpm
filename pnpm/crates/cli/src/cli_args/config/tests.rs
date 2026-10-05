@@ -1316,6 +1316,6 @@ fn config_get_node_linker_reports_scoped_effective_hoisting() {
     let result = config_get(&config, flags(true, None, false), "nodeLinker").unwrap();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&result).unwrap(),
-        serde_json::json!({"type":"isolated","hoist":{"public":["foo"],"private":[]}})
+        serde_json::json!({"type":"isolated","hoist":{"public":["foo"],"private":[]}}),
     );
 }

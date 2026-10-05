@@ -500,7 +500,7 @@ fn node_linker_scoped_hoisting_wins_over_flat_cli_aliases() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pnpm",
         "--shamefully-hoist",
-        "--config.node-linker={\"type\":\"isolated\",\"hoist\":{\"public\":[],\"private\":[\"foo\"]}}",
+        r#"--config.node-linker={"type":"isolated","hoist":{"public":[],"private":["foo"]}}"#,
         "install",
     ]));
     assert_eq!(remaining, argv(["pnpm", "install"]));
