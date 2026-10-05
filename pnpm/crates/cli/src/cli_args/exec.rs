@@ -284,7 +284,7 @@ pub(super) fn set_package_manager_env(
 pub(super) const EXEC_STAGE: &str = "(exec)";
 
 fn configured_node_options(config: &Config) -> Option<String> {
-    match config.node_options.as_deref() {
+    match config.exported_node_options() {
         Some(node_options) => {
             Some(pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
                 node_options,

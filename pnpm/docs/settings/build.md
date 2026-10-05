@@ -166,6 +166,8 @@ If set explicitly to false, then installing as a non-root user will fail.
 
 Options to pass through to Node.js via the `NODE_OPTIONS` environment variable. This does not impact how pnpm itself is executed but it does impact how lifecycle scripts are called.
 
+An empty value, such as `--config.node-options=` or `PNPM_CONFIG_NODE_OPTIONS=`, overrides a value from a lower-priority configuration source. With an empty `nodeOptions`, scripts retain `NODE_OPTIONS` from the parent environment or `extraEnv`.
+
 To preserve existing `NODE_OPTIONS` you can reference the existing environment variable using `${NODE_OPTIONS}` in your configuration:
 
 ```yaml

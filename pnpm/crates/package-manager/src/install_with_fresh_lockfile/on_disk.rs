@@ -28,8 +28,8 @@ pub(super) fn build_extra_env(
     workspace_root: &Path,
 ) -> HashMap<String, String> {
     let mut env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    if let Some(node_options) = config.exported_node_options() {
+        env.insert("NODE_OPTIONS".to_string(), node_options.to_string());
     }
     config.add_cas_loader_env(workspace_root, &mut env);
     if matches!(node_linker, NodeLinker::Pnp) {

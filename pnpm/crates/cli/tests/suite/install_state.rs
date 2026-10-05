@@ -8,6 +8,55 @@ use pnpm_testing_utils::{
 use std::{fs, process::Command};
 
 #[test]
+fn empty_node_options_preserves_dependency_lifecycle_environment() {
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/write-lifecycle-env":"1.0.0"}}"#,
+    )
+    .expect("write manifest");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeOptions: ''\nsideEffectsCache: false\nallowBuilds:\n  '@pnpm.e2e/write-lifecycle-env': true\n");
+    fs::write(yaml_path, yaml).expect("configure dependency lifecycle");
+
+    let mut lifecycle_options = Vec::new();
+    for (frozen, inherited) in [(false, "--no-warnings"), (true, "--trace-warnings")] {
+        if frozen {
+            fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+            pacquet =
+                Command::cargo_bin("pnpm").expect("find pnpm binary").with_current_dir(&workspace);
+            pacquet.arg("--frozen-lockfile");
+        }
+        pacquet
+            .env("NODE_OPTIONS", inherited)
+            .env_remove("PNPM_CONFIG_NODE_OPTIONS")
+            .env_remove("pnpm_config_node_options")
+            .arg("install")
+            .assert()
+            .success();
+        let dependency_env: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(workspace.join(
+                "node_modules/.pnpm/@pnpm.e2e+write-lifecycle-env@1.0.0/node_modules/@pnpm.e2e/write-lifecycle-env/env.json",
+            ))
+            .expect("read dependency lifecycle environment"),
+        )
+        .expect("parse dependency lifecycle environment");
+        lifecycle_options.push(dependency_env["NODE_OPTIONS"].clone());
+    }
+    dbg!(&lifecycle_options);
+    assert_eq!(lifecycle_options, ["--no-warnings", "--trace-warnings"]);
+    drop((root, mock_instance));
+}
+
+#[test]
 fn frozen_reinstall_writes_modules_manifest_current_lockfile_and_bins() {
     let CommandTempCwd {
         pacquet,
