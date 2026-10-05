@@ -1,5 +1,8 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+mod hoisting;
+pub(crate) use hoisting::recorded_hoisting_limits_match;
+
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
@@ -24,19 +27,6 @@ pub(crate) fn recorded_supported_architectures_match(
         == live
             .and_then(|value| serde_json::to_value(value).ok())
             .as_ref()
-}
-
-pub(crate) fn recorded_hoisting_limits_match(
-    recorded: Option<&WorkspaceState>,
-    config: &Config,
-    linker: NodeLinker,
-) -> bool {
-    if linker != NodeLinker::Hoisted {
-        return true;
-    }
-    let live = serde_json::to_value(config.hoisting_limits)
-        .expect("serializing hoisting limits never fails");
-    recorded.and_then(|state| state.settings.hoisting_limits.as_deref()) == live.as_str()
 }
 
 pub(crate) fn settings_match(
@@ -362,13 +352,7 @@ pub(crate) fn current_settings(
         exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
-        hoisting_limits: (node_linker == NodeLinker::Hoisted).then(|| {
-            serde_json::to_value(config.hoisting_limits)
-                .expect("serializing hoisting limits never fails")
-                .as_str()
-                .expect("hoisting limits serialize as strings")
-                .to_string()
-        }),
+        hoisting_limits: hoisting::recorded_hoisting_limits(config, node_linker),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
