@@ -44,13 +44,13 @@ fn has_ambiguous_escape(dep_path: &str) -> bool {
     let version = if pkg_id.starts_with("file:") {
         pkg_id
     } else {
-        let Some((_, version)) = pkg_id
-            .get(1..)
-            .and_then(|rest| rest.split_once('@'))
+        let Some((separator, _)) = pkg_id
+            .match_indices('@')
+            .find(|(index, _)| *index > 0)
         else {
             return false;
         };
-        version
+        &pkg_id[separator + 1..]
     };
     let Some((_, location)) = version.split_once(':') else { return false };
     if crate::parse_registry_qualified_version(version).is_some() {
