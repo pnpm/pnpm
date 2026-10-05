@@ -80,6 +80,33 @@ test('print update notification for Corepack if the latest version is greater th
   expect(stripAnsi(output)).toMatchSnapshot()
 })
 
+test('print update notification for Corepack even when PNPM_HOME is set', async () => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { recursive: true } as Config,
+      env: {
+        COREPACK_ROOT: '/usr/bin/corepack',
+        PNPM_HOME: '/home/user/.local/share/pnpm',
+      },
+      process: {
+        platform: 'linux',
+      } as any, // eslint-disable-line
+    },
+    streamParser: createStreamParser(),
+  })
+
+  updateCheckLogger.debug({
+    currentVersion: '10.0.0',
+    latestVersion: '11.0.0',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
+})
+
 test('print update notification when PNPM_HOME manages the pnpm in use', async () => {
   const output$ = toOutput$({
     context: {
