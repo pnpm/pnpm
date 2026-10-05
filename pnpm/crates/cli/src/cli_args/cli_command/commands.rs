@@ -292,6 +292,16 @@ impl CliCommand {
         }
     }
 
+    /// Whether this is a `config get` / `config list` scoped to the global
+    /// config, in any of its spellings.
+    pub(super) fn reads_global_config(&self) -> bool {
+        match self {
+            CliCommand::Config(args) => args.reads_global_config(),
+            CliCommand::Get(args) => args.flags.is_global(),
+            _ => false,
+        }
+    }
+
     /// Whether `--global` was passed. pnpm parses it as one CLI-wide
     /// option; pacquet declares it per subcommand.
     pub(super) fn is_global(&self) -> bool {
@@ -299,10 +309,10 @@ impl CliCommand {
             CliCommand::Add(args) => args.target.global,
             CliCommand::ApproveBuilds(args) => args.global,
             CliCommand::Bin(args) => args.global,
-            CliCommand::Config(args) => args.is_global(),
+            CliCommand::Config(args) => args.flags.is_global(),
             CliCommand::Env(args) => args.global,
-            CliCommand::Get(args) => args.flags.global,
-            CliCommand::Set(args) => args.flags.global,
+            CliCommand::Get(args) => args.flags.is_global(),
+            CliCommand::Set(args) => args.flags.is_global(),
             CliCommand::List(args) | CliCommand::Ll(args) => args.global,
             CliCommand::Outdated(args) => args.global,
             CliCommand::Prefix(args) => args.global,

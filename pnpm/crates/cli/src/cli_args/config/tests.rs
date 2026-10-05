@@ -1297,3 +1297,12 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
         "credentials written through a symlinked .npmrc must stay 0600, got {mode:o}",
     );
 }
+
+#[test]
+fn global_flag_and_global_location_are_the_same_scope() {
+    assert!(flags(true, None, false).is_global());
+    assert!(flags(false, Some(ConfigLocation::Global), false).is_global());
+    assert!(flags(true, Some(ConfigLocation::Global), false).is_global());
+    assert!(!flags(true, Some(ConfigLocation::Project), false).is_global());
+    assert!(!flags(false, None, false).is_global());
+}
