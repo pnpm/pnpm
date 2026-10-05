@@ -1,5 +1,5 @@
 import type { Catalog } from '@pnpm/catalogs.types'
-import type { WantedDependency } from '@pnpm/installing.deps-resolver'
+import type { ManifestWantedDependency, WantedDependency } from '@pnpm/installing.deps-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { Dependencies } from '@pnpm/types'
 import semver from 'semver'
@@ -62,7 +62,7 @@ export function parseWantedDependencies (
 ): ParsedWantedDependencies {
   const wantedDeps = rawWantedDependencies
     .map((rawWantedDependency) => parseRequestedDependency(rawWantedDependency, opts))
-    .filter((wd) => wd !== null) as WantedDependency[]
+    .filter((wd) => wd !== null)
 
   if (!opts.readonlyManifest && opts.readonlySpecifiers == null && opts.hookRemovedAliases == null) {
     return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [], removedByHook: [] }
@@ -135,24 +135,28 @@ function applyKeptSpecifiers (wantedDeps: WantedDependency[], opts: ParseWantedD
     removedByHook: [],
   }
   for (const wantedDep of wantedDeps) {
+    if (wantedDep.alias == null) {
+      parsed.wantedDependencies.push(wantedDep)
+      continue
+    }
     if (opts.hookRemovedAliases?.has(wantedDep.alias)) {
       parsed.removedByHook.push(wantedDep.alias)
       continue
     }
     if (opts.readonlySpecifiers != null && Object.hasOwn(opts.readonlySpecifiers, wantedDep.alias)) {
-      applyReadonlySpecifier(parsed, wantedDep)
+      applyReadonlySpecifier(parsed, { ...wantedDep, alias: wantedDep.alias })
       continue
     }
     if (!opts.readonlyManifest) {
       parsed.wantedDependencies.push(wantedDep)
       continue
     }
-    applyReadonlyManifestSpecifier(parsed, wantedDep)
+    applyReadonlyManifestSpecifier(parsed, { ...wantedDep, alias: wantedDep.alias })
   }
   return parsed
 }
 
-function applyReadonlySpecifier (parsed: ParsedWantedDependencies, wantedDep: WantedDependency): void {
+function applyReadonlySpecifier (parsed: ParsedWantedDependencies, wantedDep: ManifestWantedDependency): void {
   const { bareSpecifier, prevSpecifier } = wantedDep
   if (prevSpecifier == null || bareSpecifier === prevSpecifier) {
     parsed.wantedDependencies.push(wantedDep)
@@ -161,7 +165,7 @@ function applyReadonlySpecifier (parsed: ParsedWantedDependencies, wantedDep: Wa
   }
 }
 
-function applyReadonlyManifestSpecifier (parsed: ParsedWantedDependencies, wantedDep: WantedDependency): void {
+function applyReadonlyManifestSpecifier (parsed: ParsedWantedDependencies, wantedDep: ManifestWantedDependency): void {
   const { alias, bareSpecifier, prevSpecifier } = wantedDep
   if (!prevSpecifier || bareSpecifier === prevSpecifier) {
     parsed.wantedDependencies.push(wantedDep)
@@ -181,7 +185,7 @@ function applyReadonlyManifestSpecifier (parsed: ParsedWantedDependencies, wante
   }
 }
 
-function supersedeWithKeptSpecifier (parsed: ParsedWantedDependencies, wantedDep: WantedDependency, kept: string): void {
+function supersedeWithKeptSpecifier (parsed: ParsedWantedDependencies, wantedDep: ManifestWantedDependency, kept: string): void {
   parsed.supersededByKeptRange.push({ alias: wantedDep.alias, requested: wantedDep.bareSpecifier, kept })
   parsed.wantedDependencies.push({ ...wantedDep, bareSpecifier: kept })
 }

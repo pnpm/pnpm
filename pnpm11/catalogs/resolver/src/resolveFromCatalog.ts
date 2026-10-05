@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 
 export interface WantedDependency {
   readonly bareSpecifier: string
-  readonly alias: string
+  readonly alias?: string
 }
 
 /**
@@ -64,7 +64,7 @@ export function resolveFromCatalog (catalogs: Catalogs, wantedDependency: Wanted
     return { type: 'unused' }
   }
 
-  const catalogLookup = catalogs[catalogName]?.[wantedDependency.alias]
+  const catalogLookup = wantedDependency.alias == null ? undefined : catalogs[catalogName]?.[wantedDependency.alias]
   if (catalogLookup == null) {
     return {
       type: 'misconfiguration',

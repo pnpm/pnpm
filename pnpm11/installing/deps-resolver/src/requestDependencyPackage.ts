@@ -56,8 +56,8 @@ export async function requestDependencyPackage (request: DependencyRequest): Pro
   // Normalize the `preferredVersion` (singular) and `preferredVersions`
   // (plural) options. If the singular option is passed through, it'll be used
   // instead of the plural option.
-  const preferredVersions = !options.updateRequested && options.preferredVersion != null
-    ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
+  const preferredVersions = !options.updateRequested && options.preferredVersion != null && wantedDependency.alias != null
+    ? getExactSinglePreferredVersions({ ...wantedDependency, alias: wantedDependency.alias }, options.preferredVersion)
     : options.preferredVersions
 
   try {
