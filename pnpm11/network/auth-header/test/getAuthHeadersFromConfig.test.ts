@@ -39,7 +39,10 @@ describe('getAuthHeadersFromCreds()', () => {
         '//registry.npmjs.org/': 'Bearer abc123',
         '//registry.hu/': 'Bearer def456',
       },
+      httpAuthHeaderValueByURI: {},
+      httpsUris: new Set(),
       scopedAuthHeaderValueByURI: {},
+      scopedHttpAuthHeaderValueByURI: {},
     })
   })
   it('should convert basicAuth to Basic header', () => {
@@ -50,7 +53,10 @@ describe('getAuthHeadersFromCreds()', () => {
       authHeaderValueByURI: {
         '//registry.foobar.eu/': 'Basic Zm9vYmFyOmZvb2Jhcg==',
       },
+      httpAuthHeaderValueByURI: {},
+      httpsUris: new Set(),
       scopedAuthHeaderValueByURI: {},
+      scopedHttpAuthHeaderValueByURI: {},
     })
   })
   it('should execute tokenHelper', () => {
@@ -61,7 +67,10 @@ describe('getAuthHeadersFromCreds()', () => {
       authHeaderValueByURI: {
         '//registry.foobar.eu/': 'Bearer token-from-spawn',
       },
+      httpAuthHeaderValueByURI: {},
+      httpsUris: new Set(),
       scopedAuthHeaderValueByURI: {},
+      scopedHttpAuthHeaderValueByURI: {},
     })
   })
   it('should prepend Bearer to raw token from tokenHelper', () => {
@@ -72,7 +81,10 @@ describe('getAuthHeadersFromCreds()', () => {
       authHeaderValueByURI: {
         '//registry.foobar.eu/': 'Bearer raw-token-no-scheme',
       },
+      httpAuthHeaderValueByURI: {},
+      httpsUris: new Set(),
       scopedAuthHeaderValueByURI: {},
+      scopedHttpAuthHeaderValueByURI: {},
     })
   })
   it('should throw an error if the token helper fails', () => {
@@ -95,7 +107,10 @@ describe('getAuthHeadersFromCreds()', () => {
     const result = getAuthHeadersFromCreds({})
     expect(result).toStrictEqual({
       authHeaderValueByURI: {},
+      httpAuthHeaderValueByURI: {},
+      httpsUris: new Set(),
       scopedAuthHeaderValueByURI: {},
+      scopedHttpAuthHeaderValueByURI: {},
     })
   })
   it('should store package scope auth by registry URI and scope', () => {
@@ -113,6 +128,8 @@ describe('getAuthHeadersFromCreds()', () => {
       authHeaderValueByURI: {
         '//npm.pkg.github.com/': 'Bearer registry-token',
       },
+      httpAuthHeaderValueByURI: {},
+      httpsUris: new Set(),
       scopedAuthHeaderValueByURI: {
         '//npm.pkg.github.com/': {
           '@orgA': 'Bearer org-a-token',
@@ -122,6 +139,7 @@ describe('getAuthHeadersFromCreds()', () => {
           '@orgA': 'Bearer org-a-path-token',
         },
       },
+      scopedHttpAuthHeaderValueByURI: {},
     })
     expect(getAuthHeadersByScope(result)).toStrictEqual({
       '//npm.pkg.github.com/': {
@@ -132,6 +150,25 @@ describe('getAuthHeadersFromCreds()', () => {
       '//reg.com/npm/': {
         '@orgA': 'Bearer org-a-path-token',
       },
+    })
+  })
+  it('should separate HTTP and HTTPS credentials', () => {
+    const result = getAuthHeadersFromCreds({
+      'http://insecure.lan/': { '@': { authToken: 'http-token' } },
+      'https://secure.lan/': { '@': { authToken: 'https-token' } },
+    })
+    expect(result).toStrictEqual({
+      authHeaderValueByURI: {
+        '//secure.lan/': 'Bearer https-token',
+        'https://secure.lan/': 'Bearer https-token',
+      },
+      httpAuthHeaderValueByURI: {
+        '//insecure.lan/': 'Bearer http-token',
+        'http://insecure.lan/': 'Bearer http-token',
+      },
+      httpsUris: new Set(['https://secure.lan/', '//secure.lan/']),
+      scopedAuthHeaderValueByURI: {},
+      scopedHttpAuthHeaderValueByURI: {},
     })
   })
 })

@@ -45,6 +45,15 @@ pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
 /// Memo of resolved `tokenHelper` results keyed by `scope + map key`.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
 
+pub(super) type ScopedAuthMap = HashMap<String, HashMap<String, AuthEntry>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CredentialOrigin {
+    Http,
+    Https,
+    SchemeLess,
+}
+
 #[derive(Default, Clone)]
 struct TransportSecurity {
     require_secure: bool,
@@ -52,36 +61,89 @@ struct TransportSecurity {
 }
 
 impl TransportSecurity {
-    fn allows(&self, key: &str, entry_allow_insecure: bool, is_secure: bool) -> bool {
-        if self.require_secure {
-            is_secure
-        } else {
-            is_secure
-                || entry_allow_insecure
-                || self.insecure_uris
-                    .iter()
-                    .any(|prefix| key == prefix || key.starts_with(prefix))
+    fn allows(
+        &self,
+        key: &str,
+        entry_allow_insecure: bool,
+        is_secure: bool,
+        origin: CredentialOrigin,
+    ) -> bool {
+        if is_secure {
+            return true;
+        }
+        if self.require_secure || origin == CredentialOrigin::Https {
+            return false;
+        }
+        entry_allow_insecure
+            || self.insecure_uris
+                .iter()
+                .any(|prefix| key == prefix || key.starts_with(prefix))
+    }
+}
+
+#[derive(Default, Clone)]
+pub(super) struct AuthMap {
+    pub(super) by_uri: HashMap<String, AuthEntry>,
+    pub(super) scoped_by_scope: ScopedAuthMap,
+    pub(super) max_parts: usize,
+    pub(super) max_scoped_parts_by_scope: HashMap<String, usize>,
+}
+
+impl AuthMap {
+    pub(super) fn is_empty(&self) -> bool {
+        self.by_uri.is_empty() && self.scoped_by_scope.is_empty()
+    }
+
+    pub(super) fn max_scoped_parts(&self, scope: &str) -> usize {
+        self.max_scoped_parts_by_scope
+            .get(scope)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    pub(super) fn get_scoped(&self, scope: &str, key: &str) -> Option<&AuthEntry> {
+        self.scoped_by_scope
+            .get(scope)
+            .and_then(|map| map.get(key))
+    }
+
+    pub(super) fn get_uri(&self, key: &str) -> Option<&AuthEntry> {
+        self.by_uri.get(key)
+    }
+
+    fn populate_by_scope(&self, result: &mut AuthHeadersByScope) {
+        for (uri, entry) in &self.by_uri {
+            if let AuthKind::Header(value) = &entry.kind {
+                result
+                    .entry(uri.clone())
+                    .or_default()
+                    .insert(DEFAULT_REGISTRY_SCOPE.to_owned(), value.clone());
+            }
+        }
+        for (scope, scoped_by_uri) in &self.scoped_by_scope {
+            for (registry_uri, entry) in scoped_by_uri {
+                if let AuthKind::Header(value) = &entry.kind {
+                    result
+                        .entry(registry_uri.clone())
+                        .or_default()
+                        .insert(scope.clone(), value.clone());
+                }
+            }
+        }
+    }
+
+    fn mark_insecure(&mut self, prefix: &str) {
+        mark_map_insecure(&mut self.by_uri, prefix);
+        for scoped_by_uri in self.scoped_by_scope.values_mut() {
+            mark_map_insecure(scoped_by_uri, prefix);
         }
     }
 }
 
 #[derive(Default, Clone)]
 pub struct AuthHeaders {
-    /// Keys are the nerf-darted form (`//host[:port]/path/`). Each value
-    /// is either a ready-to-send header (`Bearer abc123`,
-    /// `Basic Zm9vOmJhcg==`) or an un-executed `tokenHelper` command,
-    /// resolved lazily on lookup (see [`AuthEntry`]).
-    by_uri: HashMap<String, AuthEntry>,
-    /// Package-scope credentials keyed as
-    /// `scoped_by_scope[scope][registry_uri]`, where `registry_uri` is
-    /// the nerf-darted registry URL without the trailing scope segment.
-    scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>>,
-    /// The longest key in `by_uri` measured in `/`-separated parts. The
-    /// lookup walks from this depth down to 3 (the `//host/` floor).
-    max_parts: usize,
-    /// The longest registry key per package scope, measured the same
-    /// way as `max_parts`.
-    max_scoped_parts_by_scope: HashMap<String, usize>,
+    default_auth: AuthMap,
+    http_auth: AuthMap,
     /// Server-side route hook. When set, it owns every auth lookup and
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
@@ -122,6 +184,7 @@ struct TokenHelpers {
 pub(crate) struct AuthEntry {
     pub(crate) kind: AuthKind,
     pub(crate) allow_insecure: bool,
+    pub(crate) origin: CredentialOrigin,
 }
 
 #[derive(Clone)]
@@ -139,8 +202,10 @@ impl fmt::Debug for AuthHeaders {
         // never reach a log line; show only key counts plus whether a
         // server route hook is overriding lookup.
         f.debug_struct("AuthHeaders")
-            .field("by_uri", &self.by_uri.len())
-            .field("scoped_by_scope", &self.scoped_by_scope.len())
+            .field("by_uri", &self.default_auth.by_uri.len())
+            .field("http_by_uri", &self.http_auth.by_uri.len())
+            .field("scoped_by_scope", &self.default_auth.scoped_by_scope.len())
+            .field("http_scoped_by_scope", &self.http_auth.scoped_by_scope.len())
             .field("insecure_uris", &self.transport_security.insecure_uris.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
@@ -162,8 +227,8 @@ impl AuthHeaders {
     /// authorization for any URL.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_uri.is_empty()
-            && self.scoped_by_scope.is_empty()
+        self.default_auth.is_empty()
+            && self.http_auth.is_empty()
             && self.route_hook.is_none()
     }
 
@@ -188,13 +253,27 @@ impl AuthHeaders {
         if uri.is_empty() {
             return;
         }
-        let allow_insecure = url.starts_with("http://") && !is_url_secure_for_credentials(url);
+        let origin = if url.starts_with("http://") {
+            CredentialOrigin::Http
+        } else if url.starts_with("https://") {
+            CredentialOrigin::Https
+        } else {
+            CredentialOrigin::SchemeLess
+        };
+        let allow_insecure =
+            origin == CredentialOrigin::Http && !is_url_secure_for_credentials(url);
         if allow_insecure {
             self.transport_security.insecure_uris.insert(uri.clone());
             self.transport_security.insecure_uris.insert(normalize_auth_key(url.to_owned()));
         }
-        self.max_parts = self.max_parts.max(uri.split('/').count());
-        self.by_uri.insert(uri, AuthEntry { kind: AuthKind::Header(header), allow_insecure });
+        let entry = AuthEntry { kind: AuthKind::Header(header), allow_insecure, origin };
+        let target_auth = if origin == CredentialOrigin::Http {
+            &mut self.http_auth
+        } else {
+            &mut self.default_auth
+        };
+        target_auth.max_parts = target_auth.max_parts.max(uri.split('/').count());
+        target_auth.by_uri.insert(uri, entry);
     }
 
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
@@ -267,36 +346,18 @@ impl AuthHeaders {
         token_helper_by_uri: HashMap<String, Vec<String>>,
         token_helper_scoped_by_uri: HashMap<String, HashMap<String, Vec<String>>>,
     ) -> Self {
-        let mut insecure_uris = HashSet::new();
-        let mut by_uri_entries = HashMap::with_capacity(by_uri.len() + token_helper_by_uri.len());
-        for (uri, value) in by_uri {
-            record_uri_entry(
-                &uri,
-                value,
-                AuthKind::Header,
-                &mut by_uri_entries,
-                &mut insecure_uris,
-            );
-        }
-        for (uri, command) in token_helper_by_uri {
-            record_uri_entry(
-                &uri,
-                command,
-                AuthKind::TokenHelper,
-                &mut by_uri_entries,
-                &mut insecure_uris,
-            );
-        }
+        let (by_uri_entries, http_by_uri_entries, insecure_uris) =
+            collect_uri_entries(by_uri, token_helper_by_uri);
+        let (scoped_entries, http_scoped_entries) =
+            collect_scoped_entries(scoped_by_uri, token_helper_scoped_by_uri);
 
-        let mut scoped_entries: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
-        for (uri, scoped) in scoped_by_uri {
-            record_scoped_entries(&uri, scoped, AuthKind::Header, &mut scoped_entries);
-        }
-        for (uri, scoped) in token_helper_scoped_by_uri {
-            record_scoped_entries(&uri, scoped, AuthKind::TokenHelper, &mut scoped_entries);
-        }
-
-        Self::from_entry_parts(by_uri_entries, scoped_entries, insecure_uris)
+        Self::from_entry_parts(
+            by_uri_entries,
+            http_by_uri_entries,
+            scoped_entries,
+            http_scoped_entries,
+            insecure_uris,
+        )
     }
 
     /// Assemble the lookup indices from already-wrapped [`AuthEntry`]
@@ -304,38 +365,17 @@ impl AuthHeaders {
     /// `max_parts`, and the `has_token_helpers` gate.
     fn from_entry_parts(
         by_uri: HashMap<String, AuthEntry>,
-        scoped_by_uri: HashMap<String, HashMap<String, AuthEntry>>,
+        http_by_uri: HashMap<String, AuthEntry>,
+        scoped_by_uri: ScopedAuthMap,
+        http_scoped_by_uri: ScopedAuthMap,
         insecure_uris: HashSet<String>,
     ) -> Self {
-        let mut scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
-        let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
-        let mut has_token_helpers = by_uri
-            .values()
-            .any(|entry| matches!(entry.kind, AuthKind::TokenHelper(_)));
-        for (uri, scoped) in scoped_by_uri {
-            let parts = uri.split('/').count();
-            for (scope, value) in scoped {
-                has_token_helpers |= matches!(value.kind, AuthKind::TokenHelper(_));
-                max_scoped_parts_by_scope
-                    .entry(scope.clone())
-                    .and_modify(|max| *max = (*max).max(parts))
-                    .or_insert(parts);
-                scoped_by_scope
-                    .entry(scope)
-                    .or_default()
-                    .insert(uri.clone(), value);
-            }
-        }
-        let max_parts = by_uri
-            .keys()
-            .map(|key| key.split('/').count())
-            .max()
-            .unwrap_or(0);
+        let (default_auth, has_helpers_default) = build_auth_map(by_uri, scoped_by_uri);
+        let (http_auth, has_helpers_http) = build_auth_map(http_by_uri, http_scoped_by_uri);
+        let has_token_helpers = has_helpers_default || has_helpers_http;
         AuthHeaders {
-            by_uri,
-            scoped_by_scope,
-            max_parts,
-            max_scoped_parts_by_scope,
+            default_auth,
+            http_auth,
             route_hook: None,
             transport_security: TransportSecurity { require_secure: false, insecure_uris },
             has_token_helpers,
@@ -381,24 +421,8 @@ impl AuthHeaders {
         // have to be executed — so it is skipped here. This map feeds the
         // pnpr wire shape, which carries only resolved header strings.
         let mut result = AuthHeadersByScope::new();
-        for (uri, entry) in &self.by_uri {
-            if let AuthKind::Header(value) = &entry.kind {
-                result
-                    .entry(uri.clone())
-                    .or_default()
-                    .insert(DEFAULT_REGISTRY_SCOPE.to_owned(), value.clone());
-            }
-        }
-        for (scope, scoped_by_uri) in &self.scoped_by_scope {
-            for (registry_uri, entry) in scoped_by_uri {
-                if let AuthKind::Header(value) = &entry.kind {
-                    result
-                        .entry(registry_uri.clone())
-                        .or_default()
-                        .insert(scope.clone(), value.clone());
-                }
-            }
-        }
+        self.http_auth.populate_by_scope(&mut result);
+        self.default_auth.populate_by_scope(&mut result);
         result
     }
 
@@ -450,16 +474,28 @@ impl AuthHeaders {
     }
 
     fn mark_insecure_entries(&mut self, prefix: &str) {
-        mark_map_insecure(&mut self.by_uri, prefix);
-        for scoped_by_uri in self.scoped_by_scope.values_mut() {
-            mark_map_insecure(scoped_by_uri, prefix);
-        }
+        self.default_auth.mark_insecure(prefix);
+        self.http_auth.mark_insecure(prefix);
     }
+}
+
+fn build_auth_map(
+    by_uri: HashMap<String, AuthEntry>,
+    scoped_by_uri: ScopedAuthMap,
+) -> (AuthMap, bool) {
+    let (scoped_by_scope, max_scoped_parts_by_scope, has_scoped_helpers) =
+        index_scoped_entries(scoped_by_uri);
+    let has_helpers = has_scoped_helpers
+        || by_uri
+            .values()
+            .any(|entry| matches!(entry.kind, AuthKind::TokenHelper(_)));
+    let max_parts = max_parts_of(&by_uri);
+    (AuthMap { by_uri, scoped_by_scope, max_parts, max_scoped_parts_by_scope }, has_helpers)
 }
 
 fn mark_map_insecure(map: &mut HashMap<String, AuthEntry>, prefix: &str) {
     for (uri, entry) in map.iter_mut() {
-        if uri == prefix || uri.starts_with(prefix) {
+        if entry.origin != CredentialOrigin::Https && (uri == prefix || uri.starts_with(prefix)) {
             entry.allow_insecure = true;
         }
     }
@@ -480,7 +516,10 @@ pub fn normalize_auth_key(mut uri: String) -> String {
 mod tests;
 
 mod builder;
-use builder::{record_scoped_entries, record_uri_entry, split_scoped_auth_key};
+use builder::{
+    collect_scoped_entries, collect_uri_entries, index_scoped_entries, max_parts_of,
+    split_scoped_auth_key,
+};
 
 mod lookup;
 mod redaction;

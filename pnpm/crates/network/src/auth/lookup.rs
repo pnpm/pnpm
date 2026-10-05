@@ -1,10 +1,18 @@
 use super::{
-    Arc, AuthEntry, AuthHeaders, AuthKind, DEFAULT_REGISTRY_SCOPE, ParsedUrl, TokenHelpers,
-    builder::package_scope, execute_token_helper, is_url_secure_for_credentials,
+    Arc, AuthEntry, AuthHeaders, AuthKind, AuthMap, DEFAULT_REGISTRY_SCOPE, ParsedUrl,
+    TokenHelpers, builder::package_scope, execute_token_helper, is_url_secure_for_credentials,
     run_token_helper_command,
 };
 
 impl AuthHeaders {
+    fn select_auth_maps(&self, is_secure: bool) -> (&AuthMap, &AuthMap) {
+        if is_secure {
+            (&self.default_auth, &self.http_auth)
+        } else {
+            (&self.http_auth, &self.default_auth)
+        }
+    }
+
     /// Resolve an `Authorization` header for `url`, preferring
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
@@ -48,7 +56,7 @@ impl AuthHeaders {
                     .map(|(key, entry)| (key, entry, None))
             });
         let (key, entry, scope) = matched?;
-        if !self.transport_security.allows(&key, entry.allow_insecure, is_secure) {
+        if !self.transport_security.allows(&key, entry.allow_insecure, is_secure, entry.origin) {
             return None;
         }
         self.token_helpers.resolve_entry(&key, scope.unwrap_or(DEFAULT_REGISTRY_SCOPE), entry)
@@ -68,10 +76,7 @@ impl AuthHeaders {
         is_secure: bool,
         scope: Option<&str>,
     ) -> Option<(String, &'a AuthEntry)> {
-        let lookup = |parsed: &ParsedUrl<'_>| match scope {
-            Some(scope) => self.lookup_scope_by_nerf(parsed, scope),
-            None => self.lookup_by_nerf(parsed),
-        };
+        let lookup = |parsed: &ParsedUrl<'_>| self.lookup_candidates(parsed, is_secure, scope);
         if let Some(matched) = lookup(parsed) {
             return Some(matched);
         }
@@ -82,22 +87,43 @@ impl AuthHeaders {
         lookup(&parsed.with_port_stripped())
     }
 
+    fn lookup_candidates<'a>(
+        &'a self,
+        parsed: &ParsedUrl<'_>,
+        is_secure: bool,
+        scope: Option<&str>,
+    ) -> Option<(String, &'a AuthEntry)> {
+        match scope {
+            Some(scope) => self.lookup_scope_by_nerf(parsed, is_secure, scope),
+            None => self.lookup_by_nerf(parsed, is_secure),
+        }
+    }
+
     /// Walk package-scope keys for `scope` longest-prefix first. Returns
     /// `None` when nothing matched and `Some((key, entry))` when a key
     /// matched.
     pub(super) fn lookup_scope_by_nerf<'a>(
         &'a self,
         parsed: &ParsedUrl<'_>,
+        is_secure: bool,
         scope: &str,
     ) -> Option<(String, &'a AuthEntry)> {
-        let scoped_by_uri = self.scoped_by_scope.get(scope)?;
-        let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
+        let (primary, fallback) = self.select_auth_maps(is_secure);
+        let max_scoped = primary
+            .max_scoped_parts(scope)
+            .max(fallback.max_scoped_parts(scope));
+        if max_scoped == 0 {
+            return None;
+        }
         let nerfed = parsed.nerf_dart();
         let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(max_scoped_parts);
+        let upper = parts.len().min(max_scoped);
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = scoped_by_uri.get(&key) {
+            if let Some(entry) = primary
+                .get_scoped(scope, &key)
+                .or_else(|| fallback.get_scoped(scope, &key))
+            {
                 return Some((key, entry));
             }
         }
@@ -107,13 +133,16 @@ impl AuthHeaders {
     pub(super) fn lookup_by_nerf<'a>(
         &'a self,
         parsed: &ParsedUrl<'_>,
+        is_secure: bool,
     ) -> Option<(String, &'a AuthEntry)> {
-        if self.by_uri.is_empty() {
+        let (primary, fallback) = self.select_auth_maps(is_secure);
+        let max_parts = primary.max_parts.max(fallback.max_parts);
+        if max_parts == 0 {
             return None;
         }
         let nerfed = parsed.nerf_dart();
         let parts: Vec<&str> = nerfed.split('/').collect();
-        let upper = parts.len().min(self.max_parts);
+        let upper = parts.len().min(max_parts);
         // Walk from the longest meaningful prefix down to `//host/`.
         // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
         // `//host`. The exclusive upper bound at
@@ -123,7 +152,10 @@ impl AuthHeaders {
         // never match.
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
-            if let Some(entry) = self.by_uri.get(&key) {
+            if let Some(entry) = primary
+                .get_uri(&key)
+                .or_else(|| fallback.get_uri(&key))
+            {
                 return Some((key, entry));
             }
         }

@@ -13,14 +13,20 @@ interface GetAuthHeaderOptions {
 }
 
 interface AuthHeaderLookup {
+  authHeaderValueByURI: Record<string, string>
+  httpAuthHeaderValueByURI: Record<string, string>
+  httpsUris: Set<string>
   insecureUris: Set<string>
   maxParts: number
+  httpMaxParts: number
   scopedAuthHeaderValueByScope: Record<string, ScopedAuthHeaderLookup>
 }
 
 interface ScopedAuthHeaderLookup {
   authHeaderValueByURI: Record<string, string>
+  httpAuthHeaderValueByURI: Record<string, string>
   maxParts: number
+  httpMaxParts: number
   insecureUris: Set<string>
 }
 
@@ -30,17 +36,27 @@ export function createGetAuthHeaderByURI (
 ): (uri: string, opts?: GetAuthHeaderOptions) => string | undefined {
   const authHeaders = getAuthHeadersFromCreds(configByUri)
   const registryURIs = Object.keys(authHeaders.authHeaderValueByURI)
+  const httpRegistryURIs = Object.keys(authHeaders.httpAuthHeaderValueByURI)
   const scopedAuthHeaderValueByScope = getScopedAuthHeaderValueByScope(
     authHeaders.scopedAuthHeaderValueByURI,
+    authHeaders.scopedHttpAuthHeaderValueByURI,
     configByUri,
     opts?.allowedInsecureUris
   )
-  if (registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0) {
+  if (
+    registryURIs.length === 0 &&
+    httpRegistryURIs.length === 0 &&
+    Object.keys(scopedAuthHeaderValueByScope).length === 0
+  ) {
     return fallbackAuth
   }
-  return getAuthHeaderByURI.bind(null, authHeaders, {
+  return getAuthHeaderByURI.bind(null, {
+    authHeaderValueByURI: authHeaders.authHeaderValueByURI,
+    httpAuthHeaderValueByURI: authHeaders.httpAuthHeaderValueByURI,
+    httpsUris: authHeaders.httpsUris,
     insecureUris: collectInsecureUris(configByUri, DEFAULT_REGISTRY_SCOPE, opts?.allowedInsecureUris),
     maxParts: getMaxParts(registryURIs),
+    httpMaxParts: getMaxParts(httpRegistryURIs),
     scopedAuthHeaderValueByScope,
   })
 }
@@ -101,29 +117,55 @@ function getMaxParts (uris: string[]): number {
 
 function getScopedAuthHeaderValueByScope (
   authHeaders: Record<string, Record<string, string>>,
+  httpAuthHeaders: Record<string, Record<string, string>>,
   configByUri: Record<string, RegistryConfig>,
   allowedInsecureUris?: string[] | Set<string>
 ): Record<string, ScopedAuthHeaderLookup> {
   const result: Record<string, ScopedAuthHeaderLookup> = {}
-  for (const [uri, scopedAuthHeaders] of Object.entries(authHeaders)) {
-    const parts = uri.split('/').length
-    for (const [scope, authHeader] of Object.entries(scopedAuthHeaders)) {
-      const scopedAuthHeaderLookup = result[scope] ??= {
-        authHeaderValueByURI: {},
-        maxParts: 0,
-        insecureUris: collectInsecureUris(configByUri, scope, allowedInsecureUris),
-      }
-      scopedAuthHeaderLookup.authHeaderValueByURI[uri] = authHeader
-      if (parts > scopedAuthHeaderLookup.maxParts) {
-        scopedAuthHeaderLookup.maxParts = parts
-      }
-    }
-  }
+  populateScopedLookup(authHeaders, result, 'authHeaderValueByURI', configByUri, allowedInsecureUris)
+  populateScopedLookup(httpAuthHeaders, result, 'httpAuthHeaderValueByURI', configByUri, allowedInsecureUris)
   return result
 }
 
+function populateScopedLookup (
+  scopedByUri: Record<string, Record<string, string>>,
+  result: Record<string, ScopedAuthHeaderLookup>,
+  field: 'authHeaderValueByURI' | 'httpAuthHeaderValueByURI',
+  configByUri: Record<string, RegistryConfig>,
+  allowedInsecureUris?: string[] | Set<string>
+): void {
+  const maxPartsField = field === 'httpAuthHeaderValueByURI' ? 'httpMaxParts' : 'maxParts'
+  for (const [uri, scopedHeaders] of Object.entries(scopedByUri)) {
+    const parts = uri.split('/').length
+    for (const [scope, authHeader] of Object.entries(scopedHeaders)) {
+      const scopedLookup = result[scope] ??= createScopedAuthHeaderLookup(
+        configByUri,
+        scope,
+        allowedInsecureUris
+      )
+      scopedLookup[field][uri] = authHeader
+      if (parts > scopedLookup[maxPartsField]) {
+        scopedLookup[maxPartsField] = parts
+      }
+    }
+  }
+}
+
+function createScopedAuthHeaderLookup (
+  configByUri: Record<string, RegistryConfig>,
+  scope: string,
+  allowedInsecureUris?: string[] | Set<string>
+): ScopedAuthHeaderLookup {
+  return {
+    authHeaderValueByURI: {},
+    httpAuthHeaderValueByURI: {},
+    maxParts: 0,
+    httpMaxParts: 0,
+    insecureUris: collectInsecureUris(configByUri, scope, allowedInsecureUris),
+  }
+}
+
 function getAuthHeaderByURI (
-  authHeaders: AuthHeaders,
   lookup: AuthHeaderLookup,
   uri: string,
   opts?: GetAuthHeaderOptions
@@ -146,6 +188,7 @@ function getAuthHeaderByURI (
   if (scopedAuthHeaderLookup) {
     const scopedAuth = getAuthHeaderByNerfedURI(
       scopedAuthHeaderLookup,
+      lookup.httpsUris,
       uri,
       isSecure
     )
@@ -153,10 +196,13 @@ function getAuthHeaderByURI (
   }
   return getAuthHeaderByNerfedURI(
     {
-      authHeaderValueByURI: authHeaders.authHeaderValueByURI,
+      authHeaderValueByURI: lookup.authHeaderValueByURI,
+      httpAuthHeaderValueByURI: lookup.httpAuthHeaderValueByURI,
       insecureUris: lookup.insecureUris,
       maxParts: lookup.maxParts,
+      httpMaxParts: lookup.httpMaxParts,
     },
+    lookup.httpsUris,
     uri,
     isSecure
   )
@@ -164,38 +210,70 @@ function getAuthHeaderByURI (
 
 interface LookupTarget {
   authHeaderValueByURI: Record<string, string>
+  httpAuthHeaderValueByURI: Record<string, string>
   maxParts: number
+  httpMaxParts: number
   insecureUris: Set<string>
 }
 
 function getAuthHeaderByNerfedURI (
   target: LookupTarget,
+  httpsUris: Set<string>,
   uri: string,
   isSecure: boolean
 ): string | undefined {
   const parsedUri = new URL(uri)
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
-  for (let partCount = Math.min(parts.length, target.maxParts) - 1; partCount >= 3; partCount--) {
-    const key = `${parts.slice(0, partCount).join('/')}/`
-    if (target.authHeaderValueByURI[key]) {
-      if (isKeyAllowed(key, isSecure, target.insecureUris)) {
-        return target.authHeaderValueByURI[key]
-      }
-      return undefined
-    }
-  }
+  const maxParts = Math.max(target.maxParts, target.httpMaxParts)
+  const candidate = findMatchingCandidate(target, parts, maxParts, isSecure, httpsUris)
+  if (candidate) return candidate
+
   if (isSecure) {
     const urlWithoutPort = removePort(parsedUri)
     if (urlWithoutPort !== uri) {
-      return getAuthHeaderByNerfedURI(target, urlWithoutPort, isSecure)
+      return getAuthHeaderByNerfedURI(target, httpsUris, urlWithoutPort, isSecure)
     }
   }
   return undefined
 }
 
-function isKeyAllowed (key: string, isSecure: boolean, insecureUris: Set<string>): boolean {
+function findMatchingCandidate (
+  target: LookupTarget,
+  parts: string[],
+  maxParts: number,
+  isSecure: boolean,
+  httpsUris: Set<string>
+): string | undefined {
+  for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
+    const key = `${parts.slice(0, partCount).join('/')}/`
+    const candidate = pickCandidate(target, key, isSecure)
+    if (candidate) {
+      return isKeyAllowed(key, isSecure, target.insecureUris, httpsUris) ? candidate : undefined
+    }
+  }
+  return undefined
+}
+
+function pickCandidate (
+  target: LookupTarget,
+  key: string,
+  isSecure: boolean
+): string | undefined {
+  if (isSecure) {
+    return target.authHeaderValueByURI[key] ?? target.httpAuthHeaderValueByURI[key]
+  }
+  return target.httpAuthHeaderValueByURI[key] ?? target.authHeaderValueByURI[key]
+}
+
+function isKeyAllowed (
+  key: string,
+  isSecure: boolean,
+  insecureUris: Set<string>,
+  httpsUris: Set<string>
+): boolean {
   if (isSecure) return true
+  if (httpsUris.has(key)) return false
   for (const insecureUri of insecureUris) {
     if (key === insecureUri || key.startsWith(insecureUri)) return true
   }

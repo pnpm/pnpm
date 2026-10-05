@@ -846,3 +846,57 @@ fn unported_trusted_http_registry_does_not_permit_different_port() {
     assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
     assert_eq!(headers.for_url("http://insecure.corp:8080/pkg"), None);
 }
+
+#[test]
+fn http_and_schemeless_credentials_do_not_collide_regardless_of_order() {
+    let order_a = build(&[
+        ("http://reg.example/", "Bearer http-token"),
+        ("//reg.example/", "Bearer default-token"),
+    ]);
+    assert_eq!(order_a.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+    assert_eq!(order_a.for_url("https://reg.example/pkg").as_deref(), Some("Bearer default-token"));
+
+    let order_b = build(&[
+        ("//reg.example/", "Bearer default-token"),
+        ("http://reg.example/", "Bearer http-token"),
+    ]);
+    assert_eq!(order_b.for_url("http://reg.example/pkg").as_deref(), Some("Bearer http-token"));
+    assert_eq!(order_b.for_url("https://reg.example/pkg").as_deref(), Some("Bearer default-token"));
+}
+
+#[test]
+fn https_only_child_credential_not_authorized_under_trusted_http_root() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([
+            ("http://insecure.corp/".to_owned(), "Bearer root-token".to_owned()),
+            ("https://insecure.corp/team/".to_owned(), "Bearer https-team-token".to_owned()),
+        ]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(headers.for_url("http://insecure.corp/team/pkg"), None);
+    assert_eq!(
+        headers.for_url("https://insecure.corp/team/pkg").as_deref(),
+        Some("Bearer https-team-token"),
+    );
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+}
+
+#[test]
+fn scheme_less_child_credential_authorized_under_trusted_http_root() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([
+            ("http://insecure.corp/".to_owned(), "Bearer root-token".to_owned()),
+            ("//insecure.corp/team/".to_owned(), "Bearer default-team-token".to_owned()),
+        ]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(
+        headers.for_url("http://insecure.corp/team/pkg").as_deref(),
+        Some("Bearer default-team-token"),
+    );
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+}

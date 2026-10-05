@@ -200,3 +200,42 @@ test('getAuthHeaderByURI() does not allow HTTP credentials without port on a dif
   expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
   expect(getAuthHeaderByURI('http://insecure.lan:8080/pkg')).toBeUndefined()
 })
+
+test('getAuthHeaderByURI() does not collide HTTP and scheme-less credentials regardless of order', () => {
+  const orderA = createGetAuthHeaderByURI({
+    'http://reg.example/': { '@': { authToken: 'http-token' } },
+    '//reg.example/': { '@': { authToken: 'default-token' } },
+  })
+  expect(orderA('http://reg.example/pkg')).toBe('Bearer http-token')
+  expect(orderA('https://reg.example/pkg')).toBe('Bearer default-token')
+
+  const orderB = createGetAuthHeaderByURI({
+    '//reg.example/': { '@': { authToken: 'default-token' } },
+    'http://reg.example/': { '@': { authToken: 'http-token' } },
+  })
+  expect(orderB('http://reg.example/pkg')).toBe('Bearer http-token')
+  expect(orderB('https://reg.example/pkg')).toBe('Bearer default-token')
+})
+
+test('getAuthHeaderByURI() does not allow HTTPS-only child credentials under allowed root HTTP registry', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    'http://insecure.lan/': { '@': { authToken: 'root-token' } },
+    'https://insecure.lan/team/': { '@': { authToken: 'https-team-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://insecure.lan/team/pkg')).toBe('Bearer https-team-token')
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+})
+
+test('getAuthHeaderByURI() allows scheme-less child credentials under allowed root HTTP registry', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    'http://insecure.lan/': { '@': { authToken: 'root-token' } },
+    '//insecure.lan/team/': { '@': { authToken: 'default-team-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBe('Bearer default-team-token')
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+})
