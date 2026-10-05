@@ -440,8 +440,8 @@ fn loaded_project_local_store_survives_prune_and_requires_registration() {
         .collect::<Vec<_>>()
         .join("\n");
     yaml.push('\n');
-    yaml.push_str("nodeLinker:\n  type: loaded\nstoreDir: .pnpm-store\n");
-    fs::write(yaml_path, yaml).unwrap();
+    yaml.push_str("nodeLinker:\n  type: loaded\nstoreDir: store\n");
+    fs::write(&yaml_path, yaml).unwrap();
     pacquet
         .with_arg("install")
         .assert()
@@ -474,5 +474,15 @@ fn loaded_project_local_store_survives_prune_and_requires_registration() {
         String::from_utf8_lossy(&failure.get_output().stderr)
             .contains("ERR_PNPM_STORE_DIR_REGISTER_PROJECT_CREATE_REGISTRY_DIR"),
     );
+    let mut yaml = fs::read_to_string(&yaml_path).unwrap();
+    yaml.push_str("frozenStore: true\n");
+    fs::write(&yaml_path, yaml).unwrap();
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(&registry).unwrap(), "blocked registry");
     drop((root, mock_instance));
 }

@@ -187,10 +187,14 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
 /// surfaced as `tracing::warn!` instead. Loaded installs require durable
 /// registration because their blobs have no project hardlinks to protect them.
+/// A frozen store is externally managed and must not receive registry writes.
 pub(crate) fn register_workspace_in_store(
     config: &Config,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
+    if config.frozen_store && config.node_linker == pnpm_config::NodeLinker::Loaded {
+        return Ok(());
+    }
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
         return pnpm_store_dir::register_loaded_project(&config.store_dir, workspace_root)
             .map_err(InstallError::RegisterLoadedProject);

@@ -114,6 +114,8 @@ The application's dependency map still points to this package's instance ID. Imp
 
 Use pnpm's normal installer to populate GVS; copying just the selected package's files does not create a complete opt-out. The installer owns graph hashes, package import, linking, build policy, and store registration. Retain the installation that references those entries so store pruning can track their usage. The standalone loader does not install packages or register its manifest with store pruning. Normal CAS installs register the project, and `pnpm store prune` preserves both manifest-referenced blobs and materialized dependency trees.
 
+With `frozenStore`, pnpm does not register the project in the read-only store. The store must already be populated, and its owner must retain the files the project needs.
+
 This is an explicit compatibility fallback, not an install-time static analyzer. It can materialize a large dependency tree, but ordinary GVS entries can be reused across projects. Packages outside that tree stay in CAS. A tool that directly reads application dependencies outside its own tree may still need additional opt-outs or resolver integration.
 
 ## Supported behavior
