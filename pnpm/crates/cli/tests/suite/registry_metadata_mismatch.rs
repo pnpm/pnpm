@@ -10,6 +10,7 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
 };
+use serde_json::json;
 use std::{fs, path::Path, process::Command};
 
 /// Its tarball marks `peer-b` and `peer-c` as optional peers.
@@ -56,13 +57,30 @@ fn setup(specifier: &str) -> (tempfile::TempDir, std::path::PathBuf, AddMockedRe
     (root, workspace, npmrc_info)
 }
 
+fn registry_peers(range: &str) -> serde_json::Value {
+    json!({
+        "@pnpm.e2e/peer-a": range,
+        "@pnpm.e2e/peer-b": range,
+        "@pnpm.e2e/peer-c": range,
+    })
+}
+
 /// The lockfile records the registry metadata, so every peer is required,
 /// and `pnpm dedupe` has nothing to change.
 fn assert_records_registry_metadata(workspace: &Path, step: &str) {
-    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
-    eprintln!("lockfile after {step}:\n{lockfile}");
-    assert!(!lockfile.contains("peerDependenciesMeta"), "{step} recorded the tarball's peers");
-    assert!(!lockfile.contains("optionalDependencies"), "{step} recorded the tarball's peers");
+    let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("lockfile after {step}:\n{text}");
+    let lockfile: serde_json::Value = serde_saphyr::from_str(&text).expect("parse lockfile");
+    let package = &lockfile["packages"][format!("{WITH_PEERS}@1.0.0")];
+    assert_eq!(package["peerDependencies"], registry_peers("^1.0.0"), "{step}");
+    assert_eq!(package.get("peerDependenciesMeta"), None, "{step}");
+    let (_, snapshot) = lockfile["snapshots"]
+        .as_object()
+        .expect("snapshots")
+        .iter()
+        .find(|(key, _)| key.starts_with(&format!("{WITH_PEERS}@")))
+        .expect("snapshot of the package with peers");
+    assert_eq!(snapshot, &json!({ "dependencies": registry_peers("1.0.0") }), "{step}");
     for args in [&["dedupe", "--check"][..], &["dedupe", "--check", NO_RELEASE_AGE]] {
         pacquet_at(workspace)
             .with_args(args)

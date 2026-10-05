@@ -21,6 +21,16 @@ import { testDefaults } from '../utils/index.js'
 // Its tarball marks peer-b and peer-c as optional peers.
 const WITH_PEERS = '@pnpm.e2e/abc-optional-peers'
 const MINIMUM_RELEASE_AGE = 5760
+const REGISTRY_PEERS = {
+  '@pnpm.e2e/peer-a': '^1.0.0',
+  '@pnpm.e2e/peer-b': '^1.0.0',
+  '@pnpm.e2e/peer-c': '^1.0.0',
+}
+const LOCKED_PEERS = {
+  '@pnpm.e2e/peer-a': '1.0.0',
+  '@pnpm.e2e/peer-b': '1.0.0',
+  '@pnpm.e2e/peer-c': '1.0.0',
+}
 
 let server: http.Server
 let registry: string
@@ -51,9 +61,14 @@ test.each(['1.0.0', '^1.0.0'])('every install command records the registry metad
     testDefaults({ ...extra, minimumReleaseAge, registriesByScope: { default: registry } })
 
   const assertRecordsRegistryMetadata = async (step: string): Promise<void> => {
+    const { packages, snapshots } = project.readLockfile()
+    const snapshotKey = Object.keys(snapshots).find((key) => key.startsWith(`${WITH_PEERS}@`))!
+    expect({ step, package: packages[`${WITH_PEERS}@1.0.0`], snapshot: snapshots[snapshotKey] }).toStrictEqual({
+      step,
+      package: { resolution: expect.anything(), peerDependencies: REGISTRY_PEERS },
+      snapshot: { dependencies: LOCKED_PEERS },
+    })
     const lockfile = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
-    expect({ step, recordsTarballPeers: lockfile.includes('peerDependenciesMeta') || lockfile.includes('optionalDependencies') })
-      .toStrictEqual({ step, recordsTarballPeers: false })
     for (const minimumReleaseAge of [0, MINIMUM_RELEASE_AGE]) {
       // eslint-disable-next-line no-await-in-loop -- each dedupe reads the lockfile the previous one wrote
       await install(manifest, withReleaseAge(minimumReleaseAge, { dedupe: true }))
