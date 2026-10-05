@@ -20,8 +20,10 @@ pub struct BuildScriptOptions<'a> {
     /// What goes on each build script's `PATH` besides its own package's
     /// `node_modules/.bin` walk.
     pub path: ScriptPath<'a>,
-    /// Shell selected by the build caller. Workspace `scriptShell` does not
-    /// apply to dependencies; `None` selects the platform default.
+    /// Mirrors `config.script_shell`. Threaded through to
+    /// [`pnpm_executor::ScriptExecutionOptions::shell`], so a workspace that
+    /// configures a shell gets it for build scripts too, not only for
+    /// `pnpm run`. `None` selects the platform default.
     pub shell: Option<&'a Path>,
     /// Mirrors `config.shell_emulator`. Threaded through to
     /// [`pnpm_executor::ScriptExecutionOptions::shell_emulator`], so build scripts run
@@ -87,7 +89,7 @@ impl<'a> BuildScriptOptions<'a> {
                     .as_ref()
                     .is_some_and(|patterns| !patterns.is_empty()),
             },
-            shell: None,
+            shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
             unsafe_perm: config.unsafe_perm,
             ignore: config.ignore_scripts,

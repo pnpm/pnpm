@@ -127,7 +127,7 @@ fn configured_shell_still_runs_when_the_emulator_is_enabled() {
 }
 
 #[test]
-fn dependency_build_scripts_use_the_platform_shell() {
+fn runs_dependency_build_scripts_under_it() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -150,10 +150,12 @@ fn dependency_build_scripts_use_the_platform_shell() {
         .assert()
         .success();
 
-    assert!(!log.exists(), "dependency builds must not execute the workspace shell");
+    let scripts = logged_scripts(&log);
     assert!(
-        workspace.join("node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js").exists(),
-        "the approved dependency preinstall must still run",
+        scripts
+            .iter()
+            .any(|script| script.contains("generated-by-preinstall")),
+        "a dependency's build scripts should run under the configured shell, got {scripts:?}",
     );
 
     drop((root, mock_instance));

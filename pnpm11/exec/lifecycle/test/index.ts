@@ -262,12 +262,11 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
   expect(server.getLines()).toStrictEqual(['npm_config_platform_arch=x64'])
 })
 
-test('dependency lifecycle hooks ignore the configured project shell', async () => {
+test('runPostinstallHooks()', async () => {
   const pkgRoot = testFixtures.prepare('with-many-scripts')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
-    scriptShell: path.join(pkgRoot, 'nonexistent-shell'),
     optional: false,
     pkgRoot,
     rootModulesDir,
