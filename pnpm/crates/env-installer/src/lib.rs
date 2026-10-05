@@ -31,9 +31,8 @@ mod prune;
 mod resolve_and_install_config_deps;
 mod resolve_optional_subdeps;
 mod resolve_package_manager_integrities;
+mod verify_config_dep_resolutions;
 mod verify_env_lockfile;
 
 #[cfg(test)]
 mod tests;
-
-mod verify_config_dep_resolutions;

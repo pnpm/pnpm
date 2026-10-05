@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Config dependencies now verify locked tarball locations against their registry before loading hooks. Legacy inline integrity pins cannot be replaced through the lockfile.
+pnpm now verifies locked config dependencies against their registry before installing them. Config dependencies must come from an npm registry. The lockfile can no longer replace the integrity of a config dependency pinned with `version+integrity`.

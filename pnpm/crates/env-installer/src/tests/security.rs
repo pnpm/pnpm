@@ -1,8 +1,41 @@
 use super::{
-    BTreeMap, ConfigDepError, EnvLockfile, PackageKey, SilentReporter, SnapshotDepRef, TempDir,
-    build_resolver, clean_spec, contains_entry_named, harness, install_config_deps, options,
-    resolve_and_install_config_deps,
+    Arc, BTreeMap, ConfigDepError, EnvLockfile, PackageKey, SilentReporter, SnapshotDepRef,
+    TempDir, build_resolver, clean_spec, contains_entry_named, harness, install_config_deps,
+    options, resolve_and_install_config_deps,
 };
+use pnpm_lockfile::LockfileResolution;
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+};
+
+/// Rejects every entry, so a passing install proves the registry was not consulted.
+struct RejectingVerifier {
+    policy: serde_json::Map<String, serde_json::Value>,
+}
+
+impl ResolutionVerifier for RejectingVerifier {
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        Box::pin(async {
+            ResolutionVerification::Err { code: "TEST_REJECTED", reason: "was rejected".into() }
+        })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, _cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        false
+    }
+}
+
+fn rejecting_verifiers() -> Vec<Arc<dyn ResolutionVerifier>> {
+    vec![Arc::new(RejectingVerifier { policy: serde_json::Map::new() })]
+}
 
 #[tokio::test]
 async fn rejects_optional_subdep_with_path_traversal_name() {
@@ -189,5 +222,80 @@ async fn rejects_replacing_integrity_pinned_config_version() {
     .unwrap_err();
     assert!(
         matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity")),
+    );
+}
+
+#[tokio::test]
+async fn rejects_git_hosted_config_lockfile_entry_before_installing() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+    let config_deps = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"))]);
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    let mut env = EnvLockfile::read(root.path()).unwrap().unwrap();
+    let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    env.packages.get_mut(&key).unwrap().resolution =
+        LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+            tarball: format!("https://codeload.github.com/evil/config/tar.gz/{}", "a".repeat(40)),
+            integrity: Some("sha512-ZGVm".parse().unwrap()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        });
+    env.write(root.path()).unwrap();
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), true),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(&error, ConfigDepError::BadConfigDep { message } if message.contains("must resolve from an npm registry")),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[tokio::test]
+async fn skips_registry_verification_when_config_deps_are_installed() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+    let config_deps = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"))]);
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut rejecting = options(&harness, root.path(), true);
+    rejecting.verification.resolution_verifiers = rejecting_verifiers();
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &rejecting)
+        .await
+        .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().unwrap();
+    let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    env.packages.get_mut(&key).unwrap().resolution =
+        LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
+            integrity: "sha512-ZGVm".parse().unwrap(),
+            revision: None,
+        });
+    env.write(root.path()).unwrap();
+    let error =
+        resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &rejecting)
+            .await
+            .unwrap_err();
+    assert!(
+        matches!(&error, ConfigDepError::BadConfigDep { message } if message.contains("was rejected")),
+        "unexpected error: {error:?}",
     );
 }

@@ -6807,6 +6807,9 @@ importers:
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/resolving.tarball-url':
         specifier: workspace:*
         version: link:../../resolving/tarball-url

@@ -16,11 +16,13 @@ import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } f
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { createConfigDepsVerifier } from './verifyConfigDepResolutions.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
   rootDir: string
+  minimumReleaseAgeIgnoreMissingTime?: boolean
   configByUri?: Record<string, RegistryConfig>
 }
 
@@ -41,6 +43,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
 
   pruneEnvLockfile(envLockfile)
 
+  await createConfigDepsVerifier(declaredConfigDepsExcept(opts.configDependencies, configDeps), opts)(envLockfile)
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await writeSettings({
     ...opts,
@@ -99,6 +102,11 @@ async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: stri
     resolveFromNpm: ctx.resolveFromNpm,
   })
   envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
+}
+
+function declaredConfigDepsExcept (configDependencies: ConfigDependencies | undefined, added: string[]): ConfigDependencies {
+  const addedNames = new Set(added.map((configDep) => parseWantedDependency(configDep).alias))
+  return Object.fromEntries(Object.entries(configDependencies ?? {}).filter(([name]) => !addedNames.has(name)))
 }
 
 /**

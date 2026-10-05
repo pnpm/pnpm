@@ -4,12 +4,19 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolutionVerifier } from '@pnpm/resolving.npm-resolver'
+import { isGitHostedTarballUrl } from '@pnpm/resolving.resolver-base'
 import type { ConfigDependencies } from '@pnpm/types'
 
+import { areConfigDepsInstalled } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
 import type { ResolveAndInstallConfigDepsOpts } from './resolveAndInstallConfigDeps.js'
 import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
+/**
+ * Checks the env lockfile's config dependencies against their declarations
+ * and, unless `.pnpm-config` already holds exactly these packages, against
+ * the registry.
+ */
 export function createConfigDepsVerifier (configDeps: ConfigDependencies, opts: ResolveAndInstallConfigDepsOpts): (env: EnvLockfile) => Promise<void> {
   const verifier = createNpmResolutionVerifier(configVerifierOptions(opts))
   const pins = configDependencyPins(configDeps)
@@ -17,8 +24,29 @@ export function createConfigDepsVerifier (configDeps: ConfigDependencies, opts: 
     verifyEnvLockfile(env)
     assertConfiguredPins(env, pins)
     const keys = Array.from(configDependencyKeys(env)).filter((key) => !pins.has(key))
+    for (const key of keys) {
+      const metadata = env.packages[key]
+      if (!metadata) throw new PnpmError('BAD_CONFIG_DEP', `Missing configuration dependency "${key}"`)
+      assertRegistryResolution(key, metadata.resolution)
+    }
+    if (await areConfigDepsInstalled(env, opts)) return
     await Promise.all(keys.map((key) => verifyConfigDependency(key, env.packages[key], verifier)))
   }
+}
+
+/**
+ * Config dependencies install only from an npm registry: a registry
+ * resolution, or an http(s) tarball that is not a git-hosted archive.
+ */
+function assertRegistryResolution (key: string, resolution: EnvLockfile['packages'][string]['resolution']): void {
+  if (!('type' in resolution && resolution.type != null) && isRegistryTarball(resolution)) return
+  throw new PnpmError('BAD_CONFIG_DEP', `Configuration dependency "${key}" must resolve from an npm registry`)
+}
+
+function isRegistryTarball (resolution: EnvLockfile['packages'][string]['resolution']): boolean {
+  if (!('tarball' in resolution) || resolution.tarball == null) return true
+  const tarball = String(resolution.tarball)
+  return /^https?:\/\//i.test(tarball) && !isGitHostedTarballUrl(tarball)
 }
 
 function configDependencyPins (configDeps: ConfigDependencies): Map<string, string> {
