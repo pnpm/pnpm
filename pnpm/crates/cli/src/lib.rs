@@ -33,6 +33,7 @@ mod ecosystem_add;
 mod ecosystem_install;
 mod engine_pm;
 mod executable_link;
+mod fatal_error;
 mod flag_relocation;
 mod github_actions;
 mod install_as_add;
@@ -104,7 +105,12 @@ fn report_fatal_error(error: &miette::Report) {
             return;
         }
     }
-    if !is_reported_error(error) {
+    if is_reported_error(error) {
+        return;
+    }
+    if cli_args::reporter::selected_reporter() == cli_args::reporter::ReporterType::Ndjson {
+        pnpm_reporter::NdjsonReporter::emit_fatal_error(&fatal_error::error_log(error));
+    } else {
         eprintln!("Error: {error:?}");
     }
 }
@@ -463,6 +469,8 @@ fn prepare_cli_argv(argv: Vec<OsString>) -> (clap::Command, Vec<OsString>) {
 }
 
 fn configure_cli_args(args: &mut CliArgs) -> miette::Result<()> {
+    cli_args::reporter::select_reporter(args.effective_reporter());
+    fatal_error::set_prefix(&args.paths.dir);
     if let Err(err) = args.validate_command_scoped_global_options() {
         err.exit();
     }
@@ -473,6 +481,7 @@ fn configure_cli_args(args: &mut CliArgs) -> miette::Result<()> {
     args.ignore_workspace_for_global_config_read();
     args.promote_recursive_by_default();
     args.configure_reporter();
+    fatal_error::set_prefix(&args.paths.dir);
     cli_args::sudo_guard::check_sudo(&args.command)?;
     Ok(())
 }

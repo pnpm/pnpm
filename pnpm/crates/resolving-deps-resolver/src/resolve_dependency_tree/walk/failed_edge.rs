@@ -26,10 +26,12 @@ pub(super) fn drop_failed_edge(
         .last()
         .filter(|_| !optional && edge.parent_optional);
     if !(optional || broken_parent.is_some()) || !is_droppable_resolve_error(&err) {
-        return Err(err);
+        return Err(with_dependency_context(ctx, wanted, edge, opts, err));
     }
     if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
-        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
+        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(
+            with_dependency_context(ctx, wanted, edge, opts, err),
+        )));
     }
     if let Some(parent) = broken_parent {
         ctx.workspace.record_broken_package(
@@ -67,4 +69,20 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
             | ResolveDependencyTreeError::Pick(_)
             | ResolveDependencyTreeError::SpecNotSupported { .. },
     )
+}
+
+fn with_dependency_context(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    edge: &ChildEdge<'_>,
+    opts: &ResolveOptions,
+    source: ResolveDependencyTreeError,
+) -> ResolveDependencyTreeError {
+    ResolveDependencyTreeError::DependencyContext(super::super::DependencyResolutionError {
+        alias: wanted.alias.clone().unwrap_or_default(),
+        specifier: wanted.bare_specifier.clone().unwrap_or_default(),
+        parents: pkgs_info_from_ids(ctx, edge.ancestor_ids),
+        prefix: opts.project.project_dir.display().to_string(),
+        source: Box::new(source),
+    })
 }

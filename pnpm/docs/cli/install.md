@@ -188,7 +188,7 @@ the installation progress.
 * **silent** - no output is logged to the console, not even fatal errors
 * **default** - the default reporter when the stdout is TTY
 * **append-only** - the output is always appended to the end. No cursor manipulations are performed
-* **ndjson** - the most verbose reporter. Prints all logs in [ndjson](https://github.com/ndjson/ndjson-spec) format
+* **ndjson** - the most verbose reporter. Prints all logs in [ndjson](https://github.com/ndjson/ndjson-spec) format. Fatal error records include the error code. Dependency resolution errors also include the parent packages in `pkgsStack`.
 
 If you want to change what type of information is printed, use the [loglevel] setting.
 
