@@ -6,6 +6,25 @@ use super::{
 };
 
 #[test]
+fn dependency_type_validation_covers_all_groups_and_field_shapes() {
+    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+        let (valid, _dir) = manifest_from_json(json!({ (field): { "local-dep": "link:./dep" } }));
+        valid.validate_dependency_types().expect("string specifier should be valid");
+
+        for invalid in [json!({ "local-dep": 42 }), json!([]), json!(null)] {
+            let (manifest, _dir) = manifest_from_json(json!({ (field): invalid }));
+            let err = manifest
+                .validate_dependency_types()
+                .expect_err("invalid dependency field should be rejected");
+            let PackageManifestError::InvalidAttribute(message) = err else {
+                panic!("expected InvalidAttribute, got {err:?}");
+            };
+            assert!(message.contains(field), "{message}");
+        }
+    }
+}
+
+#[test]
 fn should_add_dependency() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
