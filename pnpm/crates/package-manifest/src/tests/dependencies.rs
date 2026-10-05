@@ -6,16 +6,18 @@ use super::{
 };
 
 #[test]
-fn dependency_type_validation_covers_all_groups_and_field_shapes() {
+fn dependency_type_validation_covers_all_groups() {
     for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
-        let (valid, _dir) = manifest_from_json(json!({ (field): { "local-dep": "link:./dep" } }));
-        valid.validate_dependency_types().expect("string specifier should be valid");
+        for valid in [json!({ "local-dep": "link:./dep" }), json!([]), json!(null), json!("x")] {
+            let (manifest, _dir) = manifest_from_json(json!({ (field): valid }));
+            manifest.validate_dependency_types().expect("manifest should be valid");
+        }
 
-        for invalid in [json!({ "local-dep": 42 }), json!([]), json!(null)] {
+        for invalid in [json!({ "local-dep": 42 }), json!({ "local-dep": null })] {
             let (manifest, _dir) = manifest_from_json(json!({ (field): invalid }));
             let err = manifest
                 .validate_dependency_types()
-                .expect_err("invalid dependency field should be rejected");
+                .expect_err("non-string specifier should be rejected");
             let PackageManifestError::InvalidAttribute(message) = err else {
                 panic!("expected InvalidAttribute, got {err:?}");
             };
