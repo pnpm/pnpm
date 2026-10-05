@@ -200,12 +200,23 @@ test('an indexed mirror drops a time map that misses a version', async () => {
   expect(loaded!.time).toBeUndefined()
 })
 
-test('a fragment that parses to an array is malformed', async () => {
+test('a well-formed fragment of the wrong shape reads as no manifest', async () => {
   const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
   const headers = '{}'
   const fragment = '[1,2]'
   const index = JSON.stringify({ name: 'foo', distTags: {}, versions: [['1.0.0', 0, fragment.length]] })
   fs.writeFileSync(pkgMirror, `pnpm-meta-v1 ${headers.length} ${index.length}\n${headers}${index}${fragment}`)
+
+  const loaded = await loadMeta(pkgMirror)
+  expect(loaded!.versions['1.0.0']).toBeNull()
+})
+
+test('a fragment with malformed UTF-8 is malformed', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const headers = '{}'
+  const fragment = Buffer.concat([Buffer.from('{"name":"'), Buffer.from([0xff]), Buffer.from('"}')])
+  const index = JSON.stringify({ name: 'foo', distTags: {}, versions: [['1.0.0', 0, fragment.length]] })
+  fs.writeFileSync(pkgMirror, Buffer.concat([Buffer.from(`pnpm-meta-v1 ${headers.length} ${index.length}\n${headers}${index}`), fragment]))
 
   const loaded = await loadMeta(pkgMirror)
   expect(() => loaded!.versions['1.0.0']).toThrow(expect.objectContaining({ code: 'ERR_PNPM_MALFORMED_META_FRAGMENT' }))

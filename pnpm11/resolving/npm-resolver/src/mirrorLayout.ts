@@ -164,7 +164,7 @@ function parseIndexedMeta (
 ): PackageMeta | null {
   const indexStart = recordsStart + format.headersLen
   const fragmentBase = indexStart + format.indexLen
-  if (fragmentBase > data.length) return null
+  if (fragmentBase > data.length || format.headersLen > MAX_HEADERS_LEN || format.indexLen > MAX_INDEX_LEN) return null
   const headers = JSON.parse(data.toString('utf8', recordsStart, indexStart)) as MetaHeaders
   const index = JSON.parse(data.toString('utf8', indexStart, fragmentBase)) as MirrorIndex
   const versions = buildLazyVersions({ pkgMirror, data, fragmentBase }, index.versions, opts?.condense === true)
@@ -212,7 +212,7 @@ function buildLazyVersions (
   // A null prototype so a registry-controlled version key named `__proto__`
   // becomes a regular own property (see the same pattern in clearMeta).
   const versions: PackageMeta['versions'] = Object.create(null)
-  const hydrated = new Map<string, PackageInRegistry | PnpmError>()
+  const hydrated = new Map<string, PackageInRegistry | PnpmError | null>()
   for (const [version, offset, length] of spans) {
     if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 0) return null
     const start = file.fragmentBase + offset
@@ -225,12 +225,14 @@ function buildLazyVersions (
       configurable: true,
       get (): PackageInRegistry {
         let manifest = hydrated.get(version)
-        if (manifest == null) {
+        if (manifest === undefined) {
           manifest = parseFragment(file, { version, start, end }, condense)
           hydrated.set(version, manifest)
         }
         if (manifest instanceof PnpmError) throw manifest
-        return manifest
+        // `null` for a well-formed fragment of the wrong shape, which the
+        // pickers treat as a version without a manifest.
+        return manifest as PackageInRegistry
       },
     })
   }
@@ -240,22 +242,32 @@ function buildLazyVersions (
 /** Matches the Rust reader's `MAX_FRAGMENT_LEN`. */
 const MAX_FRAGMENT_LEN = 16 * 1024 * 1024
 
+/**
+ * Only bytes that are not UTF-8 JSON mean a damaged mirror. The mirror stores
+ * registry fragments verbatim, so a well-formed fragment of the wrong shape is
+ * how the registry served that version, and it reads as no manifest.
+ */
 function parseFragment (
   file: { pkgMirror: string, data: Buffer },
   { version, start, end }: { version: string, start: number, end: number },
   condense: boolean
-): PackageInRegistry | PnpmError {
+): PackageInRegistry | PnpmError | null {
+  let parsed: unknown
   try {
-    const parsed = JSON.parse(file.data.toString('utf8', start, end)) as PackageInRegistry
-    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('a version manifest must be an object')
-    return condense ? pickAbbreviatedVersionFields(parsed) : parsed
+    parsed = JSON.parse(strictUtf8.decode(file.data.subarray(start, end)))
   } catch {
     return new PnpmError('MALFORMED_META_FRAGMENT', `Failed to parse the manifest of ${version} in the package metadata mirror at ${file.pkgMirror}`)
   }
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  return condense ? pickAbbreviatedVersionFields(parsed as PackageInRegistry) : parsed as PackageInRegistry
 }
 
-/** Matches the bound the Rust stack's `read_mirror_headers` applies. */
+/** Fails on malformed UTF-8 rather than substituting U+FFFD, as the Rust reader does. */
+const strictUtf8 = new TextDecoder('utf-8', { fatal: true })
+
+/** Match the bounds the Rust reader applies to the two records. */
 const MAX_HEADERS_LEN = 64 * 1024
+const MAX_INDEX_LEN = 64 * 1024 * 1024
 
 /**
  * Reads only the leading records of a mirror file to extract the cache
