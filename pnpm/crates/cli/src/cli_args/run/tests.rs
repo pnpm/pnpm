@@ -81,7 +81,7 @@ fn specified_scripts_match_utf16_code_units() {
         ScriptSelector::new("/^.$/")
             .unwrap()
             .select(&manifest)
-            .is_empty()
+            .is_empty(),
     );
     assert_eq!(ScriptSelector::new("/^..$/").unwrap().select(&manifest), vec!["😀".to_string()]);
 }
