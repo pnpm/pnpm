@@ -67,7 +67,7 @@ fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
         let original = fs::read_to_string(&lockfile_path).unwrap();
         let lockfile = if resolution == "env" {
             format!(
-                "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies:\n      signed-pkg:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  signed-pkg@1.0.0:\n    resolution: {{integrity: sha512-ZGVm}}\nsnapshots:\n  signed-pkg@1.0.0: {{}}\n---\n{original}"
+                "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies:\n      signed-pkg:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  signed-pkg@1.0.0:\n    resolution: {{integrity: sha512-ZGVm}}\nsnapshots:\n  signed-pkg@1.0.0: {{}}\n---\n{original}",
             )
         } else {
             original.replace("{integrity: sha512-YWJj}", resolution)
@@ -85,7 +85,7 @@ fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
                 .as_array()
                 .unwrap()
                 .len(),
-            1
+            1,
         );
         keys_mock.assert();
         packument_mock.assert();
