@@ -316,6 +316,7 @@ fn global_get_and_list_ignore_the_project_settings() {
     assert_eq!(run(&["config", "get", "minimumReleaseAge", "--global"]), "undefined");
     assert_eq!(run(&["config", "get", "minimumReleaseAge", "--location=global"]), "undefined");
     assert_eq!(run(&["get", "-g", "minimumReleaseAge"]), "undefined");
+    assert_eq!(run(&["config", "get", "minimumReleaseAge", "-g", "--location=project"]), "2880");
     assert_eq!(run(&["config", "get", "//project.test/:_authToken", "--global"]), "undefined");
     assert_eq!(run(&["config", "get", "fetchRetries", "--global"]), "5");
 

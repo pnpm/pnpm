@@ -352,7 +352,7 @@ async function getWorkspaceDir (
   parsedOpts: Record<string, unknown>,
   renamedOptions?: Record<string, string>
 ): Promise<string | undefined> {
-  if (parsedOpts['global'] || parsedOpts['location'] === 'global' || parsedOpts['ignore-workspace']) return undefined
+  if (isGlobalScope(parsedOpts) || parsedOpts['ignore-workspace']) return undefined
   let dir = parsedOpts['dir']
   if (dir == null && renamedOptions != null) {
     for (const [from, to] of Object.entries(renamedOptions)) {
@@ -363,4 +363,10 @@ async function getWorkspaceDir (
     }
   }
   return findWorkspaceDir((dir ?? process.cwd()) as string)
+}
+
+/** `--location`, which only config commands accept, takes precedence over `--global`. */
+function isGlobalScope (parsedOpts: Record<string, unknown>): boolean {
+  if (parsedOpts['location'] != null) return parsedOpts['location'] === 'global'
+  return Boolean(parsedOpts['global'])
 }

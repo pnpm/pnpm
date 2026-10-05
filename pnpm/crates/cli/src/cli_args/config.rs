@@ -42,21 +42,10 @@ pub struct ConfigArgs {
 }
 
 impl ConfigArgs {
-    /// Whether `--global` / `-g` was passed, ignoring the default
-    /// [`resolve_global`] applies when no location flag is given.
-    pub(super) fn is_global(&self) -> bool {
-        self.flags.global
-    }
-
-    /// Whether this is a `get` / `list` the user scoped to the global config
-    /// with `--global` or `--location=global`. Such a read must not show the
-    /// project's settings.
+    /// Whether this is a `get` / `list` the user scoped to the global config.
+    /// Such a read must not show the project's settings.
     pub(super) fn reads_global_config(&self) -> bool {
-        let explicitly_global = match self.flags.location {
-            Some(location) => location == ConfigLocation::Global,
-            None => self.flags.global,
-        };
-        explicitly_global
+        self.flags.is_global()
             && matches!(self.command, ConfigSubcommand::Get(_) | ConfigSubcommand::List(_))
     }
 }
@@ -88,6 +77,19 @@ pub struct ConfigFlags {
     /// Show all types of values in JSON format (not just objects and arrays).
     #[clap(long, global = true)]
     pub json: bool,
+}
+
+impl ConfigFlags {
+    /// Whether the user scoped the command to the global config with
+    /// `--global` or `--location=global`, ignoring the default
+    /// [`resolve_global`] applies when no location flag is given. `--global`
+    /// and `--location=global` are the same request.
+    pub(super) fn is_global(self) -> bool {
+        match self.location {
+            Some(location) => location == ConfigLocation::Global,
+            None => self.global,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

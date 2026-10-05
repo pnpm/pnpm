@@ -293,16 +293,19 @@ test('pnpm config get shows settings from global config.yaml', () => {
 })
 
 // https://github.com/pnpm/pnpm/issues/16598
-test('pnpm config get --global and --location=global ignore the project pnpm-workspace.yaml', () => {
+test('pnpm config get --global and --location=global read the same global config', () => {
   prepare()
   writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'hoisted' })
 
   const XDG_CONFIG_HOME = path.resolve('.config')
   fs.mkdirSync(path.join(XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
   writeYamlFileSync(path.join(XDG_CONFIG_HOME, 'pnpm/config.yaml'), { dlxCacheMaxAge: 1234 })
-  // `--global` requires the global bin directory to be in PATH.
+  // Reading the global config does not need the global bin directory in PATH.
   const PNPM_HOME = path.resolve('pnpm-home')
-  const env = { XDG_CONFIG_HOME, PNPM_HOME, [PATH_NAME]: path.join(PNPM_HOME, 'bin') }
+  // The global packages' manifest configures global installs, not the global config.
+  fs.mkdirSync(path.join(PNPM_HOME, 'global/v11'), { recursive: true })
+  writeYamlFileSync(path.join(PNPM_HOME, 'global/v11/pnpm-workspace.yaml'), { nodeLinker: 'isolated' })
+  const env = { XDG_CONFIG_HOME, PNPM_HOME, [PATH_NAME]: path.resolve('bin') }
   const pnpm = (args: string[]) =>
     execPnpmSync(args, { expectSuccess: true, env }).stdout.toString().trim()
 
@@ -310,11 +313,14 @@ test('pnpm config get --global and --location=global ignore the project pnpm-wor
   expect(pnpm(['config', 'get', 'nodeLinker', '--global'])).toBe('undefined')
   expect(pnpm(['config', 'get', 'nodeLinker', '--location=global'])).toBe('undefined')
   expect(pnpm(['get', 'nodeLinker', '--location=global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', 'nodeLinker', '--global', '--location=project'])).toBe('hoisted')
   expect(pnpm(['config', 'get', 'dlxCacheMaxAge', '--location=global'])).toBe('1234')
 
-  const list = JSON.parse(pnpm(['config', 'list', '--location=global']))
-  expect(list).not.toHaveProperty('nodeLinker')
-  expect(list).toHaveProperty('dlxCacheMaxAge', 1234)
+  for (const scope of ['--global', '--location=global']) {
+    const list = JSON.parse(pnpm(['config', 'list', scope]))
+    expect(list).not.toHaveProperty('nodeLinker')
+    expect(list).toHaveProperty('dlxCacheMaxAge', 1234)
+  }
 })
 
 test('the path from "config get globalconfig" is the file that pnpm actually reads global settings from', () => {

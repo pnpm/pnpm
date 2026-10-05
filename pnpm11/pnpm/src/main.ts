@@ -140,9 +140,7 @@ async function readCommandConfig (
 ): Promise<LoadedConfig | undefined> {
   const { cmd, params: cliParams, options: cliOptions, unknownOptions, workspaceDir, rawCliConfig } = parsedCliArgs
   const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
-  if (cmd === 'link' && cliParams.length === 0) {
-    cliOptions.global = true
-  }
+  applyGlobalScope(parsedCliArgs, isConfigCommand)
   let { config, context } = await getConfig(cliOptions, {
     excludeReporter: false,
     // When we just want to print the location of the global bin directory,
@@ -174,6 +172,22 @@ async function readCommandConfig (
   }) as LoadedConfig)
   applyInvocationToConfig(config, parsedCliArgs)
   return { config, context }
+}
+
+/**
+ * `pnpm link` without arguments links into the global directory.
+ *
+ * `--global` on a config command is the same request as `--location=global`.
+ * It names the global config files and does not load the config of a global
+ * install.
+ */
+function applyGlobalScope ({ cmd, params, options }: ParsedCliArgsWithBuiltIn, isConfigCommand: boolean): void {
+  if (cmd === 'link' && params.length === 0) {
+    options.global = true
+  } else if (isConfigCommand && options.global === true) {
+    options.location ??= 'global'
+    delete options.global
+  }
 }
 
 function applyInvocationToConfig (config: CommandConfig, parsedCliArgs: ParsedCliArgsWithBuiltIn): void {
