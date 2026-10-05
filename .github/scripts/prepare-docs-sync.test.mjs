@@ -8,7 +8,7 @@ import { prepareDocsSync } from './prepare-docs-sync.mjs'
 
 function fixture (t, tag = 'v12.8.2') {
   const repo = mkdtempSync(path.join(os.tmpdir(), 'pnpm-docs-release-'))
-  t.after(() => rmSync(repo, { recursive: true, force: true }))
+  t.after(() => rmSync(repo, { recursive: true, force: true, maxRetries: 3 }))
   const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   const version = tag.startsWith('pnpr@') ? tag.slice(5) : tag.slice(1)
   for (const [product, current] of [['pnpm/npm/pnpm', '12.8.2'], ['pnpm11/pnpm', '11.28.2'], ['pnpr/npm/pnpr', '0.1.0-alpha.14']]) {
