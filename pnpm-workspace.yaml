@@ -59,6 +59,7 @@ packages:
   - pnpm/wasm
   - pnpr/npm/pnpr
   - '!vendor/**'
+  - '!bench-work-env/**'
   - '!**/example/**'
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
