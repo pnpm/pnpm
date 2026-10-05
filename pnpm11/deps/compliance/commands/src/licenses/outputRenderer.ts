@@ -1,5 +1,6 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { compareVersions, type LicensePackage } from '@pnpm/deps.compliance.license-scanner'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy, omit, pick, sortWith } from 'ramda'
@@ -19,7 +20,7 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]): Lice
 function renderPackageName ({ belongsTo, name, registryName }: LicensePackage): string {
   // The alias disambiguates two otherwise identical rows for the same
   // package served by different registries.
-  const packageName = registryName == null ? name : `${name} ${chalk.dim(`(${registryName})`)}`
+  const packageName = registryName == null ? sanitizeInline(name) : `${sanitizeInline(name)} ${chalk.dim(`(${sanitizeInline(registryName)})`)}`
   switch (belongsTo) {
     case 'devDependencies':
       return `${packageName} ${chalk.dim('(dev)')}`
@@ -31,7 +32,7 @@ function renderPackageName ({ belongsTo, name, registryName }: LicensePackage): 
 }
 
 function renderPackageLicense ({ license }: LicensePackage): string {
-  const output = license ?? 'Unknown'
+  const output = sanitizeInline(license ?? 'Unknown')
   return output as string
 }
 
@@ -46,7 +47,7 @@ function renderDetails (licensePackage: LicensePackage): string {
   if (licensePackage.homepage) {
     outputs.push(licensePackage.homepage)
   }
-  return outputs.join('\n')
+  return outputs.map((value) => value.split('\n').map(sanitizeInline).join('\n')).join('\n')
 }
 
 export function renderLicences (
