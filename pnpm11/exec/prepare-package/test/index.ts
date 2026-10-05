@@ -143,4 +143,14 @@ test('prepare package accepts internal symlink pointing within repository root',
   expect(result.pkgDir).toBe(path.join(tmp, 'link_to_foo'))
 })
 
+test('prepare package accepts a checkout root reached through a symlink', async () => {
+  const tmp = tempDir()
+  const checkout = path.join(tmp, 'checkout')
+  const linkedCheckout = path.join(tmp, 'linked-checkout')
+  await fs.mkdir(path.join(checkout, 'package'), { recursive: true })
+  await fs.writeFile(path.join(checkout, 'package', 'package.json'), '{"name":"internal"}')
+  await fs.symlink(checkout, linkedCheckout, 'junction')
 
+  await expect(preparePackage({ pkgResolutionId }, linkedCheckout, 'package'))
+    .resolves.toMatchObject({ pkgDir: path.join(linkedCheckout, 'package'), shouldBeBuilt: false })
+})
