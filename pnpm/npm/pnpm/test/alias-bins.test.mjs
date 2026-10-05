@@ -15,17 +15,18 @@ import { fileURLToPath } from 'node:url'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 /** Each alias and the argv it prepends: `pnpx` and `pnx` mean `pnpm dlx`. */
-const ALIASES = [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]
+const ALIASES = [['pn', []], ['pnpx', ['dlx']], ['pnx', ['dlx']]]
 // No pnpm on it, so a `PATH` lookup finds nothing but the decoys the tests plant.
 // The system directories stay on it for whatever the sibling itself reaches for.
 const BARE_PATH = '/usr/bin:/bin'
-const ARGS = ['add', 'foo']
+// Each one changes if a shell splits, expands, or unquotes it on the way through.
+const ARGS = ['add', 'two words', '$(false)', "quote'", 'back\\slash']
 
 const NO_SH = process.platform === 'win32' && 'Windows has no sh'
 
 describe('alias bins', () => {
   for (const [alias, injected] of ALIASES) {
-    const expected = `sibling: ${injected}${ARGS.join(' ')}\n`
+    const expected = stubOutput('sibling', [...injected, ...ARGS])
 
     describe(alias, () => {
       it('parses as an sh script', { skip: NO_SH }, async () => {
@@ -130,7 +131,7 @@ describe('alias bins', () => {
 
     const result = await runAlias(link, ARGS, { env: { PATH: `${decoyDir}:${BARE_PATH}` } })
     assert.equal(result.status, 0, result.stderr)
-    assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+    assert.equal(result.stdout, stubOutput('sibling', ['dlx', ...ARGS]))
   })
 
   // The default path `command -p` searches can lack readlink, as inside a Nix
@@ -147,7 +148,7 @@ describe('alias bins', () => {
 
     const result = await runAlias(link, ARGS, { env: { PATH: BARE_PATH } })
     assert.equal(result.status, 0, result.stderr)
-    assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+    assert.equal(result.stdout, stubOutput('sibling', ['dlx', ...ARGS]))
   })
 
   // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
@@ -157,7 +158,7 @@ describe('alias bins', () => {
   // path resolves to, and hands `sh` the file whose own name is that path.
   describe('native Windows $0', () => {
     for (const [alias, injected] of ALIASES) {
-      const expected = `sibling: ${injected}${ARGS.join(' ')}\n`
+      const expected = stubOutput('sibling', [...injected, ...ARGS])
 
       it(`${alias} resolves a drive-letter path`, { skip: NO_SH }, async () => {
         const dir = createTmpDir('pnpm native ')
@@ -304,13 +305,19 @@ function createFixture ({ installBinary = true } = {}) {
   return { dir, wrapperDir }
 }
 
+/** What a {@link writeStub} stand-in labelled `label` prints when handed `args`. */
+function stubOutput (label, args) {
+  return [`${label}:`, ...args].map((line) => `${line}\n`).join('')
+}
+
 /**
- * An executable stand-in for `pnpm` at `file` that echoes `label` and its
+ * An executable stand-in for `pnpm` at `file` that prints `label` and then each
+ * of its arguments on a line of its own.
  * arguments. chmod separately, since `writeFileSync`'s `mode` applies only when
  * it creates the file.
  */
 function writeStub (file, label) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
+  fs.writeFileSync(file, `#!/bin/sh\nprintf '%s\\n' "${label}:" "$@"\n`)
   fs.chmodSync(file, 0o755)
 }
