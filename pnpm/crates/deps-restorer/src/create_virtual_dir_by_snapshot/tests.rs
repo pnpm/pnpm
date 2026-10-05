@@ -670,6 +670,22 @@ fn run_rejects_uncontained_slot_before_creating_dirs() {
             .exists(),
         "no directory outside the package directory must be created",
     );
+    assert!(
+        !dir.path()
+            .join("store")
+            .join("v3")
+            .join("escaped")
+            .exists(),
+        "no directory at the v3 store level must be created",
+    );
+    assert!(
+        !dir.path()
+            .join("store")
+            .join("links")
+            .join("escaped")
+            .exists(),
+        "no directory under links must be created",
+    );
 }
 
 /// A warm reinstall that drops a child dependency unlinks the stale
