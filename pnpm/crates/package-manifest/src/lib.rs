@@ -37,6 +37,7 @@ mod error;
 mod json5;
 mod project;
 mod truthiness;
+mod validation;
 
 #[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
 pub enum DependencyGroup {
@@ -292,12 +293,12 @@ impl PackageManifest {
         Ok(())
     }
 
+    /// Skips groups that are not objects and specifiers that are not strings.
+    /// Installs reject the latter through [`Self::validate_dependency_types`].
     pub fn dependencies<'a>(
         &'a self,
         groups: impl IntoIterator<Item = DependencyGroup> + 'a,
     ) -> impl Iterator<Item = (&'a str, &'a str)> + 'a {
-        // TODO: add error when `dependencies` is found to not be an object
-        // TODO: add error when `version` is found to not be a string
         groups
             .into_iter()
             .filter_map(|group| self.value.get::<&str>(group.into()))
