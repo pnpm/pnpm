@@ -6,6 +6,7 @@ import {
   getFileMtime,
   getPkgMetaCacheKey,
   getPkgMirrorPath,
+  hasVersionManifest,
   isMalformedMirrorFragmentError,
   legacyMirrorHint,
   loadMetaHeaders,
@@ -363,7 +364,7 @@ async function pickExactVersionFromMirror (session: MirrorSession): Promise<Pick
   if (
     diskMeta == null ||
     !canServeCachedMeta(ctx, diskMeta) ||
-    !Object.hasOwn(diskMeta.versions ?? {}, spec.fetchSpec)
+    !hasVersionManifest(diskMeta.versions ?? {}, spec.fetchSpec)
   ) {
     return undefined
   }

@@ -18,6 +18,7 @@ import {
 } from './mirrorLayout.js'
 
 export {
+  hasVersionManifest,
   isMalformedMirrorFragmentError,
   loadMeta,
   loadMetaHeaders,

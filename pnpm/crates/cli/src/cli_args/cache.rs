@@ -525,7 +525,9 @@ fn split_cached_versions(
 ) -> Option<(Vec<String>, Vec<String>)> {
     let mut cached = Vec::new();
     let mut non_cached = Vec::new();
+    let mut read = 0;
     for (version, json_frag) in meta_object.versions.fragments() {
+        read += 1;
         let manifest = serde_json::from_str::<serde_json::Value>(json_frag.as_ref()).ok()?;
         let Some(integrity) = manifest
             .get("dist")
@@ -545,5 +547,7 @@ fn split_cached_versions(
             non_cached.push(version.clone());
         }
     }
-    Some((cached, non_cached))
+    // A fragment that could not be read is skipped by `fragments`, and a
+    // partial version list would misreport the cache.
+    (read == meta_object.versions.len()).then_some((cached, non_cached))
 }

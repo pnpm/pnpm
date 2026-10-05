@@ -5,6 +5,7 @@ import {
   type VersionSelectorType,
 } from '@pnpm/resolving.resolver-base'
 
+import { hasVersionManifest } from './mirrorLayout.js'
 import { semverSatisfiesLoose } from './semverLoose.js'
 
 /**
@@ -19,8 +20,7 @@ export function cachedMetaMissesPreferredVersion (
   if (preferredVersionSelectors == null) return false
   for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
     if (!isExactVersionSelectorInRange(selector, value, versionRange)) continue
-    // `hasOwn`, not a value read, which would parse a lazily-loaded manifest.
-    if (!Object.hasOwn(meta.versions, selector)) return true
+    if (!hasVersionManifest(meta.versions, selector)) return true
   }
   return false
 }

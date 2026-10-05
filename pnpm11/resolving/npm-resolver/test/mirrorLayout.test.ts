@@ -7,6 +7,7 @@ import { temporaryDirectory } from 'tempy'
 
 import { clearMeta } from '../src/clearMeta.js'
 import {
+  hasVersionManifest,
   isMalformedMirrorFragmentError,
   loadMeta,
   loadMetaHeaders,
@@ -218,4 +219,14 @@ test('a format line whose lengths are not whole numbers is a cache miss', async 
 
   expect(await loadMeta(pkgMirror)).toBeNull()
   expect(await loadMetaHeaders(pkgMirror)).toBeNull()
+})
+
+test('hasVersionManifest reads presence without parsing a lazy manifest', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  await saveMeta(pkgMirror, corruptFragmentOf(fixtureMeta(), '2.0.0'))
+  const loaded = await loadMeta(pkgMirror)
+
+  expect(hasVersionManifest(loaded!.versions, '2.0.0')).toBe(true)
+  expect(hasVersionManifest(loaded!.versions, '3.0.0')).toBe(false)
+  expect(hasVersionManifest({ '1.0.0': null } as unknown as PackageMeta['versions'], '1.0.0')).toBe(false)
 })

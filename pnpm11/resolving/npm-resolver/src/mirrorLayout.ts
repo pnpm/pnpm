@@ -1,8 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -23,7 +22,17 @@ import { dropIncompletePublishTimes } from './publishTimes.js'
 const MALFORMED_FRAGMENT_ERROR_CODE = 'ERR_PNPM_MALFORMED_META_FRAGMENT'
 
 export function isMalformedMirrorFragmentError (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === MALFORMED_FRAGMENT_ERROR_CODE
+  return isError(err) && 'code' in err && err.code === MALFORMED_FRAGMENT_ERROR_CODE
+}
+
+/**
+ * Whether `versions` holds a manifest for `version`, without invoking the
+ * getter that parses a lazily-loaded manifest. A version listed with a
+ * `null` value has no manifest.
+ */
+export function hasVersionManifest (versions: PackageMeta['versions'], version: string): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(versions, version)
+  return descriptor != null && (descriptor.get != null || descriptor.value != null)
 }
 
 export interface MetaHeaders {
