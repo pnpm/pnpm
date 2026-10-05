@@ -33,6 +33,7 @@ pub use resolve::{
     WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
+pub use unsupported_protocol::UnsupportedProtocolError;
 pub use verifier::{
     PlannedCanonicalFetches, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
     VerifyCtx, VerifyFuture,
@@ -43,6 +44,7 @@ mod peer_range;
 mod publish_time;
 mod resolve;
 mod semver_range;
+mod unsupported_protocol;
 mod verifier;
 
 #[cfg(test)]

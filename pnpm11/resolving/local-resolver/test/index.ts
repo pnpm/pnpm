@@ -378,6 +378,30 @@ test('do not fail when resolving from not existing directory', async () => {
   jest.mocked(logger.warn).mockRestore()
 })
 
+test('fail when a path-shaped specifier with an unsupported protocol names a missing directory', async () => {
+  const bareSpecifier = 'patch:got@npm%3A11.8.2#~/.yarn/patches/got-npm-11.8.2-c1eb105458.patch'
+  await expect(
+    resolveFromLocalPath({}, { bareSpecifier }, { projectDir: import.meta.dirname })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_UNSUPPORTED_PROTOCOL',
+    message: `Unsupported protocol "patch:" in the dependency specifier "${bareSpecifier}"`,
+  })
+})
+
+test('a path-shaped specifier that only looks like a protocol resolves an existing directory', async () => {
+  const projectDir = tempDir(false)
+  const linkedDir = path.join(projectDir, 'scheme:pkg', 'dir')
+  try {
+    fs.mkdirSync(linkedDir, { recursive: true })
+  } catch {
+    // Windows cannot create a directory named this way.
+    return
+  }
+  fs.writeFileSync(path.join(linkedDir, 'package.json'), JSON.stringify({ name: 'linked', version: '1.0.0' }))
+  const resolveResult = await resolveFromLocalPath({}, { bareSpecifier: 'scheme:pkg/dir' }, { projectDir })
+  expect(resolveResult?.manifest?.name).toBe('linked')
+})
+
 test('throw error when the path: protocol is used', async () => {
   await expect(
     resolveFromLocalScheme({}, { bareSpecifier: 'path:..' }, { projectDir: import.meta.dirname })

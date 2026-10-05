@@ -27,7 +27,7 @@ use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveError, ResolveOptions, Resolver, WantedDependency,
+    ResolveError, ResolveOptions, Resolver, UnsupportedProtocolError, WantedDependency,
 };
 use serde_json::Value;
 use std::{
@@ -244,6 +244,11 @@ pub enum ResolveDependencyTreeError {
     /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
     #[diagnostic(transparent)]
     GitResolve(#[error(source)] GitResolveError),
+
+    /// A specifier opens with a protocol no resolver supports, raised with
+    /// the `ERR_PNPM_UNSUPPORTED_PROTOCOL` code.
+    #[diagnostic(transparent)]
+    UnsupportedProtocol(#[error(source)] UnsupportedProtocolError),
 
     /// The npm resolver's cache/fetch orchestration failed — most often
     /// `ERR_PNPM_NO_OFFLINE_META`, raised with whatever code and help
