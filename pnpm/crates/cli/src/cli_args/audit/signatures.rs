@@ -208,26 +208,25 @@ fn process_version(
         .get(&pkg.version)
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);
+    let Some(integrity) = pkg.integrity.clone() else {
+        let reason = format!("Missing lockfile integrity for {}@{}", pkg.name, pkg.version);
+        result.invalid.push(issue(pkg, None, None, Some(reason)));
+        return;
+    };
     let dist = version.and_then(|version| version.dist.as_ref());
-    let integrity = pkg.integrity.clone();
     let resolved = dist.and_then(|dist| dist.tarball.clone());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
     let Some(signatures) = parse_signatures(raw_signatures) else {
-        result.invalid.push(issue(pkg, integrity, resolved, Some(malformed_reason(pkg))));
+        result.invalid.push(issue(pkg, Some(integrity), resolved, Some(malformed_reason(pkg))));
         return;
     };
 
     if version.is_none() {
         let reason = format!("Missing registry metadata for {}@{}", pkg.name, pkg.version);
-        result.invalid.push(issue(pkg, None, None, Some(reason)));
+        result.invalid.push(issue(pkg, Some(integrity), None, Some(reason)));
         return;
     }
-    let Some(integrity) = integrity else {
-        let reason = format!("Missing lockfile integrity for {}@{}", pkg.name, pkg.version);
-        result.invalid.push(issue(pkg, None, resolved, Some(reason)));
-        return;
-    };
     if signatures.is_empty() {
         result.missing.push(issue(pkg, Some(integrity), resolved, None));
         return;

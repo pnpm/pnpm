@@ -275,6 +275,42 @@ ${mainDocument}`)
     expect(JSON.parse(output).invalid).toHaveLength(1)
   })
 
+  test('audit signatures skips tarball dependencies', async () => {
+    const dir = testFixtures.prepare('has-signatures')
+    fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+      forked-pkg:
+        specifier: https://example.com/forked-pkg.tgz
+        version: https://example.com/forked-pkg.tgz
+packages:
+  signed-pkg@1.0.0:
+    resolution: {integrity: sha512-test-integrity}
+  forked-pkg@https://example.com/forked-pkg.tgz:
+    resolution: {tarball: https://example.com/forked-pkg.tgz}
+    version: 1.0.0
+snapshots:
+  signed-pkg@1.0.0: {}
+  forked-pkg@https://example.com/forked-pkg.tgz: {}
+`)
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, { versions: { '1.0.0': { dist: {
+        integrity: 'sha512-test-integrity',
+        signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-test-integrity') }],
+      } } } })
+
+    const { output, exitCode } = await audit.handler({ ...AUDIT_REGISTRY_OPTS, dir, json: true }, ['signatures'])
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(output)).toMatchObject({ audited: 1, verified: 1, invalid: [], missing: [] })
+  })
+
   test('audit signatures throws on unresolvable lockfile dependency', async () => {
     const dir = testFixtures.prepare('has-signatures')
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')

@@ -61,10 +61,11 @@ function signaturePackages (context: SignatureContext, opts: AuditOptions): Sign
   )))
 }
 
+// Git, tarball, and directory dependencies are keyed by their resolution, not
+// by `name@version`, so they find no entry here and are not audited.
 function signatureIntegrities (context: SignatureContext, packageId: DepPath): Array<string | undefined> {
   const packages = [context.lockfile.packages?.[packageId], context.envLockfile?.packages[packageId]]
     .filter((pkg) => pkg != null)
-  if (packages.length === 0) return [undefined]
   return [...new Set(packages.map(({ resolution }) => (
     'integrity' in resolution && typeof resolution.integrity === 'string' ? resolution.integrity : undefined
   )))]

@@ -28,8 +28,6 @@ Since v11, `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bu
 
 ### signatures
 
-Signatures are verified against the package integrity recorded in the lockfile. A package without recorded integrity cannot pass verification.
-
 Added in: v11.1.0
 
 ```sh
@@ -37,6 +35,8 @@ pnpm audit signatures
 ```
 
 Verifies the ECDSA registry signatures of installed packages against the public keys published by each registry at `/-/npm/v1/keys`. Scoped registries configured via [`registries`](../settings/dependency-resolution.md#registries) are respected; registries that don't publish signing keys are skipped.
+
+Signatures are verified against the package integrity recorded in the lockfile. A package without recorded integrity cannot pass verification.
 
 The command exits with code `1` if any package has an invalid signature, or if a registry advertises signing keys but a package was published without a signature. Combine with `--json` to get machine-readable output.
 

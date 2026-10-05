@@ -219,3 +219,23 @@ fn process_version_rejects_signature_for_different_artifact() {
     assert_eq!(result.invalid.len(), 1);
     assert_eq!(result.invalid[0].integrity.as_deref(), Some("sha512-abc"));
 }
+
+#[test]
+fn process_version_reports_missing_lockfile_integrity_before_registry_problems() {
+    let mut pkg = package();
+    pkg.integrity = None;
+    let packuments = [
+        serde_json::json!({ "versions": {"1.0.0": {"dist": {"signatures": "malformed"}}} }),
+        serde_json::json!({ "versions": {} }),
+    ];
+    for packument in packuments {
+        let packument = serde_json::from_value(packument).unwrap();
+        let mut result = SignatureVerificationResult::default();
+        super::process_version(&pkg, &packument, &[], &mut result);
+        assert_eq!(
+            result.invalid[0].reason.as_deref(),
+            Some("Missing lockfile integrity for foo@1.0.0"),
+        );
+        assert_eq!(result.invalid[0].resolved, None);
+    }
+}
