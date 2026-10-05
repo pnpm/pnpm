@@ -8,16 +8,13 @@ impl AuthHeaders {
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
+        let is_secure = is_url_secure_for_credentials(url);
+        if self.transport_security.require_secure && !is_secure {
             return None;
         }
         if let Some(hook) = &self.route_hook {
             return hook.authorize(url, pkg_name);
         }
-        // Append a trailing `/` before parsing. Without this, a URL like
-        // `https://npm.pkg.github.com/pnpm` (registry without
-        // trailing slash) would nerf-dart to `//npm.pkg.github.com/`
-        // and miss a `//npm.pkg.github.com/pnpm/` token.
         let mut owned: String;
         let url_with_slash = if url.ends_with('/') {
             url
@@ -28,22 +25,33 @@ impl AuthHeaders {
             owned.as_str()
         };
         let parsed = ParsedUrl::parse(url_with_slash)?;
+        self.resolve_credential_for_parsed(&parsed, pkg_name, is_secure)
+    }
+
+    fn resolve_credential_for_parsed(
+        &self,
+        parsed: &ParsedUrl<'_>,
+        pkg_name: Option<&str>,
+        is_secure: bool,
+    ) -> Option<String> {
         if let Some(basic) = parsed.basic_auth_header() {
-            return Some(basic);
+            return is_secure.then_some(basic);
         }
-        if let Some(scope) = package_scope(pkg_name)
-            && let Some(resolved) = self.lookup_with_port_fallback(&parsed, Some(scope))
-        {
-            return resolved;
-        }
-        self.lookup_with_port_fallback(&parsed, None)?
+        let matched = package_scope(pkg_name)
+            .and_then(|scope| self.lookup_with_port_fallback(parsed, Some(scope)))
+            .or_else(|| self.lookup_with_port_fallback(parsed, None));
+        let (key, resolved) = matched?;
+        self.transport_security
+            .allows(&key, is_secure)
+            .then_some(resolved)
+            .flatten()
     }
 
     /// Look a URL's credential up, retrying without the port when the URL
     /// carries one — pnpm's `//host:port/` and `//host/` keys both apply.
     ///
     /// Returns `None` when no key matched (so the caller falls through to the
-    /// next candidate) and `Some(_)` when a key matched — even `Some(None)`, a
+    /// next candidate) and `Some(_)` when a key matched — even `Some((key, None))`, a
     /// matched `tokenHelper` that failed to resolve. A match is final: pnpm's
     /// most-specific key owns the decision, so a failed helper must not fall
     /// back to a shorter prefix or a different scope and send another
@@ -52,7 +60,7 @@ impl AuthHeaders {
         &self,
         parsed: &ParsedUrl<'_>,
         scope: Option<&str>,
-    ) -> Option<Option<String>> {
+    ) -> Option<(String, Option<String>)> {
         let lookup = |parsed: &ParsedUrl<'_>| match scope {
             Some(scope) => self.lookup_scope_by_nerf(parsed, scope),
             None => self.lookup_by_nerf(parsed),
@@ -65,14 +73,14 @@ impl AuthHeaders {
     }
 
     /// Walk package-scope keys for `scope` longest-prefix first. Returns
-    /// `None` when nothing matched and `Some(resolved)` when a key
+    /// `None` when nothing matched and `Some((key, resolved))` when a key
     /// matched (the inner `Option` is the resolved header, `None` if a
     /// matched `tokenHelper` failed).
     pub(super) fn lookup_scope_by_nerf(
         &self,
         parsed: &ParsedUrl<'_>,
         scope: &str,
-    ) -> Option<Option<String>> {
+    ) -> Option<(String, Option<String>)> {
         let scoped_by_uri = self.scoped_by_scope.get(scope)?;
         let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
         let nerfed = parsed.nerf_dart();
@@ -81,13 +89,16 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = scoped_by_uri.get(&key) {
-                return Some(self.token_helpers.resolve_entry(&key, scope, entry));
+                return Some((key.clone(), self.token_helpers.resolve_entry(&key, scope, entry)));
             }
         }
         None
     }
 
-    pub(super) fn lookup_by_nerf(&self, parsed: &ParsedUrl<'_>) -> Option<Option<String>> {
+    pub(super) fn lookup_by_nerf(
+        &self,
+        parsed: &ParsedUrl<'_>,
+    ) -> Option<(String, Option<String>)> {
         if self.by_uri.is_empty() {
             return None;
         }
@@ -104,7 +115,10 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = self.by_uri.get(&key) {
-                return Some(self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
+                return Some((
+                    key.clone(),
+                    self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry),
+                ));
             }
         }
         None

@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process'
 
+import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
 import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig, type TokenHelper } from '@pnpm/types'
+
 
 export interface AuthHeaders {
   authHeaderValueByURI: Record<string, string>
@@ -24,9 +26,27 @@ export function getAuthHeadersFromCreds (
       authHeaders.authHeaderValueByURI[normalizedUri] = header
     }
     collectScopedAuthHeaders(registryConfig, normalizedUri, authHeaders.scopedAuthHeaderValueByURI)
+    collectNerfedAuthHeaders(registryConfig, uri, header, authHeaders)
   }
   return authHeaders
 }
+
+function collectNerfedAuthHeaders (
+  registryConfig: RegistryConfig,
+  uri: string,
+  header: string | undefined,
+  authHeaders: AuthHeaders
+): void {
+  if (!uri.startsWith('http://') && !uri.startsWith('https://')) return
+  try {
+    const nerfed = nerfDart(uri)
+    if (header && !authHeaders.authHeaderValueByURI[nerfed]) {
+      authHeaders.authHeaderValueByURI[nerfed] = header
+    }
+    collectScopedAuthHeaders(registryConfig, nerfed, authHeaders.scopedAuthHeaderValueByURI)
+  } catch {}
+}
+
 
 function collectScopedAuthHeaders (
   registryConfig: RegistryConfig,

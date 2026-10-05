@@ -20,14 +20,12 @@ pub use redaction::{
     hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline, redact_npm_auth_key,
     redact_url_credentials, redact_url_for_display,
 };
+pub use route_hook::{MetadataCacheScope, UpstreamRouteHook};
 pub use url::{base64_encode, base64_encode_bytes, is_url_secure_for_credentials, nerf_dart};
 
-use crate::{
-    AddressGuard,
-    token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command},
-};
+use crate::token_helper::{TokenHelperRunner, execute_token_helper, run_token_helper_command};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     sync::{Arc, Mutex, OnceLock},
 };
@@ -35,83 +33,6 @@ use std::{
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
 
 pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
-
-/// Server-side override for upstream auth selection.
-///
-/// A plain [`AuthHeaders`] answers "what `Authorization` header does the
-/// client's `.npmrc` attach to this URL?" — the right question for the
-/// pnpm CLI, which fetches as the user. A server (pnpr) that resolves on
-/// behalf of many callers must instead answer "what credential does *this
-/// deployment's route policy* attach to this fetch, for this caller?" and
-/// record which private route was touched so the result can be cached
-/// without leaking one caller's private resolution to another.
-///
-/// When a hook is attached via [`AuthHeaders::with_route_hook`], every
-/// [`AuthHeaders::for_url`] / [`AuthHeaders::for_url_with_package`] lookup
-/// is delegated to it: the client-forwarded credentials carried by the
-/// [`AuthHeaders`] are ignored, and the hook alone decides the header
-/// (returning `None` for an anonymous/public fetch) and records the
-/// route. A `None` hook (the CLI case) leaves lookup behavior unchanged.
-pub trait UpstreamRouteHook: Send + Sync {
-    /// Decide the `Authorization` header value for a fetch to `url` for
-    /// package `package` (`None` for non-package fetches), and record the
-    /// route the decision selected. `None` means fetch anonymously.
-    fn authorize(&self, url: &str, package: Option<&str>) -> Option<String>;
-
-    /// Whether this deployment may fetch `url` at all.
-    ///
-    /// A server resolves on behalf of callers who describe their own
-    /// registries, so a URL it was told about is not automatically one it may
-    /// reach. Answered at the fetch itself rather than when the request is
-    /// read, so a registry a caller merely configures — a scope it never
-    /// resolves a package from — costs nothing, while one it does resolve
-    /// from is refused before the request leaves the process.
-    ///
-    /// Defaults to `true` for hooks with no such policy (the CLI fetches as
-    /// the user, who may reach whatever they configured).
-    fn allows_fetch(&self, _url: &str) -> bool {
-        true
-    }
-
-    /// The addresses a connection made on this deployment's behalf may
-    /// reach, for connections a caller opens outside the HTTP client, such
-    /// as a `git` subprocess. `None` for hooks with no such policy.
-    fn connect_guard(&self) -> Option<AddressGuard> {
-        None
-    }
-
-    /// Classify the metadata cache scope for a fetch to `url` for package
-    /// `package` (`None` for non-package fetches). Unlike [`Self::authorize`]
-    /// this is a read-only query — it must **not** record into the resolve's
-    /// footprint — so the resolver can pick the on-disk mirror namespace and
-    /// in-memory/fetch-lock keys without double-counting a route.
-    ///
-    /// Defaults to [`MetadataCacheScope::Public`] for hooks that don't
-    /// partition metadata by route.
-    fn metadata_scope(&self, _url: &str, _package: Option<&str>) -> MetadataCacheScope {
-        MetadataCacheScope::Public
-    }
-}
-
-/// The cache namespace a metadata fetch for one `(registry, package)` route
-/// belongs to, decided once per fetch from the route policy. A server (pnpr)
-/// that resolves on behalf of many callers must keep one caller's private
-/// metadata out of the global mirror every other caller reads; this enum is
-/// how the route decision reaches the npm resolver's mirror path, in-memory
-/// cache key, and fetch-lock key.
-///
-/// The pnpm CLI has no route hook, so every fetch is [`Self::Public`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MetadataCacheScope {
-    /// Public route: the shared, global metadata mirror.
-    Public,
-    /// Private route keyed by a private access descriptor. `descriptor_id`
-    /// is a filesystem-safe, server-secret-keyed digest that namespaces the
-    /// on-disk mirror, in-memory cache, and fetch lock, so one caller's
-    /// private metadata never satisfies a fetch for a caller who does not
-    /// reproduce the same descriptor.
-    Private { descriptor_id: String },
-}
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
 /// of each registry URL. Ecosystem-specific configuration readers normalize
@@ -123,6 +44,18 @@ pub enum MetadataCacheScope {
 /// [`AuthHeaders::for_url`].
 /// Memo of resolved `tokenHelper` results keyed by `scope + map key`.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
+
+#[derive(Default, Clone)]
+struct TransportSecurity {
+    require_secure: bool,
+    insecure_uris: HashSet<String>,
+}
+
+impl TransportSecurity {
+    fn allows(&self, key: &str, is_secure: bool) -> bool {
+        if self.require_secure { is_secure } else { is_secure || self.insecure_uris.contains(key) }
+    }
+}
 
 #[derive(Default, Clone)]
 pub struct AuthHeaders {
@@ -145,7 +78,7 @@ pub struct AuthHeaders {
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
     route_hook: Option<Arc<dyn UpstreamRouteHook>>,
-    require_secure_transport: bool,
+    transport_security: TransportSecurity,
     /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
     /// [`fmt::Debug`] output (never the values) so a resolve trace shows
     /// at a glance whether any helper is configured. The lookup hot path
@@ -194,9 +127,10 @@ impl fmt::Debug for AuthHeaders {
         f.debug_struct("AuthHeaders")
             .field("by_uri", &self.by_uri.len())
             .field("scoped_by_scope", &self.scoped_by_scope.len())
+            .field("insecure_uris", &self.transport_security.insecure_uris.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
-            .field("require_secure_transport", &self.require_secure_transport)
+            .field("require_secure_transport", &self.transport_security.require_secure)
             .finish_non_exhaustive()
     }
 }
@@ -206,7 +140,7 @@ impl AuthHeaders {
     /// lookups made by shared fetchers. This restriction survives cloning.
     #[must_use]
     pub fn with_secure_transport(mut self) -> Self {
-        self.require_secure_transport = true;
+        self.transport_security.require_secure = true;
         self
     }
 
@@ -239,6 +173,10 @@ impl AuthHeaders {
         let uri = nerf_dart(url);
         if uri.is_empty() {
             return;
+        }
+        if url.starts_with("http://") && !is_url_secure_for_credentials(url) {
+            self.transport_security.insecure_uris.insert(uri.clone());
+            self.transport_security.insecure_uris.insert(normalize_auth_key(url.to_owned()));
         }
         self.max_parts = self.max_parts.max(uri.split('/').count());
         self.by_uri.insert(uri, AuthEntry::Header(header));
@@ -314,31 +252,48 @@ impl AuthHeaders {
         token_helper_by_uri: HashMap<String, Vec<String>>,
         token_helper_scoped_by_uri: HashMap<String, HashMap<String, Vec<String>>>,
     ) -> Self {
-        let mut by_uri_entries: HashMap<String, AuthEntry> = by_uri
-            .into_iter()
-            .map(|(uri, value)| (normalize_auth_key(uri), AuthEntry::Header(value)))
-            .collect();
+        let mut insecure_uris = HashSet::new();
+        let mut by_uri_entries = HashMap::with_capacity(by_uri.len() + token_helper_by_uri.len());
+        for (uri, value) in by_uri {
+            record_uri_entry(
+                &uri,
+                value,
+                AuthEntry::Header,
+                &mut by_uri_entries,
+                &mut insecure_uris,
+            );
+        }
         for (uri, command) in token_helper_by_uri {
-            by_uri_entries.insert(normalize_auth_key(uri), AuthEntry::TokenHelper(command));
+            record_uri_entry(
+                &uri,
+                command,
+                AuthEntry::TokenHelper,
+                &mut by_uri_entries,
+                &mut insecure_uris,
+            );
         }
 
         let mut scoped_entries: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
         for (uri, scoped) in scoped_by_uri {
-            let uri = normalize_auth_key(uri);
-            let entry = scoped_entries.entry(uri).or_default();
-            for (scope, value) in scoped {
-                entry.insert(scope, AuthEntry::Header(value));
-            }
+            record_scoped_entries(
+                &uri,
+                scoped,
+                AuthEntry::Header,
+                &mut scoped_entries,
+                &mut insecure_uris,
+            );
         }
         for (uri, scoped) in token_helper_scoped_by_uri {
-            let uri = normalize_auth_key(uri);
-            let entry = scoped_entries.entry(uri).or_default();
-            for (scope, command) in scoped {
-                entry.insert(scope, AuthEntry::TokenHelper(command));
-            }
+            record_scoped_entries(
+                &uri,
+                scoped,
+                AuthEntry::TokenHelper,
+                &mut scoped_entries,
+                &mut insecure_uris,
+            );
         }
 
-        Self::from_entry_parts(by_uri_entries, scoped_entries)
+        Self::from_entry_parts(by_uri_entries, scoped_entries, insecure_uris)
     }
 
     /// Assemble the lookup indices from already-wrapped [`AuthEntry`]
@@ -347,6 +302,7 @@ impl AuthHeaders {
     fn from_entry_parts(
         by_uri: HashMap<String, AuthEntry>,
         scoped_by_uri: HashMap<String, HashMap<String, AuthEntry>>,
+        insecure_uris: HashSet<String>,
     ) -> Self {
         let mut scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
         let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
@@ -378,7 +334,7 @@ impl AuthHeaders {
             max_parts,
             max_scoped_parts_by_scope,
             route_hook: None,
-            require_secure_transport: false,
+            transport_security: TransportSecurity { require_secure: false, insecure_uris },
             has_token_helpers,
             token_helpers: TokenHelpers::default(),
         }
@@ -473,64 +429,6 @@ impl AuthHeaders {
         }
         self.for_url_with_package(url, pkg_name)
     }
-
-    /// Attach a server-side [`UpstreamRouteHook`] that takes over auth
-    /// selection. The returned [`AuthHeaders`] keeps its
-    /// client-forwarded credentials (so [`Self::to_by_scope`] still
-    /// reflects them) but no longer consults them on lookup — the hook
-    /// decides. Used by pnpr to resolve as the deployment's route policy
-    /// rather than as the calling client.
-    #[must_use]
-    pub fn with_route_hook(mut self, hook: Arc<dyn UpstreamRouteHook>) -> Self {
-        self.route_hook = Some(hook);
-        self
-    }
-
-    /// Whether the fetch to `url` is permitted, per an attached
-    /// [`UpstreamRouteHook`]. Always true without one — see
-    /// [`UpstreamRouteHook::allows_fetch`].
-    #[must_use]
-    pub fn allows_fetch(&self, url: &str) -> bool {
-        self.route_hook
-            .as_ref()
-            .is_none_or(|hook| hook.allows_fetch(url))
-    }
-
-    /// See [`UpstreamRouteHook::connect_guard`].
-    #[must_use]
-    pub fn connect_guard(&self) -> Option<AddressGuard> {
-        self.route_hook.as_ref().and_then(|hook| hook.connect_guard())
-    }
-
-    /// Record the route for a metadata/tarball fetch that is about to be
-    /// served from an in-memory or on-disk cache *without* an HTTP
-    /// request, so a server [`UpstreamRouteHook`]'s footprint still
-    /// reflects every private route the resolve depended on. The route is
-    /// classified exactly as the real fetch would have (same `url`, same
-    /// `pkg_name`); the credential the hook selects is discarded because
-    /// no request is sent.
-    ///
-    /// No-op when no route hook is installed (the CLI case): a fetch that
-    /// never happens needs no `Authorization` header, and the CLI keeps no
-    /// footprint. Idempotent for the hook — recording the same route more
-    /// than once collapses to one footprint entry.
-    pub fn record_route(&self, url: &str, pkg_name: Option<&str>) {
-        if let Some(hook) = &self.route_hook {
-            hook.authorize(url, pkg_name);
-        }
-    }
-
-    /// The metadata cache scope a fetch to `url` for `pkg_name` belongs to.
-    /// A server route hook owns the decision; without one (the CLI case)
-    /// every fetch is [`MetadataCacheScope::Public`], leaving the global
-    /// mirror unchanged. Read-only — never records into a footprint.
-    #[must_use]
-    pub fn metadata_scope(&self, url: &str, pkg_name: Option<&str>) -> MetadataCacheScope {
-        match &self.route_hook {
-            Some(hook) => hook.metadata_scope(url, pkg_name),
-            None => MetadataCacheScope::Public,
-        }
-    }
 }
 
 /// Canonicalize an auth-map key to the trailing-slash form the lookup
@@ -579,12 +477,69 @@ fn package_scope(pkg_name: Option<&str>) -> Option<&str> {
     Some(scope)
 }
 
+fn record_uri_entry<Value: Clone>(
+    uri: &str,
+    value: Value,
+    to_entry: impl Fn(Value) -> AuthEntry,
+    by_uri: &mut HashMap<String, AuthEntry>,
+    insecure_uris: &mut HashSet<String>,
+) {
+    let normalized = normalize_auth_key(uri.to_string());
+    let nerfed = if uri.starts_with("http://") || uri.starts_with("https://") {
+        nerf_dart(uri)
+    } else {
+        String::new()
+    };
+    if uri.starts_with("http://") && !is_url_secure_for_credentials(uri) {
+        if !nerfed.is_empty() {
+            insecure_uris.insert(nerfed.clone());
+        }
+        insecure_uris.insert(normalized.clone());
+    }
+    if !nerfed.is_empty() {
+        by_uri.insert(nerfed, to_entry(value.clone()));
+    }
+    by_uri.insert(normalized, to_entry(value));
+}
+
+fn record_scoped_entries<Value: Clone>(
+    uri: &str,
+    scoped: HashMap<String, Value>,
+    to_entry: impl Fn(Value) -> AuthEntry,
+    scoped_entries: &mut HashMap<String, HashMap<String, AuthEntry>>,
+    insecure_uris: &mut HashSet<String>,
+) {
+    let normalized = normalize_auth_key(uri.to_string());
+    let nerfed = if uri.starts_with("http://") || uri.starts_with("https://") {
+        nerf_dart(uri)
+    } else {
+        String::new()
+    };
+    if uri.starts_with("http://") && !is_url_secure_for_credentials(uri) {
+        if !nerfed.is_empty() {
+            insecure_uris.insert(nerfed.clone());
+        }
+        insecure_uris.insert(normalized.clone());
+    }
+    for (scope, val) in scoped {
+        if !nerfed.is_empty() {
+            scoped_entries
+                .entry(nerfed.clone())
+                .or_default()
+                .insert(scope.clone(), to_entry(val.clone()));
+        }
+        scoped_entries
+            .entry(normalized.clone())
+            .or_default()
+            .insert(scope, to_entry(val));
+    }
+}
+
 #[cfg(test)]
 mod tests;
 
+mod lookup;
 mod redaction;
-
+mod route_hook;
 mod url;
 use url::ParsedUrl;
-
-mod lookup;

@@ -51,8 +51,37 @@ test('getAuthHeaderByURI() when default ports are specified', () => {
     '//reg.com/': { '@': { authToken: 'abc123' } },
   })
   expect(getAuthHeaderByURI('https://reg.com:443/')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('http://reg.com:80/')).toBe('Bearer abc123')
+  // Scheme-less nerf dart credential is not sent over cleartext HTTP to remote host
+  expect(getAuthHeaderByURI('http://reg.com:80/')).toBeUndefined()
 })
+
+test('getAuthHeaderByURI() allows credential attachment when explicitly configured with an insecure URL', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    'http://reg.com/': { '@': { authToken: 'abc123' } },
+  })
+  expect(getAuthHeaderByURI('http://reg.com:80/')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('http://reg.com/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+})
+
+test('getAuthHeaderByURI() allows credential attachment to loopback destinations', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//localhost:4873/': { '@': { authToken: 'local-token' } },
+    '//127.0.0.1:4873/': { '@': { authToken: 'v4-token' } },
+    '//[::1]:4873/': { '@': { authToken: 'v6-token' } },
+  })
+  expect(getAuthHeaderByURI('http://localhost:4873/')).toBe('Bearer local-token')
+  expect(getAuthHeaderByURI('http://127.0.0.1:4873/')).toBe('Bearer v4-token')
+  expect(getAuthHeaderByURI('http://[::1]:4873/')).toBe('Bearer v6-token')
+})
+
+test('getAuthHeaderByURI() basic auth requires secure transport unless loopback', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({})
+  expect(getAuthHeaderByURI('http://user:secret@reg.io/')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://user:secret@reg.io/')).toBe('Basic ' + btoa('user:secret'))
+  expect(getAuthHeaderByURI('http://user:secret@localhost/')).toBe('Basic ' + btoa('user:secret'))
+  expect(getAuthHeaderByURI('http://user:secret@127.0.0.1/')).toBe('Basic ' + btoa('user:secret'))
+})
+
 
 test('returns undefined when the auth header is not found', () => {
   expect(createGetAuthHeaderByURI({})('http://reg.com')).toBeUndefined()

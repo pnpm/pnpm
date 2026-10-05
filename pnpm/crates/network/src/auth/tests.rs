@@ -405,7 +405,35 @@ fn matches_explicit_port_token() {
 fn default_https_port_strips_for_lookup() {
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
     assert_eq!(headers.for_url("https://reg.com:443/").as_deref(), Some("Bearer abc123"));
-    assert_eq!(headers.for_url("http://reg.com:80/").as_deref(), Some("Bearer abc123"));
+    assert_eq!(headers.for_url("http://reg.com:80/").as_deref(), None);
+}
+
+#[test]
+fn explicit_insecure_url_allows_cleartext_http() {
+    let headers = build(&[("http://reg.com/", "Bearer insecure-token")]);
+    assert_eq!(headers.for_url("http://reg.com/pkg").as_deref(), Some("Bearer insecure-token"));
+}
+
+#[test]
+fn loopback_urls_allow_cleartext_http() {
+    let headers =
+        build(&[("//localhost/", "Bearer local-token"), ("//127.0.0.1/", "Bearer ip-token")]);
+    assert_eq!(headers.for_url("http://localhost:4873/pkg").as_deref(), Some("Bearer local-token"));
+    assert_eq!(headers.for_url("http://127.0.0.1:4873/pkg").as_deref(), Some("Bearer ip-token"));
+}
+
+#[test]
+fn basic_auth_rejected_over_cleartext_http_for_remote_hosts() {
+    let empty = AuthHeaders::default();
+    assert_eq!(empty.for_url("http://user:secret@reg.io/"), None);
+    assert_eq!(
+        empty.for_url("http://user:secret@localhost/"),
+        Some(format!("Basic {}", base64_encode("user:secret"))),
+    );
+    assert_eq!(
+        empty.for_url("http://user:secret@127.0.0.1/"),
+        Some(format!("Basic {}", base64_encode("user:secret"))),
+    );
 }
 
 #[test]

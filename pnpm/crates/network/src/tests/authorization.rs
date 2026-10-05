@@ -208,7 +208,7 @@ async fn auth_and_retry_sends_plain_http_credentials_for_each_redirect_target() 
     )
     .expect("valid proxy");
     let auth_headers = AuthHeaders::from_creds_map([(
-        nerf_dart("http://registry.example/"),
+        "http://registry.example/".to_string(),
         "Bearer registry-token".to_string(),
     )]);
 
@@ -241,7 +241,20 @@ fn auth_is_withheld_after_a_downgrade_to_plain_http() {
     assert_eq!(from_https("http://registry.example/b"), None);
     let from_http =
         crate::requests::authorize_without_downgrade(&auth_headers, "http://registry.example/a");
-    assert_eq!(from_http("http://registry.example/b").as_deref(), Some("Bearer registry-token"));
+    assert_eq!(from_http("http://registry.example/b"), None);
+
+    let insecure_headers = AuthHeaders::from_creds_map([(
+        "http://registry.example/".to_string(),
+        "Bearer registry-token".to_string(),
+    )]);
+    let from_explicit_insecure = crate::requests::authorize_without_downgrade(
+        &insecure_headers,
+        "http://registry.example/a",
+    );
+    assert_eq!(
+        from_explicit_insecure("http://registry.example/b").as_deref(),
+        Some("Bearer registry-token"),
+    );
 }
 
 // Regression for <https://github.com/pnpm/pnpm/issues/14646>: an

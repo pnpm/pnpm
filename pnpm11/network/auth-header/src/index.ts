@@ -1,4 +1,4 @@
-import { nerfDart } from '@pnpm/config.registry-auth-key'
+import { isUrlSecureForCredentials, nerfDart } from '@pnpm/config.registry-auth-key'
 import type { RegistryConfig } from '@pnpm/types'
 
 import { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'
@@ -6,13 +6,14 @@ import { removePort } from './helpers/removePort.js'
 
 // Re-exported so callers can build the same URL/scoped credential lookup
 // without re-implementing `credsToHeader`.
-export { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds }
+export { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds, isUrlSecureForCredentials }
 
 interface GetAuthHeaderOptions {
   pkgName?: string
 }
 
 interface AuthHeaderLookup {
+  insecureUris: Set<string>
   maxParts: number
   scopedAuthHeaderValueByScope: Record<string, ScopedAuthHeaderLookup>
 }
@@ -28,11 +29,34 @@ export function createGetAuthHeaderByURI (
   const authHeaders = getAuthHeadersFromCreds(configByUri)
   const registryURIs = Object.keys(authHeaders.authHeaderValueByURI)
   const scopedAuthHeaderValueByScope = getScopedAuthHeaderValueByScope(authHeaders.scopedAuthHeaderValueByURI)
-  if (registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0) return (uri: string) => basicAuth(new URL(uri))
+  const insecureUris = collectInsecureUris(configByUri)
+  if (registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0) {
+    return (uri: string) => {
+      try {
+        return basicAuth(new URL(uri))
+      } catch {
+        return undefined
+      }
+    }
+  }
   return getAuthHeaderByURI.bind(null, authHeaders, {
+    insecureUris,
     maxParts: getMaxParts(registryURIs),
     scopedAuthHeaderValueByScope,
   })
+}
+
+function collectInsecureUris (configByUri: Record<string, RegistryConfig>): Set<string> {
+  const insecureUris = new Set<string>()
+  for (const uri of Object.keys(configByUri)) {
+    if (uri.startsWith('http://') && !isUrlSecureForCredentials(uri)) {
+      try {
+        insecureUris.add(nerfDart(uri))
+      } catch {}
+      insecureUris.add(uri.endsWith('/') ? uri : `${uri}/`)
+    }
+  }
+  return insecureUris
 }
 
 function getMaxParts (uris: string[]): number {
@@ -71,29 +95,46 @@ function getAuthHeaderByURI (
   if (!uri.endsWith('/')) {
     uri += '/'
   }
-  const parsedUri = new URL(uri)
+  let parsedUri: URL
+  try {
+    parsedUri = new URL(uri)
+  } catch {
+    return undefined
+  }
+  const isSecure = isUrlSecureForCredentials(parsedUri)
   const basic = basicAuth(parsedUri)
   if (basic) return basic
   const scope = getScope(opts?.pkgName)
   const scopedAuthHeaderLookup = scope ? lookup.scopedAuthHeaderValueByScope[scope] : undefined
   if (scopedAuthHeaderLookup) {
-    const scopedAuth = getAuthHeaderByNerfedURI(scopedAuthHeaderLookup.authHeaderValueByURI, scopedAuthHeaderLookup.maxParts, uri)
+    const scopedAuth = getAuthHeaderByNerfedURI(scopedAuthHeaderLookup.authHeaderValueByURI, scopedAuthHeaderLookup.maxParts, uri, isSecure, lookup.insecureUris)
     if (scopedAuth) return scopedAuth
   }
-  return getAuthHeaderByNerfedURI(authHeaders.authHeaderValueByURI, lookup.maxParts, uri)
+  return getAuthHeaderByNerfedURI(authHeaders.authHeaderValueByURI, lookup.maxParts, uri, isSecure, lookup.insecureUris)
 }
 
-function getAuthHeaderByNerfedURI (authHeaders: Record<string, string>, maxParts: number, uri: string): string | undefined {
+function getAuthHeaderByNerfedURI (
+  authHeaders: Record<string, string>,
+  maxParts: number,
+  uri: string,
+  isSecure: boolean,
+  insecureUris: Set<string>
+): string | undefined {
   const parsedUri = new URL(uri)
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
   for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
     const key = `${parts.slice(0, partCount).join('/')}/`
-    if (authHeaders[key]) return authHeaders[key]
+    if (authHeaders[key]) {
+      if (isSecure || insecureUris.has(key)) {
+        return authHeaders[key]
+      }
+      return undefined
+    }
   }
   const urlWithoutPort = removePort(parsedUri)
   if (urlWithoutPort !== uri) {
-    return getAuthHeaderByNerfedURI(authHeaders, maxParts, urlWithoutPort)
+    return getAuthHeaderByNerfedURI(authHeaders, maxParts, urlWithoutPort, isSecure, insecureUris)
   }
   return undefined
 }
@@ -107,6 +148,8 @@ function getScope (pkgName: string | undefined): string | undefined {
 
 function basicAuth (uri: URL): string | undefined {
   if (!uri.username && !uri.password) return undefined
+  if (!isUrlSecureForCredentials(uri)) return undefined
   const auth64 = btoa(`${uri.username}:${uri.password}`)
   return `Basic ${auth64}`
 }
+
