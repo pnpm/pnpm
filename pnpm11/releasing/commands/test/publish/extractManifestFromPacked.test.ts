@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { createGzip } from 'node:zlib'
+import { createGzip, gunzipSync, gzipSync } from 'node:zlib'
 
 import { describe, expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -261,4 +261,25 @@ describe('isTarballPath', () => {
     expect(isTarballPath('tgz')).toBe(false)
     expect(isTarballPath('tar.gz')).toBe(false)
   })
+})
+
+test.each(['package/package.json', 'package/README.md'])('rejects oversized buffered entry %s before reading its payload', async (filename) => {
+  prepareEmpty()
+  const tarballPath: TarballPath = 'oversized.tgz'
+  await createTarball(tarballPath, { [filename]: '' })
+  const header = gunzipSync(fs.readFileSync(tarballPath)).subarray(0, 512)
+  header.write((64 * 1024 * 1024 + 1).toString(8).padStart(11, '0') + '\0', 124, 'ascii')
+  header.fill(0x20, 148, 156)
+  const checksum = header.reduce((total, byte) => total + byte, 0)
+  header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 'ascii')
+  fs.writeFileSync(tarballPath, gzipSync(header))
+  await expect(extractPublishManifestFromPacked(tarballPath)).rejects.toMatchObject({
+    code: 'ERR_PNPM_PUBLISH_EXTRACT_MANIFEST_READ',
+    message: expect.stringContaining(filename),
+  })
+  if (filename.endsWith('package.json')) {
+    await expect(extractManifestFromPacked(tarballPath)).rejects.toMatchObject({
+      code: 'ERR_PNPM_PUBLISH_EXTRACT_MANIFEST_READ',
+    })
+  }
 })

@@ -6,6 +6,8 @@ import { PnpmError } from '@pnpm/error'
 import { type ExportedManifest, getReadmeRank, isPreferredReadme, type ReadmeCandidate } from '@pnpm/releasing.exportable-manifest'
 import tar, { type Extract, type ExtractEvents, type Header } from 'tar-stream'
 
+const MAX_BUFFERED_ENTRY_SIZE = 64 * 1024 * 1024
+
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const
 
 export type TarballSuffix = typeof TARBALL_SUFFIXES[number]
@@ -71,6 +73,7 @@ interface PackedEntriesScan {
 }
 
 interface PackedEntriesScanContext {
+  tarballPath: TarballPath
   scan: PackedEntriesScan
   wantReadme: boolean
   settle: () => void
@@ -115,7 +118,7 @@ function collectPackedEntries (
     streams.tarballStream.once('error', handleError)
     streams.gunzip.once('error', handleError)
 
-    const context: PackedEntriesScanContext = { scan, wantReadme, settle, handleError }
+    const context: PackedEntriesScanContext = { tarballPath, scan, wantReadme, settle, handleError }
     streams.extract.on('entry', (header, stream, next) => {
       readPackedEntry({ header, stream, next }, context)
     })
@@ -142,8 +145,20 @@ function readPackedEntry ({ header, stream, next }: PackedEntry, context: Packed
     return
   }
 
+  readBufferedPackedEntry({ header, stream, next }, context, wantedReadme)
+}
+
+function readBufferedPackedEntry (
+  { header, stream, next }: PackedEntry,
+  context: PackedEntriesScanContext,
+  wantedReadme?: ReadmeCandidate
+): void {
+  if (!acceptBufferedEntrySize(header.size ?? 0, header.name, context)) return
   const chunks: Buffer[] = []
+  let buffered = 0
   stream.on('data', (chunk) => {
+    buffered += (chunk as Buffer).length
+    if (!acceptBufferedEntrySize(buffered, header.name, context)) return
     chunks.push(chunk as Buffer)
   })
 
@@ -189,4 +204,13 @@ export class PublishArchiveMissingManifestError extends PnpmError {
     super('PUBLISH_ARCHIVE_MISSING_MANIFEST', `The archive ${tarballPath} does not contain package/package.json`)
     this.tarballPath = tarballPath
   }
+}
+
+function acceptBufferedEntrySize (size: number, filename: string, context: PackedEntriesScanContext): boolean {
+  if (size <= MAX_BUFFERED_ENTRY_SIZE) return true
+  context.handleError(new PnpmError(
+    'PUBLISH_EXTRACT_MANIFEST_READ',
+    `Failed to read the archive ${context.tarballPath}: tar entry ${filename} is ${size} bytes, which exceeds the ${MAX_BUFFERED_ENTRY_SIZE}-byte buffered entry limit`
+  ))
+  return false
 }
