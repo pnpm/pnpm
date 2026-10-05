@@ -149,6 +149,14 @@ impl CliArgs {
         Ok(())
     }
 
+    /// A read of the global config takes no settings from a workspace, not
+    /// even one named by `PNPM_CONFIG_WORKSPACE_DIR`.
+    pub fn ignore_workspace_for_global_config_read(&mut self) {
+        if self.command.reads_global_config() {
+            self.paths.ignore_workspace = true;
+        }
+    }
+
     /// Promote commands marked recursive-by-default by pnpm when they run
     /// inside a workspace.
     pub fn promote_recursive_by_default(&mut self) {

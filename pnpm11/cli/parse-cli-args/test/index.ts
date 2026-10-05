@@ -87,6 +87,15 @@ test('--location=project takes precedence over --global when looking for the wor
   expect(workspaceDir).toBeTruthy()
 })
 
+test('--workspace-root is allowed with --global when --location=project overrides it', async () => {
+  const { workspaceDir, options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { global: Boolean, 'workspace-root': Boolean },
+    getTypesByCommandName: (commandName: string) => commandName === 'config' ? { location: ['global', 'project'] } : {},
+  }, ['config', 'set', 'nodeLinker', 'hoisted', '--global', '--location=project', '--workspace-root'])
+  expect(options.dir).toBe(workspaceDir)
+})
+
 test('when running with --ignore-workspace option inside a workspace, the workspace should be ignored', async () => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,

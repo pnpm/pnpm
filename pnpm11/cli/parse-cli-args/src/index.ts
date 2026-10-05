@@ -294,7 +294,7 @@ function handleRecursiveInvocation (
 
 function validateWorkspaceOptions (options: Record<string, unknown>, workspaceDir: string | undefined): void {
   if (!options['workspace-root']) return
-  if (options['global']) {
+  if (isGlobalScope(options)) {
     throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
   }
   if (!workspaceDir) {

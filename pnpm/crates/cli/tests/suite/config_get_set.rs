@@ -326,5 +326,16 @@ fn global_get_and_list_ignore_the_project_settings() {
     assert!(!list.contains("//project.test/"));
     assert!(list.contains(r#""fetchRetries": 5"#));
 
+    let from_env_workspace = pacquet_in(root.path())
+        .with_env("XDG_CONFIG_HOME", &config_home)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PNPM_CONFIG_WORKSPACE_DIR", &workspace)
+        .with_args(["config", "get", "minimumReleaseAge", "--global"])
+        .output()
+        .expect("run pacquet");
+    eprintln!("stderr={}", String::from_utf8_lossy(&from_env_workspace.stderr));
+    assert!(from_env_workspace.status.success());
+    assert_eq!(String::from_utf8_lossy(&from_env_workspace.stdout).trim_end(), "undefined");
+
     drop(root);
 }
