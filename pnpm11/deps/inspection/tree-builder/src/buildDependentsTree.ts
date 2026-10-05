@@ -289,12 +289,12 @@ function resolvePackageNodes (
     storeIndex?: StoreIndex
     nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
     hoistedLocations?: Record<string, string[]>
-    lockfileDir?: string
+    lockfileDir: string
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()
 
-  function walk (serialized: string, parentDir: string | undefined): void {
+  function walk (serialized: string, parentDir: string | undefined, importerDir: string): void {
     const node = graph.nodes.get(serialized)
     if (!node) return
     for (const edge of node.edges) {
@@ -308,20 +308,20 @@ function resolvePackageNodes (
         alias: edge.alias,
         currentPackages,
         depTypes: {},
-        linkedPathBaseDir: opts.modulesDir, // This might need adjustment for linked deps?
+        linkedPathBaseDir: importerDir,
         parentDir,
         ref: edge.target.nodeId.depPath,
         skipped: new Set(),
       })
 
       resolved.set(childSerialized, { path: pkgInfo.path, readManifest })
-      walk(childSerialized, pkgInfo.path)
+      walk(childSerialized, pkgInfo.path, importerDir)
     }
   }
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type === 'importer') {
-      walk(serialized, undefined)
+      walk(serialized, undefined, path.join(opts.lockfileDir, node.nodeId.importerId))
     }
   }
 

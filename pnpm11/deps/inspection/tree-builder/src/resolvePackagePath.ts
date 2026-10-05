@@ -50,9 +50,14 @@ function resolveHoistedPackagePath (opts: ResolvePackagePathOptions): string | u
 /**
  * Picks the copy that Node.js resolves from the parent package, or from the
  * project for a direct dependency: the one in the closest modules directory
- * above it. Falls back to any copy on disk, then to the first recorded one.
+ * above it. Copies under the edge's alias are preferred, since one depPath
+ * gets a directory per alias it is installed under. Falls back to any copy
+ * on disk, then to the first recorded one.
  */
-function pickHoistedDir (dirs: string[], opts: ResolvePackagePathOptions & { lockfileDir: string }): string {
+function pickHoistedDir (recordedDirs: string[], opts: ResolvePackagePathOptions & { lockfileDir: string }): string {
+  const aliasSuffix = path.join(path.sep, opts.alias)
+  const aliasDirs = recordedDirs.filter((dir) => dir.endsWith(aliasSuffix))
+  const dirs = aliasDirs.length ? aliasDirs : recordedDirs
   const existing = dirs.filter((dir) => fs.existsSync(dir))
   const resolveFrom = opts.parentDir ?? opts.projectDir
   if (resolveFrom) {

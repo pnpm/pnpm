@@ -46,13 +46,22 @@ pub fn resolve_package_path(
 
 /// The copy Node.js resolves from the parent package, or from the
 /// project for a direct dependency: the one in the closest modules
-/// directory above it. Falls back to any copy on disk, then to the
-/// first recorded one.
+/// directory above it. Copies under the edge's alias are preferred,
+/// since one dep path gets a directory per alias it is installed
+/// under. Falls back to any copy on disk, then to the first recorded
+/// one.
 fn pick_hoisted_dir(
-    dirs: &[PathBuf],
+    recorded_dirs: &[PathBuf],
     relative_modules_dir: &Path,
+    alias: &str,
     ctx: &EdgeContext<'_>,
 ) -> Option<PathBuf> {
+    let alias_dirs: Vec<PathBuf> = recorded_dirs
+        .iter()
+        .filter(|dir| dir.ends_with(alias))
+        .cloned()
+        .collect();
+    let dirs = if alias_dirs.is_empty() { recorded_dirs } else { &alias_dirs };
     let resolve_from = ctx.parent_dir.as_deref().unwrap_or(&ctx.linked_path_base_dir);
     dirs.iter()
         .filter(|dir| dir.exists())
@@ -91,7 +100,7 @@ fn resolve_hoisted_package_path(
     ctx: &EdgeContext<'_>,
 ) -> PathBuf {
     find_hoisted_dirs(&layout.hoisted_dirs, dep_path)
-        .and_then(|dirs| pick_hoisted_dir(dirs, &layout.relative_modules_dir, ctx))
+        .and_then(|dirs| pick_hoisted_dir(dirs, &layout.relative_modules_dir, alias, ctx))
         .unwrap_or_else(|| {
             resolve_hoisted_fallback(
                 layout,

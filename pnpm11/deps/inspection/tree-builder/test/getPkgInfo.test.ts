@@ -137,3 +137,30 @@ test('resolvePackagePath picks the hoisted copy that Node.js resolves from the p
     fs.rmSync(lockfileDir, { recursive: true, force: true })
   }
 })
+
+test('resolvePackagePath picks the hoisted copy installed under the edge alias', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-aliases-'))
+  try {
+    for (const dir of ['node_modules/foo', 'node_modules/bar']) {
+      fs.mkdirSync(path.join(lockfileDir, dir), { recursive: true })
+    }
+    const opts = {
+      depPath: 'foo@1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+      virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+      modulesDir: path.join(lockfileDir, 'node_modules'),
+      nodeLinker: 'hoisted' as const,
+      hoistedLocations: { 'foo@1.0.0': ['node_modules/foo', 'node_modules/bar'] },
+      lockfileDir,
+      projectDir: lockfileDir,
+    }
+
+    expect(resolvePackagePath({ ...opts, alias: 'foo' })).toBe(path.join(lockfileDir, 'node_modules/foo'))
+    expect(resolvePackagePath({ ...opts, alias: 'bar' })).toBe(path.join(lockfileDir, 'node_modules/bar'))
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
