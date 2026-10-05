@@ -418,6 +418,11 @@ test('rejects PAX header without space delimiter', () => {
   expect(() => parseTarballEntries(tarContent)).toThrow('Invalid PAX record format: missing space delimiter')
 })
 
+test('rejects PAX header without newline terminator', () => {
+  const tarContent = createTarballWithPaxHeader('12 path=badX')
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid PAX record format: missing newline terminator')
+})
+
 test('rejects PAX header with invalid or negative size', () => {
   const negativeSizePax = createTarballWithPaxHeader('14 size=-1000\n')
   expect(() => parseTarballEntries(negativeSizePax)).toThrow('Invalid size in PAX record: size=-1000')

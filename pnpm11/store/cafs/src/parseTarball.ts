@@ -12,6 +12,7 @@ const FILE_TYPE_HARD_LINK: number = '1'.charCodeAt(0)
 const FILE_TYPE_SYMLINK: number = '2'.charCodeAt(0)
 const FILE_TYPE_DIRECTORY: number = '5'.charCodeAt(0)
 const SPACE: number = ' '.charCodeAt(0)
+const NEWLINE: number = '\n'.charCodeAt(0)
 const SLASH: number = '/'.charCodeAt(0)
 const BACKSLASH: number = '\\'.charCodeAt(0)
 const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
@@ -337,6 +338,9 @@ function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, li
   cursor++
 
   const lineEnd: number = lineStart + len
+  if (buffer[lineEnd - 1] !== NEWLINE) {
+    throw new Error('Invalid PAX record format: missing newline terminator')
+  }
   return { record: buffer.toString('utf-8', cursor, lineEnd - 1), lineEnd }
 }
 
