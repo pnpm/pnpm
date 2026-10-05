@@ -363,6 +363,39 @@ strip = "symbols"
 debug = false
 panic = "abort" # Let it crash and force ourselves to write safe Rust.
 
+# The crates behind manifest and lockfile parsing, version picking and
+# resolution keep full optimization. At "s" those paths run 10-45% slower.
+[profile.release.package.granit-parser]
+opt-level = 3
+[profile.release.package.memchr]
+opt-level = 3
+[profile.release.package.node-semver]
+opt-level = 3
+[profile.release.package.pnpm-deps-path]
+opt-level = 3
+[profile.release.package.pnpm-lockfile]
+opt-level = 3
+[profile.release.package.pnpm-package-manifest]
+opt-level = 3
+[profile.release.package.pnpm-package-name]
+opt-level = 3
+[profile.release.package.pnpm-registry]
+opt-level = 3
+[profile.release.package.pnpm-resolving-deps-resolver]
+opt-level = 3
+[profile.release.package.pnpm-resolving-npm-resolver]
+opt-level = 3
+[profile.release.package.pnpm-resolving-resolver-base]
+opt-level = 3
+[profile.release.package.pnpm-workspace-projects-graph]
+opt-level = 3
+[profile.release.package.pnpm-workspace-task-scheduler]
+opt-level = 3
+[profile.release.package.serde-saphyr]
+opt-level = 3
+[profile.release.package.serde_json]
+opt-level = 3
+
 # Use the `--profile release-debug` flag to show symbols in release mode.
 # e.g. `cargo build --profile release-debug`
 [profile.release-debug]
