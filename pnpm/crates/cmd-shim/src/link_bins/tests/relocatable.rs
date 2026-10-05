@@ -1,6 +1,6 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, create_dir_all, json,
-    link_bins_of_packages, read_to_string, tempdir, write_file,
+    Arc, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, create_dir_all,
+    is_shim_pointing_at, json, link_bins_of_packages, read_to_string, tempdir, write_file,
 };
 use crate::link_bins::bin_dir_is_relocatable;
 use pnpm_fs::lexical_normalize;
@@ -612,4 +612,69 @@ fn bin_dir_is_relocatable_rejects_directory_entries() {
 
     create_dir_all(bin_dir.join("unexpected-directory")).unwrap();
     assert!(!bin_dir_is_relocatable(&bin_dir, &root));
+}
+
+#[test]
+fn missing_dependency_symlink_does_not_prevent_linking_bins() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+    let modules = root.join("node_modules/.pnpm/consumer@1.0.0/node_modules");
+    create_dir_all(&modules).unwrap();
+    let package = modules.join("js-yaml");
+    let destination = root.join("node_modules/.pnpm/js-yaml@4.1.0/node_modules/js-yaml");
+    symlink("../../js-yaml@4.1.0/node_modules/js-yaml", &package).unwrap();
+    let packages = [PackageBinSource::new(
+        package.clone(),
+        Arc::new(json!({"name": "js-yaml", "bin": {"js-yaml": "bin/js-yaml.js"}})),
+    )
+    .with_resolved_location(destination.clone())];
+    let bins = modules.join("consumer/node_modules/.bin");
+    let options =
+        LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() };
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    let body = read_to_string(bins.join("js-yaml")).unwrap();
+    eprintln!("missing target shim: {body}");
+    assert!(is_shim_pointing_at(&body, &bins.join("js-yaml"), &package.join("bin/js-yaml.js")));
+    assert!(!bin_dir_is_relocatable(&bins, &root), "unresolved symlinks fail validation");
+
+    create_dir_all(destination.join("bin")).unwrap();
+    write_file(
+        destination.join("bin/js-yaml.js"),
+        "#!/usr/bin/env node\nconsole.log('repaired')\n",
+    )
+    .unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    assert!(bin_dir_is_relocatable(&bins, &root));
+    let moved = tmp.path().join("moved");
+    let relative_bins = bins.strip_prefix(&root).unwrap();
+    fs::rename(&root, &moved).unwrap();
+    let output = Command::new(moved.join(relative_bins).join("js-yaml"))
+        .env_remove("NODE_PATH")
+        .env_remove("NODE_OPTIONS")
+        .output()
+        .unwrap();
+    eprintln!("repaired and relocated: {output:?}");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "repaired");
+}
+
+#[test]
+fn dependency_symlink_loop_still_fails_bin_linking() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let package = root.join("package");
+    symlink("package", &package).unwrap();
+    let error = link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            package.clone(),
+            Arc::new(json!({"name": "foo", "bin": "bin/cli.js"})),
+        )],
+        &root.join(".bin"),
+        &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+    )
+    .unwrap_err();
+    eprintln!("symlink loop: {error:?}");
+    assert!(
+        matches!(error, crate::LinkBinsError::ResolvePath { path, .. } if path == package.join("bin")),
+    );
 }
