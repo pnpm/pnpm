@@ -103,6 +103,7 @@ export interface ResolutionContext extends RegistryContext {
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
+  lockedPeersAreCurrent: boolean
   staleOverrideTargets?: ReadonlySet<string>
   updateChecksums?: boolean
   ignoreScripts?: boolean

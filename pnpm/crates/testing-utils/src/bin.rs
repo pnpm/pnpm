@@ -69,6 +69,17 @@ impl AddMockedRegistry {
     /// its own, and not what any of these tests are about.
     pub fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
         self.mock_instance.set_dist_tag(package, version, tag);
+        self.drop_cached_metadata();
+    }
+
+    /// Serve `package@version` without `field` in its registry metadata
+    /// while its tarball keeps it. See [`Self::set_dist_tag`] for the cache.
+    pub fn remove_version_field(&self, package: &str, version: &str, field: &str) {
+        self.mock_instance.remove_version_field(package, version, field);
+        self.drop_cached_metadata();
+    }
+
+    fn drop_cached_metadata(&self) {
         if self.cache_dir.exists() {
             fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
         }

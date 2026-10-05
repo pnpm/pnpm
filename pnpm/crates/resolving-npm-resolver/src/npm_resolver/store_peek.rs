@@ -23,6 +23,10 @@ use crate::{
     },
 };
 
+/// Answers from the store only for a locked version the walk keeps. A
+/// reopened one, exact specs included, reads registry metadata as a fresh
+/// resolution does: the `package.json` in the store can disagree with that
+/// metadata, and `pnpm dedupe` must write what a fresh install writes.
 pub(crate) async fn fast_path_pick(
     store_index: Option<&SharedReadonlyStoreIndex>,
     wanted_dependency: &WantedDependency,
@@ -30,20 +34,13 @@ pub(crate) async fn fast_path_pick(
     spec: &RegistryPackageSpec,
     workspace_packages_active: Option<&Arc<WorkspacePackages>>,
 ) -> Result<Option<ResolveResult>, ResolveError> {
-    if !repicks_another_version(opts, spec)
+    if !opts.refresh.repick_current_version
         && let Some(result) =
             peek_manifest_from_store(store_index, wanted_dependency, opts, spec).await?
     {
         return Ok(Some(result));
     }
     Ok(prefer_workspace_pick(workspace_packages_active, spec, wanted_dependency, opts))
-}
-
-/// Whether a reopened locked version must go through the picker. An exact
-/// version spec has only one answer, so the store can still supply it.
-fn repicks_another_version(opts: &ResolveOptions, spec: &RegistryPackageSpec) -> bool {
-    opts.refresh.repick_current_version
-        && !matches!(spec.spec_type, RegistryPackageSpecType::Version)
 }
 
 /// Offline, the picker had no metadata to choose from.

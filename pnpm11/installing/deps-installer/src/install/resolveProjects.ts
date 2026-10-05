@@ -51,17 +51,18 @@ export async function resolveProjects (
   const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
   const untrackedReadPackageHookMayHaveChanged = readPackageHookMayHaveChanged(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   const preferredVersions = seedPreferredVersions(ctx, opts)
-  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
+  const lockedPeersAreCurrent = ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+    !opts.force &&
+    !opts.needsFullResolution &&
+    !ctx.lockfileHadConflicts &&
+    !untrackedReadPackageHookMayHaveChanged
+  const forceFullResolution = !lockedPeersAreCurrent ||
     !opts.currentLockfileIsUpToDate ||
-    opts.force ||
-    opts.needsFullResolution ||
-    ctx.lockfileHadConflicts ||
-    opts.dedupePeerDependents ||
-    untrackedReadPackageHookMayHaveChanged
+    opts.dedupePeerDependents
   setUntrackedPnpmfileReadPackageHook(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   forgetRegeneratedLockfileFields(ctx, opts)
 
-  const resolveGraph = createGraphResolver({ ctx, forceFullResolution, opts, preferredVersions, projects })
+  const resolveGraph = createGraphResolver({ ctx, forceFullResolution, lockedPeersAreCurrent, opts, preferredVersions, projects })
   const resolution = await resolveGraphWithUpdatedCatalogOverrides(resolveGraph, opts)
   // Only a full resolution walks every manifest through the versions
   // overrider, making the collected declared ranges complete enough for the
@@ -153,9 +154,10 @@ function forgetRegeneratedLockfileFields (ctx: PnpmContext, opts: InstallInConte
 }
 
 function createGraphResolver (
-  { ctx, forceFullResolution, opts, preferredVersions, projects }: {
+  { ctx, forceFullResolution, lockedPeersAreCurrent, opts, preferredVersions, projects }: {
     ctx: PnpmContext
     forceFullResolution: boolean
+    lockedPeersAreCurrent: boolean
     opts: InstallInContextOptions
     preferredVersions: PreferredVersions
     projects: ImporterToUpdate[]
@@ -173,6 +175,7 @@ function createGraphResolver (
       ...describeResolutionPolicies(opts),
       catalogs,
       forceFullResolution,
+      lockedPeersAreCurrent,
       hooks: {
         readPackage: readPackageHook,
       },

@@ -41,6 +41,12 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
+/**
+ * Resolvers whose package id pins the package contents. A local directory can
+ * change under the same id, so its manifest stays the source of truth.
+ */
+const IMMUTABLE_CONTENT_RESOLVERS = new Set(['git-repository', 'jsr-registry', 'named-registry', 'npm-registry'])
+
 export async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
@@ -247,6 +253,7 @@ async function readResolvedManifest (
   if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
     pkg = await ctx.readPackageHook(pkg)
   }
+  keepLockedPeerDependencies({ ctx, currentPkg, options }, pkgResponse, pkg)
   if (!pkg.version) {
     pkg.version = '0.0.0'
   }
@@ -258,6 +265,38 @@ async function readResolvedManifest (
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
   }
   return pkg
+}
+
+/**
+ * Gives a package reused from the lockfile the peer dependencies its lockfile
+ * entry records. The registry metadata and the package.json in the store may
+ * disagree about them, and reading the other source would rewrite the entry
+ * of a package nobody updated.
+ */
+function keepLockedPeerDependencies (
+  { ctx, currentPkg, options }: Pick<DependencyRequest, 'ctx' | 'currentPkg' | 'options'>,
+  pkgResponse: PackageResponse,
+  pkg: PackageManifest
+): void {
+  const snapshot = currentPkg.dependencyLockfile
+  if (
+    !ctx.lockedPeersAreCurrent ||
+    options.update ||
+    snapshot == null ||
+    pkgResponse.body.updated ||
+    pkgResponse.body.resolvedVia == null ||
+    !IMMUTABLE_CONTENT_RESOLVERS.has(pkgResponse.body.resolvedVia)
+  ) return
+  delete pkg.peerDependencies
+  delete pkg.peerDependenciesMeta
+  if (snapshot.peerDependencies != null) {
+    pkg.peerDependencies = { ...snapshot.peerDependencies }
+  }
+  if (snapshot.peerDependenciesMeta != null) {
+    pkg.peerDependenciesMeta = Object.fromEntries(
+      Object.entries(snapshot.peerDependenciesMeta).map(([peerName, peerMeta]) => [peerName, { ...peerMeta }])
+    )
+  }
 }
 
 function omitPeersFromDependencies (

@@ -77,20 +77,42 @@ pub fn build_storage_at_with_substitutions(
 /// Only call this on a tree the test owns, never on the process-global
 /// storage every other test reads — see [`build_storage_at`].
 pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
+    edit_packument(storage, package, |packument_object| {
+        assert!(
+            packument_object
+                .get("versions")
+                .and_then(Value::as_object)
+                .is_some_and(|versions| versions.contains_key(version)),
+            "{package} has no fixture version {version} to tag as {tag}",
+        );
+        insert_object_entry(packument_object, "dist-tags", tag, json!(version));
+        insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
+    });
+}
+
+/// Drop `field` from the registry metadata of `package@version` in a built
+/// storage tree. The tarball keeps it, so the registry serves metadata that
+/// disagrees with the published `package.json`.
+///
+/// Only call this on a tree the test owns, as with [`set_dist_tag`].
+pub fn remove_version_field(storage: &Path, package: &str, version: &str, field: &str) {
+    edit_packument(storage, package, |packument_object| {
+        let removed = packument_object
+            .get_mut("versions")
+            .and_then(|versions| versions.get_mut(version))
+            .and_then(Value::as_object_mut)
+            .unwrap_or_else(|| panic!("{package} has no fixture version {version}"))
+            .remove(field);
+        assert!(removed.is_some(), "{package}@{version} has no {field} to remove");
+    });
+}
+
+fn edit_packument(storage: &Path, package: &str, edit: impl FnOnce(&mut Map<String, Value>)) {
     let path = storage.join(package).join("package.json");
     let bytes = fs::read(&path)
         .unwrap_or_else(|err| panic!("read fixture packument at {}: {err}", path.display()));
     let mut packument: Value = serde_json::from_slice(&bytes).expect("parse fixture packument");
-    let packument_object = packument.as_object_mut().expect("fixture packument is an object");
-    assert!(
-        packument_object
-            .get("versions")
-            .and_then(Value::as_object)
-            .is_some_and(|versions| versions.contains_key(version)),
-        "{package} has no fixture version {version} to tag as {tag}",
-    );
-    insert_object_entry(packument_object, "dist-tags", tag, json!(version));
-    insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
+    edit(packument.as_object_mut().expect("fixture packument is an object"));
     fs::write(&path, serde_json::to_vec(&packument).expect("serialize fixture packument"))
         .expect("write fixture packument");
 }
