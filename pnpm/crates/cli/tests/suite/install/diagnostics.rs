@@ -40,7 +40,7 @@ fn ndjson_reports_fatal_resolution_errors_with_codes_and_prefix() {
         assert!(
             errors[0]["message"]
                 .as_str()
-                .is_some_and(|message| !message.is_empty())
+                .is_some_and(|message| !message.is_empty()),
         );
     }
 }
@@ -78,7 +78,7 @@ module.exports = { hooks: { readPackage(pkg) {
         assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_PROTOCOL"));
         assert!(
             flatten_report(&stderr)
-                .contains("missing-child@patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch")
+                .contains("missing-child@patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch"),
         );
         if reporter == "--reporter=ndjson" {
             let records = ndjson_records(output.get_output());
@@ -127,7 +127,7 @@ fn fatal_resolution_context_redacts_tarball_credentials() {
         assert!(!message.contains("alice:"), "username leaked: {message}");
         assert!(
             flatten_report(&message)
-                .contains("Failedtoresolvesecret-tarball@https://127.0.0.1:9/package.tgz")
+                .contains("Failedtoresolvesecret-tarball@https://127.0.0.1:9/package.tgz"),
         );
     }
 }
@@ -154,6 +154,6 @@ fn ndjson_reports_early_directory_errors() {
         records[0]["message"]
             .as_str()
             .expect("error message")
-            .contains("missing-directory")
+            .contains("missing-directory"),
     );
 }

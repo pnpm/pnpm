@@ -362,7 +362,7 @@ fn config_set_get_scoped_linker_object_round_trips() {
     assert!(output.status.success());
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
-        serde_json::from_str::<serde_json::Value>(value).unwrap()
+        serde_json::from_str::<serde_json::Value>(value).unwrap(),
     );
     drop(root);
 }
