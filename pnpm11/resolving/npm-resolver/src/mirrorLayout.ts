@@ -315,17 +315,16 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
  *
  * This layout is kept for `filterMetadata` documents; everything else is
  * mirrored in the indexed layout (see {@link MIRROR_FORMAT_ID}).
- * `body.jsonText` is the raw registry body, written as is when given.
  */
 export function prepareJsonForDisk (
   meta: PackageMeta,
   etag: string | undefined,
-  body: MirrorHeadersBody & { jsonText?: string } = {}
+  body: MirrorHeadersBody = {}
 ): string {
   const bodyMeta = meta.etag == null && meta.fullEtag == null && meta.uncacheable == null
     ? meta
     : { ...meta, etag: undefined, fullEtag: undefined, uncacheable: undefined }
-  return `${encodeHeaders(meta, etag, body)}\n${body.jsonText ?? JSON.stringify(bodyMeta)}`
+  return `${encodeHeaders(meta, etag, body)}\n${JSON.stringify(bodyMeta)}`
 }
 
 /**

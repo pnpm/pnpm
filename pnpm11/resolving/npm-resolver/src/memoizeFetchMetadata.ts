@@ -28,10 +28,10 @@ export interface MemoizeFetchMetadataOptions {
  * `clear`, see `clearResolutionCache`), deduplicating concurrent and repeat
  * requests for the same package.
  *
- * Unlike plain memoization, the entry is swapped for a body-less clone once
- * the request settles: `jsonText` is the raw registry response body, up to
- * tens of MB for a popular package, and retaining one per package would pin
- * hundreds of MB on large cold-cache graphs.
+ * Unlike plain memoization, the entry is swapped for a clone once the request
+ * settles. The encoded mirror is memoized on the original result (see
+ * `encodeMirror`), and holding that result for the whole phase would pin one
+ * encoded body, up to tens of MB, per package.
  *
  * Because that swap lands a turn after the request settles, both settlement
  * paths write back only while the entry is still their own promise — a `clear`
@@ -79,6 +79,6 @@ export function memoizeFetchMetadata (fetch: FetchMetadata, memoOpts?: MemoizeFe
         meta = condense(result.meta)
       } catch {}
     }
-    return { ...result, jsonText: undefined, meta }
+    return { ...result, meta }
   }
 }

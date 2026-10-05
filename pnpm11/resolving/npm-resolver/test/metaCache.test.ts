@@ -96,7 +96,7 @@ test('updateChecksums bypasses the in-memory cache so a disk-promoted entry cann
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+      return { meta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -213,7 +213,7 @@ test('normal range resolution reuses a provably dominant lockfile version from d
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+      return { meta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -240,7 +240,7 @@ test('a fresh mirror without an etag resolves a range without a registry request
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+      return { meta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -273,7 +273,7 @@ test('an expired mirror without an etag is fetched again and can see a newer ver
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+      return { meta: freshMeta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -298,7 +298,7 @@ test('a fresh mirror that has an etag still revalidates a range', async () => {
   const ctx = {
     fetch: async (pkgName: string, opts: { etag?: string }) => {
       fetchCalls.push({ etag: opts.etag })
-      return { meta, jsonText: JSON.stringify(meta), etag: '"abc"' }
+      return { meta, etag: '"abc"' }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -323,7 +323,7 @@ test('pnpm update does not reuse a fresh mirror that has no etag', async () => {
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+      return { meta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -354,7 +354,7 @@ test('pnpm update does not reuse a mirror that an earlier resolution promoted to
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+      return { meta: freshMeta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -384,7 +384,7 @@ test.each([
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+      return { meta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -413,7 +413,7 @@ test('normal range resolution fetches when the cache is missing its lockfile ver
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+      return { meta: freshMeta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -440,7 +440,7 @@ test('normal range resolution fetches when trust downgrade protection is active'
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+      return { meta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -480,7 +480,7 @@ test('a stable cached range does not let a later unproven range skip the registr
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+      return { meta: freshMeta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -536,7 +536,7 @@ test('the response body is mirrored in the indexed layout', async () => {
   const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
 
   const ctx = {
-    fetch: async () => ({ meta, jsonText: JSON.stringify(meta), etag: undefined }),
+    fetch: async () => ({ meta, etag: undefined }),
     metaCache: createMetaCache(),
     cacheDir,
   }
@@ -557,7 +557,6 @@ test('the response body is mirrored in the indexed layout', async () => {
 
 test('projects sharing one in-flight fetch encode the mirror once instead of per project', async () => {
   const meta = fooMeta()
-  const rawBody = JSON.stringify(meta)
   const cacheDir = temporaryDirectory()
   const projects = 20
 
@@ -572,7 +571,7 @@ test('projects sharing one in-flight fetch encode the mirror once instead of per
     // Hold the request open until every project has joined it, so the fan-out
     // this guards against is reproduced rather than raced for.
     await inFlight
-    return { meta, jsonText: rawBody, etag: undefined }
+    return { meta, etag: undefined }
   })
   const ctx = {
     fetch: async (pkgName: string, opts: FetchMetadataOptions) => {
@@ -612,7 +611,7 @@ test('a full document fetched for an optional dependency is condensed in memory 
   const cacheDir = temporaryDirectory()
 
   const ctx = {
-    fetch: async () => ({ meta, jsonText: JSON.stringify(meta), etag: undefined }),
+    fetch: async () => ({ meta, etag: undefined }),
     metaCache: createMetaCache(),
     cacheDir,
   }
@@ -679,7 +678,7 @@ test('a disk-promoted cache entry that cannot satisfy the spec falls back to the
   const ctx = {
     fetch: async (pkgName: string) => {
       fetchedNames.push(pkgName)
-      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+      return { meta: freshMeta, etag: undefined }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -716,7 +715,7 @@ test('pickPackage retries once without validators when a 304 loses its cache bod
         rmSync(pkgMirror)
         return { notModified: true as const }
       }
-      return { meta, jsonText: JSON.stringify(meta), etag: '"fresh"' }
+      return { meta, etag: '"fresh"' }
     },
     metaCache: createMetaCache(),
     cacheDir,
