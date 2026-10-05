@@ -38,8 +38,8 @@ url = { workspace = true }
 # activates the `sha2-asm` crate (hand-written `.S` assembly files for
 # x86_64 SHA-256/512) plus sha2's aarch64 NEON backend gated on runtime
 # FEAT_SHA512 detection. MSVC's `cl.exe` doesn't parse GAS-syntax `.S`
-# files, so enabling `asm` on `target_env = "msvc"` fails the Windows
-# build with `LNK1181: cannot open input file ...sha512_x64.o`.
+# files (`LNK1181: cannot open input file ...sha512_x64.o`), and the
+# MinGW build under MSYS2 fails too.
 [target.'cfg(not(windows))'.dependencies]
 sha2 = { workspace = true, features = ["asm"] }
 
