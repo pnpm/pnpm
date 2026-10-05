@@ -171,32 +171,7 @@ fn collect_explicit_settings(
     let Ok(serde_json::Value::Object(mut map)) = serde_json::to_value(settings) else {
         return;
     };
-    let mut normalized = WorkspaceSettings {
-        node_linker: settings.node_linker.clone(),
-        shamefully_hoist: settings.shamefully_hoist,
-        hoist: settings.hoist,
-        hoist_pattern: settings.hoist_pattern.clone(),
-        public_hoist_pattern: settings.public_hoist_pattern.clone(),
-        hoisting_limits: settings.hoisting_limits,
-        ..WorkspaceSettings::default()
-    };
-    normalized.normalize_linker_settings();
-    if let Ok(serde_json::Value::Object(linker_settings)) = serde_json::to_value(normalized) {
-        map.extend(
-            linker_settings
-                .into_iter()
-                .filter(|(key, value)| {
-                    matches!(
-                        key.as_str(),
-                        "hoist"
-                            | "hoistPattern"
-                            | "publicHoistPattern"
-                            | "hoistingLimits"
-                            | "shamefullyHoist"
-                    ) && !value.is_null()
-                }),
-        );
-    }
+    collect_linker_settings(&mut map, settings);
     for (key, value) in map {
         if key == "_auth" || value.is_null() {
             continue;
@@ -219,6 +194,38 @@ fn collect_explicit_settings(
     if let Some(level) = settings.audit.as_ref().and_then(|audit| audit.level) {
         let Ok(level) = serde_json::to_value(level) else { return };
         target.insert("auditLevel".to_string(), level);
+    }
+}
+
+fn collect_linker_settings(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    settings: &WorkspaceSettings,
+) {
+    let mut normalized = WorkspaceSettings {
+        node_linker: settings.node_linker.clone(),
+        shamefully_hoist: settings.shamefully_hoist,
+        hoist: settings.hoist,
+        hoist_pattern: settings.hoist_pattern.clone(),
+        public_hoist_pattern: settings.public_hoist_pattern.clone(),
+        hoisting_limits: settings.hoisting_limits,
+        ..WorkspaceSettings::default()
+    };
+    normalized.normalize_linker_settings();
+    if let Ok(serde_json::Value::Object(linker_settings)) = serde_json::to_value(normalized) {
+        map.extend(
+            linker_settings
+                .into_iter()
+                .filter(|(key, value)| {
+                    matches!(
+                        key.as_str(),
+                        "hoist"
+                            | "hoistPattern"
+                            | "publicHoistPattern"
+                            | "hoistingLimits"
+                            | "shamefullyHoist",
+                    ) && !value.is_null()
+                }),
+        );
     }
 }
 

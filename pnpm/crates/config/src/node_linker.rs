@@ -1,5 +1,7 @@
-use crate::workspace_yaml::deserialize_double_option;
-use crate::{Config, HoistingLimits, NodeLinker, WorkspaceSettings};
+use crate::{
+    Config, HoistingLimits, NodeLinker, WorkspaceSettings,
+    workspace_yaml::deserialize_double_option,
+};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
