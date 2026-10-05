@@ -109,6 +109,12 @@ impl<'a> LinkingPaths<'a> {
             is_subdir(root, target) || original_root.is_some_and(|root| is_subdir(root, target));
         let physical_parent = match resolve(parent) {
             Ok(parent) => parent,
+            // A prefetched manifest may outlive the package symlink's destination.
+            Err(LinkBinsError::ResolvePath { error, .. })
+                if error.kind() == io::ErrorKind::NotFound =>
+            {
+                return Ok(Cow::Borrowed(target));
+            }
             Err(error) if lexical_inside => return Err(error),
             Err(_) => return Ok(Cow::Borrowed(target)),
         };
