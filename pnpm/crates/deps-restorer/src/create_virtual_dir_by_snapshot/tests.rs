@@ -663,6 +663,13 @@ fn run_rejects_uncontained_slot_before_creating_dirs() {
         "an uncontained slot must be rejected before creating dirs; got {result:?}",
     );
     assert!(!dir.path().join("escaped").exists(), "no directory outside the store must be created");
+    assert!(
+        !dir.path()
+            .join("store")
+            .join("escaped")
+            .exists(),
+        "no directory outside the package directory must be created",
+    );
 }
 
 /// A warm reinstall that drops a child dependency unlinks the stale

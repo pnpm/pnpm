@@ -207,7 +207,7 @@ fn verified_fresh_layout<'l>(
         deferred_engine_name,
     );
     pnpm_deps_restorer::validate_virtual_store_slot_containment(
-        lockfiles.built.snapshots.as_ref(),
+        lockfiles.initial.snapshots.as_ref(),
         &layout,
     )
     .map_err(InstallWithFreshLockfileError::LockfileVerification)?;
