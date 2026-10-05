@@ -518,6 +518,7 @@ fn refreshed_state(
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),
+            frozen_lockfile: state.frozen_lockfile,
         },
         vouched: &Vouched::Projects { dirs: vouched, previous: Some(state) },
     })

@@ -83,6 +83,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             recorded_registry_routes: up_to_date.recorded.state.and_then(|state| {
                 state.settings.registry_routes.clone()
             }),
+            frozen_lockfile: inputs.repeat.frozen_lockfile,
         };
         report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules, carried_state)
             .await?;
@@ -240,6 +241,7 @@ fn frozen_tree_inputs<'a>(
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: inputs.repeat.frozen,
+            frozen_lockfile: inputs.repeat.frozen_lockfile,
             filtered: inputs.repeat.filtered,
             disable_optimistic_check: inputs.repeat.disable_optimistic_check,
             supported_architectures: inputs.repeat.supported_architectures,

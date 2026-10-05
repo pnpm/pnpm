@@ -236,6 +236,7 @@ fn write_state_with_pnpmfiles(
         projects,
         pnpmfiles,
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: None,
         validation: None,
         settings,
@@ -429,6 +430,7 @@ fn record_test_workspace_state(
             registry_keys_verified: true,
             registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
             kept_settings: None,
+            frozen_lockfile: false,
         },
         vouched: &super::validation::Vouched::All,
     });

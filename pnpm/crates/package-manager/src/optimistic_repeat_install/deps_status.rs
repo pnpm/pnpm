@@ -94,7 +94,7 @@ pub fn check_deps_status_before_run(
         Scope::Selected(selected_project_dirs)
     };
     let mut ignored_settings = RUN_IGNORED_SETTINGS.to_vec();
-    if install_would_run_frozen(check) {
+    if lockfile_stays_frozen(check, state) {
         ignored_settings.push("autoDedupe");
     }
     let policy = GatePolicy {
@@ -168,18 +168,24 @@ fn lockfile_conflict_issue(
 
 const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed since last install";
 
-/// Whether the `pnpm install` this gate spawns would run with a frozen
-/// lockfile, the way `InstallArgs::resolve_frozen_lockfile` decides it: on CI
-/// an install whose lockfile is present and non-empty is frozen unless
-/// `preferFrozenLockfile` is off, and an absent or empty lockfile re-resolves
-/// either way. A frozen install never re-resolves, so it cannot record the
-/// dedupe baseline a pending `autoDedupe` setting asks for: the gate would
-/// spawn an install before every script and never settle
-/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
-fn install_would_run_frozen(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+/// Whether the lockfile is meant to stay frozen, so no install can record the
+/// dedupe baseline a pending `autoDedupe` setting asks for. Without this the
+/// gate would spawn an install before every script and never settle
+/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)), or spawn a
+/// resolving install that reruns lifecycle scripts and rewrites the lockfile a
+/// frozen install accepted
+/// ([pnpm/pnpm#16583](https://github.com/pnpm/pnpm/issues/16583)).
+///
+/// A configured `frozenLockfile` decides. Otherwise the lockfile stays frozen
+/// when the recorded install ran frozen, or when the install the gate spawns
+/// would, the way `InstallArgs::resolve_frozen_lockfile` decides it: on CI
+/// unless `preferFrozenLockfile` is off. An absent or empty lockfile
+/// re-resolves either way.
+fn lockfile_stays_frozen(check: &OptimisticRepeatInstallCheck<'_>, state: &WorkspaceState) -> bool {
     let config = check.config;
-    config.frozen_lockfile.unwrap_or(config.ci && config.prefer_frozen_lockfile)
-        && wanted_lockfile_file_has_content(check.workspace_root, config)
+    config.frozen_lockfile.unwrap_or(
+        state.frozen_lockfile || (config.ci && config.prefer_frozen_lockfile),
+    ) && wanted_lockfile_file_has_content(check.workspace_root, config)
 }
 
 /// The `pnpm install` arguments reproducing the dependency groups the

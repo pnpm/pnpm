@@ -354,6 +354,7 @@ impl<'a> RunExecution<'a> {
                 resolve_only: self.mode.resolve_only,
                 dry_run: self.install.execution.dry_run,
                 peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
+                frozen_lockfile: self.install.lockfile_policy.frozen,
             },
             prior: self.take_apply_prior_state(loaded, dispatched.modules),
             projects: crate::install::state_options::ApplyProjectSelection {

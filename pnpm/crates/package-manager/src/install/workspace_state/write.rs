@@ -49,6 +49,10 @@ pub(crate) struct CarriedSettings<'a> {
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
     /// The install settings to carry forward when a run check ignores their drift.
     pub(crate) kept_settings: Option<&'a WorkspaceStateSettings>,
+    /// Whether the last install past the repeat-install check ran with
+    /// `frozenLockfile`: this run's policy for an install, the recorded value
+    /// for a passing check.
+    pub(crate) frozen_lockfile: bool,
 }
 
 /// The workspace state `write` records. Every writer goes through here, so a
@@ -73,6 +77,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
             crate::install_state::recorded_default_registry(write.config);
     }
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
+    state.frozen_lockfile = write.carried.frozen_lockfile;
     if let Some(kept) = write.carried.kept_settings {
         carry_run_ignored_settings(&mut state.settings, kept);
     }

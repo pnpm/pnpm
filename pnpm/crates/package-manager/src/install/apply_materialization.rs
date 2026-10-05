@@ -229,6 +229,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
             resolve_only: inputs.mode.resolve_only,
             dry_run: inputs.mode.dry_run,
             peer_issues_sink_is_none: inputs.mode.peer_issues_sink_is_none,
+            frozen_lockfile: inputs.mode.frozen_lockfile,
         },
         peers: crate::install::state_options::PeerIssueLockfiles {
             wanted: inputs.resolution.existing_wanted,
@@ -357,6 +358,7 @@ fn applied_carried_settings<'a>(
             resolution,
         )),
         kept_settings: None,
+        frozen_lockfile: inputs.mode.frozen_lockfile,
     }
 }
 

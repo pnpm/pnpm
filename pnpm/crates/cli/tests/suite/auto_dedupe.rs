@@ -265,6 +265,47 @@ fn a_pending_dedupe_baseline_does_not_spawn_an_install_on_ci() {
     drop((root, mock_instance));
 }
 
+/// A frozen install that changes packages records no dedupe baseline. Outside
+/// CI the gate must still not spawn an install for it: that install would
+/// rerun lifecycle scripts and could rewrite the lockfile the frozen install
+/// accepted ([pnpm/pnpm#16583](https://github.com/pnpm/pnpm/issues/16583)).
+#[test]
+fn a_materializing_frozen_install_does_not_make_the_gate_spawn_an_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_root_manifest(&workspace);
+    write_settings(&workspace, "packages:\n  - low\n  - high\nautoDedupe: true\n").unwrap();
+    write_project_with_script(&workspace, "low", "100.0.0");
+    write_project(&workspace, "high", "100.1.0");
+    pnpm_at(&workspace)
+        .with_env("PNPM_CONFIG_CI", "false")
+        .with_arg("install")
+        .assert()
+        .success();
+    write_project_with_script(&workspace, "low", "100.1.0");
+    pnpm_at(&workspace)
+        .with_env("PNPM_CONFIG_CI", "false")
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read(&lockfile_path).unwrap();
+
+    pnpm_at(&workspace)
+        .with_env("PNPM_CONFIG_CI", "false")
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(recorded_auto_dedupe(&workspace), None);
+
+    let output = gate_run(&workspace.join("low"), "false");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stderr).trim(), SCRIPT_ECHO);
+    assert_eq!(fs::read(&lockfile_path).unwrap(), lockfile);
+    drop((root, mock_instance));
+}
+
 #[test]
 fn auto_dedupe_preserves_incompatible_exact_versions_and_can_be_disabled() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

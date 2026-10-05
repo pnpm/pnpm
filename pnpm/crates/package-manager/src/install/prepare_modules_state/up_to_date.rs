@@ -214,6 +214,8 @@ pub(super) struct CarriedWorkspaceState {
     /// The previous run's `registryRoutes`, which an up-to-date tree, having
     /// resolved nothing, keeps while a plain key sits under a moved route.
     pub(super) recorded_registry_routes: Option<std::collections::BTreeMap<String, String>>,
+    /// Whether this install ran with `frozenLockfile`.
+    pub(super) frozen_lockfile: bool,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -299,6 +301,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
                 crate::install_state::ResolvedImporters::None,
             )),
             kept_settings: None,
+            frozen_lockfile: context.carried_state.frozen_lockfile,
         },
         vouched: &crate::install_state::validation::Vouched::All,
     });

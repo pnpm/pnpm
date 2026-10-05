@@ -81,6 +81,10 @@ pub struct WorkspaceState {
     pub projects: BTreeMap<String, ProjectEntry>,
     pub pnpmfiles: Vec<String>,
     pub filtered_install: bool,
+    /// Whether the last install past the repeat-install check ran with
+    /// `frozenLockfile`. A write that only revalidates the state keeps it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frozen_lockfile: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
     pub settings: WorkspaceStateSettings,

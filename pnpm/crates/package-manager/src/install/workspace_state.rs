@@ -254,6 +254,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::install_state::current_pnpmfiles(workspace_root, config),
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: config.config_dependencies.clone(),
         validation: None,
         // Settings construction is shared with

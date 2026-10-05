@@ -37,6 +37,7 @@ fn write_and_load_round_trip() {
         projects,
         pnpmfiles: vec![],
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: None,
         validation: None,
         settings: WorkspaceStateSettings {
@@ -80,6 +81,7 @@ fn omits_settings_that_are_none() {
         projects: BTreeMap::new(),
         pnpmfiles: vec![],
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: None,
         validation: None,
         settings: WorkspaceStateSettings { auto_install_peers: Some(true), ..Default::default() },
@@ -107,6 +109,7 @@ fn package_extensions_round_trip() {
         projects: BTreeMap::new(),
         pnpmfiles: vec![],
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: None,
         validation: None,
         settings: WorkspaceStateSettings {
@@ -183,6 +186,7 @@ fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
         projects: BTreeMap::new(),
         pnpmfiles: vec![],
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: None,
         validation: None,
         settings: WorkspaceStateSettings::default(),
