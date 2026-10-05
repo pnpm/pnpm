@@ -79,7 +79,7 @@ export function getOptionsFromPnpmSettings (
     assertValidPackageExtensions(settings.packageExtensions)
   }
   resolvePatchedDependencies(settings, manifestDir)
-  if (Object.hasOwn(settings, 'nodeDownloadMirrors')) {
+  if (settings.nodeDownloadMirrors !== undefined) {
     assertStringRecord(settings.nodeDownloadMirrors, 'nodeDownloadMirrors')
   }
   if (settings.allowBuilds != null) {

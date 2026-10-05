@@ -367,14 +367,21 @@ test('getOptionsFromPnpmSettings() rejects explicit null nodeDownloadMirrors', (
   }))
 })
 
+test('getOptionsFromPnpmSettings() accepts explicit undefined nodeDownloadMirrors', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: undefined,
+  })).not.toThrow()
+})
+
 test('getOptionsFromPnpmSettings() interpolates environment variables in nodeDownloadMirrors', () => {
   process.env.TEST_NODE_MIRROR = 'https://mirror.example.com/node/'
   try {
-    expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    const options = getOptionsFromPnpmSettings(process.cwd(), {
       nodeDownloadMirrors: {
         release: '${TEST_NODE_MIRROR}',
       },
-    })).not.toThrow()
+    })
+    expect(options.nodeDownloadMirrors?.release).toBe('https://mirror.example.com/node/')
   } finally {
     delete process.env.TEST_NODE_MIRROR
   }
