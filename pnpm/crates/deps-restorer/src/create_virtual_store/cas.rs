@@ -109,15 +109,22 @@ pub(super) fn retain_fetch_pass_rows(
         if rows.cas_paths.contains_key(cache_key) {
             continue;
         }
-        let Some(files) = downloaded.get(&cas_paths_key(snapshot_key)) else { continue };
-        if files.source_is_mutable || !files.source_exists {
-            continue;
-        }
-        rows.cas_paths.insert(cache_key.clone(), Arc::clone(&files.cas_paths));
-        if let Some(&requires_build) = fetched.requires_build_by_snapshot.get(snapshot_key) {
-            rows.requires_build.insert(cache_key.clone(), requires_build);
+        if let Some(files) = immutable_download(downloaded, snapshot_key) {
+            rows.cas_paths.insert(cache_key.clone(), Arc::clone(&files.cas_paths));
+            if let Some(&requires_build) = fetched.requires_build_by_snapshot.get(snapshot_key) {
+                rows.requires_build.insert(cache_key.clone(), requires_build);
+            }
         }
     }
+}
+
+fn immutable_download<'a>(
+    downloaded: &'a crate::CasPathsByPkgId,
+    snapshot_key: &PackageKey,
+) -> Option<&'a crate::HoistedPackageFiles> {
+    downloaded
+        .get(&cas_paths_key(snapshot_key))
+        .filter(|files| !files.source_is_mutable && files.source_exists)
 }
 
 pub(crate) fn materialized_snapshots(

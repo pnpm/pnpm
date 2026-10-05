@@ -124,7 +124,7 @@ enum PrefetchTask {
     Running(tokio::task::JoinHandle<PrefetchResult>),
     /// Settled and verified by an earlier pass over a superset of the
     /// snapshots. See [`cas::retain_fetch_pass_rows`].
-    Settled(PrefetchResult),
+    Settled(Box<PrefetchResult>),
 }
 
 impl CasPrefetch {
@@ -538,6 +538,7 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
 }
 
 mod partition;
+mod settle;
 mod snapshot_plan;
 
 #[cfg(test)]
