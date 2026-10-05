@@ -176,7 +176,7 @@ test('writes prototype-conflicting aliases as own data properties without pollut
   expect(Object.getOwnPropertyNames(Object.prototype).sort()).toStrictEqual(protoSnapshotBefore)
 })
 
-test.each(['__proto__', 'constructor', 'prototype', 'toString', 'invalidType'])(
+test.each(['', '__proto__', 'constructor', 'prototype', 'toString', 'invalidType'])(
   'rejects prototype pollution or invalid saveType (%s) without polluting Object.prototype',
   async (badSaveType) => {
     const protoSnapshotBefore = Object.getOwnPropertyNames(Object.prototype).sort()

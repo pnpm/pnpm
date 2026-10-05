@@ -90,7 +90,7 @@ export function applyPackageSpecs (
   packageSpecs: PackageSpecObject[]
 ): ProjectManifest {
   for (const packageSpec of packageSpecs) {
-    if (packageSpec.saveType) {
+    if (packageSpec.saveType != null) {
       applyPackageSpecWithSaveType(packageManifest, packageSpec, packageSpec.saveType)
     } else if (packageSpec.bareSpecifier) {
       applyPackageSpecBare(packageManifest, packageSpec, packageSpec.bareSpecifier)
