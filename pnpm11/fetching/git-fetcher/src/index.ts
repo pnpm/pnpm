@@ -30,15 +30,6 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
   }
 }
 
-function assertValidGitResolution (repo: string, commit: string): void {
-  if (!isSafeRepoArg(repo)) {
-    throw new PnpmError('INVALID_GIT_REPOSITORY', `Invalid git repository "${redactAndSanitize(repo)}". A repository must not begin with '-'.`)
-  }
-  if (!isValidCommitHash(commit)) {
-    throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${commit}" for repository "${repo}". Expected a 40-character hexadecimal SHA.`)
-  }
-}
-
 function createGitFetcherFunction (createOpts: CreateGitFetcherOptions, allowedHosts: Set<string>): GitFetcher {
   return async (cafs, resolution, opts) => {
     assertValidGitResolution(resolution.repo, resolution.commit)
@@ -78,6 +69,23 @@ function createGitFetcherFunction (createOpts: CreateGitFetcherOptions, allowedH
       ignoredBuild,
     }
   }
+}
+
+function assertValidGitResolution (repo: string, commit: string): void {
+  if (!isSafeRepoArg(repo)) {
+    throw new PnpmError('INVALID_GIT_REPOSITORY', `Invalid git repository "${redactAndSanitize(repo)}". A repository must not begin with '-'.`)
+  }
+  if (!isValidCommitHash(commit)) {
+    throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${commit}" for repository "${repo}". Expected a 40-character hexadecimal SHA.`)
+  }
+}
+
+function isSafeRepoArg (repo: string): boolean {
+  return repo.length > 0 && !repo.startsWith('-') && !repo.includes('\0')
+}
+
+function isValidCommitHash (commit: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(commit)
 }
 
 interface CheckoutRepoOpts {
@@ -166,14 +174,6 @@ function resolveFilesIndexFile ({ createOpts, ignoredBuild, opts, requiresPrepar
     return gitHostedStoreIndexKey(opts.pkgResolutionId ?? createGitHostedPkgId(resolution), { built: !ignoredBuild })
   }
   return opts.filesIndexFile
-}
-
-function isValidCommitHash (commit: string): boolean {
-  return /^[0-9a-f]{40}$/i.test(commit)
-}
-
-function isSafeRepoArg (repo: string): boolean {
-  return repo.length > 0 && !repo.startsWith('-') && !repo.includes('\0')
 }
 
 /**
