@@ -42,7 +42,7 @@ The selector must be written as a regular expression literal — that is, wrappe
 The pattern uses JavaScript regular expression syntax, including lookahead and lookbehind. Run every `hello:` script except `hello:b`:
 
 ```sh
-pnpm run "/^hello:(?!b).*$/"
+pnpm run "/^hello:(?!b$).*$/"
 ```
 
 Matching is not anchored, so `"/build:.*/"` also matches `prebuild:web`. Anchor the pattern with `^` and `$` when you need an exact prefix.
