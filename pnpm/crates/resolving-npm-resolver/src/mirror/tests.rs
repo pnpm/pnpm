@@ -617,7 +617,7 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
 }
 
 #[test]
-fn load_meta_past_the_hold_cap_reports_an_undecodable_fragment_as_mirror_damage() {
+fn load_meta_past_the_hold_cap_keeps_a_wrong_shape_fragment_absent_not_damaged() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
     let headers = "{}";
@@ -631,7 +631,7 @@ fn load_meta_past_the_hold_cap_reports_an_undecodable_fragment_as_mirror_damage(
     std::fs::write(&mirror, &contents).expect("write");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read back without a handle");
     assert!(loaded.versions.get("1.0.0").is_none());
-    assert!(loaded.versions.has_corrupt_mirror_fragment());
+    assert!(!loaded.versions.has_corrupt_mirror_fragment());
 }
 
 #[test]

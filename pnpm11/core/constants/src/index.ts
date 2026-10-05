@@ -37,8 +37,8 @@ export const BUILTIN_REGISTRIES_BY_PREFIX: Readonly<Record<string, string>> = Ob
 //
 // The version prefix is bumped whenever the file format changes, so a pnpm
 // version that predates the change never reads files it cannot parse (and
-// never overwrites them with the format it knows). `v12` is the indexed
-// layout in `resolving/npm-resolver`'s mirrorLayout module; `v11` was NDJSON.
+// never overwrites them with the format it knows). The format is defined in
+// `resolving/npm-resolver`'s mirrorLayout module.
 export const ABBREVIATED_META_DIR = 'v12/metadata'
 export const FULL_META_DIR = 'v12/metadata-full'
 export const FULL_FILTERED_META_DIR = 'v12/metadata-full-filtered'

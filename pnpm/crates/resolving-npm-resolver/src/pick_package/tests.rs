@@ -35,9 +35,8 @@ use pnpm_resolving_resolver_base::{
 };
 
 use super::{
-    InMemoryPackageMetaCache, PackageMetaCache, PickPackageContext, PickPackageError,
-    PickPackageOptions, metadata_cache_key, persist_meta_to_mirror, pick_package,
-    shared_packument_fetch_locker,
+    InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
+    metadata_cache_key, persist_meta_to_mirror, pick_package, shared_packument_fetch_locker,
 };
 use crate::{
     mirror::{

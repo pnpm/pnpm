@@ -492,3 +492,15 @@ fn compact_trust_reads_typed_manifests_without_fragments() {
             .is_some(),
     );
 }
+
+/// The mirror stores registry fragments verbatim, so a version the registry
+/// served in the wrong shape reads back the same way and stays absent.
+#[test]
+fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
+    const ODD: &str = r#"{"name":"acme","version":"not semver"}"#;
+    let versions = mirror_spans(ODD, [("1.0.0".to_string(), 0, u32::try_from(ODD.len()).unwrap())]);
+
+    assert!(versions.get("1.0.0").is_none());
+    assert!(!versions.is_deprecated("1.0.0"));
+    assert!(!versions.has_corrupt_mirror_fragment());
+}

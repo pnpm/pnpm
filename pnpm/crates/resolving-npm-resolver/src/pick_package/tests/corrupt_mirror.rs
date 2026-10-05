@@ -1,12 +1,10 @@
 use std::path::Path;
 
-use pnpm_network::MetadataCacheScope;
-
 use super::{
-    ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PackageMetaCache,
-    PickPackageContext, PickPackageError, RetryOpts, TempDir, ThrottledClient, assert_eq,
-    default_opts, get_pkg_mirror_path, load_meta, metadata_cache_key, persist_meta_to_mirror,
-    pick_package, range_spec, shared_packument_fetch_locker,
+    ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext,
+    PickPackageError, RetryOpts, TempDir, ThrottledClient, assert_eq, default_opts,
+    get_pkg_mirror_path, load_meta, persist_meta_to_mirror, pick_package, range_spec,
+    shared_packument_fetch_locker,
 };
 
 /// Damages the fragment of `acme@1.1.0` in the mirror `persist_meta_to_mirror`
@@ -181,15 +179,18 @@ const UNPARSABLE_VERSION_PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
+/// The mirror stores the registry's fragment verbatim, so a version the
+/// registry served in the wrong shape is skipped as it is off the network,
+/// not taken for a damaged mirror that a refetch could repair.
 #[tokio::test]
-async fn registry_shaped_undecodable_version_errors_instead_of_serving_a_corrupt_pick() {
+async fn a_registry_version_of_the_wrong_shape_is_skipped_without_a_refetch() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
         .with_status(200)
         .with_header("etag", r#"W/"fresh""#)
         .with_body(UNPARSABLE_VERSION_PACKAGE_BODY)
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
 
@@ -221,15 +222,10 @@ async fn registry_shaped_undecodable_version_errors_instead_of_serving_a_corrupt
         },
     };
 
-    let err = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
         .await
-        .expect_err("a twice-undecodable version must error, not silently pick");
-    assert!(matches!(err, PickPackageError::CorruptMetadataMirror { .. }), "got {err:?}");
-    let cache_key =
-        metadata_cache_key(&MetadataCacheScope::Public, &registry, "acme", false, false);
-    assert!(
-        meta_cache.get(&cache_key).is_none(),
-        "a document known to be corrupt must never reach the in-memory cache",
-    );
+        .expect("the well-formed versions stay pickable");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    assert!(!result.meta.versions.has_corrupt_mirror_fragment());
     mock.assert_async().await;
 }

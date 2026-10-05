@@ -198,3 +198,24 @@ test('an indexed mirror drops a time map that misses a version', async () => {
   const loaded = await loadMeta(pkgMirror)
   expect(loaded!.time).toBeUndefined()
 })
+
+test('a fragment that parses to an array is malformed', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const headers = '{}'
+  const fragment = '[1,2]'
+  const index = JSON.stringify({ name: 'foo', distTags: {}, versions: [['1.0.0', 0, fragment.length]] })
+  fs.writeFileSync(pkgMirror, `pnpm-meta-v1 ${headers.length} ${index.length}\n${headers}${index}${fragment}`)
+
+  const loaded = await loadMeta(pkgMirror)
+  expect(() => loaded!.versions['1.0.0']).toThrow(expect.objectContaining({ code: 'ERR_PNPM_MALFORMED_META_FRAGMENT' }))
+})
+
+test('a format line whose lengths are not whole numbers is a cache miss', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const headers = '{}'
+  const index = JSON.stringify({ name: 'foo', distTags: {}, versions: [] })
+  fs.writeFileSync(pkgMirror, `pnpm-meta-v1 ${headers.length}junk ${index.length}\n${headers}${index}`)
+
+  expect(await loadMeta(pkgMirror)).toBeNull()
+  expect(await loadMetaHeaders(pkgMirror)).toBeNull()
+})

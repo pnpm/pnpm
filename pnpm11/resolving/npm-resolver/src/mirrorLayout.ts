@@ -75,10 +75,17 @@ function parseFormatLine (line: string): { headersLen: number, indexLen: number 
   if (!line.startsWith(`${MIRROR_FORMAT_ID} `)) return null
   const [headersLen, indexLen, extra] = line.slice(MIRROR_FORMAT_ID.length + 1).split(' ')
   if (extra != null) return null
-  const parsedHeadersLen = Number.parseInt(headersLen, 10)
-  const parsedIndexLen = Number.parseInt(indexLen, 10)
-  if (!Number.isSafeInteger(parsedHeadersLen) || !Number.isSafeInteger(parsedIndexLen) || parsedHeadersLen < 0 || parsedIndexLen < 0) return null
+  const parsedHeadersLen = parseRecordLength(headersLen)
+  const parsedIndexLen = parseRecordLength(indexLen)
+  if (parsedHeadersLen == null || parsedIndexLen == null) return null
   return { headersLen: parsedHeadersLen, indexLen: parsedIndexLen }
+}
+
+/** A whole token of decimal digits, as the Rust reader requires. */
+function parseRecordLength (token: string | undefined): number | null {
+  if (token == null || !/^\d+$/.test(token)) return null
+  const length = Number(token)
+  return Number.isSafeInteger(length) ? length : null
 }
 
 export interface LoadMetaOptions {
@@ -151,7 +158,7 @@ function parseIndexedMeta (
   if (fragmentBase > data.length) return null
   const headers = JSON.parse(data.toString('utf8', recordsStart, indexStart)) as MetaHeaders
   const index = JSON.parse(data.toString('utf8', indexStart, fragmentBase)) as MirrorIndex
-  const versions = buildLazyVersions(pkgMirror, data, fragmentBase, index.versions, opts?.condense === true)
+  const versions = buildLazyVersions({ pkgMirror, data, fragmentBase }, index.versions, opts?.condense === true)
   if (versions == null) return null
   if (opts?.hydrateEagerly === true) {
     for (const version in versions) {
@@ -189,9 +196,7 @@ function attachHeaders (meta: PackageMeta, headers: MetaHeaders): PackageMeta {
  * don't parse throws on access (see the malformed-fragment error above).
  */
 function buildLazyVersions (
-  pkgMirror: string,
-  data: Buffer,
-  fragmentBase: number,
+  file: { pkgMirror: string, data: Buffer, fragmentBase: number },
   spans: MirrorIndex['versions'],
   condense: boolean
 ): PackageMeta['versions'] | null {
@@ -201,22 +206,18 @@ function buildLazyVersions (
   const hydrated = new Map<string, PackageInRegistry | PnpmError>()
   for (const [version, offset, length] of spans) {
     if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 0) return null
-    const start = fragmentBase + offset
+    const start = file.fragmentBase + offset
     const end = start + length
-    if (end > data.length) return null
+    if (end > file.data.length) return null
+    // An oversized span is absent, as in the Rust reader.
+    if (length > MAX_FRAGMENT_LEN) continue
     Object.defineProperty(versions, version, {
       enumerable: true,
       configurable: true,
       get (): PackageInRegistry {
         let manifest = hydrated.get(version)
         if (manifest == null) {
-          try {
-            const parsed = JSON.parse(data.toString('utf8', start, end)) as PackageInRegistry
-            if (parsed == null || typeof parsed !== 'object') throw new Error('a version manifest must be an object')
-            manifest = condense ? pickAbbreviatedVersionFields(parsed) : parsed
-          } catch {
-            manifest = new PnpmError('MALFORMED_META_FRAGMENT', `Failed to parse the manifest of ${version} in the package metadata mirror at ${pkgMirror}`)
-          }
+          manifest = parseFragment(file, { version, start, end }, condense)
           hydrated.set(version, manifest)
         }
         if (manifest instanceof PnpmError) throw manifest
@@ -225,6 +226,23 @@ function buildLazyVersions (
     })
   }
   return versions
+}
+
+/** Matches the Rust reader's `MAX_FRAGMENT_LEN`. */
+const MAX_FRAGMENT_LEN = 16 * 1024 * 1024
+
+function parseFragment (
+  file: { pkgMirror: string, data: Buffer },
+  { version, start, end }: { version: string, start: number, end: number },
+  condense: boolean
+): PackageInRegistry | PnpmError {
+  try {
+    const parsed = JSON.parse(file.data.toString('utf8', start, end)) as PackageInRegistry
+    if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('a version manifest must be an object')
+    return condense ? pickAbbreviatedVersionFields(parsed) : parsed
+  } catch {
+    return new PnpmError('MALFORMED_META_FRAGMENT', `Failed to parse the manifest of ${version} in the package metadata mirror at ${file.pkgMirror}`)
+  }
 }
 
 /** Matches the bound the Rust stack's `read_mirror_headers` applies. */
@@ -323,6 +341,8 @@ export function prepareIndexedForDisk (meta: PackageMeta, etag: string | undefin
     const manifest = meta.versions[version]
     if (manifest == null) continue
     const fragment = Buffer.from(JSON.stringify(manifest), 'utf8')
+    // The reader skips such a span, so the saved and served views agree.
+    if (fragment.length > MAX_FRAGMENT_LEN) continue
     spans.push([version, offset, fragment.length])
     offset += fragment.length
     fragments.push(fragment)

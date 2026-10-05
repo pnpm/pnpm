@@ -183,6 +183,9 @@ impl PickState<'_> {
         else {
             return None;
         };
+        if picked_meta.versions.has_corrupt_mirror_fragment() {
+            return None;
+        }
         self.promote_unverified(ctx, opts, &meta);
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }

@@ -15,9 +15,10 @@
 //! version were absent from the packument (with a `tracing::warn`),
 //! mirroring the tolerance of JavaScript package managers, which never
 //! validate version entries they don't pick. A fragment read out of an
-//! indexed on-disk mirror is different: the index vouched for the span,
-//! so a decode failure means the local file is damaged rather than that
-//! the version is missing. Those are recorded in
+//! indexed on-disk mirror is different when its bytes are not JSON at
+//! all: the index vouched for the span, and the mirror stores registry
+//! fragments verbatim, so such bytes mean the local file is damaged
+//! rather than that the version is missing. Those are recorded in
 //! [`PackageVersions::has_corrupt_mirror_fragment`], which the resolver
 //! reads to treat the whole mirror as unreadable — silently resolving a
 //! different version off damaged local data would be worse than the
@@ -181,12 +182,22 @@ impl VersionSlot {
                             version,
                             "skipping registry version with an undecodable manifest",
                         );
-                        self.report_undecodable(version, corrupt_mirror_fragment);
+                        self.report_decode_error(version, &json, corrupt_mirror_fragment);
                         None
                     }
                 }
             })
             .clone()
+    }
+
+    /// Only bytes that are not JSON at all mean a damaged mirror. A
+    /// well-formed fragment of the wrong shape is how the registry served
+    /// that version, and the mirror stores it verbatim, so it stays an
+    /// absent version as it is for a fragment read off the network.
+    fn report_decode_error(&self, version: &str, json: &str, corrupt_mirror_fragment: &AtomicBool) {
+        if serde_json::from_str::<serde::de::IgnoredAny>(json).is_err() {
+            self.report_undecodable(version, corrupt_mirror_fragment);
+        }
     }
 
     fn report_undecodable(&self, version: &str, corrupt_mirror_fragment: &AtomicBool) {
@@ -244,7 +255,7 @@ impl PackageVersions {
                             version,
                             "skipping registry version with undecodable trust metadata",
                         );
-                        slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+                        slot.report_decode_error(version, &json, &self.corrupt_mirror_fragment);
                         None
                     }
                 }
@@ -303,7 +314,7 @@ impl PackageVersions {
                 return false;
             }
             let Ok(probe) = serde_json::from_str::<DeprecatedProbe>(&json) else {
-                slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+                slot.report_decode_error(version, &json, &self.corrupt_mirror_fragment);
                 return false;
             };
             probe.deprecated.is_some()
