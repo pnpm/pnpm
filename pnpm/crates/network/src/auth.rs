@@ -429,6 +429,19 @@ impl AuthHeaders {
         }
         self.for_url_with_package(url, pkg_name)
     }
+
+    /// Explicitly allow sending credentials over cleartext HTTP to this host
+    /// or nerf-dart key (e.g. when configured in trusted user settings).
+    pub fn allow_insecure_host(&mut self, url_or_nerf: &str) {
+        let nerfed = if url_or_nerf.starts_with("http://") || url_or_nerf.starts_with("https://") {
+            nerf_dart(url_or_nerf)
+        } else {
+            normalize_auth_key(url_or_nerf.to_owned())
+        };
+        if !nerfed.is_empty() {
+            self.transport_security.insecure_uris.insert(nerfed);
+        }
+    }
 }
 
 /// Canonicalize an auth-map key to the trailing-slash form the lookup

@@ -338,12 +338,14 @@ impl NpmrcAuth {
         }
         config.auth_tokens_by_uri = tables.auth_tokens;
         config.registry_creds_by_uri = tables.registry_creds;
-        config.auth_headers = Arc::new(AuthHeaders::from_parts_with_token_helpers(
+        let mut auth_headers = AuthHeaders::from_parts_with_token_helpers(
             tables.auth_headers,
             tables.scoped_auth_headers,
             tables.token_helpers,
             tables.scoped_token_helpers,
-        ));
+        );
+        allow_trusted_insecure_registries(&mut auth_headers, config);
+        config.auth_headers = Arc::new(auth_headers);
         Ok(())
     }
 
@@ -465,5 +467,25 @@ impl NpmrcAuth {
             .or_default()
             .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()
+    }
+}
+
+fn allow_trusted_insecure_registries(auth_headers: &mut AuthHeaders, config: &Config) {
+    let trusted_urls = config.package_manager_bootstrap.resolved_registries();
+    if !trusted_urls.is_empty() {
+        for registry_url in trusted_urls.values() {
+            allow_insecure_registry_if_http(auth_headers, registry_url);
+        }
+        return;
+    }
+    allow_insecure_registry_if_http(auth_headers, &config.registry);
+    for registry_url in config.registries_by_scope.values() {
+        allow_insecure_registry_if_http(auth_headers, registry_url);
+    }
+}
+
+fn allow_insecure_registry_if_http(auth_headers: &mut AuthHeaders, url: &str) {
+    if url.starts_with("http://") && !pnpm_network::is_url_secure_for_credentials(url) {
+        auth_headers.allow_insecure_host(url);
     }
 }

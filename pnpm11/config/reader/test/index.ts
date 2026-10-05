@@ -6901,3 +6901,66 @@ test('getConfig() does not fall back to a valid older variable when the canonica
     })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
   })
 })
+
+describe('cleartext HTTP registry credentials policy', () => {
+  test('trusted user .npmrc preserves explicit http:// registry in configByUri', async () => {
+    prepareEmpty()
+    const userNpmrcPath = path.resolve('user.npmrc')
+    fs.writeFileSync(userNpmrcPath, [
+      'registry=http://trusted-http.example.com/',
+      '//trusted-http.example.com/:_authToken=secret-token',
+    ].join('\n'))
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'npmrc-auth-file': userNpmrcPath,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configByUri['http://trusted-http.example.com/']).toBeDefined()
+    expect(config.configByUri['http://trusted-http.example.com/']?.['@']?.authToken).toBe('secret-token')
+  })
+
+  test('untrusted project .npmrc downgrading registry to http does not populate configByUri with http scheme', async () => {
+    prepareEmpty()
+    const userNpmrcPath = path.resolve('user.npmrc')
+    fs.writeFileSync(userNpmrcPath, [
+      'registry=https://trusted-https.example.com/',
+      '//trusted-https.example.com/:_authToken=secret-token',
+    ].join('\n'))
+
+    // Project .npmrc attempts to downgrade the registry URL to cleartext http
+    fs.writeFileSync('.npmrc', 'registry=http://trusted-https.example.com/\n')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'npmrc-auth-file': userNpmrcPath,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configByUri['http://trusted-https.example.com/']).toBeUndefined()
+    expect(config.configByUri['//trusted-https.example.com/']?.['@']?.authToken).toBe('secret-token')
+  })
+
+  test('explicit http:// credential key in user .npmrc is parsed into configByUri', async () => {
+    prepareEmpty()
+    const userNpmrcPath = path.resolve('user.npmrc')
+    fs.writeFileSync(userNpmrcPath, [
+      'http://explicit-http.example.com/:_authToken=explicit-token',
+    ].join('\n'))
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'npmrc-auth-file': userNpmrcPath,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configByUri['http://explicit-http.example.com/']?.['@']?.authToken).toBe('explicit-token')
+  })
+})

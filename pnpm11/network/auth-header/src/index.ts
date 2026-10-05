@@ -24,39 +24,55 @@ interface ScopedAuthHeaderLookup {
 }
 
 export function createGetAuthHeaderByURI (
-  configByUri: Record<string, RegistryConfig>
+  configByUri: Record<string, RegistryConfig>,
+  opts?: { allowedInsecureUris?: string[] | Set<string> }
 ): (uri: string, opts?: GetAuthHeaderOptions) => string | undefined {
   const authHeaders = getAuthHeadersFromCreds(configByUri)
   const registryURIs = Object.keys(authHeaders.authHeaderValueByURI)
   const scopedAuthHeaderValueByScope = getScopedAuthHeaderValueByScope(authHeaders.scopedAuthHeaderValueByURI)
-  const insecureUris = collectInsecureUris(configByUri)
   if (registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0) {
-    return (uri: string) => {
-      try {
-        return basicAuth(new URL(uri))
-      } catch {
-        return undefined
-      }
-    }
+    return fallbackAuth
   }
   return getAuthHeaderByURI.bind(null, authHeaders, {
-    insecureUris,
+    insecureUris: collectInsecureUris(configByUri, opts?.allowedInsecureUris),
     maxParts: getMaxParts(registryURIs),
     scopedAuthHeaderValueByScope,
   })
 }
 
-function collectInsecureUris (configByUri: Record<string, RegistryConfig>): Set<string> {
+function fallbackAuth (uri: string): string | undefined {
+  try {
+    return basicAuth(new URL(uri))
+  } catch {
+    return undefined
+  }
+}
+
+function collectInsecureUris (
+  configByUri: Record<string, RegistryConfig>,
+  allowed?: string[] | Set<string>
+): Set<string> {
   const insecureUris = new Set<string>()
   for (const uri of Object.keys(configByUri)) {
     if (uri.startsWith('http://') && !isUrlSecureForCredentials(uri)) {
-      try {
-        insecureUris.add(nerfDart(uri))
-      } catch {}
-      insecureUris.add(uri.endsWith('/') ? uri : `${uri}/`)
+      addInsecureUri(insecureUris, uri)
+    }
+  }
+  if (allowed) {
+    for (const uri of allowed) {
+      addInsecureUri(insecureUris, uri)
     }
   }
   return insecureUris
+}
+
+function addInsecureUri (insecureUris: Set<string>, uri: string): void {
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    try {
+      insecureUris.add(nerfDart(uri))
+    } catch {}
+  }
+  insecureUris.add(uri.endsWith('/') ? uri : `${uri}/`)
 }
 
 function getMaxParts (uris: string[]): number {

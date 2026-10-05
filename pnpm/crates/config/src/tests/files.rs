@@ -21,6 +21,47 @@ pub fn user_username_password_pins_to_its_own_file_registry() {
 }
 
 #[test]
+pub fn cleartext_http_registry_auth_is_allowed_only_from_trusted_config() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=http://trusted-http.example.com/\n_authToken=secret-token\n");
+    let config = load_with_project_and_user("registry=http://attacker.example.com/\n", user_file);
+
+    assert_eq!(
+        config.auth_headers.for_url("http://trusted-http.example.com/pkg").as_deref(),
+        Some("Bearer secret-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("http://attacker.example.com/pkg"), None);
+}
+
+#[test]
+pub fn cleartext_http_downgrade_by_untrusted_project_withholds_credentials() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://company.example.com/\n_authToken=secret-token\n");
+    let config = load_with_project_and_user("registry=http://company.example.com/\n", user_file);
+
+    assert_eq!(
+        config.auth_headers.for_url("https://company.example.com/pkg").as_deref(),
+        Some("Bearer secret-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("http://company.example.com/pkg"), None);
+}
+
+#[test]
+pub fn explicit_http_credential_key_is_allowed() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "http://custom.example.com/:_authToken=custom-secret\n");
+    let config = load_with_project_and_user("", user_file);
+
+    assert_eq!(
+        config.auth_headers.for_url("http://custom.example.com/pkg").as_deref(),
+        Some("Bearer custom-secret"),
+    );
+}
+
+#[test]
 pub fn gvs_default_is_off_and_paths_derive_cleanly() {
     let tmp = tempdir().unwrap();
     let config =

@@ -140,3 +140,13 @@ test('getAuthHeaderByURI() basic auth in URL overrides package scope auth', () =
   })
   expect(getAuthHeaderByURI('https://user:secret@reg.com/', { pkgName: '@orgA/pkg' })).toBe('Basic ' + btoa('user:secret'))
 })
+
+test('getAuthHeaderByURI() allows cleartext HTTP when registry is in allowedInsecureUris', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'lan-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/')).toBe('Bearer lan-token')
+  expect(getAuthHeaderByURI('http://other.lan/')).toBeUndefined()
+})

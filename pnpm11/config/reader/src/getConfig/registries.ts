@@ -1,3 +1,4 @@
+import { isUrlSecureForCredentials, nerfDart } from '@pnpm/config.registry-auth-key'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import { redactAndSanitize } from '@pnpm/error'
 import type { RegistriesByScope } from '@pnpm/types'
@@ -46,6 +47,15 @@ export function resolveInitialRegistries (state: ConfigBuildState): InitialRegis
     state.env
   )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
+  for (const registryUrl of Object.values(packageManagerRegistries)) {
+    if (typeof registryUrl === 'string' && registryUrl.startsWith('http://') && !isUrlSecureForCredentials(registryUrl)) {
+      const nerfed = nerfDart(registryUrl)
+      pnpmConfig.configByUri[registryUrl] = {
+        ...networkConfigs.configByUri?.[nerfed],
+        ...networkConfigs.configByUri?.[registryUrl],
+      }
+    }
+  }
   return { registriesFromNpmrc, cliScopedRegistries }
 }
 
