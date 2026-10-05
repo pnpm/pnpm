@@ -242,6 +242,7 @@ test('depPathToFilename() hashes URLs whose escaping is ambiguous', () => {
   expect(depPathToFilename(`${base}:package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_1536617e57923d7a634ea5063d52d423')
   expect(depPathToFilename(`${base}?package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_56ed6c679663e41c52a329ea7ffc783f')
   expect(depPathToFilename(`${base}#package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_30421c24d7ece624b64805feea2d87f4')
+  expect(depPathToFilename(`${base}\\package.tgz`, 120)).toBe('pkg@https+++registry.example.com+objects+trusted+package.tgz_c28afc38506f4f342864ce00ee3373c8')
   expect(depPathToFilename(`${base}+package.tgz`, 40)).toBe('pkg@htt_5b1382866f68e516badc06db3d605b81')
   expect(depPathToFilename(`${base}/package.tgz`, 40)).toBe('pkg@htt_db0178b93a3dc73ecc84ba68ab60a4ab')
 })

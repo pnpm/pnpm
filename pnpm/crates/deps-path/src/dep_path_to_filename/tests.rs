@@ -131,6 +131,10 @@ fn urls_with_ambiguous_escapes_are_hashed() {
             "#package.tgz",
             "pkg@https+++registry.example.com+objects+trusted+package.tgz_30421c24d7ece624b64805feea2d87f4",
         ),
+        (
+            r"\package.tgz",
+            "pkg@https+++registry.example.com+objects+trusted+package.tgz_c28afc38506f4f342864ce00ee3373c8",
+        ),
     ];
     for (suffix, expected) in cases {
         assert_eq!(dep_path_to_filename(&format!("{base}{suffix}"), 120), expected);
