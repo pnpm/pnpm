@@ -169,9 +169,18 @@ fn a_frozen_install_of_a_recorded_dedupe_needs_no_further_resolution() {
         String::from_utf8_lossy(&output.stderr).trim(),
         r#"$ node -e "console.log('script-output')""#,
     );
-    let output = install(&workspace, &["install", "--config.optimistic-repeat-install=false"]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Lockfile is up to date, resolution step is skipped"), "{stdout}");
+    let skipped = |args: &[&str]| {
+        let output = install(&workspace, args);
+        String::from_utf8_lossy(&output.stdout)
+            .contains("Lockfile is up to date, resolution step is skipped")
+    };
+    assert!(skipped(&["install", "--config.optimistic-repeat-install=false"]));
+    // Without the pnpmfile checksum comparison the record cannot be trusted.
+    assert!(!skipped(&[
+        "install",
+        "--config.optimistic-repeat-install=false",
+        "--config.ignore-pnpmfile=true",
+    ]));
     assert_eq!(fs::read(&lockfile_path).unwrap(), lockfile);
     drop((root, mock_instance));
 }
@@ -209,6 +218,8 @@ fn recording_resolution_settings_rejects_delegated_resolution() {
     drop((root, npmrc_info));
 }
 
+/// The repeat-install fast path also notices the setting turned on where it
+/// watches no file, here through the environment.
 #[test]
 fn turning_the_setting_on_records_the_settings_on_the_next_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -216,9 +227,12 @@ fn turning_the_setting_on_records_the_settings_on_the_next_install() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_injected_workspace(&workspace, "");
     install(&workspace, &["install"]);
-    write_injected_workspace(&workspace, RECORDING);
-    install(&workspace, &["install"]);
+    let output = pnpm_at(&workspace)
+        .with_env("PNPM_CONFIG_LOCKFILE", r#"{"includeResolutionSettings":true}"#)
+        .with_args(["install"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
     assert_eq!(recorded(&workspace).dedupe_injected_deps, Some(true));
-    install(&workspace, &["install", "--frozen-lockfile"]);
     drop((root, mock_instance));
 }

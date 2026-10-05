@@ -225,7 +225,7 @@ pub enum LockfileSetting {
 
 /// What the lockfile records beyond the resolved dependency graph.
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct LockfileSettings {
     pub include_resolution_settings: Option<bool>,
 }

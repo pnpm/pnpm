@@ -148,6 +148,13 @@ fn the_lockfile_section_turns_the_lockfile_on() {
     assert!(config.lockfile);
     assert!(config.lockfile_include_resolution_settings);
 
+    assert!(
+        serde_saphyr::from_str::<WorkspaceSettings>(
+            "lockfile:\n  includeResolutionSetting: true\n"
+        )
+        .is_err(),
+    );
+
     // A section that leaves the field out resets it.
     let settings: WorkspaceSettings = serde_saphyr::from_str("lockfile: {}\n").unwrap();
     settings.apply_to(&mut config, Path::new("/irrelevant"));

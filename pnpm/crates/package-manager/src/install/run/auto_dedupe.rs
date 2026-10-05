@@ -86,8 +86,12 @@ impl Settled<'_, '_> {
             && (self.recorded_lockfile_matches() || self.lockfile_records_auto_dedupe())
     }
 
+    /// `ignorePnpmfile` skips the comparison of the lockfile's
+    /// `pnpmfileChecksum`, so a hook the resolution ran could have changed it.
     fn lockfile_records_auto_dedupe(self) -> bool {
-        self.install.context.config.lockfile_include_resolution_settings
+        let config = self.install.context.config;
+        config.lockfile_include_resolution_settings
+            && !config.ignore_pnpmfile
             && self.lockfiles.wanted.loaded.is_some_and(|lockfile| {
                 lockfile.settings
                     .as_ref()
