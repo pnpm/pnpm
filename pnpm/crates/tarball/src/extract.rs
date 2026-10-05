@@ -610,7 +610,7 @@ pub fn read_buffered_tar_entry(
             format!(
                 "tar entry {} is {size} bytes, which exceeds the {}-byte buffered entry limit",
                 entry.path()?.display(),
-                crate::MAX_TARBALL_METADATA_BYTES
+                crate::MAX_TARBALL_METADATA_BYTES,
             ),
         ));
     }
