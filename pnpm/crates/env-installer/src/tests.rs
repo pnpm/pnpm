@@ -144,6 +144,16 @@ fn options<'a>(
     frozen: bool,
 ) -> ConfigDepsInstallOptions<'a> {
     ConfigDepsInstallOptions {
+        resolution_verifiers: pnpm_package_manager::build_resolution_verifiers(
+            &pnpm_config::Config { registry: harness.registry_url.clone(), ..Default::default() },
+            Arc::new(ThrottledClient::default()),
+            None,
+            Some(Arc::new(AuthHeaders::default())),
+            None,
+            None,
+            None,
+        )
+        .unwrap(),
         fetching: pnpm_tarball::ArchiveFetchOptions {
             http_client: &harness.http_client,
             auth_headers: &harness.auth_headers,

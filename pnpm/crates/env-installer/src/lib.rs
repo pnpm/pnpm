@@ -35,3 +35,5 @@ mod verify_env_lockfile;
 
 #[cfg(test)]
 mod tests;
+
+mod verify_config_dep_resolutions;

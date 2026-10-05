@@ -15,11 +15,13 @@ import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDe
 import { parseIntegrity } from './parseIntegrity.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { createConfigDepsVerifier } from './verifyConfigDepResolutions.js'
 import { assertValidMigratedConfigDep } from './verifyEnvLockfile.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
+  minimumReleaseAgeIgnoreMissingTime?: boolean
   configByUri?: Record<string, RegistryConfig>
 }
 
@@ -35,6 +37,7 @@ export async function resolveAndInstallConfigDeps (
   configDeps: ConfigDependencies,
   opts: ResolveAndInstallConfigDepsOpts
 ): Promise<void> {
+  const verify = createConfigDepsVerifier(configDeps, opts)
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
   const { depsToResolve, lockfileChanged } = collectConfigDepsToResolve(configDeps, {
     envLockfile,
@@ -46,6 +49,7 @@ export async function resolveAndInstallConfigDeps (
   }
 
   if (depsToResolve.length === 0) {
+    await verify(envLockfile)
     if (lockfileChanged) {
       await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
     }
@@ -62,6 +66,7 @@ export async function resolveAndInstallConfigDeps (
 
   pruneEnvLockfile(envLockfile)
 
+  await verify(envLockfile)
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await installConfigDeps(envLockfile, opts)
 }

@@ -9,6 +9,8 @@ Config dependencies help you keep all the hooks, settings, patches, overrides, c
 
 If your config dependency is named following the `pnpm-plugin-*`, `@*/pnpm-plugin-*`, or `@pnpm/plugin-*` pattern, pnpm will automatically load its `pnpmfile.mjs` (falling back to `pnpmfile.cjs`) from the package root.
 
+pnpm verifies locked config dependencies against their registry before installing them or loading their hooks. Offline installs require cached registry metadata. Legacy declarations with an inline integrity checksum keep that checksum as their pin.
+
 ## How to Add a Config Dependency
 
 Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [env lockfile document](./lockfile.md)).

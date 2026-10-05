@@ -79,7 +79,7 @@ fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
             .unwrap();
         assert_failure(&output);
         let result: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
-        assert_eq!(result["verified"], if resolution == "env" { 1 } else { 0 });
+        assert_eq!(result["verified"], i32::from(resolution == "env"));
         assert_eq!(
             result["invalid"]
                 .as_array()

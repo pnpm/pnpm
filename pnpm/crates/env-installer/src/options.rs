@@ -14,6 +14,7 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 /// Long-lived network/config handles remain borrowed from the caller. Store-index
 /// handles are shared so tarball materialization can read and persist cache rows.
 pub struct ConfigDepsInstallOptions<'a> {
+    pub resolution_verifiers: Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>,
     pub fetching: pnpm_tarball::ArchiveFetchOptions<'a>,
     pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
     pub store: crate::ConfigDependencyStore,

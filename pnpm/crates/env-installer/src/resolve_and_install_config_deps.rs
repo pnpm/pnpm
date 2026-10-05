@@ -16,6 +16,7 @@ use crate::{
     parse_integrity::parse_integrity,
     prune::prune_env_lockfile,
     resolve_optional_subdeps::resolve_optional_subdeps,
+    verify_config_dep_resolutions::verify_config_dep_resolutions,
     verify_env_lockfile::{assert_valid_migrated_config_dep, write_verified_env_lockfile},
 };
 use pnpm_lockfile::{
@@ -66,6 +67,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     }
 
     if to_resolve.is_empty() && !lockfile_changed {
+        verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;
     }
 
@@ -77,6 +79,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     // Removal, migration and resolution can each orphan packages and
     // snapshots; drop them before writing.
     prune_env_lockfile(&mut env_lockfile);
+    verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
     write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
     install_config_deps::<Reporter>(&env_lockfile, opts).await
 }

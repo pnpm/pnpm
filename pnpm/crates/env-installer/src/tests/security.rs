@@ -82,3 +82,112 @@ async fn rejects_optional_subdep_with_path_traversal_version() {
     assert!(!contains_entry_named(root.path(), "PWNED"));
     assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED"));
 }
+
+#[tokio::test]
+async fn rejects_config_lockfile_redirect_before_installing() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+    let config_deps = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"))]);
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    let mut env = EnvLockfile::read(root.path()).unwrap().unwrap();
+    let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    env.packages.get_mut(&key).unwrap().resolution =
+        pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+            tarball: format!("{}unapproved.tgz", harness.registry_url),
+            integrity: Some("sha512-ZGVm".parse().unwrap()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        });
+    env.write(root.path()).unwrap();
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), true),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("Configuration dependency"))
+    );
+}
+
+#[tokio::test]
+async fn rejects_config_lockfile_replacing_declared_integrity_pin() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+    let config_deps = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"))]);
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    let mut env = EnvLockfile::read(root.path()).unwrap().unwrap();
+    let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    env.packages.get_mut(&key).unwrap().resolution =
+        pnpm_lockfile::LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+            tarball: "https://unapproved.example/config.tgz".to_string(),
+            integrity: Some("sha512-ZGVm".parse().unwrap()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        });
+    env.write(root.path()).unwrap();
+    let pinned = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0+sha512-YWJj"))]);
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &pinned,
+        &resolver,
+        &options(&harness, root.path(), true),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity"))
+    );
+}
+
+#[tokio::test]
+async fn rejects_replacing_integrity_pinned_config_version() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+    let config_deps = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"))]);
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    let mut env = EnvLockfile::read(root.path()).unwrap().unwrap();
+    env.root_importer_mut().config_dependencies
+        .get_mut("@pnpm.e2e/foo")
+        .unwrap()
+        .version = "200.0.0".to_string();
+    let old_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let new_key: PackageKey = "@pnpm.e2e/foo@200.0.0".parse().unwrap();
+    let metadata = env.packages.remove(&old_key).unwrap();
+    env.packages.insert(new_key, metadata);
+    env.write(root.path()).unwrap();
+    let pinned = BTreeMap::from([("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0+sha512-YWJj"))]);
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &pinned,
+        &resolver,
+        &options(&harness, root.path(), true),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity"))
+    );
+}
