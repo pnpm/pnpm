@@ -165,7 +165,7 @@ fn isolated_hoist_options_merge_per_field_and_reset_explicit_values() {
     let value = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
     assert_eq!(
         value["nodeLinker"],
-        json!({"type":"isolated", "hoist":{"public":[], "private":["*"]}})
+        json!({"type":"isolated", "hoist":{"public":[], "private":["*"]}}),
     );
 }
 
@@ -268,7 +268,7 @@ fn resolved_hook_linker_shape_preserves_scalar_and_object_selection() {
         let config = Config { node_linker: linker, ..Config::default() };
         assert_eq!(
             serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap()["nodeLinker"],
-            serde_json::to_value(linker).unwrap()
+            serde_json::to_value(linker).unwrap(),
         );
     }
     for (value, expected) in [
@@ -286,7 +286,7 @@ fn resolved_hook_linker_shape_preserves_scalar_and_object_selection() {
         settings.apply_to(&mut config, Path::new("."));
         assert_eq!(
             serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap()["nodeLinker"],
-            expected
+            expected,
         );
     }
 }
