@@ -148,6 +148,7 @@ pub struct HoistedLinkGraph<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildPhaseGraph<'a> {
+    pub loaded_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,

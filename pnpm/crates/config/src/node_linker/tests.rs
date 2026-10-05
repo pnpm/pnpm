@@ -104,3 +104,32 @@ fn environment_accepts_loaded_object_and_reset_clears_exclusions() {
     assert_eq!(config.node_linker, defaults.node_linker);
     assert!(config.node_linker_excluded.is_empty());
 }
+
+#[test]
+fn switching_loaded_linker_restores_layout_defaults_and_preserves_explicit_settings() {
+    for explicit in [false, true] {
+        let original =
+            Path::new("/project").join(if explicit { "custom-modules" } else { "node_modules" });
+        let mut config = Config {
+            modules_dir: original.clone(),
+            enable_global_virtual_store: explicit,
+            ..Config::default()
+        };
+        if explicit {
+            config.explicit_settings.insert("modulesDir".into(), json!("custom-modules"));
+            config.explicit_settings.insert("enableGlobalVirtualStore".into(), json!(true));
+        }
+        config.node_linker = NodeLinker::Loaded;
+        config.apply_global_virtual_store_derivation(false, false);
+        assert!(config.enable_global_virtual_store);
+        assert_eq!(
+            config.modules_dir,
+            if explicit { original.clone() } else { Path::new("/project").join(".pnpm") },
+        );
+        config.node_linker = NodeLinker::Isolated;
+        config.apply_global_virtual_store_derivation(false, false);
+        assert_eq!(config.modules_dir, original);
+        assert_eq!(config.enable_global_virtual_store, explicit);
+        assert_eq!(config.install_state_dir, original.join(".pnpm"));
+    }
+}

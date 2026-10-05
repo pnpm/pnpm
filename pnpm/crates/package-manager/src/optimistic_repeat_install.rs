@@ -35,9 +35,10 @@ pub(crate) use settings::{
     recorded_supported_architectures_match, settings_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,
-    manifest_drift_reference_ms, modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms,
-    validation_baseline_ms, wanted_lockfile_mtime,
+    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms,
+    filesystem_now_ms_in_modules, lockfile_modified_since, manifest_drift_reference_ms,
+    modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms, validation_baseline_ms,
+    wanted_lockfile_mtime,
 };
 
 mod current_lockfile;
@@ -73,7 +74,7 @@ use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace_state::{
     NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
-    WorkspaceState, WorkspaceStateSettings, load_workspace_state, update_workspace_state,
+    WorkspaceState, WorkspaceStateSettings, load_workspace_state,
 };
 
 /// Outcome of [`check_optimistic_repeat_install`].

@@ -5,16 +5,41 @@ use std::{collections::HashMap, path::Path};
 
 impl Config {
     pub(super) fn apply_cas_layout(&mut self) {
-        if self.node_linker != NodeLinker::Loaded {
-            return;
-        }
-        self.enable_global_virtual_store = true;
-        if !self.explicit_settings.contains_key("modulesDir")
-            && self.modules_dir
-                .file_name()
-                .is_some_and(|name| name == "node_modules")
+        if self.node_linker == NodeLinker::Loaded {
+            self.loaded_layout_defaults.get_or_insert_with(|| {
+                (self.modules_dir.clone(), self.enable_global_virtual_store)
+            });
+            self.enable_global_virtual_store = true;
+            if !self.explicit_settings.contains_key("modulesDir") {
+                self.modules_dir.set_file_name(".pnpm");
+            }
+        } else if let Some((modules_dir, global_store)) = self
+            .loaded_layout_defaults
+            .take()
         {
-            self.modules_dir.set_file_name(".pnpm");
+            if !self.explicit_settings.contains_key("modulesDir") {
+                self.modules_dir = modules_dir;
+                if self.modules_dir
+                    .file_name()
+                    .is_some_and(|name| name == ".pnpm")
+                {
+                    self.modules_dir.set_file_name("node_modules");
+                }
+            }
+            self.enable_global_virtual_store = self.explicit_settings
+                .get("enableGlobalVirtualStore")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(global_store);
+        }
+        self.follow_modules_dir_with_install_state_dir();
+    }
+
+    #[must_use]
+    pub fn workspace_state_modules_dir(&self, root: &Path) -> std::path::PathBuf {
+        if self.node_linker == NodeLinker::Loaded {
+            self.modules_dir.clone()
+        } else {
+            root.join("node_modules")
         }
     }
 

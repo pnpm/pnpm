@@ -324,6 +324,14 @@ pub(super) fn fresh_install_context<'b>(
     allow_build_policy: &'b AllowBuildPolicy,
 ) -> pnpm_deps_restorer::InstallContext<'b> {
     pnpm_deps_restorer::InstallContext {
+        caches: pnpm_deps_restorer::InstallCaches {
+            materialized_graph: std::sync::Arc::default(),
+
+            logged_methods: install.drivers.logged_methods,
+            git_source_cache: &caches.git_source_cache,
+            dir_clone_cache,
+        },
+
         linker: pnpm_deps_restorer::ModuleLinkerContext {
             layout,
             kind: install.execution.node_linker,
@@ -334,9 +342,5 @@ pub(super) fn fresh_install_context<'b>(
         requester: install.projects.requester,
 
         allow_build_policy,
-
-        logged_methods: install.drivers.logged_methods,
-        git_source_cache: &caches.git_source_cache,
-        dir_clone_cache,
     }
 }

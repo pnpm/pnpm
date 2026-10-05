@@ -117,6 +117,7 @@ export function within (root, filename) {
 }
 
 function virtualFilesystem ({ files, directories, virtualRoot }) {
+  const jsonCache = new Map()
   function statSync (filename) {
     const normalized = path.resolve(filename)
     if (!within(virtualRoot, normalized)) return fs.statSync(filename)
@@ -140,8 +141,12 @@ function virtualFilesystem ({ files, directories, virtualRoot }) {
     return encoding ? source.toString(encoding) : source
   }
   function readJsonSync (filename) {
+    const normalized = path.resolve(filename)
+    if (jsonCache.has(normalized)) return jsonCache.get(normalized)
     const source = readFileSync(filename, 'utf8')
-    return JSON.parse(source.charCodeAt(0) === 0xFEFF ? source.slice(1) : source)
+    const parsed = JSON.parse(source.charCodeAt(0) === 0xFEFF ? source.slice(1) : source)
+    if (within(virtualRoot, normalized)) jsonCache.set(normalized, parsed)
+    return parsed
   }
   return { statSync, readFileSync, readJsonSync }
 }

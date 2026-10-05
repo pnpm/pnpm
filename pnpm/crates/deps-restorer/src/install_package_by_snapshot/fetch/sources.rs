@@ -113,7 +113,7 @@ impl InstallPackageBySnapshot<'_> {
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
             scripts: prepare_script_options(config, exec_scripts_prepend_node_path(config)),
             source: pnpm_git_fetcher::GitSource {
-                cache: self.ctx.git_source_cache,
+                cache: self.ctx.caches.git_source_cache,
                 repo: &git_resolution.repo,
                 commit: &git_resolution.commit,
                 path: git_resolution.path.as_deref(),

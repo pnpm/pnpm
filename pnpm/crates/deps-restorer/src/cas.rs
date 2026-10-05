@@ -45,10 +45,9 @@ fn build_manifest(
 ) -> io::Result<StoreManifest> {
     let config = inputs.ctx.config;
     let lockfile = inputs.graph.lockfile;
-    let selected = crate::create_virtual_store::cas::materialized_snapshots(
-        config,
-        lockfile.snapshots.as_ref(),
-    );
+    let selected = inputs.ctx
+        .select_loaded_snapshots(inputs.graph.lockfile.snapshots.as_ref())
+        .expect("loaded linker selection");
     let base = Url::from_directory_path(&config.modules_dir)
         .map_err(|()| io::Error::other("CAS modules directory must be absolute"))?;
     let snapshots: std::collections::HashMap<_, _> = lockfile.snapshots

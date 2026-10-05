@@ -17,7 +17,7 @@ use super::{
 use crate::{
     install::state_options::RecordedWorkspace, optimistic_repeat_install::recorded_elsewhere,
 };
-use pnpm_workspace_state::load_workspace_state;
+use pnpm_workspace_state::load_workspace_state_in_modules;
 
 pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
@@ -70,7 +70,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
-    let recorded_state = load_workspace_state(inputs.tree.workspace_root).ok().flatten();
+    let recorded_state = load_recorded_workspace_state(&inputs);
     let recorded = recorded_workspace(
         recorded_state.as_ref(),
         modules_manifest.is_some() || inputs.lockfiles.current.is_some(),
@@ -297,4 +297,11 @@ fn modules_layout_drifted(
             .unwrap_or(true);
     };
     !modules_layout_consistent_with(modules, config, node_linker)
+}
+
+fn load_recorded_workspace_state(
+    inputs: &PrepareModulesStateInputs<'_, '_>,
+) -> Option<pnpm_workspace_state::WorkspaceState> {
+    let modules_dir = inputs.tree.config.workspace_state_modules_dir(inputs.tree.workspace_root);
+    load_workspace_state_in_modules(&modules_dir).ok().flatten()
 }

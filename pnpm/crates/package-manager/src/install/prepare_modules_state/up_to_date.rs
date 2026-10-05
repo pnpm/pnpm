@@ -270,7 +270,11 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         context.tree.config,
         context.carried_state.recorded_auto_dedupe,
     );
-    update_workspace_state_or_warn::<Reporter>(context.tree.workspace_root, &state);
+    update_workspace_state_or_warn::<Reporter>(
+        context.tree.workspace_root,
+        &state,
+        context.tree.config,
+    );
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

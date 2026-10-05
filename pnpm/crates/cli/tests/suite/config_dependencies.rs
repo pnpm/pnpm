@@ -807,3 +807,29 @@ fn set_config_dependencies(workspace: &Path, config_deps: &str) {
     fs::write(&yaml_path, format!("{base}\nconfigDependencies:\n  {config_deps}\n"))
         .expect("write pnpm-workspace.yaml");
 }
+
+#[test]
+fn update_config_hook_switches_loaded_linker_back_to_isolated_layout() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({"dependencies": {"@pnpm.e2e/foo": "100.0.0"}}).to_string(),
+    )
+    .unwrap();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).unwrap();
+    yaml.push_str("nodeLinker:\n  type: loaded\n");
+    fs::write(yaml_path, yaml).unwrap();
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = { hooks: { updateConfig(config) { config.nodeLinker = 'isolated'; return config } } }").unwrap();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/foo/package.json").is_file());
+    assert!(!workspace.join(".pnpm/.modules.yaml").exists());
+    let modules = fs::read_to_string(workspace.join("node_modules/.modules.yaml")).unwrap();
+    assert!(!modules.contains("enableGlobalVirtualStore: true"));
+    drop((root, mock_instance));
+}

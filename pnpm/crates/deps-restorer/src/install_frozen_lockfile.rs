@@ -331,6 +331,13 @@ impl<'a> InstallFrozenLockfile<'a> {
         verification_override: Option<LockfileVerificationOverride<'_>>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         let ctx = crate::InstallContext {
+            caches: crate::InstallCaches {
+                logged_methods: self.logged_methods,
+                git_source_cache: &plan.git_source_cache,
+                materialized_graph: std::sync::Arc::default(),
+                dir_clone_cache: plan.dir_clone_cache.as_ref(),
+            },
+
             linker: crate::ModuleLinkerContext {
                 layout: &plan.layout,
                 kind: self.platform.node_linker,
@@ -341,10 +348,6 @@ impl<'a> InstallFrozenLockfile<'a> {
             requester: self.projects.requester,
 
             allow_build_policy,
-
-            logged_methods: self.logged_methods,
-            git_source_cache: &plan.git_source_cache,
-            dir_clone_cache: plan.dir_clone_cache.as_ref(),
         };
 
         // Spawn the batched store-index writer here so it lives

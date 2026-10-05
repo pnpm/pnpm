@@ -83,6 +83,7 @@ fn create_config(
         symlink: false,
         install_state_dir: virtual_store_dir.to_path_buf(),
         configured_virtual_store_dir: None,
+        loaded_layout_defaults: None,
         enable_global_virtual_store: false,
         global_shims: Default::default(),
         virtual_store_only: false,

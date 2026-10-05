@@ -456,10 +456,10 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                     host_node: inputs.host_node,
                     supported_architectures: inputs.supported_architectures,
                     materialization: crate::HoistedMaterialization {
-                        logged_methods: inputs.ctx.logged_methods,
+                        logged_methods: inputs.ctx.caches.logged_methods,
                         requester: inputs.ctx.requester,
                         requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
-                        dir_clone_cache: inputs.ctx.dir_clone_cache,
+                        dir_clone_cache: inputs.ctx.caches.dir_clone_cache,
                     },
                 },
                 skipped,

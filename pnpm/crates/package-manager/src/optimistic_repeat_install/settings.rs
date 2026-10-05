@@ -210,7 +210,12 @@ impl SettingsComparison<'_> {
             "minimumReleaseAgeStrict",
             recorded.minimum_release_age_strict != live.minimum_release_age_strict,
         );
-        return_drift_if!(self, "nodeLinker", recorded.node_linker != live.node_linker);
+        return_drift_if!(
+            self,
+            "nodeLinker",
+            recorded.node_linker != live.node_linker
+                || recorded.node_linker_excluded != live.node_linker_excluded
+        );
         return_drift_if!(self, "optional", recorded.optional != live.optional);
         return_drift_if!(self, "overrides", recorded.overrides != live.overrides);
         let package_extensions_drift = !package_extensions_match(
@@ -352,6 +357,9 @@ pub(crate) fn current_settings(
             config.link_workspace_packages,
         )),
         node_linker: Some(map_node_linker(node_linker)),
+        node_linker_excluded: (node_linker == NodeLinker::Loaded).then(|| {
+            config.node_linker_excluded.clone()
+        }),
         optional: Some(included.optional_dependencies),
         overrides: recorded_overrides(config),
         package_extensions: config.package_extensions

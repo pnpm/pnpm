@@ -18,7 +18,9 @@ impl CreateVirtualStore<'_> {
         self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         validate_config(self.ctx.config)?;
-        let selected = materialized_snapshots(self.ctx.config, self.entries.snapshots);
+        let selected = self.ctx
+            .select_loaded_snapshots(self.entries.snapshots)
+            .expect("loaded linker selection");
         let fetch_context = crate::InstallContext {
             linker: crate::ModuleLinkerContext { kind: NodeLinker::Hoisted, ..self.ctx.linker },
             ..self.ctx.clone()
@@ -29,9 +31,9 @@ impl CreateVirtualStore<'_> {
         };
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
         let fetched = installer.run_inner::<Report>().await?;
-        validate_cas_builds(&fetched, &selected, installer.ctx.config)?;
+        validate_cas_builds(&fetched, selected, installer.ctx.config)?;
         installer.ctx = &materialize_context;
-        installer.entries.snapshots = (!selected.is_empty()).then_some(&selected);
+        installer.entries.snapshots = (!selected.is_empty()).then_some(selected);
         let mut materialized = installer.run_inner::<Report>().await?;
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
         materialized.package_manifests.extend(fetched.package_manifests);

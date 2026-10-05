@@ -3,7 +3,7 @@ use pnpm_cmd_shim::{
     Host, PackageBinSource, get_bins_from_package_manifest, link_bins_of_packages,
 };
 use sha2::{Digest, Sha256};
-use std::{io, path::Path, sync::Arc};
+use std::{collections::HashMap, io, path::Path, sync::Arc};
 use url::Url;
 
 pub(super) struct BinInstall<'a> {
@@ -13,12 +13,16 @@ pub(super) struct BinInstall<'a> {
 }
 
 pub(super) fn write_bins(inputs: &BinInstall<'_>, manifest: &StoreManifest) -> io::Result<()> {
+    let mut cached = HashMap::new();
     for importer in inputs.importers.keys() {
         let Some(project) = manifest.packages.get(importer) else { continue };
         let mut sources = Vec::new();
         for id in project.dependencies.values() {
-            if let Some(source) = bin_source(inputs, manifest, id)? {
-                sources.push(source);
+            if !cached.contains_key(id) {
+                cached.insert(id.clone(), bin_source(inputs, manifest, id)?);
+            }
+            if let Some(source) = cached.get(id).and_then(Option::as_ref) {
+                sources.push(source.clone());
             }
         }
         let directory = inputs.root
@@ -72,7 +76,7 @@ fn write_entry(root: &Path, path: &Path, target: &Path) -> io::Result<()> {
     let target = serde_json::to_string(target)?;
     let loader = serde_json::to_string(&loader)?;
     let source = format!(
-        "#!/usr/bin/env node\nimport {loader};\nimport {{ runMain }} from 'node:module';\nprocess.argv[1] = {target};\nprocess.env.NODE_OPTIONS = (process.env.NODE_OPTIONS ?? '') + ' --import=' + JSON.stringify({loader});\nrunMain({target});\n",
+        "#!/usr/bin/env node\nimport {loader};\nimport {{ runMain }} from 'node:module';\nprocess.argv[1] = {target};\nconst option = '--import=' + {loader};\nconst previous = process.env.NODE_OPTIONS ?? '';\nif (!previous.split(/\\s+/).includes(option)) process.env.NODE_OPTIONS = (previous + ' ' + option).trim();\nrunMain({target});\n",
     );
     write_file(path, source.as_bytes())
 }

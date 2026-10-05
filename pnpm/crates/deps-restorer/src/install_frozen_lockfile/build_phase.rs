@@ -212,15 +212,17 @@ fn finish_cas_bin_links(
     bin_state: &crate::build_options::BuildBinState,
 ) -> Result<(), BuildPhaseError> {
     let config = inputs.policy.config;
-    let selected =
-        crate::create_virtual_store::cas::materialized_snapshots(config, inputs.graph.snapshots);
+    let selected = inputs.graph.loaded_snapshots.expect("loaded linker selection");
     let native_inputs = BuildPhaseInputs {
-        graph: crate::BuildPhaseGraph { snapshots: Some(&selected), ..inputs.graph },
+        graph: crate::BuildPhaseGraph { snapshots: Some(selected), ..inputs.graph },
         ..*inputs
     };
     finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;
-    crate::cas::refresh_bins(config, inputs.directories.workspace_root, inputs.graph.importers)
-        .map_err(BuildPhaseError::CasBins)
+    if build_output.mutated_slots {
+        crate::cas::refresh_bins(config, inputs.directories.workspace_root, inputs.graph.importers)
+            .map_err(BuildPhaseError::CasBins)?;
+    }
+    Ok(())
 }
 
 fn finish_dependency_bin_links(

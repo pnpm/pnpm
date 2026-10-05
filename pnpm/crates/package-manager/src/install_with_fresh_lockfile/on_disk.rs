@@ -240,6 +240,22 @@ impl<'a> OnDiskInputs<'a> {
         }));
         Ok(linked)
     }
+    fn build_graph<'b>(
+        &'b self,
+        materialized: &'b CreateVirtualStoreOutput,
+        linked: &'b pnpm_deps_restorer::linking::LinkPhaseOutput,
+    ) -> pnpm_deps_restorer::BuildPhaseGraph<'b> {
+        pnpm_deps_restorer::BuildPhaseGraph {
+            loaded_snapshots: self.ctx.select_loaded_snapshots(
+                self.projects.materialization_lockfile.snapshots.as_ref(),
+            ),
+            snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
+            packages: self.projects.materialization_lockfile.packages.as_ref(),
+            importers: &self.projects.materialization_lockfile.importers,
+            dependency_groups: self.install.projects.dependency_groups,
+            materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
+        }
+    }
 
     /// Run lifecycle scripts, report ignored builds, and re-link top-level
     /// bins: the build phase the frozen path runs, so `pacquet add esbuild`
@@ -253,14 +269,17 @@ impl<'a> OnDiskInputs<'a> {
     /// the writer task starts winding down while the caller finishes. The
     /// install driver awaits it as `store_index_teardown`.
     async fn build<Reporter: self::Reporter + 'static>(
-        self,
+        mut self,
         materialized: &CreateVirtualStoreOutput,
         linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
         skipped: &SkippedSnapshots,
     ) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
         let top_level_bin_root = self.symlink_root();
-        let engine_name =
-            settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name).await;
+        let engine_name = settle_engine_name(
+            self.runtime.deferred_engine_name.take(),
+            self.runtime.engine_name.take(),
+        )
+        .await;
         let extra_env =
             build_extra_env(self.ctx.config, self.ctx.linker.kind, self.ctx.workspace_root);
         publish_deps_requiring_build(
@@ -274,15 +293,7 @@ impl<'a> OnDiskInputs<'a> {
                     &self.store.store_index_writer,
                 ),
                 directories: build_directories(self.ctx, linked, top_level_bin_root),
-                graph: pnpm_deps_restorer::BuildPhaseGraph {
-                    snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
-                    packages: self.projects.materialization_lockfile.packages.as_ref(),
-                    importers: &self.projects.materialization_lockfile.importers,
-                    dependency_groups: self.install.projects.dependency_groups,
-                    materialized_snapshots: linked.build_snapshots(
-                        &materialized.materialized_snapshots,
-                    ),
-                },
+                graph: self.build_graph(materialized, linked),
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
                     patch_groups: self.patched_dependencies,
@@ -458,7 +469,7 @@ fn build_directories<'a>(
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),
         publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
-        logged_methods: ctx.logged_methods,
+        logged_methods: ctx.caches.logged_methods,
         link_options: ctx.linker.bin_options,
     }
 }

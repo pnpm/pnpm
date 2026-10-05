@@ -96,7 +96,16 @@ fn deps_status_from_state(
     inputs: &GateInputs<'_>,
     selected_project_dirs: &[&Path],
 ) -> Option<crate::RunDepsStatus> {
-    match pnpm_workspace_state::load_workspace_state(inputs.lockfile_root) {
+    if inputs.config.node_linker == pnpm_config::NodeLinker::Loaded
+        && [pnpm_config::CAS_MANIFEST_FILENAME, pnpm_config::CAS_LOADER_FILENAME]
+            .iter()
+            .any(|filename| !inputs.lockfile_root.join(filename).is_file())
+    {
+        return cannot_check_deps();
+    }
+    match pnpm_workspace_state::load_workspace_state_in_modules(
+        &inputs.config.workspace_state_modules_dir(inputs.lockfile_root),
+    ) {
         Ok(Some(workspace_state)) => check_discovered_deps(
             inputs.config,
             inputs.manifest,

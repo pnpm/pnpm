@@ -65,6 +65,7 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
             link_options: &LinkBinsOptions::default(),
         },
         graph: crate::BuildPhaseGraph {
+            loaded_snapshots: None,
             snapshots: Some(&snapshots),
             packages: Some(&packages),
             importers: &HashMap::new(),
@@ -140,6 +141,7 @@ async fn directory_peer_bin_is_considered_without_lockfile_has_bin() {
             link_options: &LinkBinsOptions::default(),
         },
         graph: crate::BuildPhaseGraph {
+            loaded_snapshots: None,
             snapshots: Some(&snapshots),
             packages: Some(&packages),
             importers: &HashMap::new(),
@@ -251,6 +253,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
             link_options: &LinkBinsOptions::default(),
         },
         graph: crate::BuildPhaseGraph {
+            loaded_snapshots: None,
             snapshots: None,
             packages: None,
             importers: &importers,

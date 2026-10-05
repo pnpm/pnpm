@@ -93,6 +93,7 @@ function moduleFormat (filename, store, manifests) {
     throw loaderError('ERR_PNPM_LOADER_UNSUPPORTED_FORMAT', `Cannot load ${extension || 'extensionless'} store file: ${filename}`)
   }
   const owner = store.owner(filename)
+  if (!owner) throw loaderError('ENOENT', `No package in store manifest: ${filename}`)
   for (let directory = path.dirname(filename); within(owner.root, directory); directory = path.dirname(directory)) {
     const manifestPath = path.join(directory, 'package.json')
     if (!store.files.has(manifestPath)) continue

@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 
+import { createStoreHooks } from '../index.mjs'
+import { openStore } from '../store.mjs'
 import { fixture } from './fixture.mjs'
 
 
@@ -307,4 +310,29 @@ test('runs a stored extensionless CommonJS bin as the main module', context => {
   setup.manifest.packages['.'].dependencies.bin = 'bin@1'
   const output = setup.run("import { createRequire, runMain } from 'node:module'; runMain(createRequire(import.meta.url).resolve('bin'))")
   assert.equal(output.stdout.trim(), 'main bin')
+})
+
+test('unknown virtual package paths produce a loader ENOENT error', context => {
+  const setup = fixture(context)
+  delete setup.manifest.packages['.']
+  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
+  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  assert.throws(() => hooks.load(pathToFileURL(path.join(setup.root, '.pnpm-loader/unknown/index.js')).href, { conditions: [] }, () => assert.fail()), { code: 'ENOENT' })
+})
+
+test('caches verified virtual JSON without caching mutable workspace manifests', context => {
+  const setup = fixture(context)
+  const files = setup.add('example@1', { 'package.json': esm })
+  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
+  setup.write('package.json', '{"name":"before"}')
+  const store = openStore(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  const virtual = path.join(store.packages.get('example@1').root, 'package.json')
+  assert.equal(store.filesystem.readJsonSync(virtual).name, 'example')
+  const hash = files['package.json']
+  fs.rmSync(path.join(setup.root, 'store/files', hash.slice(0, 2), hash.slice(2)))
+  assert.equal(store.filesystem.readJsonSync(virtual).name, 'example')
+  const workspaceManifest = path.join(setup.root, 'package.json')
+  assert.equal(store.filesystem.readJsonSync(workspaceManifest).name, 'before')
+  setup.write('package.json', '{"name":"after"}')
+  assert.equal(store.filesystem.readJsonSync(workspaceManifest).name, 'after')
 })

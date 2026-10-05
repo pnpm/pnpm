@@ -325,6 +325,9 @@ pub struct Config {
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 
+    /// Layout defaults restored when a hook switches away from the loaded linker.
+    pub loaded_layout_defaults: Option<(PathBuf, bool)>,
+
     /// The shared package store used when [`Self::enable_global_virtual_store`]
     /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from
     /// `globalVirtualStoreDir`, `virtualStoreDir`, or `<store_dir>/links`.

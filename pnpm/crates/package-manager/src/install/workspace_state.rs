@@ -21,7 +21,7 @@ use super::{
 };
 use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
 use pnpm_reporter::Reporter;
-use pnpm_workspace_state::update_workspace_state;
+use pnpm_workspace_state::update_workspace_state_in_modules;
 
 /// Persist `.pnpm-workspace-state-v1.json`, warning instead of failing
 /// the command when the write is lost.
@@ -33,11 +33,10 @@ use pnpm_workspace_state::update_workspace_state;
 pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
     workspace_root: &Path,
     state: &WorkspaceState,
+    config: &Config,
 ) {
-    if state.settings.node_linker == Some(pnpm_workspace_state::NodeLinker::Loaded) {
-        return;
-    }
-    if let Err(error) = update_workspace_state(workspace_root, state) {
+    let modules_dir = config.workspace_state_modules_dir(workspace_root);
+    if let Err(error) = update_workspace_state_in_modules(&modules_dir, state) {
         tracing::warn!(
             target: "pacquet::install",
             ?error,
