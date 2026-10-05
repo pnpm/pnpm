@@ -72,6 +72,20 @@ fn specified_scripts_supports_ecmascript_lookaround() {
     );
 }
 
+/// Unflagged JavaScript matches UTF-16 code units, so `.` does not
+/// cover a character outside the Basic Multilingual Plane.
+#[test]
+fn specified_scripts_match_utf16_code_units() {
+    let manifest = json!({ "scripts": { "😀": "echo smile" } });
+    assert!(
+        ScriptSelector::new("/^.$/")
+            .unwrap()
+            .select(&manifest)
+            .is_empty()
+    );
+    assert_eq!(ScriptSelector::new("/^..$/").unwrap().select(&manifest), vec!["😀".to_string()]);
+}
+
 /// An exact hit wins over the regexp reading, so a script literally named
 /// like a regexp literal stays runnable.
 #[test]

@@ -42,7 +42,7 @@ impl<'a> ScriptSelector<'a> {
             .filter(|(script, body)| {
                 body.as_str()
                     .is_some_and(|body| !body.is_empty())
-                    && pattern.find(script).is_some()
+                    && matches_utf16_code_units(pattern, script)
             })
             .map(|(script, _)| script.clone())
             .collect()
@@ -62,6 +62,16 @@ impl<'a> ScriptSelector<'a> {
         }
         Vec::new()
     }
+}
+
+/// Match as an unflagged JavaScript `RegExp` does: over UTF-16 code
+/// units, so `.` matches one half of a surrogate pair.
+fn matches_utf16_code_units(pattern: &Regex, script: &str) -> bool {
+    let code_units: Vec<u16> = script.encode_utf16().collect();
+    pattern
+        .find_from_ucs2(&code_units, 0)
+        .next()
+        .is_some()
 }
 
 /// Compile a `/pattern/` script selector with ECMAScript syntax and
