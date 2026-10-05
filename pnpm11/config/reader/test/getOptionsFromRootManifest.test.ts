@@ -958,3 +958,30 @@ test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
+
+test.each([
+  ['httpProxy', 123, 'The "httpProxy" setting should be a string, but got number'],
+  ['httpProxy', null, 'The "httpProxy" setting should be a string, but got null'],
+  ['httpProxy', true, 'The "httpProxy" setting should be a string, but got boolean'],
+  ['httpProxy', ['http://proxy.local'], 'The "httpProxy" setting should be a string, but got array'],
+  ['httpsProxy', 123, 'The "httpsProxy" setting should be a string, but got number'],
+  ['httpsProxy', null, 'The "httpsProxy" setting should be a string, but got null'],
+  ['httpsProxy', false, 'The "httpsProxy" setting should be a string, but got boolean'],
+  ['httpsProxy', { url: 'https://proxy.local' }, 'The "httpsProxy" setting should be a string, but got object'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid httpProxy and httpsProxy', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    httpProxy: 'http://localhost:8080',
+    httpsProxy: 'https://localhost:8443',
+  })
+  expect(options.httpProxy).toBe('http://localhost:8080')
+  expect(options.httpsProxy).toBe('https://localhost:8443')
+})
