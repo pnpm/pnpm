@@ -17,7 +17,7 @@ use selection::{
 
 use super::{
     BTreeMap, HoistedDependencies, Host, InstallError, Lockfile, Materialized, Reporter,
-    build_workspace_state, update_workspace_state_or_warn,
+    build_workspace_state, recorded_auto_dedupe, update_workspace_state_or_warn,
 };
 use crate::optimistic_repeat_install::filesystem_now_ms;
 
@@ -312,9 +312,12 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
         inputs.projects.filtered_install,
         filesystem_now_ms(&inputs.projects.workspace_root),
     );
-    state.settings.auto_dedupe = (inputs.completion.config.auto_dedupe
-        && inputs.materialized.fresh_lockfile.is_some())
-    .then_some(true);
+    state.settings.auto_dedupe = recorded_auto_dedupe(
+        inputs.completion.config,
+        (inputs.completion.config.auto_dedupe
+            && inputs.materialized.fresh_lockfile.is_some())
+        .then_some(true),
+    );
     update_workspace_state_or_warn::<Reporter>(&inputs.projects.workspace_root, &state);
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 }

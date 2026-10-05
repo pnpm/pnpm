@@ -53,6 +53,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             exclude_links_from_lockfile: false,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,

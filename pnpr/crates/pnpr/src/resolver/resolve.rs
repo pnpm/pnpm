@@ -363,6 +363,7 @@ fn check_frozen_settings(
                 inject_workspace_packages: config.inject_workspace_packages,
                 peers_suffix_max_length: config.peers_suffix_max_length,
                 pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+                resolution_settings: None,
             },
         },
     )

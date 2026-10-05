@@ -368,15 +368,7 @@ pub(super) fn build_fresh_lockfile(
         graph: inputs.resolution.graph,
         catalogs: inputs.catalogs,
         time: merge_recorded_time(inputs.prior.lockfile, inputs.resolution.time),
-        settings: pnpm_lockfile::LockfileSettings {
-            auto_install_peers: config.auto_install_peers,
-            dedupe_peers: config.dedupe_peers.then_some(true),
-            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-            inject_workspace_packages: config.inject_workspace_packages,
-            peers_suffix_max_length: (config.peers_suffix_max_length
-                != pnpm_config::default_peers_suffix_max_length())
-            .then_some(config.peers_suffix_max_length),
-        },
+        settings: crate::fast_update_settings::lockfile_settings_from_config(config),
         metadata_sources: crate::PackageMetadataSources {
             registry_options_by_url: &config.registry_options_by_url,
             registry: &config.registry,

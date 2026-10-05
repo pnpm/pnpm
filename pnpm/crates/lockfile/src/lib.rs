@@ -23,6 +23,7 @@ pub use project_snapshot::*;
 pub use prune_time::*;
 pub use prune_undeclared_importer_deps::*;
 pub use resolution::*;
+pub use resolution_settings::*;
 pub use resolved_dependency::*;
 pub use save_lockfile::*;
 pub use snapshot_dep_ref::*;
@@ -53,6 +54,7 @@ mod project_snapshot;
 mod prune_time;
 mod prune_undeclared_importer_deps;
 mod resolution;
+mod resolution_settings;
 mod resolved_dependency;
 mod save_lockfile;
 mod serialize_yaml;
@@ -99,6 +101,8 @@ pub struct LockfileSettings {
     /// so existing lockfiles round-trip byte-for-byte.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peers_suffix_max_length: Option<u64>,
+    #[serde(flatten)]
+    pub resolution: ResolutionSettings,
 }
 
 /// Top-level lockfile keys pnpm itself does not define, in the order they

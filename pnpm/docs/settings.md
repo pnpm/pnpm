@@ -223,6 +223,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [frozenLockfile](./settings/store.md#frozenlockfile)
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)
+* [lockfile.includeResolutionSettings](./settings/store.md#lockfileincluderesolutionsettings)
 * [gitBranchLockfile](./settings/store.md#gitbranchlockfile)
 * [mergeGitBranchLockfilesBranchPattern](./settings/store.md#mergegitbranchlockfilesbranchpattern)
 * [peersSuffixMaxLength](./settings/store.md#peerssuffixmaxlength)

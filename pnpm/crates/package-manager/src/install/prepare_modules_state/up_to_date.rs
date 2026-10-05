@@ -266,7 +266,10 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         context.carried_state.filtered_install,
         filesystem_now_ms(context.tree.workspace_root),
     );
-    state.settings.auto_dedupe = context.carried_state.recorded_auto_dedupe;
+    state.settings.auto_dedupe = crate::install::recorded_auto_dedupe(
+        context.tree.config,
+        context.carried_state.recorded_auto_dedupe,
+    );
     update_workspace_state_or_warn::<Reporter>(context.tree.workspace_root, &state);
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(

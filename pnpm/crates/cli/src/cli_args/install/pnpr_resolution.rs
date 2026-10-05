@@ -48,6 +48,13 @@ pub(super) struct DryRunIncompatibleWithPnpr;
 #[diagnostic(code(ERR_PNPM_AUTO_DEDUPE_WITH_PNPR_SERVER))]
 struct AutoDedupeWithPnpr;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Recording resolution settings in the lockfile requires local dependency resolution. Remove pnprServer or set lockfile.includeResolutionSettings to false."
+)]
+#[diagnostic(code(ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER))]
+struct ResolutionSettingsWithPnpr;
+
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.
 ///
@@ -134,6 +141,9 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
 fn validate_pnpr_config(config: &pnpm_config::Config, frozen: bool) -> miette::Result<()> {
     if config.auto_dedupe && !frozen {
         return Err(AutoDedupeWithPnpr.into());
+    }
+    if config.lockfile_include_resolution_settings && !frozen {
+        return Err(ResolutionSettingsWithPnpr.into());
     }
     if config.frozen_store {
         return Err(FrozenStoreIncompatibleWithPnpr.into());

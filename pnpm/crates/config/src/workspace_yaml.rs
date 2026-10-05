@@ -4,10 +4,10 @@ pub use error::LoadWorkspaceYamlError;
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
-    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, SideEffectsCacheSetting,
-    SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
-    decided_allow_builds,
+    DEFAULT_PYTHON_DOWNLOAD_URL, LockfileSetting, PackageExtension, PeerDependencyMeta,
+    PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings,
+    SideEffectsCacheSetting, SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings,
+    UpdateConfig, UpdateSettings, decided_allow_builds,
 };
 pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, WorkspaceSettings};
@@ -216,7 +216,7 @@ macro_rules! identically_named_settings {
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
-            lockfile, prefer_frozen_lockfile,
+            prefer_frozen_lockfile,
             deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
             merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
             offline, prefer_offline,

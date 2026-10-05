@@ -589,6 +589,12 @@ pub struct Config {
     /// Add the full URL to the package's tarball to every entry in pnpm-lock.yaml.
     pub lockfile_include_tarball_url: bool,
 
+    /// Record `autoDedupe`, `dedupeInjectedDeps`, `dedupePeerDependents` and
+    /// `linkWorkspacePackages` in the lockfile's `settings`, so a lockfile
+    /// resolved under other values counts as outdated. The
+    /// `lockfile.includeResolutionSettings` setting.
+    pub lockfile_include_resolution_settings: bool,
+
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)

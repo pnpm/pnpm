@@ -77,6 +77,7 @@ fn single_importer_opts<'a>(
             exclude_links_from_lockfile,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
             registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
