@@ -4,4 +4,4 @@
 "@pnpm/installing.deps-installer": patch
 ---
 
-`WantedDependency.alias` is now optional, because Git, JSR, and tarball selectors have no alias until they are resolved. `getWantedDependencies` returns `ManifestWantedDependency`, whose `alias` is required. Use `hasAlias` to narrow a `WantedDependency` to it.
+`WantedDependency.alias` is now optional. `getWantedDependencies` returns `ManifestWantedDependency`, whose `alias` is required. Use `hasAlias` to narrow a `WantedDependency` to it.
