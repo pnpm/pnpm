@@ -112,7 +112,7 @@ test('a corrupt fragment behind a 304 triggers a cache-bypassing refetch that he
     fetch: async (pkgName: string, fetchOpts: CacheBypassFetchMetadataOptions) => {
       fetchCalls.push(fetchOpts)
       if (!fetchOpts.cacheBypass) return { notModified: true as const }
-      return { meta, jsonText: JSON.stringify(meta), etag: '"fresh"' }
+      return { meta, etag: '"fresh"' }
     },
     metaCache: createMetaCache(),
     cacheDir,
@@ -145,7 +145,7 @@ test('an exact-version spec over a corrupt fragment refetches instead of failing
   const ctx = {
     fetch: async (_pkgName: string, fetchOpts: FetchMetadataOptions & { cacheBypass?: boolean }) => {
       if (!fetchOpts.cacheBypass) return { notModified: true as const }
-      return { meta, jsonText: JSON.stringify(meta), etag: '"fresh"' }
+      return { meta, etag: '"fresh"' }
     },
     metaCache: createMetaCache(),
     cacheDir,
