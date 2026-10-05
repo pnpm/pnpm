@@ -173,12 +173,15 @@ impl Config {
         // labels itself with the path it was actually loaded from.
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
-        let project_source =
+        let mut project_source =
             project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
-        let auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
-        let user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
-        let env_scoped_source = env_scoped_auth_source::<Sys>();
-        let env_json_source = env_json_auth_source::<Sys>(global_settings)?;
+        let mut auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
+        let mut user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
+        let mut env_scoped_source = env_scoped_auth_source::<Sys>();
+        let env_json_source = self.keep_warnings_on_error(
+            env_json_auth_source::<Sys>(global_settings),
+            [&mut user_source, &mut auth_ini_source, &mut project_source, &mut env_scoped_source],
+        )?;
 
         // Capture the trusted sources (everything but `project_source`) for
         // [`PackageManagerBootstrap`] before the fold below consumes them.
@@ -205,6 +208,7 @@ impl Config {
         // are consumed below.
         self.raw_auth_config = std::mem::take(&mut npmrc_auth.raw_ini_config);
 
+        npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);
 
         // A `tokenHelper` names an executable, so it is honored only from a
@@ -212,6 +216,23 @@ impl Config {
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
         Ok(AuthSources { npmrc_auth, trusted_auth })
+    }
+
+    /// Move the warnings `sources` raised onto [`Config::npmrc_warnings`]
+    /// when `result` failed, since the error ends the load before the
+    /// sources are merged. `sources` go lowest priority first, the order
+    /// [`NpmrcAuth::merge_under`] keeps their warnings in.
+    fn keep_warnings_on_error(
+        &mut self,
+        result: Result<Option<NpmrcAuth>, LoadWorkspaceYamlError>,
+        sources: [&mut Option<NpmrcAuth>; 4],
+    ) -> Result<Option<NpmrcAuth>, LoadWorkspaceYamlError> {
+        if result.is_err() {
+            for source in sources.into_iter().flatten() {
+                source.move_warnings_to(self);
+            }
+        }
+        result
     }
 
     /// Resolve the user-level `.npmrc` path. Precedence: the

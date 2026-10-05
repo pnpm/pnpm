@@ -334,8 +334,9 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
         OsString::from("--version"),
     ]);
     switch.paths.dir = dir.clone();
+    let input = PreCommandInput { switch, ..pre_command_input(&dir) };
 
-    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir, false)
+    let config = load_pre_command_config(&input, &ConfigOverrides::default(), &dir, false)
         .expect("load the pre-command config");
 
     assert_eq!(
