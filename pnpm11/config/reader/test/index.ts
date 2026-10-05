@@ -62,6 +62,52 @@ test('getConfig()', async () => {
   expect(config.nodeVersion).toBeUndefined()
 })
 
+test('onlyInheritDlxSettingsFromLocal inherits nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
+    shamefullyHoist: true,
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  expect(config.nodeDownloadMirrors).toStrictEqual({ release: 'https://mirror.example/nodejs/' })
+  expect(config.shamefullyHoist).not.toBe(true)
+})
+
+test('onlyInheritDlxSettingsFromLocal does not inherit non-release nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: {
+      release: 'https://mirror.example/nodejs/',
+      nightly: 'https://mirror.example/nightly/',
+    },
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  // Only the `release` channel publishes a signed SHASUMS256.txt, so a
+  // workspace may not redirect the unsigned channels for a runtime dlx runs.
+  expect(config.nodeDownloadMirrors?.release).toBe('https://mirror.example/nodejs/')
+  expect(config.nodeDownloadMirrors?.nightly).not.toBe('https://mirror.example/nightly/')
+})
+
 const runningNodeMajor = Number(process.versions.node.split('.')[0])
 
 test.each([
