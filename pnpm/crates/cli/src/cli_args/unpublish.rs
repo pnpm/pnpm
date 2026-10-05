@@ -367,11 +367,14 @@ fn highest_version(versions: &Map<String, Value>) -> Option<String> {
 /// The tarball's pathname with the registry's own path prefix stripped, so
 /// registries mounted under a path delete the right resource.
 fn tarball_pathname(tarball_url: &str, registry_url: &str) -> miette::Result<String> {
-    let registry_path = reqwest::Url::parse(registry_url)
+    let mut registry_path = reqwest::Url::parse(registry_url)
         .map_err(|source| registry_operation_error("build registry URL", source))?
         .path()
         .trim_start_matches('/')
         .to_string();
+    if !registry_path.is_empty() && !registry_path.ends_with('/') {
+        registry_path.push('/');
+    }
     let tarball_path = reqwest::Url::parse(tarball_url)
         .map_err(|source| registry_operation_error("build tarball URL", source))?
         .path()
