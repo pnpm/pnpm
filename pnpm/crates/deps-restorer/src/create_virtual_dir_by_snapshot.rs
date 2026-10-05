@@ -286,6 +286,12 @@ impl SlotPaths {
         layout: &VirtualStoreLayout,
         package_key: &PackageKey,
     ) -> Result<Self, CreateVirtualDirError> {
+        if !layout.is_slot_contained(package_key) {
+            return Err(CreateVirtualDirError::InvalidAlias(InvalidDependencyAliasError {
+                modules: layout.package_store_dir().to_path_buf(),
+                alias: package_key.to_string(),
+            }));
+        }
         let slot_dir = layout.slot_dir(package_key);
         let node_modules = slot_dir.join("node_modules");
         // Two direct `mkdir`s instead of one `create_dir_all` on the

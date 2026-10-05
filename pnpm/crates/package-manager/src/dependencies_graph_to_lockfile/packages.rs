@@ -229,6 +229,7 @@ pub(super) fn explicit_version(
         manifest
             .and_then(|manifest| manifest.get("version"))
             .and_then(Value::as_str)
+            .filter(|version| pnpm_package_name::is_valid_package_version(version))
             .map(ToString::to_string)
     })
     .flatten()

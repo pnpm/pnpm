@@ -136,29 +136,15 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
     allow_build_policy: &'l AllowBuildPolicy,
     scope: PlanScope<'_>,
 ) -> Result<FreshPlan<'l>, InstallWithFreshLockfileError> {
-    let installability_host = installability_host(
-        install.drivers.config,
-        lockfiles.initial,
-        probe.early_host_detection,
-        (probe.node_version, install.projects.supported_architectures),
-    )
-    .await;
-    let host_node =
-        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
-    let (engine_name, deferred_engine_name) =
-        pnpm_deps_restorer::materialization_plan::resolve_engine_name(
-            install.drivers.config.enable_global_virtual_store,
-            &lockfiles.initial.importers,
-            host_node.as_ref(),
-        )
-        .await;
-    let (layout, dir_clone_cache) = lay_out_slots(
+    let (installability_host, engine_name, deferred_engine_name) =
+        resolve_host_and_engine(install, probe, lockfiles.initial).await;
+    let (layout, dir_clone_cache) = verified_fresh_layout(
         install,
-        lockfiles.initial,
+        lockfiles,
         allow_build_policy,
         engine_name.clone(),
         deferred_engine_name.as_ref(),
-    );
+    )?;
     let installability_host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
         installability_host.as_ref(),
         install.drivers.config,
@@ -173,6 +159,59 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
         scope,
     )?;
     Ok(FreshPlan { host_node, engine_name, deferred_engine_name, layout, dir_clone_cache, skipped })
+}
+
+async fn resolve_host_and_engine(
+    install: FreshInputs<'_>,
+    probe: HostProbeInputs,
+    initial: &Lockfile,
+) -> (
+    Option<pnpm_deps_restorer::InstallabilityHost>,
+    Option<String>,
+    Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
+) {
+    let installability_host = installability_host(
+        install.drivers.config,
+        initial,
+        probe.early_host_detection,
+        (probe.node_version, install.projects.supported_architectures),
+    )
+    .await;
+    let host_node =
+        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
+    let (engine_name, deferred_engine_name) =
+        pnpm_deps_restorer::materialization_plan::resolve_engine_name(
+            install.drivers.config.enable_global_virtual_store,
+            &initial.importers,
+            host_node.as_ref(),
+        )
+        .await;
+    (installability_host, engine_name, deferred_engine_name)
+}
+
+fn verified_fresh_layout<'l>(
+    install: FreshInputs<'l>,
+    lockfiles: PlanLockfiles<'l>,
+    allow_build_policy: &'l AllowBuildPolicy,
+    engine_name: Option<String>,
+    deferred_engine_name: Option<&pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
+) -> Result<
+    (VirtualStoreLayout, Option<pnpm_deps_restorer::DirCloneCache<'l>>),
+    InstallWithFreshLockfileError,
+> {
+    let (layout, dir_clone_cache) = lay_out_slots(
+        install,
+        lockfiles.initial,
+        allow_build_policy,
+        engine_name,
+        deferred_engine_name,
+    );
+    pnpm_deps_restorer::validate_virtual_store_slot_containment(
+        lockfiles.initial.snapshots.as_ref(),
+        &layout,
+    )
+    .map_err(InstallWithFreshLockfileError::LockfileVerification)?;
+    Ok((layout, dir_clone_cache))
 }
 /// Build the slot layout and the directory-clone cache over the lockfile
 /// the selected importers materialize.
