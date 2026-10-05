@@ -42,6 +42,7 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
+  noProxy?: string | boolean
   /** The lookups the `registries` setting is split into. */
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
@@ -91,6 +92,9 @@ export function getOptionsFromPnpmSettings (
   }
   if (settings.requiredScripts != null) {
     assertStringArray(settings.requiredScripts, 'requiredScripts')
+  }
+  if (Object.hasOwn(settings, 'noProxy')) {
+    assertValidNoProxy(settings.noProxy)
   }
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
@@ -420,6 +424,12 @@ function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
   return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
+}
+
+function assertValidNoProxy (noProxy: unknown): void {
+  if (typeof noProxy !== 'string' && typeof noProxy !== 'boolean') {
+    throw new PnpmError('INVALID_SETTING', `The "noProxy" setting should be a boolean or string, but got ${renderReceivedType(noProxy)}`)
+  }
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
