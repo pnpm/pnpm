@@ -16,7 +16,6 @@ use pnpm_lockfile::{
     LockfileEntries, PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry,
 };
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
-
 use pnpm_tarball::PrefetchResult;
 use std::{
     collections::{HashMap, HashSet},
