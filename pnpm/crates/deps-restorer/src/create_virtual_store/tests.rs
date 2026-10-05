@@ -14,6 +14,8 @@ mod optional_progress;
 
 mod reporting;
 
+mod loaded_prefetch;
+
 use super::CreateVirtualStore;
 use pnpm_lockfile::{
     GitResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
@@ -21,6 +23,22 @@ use pnpm_lockfile::{
 };
 use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, fs, sync::atomic::AtomicU8};
+
+thread_local! {
+    static PREFETCH_STARTS: std::cell::RefCell<Vec<Vec<String>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Called by [`super::CasPrefetch::start`]. Per thread, so a test on a
+/// current-thread runtime sees only its own prefetches.
+pub(super) fn record_prefetch_start(keys: &[String]) {
+    PREFETCH_STARTS.with_borrow_mut(|starts| starts.push(keys.to_vec()));
+}
+
+/// The store-index keys of every prefetch this thread started.
+fn take_prefetch_starts() -> Vec<Vec<String>> {
+    PREFETCH_STARTS.take()
+}
 
 fn name(text: &str) -> PkgName {
     PkgName::parse(text).expect("parse pkg name")

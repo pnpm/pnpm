@@ -1,8 +1,15 @@
-use super::{CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput};
+use super::{
+    CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput, SnapshotCacheKey,
+    cas_paths_key,
+};
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_reporter::Reporter;
-use std::collections::{HashMap, HashSet};
+use pnpm_tarball::PrefetchResult;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 impl CreateVirtualStore<'_> {
     pub async fn run<Report: Reporter>(
@@ -30,16 +37,95 @@ impl CreateVirtualStore<'_> {
             ..self.ctx.clone()
         };
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
-        let fetched = installer.run_inner::<Report>().await?;
+        let materialized_snapshots = (!selected.is_empty()).then_some(selected);
+        let (fetched, prefetch) = installer.run_retaining::<Report>(materialized_snapshots).await?;
         validate_cas_builds(&fetched, selected, installer.ctx.config)?;
         installer.ctx = &materialize_context;
-        installer.entries.snapshots = (!selected.is_empty()).then_some(selected);
+        installer.entries.snapshots = materialized_snapshots;
+        installer.fetching.cas_prefetch = prefetch;
         let mut materialized = installer.run_inner::<Report>().await?;
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
         materialized.package_manifests.extend(fetched.package_manifests);
         materialized.fetch_failed.extend(fetched.fetch_failed);
         Ok(materialized)
     }
+}
+
+/// The cache keys of `snapshots`, copied before the fetch pass's plan
+/// consumes them.
+///
+/// A key whose derivation failed is left out. The fetch pass fails on
+/// it unless the snapshot is skipped as not installable, and the
+/// materialization pass skips that snapshot too.
+pub(super) fn retained_cache_keys(
+    cache_keys: &HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+) -> HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>> {
+    snapshots
+        .keys()
+        .filter_map(|snapshot_key| {
+            let cache_key = cache_keys
+                .get(snapshot_key)?
+                .as_ref()
+                .ok()?;
+            Some((snapshot_key.clone(), Ok(cache_key.clone())))
+        })
+        .collect()
+}
+
+/// Prepare the loaded linker's fetch-pass rows for its materialization
+/// pass, which then reads neither the store index nor the CAFS files of a
+/// row the fetch pass already verified.
+///
+/// `cache_keys` are the materialization pass's snapshots. The rows are
+/// narrowed to their keys, and the packages the fetch pass downloaded
+/// join them, so the materialization pass links them as warm. A
+/// git-hosted download does not join: whether its row may be reused also
+/// depends on its recorded prepare state.
+pub(super) fn retain_fetch_pass_rows(
+    rows: &mut PrefetchResult,
+    cache_keys: &HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+    fetched: &CreateVirtualStoreOutput,
+) {
+    let row_keys: HashSet<&str> = cache_keys
+        .values()
+        .filter_map(|cache_key| {
+            cache_key
+                .as_ref()
+                .ok()?
+                .value
+                .as_deref()
+        })
+        .collect();
+    rows.retain_rows(|cache_key| row_keys.contains(cache_key));
+    let Some(downloaded) = fetched.cas_paths_by_pkg_id.as_ref() else { return };
+    for (snapshot_key, cache_key) in cache_keys {
+        let Ok(SnapshotCacheKey {
+            value: Some(cache_key),
+            is_git_hosted: false,
+        }) = cache_key
+        else {
+            continue;
+        };
+        if rows.cas_paths.contains_key(cache_key) {
+            continue;
+        }
+        if let Some(files) = immutable_download(downloaded, snapshot_key) {
+            rows.cas_paths.insert(cache_key.clone(), Arc::clone(&files.cas_paths));
+            if let Some(&requires_build) = fetched.requires_build_by_snapshot.get(snapshot_key) {
+                rows.requires_build.insert(cache_key.clone(), requires_build);
+            }
+        }
+    }
+}
+
+fn immutable_download<'a>(
+    downloaded: &'a crate::CasPathsByPkgId,
+    snapshot_key: &PackageKey,
+) -> Option<&'a crate::HoistedPackageFiles> {
+    downloaded
+        .get(&cas_paths_key(snapshot_key))
+        .filter(|files| !files.source_is_mutable && files.source_exists)
 }
 
 pub(crate) fn materialized_snapshots(
