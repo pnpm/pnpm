@@ -1,5 +1,5 @@
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use std::fs;
 
 #[test]
@@ -19,10 +19,10 @@ fn errors_when_workspace_yaml_has_unresolved_env_var_in_string_setting() {
         .expect("run pacquet");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR"), "stderr:\n{stderr}");
-    assert!(
-        stderr.contains("Failed to replace env in config: ${PNPM_TEST_NONEXISTENT_VAR_12345}"),
-        "stderr:\n{stderr}",
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR");
+    assert_diagnostic_contains(
+        &stderr,
+        "Failed to replace env in config: ${PNPM_TEST_NONEXISTENT_VAR_12345}",
     );
 }
 
@@ -43,9 +43,9 @@ fn errors_when_workspace_yaml_has_unresolved_env_var_in_typed_setting() {
         .expect("run pacquet");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR"), "stderr:\n{stderr}");
-    assert!(
-        stderr.contains("Failed to replace env in config: ${PNPM_TEST_NONEXISTENT_LINKER_12345}"),
-        "stderr:\n{stderr}",
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR");
+    assert_diagnostic_contains(
+        &stderr,
+        "Failed to replace env in config: ${PNPM_TEST_NONEXISTENT_LINKER_12345}",
     );
 }
