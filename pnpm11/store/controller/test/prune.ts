@@ -61,6 +61,21 @@ test('prune keeps old spill directories whose files were written recently', asyn
   }))
 })
 
+test('prune stops scanning a spill directory after finding a recent file', async () => {
+  const options = createPruneOptions()
+  const directory = await fs.mkdtemp(path.join(options.storeDir, 'download-'))
+  await Promise.all(['first', 'second'].map(file => fs.writeFile(path.join(directory, file), 'keep')))
+  const stat = jest.spyOn(fs, 'lstat')
+  const oldDate = new Date(Date.now() - 48 * 60 * 60_000)
+  await fs.utimes(directory, oldDate, oldDate)
+
+  await prune(options)
+
+  expect(stat).toHaveBeenCalledTimes(2)
+  expect(stat).toHaveBeenNthCalledWith(1, directory)
+  expect(await fs.readdir(directory)).toHaveLength(2)
+})
+
 test('prune removes empty stale spill directories', async () => {
   const options = createPruneOptions()
   const directory = await fs.mkdtemp(path.join(options.storeDir, 'tarball-'))

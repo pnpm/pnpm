@@ -49,9 +49,11 @@ async function removeCachedMetadata (cacheDir: string, storeDir: string): Promis
 async function removeStaleSpillDirectories (storeDir: string): Promise<void> {
   const cutoff = Date.now() - 24 * 60 * 60_000
   const directories = await getSubdirsSafely(storeDir)
-  await Promise.all(directories
-    .filter(directory => directory.startsWith('download-') || directory.startsWith('tarball-'))
-    .map(directory => removeSpillDirectoryIfStale(path.join(storeDir, directory), cutoff)))
+  for (const directory of directories) {
+    if (!directory.startsWith('download-') && !directory.startsWith('tarball-')) continue
+    // eslint-disable-next-line no-await-in-loop -- bound filesystem work across abandoned spill directories
+    await removeSpillDirectoryIfStale(path.join(storeDir, directory), cutoff)
+  }
 }
 
 async function removeSpillDirectoryIfStale (directoryPath: string, cutoff: number): Promise<void> {
@@ -66,9 +68,11 @@ async function removeSpillDirectoryIfStale (directoryPath: string, cutoff: numbe
 }
 
 async function spillFilesAreStale (directoryPath: string, cutoff: number): Promise<boolean> {
-  const files = await fs.readdir(directoryPath)
-  const stats = await Promise.all(files.map(file => fs.lstat(path.join(directoryPath, file))))
-  return stats.every(stat => stat.mtimeMs < cutoff)
+  for await (const file of await fs.opendir(directoryPath)) {
+    const stats = await fs.lstat(path.join(directoryPath, file.name))
+    if (stats.mtimeMs >= cutoff) return false
+  }
+  return true
 }
 
 async function rimrafIgnoringMissing (dir: string): Promise<void> {
