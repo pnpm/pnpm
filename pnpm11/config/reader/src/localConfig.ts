@@ -57,7 +57,11 @@ const AUTH_CFG_KEYS = [
  * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates).
  * 2. **Node.js download mirrors:** same idea for Node.js runtime tarballs when
- *    those URIs are declared in `pnpm-workspace.yaml`.
+ *    those URIs are declared in `pnpm-workspace.yaml` — but only the `release`
+ *    channel. Node publishes a signed `SHASUMS256.txt` for `release` alone, and
+ *    the resolver verifies it (`verifySignature: releaseChannel === 'release'`).
+ *    A workspace-supplied `rc`/`nightly` mirror would hand a repository both the
+ *    archive and its checksum for a runtime that `dlx` then executes.
  * 3. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
@@ -76,7 +80,7 @@ const AUTH_CFG_KEYS = [
  * | Category                       | Inherited by dlx? | Examples                                         |
  * |--------------------------------|--------------------|--------------------------------------------------|
  * | Registry & auth                | Yes                | registry, _authToken, ca                         |
- * | Node.js download mirrors       | Yes                | nodeDownloadMirrors (workspace/custom tarballs)   |
+ * | Node.js download mirrors       | `release` only     | nodeDownloadMirrors.release (signed SHASUMS)      |
  * | Security & trust policy        | Yes                | minimumReleaseAge, trustPolicy                   |
  * | Catalogs                       | Yes                | catalogs                                         |
  * | Fetch retry/timeout            | Yes                | fetchRetries, fetchTimeout                       |
@@ -84,10 +88,6 @@ const AUTH_CFG_KEYS = [
  * | Workspace settings             | No                 | link-workspace-packages, shared-workspace-lockfile|
  * | Resolution strategy            | No                 | resolution-mode, dedupe-peers                     |
  */
-const NODE_DOWNLOAD_MIRRORS_CFG_KEYS = [
-  'nodeDownloadMirrors',
-] satisfies Array<keyof Config>
-
 const SECURITY_POLICY_CFG_KEYS = [
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
@@ -130,10 +130,6 @@ function isAuthCfgKey (cfgKey: keyof Config): cfgKey is typeof AUTH_CFG_KEYS[num
   return (AUTH_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
-function isNodeDownloadMirrorsCfgKey (cfgKey: keyof Config): cfgKey is typeof NODE_DOWNLOAD_MIRRORS_CFG_KEYS[number] {
-  return (NODE_DOWNLOAD_MIRRORS_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
-}
-
 function isSecurityPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof SECURITY_POLICY_CFG_KEYS[number] {
   return (SECURITY_POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
@@ -171,7 +167,6 @@ function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   for (const key in localCfg) {
     if (
       isAuthCfgKey(key as keyof Config) ||
-      isNodeDownloadMirrorsCfgKey(key as keyof Config) ||
       isSecurityPolicyCfgKey(key as keyof Config) ||
       isCatalogsCfgKey(key as keyof Config) ||
       isFetchCfgKey(key as keyof Config)
@@ -198,6 +193,29 @@ export function inheritAuthConfig (target: InheritableConfigPair, src: Inheritab
  */
 export function inheritDlxConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
   inheritPickedConfig(target, src, pickDlxConfig, pickRawAuthConfig)
+  inheritReleaseNodeDownloadMirror(target, src)
+}
+
+/**
+ * Inherits only `nodeDownloadMirrors.release` from the local config.
+ *
+ * Node publishes a signed `SHASUMS256.txt` for the `release` channel only, and
+ * the runtime resolver verifies that signature for `release` alone. A mirror
+ * inherited for `rc` or `nightly` would let the local project choose both the
+ * archive and the checksum for a runtime that `dlx` executes, so those entries
+ * stay with whatever the user configured globally.
+ *
+ * This cannot live in `pickDlxConfig`: `inheritPickedConfig` shallow-assigns the
+ * picked keys, so returning a one-entry map there would discard the user's own
+ * mirrors for the other channels instead of leaving them alone.
+ */
+function inheritReleaseNodeDownloadMirror (target: InheritableConfigPair, src: InheritableConfigPair): void {
+  const release = src.config.nodeDownloadMirrors?.release
+  if (release == null) return
+  target.config.nodeDownloadMirrors = {
+    ...target.config.nodeDownloadMirrors,
+    release,
+  }
 }
 
 /**
