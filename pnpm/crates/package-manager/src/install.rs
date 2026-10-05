@@ -165,6 +165,7 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
             lockfile_path,
             cache_dir: Some(cache_dir),
             replaced: None,
+            repairs_lockfile: false,
         },
     )
     .await
@@ -222,6 +223,7 @@ impl LockfileVerificationGate {
         lockfile_path: Option<&Path>,
         cache_dir: &Path,
         replaced: Option<IsReplaced>,
+        repairs_lockfile: bool,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -239,6 +241,7 @@ impl LockfileVerificationGate {
                     lockfile_path: lockfile_path.as_deref(),
                     cache_dir: Some(&cache_dir),
                     replaced: replaced.as_deref().map(ReplacedEntries),
+                    repairs_lockfile,
                 },
             )
             .await

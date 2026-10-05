@@ -256,3 +256,38 @@ async fn verify_lockfile_resolutions_rejects_missing_snapshot_even_when_packages
     };
     assert_eq!(dep_path, "acme@1.0.0");
 }
+
+#[tokio::test]
+async fn a_repairing_run_verifies_the_packages_of_a_lockfile_with_a_missing_snapshot() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      acme:\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  acme@1.0.0:\n    resolution: {integrity: sha512-deadbeef}\n",
+    );
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(CapturingVerifier { seen: Arc::clone(&seen), policy: serde_json::Map::new() });
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier],
+        &VerifyLockfileResolutionsOptions { repairs_lockfile: true, ..Default::default() },
+    )
+    .await
+    .expect("the repair re-resolves the missing snapshot");
+
+    assert_eq!(seen.lock().expect("seen lock").len(), 1);
+}
+
+#[tokio::test]
+async fn a_repairing_run_still_rejects_an_invalid_dependency_name() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      '../escaped':\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions { repairs_lockfile: true, ..Default::default() },
+    )
+    .await
+    .expect_err("a traversal alias must be rejected");
+    assert!(matches!(err, VerifyError::InvalidDependencyAlias { .. }), "got {err:?}");
+}
