@@ -25,11 +25,23 @@ export interface CreateGitFetcherOptions {
 
 export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
+  return {
+    git: createGitFetcherFunction(createOpts, allowedHosts),
+  }
+}
 
-  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
-    if (!isValidCommitHash(resolution.commit)) {
-      throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${resolution.commit}" for repository "${resolution.repo}". Expected a 40-character hexadecimal SHA.`)
-    }
+function assertValidGitResolution (repo: string, commit: string): void {
+  if (!isSafeRepoArg(repo)) {
+    throw new PnpmError('INVALID_GIT_REPOSITORY', `Invalid git repository "${redactAndSanitize(repo)}". A repository must not begin with '-'.`)
+  }
+  if (!isValidCommitHash(commit)) {
+    throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${commit}" for repository "${repo}". Expected a 40-character hexadecimal SHA.`)
+  }
+}
+
+function createGitFetcherFunction (createOpts: CreateGitFetcherOptions, allowedHosts: Set<string>): GitFetcher {
+  return async (cafs, resolution, opts) => {
+    assertValidGitResolution(resolution.repo, resolution.commit)
     const tempLocation = await cafs.tempDir()
     await checkoutRepo({ allowedHosts, repo: resolution.repo, commit: resolution.commit, tempLocation, pkgName: opts.pkg?.name })
 
@@ -66,10 +78,6 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       ignoredBuild,
     }
   }
-
-  return {
-    git: gitFetcher,
-  }
 }
 
 interface CheckoutRepoOpts {
@@ -84,11 +92,11 @@ async function checkoutRepo ({ allowedHosts, repo, commit, tempLocation, pkgName
   try {
     if (allowedHosts.size > 0 && shouldUseShallow(repo, allowedHosts)) {
       await execGit(['init'], { cwd: tempLocation })
-      await execGit(['remote', 'add', 'origin', repo], { cwd: tempLocation })
+      await execGit(['remote', 'add', 'origin', '--', repo], { cwd: tempLocation })
       const env = await nonInteractiveGitEnv({ cwd: tempLocation })
       await execGit(['fetch', '--depth', '1', 'origin', commit], { cwd: tempLocation, env })
     } else {
-      await execGit(['clone', repo, tempLocation], { env: await nonInteractiveGitEnv() })
+      await execGit(['clone', '--', repo, tempLocation], { env: await nonInteractiveGitEnv() })
     }
     await execGit(['checkout', commit], { cwd: tempLocation })
     const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
@@ -162,6 +170,10 @@ function resolveFilesIndexFile ({ createOpts, ignoredBuild, opts, requiresPrepar
 
 function isValidCommitHash (commit: string): boolean {
   return /^[0-9a-f]{40}$/i.test(commit)
+}
+
+function isSafeRepoArg (repo: string): boolean {
+  return repo.length > 0 && !repo.startsWith('-') && !repo.includes('\0')
 }
 
 /**
