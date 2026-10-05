@@ -95,3 +95,52 @@ test('prepare package installs a workspace that has no lockfile with pnpm', asyn
   expect(files).toContain('pnpm-lock.yaml')
   expect(files).not.toContain('package-lock.json')
 })
+
+const symlinkType = process.platform === 'win32' ? 'junction' : 'dir'
+
+test('prepare package rejects intermediate symlink traversal pointing outside repository root', async () => {
+  const tmp = tempDir()
+  const outside = tempDir()
+  const outsideSub = path.join(outside, 'sub')
+  await fs.mkdir(outsideSub, { recursive: true })
+  await fs.writeFile(path.join(outsideSub, 'package.json'), JSON.stringify({ name: 'outside-sub', version: '1.0.0' }))
+
+  await fs.symlink(outside, path.join(tmp, 'external_link'), symlinkType)
+
+  await expect(preparePackage({ allowBuild, pkgResolutionId }, tmp, 'external_link/sub')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_PATH',
+  })
+})
+
+test('prepare package rejects symlink directly pointing outside repository root', async () => {
+  const tmp = tempDir()
+  const outside = tempDir()
+  await fs.writeFile(path.join(outside, 'package.json'), JSON.stringify({ name: 'outside', version: '1.0.0' }))
+
+  await fs.symlink(outside, path.join(tmp, 'external_dir'), symlinkType)
+
+  await expect(preparePackage({ allowBuild, pkgResolutionId }, tmp, 'external_dir')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_PATH',
+  })
+})
+
+test.each(['../outside', '..\\outside'])('prepare package rejects directory traversal with parent escape (%s)', async (subPath) => {
+  const tmp = tempDir()
+  await expect(preparePackage({ allowBuild, pkgResolutionId }, tmp, subPath)).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_PATH',
+  })
+})
+
+test('prepare package accepts internal symlink pointing within repository root', async () => {
+  const tmp = tempDir()
+  const internalSub = path.join(tmp, 'packages', 'foo')
+  await fs.mkdir(internalSub, { recursive: true })
+  await fs.writeFile(path.join(internalSub, 'package.json'), JSON.stringify({ name: 'internal-sub', version: '1.0.0' }))
+
+  await fs.symlink(path.join(tmp, 'packages', 'foo'), path.join(tmp, 'link_to_foo'), symlinkType)
+
+  const result = await preparePackage({ allowBuild, pkgResolutionId }, tmp, 'link_to_foo')
+  expect(result.pkgDir).toBe(path.join(tmp, 'link_to_foo'))
+})
+
+
