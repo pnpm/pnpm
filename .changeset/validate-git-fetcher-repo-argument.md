@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Reject git repository values starting with a dash or containing null bytes to prevent argument injection during git checkout [pnpm/tasks#84](https://github.com/pnpm/tasks/issues/84).
+pnpm now rejects a git dependency whose lockfile repository is empty, begins with `-`, or contains a null byte. Git can no longer read such a value as a command-line option [pnpm/tasks#84](https://github.com/pnpm/tasks/issues/84).

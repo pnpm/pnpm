@@ -72,11 +72,11 @@ function createGitFetcherFunction (createOpts: CreateGitFetcherOptions, allowedH
 }
 
 function assertValidGitResolution (repo: string, commit: string): void {
-  if (!isSafeRepoArg(repo)) {
-    throw new PnpmError('INVALID_GIT_REPOSITORY', `Invalid git repository "${redactAndSanitize(repo)}". A repository must not begin with '-'.`)
-  }
   if (!isValidCommitHash(commit)) {
-    throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${commit}" for repository "${repo}". Expected a 40-character hexadecimal SHA.`)
+    throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${redactAndSanitize(commit)}" for repository "${redactAndSanitize(repo)}". Expected a 40-character hexadecimal SHA.`)
+  }
+  if (!isSafeRepoArg(repo)) {
+    throw new PnpmError('INVALID_GIT_REPOSITORY', `Invalid git repository "${redactAndSanitize(repo)}". A repository must not be empty, begin with '-', or contain a null byte.`)
   }
 }
 

@@ -361,6 +361,23 @@ test('reject a commit value that looks like a git option', async () => {
   expect(jest.mocked(execa)).not.toHaveBeenCalled()
 })
 
+test('the invalid commit error redacts credentials and strips control characters', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  const err = await fetch(createCafsStore(storeDir),
+    {
+      commit: 'main\u001b[2J',
+      repo: 'https://secret-user:secret-password@example.com/repo.git',
+      type: 'git',
+    }, {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+    }).then(() => undefined, (error: unknown) => error as Error)
+  expect(err?.message).toContain('Invalid git commit hash')
+  expect(err?.message).not.toContain('secret-')
+  expect(err?.message).not.toContain('\u001b')
+  expect(jest.mocked(execa)).not.toHaveBeenCalled()
+})
+
 test('reject a repository value that looks like a git option', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
@@ -373,7 +390,7 @@ test('reject a repository value that looks like a git option', async () => {
       }, {
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
-  ).rejects.toThrow('Invalid git repository "--upload-pack=touch /tmp/pwned". A repository must not begin with \'-\'.')
+  ).rejects.toThrow('Invalid git repository "--upload-pack=touch /tmp/pwned". A repository must not be empty, begin with \'-\', or contain a null byte.')
   expect(jest.mocked(execa)).not.toHaveBeenCalled()
 })
 
@@ -389,7 +406,7 @@ test('reject a repository value that contains a null byte', async () => {
       }, {
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
-  ).rejects.toThrow('Invalid git repository "https://example.com//repo.git". A repository must not begin with \'-\'.')
+  ).rejects.toThrow('Invalid git repository "https://example.com//repo.git". A repository must not be empty, begin with \'-\', or contain a null byte.')
   expect(jest.mocked(execa)).not.toHaveBeenCalled()
 })
 
