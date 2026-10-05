@@ -11,16 +11,9 @@
 
 ## Reporting a Vulnerability
 
-Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
+We do not use GitHub Security Advisories or private vulnerability reporting. Security vulnerabilities should be reported as regular public bugs in the [pnpm/pnpm issue tracker](https://github.com/pnpm/pnpm/issues/new/choose).
 
 **We do not operate a bounty program.**
-
-### pacquet and pnpr
-
-The Rust port (`pnpm/`) and the resolver server (`pnpr/`) are **not
-production ready** and are under active development. Do not report security
-issues in them through the security advisory process — open a
-[regular issue](https://github.com/pnpm/pnpm/issues) in this repository instead.
 
 ## Threat Model and Scope
 
