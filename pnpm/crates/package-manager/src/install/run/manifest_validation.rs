@@ -15,8 +15,7 @@ impl RunExecution<'_> {
         scope: &InstallScope<'_>,
     ) -> bool {
         self.install.execution.mutation != ProjectMutation::NoInstall
-            && scope
-                .project_manifests
+            && scope.project_manifests
                 .iter()
                 .any(|(_, manifest)| manifest.validate_dependency_types().is_err())
     }
