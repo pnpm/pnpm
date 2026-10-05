@@ -771,3 +771,24 @@ test('unpack should not fail when the tarball format seems to be not USTAR or GN
   )
   expect(filesIndex.size).toBeGreaterThan(0)
 })
+
+test.each([
+  { control: '\x1b[31m', escaped: '\\x1B' },
+  { control: '\x9b31m', escaped: '\\x9B' },
+])('escapes terminal controls in oversized TAR entry diagnostics: $escaped', ({ control, escaped }) => {
+  const onFile = jest.fn()
+  const parser = createTarballParser(onFile, undefined, 16)
+  const header = createTarballWithEntry(`package/bad${control}name`, '', { declaredSize: 17 }).subarray(0, 512)
+  let error: unknown
+  try {
+    parser.push(header)
+  } catch (caught) {
+    error = caught
+  }
+  expect(error).toMatchObject({
+    code: 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE',
+    message: expect.stringContaining(escaped),
+  })
+  expect((error as Error).message).not.toContain(control[0])
+  expect(onFile).not.toHaveBeenCalled()
+})
