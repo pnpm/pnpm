@@ -366,7 +366,7 @@ fn synthesize_fallback_manifest(
     opts: &LocalResolverOptions,
 ) -> Result<serde_json::Value, ResolveLocalError> {
     let metadata = std::fs::metadata(&spec.fetch_spec);
-    if matches!(&metadata, Err(err) if err.kind() == std::io::ErrorKind::NotFound) {
+    if matches!(&metadata, Err(err) if pnpm_fs::is_not_found(err)) {
         if spec.id.as_str().starts_with("file:") {
             return Err(ResolveLocalError::LinkedPkgDirNotFound {
                 path: spec.fetch_spec.display().to_string(),
@@ -413,7 +413,7 @@ fn handle_manifest_read_failure(
     err: PackageManifestError,
     spec: &LocalPackageSpec,
 ) -> ResolveLocalError {
-    if let PackageManifestError::Io(io_err) = &err {
+    if let PackageManifestError::Read { source: io_err, .. } = &err {
         match io_err.kind() {
             std::io::ErrorKind::NotADirectory => {
                 return ResolveLocalError::NotPackageDirectory {

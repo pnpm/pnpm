@@ -158,6 +158,31 @@ async fn resolve_injected_directory() {
     assert_eq!(dir.directory, "..");
 }
 
+/// A Yarn `patch:` specifier contains a `/`, so it reaches the local
+/// resolver as a path that cannot exist. Windows rejects such a name with
+/// `ERROR_INVALID_NAME` instead of reporting it missing
+/// (<https://github.com/pnpm/pnpm/issues/16590>).
+#[tokio::test]
+async fn resolve_directory_whose_name_cannot_exist() {
+    let (_tmp, project_dir) = fixture();
+    let wd = WantedLocalDependency {
+        bare_specifier: "patch:got@npm%3A11.8.2#~/.yarn/patches/got-npm-11.8.2-c1eb105458.patch"
+            .to_string(),
+        injected: false,
+    };
+
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let manifest = result.manifest.as_ref().expect("manifest");
+    assert_eq!(
+        manifest.get("name").and_then(|value| value.as_str()),
+        Some("got-npm-11.8.2-c1eb105458.patch"),
+    );
+}
+
 #[tokio::test]
 async fn resolve_workspace_directory() {
     let (_tmp, project_dir) = fixture();

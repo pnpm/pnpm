@@ -13,6 +13,7 @@ pub use dir_lock::DirLock;
 pub use ensure_file::*;
 #[cfg(not(target_os = "wasi"))]
 pub use file_lock::{lock_file, try_lock_file};
+pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
 #[cfg(unix)]
@@ -53,6 +54,7 @@ mod dir_lock;
 mod ensure_file;
 #[cfg(not(target_os = "wasi"))]
 mod file_lock;
+mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
 mod pending_temp;

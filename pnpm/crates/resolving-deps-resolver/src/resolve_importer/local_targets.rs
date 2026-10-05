@@ -64,7 +64,9 @@ pub(super) fn read_manifest_of_local_target(
     dir: &Path,
 ) -> Result<Option<serde_json::Value>, PackageManifestError> {
     match safe_read_package_json_from_dir(dir) {
-        Err(PackageManifestError::Io(err)) if err.kind() == io::ErrorKind::NotADirectory => {
+        Err(PackageManifestError::Read { source, .. })
+            if source.kind() == io::ErrorKind::NotADirectory =>
+        {
             Ok(None)
         }
         result => result,
