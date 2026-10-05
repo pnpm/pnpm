@@ -209,6 +209,12 @@ impl NpmrcAuth {
         }
         declared.scopes.extend(self.routes.scoped.keys().cloned());
         config.registries_by_scope.append(&mut self.routes.scoped);
+        self.move_warnings_to(config);
+    }
+
+    /// Move the warnings raised while reading the sources onto
+    /// [`Config::npmrc_warnings`].
+    pub fn move_warnings_to(&mut self, config: &mut Config) {
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
             config.npmrc_warnings.push(message);

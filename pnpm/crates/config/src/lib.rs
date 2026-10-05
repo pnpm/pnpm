@@ -29,6 +29,7 @@ pub use crate::{
     },
 };
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
+pub use loading::ConfigLoadFailure;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
 pub use setting_types::{

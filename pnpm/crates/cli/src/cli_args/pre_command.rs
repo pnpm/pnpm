@@ -103,7 +103,7 @@ fn pre_command_plan_from_input(
         return Ok(None);
     }
     let dir = canonicalize_dir(&input.switch.paths.dir)?;
-    let config = load_pre_command_config(&input.switch, config_overrides, &dir, false)?;
+    let config = load_pre_command_config(input, config_overrides, &dir, false)?;
 
     let roots = PinRoots {
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
@@ -150,7 +150,7 @@ fn plan_pin_action(
 ) -> miette::Result<PreCommandAction> {
     match outcome {
         PinOutcome::Switch(target) => {
-            let mut config = load_pre_command_config(&input.switch, config_overrides, dir, true)?;
+            let mut config = load_pre_command_config(input, config_overrides, dir, true)?;
             // A global command does not act on the project. Without a
             // workspace, the approvals go to the project, as a regular
             // install's do.
@@ -161,7 +161,7 @@ fn plan_pin_action(
             Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
         }
         PinOutcome::Sync(Some(sync)) => {
-            let config = load_pre_command_config(&input.switch, config_overrides, dir, true)?;
+            let config = load_pre_command_config(input, config_overrides, dir, true)?;
             Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
         }
         PinOutcome::Sync(None) => {
@@ -203,23 +203,29 @@ fn report_config_warnings(
     if input.key_issues == KeyIssueReporting::Skip {
         return Ok(());
     }
-    for warning in &config.npmrc_warnings {
-        emit_config_warning(&redact_and_sanitize(warning));
-    }
+    emit_npmrc_warnings(&config.npmrc_warnings);
     let strict =
         input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
     report_workspace_key_issues(&config.workspace_key_issues, strict)?;
     Ok(())
 }
 
+fn emit_npmrc_warnings(warnings: &[String]) {
+    for warning in warnings {
+        emit_config_warning(&redact_and_sanitize(warning));
+    }
+}
+
 /// Load the configuration the pre-command pass reads, with the global
-/// CLI flags that reach it applied.
+/// CLI flags that reach it applied. A failed load still prints the
+/// `.npmrc` warnings it collected, since they often explain the failure.
 fn load_pre_command_config(
-    switch: &SwitchInput,
+    input: &PreCommandInput,
     config_overrides: &ConfigOverrides,
     dir: &Path,
     resolve_store: bool,
 ) -> miette::Result<Config> {
+    let switch = &input.switch;
     let mut config = seed_config(
         switch.paths.npmrc_auth_file.as_deref(),
         switch.ignore_workspace,
@@ -227,8 +233,13 @@ fn load_pre_command_config(
     );
     config.skip_store_dir_resolution = !resolve_store;
     let mut config = config
-        .current::<Host>(dir)
-        .map_err(miette::Report::new)
+        .current_keeping_warnings::<Host>(dir)
+        .map_err(|failure| {
+            if input.key_issues != KeyIssueReporting::Skip {
+                emit_npmrc_warnings(&failure.warnings);
+            }
+            miette::Report::new(failure.error)
+        })
         .wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     if let Some(color) = switch.color {

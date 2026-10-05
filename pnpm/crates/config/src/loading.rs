@@ -5,6 +5,14 @@ use super::{
     resolve_configured_state_dir,
 };
 
+/// A failed [`Config::current_keeping_warnings`].
+#[derive(Debug)]
+pub struct ConfigLoadFailure {
+    pub error: LoadWorkspaceYamlError,
+    /// The `.npmrc` warnings collected before the load failed.
+    pub warnings: Vec<String>,
+}
+
 impl Config {
     /// Load the merged configuration for a CLI run.
     ///
@@ -25,6 +33,18 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        self.current_inner::<Sys>(start_dir, false).map_err(|failure| failure.error)
+    }
+
+    /// Like [`Config::current`], but a failure keeps the `.npmrc` warnings
+    /// the load collected before it, so the caller can still print them.
+    pub fn current_keeping_warnings<Sys>(
+        self,
+        start_dir: &std::path::Path,
+    ) -> Result<Self, ConfigLoadFailure>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
         self.current_inner::<Sys>(start_dir, false)
     }
 
@@ -38,14 +58,28 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        self.current_inner::<Sys>(start_dir, true)
+        self.current_inner::<Sys>(start_dir, true).map_err(|failure| failure.error)
     }
 
     pub(super) fn current_inner<Sys>(
         mut self,
         start_dir: &std::path::Path,
         for_self_update: bool,
-    ) -> Result<Self, LoadWorkspaceYamlError>
+    ) -> Result<Self, ConfigLoadFailure>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        match self.load_sources::<Sys>(start_dir, for_self_update) {
+            Ok(()) => Ok(self),
+            Err(error) => Err(ConfigLoadFailure { error, warnings: self.npmrc_warnings }),
+        }
+    }
+
+    fn load_sources<Sys>(
+        &mut self,
+        start_dir: &std::path::Path,
+        for_self_update: bool,
+    ) -> Result<(), LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
@@ -104,7 +138,7 @@ impl Config {
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
         // explicit `pnpm_config_registry` / `--registry` still wins) —
         // pnpm's "CLI > _auth > yaml" precedence.
-        npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
+        npmrc_auth.apply_json_env_registries(self, &declared_registries);
 
         self.apply_env_settings::<Sys>(&mut explicit, &default_state_dir, start_dir);
         self.apply_cli_setting_values(&mut explicit, &default_state_dir, start_dir);
@@ -113,7 +147,7 @@ impl Config {
 
         self.apply_layout_derivations::<Sys>();
 
-        Ok(self)
+        Ok(())
     }
 
     /// Anchor module defaults to the requested directory, which may differ from the process cwd.
