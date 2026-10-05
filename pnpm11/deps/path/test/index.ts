@@ -246,7 +246,7 @@ test('depPathToFilename() hashes URLs whose escaping is ambiguous', () => {
   expect(depPathToFilename(`${base}/package.tgz`, 40)).toBe('pkg@htt_db0178b93a3dc73ecc84ba68ab60a4ab')
 })
 
-test('depPathToFilename() keeps registry versions with build metadata unhashed', () => {
+test('depPathToFilename() keeps registry versions with build metadata without a hash suffix', () => {
   expect(depPathToFilename('foo@1.0.0+build.5', 120)).toBe('foo@1.0.0+build.5')
   expect(depPathToFilename('esbuild@0.0.0-dev+abc(foo@1.0.0)', 120)).toBe('esbuild@0.0.0-dev+abc_foo@1.0.0')
   expect(depPathToFilename('foo@work:1.0.0+build', 120)).toBe('foo@work+1.0.0+build')
