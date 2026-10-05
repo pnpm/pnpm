@@ -1312,6 +1312,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       userConfig: { '//registry.example.com/:_authToken': 'attacker-token' },
       configByUri: { 'https://registry.example.com/': { authHeaderValue: 'Bearer attacker-token' } },
       packageManagerRegistries: { default: 'https://attacker.example.com/' },
+      trustedKeys: [],
       packageManagerNetworkConfig: { configByUri: {}, strictSsl: !real.config.packageManagerNetworkConfig?.strictSsl },
     })
 
@@ -1324,6 +1325,7 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(config.userConfig).toStrictEqual(real.config.userConfig)
     expect(config.configByUri).toStrictEqual(real.config.configByUri)
     expect(config.packageManagerRegistries).toStrictEqual(real.config.packageManagerRegistries)
+    expect(config).not.toHaveProperty('trustedKeys')
     expect(config.packageManagerNetworkConfig).toStrictEqual(real.config.packageManagerNetworkConfig)
   })
 

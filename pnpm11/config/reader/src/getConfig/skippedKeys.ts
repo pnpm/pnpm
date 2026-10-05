@@ -87,6 +87,9 @@ const CREDENTIAL_KEYS = [
   'packageManagerRegistries',
 ] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
+// This internal engine-verification test seam is not a configuration setting.
+const INTERNAL_ENGINE_KEYS = ['trustedKeys'] as const
+
 /**
  * Which scope a `pnpm login` claims for the machine.
  *
@@ -108,6 +111,7 @@ type ProjectManifestSkippedKey =
   | typeof MACHINE_LOCATION_KEYS[number]
   | typeof CURRENT_RUN_LOCATION_KEYS[number]
   | typeof CREDENTIAL_KEYS[number]
+  | typeof INTERNAL_ENGINE_KEYS[number]
   | typeof LOGIN_TARGET_KEYS[number]
 
 /** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
@@ -120,6 +124,7 @@ export const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKe
   ...MACHINE_LOCATION_KEYS,
   ...CURRENT_RUN_LOCATION_KEYS,
   ...CREDENTIAL_KEYS,
+  ...INTERNAL_ENGINE_KEYS,
   ...LOGIN_TARGET_KEYS,
 ])
 
