@@ -10,6 +10,7 @@ import { install } from '@pnpm/installing.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import type { DepPath } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
@@ -690,7 +691,7 @@ describe('audit in a workspace', () => {
     const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
     const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
-    const integrity = (lockfile!.packages!['minimist@1.2.0'].resolution as { integrity: string }).integrity
+    const integrity = (lockfile!.packages!['minimist@1.2.0' as DepPath].resolution as { integrity: string }).integrity
     const key = createSigningKey()
     mockRegistryKey(AUDIT_REGISTRY, key)
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
