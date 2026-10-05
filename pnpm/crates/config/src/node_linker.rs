@@ -14,13 +14,18 @@ pub enum NodeLinkerSetting {
 #[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum NodeLinkerOptions {
     Isolated {
-        #[serde(default, deserialize_with = "deserialize_double_option")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_double_option"
+        )]
         hoist: Option<Option<HoistSetting>>,
     },
     Hoisted {
         #[serde(
             default,
             rename = "hoistingLimits",
+            skip_serializing_if = "Option::is_none",
             deserialize_with = "deserialize_double_option"
         )]
         hoisting_limits: Option<Option<HoistingLimits>>,
@@ -133,9 +138,9 @@ impl WorkspaceSettings {
     }
 
     fn normalize_hoist(&mut self, hoist: HoistSetting) {
-        self.hoist = Some(true);
         match hoist {
             HoistSetting::Enabled(enabled) => {
+                self.hoist = Some(enabled);
                 self.hoist_pattern = Some(Some(if enabled { vec!["*".into()] } else { vec![] }));
                 self.public_hoist_pattern = Some(Some(vec![]));
             }
@@ -144,6 +149,7 @@ impl WorkspaceSettings {
                     self.public_hoist_pattern = Some(Some(public.unwrap_or_default()));
                 }
                 if let Some(private) = patterns.private {
+                    self.hoist = Some(true);
                     self.hoist_pattern = Some(Some(private.unwrap_or_else(|| vec!["*".into()])));
                 }
             }

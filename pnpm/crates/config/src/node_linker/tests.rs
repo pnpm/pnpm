@@ -217,3 +217,46 @@ fn resolved_linker_does_not_reenable_legacy_disabled_hoisting() {
     WorkspaceSettings::from_resolved(&config).apply_to(&mut restored, Path::new("."));
     assert_eq!(restored.hoist_pattern, Some(vec![]));
 }
+
+#[test]
+fn public_only_hoisting_preserves_disabled_private_hoisting() {
+    for lower in [json!({"hoist":false}), json!({"nodeLinker":{"type":"isolated","hoist":false}})] {
+        let mut config = Config::default();
+        serde_json::from_value::<WorkspaceSettings>(lower)
+            .unwrap()
+            .apply_to(&mut config, Path::new("."));
+        let higher: WorkspaceSettings = serde_json::from_value(
+            json!({"nodeLinker":{"type":"isolated","hoist":{"public":["foo"]}}}),
+        )
+        .unwrap();
+        config.record_explicit_settings(&higher);
+        higher.apply_to(&mut config, Path::new("."));
+        assert!(!config.hoist);
+        assert!(config.hoist_pattern.as_ref().is_none_or(Vec::is_empty));
+        assert_eq!(config.public_hoist_pattern, Some(vec!["foo".into()]));
+        let resolved = serde_json::to_value(WorkspaceSettings::from_resolved(&config)).unwrap();
+        assert_eq!(resolved["nodeLinker"]["hoist"]["private"], json!([]));
+        let private: WorkspaceSettings = serde_json::from_value(
+            json!({"nodeLinker":{"type":"isolated","hoist":{"private":["bar"]}}}),
+        )
+        .unwrap();
+        private.apply_to(&mut config, Path::new("."));
+        assert!(config.hoist);
+        assert_eq!(config.hoist_pattern, Some(vec!["bar".into()]));
+        assert_eq!(config.public_hoist_pattern, Some(vec!["foo".into()]));
+    }
+}
+
+#[test]
+fn omitted_linker_options_remain_omitted_when_serialized() {
+    for value in [json!({"type":"isolated"}), json!({"type":"hoisted"})] {
+        let linker: crate::NodeLinkerSetting = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(linker).unwrap(), value);
+    }
+    for value in
+        [json!({"type":"isolated","hoist":null}), json!({"type":"hoisted","hoistingLimits":null})]
+    {
+        let linker: crate::NodeLinkerSetting = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(linker).unwrap(), value);
+    }
+}

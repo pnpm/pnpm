@@ -509,3 +509,19 @@ fn node_linker_scoped_hoisting_wins_over_flat_cli_aliases() {
     assert_eq!(config.public_hoist_pattern, Some(vec![]));
     assert_eq!(config.hoist_pattern, Some(vec!["foo".into()]));
 }
+
+#[test]
+fn public_only_node_linker_cli_option_preserves_no_hoist() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pnpm",
+        "--no-hoist",
+        r#"--config.node-linker={"type":"isolated","hoist":{"public":["foo"]}}"#,
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pnpm", "install"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.hoist);
+    assert!(config.hoist_pattern.as_ref().is_none_or(Vec::is_empty));
+    assert_eq!(config.public_hoist_pattern, Some(vec!["foo".into()]));
+}
