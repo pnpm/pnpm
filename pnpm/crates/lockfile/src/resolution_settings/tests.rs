@@ -1,6 +1,9 @@
-use crate::{LockfileSettings, ResolutionSetting, ResolutionSettingDifference, ResolutionSettings};
+use crate::{
+    Lockfile, LockfileSettings, ResolutionSetting, ResolutionSettingDifference, ResolutionSettings,
+};
 use pretty_assertions::assert_eq;
 use serde_json::Value;
+use std::path::Path;
 
 #[test]
 fn settings_without_the_keys_parse_as_unrecorded() {
@@ -11,11 +14,25 @@ fn settings_without_the_keys_parse_as_unrecorded() {
 }
 
 #[test]
-fn recorded_keys_round_trip_after_the_existing_ones() {
-    let yaml = "autoInstallPeers: true\nexcludeLinksFromLockfile: false\nautoDedupe: true\ndedupeInjectedDeps: false\ndedupePeerDependents: true\nlinkWorkspacePackages: deep\n";
-    let settings: LockfileSettings = serde_saphyr::from_str(yaml).unwrap();
+fn recorded_keys_parse_and_save_in_alphabetical_order() {
+    let yaml = "\
+lockfileVersion: '9.0'
+
+settings:
+  autoDedupe: true
+  autoInstallPeers: true
+  dedupeInjectedDeps: false
+  dedupePeerDependents: true
+  excludeLinksFromLockfile: false
+  linkWorkspacePackages: deep
+
+importers:
+
+  .: {}
+";
+    let lockfile = Lockfile::parse(yaml, Path::new("pnpm-lock.yaml")).unwrap().unwrap();
     assert_eq!(
-        settings.resolution,
+        lockfile.settings.as_ref().unwrap().resolution,
         ResolutionSettings {
             auto_dedupe: Some(true),
             dedupe_injected_deps: Some(false),
@@ -23,7 +40,10 @@ fn recorded_keys_round_trip_after_the_existing_ones() {
             link_workspace_packages: Some(Value::String("deep".to_string())),
         },
     );
-    assert_eq!(serde_saphyr::to_string(&settings).unwrap(), yaml);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), yaml);
 }
 
 #[test]
