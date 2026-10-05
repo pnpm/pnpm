@@ -34,20 +34,33 @@ fn auto_dedupe_baseline_survives_install_and_run_content_checks() {
 }
 
 /// A pending dedupe baseline must not keep the pre-run gate spawning
-/// installs an environment cannot complete: on CI an install whose lockfile is
-/// present runs frozen, so it never re-resolves and can never record the
-/// baseline ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)).
+/// installs that cannot or must not resolve: on CI an install whose lockfile
+/// is present runs frozen
+/// ([pnpm/pnpm#16374](https://github.com/pnpm/pnpm/issues/16374)), and after a
+/// frozen install the lockfile stays as it was accepted
+/// ([pnpm/pnpm#16583](https://github.com/pnpm/pnpm/issues/16583)).
 #[test]
-fn a_pending_dedupe_baseline_is_not_drift_when_the_install_would_run_frozen() {
+fn a_pending_dedupe_baseline_is_not_drift_when_the_lockfile_stays_frozen() {
     const DRIFT: &str = "The value of the autoDedupe setting has changed";
-    for (ci, lockfile) in [(true, true), (false, true), (true, false)] {
+    let cases = [
+        // (ci, recorded frozen install, configured frozenLockfile, lockfile, drift)
+        (true, false, None, true, false),
+        (false, false, None, true, true),
+        (true, false, None, false, true),
+        (false, true, None, true, false),
+        (false, true, Some(false), true, true),
+        (false, true, None, false, true),
+    ];
+    for (ci, recorded_frozen, frozen_lockfile, lockfile, drift) in cases {
         let (dir, config) = setup_content_check_project();
         let mut config = config.clone();
         config.auto_dedupe = true;
         config.ci = ci;
+        config.frozen_lockfile = frozen_lockfile;
         let config = config.leak();
         let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
         state.settings.auto_dedupe = None;
+        state.frozen_lockfile = recorded_frozen;
         update_workspace_state(dir.path(), &state).unwrap();
         if !lockfile {
             // An absent lockfile is never frozen: the install this gate
@@ -57,11 +70,14 @@ fn a_pending_dedupe_baseline_is_not_drift_when_the_install_would_run_frozen() {
         let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
         let projects = [(dir.path().to_path_buf(), &manifest)];
         let status = workspace_deps_status(&dir, config, &projects);
-        let expected = if ci && lockfile {
-            RunDepsStatus::UpToDate
-        } else {
+        let expected = if drift {
             RunDepsStatus::Outdated { issue: DRIFT.to_string(), install_args: Vec::new() }
+        } else {
+            RunDepsStatus::UpToDate
         };
-        assert_eq!(status, expected);
+        assert_eq!(
+            status, expected,
+            "ci={ci} recorded_frozen={recorded_frozen} frozen_lockfile={frozen_lockfile:?} lockfile={lockfile}",
+        );
     }
 }

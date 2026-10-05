@@ -22,8 +22,9 @@ pub use workspace_state::{
     check_deps_status_before_run_at, deps_install_root, install_already_up_to_date,
 };
 pub(crate) use workspace_state::{
-    build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
-    recorded_auto_dedupe, update_workspace_state_or_warn, workspace_packages_for_freshness,
+    build_workspace_state, carry_recorded_install, configured_or_discovered_workspace_dir,
+    lockfile_root_dir, recorded_auto_dedupe, update_workspace_state_or_warn,
+    workspace_packages_for_freshness,
 };
 
 mod entry_points;

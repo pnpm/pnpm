@@ -222,6 +222,15 @@ impl<'a> RunExecution<'a> {
         }
     }
 
+    fn completion_mode(&self) -> crate::install::state_options::CompletionMode {
+        crate::install::state_options::CompletionMode {
+            resolve_only: self.mode.resolve_only,
+            dry_run: self.install.execution.dry_run,
+            peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
+            frozen_lockfile: self.install.lockfile_policy.frozen,
+        }
+    }
+
     fn take_project_scripts(
         &mut self,
         root_preinstall_ran: bool,
@@ -249,11 +258,7 @@ impl<'a> RunExecution<'a> {
         let (scope, project_manifests) = projects;
         ApplyMaterializationInputs {
             completion: self.take_completion_context(),
-            mode: crate::install::state_options::CompletionMode {
-                resolve_only: self.mode.resolve_only,
-                dry_run: self.install.execution.dry_run,
-                peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
-            },
+            mode: self.completion_mode(),
             prior: crate::install::state_options::ApplyPriorState {
                 lockfile: loaded.current.take(),
                 layout: dispatched.modules.old_modules,

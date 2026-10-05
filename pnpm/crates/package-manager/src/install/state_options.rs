@@ -10,6 +10,7 @@ pub(crate) struct CompletionMode {
     pub(crate) resolve_only: bool,
     pub(crate) dry_run: bool,
     pub(crate) peer_issues_sink_is_none: bool,
+    pub(crate) frozen_lockfile: bool,
 }
 
 pub(crate) struct ApplyPriorState {
@@ -161,6 +162,9 @@ pub(crate) struct InstallProjectMetadata<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct RepeatInstallPolicy<'a> {
     pub(crate) frozen: bool,
+    /// The install ran with `frozenLockfile`, which [`Self::frozen`] does not
+    /// tell: an up-to-date lockfile takes the frozen path without it.
+    pub(crate) frozen_lockfile: bool,
     pub(crate) filtered: bool,
     pub(crate) disable_optimistic_check: bool,
     pub(crate) supported_architectures:

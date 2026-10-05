@@ -191,10 +191,9 @@ pub(super) struct UpToDateInstall<'a, 'install> {
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) carried_state: CarriedWorkspaceState,
 }
-/// The workspace-state fields the up-to-date refresh carries over from the
-/// previous run instead of recomputing: the refresh materializes nothing, so
-/// it may neither claim every importer was materialized nor establish a
-/// dedupe baseline.
+/// The workspace-state fields the up-to-date refresh cannot recompute from
+/// config: the refresh materializes nothing, so it may neither claim every
+/// importer was materialized nor establish a dedupe baseline.
 pub(super) struct CarriedWorkspaceState {
     /// The previous run's `filteredInstall`. Clearing it would claim every
     /// importer is materialized when a filtered install left the unselected
@@ -202,6 +201,8 @@ pub(super) struct CarriedWorkspaceState {
     pub(super) filtered_install: bool,
     /// The previous run's `autoDedupe`; only a resolving install sets it.
     pub(super) recorded_auto_dedupe: Option<bool>,
+    /// Whether this install ran with `frozenLockfile`.
+    pub(super) frozen_lockfile: bool,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -270,6 +271,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         context.tree.config,
         context.carried_state.recorded_auto_dedupe,
     );
+    state.frozen_lockfile = context.carried_state.frozen_lockfile;
     update_workspace_state_or_warn::<Reporter>(context.tree.workspace_root, &state);
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(

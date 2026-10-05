@@ -232,6 +232,7 @@ fn write_state_with_pnpmfiles(
         projects,
         pnpmfiles,
         filtered_install: false,
+        frozen_lockfile: false,
         config_dependencies: None,
         settings,
     };
