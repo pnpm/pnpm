@@ -2,4 +2,4 @@
 "@pnpm/napi": patch
 ---
 
-The `@pnpm/napi` addon is smaller. On macOS on Apple silicon, it is about 7 MB smaller.
+The `@pnpm/napi` addon is about 17% smaller on macOS.
