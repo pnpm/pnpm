@@ -44,19 +44,42 @@ pub fn resolve_package_path(
     resolve_virtual_store_package_path(layout, &store_name, name, alias, ctx)
 }
 
-fn pick_hoisted_dir(dirs: &[PathBuf], ctx: &EdgeContext<'_>) -> Option<PathBuf> {
-    if let Some(parent_dir) = &ctx.parent_dir
-        && let Some(nested) = dirs
-            .iter()
-            .find(|loc| loc.starts_with(parent_dir) && loc.exists())
-    {
-        return Some(nested.clone());
-    }
+/// The copy Node.js resolves from the parent package, or from the
+/// project for a direct dependency: the one in the closest modules
+/// directory above it. Falls back to any copy on disk, then to the
+/// first recorded one.
+fn pick_hoisted_dir(
+    dirs: &[PathBuf],
+    relative_modules_dir: &Path,
+    ctx: &EdgeContext<'_>,
+) -> Option<PathBuf> {
+    let resolve_from = ctx.parent_dir.as_deref().unwrap_or(&ctx.linked_path_base_dir);
     dirs.iter()
-        .find(|loc| loc.starts_with(&ctx.linked_path_base_dir) && loc.exists())
-        .or_else(|| dirs.iter().find(|loc| loc.exists()))
+        .filter(|dir| dir.exists())
+        .filter_map(|dir| Some((dir, owner_dir(dir, relative_modules_dir)?)))
+        .filter(|(_, owner)| resolve_from.starts_with(owner))
+        .max_by_key(|(_, owner)| owner.components().count())
+        .map(|(dir, _)| dir)
+        .or_else(|| dirs.iter().find(|dir| dir.exists()))
         .or_else(|| dirs.first())
         .cloned()
+}
+
+/// The directory whose modules directory holds `pkg_dir`.
+fn owner_dir<'a>(pkg_dir: &'a Path, relative_modules_dir: &Path) -> Option<&'a Path> {
+    let mut modules_dir = pkg_dir.parent()?;
+    if modules_dir
+        .file_name()
+        .is_some_and(|component| component.to_string_lossy().starts_with('@'))
+    {
+        modules_dir = modules_dir.parent()?;
+    }
+    if modules_dir.ends_with(relative_modules_dir) {
+        return modules_dir
+            .ancestors()
+            .nth(relative_modules_dir.components().count());
+    }
+    modules_dir.parent()
 }
 
 fn resolve_hoisted_package_path(
@@ -68,7 +91,7 @@ fn resolve_hoisted_package_path(
     ctx: &EdgeContext<'_>,
 ) -> PathBuf {
     find_hoisted_dirs(&layout.hoisted_dirs, dep_path)
-        .and_then(|dirs| pick_hoisted_dir(dirs, ctx))
+        .and_then(|dirs| pick_hoisted_dir(dirs, &layout.relative_modules_dir, ctx))
         .unwrap_or_else(|| {
             resolve_hoisted_fallback(
                 layout,

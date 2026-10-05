@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
+import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   getLockfileImporterId,
@@ -119,7 +120,7 @@ export async function buildDependentsTree (
     storeDir,
     storeIndex,
     nodeLinker: modules?.nodeLinker ?? opts.nodeLinker,
-    hoistedLocations: modules?.hoistedLocations,
+    hoistedLocations: modules?.hoistedLocations && withCollapsedVariants(modules.hoistedLocations),
     lockfileDir: opts.lockfileDir,
   })
 

@@ -43,22 +43,43 @@ function resolveHoistedPackagePath (opts: ResolvePackagePathOptions): string | u
   const lockfileDir = opts.lockfileDir ?? opts.projectDir
   if (!lockfileDir) return undefined
   const hoistedPaths = findHoistedPackageDirs(opts.hoistedLocations, opts.depPath, lockfileDir)
-  if (hoistedPaths.length) return pickHoistedDir(hoistedPaths, opts)
+  if (hoistedPaths.length) return pickHoistedDir(hoistedPaths, { ...opts, lockfileDir })
   return findHoistedByAlias(opts, lockfileDir)
 }
 
 /**
- * Prefers the copy nested under the parent, then the one inside the project,
- * then any copy that exists on disk.
+ * Picks the copy that Node.js resolves from the parent package, or from the
+ * project for a direct dependency: the one in the closest modules directory
+ * above it. Falls back to any copy on disk, then to the first recorded one.
  */
-function pickHoistedDir (dirs: string[], opts: { parentDir?: string, projectDir?: string }): string {
-  for (const baseDir of [opts.parentDir, opts.projectDir]) {
-    if (!baseDir) continue
-    const baseDirWithSep = baseDir.endsWith(path.sep) ? baseDir : baseDir + path.sep
-    const found = dirs.find((dir) => dir.startsWith(baseDirWithSep) && fs.existsSync(dir))
-    if (found) return found
+function pickHoistedDir (dirs: string[], opts: ResolvePackagePathOptions & { lockfileDir: string }): string {
+  const existing = dirs.filter((dir) => fs.existsSync(dir))
+  const resolveFrom = opts.parentDir ?? opts.projectDir
+  if (resolveFrom) {
+    const relativeModulesDir = getRelativeModulesDir(opts.lockfileDir, opts.modulesDir)
+    const closest = existing
+      .map((dir) => ({ dir, ownerDir: getOwnerDir(dir, relativeModulesDir) }))
+      .filter(({ ownerDir }) => isSameOrSubdir(ownerDir, resolveFrom))
+      .sort((a, b) => b.ownerDir.length - a.ownerDir.length)[0]
+    if (closest) return closest.dir
   }
-  return dirs.find((dir) => fs.existsSync(dir)) ?? dirs[0]
+  return existing[0] ?? dirs[0]
+}
+
+/**
+ * The directory whose modules directory holds `pkgDir`.
+ */
+function getOwnerDir (pkgDir: string, relativeModulesDir: string): string {
+  let modulesDir = path.dirname(pkgDir)
+  if (path.basename(modulesDir).startsWith('@')) modulesDir = path.dirname(modulesDir)
+  const rootModulesDirSuffix = path.sep + relativeModulesDir
+  return modulesDir.endsWith(rootModulesDirSuffix)
+    ? modulesDir.slice(0, -rootModulesDirSuffix.length)
+    : path.dirname(modulesDir)
+}
+
+function isSameOrSubdir (parent: string, dir: string): boolean {
+  return dir === parent || dir.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep)
 }
 
 /**

@@ -1,5 +1,5 @@
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
-import { removeSuffix } from '@pnpm/deps.path'
+import { withCollapsedVariants } from '@pnpm/deps.path'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -197,20 +197,6 @@ async function extractImporterLicenseNode (
     version: '0.0.0',
     license: undefined,
   } as unknown as LicenseNode]
-}
-
-/**
- * The hoisted linker collapses the peer and patch variants of one package
- * version onto the first dependency path it meets, so `hoistedLocations`
- * records only that one. Key its locations by the path without the peer
- * and patch suffixes too, for the variants it left out.
- */
-function withCollapsedVariants (hoistedLocations: Record<string, string[]>): Record<string, string[]> {
-  const result = { ...hoistedLocations }
-  for (const [depPath, locations] of Object.entries(hoistedLocations)) {
-    result[removeSuffix(depPath)] ??= locations
-  }
-  return result
 }
 
 function toRequires (licenseNodes: Record<string, LicenseNode>): Record<string, string> {

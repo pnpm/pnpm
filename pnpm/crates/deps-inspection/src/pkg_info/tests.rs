@@ -265,3 +265,37 @@ fn resolve_package_path_keeps_every_segment_of_a_nested_modules_dir_when_hoisted
     let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
     assert_eq!(path, pkg_dir);
 }
+
+#[test]
+fn resolve_package_path_picks_the_hoisted_copy_node_resolves_from_the_parent() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_copy = dir.path().join("node_modules/foo");
+    let project_copy = dir.path().join("packages/a/node_modules/foo");
+    let parent_dir = dir.path().join("packages/a/node_modules/bar");
+    for created in [&root_copy, &project_copy, &parent_dir] {
+        std::fs::create_dir_all(created).unwrap();
+    }
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
+        virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::from([(
+            "foo@1.0.0".to_string(),
+            vec![root_copy, project_copy.clone()],
+        )]),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: Some(parent_dir),
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
+    assert_eq!(path, project_copy);
+}

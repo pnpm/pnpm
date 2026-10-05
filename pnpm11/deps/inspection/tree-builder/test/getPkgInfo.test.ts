@@ -110,3 +110,30 @@ test('resolvePackagePath keeps every segment of a nested modulesDir for a hoiste
     fs.rmSync(lockfileDir, { recursive: true, force: true })
   }
 })
+
+test('resolvePackagePath picks the hoisted copy that Node.js resolves from the parent', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-closest-'))
+  try {
+    for (const dir of ['node_modules/foo', 'packages/a/node_modules/foo', 'packages/a/node_modules/bar']) {
+      fs.mkdirSync(path.join(lockfileDir, dir), { recursive: true })
+    }
+
+    expect(resolvePackagePath({
+      depPath: 'foo@1.0.0',
+      name: 'foo',
+      alias: 'foo',
+      version: '1.0.0',
+      virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+      modulesDir: path.join(lockfileDir, 'node_modules'),
+      nodeLinker: 'hoisted',
+      hoistedLocations: { 'foo@1.0.0': ['node_modules/foo', 'packages/a/node_modules/foo'] },
+      lockfileDir,
+      projectDir: lockfileDir,
+      parentDir: path.join(lockfileDir, 'packages/a/node_modules/bar'),
+    })).toBe(path.join(lockfileDir, 'packages/a/node_modules/foo'))
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
