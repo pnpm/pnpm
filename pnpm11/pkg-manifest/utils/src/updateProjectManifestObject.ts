@@ -1,9 +1,9 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
+import { PnpmError } from '@pnpm/error'
 import {
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,
-  type DependenciesField,
   type DependenciesOrPeersField,
   type ProjectManifest,
   type RangeSpecStyle,
@@ -18,7 +18,7 @@ export interface PackageSpecObject {
   bareSpecifier?: string
   resolvedVersion?: string
   rangeSpecStyle?: RangeSpecStyle
-  saveType?: DependenciesField
+  saveType?: DependenciesOrPeersField
 }
 
 function getPeerSpecifier (spec: string, resolvedVersion?: string, rangeSpecStyle?: RangeSpecStyle): string {
@@ -99,13 +99,35 @@ export function applyPackageSpecs (
   return packageManifest
 }
 
+const VALID_SAVE_TYPES = new Set<string>(DEPENDENCIES_OR_PEER_FIELDS)
+
+function isValidSaveType (saveType: unknown): saveType is DependenciesOrPeersField {
+  return typeof saveType === 'string' && VALID_SAVE_TYPES.has(saveType)
+}
+
 function applyPackageSpecWithSaveType (
   packageManifest: ProjectManifest,
   packageSpec: PackageSpecObject,
-  saveType: DependenciesField
+  saveType: DependenciesOrPeersField
 ): void {
+  if (!isValidSaveType(saveType)) {
+    throw new PnpmError('INVALID_SAVE_TYPE', `Invalid saveType: "${String(saveType)}"`)
+  }
   const spec = packageSpec.bareSpecifier ?? findSpec(packageSpec.alias, packageManifest)
   if (!spec) return
+
+  if (saveType === 'peerDependencies') {
+    packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
+    defineDepEntry(
+      packageManifest.peerDependencies,
+      packageSpec.alias,
+      getPeerSpecifier(spec, packageSpec.resolvedVersion, packageSpec.rangeSpecStyle)
+    )
+    for (const deptype of DEPENDENCIES_FIELDS) {
+      deleteDepEntry(packageManifest[deptype], packageSpec.alias)
+    }
+    return
+  }
 
   packageManifest[saveType] = packageManifest[saveType] ?? {}
   defineDepEntry(packageManifest[saveType]!, packageSpec.alias, spec)
