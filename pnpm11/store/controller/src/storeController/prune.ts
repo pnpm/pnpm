@@ -26,6 +26,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
 
   // 2. Clean up metadata cache
   await removeCachedMetadata(cacheDir, storeDir)
+  await removeStaleSpillDirectories(storeDir)
 
   // 3. Prune the content-addressable store (CAS)
   const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles)
@@ -43,6 +44,31 @@ async function removeCachedMetadata (cacheDir: string, storeDir: string): Promis
   }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
+}
+
+async function removeStaleSpillDirectories (storeDir: string): Promise<void> {
+  const cutoff = Date.now() - 24 * 60 * 60_000
+  const directories = await getSubdirsSafely(storeDir)
+  await Promise.all(directories
+    .filter(directory => directory.startsWith('download-') || directory.startsWith('tarball-'))
+    .map(directory => removeSpillDirectoryIfStale(path.join(storeDir, directory), cutoff)))
+}
+
+async function removeSpillDirectoryIfStale (directoryPath: string, cutoff: number): Promise<void> {
+  try {
+    const stats = await fs.lstat(directoryPath)
+    if (stats.isDirectory() && stats.mtimeMs < cutoff && await spillFilesAreStale(directoryPath, cutoff)) {
+      await rimrafIgnoringMissing(directoryPath)
+    }
+  } catch (err: unknown) {
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) throw err
+  }
+}
+
+async function spillFilesAreStale (directoryPath: string, cutoff: number): Promise<boolean> {
+  const files = await fs.readdir(directoryPath)
+  const stats = await Promise.all(files.map(file => fs.lstat(path.join(directoryPath, file))))
+  return stats.every(stat => stat.mtimeMs < cutoff)
 }
 
 async function rimrafIgnoringMissing (dir: string): Promise<void> {
