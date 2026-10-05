@@ -8,8 +8,7 @@ impl AuthHeaders {
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        let is_secure = is_url_secure_for_credentials(url);
-        if self.transport_security.require_secure && !is_secure {
+        if self.transport_security.require_secure && !is_url_secure_for_credentials(url) {
             return None;
         }
         if let Some(hook) = &self.route_hook {
@@ -25,22 +24,23 @@ impl AuthHeaders {
             owned.as_str()
         };
         let parsed = ParsedUrl::parse(url_with_slash)?;
-        self.resolve_credential_for_parsed(&parsed, pkg_name, is_secure)
+        self.resolve_credential_for_parsed(&parsed, url, pkg_name)
     }
 
     fn resolve_credential_for_parsed(
         &self,
         parsed: &ParsedUrl<'_>,
+        url: &str,
         pkg_name: Option<&str>,
-        is_secure: bool,
     ) -> Option<String> {
         if let Some(basic) = parsed.basic_auth_header() {
-            return is_secure.then_some(basic);
+            return is_url_secure_for_credentials(url).then_some(basic);
         }
         let matched = package_scope(pkg_name)
             .and_then(|scope| self.lookup_with_port_fallback(parsed, Some(scope)))
             .or_else(|| self.lookup_with_port_fallback(parsed, None));
         let (key, resolved) = matched?;
+        let is_secure = is_url_secure_for_credentials(url);
         self.transport_security
             .allows(&key, is_secure)
             .then_some(resolved)
@@ -89,7 +89,8 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = scoped_by_uri.get(&key) {
-                return Some((key.clone(), self.token_helpers.resolve_entry(&key, scope, entry)));
+                let resolved = self.token_helpers.resolve_entry(&key, scope, entry);
+                return Some((key, resolved));
             }
         }
         None
@@ -115,10 +116,9 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = self.by_uri.get(&key) {
-                return Some((
-                    key.clone(),
-                    self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry),
-                ));
+                let resolved =
+                    self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry);
+                return Some((key, resolved));
             }
         }
         None
