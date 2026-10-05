@@ -70,14 +70,32 @@ fn setup_shell(
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
     let config_file = get_config_file_path(shell)?;
-    let new_settings = render_posix_settings(&dir.to_string_lossy(), opts);
+    let dir = dir.to_string_lossy();
+    let new_settings = render_posix_settings(&dir, opts);
     let content = wrap_settings(opts.config_section_name, &new_settings);
-    let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
+    let outdated = wrap_settings(
+        opts.config_section_name,
+        &render_posix_section(&dir, opts, PathGuard::Anywhere),
+    );
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &content, Some(&outdated), opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
         new_settings,
     })
+}
+
+/// Which existing `PATH` entry makes the rendered block skip adding `dir`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathGuard {
+    /// `dir` is already at the adding position. A login shell can reorder an
+    /// inherited `PATH` before the rc file runs (macOS `path_helper`), so
+    /// `dir` being present elsewhere is not enough for [`AddingPosition::Start`].
+    Positioned,
+    /// `dir` is anywhere in `PATH`. Earlier pnpm versions rendered this guard;
+    /// `setup` replaces a block rendered with it without `--force`.
+    Anywhere,
 }
 
 /// The `# <section>` body for a POSIX `sh`-family shell. Pure so the
@@ -88,22 +106,38 @@ fn setup_shell(
 /// interpolates the directory into double quotes — where a value containing
 /// `$(...)` / backticks would execute when the rc file is sourced.
 fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
+    render_posix_section(dir, opts, PathGuard::Positioned)
+}
+
+fn render_posix_section(dir: &str, opts: &AddDirToEnvPathOpts, guard: PathGuard) -> String {
     if let Some(proxy) = opts.proxy_var_name {
         let path_ref = match opts.proxy_var_sub_dir {
             Some(sub_dir) => format!("${proxy}/{sub_dir}"),
             None => format!("${proxy}"),
         };
         format!(
-            "export {proxy}={value}\ncase \":$PATH:\" in\n  *\":{path_ref}:\"*) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
+            "export {proxy}={value}\ncase \":$PATH:\" in\n  {pattern}) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
             value = sh_quote(dir),
+            pattern = create_case_pattern(opts.position, guard, &format!(r#"":{path_ref}:""#)),
             path_value = create_path_value(opts.position, &path_ref),
         )
     } else {
         let quoted = sh_quote(dir);
         format!(
-            "case \":$PATH:\" in\n  *\":\"{quoted}\":\"*) ;;\n  *) export PATH={path_value} ;;\nesac",
+            "case \":$PATH:\" in\n  {pattern}) ;;\n  *) export PATH={path_value} ;;\nesac",
+            pattern = create_case_pattern(opts.position, guard, &format!(r#"":"{quoted}":""#)),
             path_value = create_path_value(opts.position, &quoted),
         )
+    }
+}
+
+/// The `case ":$PATH:"` pattern that matches when `entry` (the quoted
+/// `":<dir>:"`) needs no adding.
+fn create_case_pattern(position: AddingPosition, guard: PathGuard, entry: &str) -> String {
+    match (guard, position) {
+        (PathGuard::Positioned, AddingPosition::Start) => format!("{entry}*"),
+        (PathGuard::Positioned, AddingPosition::End) => format!("*{entry}"),
+        (PathGuard::Anywhere, _) => format!("*{entry}*"),
     }
 }
 
@@ -139,9 +173,15 @@ fn setup_fish_shell(
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
     let config_file = home_dir()?.join(".config/fish/config.fish");
-    let new_settings = render_fish_settings(&dir.to_string_lossy(), opts);
+    let dir = dir.to_string_lossy();
+    let new_settings = render_fish_settings(&dir, opts);
     let content = wrap_settings(opts.config_section_name, &new_settings);
-    let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
+    let outdated = wrap_settings(
+        opts.config_section_name,
+        &render_fish_section(&dir, opts, PathGuard::Anywhere),
+    );
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &content, Some(&outdated), opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
@@ -150,26 +190,44 @@ fn setup_fish_shell(
 }
 
 fn render_fish_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
+    render_fish_section(dir, opts, PathGuard::Positioned)
+}
+
+fn render_fish_section(dir: &str, opts: &AddDirToEnvPathOpts, guard: PathGuard) -> String {
     if let Some(proxy) = opts.proxy_var_name {
         let path_ref = match opts.proxy_var_sub_dir {
             Some(sub_dir) => format!("${proxy}/{sub_dir}"),
             None => format!("${proxy}"),
         };
-        let match_pattern = match opts.proxy_var_sub_dir {
-            Some(_) => format!(r#""{path_ref}""#),
-            None => path_ref.clone(),
+        let quoted_ref = format!(r#""{path_ref}""#);
+        // The `Anywhere` block left a bare `$PROXY` unquoted.
+        let entry = match (guard, opts.proxy_var_sub_dir) {
+            (PathGuard::Anywhere, None) => &path_ref,
+            _ => &quoted_ref,
         };
+        let condition = create_fish_condition(opts.position, guard, entry);
         format!(
-            "set -gx {proxy} {value}\nif not string match -q -- {match_pattern} $PATH\n  set -gx PATH {path_value}\nend",
+            "set -gx {proxy} {value}\nif {condition}\n  set -gx PATH {path_value}\nend",
             value = fish_quote(dir),
-            path_value = create_fish_path_value(opts.position, &format!(r#""{path_ref}""#)),
+            path_value = create_fish_path_value(opts.position, &quoted_ref),
         )
     } else {
         let quoted = fish_quote(dir);
         format!(
-            "if not string match -q -- {quoted} $PATH\n  set -gx PATH {path_value}\nend",
+            "if {condition}\n  set -gx PATH {path_value}\nend",
+            condition = create_fish_condition(opts.position, guard, &quoted),
             path_value = create_fish_path_value(opts.position, &quoted),
         )
+    }
+}
+
+/// The fish condition that holds when `entry` (a quoted directory) still
+/// needs adding.
+fn create_fish_condition(position: AddingPosition, guard: PathGuard, entry: &str) -> String {
+    match (guard, position) {
+        (PathGuard::Positioned, AddingPosition::Start) => format!(r#"test "$PATH[1]" != {entry}"#),
+        (PathGuard::Positioned, AddingPosition::End) => format!(r#"test "$PATH[-1]" != {entry}"#),
+        (PathGuard::Anywhere, _) => format!("not string match -q -- {entry} $PATH"),
     }
 }
 
@@ -197,7 +255,7 @@ fn setup_nu_shell(
     let config_file = home_dir()?.join(".config/nushell/env.nu");
     let new_settings = render_nu_settings(&dir.to_string_lossy(), opts);
     let content = wrap_settings(opts.config_section_name, &new_settings);
-    let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
+    let (change_type, old_settings) = update_shell_config(&config_file, &content, None, opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
@@ -245,9 +303,13 @@ fn wrap_settings(section_name: &str, settings: &str) -> String {
     format!("# {section_name}\n{settings}\n# {section_name} end")
 }
 
+/// Write `new_content` into the `# <section>` block of `config_file`. An
+/// existing block that differs is replaced only with `opts.overwrite` or when
+/// it equals `outdated`, the block an earlier pnpm version rendered.
 fn update_shell_config(
     config_file: &Path,
     new_content: &str,
+    outdated: Option<&str>,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<(ConfigFileChangeType, String), PathExtenderError> {
     if !config_file.exists() {
@@ -264,8 +326,9 @@ fn update_shell_config(
         write_config(config_file, &format!("{config_content}\n{new_content}\n"))?;
         return Ok((ConfigFileChangeType::Appended, String::new()));
     };
-    if config_content[matched_range].replace("\r\n", "\n") != new_content {
-        if !opts.overwrite {
+    let current = config_content[matched_range].replace("\r\n", "\n");
+    if current != new_content {
+        if !opts.overwrite && outdated != Some(current.as_str()) {
             return Err(PathExtenderError::BadShellSection {
                 config_file: config_file.to_path_buf(),
                 config_section_name: opts.config_section_name.to_string(),
