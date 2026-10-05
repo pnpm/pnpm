@@ -1,5 +1,8 @@
+import { promises as fs } from 'node:fs'
 import type { IncomingMessage } from 'node:http'
 import { isIP } from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, FetchTimeoutError, isError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
@@ -14,6 +17,8 @@ import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 
 import { BadTarballError } from './errorTypes/index.js'
+
+const MAX_BUFFERED_DOWNLOAD_SIZE = 64 * 1024 * 1024
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -147,7 +152,7 @@ interface FetchTarballContext {
 }
 
 async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
-  let data: Buffer
+  let data: DownloadedTarball
   try {
     const res = await ctx.fetchFromRegistry(ctx.url, {
       authHeaderValue: ctx.authHeaderValue,
@@ -178,19 +183,28 @@ async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
     throw wrapFetchError(err, ctx.url, ctx.attempt, ctx.gotOpts.timeout)
   }
 
-  return addFilesFromTarball({
-    buffer: data,
-    storeDir: ctx.opts.cafs.storeDir,
-    storeIndex: ctx.opts.storeIndex,
-    readManifest: ctx.opts.readManifest,
-    integrity: ctx.opts.integrity,
-    filesIndexFile: ctx.opts.filesIndexFile,
-    pkgId: ctx.opts.pkgId,
-    url: ctx.url,
-    pkg: ctx.opts.pkg,
-    appendManifest: ctx.opts.appendManifest,
-    ignoreFilePattern: ctx.opts.ignoreFilePattern,
-  })
+  return importDownloadedTarball(ctx, data)
+}
+
+async function importDownloadedTarball (ctx: FetchTarballContext, data: DownloadedTarball): Promise<FetchResult> {
+  try {
+    return await addFilesFromTarball({
+      buffer: data.buffer,
+      tarballFile: data.tarballFile,
+      storeDir: ctx.opts.cafs.storeDir,
+      storeIndex: ctx.opts.storeIndex,
+      readManifest: ctx.opts.readManifest,
+      integrity: ctx.opts.integrity,
+      filesIndexFile: ctx.opts.filesIndexFile,
+      pkgId: ctx.opts.pkgId,
+      url: ctx.url,
+      pkg: ctx.opts.pkg,
+      appendManifest: ctx.opts.appendManifest,
+      ignoreFilePattern: ctx.opts.ignoreFilePattern,
+    })
+  } finally {
+    await data.cleanup?.()
+  }
 }
 
 function parseTarballContentLength (res: { headers: { get: (name: string) => string | null, has: (name: string) => boolean } }): number | null {
@@ -200,73 +214,112 @@ function parseTarballContentLength (res: { headers: { get: (name: string) => str
   return Number.isFinite(parsedLength) && parsedLength >= 0 ? parsedLength : null
 }
 
-async function readResponseBody (opts: {
+interface DownloadedTarball {
+  buffer?: Buffer
+  tarballFile?: string
+  cleanup?: () => Promise<void>
+}
+
+interface DownloadBuffer {
+  chunks: Uint8Array[]
+  downloaded: number
+  directory?: string
+  file?: Awaited<ReturnType<typeof fs.open>>
+}
+
+type ReadResponseBodyOptions = {
   body: AsyncIterable<unknown>
   fetchMinSpeedKiBps: number
   onProgress: ((downloaded: number) => void) | undefined
   size: number | null
   url: string
-}): Promise<Buffer> {
+}
+
+async function readResponseBody (opts: ReadResponseBodyOptions): Promise<DownloadedTarball> {
   const startTime = Date.now()
-  let downloaded = 0
-  let data: Buffer
-
-  if (opts.size !== null) {
-    data = await readKnownSizeBody(opts.body, opts.size, opts.url, opts.onProgress)
-    downloaded = opts.size
-  } else {
-    const result = await readChunkedBody(opts.body, opts.onProgress)
-    data = result.data
-    downloaded = result.downloaded
+  if (opts.size != null && opts.size <= MAX_BUFFERED_DOWNLOAD_SIZE) {
+    const buffer = await readKnownSizeBody(opts)
+    checkDownloadSpeed(opts.size, startTime, opts.fetchMinSpeedKiBps, opts.url)
+    return { buffer }
   }
-
-  checkDownloadSpeed(downloaded, startTime, opts.fetchMinSpeedKiBps, opts.url)
-  return data
-}
-
-async function readKnownSizeBody (
-  body: AsyncIterable<unknown>,
-  size: number,
-  url: string,
-  onProgress?: (downloaded: number) => void
-): Promise<Buffer> {
-  const data = Buffer.from(new SharedArrayBuffer(size))
-  let downloaded = 0
-  for await (const chunk of body) {
-    const bytes = chunk as Uint8Array
-    const nextDownloaded = downloaded + bytes.byteLength
-    if (nextDownloaded > size) {
-      throw new BadTarballError({ expectedSize: size, receivedSize: nextDownloaded, tarballUrl: url })
+  const state: DownloadBuffer = { chunks: [], downloaded: 0 }
+  try {
+    for await (const chunk of opts.body) {
+      const bytes = chunk as Uint8Array
+      state.downloaded += bytes.byteLength
+      checkDownloadedSize(opts, state.downloaded, false)
+      await bufferDownloadChunk(state, bytes)
+      opts.onProgress?.(state.downloaded)
     }
-    data.set(bytes, downloaded)
-    downloaded = nextDownloaded
-    onProgress?.(downloaded)
+    checkDownloadedSize(opts, state.downloaded, true)
+    checkDownloadSpeed(state.downloaded, startTime, opts.fetchMinSpeedKiBps, opts.url)
+    const file = state.file
+    state.file = undefined
+    await file?.close()
+    return finishDownloadBuffer(state)
+  } catch (err: unknown) {
+    await state.file?.close()
+    state.file = undefined
+    if (state.directory) await fs.rm(state.directory, { recursive: true, force: true })
+    throw err
+  } finally {
+    await state.file?.close()
   }
-  if (size !== downloaded) {
-    throw new BadTarballError({ expectedSize: size, receivedSize: downloaded, tarballUrl: url })
-  }
-  return data
 }
 
-async function readChunkedBody (
-  body: AsyncIterable<unknown>,
-  onProgress?: (downloaded: number) => void
-): Promise<{ data: Buffer, downloaded: number }> {
-  const chunks: Uint8Array[] = []
+async function readKnownSizeBody (opts: ReadResponseBodyOptions): Promise<Buffer> {
+  const buffer = Buffer.from(new SharedArrayBuffer(opts.size!))
   let downloaded = 0
-  for await (const chunk of body) {
+  for await (const chunk of opts.body) {
     const bytes = chunk as Uint8Array
-    chunks.push(bytes)
+    checkDownloadedSize(opts, downloaded + bytes.byteLength, false)
+    buffer.set(bytes, downloaded)
     downloaded += bytes.byteLength
-    onProgress?.(downloaded)
+    opts.onProgress?.(downloaded)
   }
-  const data = Buffer.from(new SharedArrayBuffer(downloaded))
+  checkDownloadedSize(opts, downloaded, true)
+  return buffer
+}
+
+function checkDownloadedSize (opts: ReadResponseBodyOptions, downloaded: number, finished: boolean): void {
+  if (opts.size == null) return
+  if (downloaded > opts.size || (finished && downloaded !== opts.size)) {
+    throw new BadTarballError({ expectedSize: opts.size, receivedSize: downloaded, tarballUrl: opts.url })
+  }
+}
+
+async function bufferDownloadChunk (state: DownloadBuffer, bytes: Uint8Array): Promise<void> {
+  if (!state.file && state.downloaded > MAX_BUFFERED_DOWNLOAD_SIZE) {
+    state.directory = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-tarball-'))
+    state.file = await fs.open(path.join(state.directory, 'archive'), 'wx', 0o600)
+    for (const buffered of state.chunks) {
+      // eslint-disable-next-line no-await-in-loop -- writes preserve tarball byte order
+      await state.file.writeFile(buffered)
+    }
+    state.chunks.length = 0
+  }
+  if (state.file) {
+    await state.file.writeFile(bytes)
+  } else {
+    state.chunks.push(bytes)
+  }
+}
+
+function finishDownloadBuffer (state: DownloadBuffer): DownloadedTarball {
+  if (state.directory) {
+    const tempDirectory = state.directory
+    return {
+      tarballFile: path.join(tempDirectory, 'archive'),
+      cleanup: async () => fs.rm(tempDirectory, { recursive: true, force: true }),
+    }
+  }
+  const buffer = Buffer.from(new SharedArrayBuffer(state.downloaded))
   let offset = 0
-  for (const chunk of chunks) {
-    data.set(chunk, offset)
+  for (const chunk of state.chunks) {
+    buffer.set(chunk, offset)
     offset += chunk.byteLength
   }
-  return { data, downloaded }
+  return { buffer }
 }
 
 function checkDownloadSpeed (downloaded: number, startTime: number, fetchMinSpeedKiBps: number, url: string): void {

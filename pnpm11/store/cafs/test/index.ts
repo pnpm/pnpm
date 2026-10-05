@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 
-import { describe, expect, it, test } from '@jest/globals'
+import { describe, expect, it, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import { symlinkDir } from 'symlink-dir'
 import { temporaryDirectory } from 'tempy'
@@ -462,6 +462,109 @@ describe('addFilesFromTarballBounded', () => {
     const { filesIndex, manifest } = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(getLargeTarball(), true)
     expect(manifest?.name).toBe('large')
     expect(filesIndex.get('zeros.bin')).toMatchObject({ size: largeFileSize, digest: largeFileDigest })
+  })
+
+  it('writes a large file without assembling its content in memory', async () => {
+    const tarball = getLargeTarball()
+    const concat = Buffer.concat
+    const spy = jest.spyOn(Buffer, 'concat').mockImplementation((buffers, size) => {
+      expect(size ?? buffers.reduce((sum, buffer) => sum + buffer.length, 0)).toBeLessThanOrEqual(MAX_IN_MEMORY_TARBALL_SIZE)
+      return concat(buffers, size)
+    })
+    const storeDir = temporaryDirectory()
+    try {
+      const { filesIndex } = await createCafs(storeDir).addFilesFromTarballBounded(tarball)
+      expect(filesIndex.get('zeros.bin')).toMatchObject({ size: largeFileSize, digest: largeFileDigest })
+      expect(fs.readdirSync(storeDir)).toEqual(['files'])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('extracts a file-backed gzip archive with the same file digests and manifest', async () => {
+    const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+    const tarball = fs.readFileSync(testFixtures.find('node-gyp-6.1.0.tgz'))
+    fs.writeFileSync(tarballFile, tarball)
+    const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
+    const actual = await createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true)
+    expect(digestsOf(actual.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(actual.manifest).toStrictEqual(expected.manifest)
+  })
+
+  it('removes an unfinished large file when a file-backed archive is truncated', async () => {
+    const tarballFile = path.join(temporaryDirectory(), 'truncated.tgz')
+    const header = createTarballWithEntry('package/large', '', { declaredSize: largeFileSize }).subarray(0, 512)
+    fs.writeFileSync(tarballFile, gzipSync(Buffer.concat([header, Buffer.alloc(1024)])))
+    const storeDir = temporaryDirectory()
+    await expect(createCafs(storeDir).addFilesFromTarballFile(tarballFile)).rejects.toThrow('Unexpected end of TAR archive')
+    expect(fs.readdirSync(storeDir)).toEqual([])
+  })
+
+  test.each(['package/package.json', 'package/metadata'])('rejects an oversized buffered entry %s before reading its content', async (entryPath) => {
+    const tarballFile = path.join(temporaryDirectory(), 'archive.tgz')
+    const header = createTarballWithEntry(entryPath, '', { declaredSize: largeFileSize }).subarray(0, 512)
+    if (entryPath === 'package/metadata') {
+      header[156] = 'x'.charCodeAt(0)
+      header.fill(0x20, 148, 156)
+      const checksum = header.reduce((sum, value) => sum + value, 0)
+      header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8)
+    }
+    fs.writeFileSync(tarballFile, gzipSync(Buffer.concat([header, Buffer.alloc(1024)])))
+    await expect(createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' })
+  })
+
+  it('reuses and repairs a streamed CAS file without breaking project hardlinks', async () => {
+    const storeDir = temporaryDirectory()
+    const cafs = createCafs(storeDir)
+    const first = await cafs.addFilesFromTarballBounded(getLargeTarball())
+    const filePath = first.filesIndex.get('zeros.bin')!.filePath
+    const projectFile = path.join(temporaryDirectory(), 'linked-file')
+    fs.linkSync(filePath, projectFile)
+    const originalInode = fs.statSync(filePath).ino
+
+    await cafs.addFilesFromTarballBounded(getLargeTarball())
+    expect(fs.statSync(filePath).ino).toBe(originalInode)
+    expect(fs.statSync(projectFile).ino).toBe(originalInode)
+
+    fs.writeFileSync(filePath, 'corrupt')
+    await cafs.addFilesFromTarballBounded(getLargeTarball())
+    expect(fs.statSync(filePath).ino).toBe(originalInode)
+    expect(fs.statSync(projectFile).size).toBe(largeFileSize)
+    expect(crypto.hash('sha512', fs.readFileSync(projectFile), 'hex')).toBe(largeFileDigest)
+  })
+
+  it('extracts bzip2 archives from a buffer and a file with matching digests', async () => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures/package.tar.bz2')
+    const tarball = fs.readFileSync(tarballFile)
+    const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
+    const buffered = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(tarball, true)
+    const fromFile = await createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true)
+    expect(digestsOf(buffered.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(digestsOf(fromFile.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(buffered.manifest).toStrictEqual(expected.manifest)
+    expect(fromFile.manifest).toStrictEqual(expected.manifest)
+  })
+
+  test.each([false, true])('streams a large bzip2 payload with file-backed input %s', async (fileBacked) => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures/large-zero-file.tar.bz2')
+    const cafs = createCafs(temporaryDirectory())
+    const result = fileBacked
+      ? await cafs.addFilesFromTarballFile(tarballFile)
+      : await cafs.addFilesFromTarballBounded(fs.readFileSync(tarballFile))
+    expect(result.filesIndex.get('zeros.bin')).toMatchObject({ size: largeFileSize, digest: largeFileDigest })
+  })
+
+  test.each([
+    ['large-manifest.tar.bz2', false], ['large-manifest.tar.bz2', true],
+    ['large-metadata.tar.bz2', false], ['large-metadata.tar.bz2', true],
+  ])('bzip2 buffering limits reject %s with file-backed input %s', async (fixture, fileBacked) => {
+    const tarballFile = path.join(import.meta.dirname, 'fixtures', fixture)
+    const cafs = createCafs(temporaryDirectory())
+    const result = fileBacked
+      ? cafs.addFilesFromTarballFile(tarballFile, true)
+      : cafs.addFilesFromTarballBounded(fs.readFileSync(tarballFile), true)
+    await expect(result).rejects.toMatchObject({ code: 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' })
   })
 
   it('streams a multi-member gzip archive whose last trailer understates its size', async () => {

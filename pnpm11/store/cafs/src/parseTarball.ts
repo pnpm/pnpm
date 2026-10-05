@@ -1,6 +1,15 @@
 import path from 'node:path'
 
+import { PnpmError } from '@pnpm/error'
+
 export type OnTarballFile = (relativePath: string, mode: number, content: Buffer) => void
+
+export interface TarballFileWriter {
+  write: (chunk: Buffer) => void
+  end: () => void
+}
+
+export type CreateTarballFileWriter = (relativePath: string, mode: number, size: number) => TarballFileWriter | undefined
 
 export interface TarballParser {
   push: (chunk: Buffer) => void
@@ -44,9 +53,12 @@ interface PendingEntry {
  *
  * See the TAR specification: https://www.gnu.org/software/tar/manual/html_node/Standard.html
  */
-export function createTarballParser (onFile: OnTarballFile): TarballParser {
+export function createTarballParser (onFile: OnTarballFile, createFileWriter?: CreateTarballFileWriter, maxBufferedEntrySize?: number): TarballParser {
   const state: ParserState = {
     onFile,
+    createFileWriter,
+    maxBufferedEntrySize,
+    writer: undefined,
     chunks: [],
     chunkOffset: 0,
     available: 0,
@@ -71,6 +83,9 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
 
 interface ParserState {
   onFile: OnTarballFile
+  createFileWriter?: CreateTarballFileWriter
+  maxBufferedEntrySize?: number
+  writer: { sink: TarballFileWriter, remaining: number } | undefined
   chunks: Buffer[]
   chunkOffset: number
   available: number
@@ -122,12 +137,42 @@ function skipBytes (state: ParserState): boolean {
 }
 
 function consumeEntryContent (state: ParserState, entry: PendingEntry): boolean {
-  const entryContent = readContent(state, entry.size)
-  if (entryContent == null) return false
-  handleEntryContent(state, entry, entryContent)
+  if (state.writer) {
+    if (!consumeStreamedContent(state)) return false
+  } else {
+    const entryContent = readContent(state, entry.size)
+    if (entryContent == null) return false
+    handleEntryContent(state, entry, entryContent)
+  }
   state.bytesToSkip = paddingOf(entry.size)
   state.entry = undefined
   return true
+}
+
+function consumeStreamedContent (state: ParserState): boolean {
+  const writer = state.writer!
+  while (state.available > 0 && writer.remaining > 0) {
+    const chunk = state.chunks[0]
+    const size = Math.min(chunk.length - state.chunkOffset, writer.remaining)
+    writer.sink.write(chunk.subarray(state.chunkOffset, state.chunkOffset + size))
+    discard(state, size)
+    writer.remaining -= size
+  }
+  if (writer.remaining > 0) return false
+  writer.sink.end()
+  state.writer = undefined
+  return true
+}
+
+function createEntryWriter (state: ParserState, entry: PendingEntry): void {
+  if (entry.fileType !== 0 && entry.fileType !== ZERO && entry.fileType !== FILE_TYPE_HARD_LINK) return
+  const sink = state.createFileWriter?.(entry.fileName, entry.mode, entry.size)
+  if (sink) state.writer = { sink, remaining: entry.size }
+}
+
+function assertBufferedEntrySize (state: ParserState, entry: PendingEntry): void {
+  if (state.writer || state.maxBufferedEntrySize == null || entry.size <= state.maxBufferedEntrySize) return
+  throw new PnpmError('TARBALL_ENTRY_TOO_LARGE', `Tarball entry "${entry.fileName}" requires buffering ${entry.size} bytes, exceeding the ${state.maxBufferedEntrySize}-byte limit`)
 }
 
 function consumeHeader (state: ParserState): boolean {
@@ -145,6 +190,8 @@ function consumeHeader (state: ParserState): boolean {
   const nextEntry = parseHeader(state, header, headerOffset)
   if (entryHasContent(nextEntry.fileType)) {
     state.entry = nextEntry
+    createEntryWriter(state, nextEntry)
+    assertBufferedEntrySize(state, nextEntry)
   } else {
     state.bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)
   }

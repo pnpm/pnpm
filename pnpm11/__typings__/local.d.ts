@@ -131,11 +131,19 @@ declare module 'picomatch' {
   export = anything
 }
 
-declare module 'bz2' {
-  interface Bz2Exports {
-    decompress: (data: Uint8Array | Buffer) => Uint8Array
+declare module 'seek-bzip' {
+  interface Input {
+    readByte: () => number
+    read: (buffer: Uint8Array, offset: number, length: number) => number
   }
-  const bz2: Bz2Exports
-  export default bz2
+  interface Output {
+    writeByte: (byte: number) => void
+  }
+  const Bunzip: {
+    decode: {
+      (input: Uint8Array | Input): Buffer
+      (input: Uint8Array | Input, output: Output): void
+    }
+  }
+  export default Bunzip
 }
-
