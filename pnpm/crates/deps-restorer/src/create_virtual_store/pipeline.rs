@@ -1,7 +1,8 @@
 use super::{
     CasIndexes, CasPrefetch, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    CreateVirtualStoreStoreContext, LinkPlan, WantedEntries,
+    CreateVirtualStoreStoreContext, LinkPlan, PrefetchTask, WantedEntries,
     cache_keys::{SlotReuse, SnapshotCacheKey},
+    cas::{retain_fetch_pass_rows, retained_cache_keys},
     cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch, unlink_fetch_failed_children},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
     publish_planned_canonical_fetches, removed_aliases_by_key,
@@ -11,7 +12,9 @@ use super::{
 };
 use crate::{InstallPackageBySnapshot, install_package_by_snapshot::runtime_platform_selector};
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, PlatformSelector};
+use pnpm_lockfile::{
+    LockfileEntries, PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry,
+};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
 use pnpm_tarball::PrefetchResult;
@@ -28,11 +31,23 @@ impl<'a> CreateVirtualStore<'a> {
     pub(super) async fn run_inner<Reporter: self::Reporter>(
         &mut self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
+        self.run_retaining::<Reporter>(None).await.map(|(output, _)| output)
+    }
+
+    /// [`Self::run_inner`], also returning the settled prefetch of
+    /// `retained` for a later pass over those snapshots. See
+    /// [`retain_fetch_pass_rows`].
+    pub(super) async fn run_retaining<Reporter: self::Reporter>(
+        &mut self,
+        retained: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    ) -> Result<(CreateVirtualStoreOutput, Option<CasPrefetch>), CreateVirtualStoreError> {
         let Some(wanted) = self.wanted()? else {
-            return Ok(nothing_to_materialize(self.is_hoisted()));
+            return Ok((nothing_to_materialize(self.is_hoisted()), None));
         };
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
+        let retained_keys =
+            retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
         let planned = plan.survivors.len();
         let prefetched = self.settle_prefetch(
@@ -54,7 +69,17 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await?;
         self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
-        Ok(output)
+        let handoff = retained_keys.map(|cache_keys| {
+            let mut rows = prefetched;
+            retain_fetch_pass_rows(&mut rows, &cache_keys, &output);
+            CasPrefetch {
+                store_index: prefetch.store_index,
+                verified_files_cache: prefetch.verified_files_cache,
+                cache_keys,
+                task: PrefetchTask::Settled(rows),
+            }
+        });
+        Ok((output, handoff))
     }
 
     /// `pnpm:stats added` fires one event per project once the
@@ -239,19 +264,22 @@ impl<'a> CreateVirtualStore<'a> {
     /// path, the same shape as a store with no index.
     async fn settle_prefetch(
         &self,
-        task: tokio::task::JoinHandle<PrefetchResult>,
+        task: PrefetchTask,
         verified_files_cache: &SharedVerifiedFilesCache,
         packages: &HashMap<PackageKey, PackageMetadata>,
         plan: &mut snapshot_plan::SnapshotPlan<'_>,
     ) -> Result<PrefetchResult, CreateVirtualStoreError> {
-        let prefetched = task.await.unwrap_or_else(|error| {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "warm-cache prefetch task failed; treating every lookup as a miss",
-            );
-            PrefetchResult::default()
-        });
+        let prefetched = match task {
+            PrefetchTask::Settled(prefetched) => prefetched,
+            PrefetchTask::Running(task) => task.await.unwrap_or_else(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "warm-cache prefetch task failed; treating every lookup as a miss",
+                );
+                PrefetchResult::default()
+            }),
+        };
         let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan).await;
         enforce_cached_git_prepare_policy(
             &mut plan.survivors,

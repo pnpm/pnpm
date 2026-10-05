@@ -116,7 +116,15 @@ pub struct CasPrefetch {
     /// strict/lenient asymmetry documented there: a survivor propagates
     /// its error, a skipped snapshot swallows it.
     cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
-    task: tokio::task::JoinHandle<PrefetchResult>,
+    task: PrefetchTask,
+}
+
+/// The warm-cache prefetch [`CasPrefetch`] carries.
+enum PrefetchTask {
+    Running(tokio::task::JoinHandle<PrefetchResult>),
+    /// Settled and verified by an earlier pass over a superset of the
+    /// snapshots. See [`cas::retain_fetch_pass_rows`].
+    Settled(PrefetchResult),
 }
 
 impl CasPrefetch {
@@ -169,13 +177,16 @@ impl CasPrefetch {
         // `CreateVirtualStore::settle_prefetch`. Under a global virtual
         // store or an unchanged lockfile that is few or none of the rows
         // read here.
-        let task = tokio::spawn(prefetch_cas_paths(
+        let keys = prefetch_keys(&cache_keys);
+        #[cfg(test)]
+        tests::record_prefetch_start(&keys);
+        let task = PrefetchTask::Running(tokio::spawn(prefetch_cas_paths(
             store_index.clone(),
             store_dir,
-            prefetch_keys(&cache_keys),
+            keys,
             PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
             SharedVerifiedFilesCache::clone(&verified_files_cache),
-        ));
+        )));
         CasPrefetch { store_index, verified_files_cache, cache_keys, task }
     }
 }
