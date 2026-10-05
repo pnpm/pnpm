@@ -322,11 +322,14 @@ function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, li
   while (cursor < end && buffer[cursor] !== SPACE) {
     cursor++
   }
+  if (cursor >= end) {
+    throw new Error('Invalid PAX record format: missing space delimiter')
+  }
 
   // The format of a PAX header line is "%d %s=%s\n"
   const strLen: string = buffer.toString('utf-8', lineStart, cursor)
   const len: number = parseInt(strLen, 10)
-  if (!len) {
+  if (isNaN(len) || len <= 0 || lineStart + len > end || lineStart + len <= cursor) {
     throw new Error(`Invalid length in PAX record: ${strLen}`)
   }
 
@@ -355,7 +358,7 @@ function applyPaxRecord (state: ParserState, record: string, global: boolean): v
 
 function parsePaxSize (record: string, equalSign: number, global: boolean): number {
   const size: number = parseInt(record.slice(equalSign + 1), 10)
-  if (isNaN(size) || size < 0) {
+  if (isNaN(size) || size < 0 || !Number.isSafeInteger(size)) {
     throw new Error(`Invalid size in PAX record: ${record}`)
   }
   if (global) {
@@ -371,8 +374,8 @@ function entryHasContent (fileType: number): boolean {
 /**
  * An entry's content is followed by zeros up to the next 512-byte block boundary.
  */
-function paddingOf (size: number): number {
-  return (BLOCK_SIZE - (size & 0x1ff)) & 0x1ff
+export function paddingOf (size: number): number {
+  return (BLOCK_SIZE - (size % BLOCK_SIZE)) % BLOCK_SIZE
 }
 
 /**
