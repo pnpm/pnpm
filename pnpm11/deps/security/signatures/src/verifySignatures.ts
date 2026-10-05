@@ -79,6 +79,10 @@ async function auditPackage (
 
   result.audited++
   const { version, publishedAt } = packumentData
+  if (packumentContext.opts.requireLockfileIntegrity && !pkg.integrity) {
+    result.invalid.push({ ...pkg, reason: `Missing lockfile integrity for ${pkg.name}@${pkg.version}` })
+    return
+  }
   const validation = validatePackageMetadata(pkg, version)
   if (validation.issue != null) {
     if (validation.kind === 'invalid') result.invalid.push(validation.issue)
@@ -129,7 +133,7 @@ function validatePackageMetadata (
   pkg: SignaturePackage,
   version?: PackumentVersion
 ): ({ kind: 'valid', issue?: undefined } & ValidatedMetadata) | { kind: 'invalid' | 'missing', issue: SignatureIssue } {
-  const integrity = version?.dist?.integrity
+  const integrity = pkg.integrity ?? version?.dist?.integrity
   const resolved = version?.dist?.tarball
   const rawSignatures = version?.dist?.signatures
   if (rawSignatures != null && !Array.isArray(rawSignatures)) {

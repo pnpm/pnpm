@@ -32,6 +32,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// One installed package to check, already routed to the registry it was
 /// installed from.
 pub(super) struct SignaturePackage {
+    pub integrity: Option<String>,
     pub name: String,
     pub registry: String,
     pub version: String,
@@ -208,7 +209,7 @@ fn process_version(
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);
     let dist = version.and_then(|version| version.dist.as_ref());
-    let integrity = dist.and_then(|dist| dist.integrity.clone());
+    let integrity = pkg.integrity.clone();
     let resolved = dist.and_then(|dist| dist.tarball.clone());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
@@ -223,7 +224,8 @@ fn process_version(
         return;
     }
     let Some(integrity) = integrity else {
-        result.missing.push(issue(pkg, None, resolved, None));
+        let reason = format!("Missing lockfile integrity for {}@{}", pkg.name, pkg.version);
+        result.invalid.push(issue(pkg, None, resolved, Some(reason)));
         return;
     };
     if signatures.is_empty() {

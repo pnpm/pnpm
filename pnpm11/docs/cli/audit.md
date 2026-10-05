@@ -28,6 +28,8 @@ Since v11, `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bu
 
 ### signatures
 
+Signatures are verified against the package integrity recorded in the lockfile. A package without recorded integrity cannot pass verification.
+
 Added in: v11.1.0
 
 ```sh

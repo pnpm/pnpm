@@ -7,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from '@jest/
 import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -222,6 +223,57 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toContain('audited 2 packages')
     expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
   })
+  test.each([
+    { integrity: undefined, envIntegrity: undefined },
+    { integrity: 'sha512-recorded-artifact', envIntegrity: undefined },
+    { integrity: 'sha512-registry-artifact', envIntegrity: 'sha512-config-artifact' },
+  ])('audit signatures cannot authenticate another artifact (%s)', async ({ integrity, envIntegrity }) => {
+    const dir = testFixtures.prepare('has-signatures')
+    fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  signed-pkg@1.0.0:
+    resolution: ${integrity == null ? '{}' : `{integrity: ${integrity}}`}
+snapshots:
+  signed-pkg@1.0.0: {}
+`)
+    if (envIntegrity) {
+      const mainDocument = fs.readFileSync(path.join(dir, 'pnpm-lock.yaml'), 'utf8')
+      fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `---
+lockfileVersion: '9.0'
+importers:
+  .:
+    configDependencies:
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  signed-pkg@1.0.0:
+    resolution: {integrity: ${envIntegrity}}
+snapshots:
+  signed-pkg@1.0.0: {}
+---
+${mainDocument}`)
+    }
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, { versions: { '1.0.0': { dist: {
+        integrity: 'sha512-registry-artifact',
+        signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-registry-artifact') }],
+      } } } })
+    const { output, exitCode } = await audit.handler({ ...AUDIT_REGISTRY_OPTS, dir, json: true }, ['signatures'])
+    expect(exitCode).toBe(1)
+    expect(JSON.parse(output).verified).toBe(envIntegrity ? 1 : 0)
+    expect(JSON.parse(output).invalid).toHaveLength(1)
+  })
+
   test('audit signatures throws on unresolvable lockfile dependency', async () => {
     const dir = testFixtures.prepare('has-signatures')
     const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
@@ -637,6 +689,8 @@ describe('audit in a workspace', () => {
   test('audit signatures checks only the projects selected by --filter', async () => {
     const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
+    const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
+    const integrity = (lockfile!.packages!['minimist@1.2.0'].resolution as { integrity: string }).integrity
     const key = createSigningKey()
     mockRegistryKey(AUDIT_REGISTRY, key)
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
@@ -647,8 +701,8 @@ describe('audit in a workspace', () => {
         versions: {
           '1.2.0': {
             dist: {
-              integrity: 'sha512-test-integrity',
-              signatures: [{ keyid: key.keyid, sig: key.sign('minimist@1.2.0', 'sha512-test-integrity') }],
+              integrity,
+              signatures: [{ keyid: key.keyid, sig: key.sign('minimist@1.2.0', integrity) }],
               tarball: `${AUDIT_REGISTRY}minimist/-/minimist-1.2.0.tgz`,
             },
             name: 'minimist',
