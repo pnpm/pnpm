@@ -1,7 +1,7 @@
 import { expect, test } from '@jest/globals'
 import type { PkgResolutionId, ProjectId, ProjectRootDir } from '@pnpm/types'
 
-import type { WantedDependency } from '../lib/getNonDevWantedDependencies.js'
+import type { WantedDependency } from '../lib/getWantedDependencies.js'
 import type { ImporterToResolve } from '../lib/index.js'
 import type { ResolvedDirectDependency } from '../lib/resolveDependencyTree.js'
 import { updateProjectManifest } from '../lib/updateProjectManifest.js'

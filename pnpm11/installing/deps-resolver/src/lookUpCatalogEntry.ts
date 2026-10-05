@@ -1,7 +1,7 @@
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 
 /**
  * The catalog entry a `catalog:` specifier refers to, or `undefined` when the

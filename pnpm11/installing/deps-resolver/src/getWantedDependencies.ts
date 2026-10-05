@@ -38,6 +38,10 @@ export interface WantedDependency {
 
 export type ManifestWantedDependency = WantedDependency & { alias: string }
 
+export function hasAlias<Dependency extends WantedDependency> (wantedDependency: Dependency): wantedDependency is Dependency & { alias: string } {
+  return wantedDependency.alias != null
+}
+
 export function getWantedDependencies (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta' | 'peerDependencies'>,
   opts?: {

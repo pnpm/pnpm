@@ -19,7 +19,7 @@ import { pathExists } from 'path-exists'
 import { omit } from 'ramda'
 
 import { addResolvedPackageToGraph, type ResolvedManifest } from './addResolvedPackageToGraph.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import { startPackageResolution, waitForPackageResolutionTurn } from './packageResolutionBarrier.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {

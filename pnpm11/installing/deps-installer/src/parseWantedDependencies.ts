@@ -1,5 +1,5 @@
 import type { Catalog } from '@pnpm/catalogs.types'
-import type { ManifestWantedDependency, WantedDependency } from '@pnpm/installing.deps-resolver'
+import { hasAlias, type ManifestWantedDependency, type WantedDependency } from '@pnpm/installing.deps-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { Dependencies } from '@pnpm/types'
 import semver from 'semver'
@@ -135,7 +135,7 @@ function applyKeptSpecifiers (wantedDeps: WantedDependency[], opts: ParseWantedD
     removedByHook: [],
   }
   for (const wantedDep of wantedDeps) {
-    if (wantedDep.alias == null) {
+    if (!hasAlias(wantedDep)) {
       parsed.wantedDependencies.push(wantedDep)
       continue
     }
@@ -144,14 +144,14 @@ function applyKeptSpecifiers (wantedDeps: WantedDependency[], opts: ParseWantedD
       continue
     }
     if (opts.readonlySpecifiers != null && Object.hasOwn(opts.readonlySpecifiers, wantedDep.alias)) {
-      applyReadonlySpecifier(parsed, { ...wantedDep, alias: wantedDep.alias })
+      applyReadonlySpecifier(parsed, wantedDep)
       continue
     }
     if (!opts.readonlyManifest) {
       parsed.wantedDependencies.push(wantedDep)
       continue
     }
-    applyReadonlyManifestSpecifier(parsed, { ...wantedDep, alias: wantedDep.alias })
+    applyReadonlyManifestSpecifier(parsed, wantedDep)
   }
   return parsed
 }

@@ -4,8 +4,6 @@ import { pickBy } from 'ramda'
 import type { ManifestWantedDependency } from './getWantedDependencies.js'
 import { assertValidDependencyAliases } from './validateDependencyAlias.js'
 
-export type { WantedDependency } from './getWantedDependencies.js'
-
 type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'> & {
   name?: string
   version?: string

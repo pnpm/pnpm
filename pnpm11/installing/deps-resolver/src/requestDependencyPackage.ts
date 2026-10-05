@@ -7,7 +7,7 @@ import type { OnFetchError, PackageResponse, RequestPackageOptions } from '@pnpm
 import semver from 'semver'
 
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import { hasAlias, type WantedDependency } from './getWantedDependencies.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 import type { ResolutionContext, ResolveDependencyOptions, ResolvedPkgsById } from './resolutionTypes.js'
 import { unwrapPackageName } from './unwrapPackageName.js'
@@ -56,8 +56,8 @@ export async function requestDependencyPackage (request: DependencyRequest): Pro
   // Normalize the `preferredVersion` (singular) and `preferredVersions`
   // (plural) options. If the singular option is passed through, it'll be used
   // instead of the plural option.
-  const preferredVersions = !options.updateRequested && options.preferredVersion != null && wantedDependency.alias != null
-    ? getExactSinglePreferredVersions({ ...wantedDependency, alias: wantedDependency.alias }, options.preferredVersion)
+  const preferredVersions = !options.updateRequested && options.preferredVersion != null && hasAlias(wantedDependency)
+    ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
     : options.preferredVersions
 
   try {

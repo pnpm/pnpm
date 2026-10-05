@@ -21,7 +21,7 @@ import {
 import type { RegistryContext } from '@pnpm/types'
 import semver from 'semver'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type {
   ExtendedWantedDependency,
   InfoFromLockfile,
