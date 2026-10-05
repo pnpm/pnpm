@@ -757,6 +757,23 @@ fn ignored_auth_warning_redacts_protocol_relative_userinfo() {
 }
 
 #[test]
+fn ignored_request_destination_warning_redacts_protocol_relative_userinfo() {
+    static_env!(Env, &[("REGISTRY_PATH", "npm")]);
+
+    let auth = NpmrcAuth::from_project_ini::<Env>(
+        "//user:password@registry.example.com/${REGISTRY_PATH}/:_authToken=abc\n",
+        Path::new(""),
+    );
+    let warning = auth.warnings
+        .iter()
+        .find(|warning| warning.contains("Ignored project-level request destination"))
+        .expect("ignored request destination warning");
+
+    assert!(warning.contains("//registry.example.com/${REGISTRY_PATH}/:_authToken"));
+    assert!(!warning.contains("user:password"));
+}
+
+#[test]
 fn from_ini_expands_auth_env_placeholder_without_warning() {
     static_env!(Env, &[("MY_TOKEN", "secret")]);
 
