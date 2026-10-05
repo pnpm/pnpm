@@ -59,9 +59,11 @@ export {
   trackChildProcess,
 }
 
+/** Run dependency lifecycle scripts in the standard platform shell. */
 export async function runPostinstallHooks (
   opts: RunLifecycleHookOptions
 ): Promise<boolean> {
+  opts = { ...opts, scriptShell: undefined }
   const pkg = await safeReadPackageJsonFromDir(opts.pkgRoot)
   if (pkg == null) return false
   if (pkg.scripts == null) {
