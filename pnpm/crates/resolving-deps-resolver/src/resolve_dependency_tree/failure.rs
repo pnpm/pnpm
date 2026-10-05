@@ -25,14 +25,14 @@ impl fmt::Display for DependencyResolutionError {
             "{}\n\nFailed to resolve {}@{}",
             self.source,
             redact_and_sanitize(&self.alias),
-            redact_and_sanitize(&self.specifier)
+            redact_and_sanitize(&self.specifier),
         )?;
         for parent in &self.parents {
             write!(
                 formatter,
                 "\nThis error happened while installing the dependencies of {}@{}",
                 redact_and_sanitize(&parent.name),
-                redact_and_sanitize(&parent.version)
+                redact_and_sanitize(&parent.version),
             )?;
         }
         Ok(())
