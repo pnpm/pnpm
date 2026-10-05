@@ -15,6 +15,8 @@ import {
   wrapSettings,
 } from '../src/path-extender-posix.js'
 
+const posixTest = process.platform === 'win32' ? test.skip : test
+
 function opts (overwrite: boolean): AddDirToPosixEnvPathOpts {
   return {
     configSectionName: 'pnpm',
@@ -343,7 +345,7 @@ esac`)
   })
 
   // cspell:ignore ZDOTDIR
-  test('sourcing the zsh block moves PNPM_HOME to the start of PATH (pnpm/pnpm#7799)', async () => {
+  posixTest('sourcing the zsh block moves PNPM_HOME to the start of PATH (pnpm/pnpm#7799)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
     const savedConfigDir = process.env.ZDOTDIR
     const previousZshVersion = process.env.ZSH_VERSION
