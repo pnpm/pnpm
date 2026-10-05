@@ -4908,6 +4908,45 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('collect warnings into the caller-provided array when config loading fails', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
+test('collect .npmrc warnings into the caller-provided array when pnpm_config__auth is malformed', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_authToken=${ENV_VAR_123}', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    env: { pnpm_config__auth: '{' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_AUTH_SETTING' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
 test.each([
   [undefined, '${EMPTY_TOKEN}', '', true],
   ['', '${EMPTY_TOKEN}', '', true],

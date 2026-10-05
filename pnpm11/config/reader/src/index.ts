@@ -97,6 +97,8 @@ interface GetConfigOptions {
    * `SELF_UPDATE_SKIPPED_SETTINGS`.
    */
   forSelfUpdate?: boolean
+  /** Collects warnings as they are found, so they survive a failed load. */
+  warnings?: string[]
 }
 
 interface GetConfigResult {
@@ -146,7 +148,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
 }
 
 async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions): Promise<GetConfigResult> {
-  const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
+  const { onlyInheritDlxSettingsFromLocal: _, warnings = [], ...localOpts } = opts
   const globalCfgOpts: typeof localOpts = {
     ...localOpts,
     ignoreLocalSettings: true,
@@ -155,10 +157,20 @@ async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions):
       dir: os.homedir(),
     },
   }
-  const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
+  const globalWarnings: string[] = []
+  const localWarnings: string[] = []
+  const results = await Promise.allSettled([
+    getConfig({ ...globalCfgOpts, warnings: globalWarnings }),
+    getConfig({ ...localOpts, warnings: localWarnings }),
+  ])
+  // Both loads read the user-level config, so they report its warnings twice.
+  warnings.push(...new Set([...globalWarnings, ...localWarnings]))
+  const [final, localSrc] = results.map((result) => {
+    if (result.status === 'rejected') throw result.reason
+    return result.value
+  })
   inheritDlxConfig(final, localSrc)
-  final.warnings.push(...localSrc.warnings)
-  return final
+  return { ...final, warnings }
 }
 
 function assertNoHoistConflicts (cliOptions: CliOptions): void {
@@ -200,6 +212,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // Only the global config yaml may supply `_auth` (deleted from
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
+    warnings: opts.warnings,
   })
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
