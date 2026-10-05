@@ -30,7 +30,8 @@ impl<'a> CreateVirtualStore<'a> {
     pub(super) async fn run_inner<Reporter: self::Reporter>(
         &mut self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
-        self.run_retaining::<Reporter>(None).await.map(|(output, _)| output)
+        // Boxed for `clippy::large_futures`: every install awaits this future.
+        Box::pin(self.run_retaining::<Reporter>(None)).await.map(|(output, _)| output)
     }
 
     /// [`Self::run_inner`], also returning the settled prefetch of
