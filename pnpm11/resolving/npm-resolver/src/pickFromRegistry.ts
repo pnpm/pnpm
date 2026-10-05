@@ -1,18 +1,19 @@
 import { promises as fs } from 'node:fs'
 
 import { logger } from '@pnpm/logger'
-import type { PackageMeta } from '@pnpm/resolving.registry.types'
+import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
 import { type FetchMetadataResult, notModifiedWithoutCacheError } from './fetch.js'
 import {
   condenseMetaForCache,
+  encodeMirror,
   fullEtagOfAbbreviatedMirror,
   holdsFullMetaInAbbreviatedMirror,
+  isMalformedMirrorFragmentError,
   loadMetaHeaders,
   type MetaHeaders,
   metaHeadersOf,
   mirrorEtags,
-  prepareJsonForDisk,
   saveMetaBestEffort,
 } from './metaMirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
@@ -46,9 +47,8 @@ export async function pickFromRegistry (session: MirrorSession): Promise<PickRes
 
     // 304: the cached mirror is still current.
     const diskMeta = await loadSessionDiskMeta(session)
-    if (diskMeta != null) return await serveValidatedMeta(request, diskMeta)
-
-    return await refetchWithoutValidators(request)
+    const validated = diskMeta != null ? await serveValidatedMirror(request, diskMeta) : undefined
+    return validated ?? await refetchWithoutValidators(request)
   } catch (err: unknown) {
     return pickFromMirrorAfterFailedFetch(request, err)
   }
@@ -78,8 +78,9 @@ async function fetchConditionally (
   })
 }
 
-// The mirror vanished between the headers read and this read (concurrent
-// store cleanup, antivirus, ...), so the 304 now validates nothing. Ask
+// Either the mirror vanished between the headers read and this read
+// (concurrent store cleanup, antivirus, ...) or its content turned out
+// corrupt, so the 304 validates nothing. Ask
 // again as a cold cache would, which the registry can only answer with a
 // body or an error — never another 304.
 async function refetchWithoutValidators (request: PickRequest): Promise<PickResult> {
@@ -98,10 +99,30 @@ async function pickFromMirrorAfterFailedFetch (request: PickRequest, err: unknow
   (err as { spec?: RegistryPackageSpec }).spec = request.spec
   const meta = await loadMetaCondensed(request)
   if (meta == null) throw err
+  let pickedPackage: PackageInRegistry | null
+  try {
+    pickedPackage = pickMatchingVersionFinal(request.pickerOpts, request.spec, meta)
+  } catch (pickErr: unknown) {
+    // A corrupt fragment makes this fallback as useless as a missing mirror.
+    if (isMalformedMirrorFragmentError(pickErr)) throw err
+    throw pickErr
+  }
   logger.debug({ message: `Using cached meta from ${request.pkgMirror}` })
-  return {
-    meta,
-    pickedPackage: pickMatchingVersionFinal(request.pickerOpts, request.spec, meta),
+  return { meta, pickedPackage }
+}
+
+/**
+ * {@link serveValidatedMeta}, or `undefined` when a version fragment of the
+ * local file is corrupt. The 304 validated the ETag in the intact headers
+ * record, so without a refetch the mirror would keep revalidating and never
+ * be repaired.
+ */
+async function serveValidatedMirror (request: PickRequest, cached: PackageMeta): Promise<PickResult | undefined> {
+  try {
+    return await serveValidatedMeta(request, cached)
+  } catch (err: unknown) {
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
   }
 }
 
@@ -123,11 +144,11 @@ async function serveValidatedMeta (request: PickRequest, cached: PackageMeta): P
   }
   const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cached)
   const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
+  // Pick before caching, so a corrupt fragment never leaves the document in
+  // the in-memory cache.
+  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, meta)
   ctx.metaCache.set(request.cacheKey, meta)
-  return {
-    meta,
-    pickedPackage: pickMatchingVersionFinal(request.pickerOpts, spec, meta),
-  }
+  return { meta, pickedPackage }
 }
 
 interface FreshMetaUpgrade {
@@ -171,7 +192,8 @@ async function upgradeFreshMetaForReleaseAge (request: PickRequest, fetched: Fet
   // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
   if (!opts.dryRun) {
     const { etag, fullEtag } = mirrorEtags(fetched, request.fullMetadata)
-    saveMetaBestEffort(request.pkgMirror, prepareJsonForDisk(fetched.meta, etag, { ...fetched, fullEtag }), fetched.uncacheable === true)
+    const content = encodeMirror(ctx, fetched, { meta: fetched.meta, etag, body: { uncacheable: fetched.uncacheable, fullEtag } })
+    saveMetaBestEffort(request.pkgMirror, content, fetched.uncacheable === true)
   }
   const fullFetchResult = await ctx.fetch(spec.name, {
     authHeaderValue: opts.authHeaderValue,
@@ -206,15 +228,17 @@ function mirrorFreshMeta (
   request: PickRequest,
   { resultToSave, meta }: { resultToSave: FetchMetadataResult, meta: PackageMeta }
 ): void {
-  // Mirror the raw registry body, unless the retained form is
-  // deliberately narrower: `filterMetadata` always mirrors the stripped
-  // document, and a full document in the abbreviated slot mirrors the
-  // condensed form — `time` is all the next install needs from this slot.
+  // Mirror the fetched document, unless the retained form is deliberately
+  // narrower: `filterMetadata` always mirrors the stripped document, and a
+  // full document in the abbreviated slot mirrors the condensed form — `time`
+  // is all the next install needs from this slot.
   const writeCondensed = request.ctx.filterMetadata === true ||
     (holdsFullMetaInAbbreviatedMirror(resultToSave, request.fullMetadata) && meta !== resultToSave.meta)
   const { etag, fullEtag } = mirrorEtags(resultToSave, request.fullMetadata)
-  const jsonForDisk = writeCondensed
-    ? prepareJsonForDisk(meta, etag, { uncacheable: resultToSave.uncacheable, fullEtag })
-    : prepareJsonForDisk(resultToSave.meta, etag, { ...resultToSave, fullEtag })
-  saveMetaBestEffort(request.pkgMirror, jsonForDisk, resultToSave.uncacheable === true)
+  const content = encodeMirror(request.ctx, resultToSave, {
+    meta: writeCondensed ? meta : resultToSave.meta,
+    etag,
+    body: { uncacheable: resultToSave.uncacheable, fullEtag },
+  })
+  saveMetaBestEffort(request.pkgMirror, content, resultToSave.uncacheable === true)
 }

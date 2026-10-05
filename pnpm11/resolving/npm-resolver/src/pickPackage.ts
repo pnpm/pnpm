@@ -6,6 +6,8 @@ import {
   getFileMtime,
   getPkgMetaCacheKey,
   getPkgMirrorPath,
+  hasVersionManifest,
+  isMalformedMirrorFragmentError,
   legacyMirrorHint,
   loadMetaHeaders,
   type MetaHeaders,
@@ -208,12 +210,21 @@ async function pickFromMemoryCache (request: PickRequest): Promise<PickResult | 
   // publishedBy and the package was modified recently, upgrade to full
   // metadata so the maturity check runs properly.
   const { meta } = await upgradeCachedMetaForReleaseAge(request, cachedMeta)
-  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, meta)
+  let pickedPackage: PackageInRegistry | null
+  let offlinePickedPackage: PackageInRegistry | null | undefined
+  try {
+    pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, meta)
+    offlinePickedPackage = ctx.offline === true
+      ? await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta, pickedPackage })
+      : undefined
+  } catch (err: unknown) {
+    // A disk-promoted entry with a corrupt fragment. Offline, the mirror pick
+    // fails with NO_OFFLINE_META. Online, the 304 handler refetches past it.
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
+  }
   const unverified = unverifiedDiskPackuments.has(meta)
   const unverifiedPickIsSafe = isUnverifiedPickSafe(request, { pickedPackage, unverified })
-  const offlinePickedPackage = ctx.offline === true
-    ? await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta, pickedPackage })
-    : undefined
   const cacheResultCanReturn =
     ctx.offline === true ||
     !unverified ||
@@ -303,11 +314,18 @@ async function pickOffline (request: PickRequest, diskMeta: PackageMeta | null):
       hint: await legacyMirrorHint(ctx.cacheDir, request.metaDir, opts.registry, spec.name),
     })
   }
-  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, diskMeta)
-  const storePicked = await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta: diskMeta, pickedPackage })
-  return {
-    meta: diskMeta,
-    pickedPackage: storePicked ?? pickedPackage,
+  try {
+    const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, diskMeta)
+    const storePicked = await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta: diskMeta, pickedPackage })
+    return {
+      meta: diskMeta,
+      pickedPackage: storePicked ?? pickedPackage,
+    }
+  } catch (err: unknown) {
+    // A corrupt fragment makes the mirror as unusable offline as a missing
+    // one, and there is no network to repair it from.
+    if (!isMalformedMirrorFragmentError(err)) throw err
+    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${request.pkgMirror}`)
   }
 }
 
@@ -317,7 +335,14 @@ async function pickFromUpgradedMirror (session: MirrorSession, diskMeta: Package
   // before letting pickMatchingVersionFinal warn-and-skip on missing time.
   const { meta, upgraded } = await upgradeCachedMetaForReleaseAge(request, diskMeta)
   session.diskMeta = meta
-  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, request.spec, meta)
+  let pickedPackage: PackageInRegistry | null
+  try {
+    pickedPackage = pickMatchingVersionFinal(request.pickerOpts, request.spec, meta)
+  } catch (err: unknown) {
+    // The registry request that follows replaces a corrupt mirror.
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
+  }
   if (!pickedPackage || !canServeCachedMeta(request.ctx, meta)) return undefined
   // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
   // serving this meta from memory can't bypass the release-age
@@ -339,7 +364,7 @@ async function pickExactVersionFromMirror (session: MirrorSession): Promise<Pick
   if (
     diskMeta == null ||
     !canServeCachedMeta(ctx, diskMeta) ||
-    (diskMeta.versions?.[spec.fetchSpec]) == null
+    !hasVersionManifest(diskMeta.versions ?? {}, spec.fetchSpec)
   ) {
     return undefined
   }

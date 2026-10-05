@@ -2,7 +2,7 @@ use super::{
     ABBREVIATED_META_DIR, ACCEPT_ABBREVIATED, AuthHeaders, FULL_FILTERED_META_DIR, FULL_META_DIR,
     FetchFullMetadataCachedOptions, FetchMetadataError, Matcher, PACKAGE_BODY, TempDir,
     ThrottledClient, assert_cache_loss_after_304_recovers, fast_retry_opts,
-    fetch_full_metadata_cached, get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta,
+    fetch_full_metadata_cached, get_legacy_pkg_mirror_paths, get_pkg_mirror_path, load_meta,
     load_meta_headers, no_retry_opts, remove_raced_mirror, write_stale_mirror,
 };
 
@@ -131,8 +131,10 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
 
     let cache = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
-    let legacy_mirror = get_legacy_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme")
-        .expect("legacy mirror path");
+    let legacy_mirror = get_legacy_pkg_mirror_paths(cache.path(), FULL_META_DIR, &registry, "acme")
+        .into_iter()
+        .next()
+        .expect("legacy mirror path under the current registry key");
     std::fs::create_dir_all(legacy_mirror.parent().expect("legacy mirror parent")).expect("mkdir");
     std::fs::write(&legacy_mirror, "{}\n{}").expect("write legacy mirror");
 

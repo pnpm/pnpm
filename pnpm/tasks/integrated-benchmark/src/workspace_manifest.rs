@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_dir: Option<String>,
-    /// Packument-metadata cache location (`<cacheDir>/v11/metadata-full`).
+    /// Packument-metadata cache location (`<cacheDir>/v12/metadata-full`).
     /// The benchmark forces this bench-local (`./cache-dir`) for the same
     /// reason it forces `storeDir` local: so the cold-cache scenarios can
     /// wipe it per-iteration. Left at the global default it would survive

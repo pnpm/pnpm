@@ -11,16 +11,29 @@
 //! asks for the typed form, and the hydrated manifest is cached per
 //! slot so repeated lookups parse once.
 //!
-//! A fragment that fails to decode behaves as if the version were
-//! absent from the packument (with a `tracing::warn`), mirroring the
-//! tolerance of JavaScript package managers, which never validate
-//! version entries they don't pick.
+//! A registry-served fragment that fails to decode behaves as if the
+//! version were absent from the packument (with a `tracing::warn`),
+//! mirroring the tolerance of JavaScript package managers, which never
+//! validate version entries they don't pick. A fragment read out of an
+//! indexed on-disk mirror is different when its bytes are not JSON at
+//! all: the index vouched for the span, and the mirror stores registry
+//! fragments verbatim, so such bytes mean the local file is damaged
+//! rather than that the version is missing. Those are recorded in
+//! [`PackageVersions::has_corrupt_mirror_fragment`], which the resolver
+//! reads to treat the whole mirror as unreadable — silently resolving a
+//! different version off damaged local data would be worse than the
+//! refetch, and the etag lives in the intact headers record, so nothing
+//! else would ever repair the file.
+
+pub use mirror::{MirrorFile, read_exact_at};
 
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fs::File,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -40,6 +53,9 @@ struct DeprecatedProbe {
 #[derive(Debug, Default, Clone)]
 pub struct PackageVersions {
     slots: Vec<(String, VersionSlot)>,
+    /// Shared with every clone and filtered view, so corruption stays
+    /// visible through whichever handle the resolver ends up holding.
+    corrupt_mirror_fragment: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -55,47 +71,6 @@ struct VersionSlot {
     trust: OnceLock<Option<Arc<VersionTrustMetadata>>>,
 }
 
-/// A mirror file held open for on-demand fragment reads, counted
-/// against a caller-supplied cap so a fleet of held handles can never
-/// exhaust the process's descriptor budget — a load that would exceed
-/// the cap falls back to buffering its fragments instead (see
-/// [`MirrorFile::try_hold`]).
-#[derive(Debug)]
-pub struct MirrorFile {
-    file: File,
-}
-
-static HELD_MIRROR_FILES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-impl MirrorFile {
-    /// Wrap `file` for span reads when fewer than `cap` mirror files
-    /// are currently held; hand the file back otherwise so the caller
-    /// can buffer its contents and close it.
-    pub fn try_hold(file: File, cap: usize) -> Result<Arc<MirrorFile>, File> {
-        let mut held = HELD_MIRROR_FILES.load(std::sync::atomic::Ordering::Relaxed);
-        loop {
-            if held >= cap {
-                return Err(file);
-            }
-            match HELD_MIRROR_FILES.compare_exchange_weak(
-                held,
-                held + 1,
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-            ) {
-                Ok(_) => return Ok(Arc::new(MirrorFile { file })),
-                Err(current) => held = current,
-            }
-        }
-    }
-}
-
-impl Drop for MirrorFile {
-    fn drop(&mut self) {
-        HELD_MIRROR_FILES.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
 /// Where a version's JSON fragment lives until it is hydrated.
 #[derive(Debug, Clone)]
 enum FragmentSource {
@@ -109,18 +84,24 @@ enum FragmentSource {
     /// [`PackageVersions::from_file_spans`] for the inode-pinning
     /// contract the held handle provides.
     FileSpan { file: Arc<MirrorFile>, offset: u64, len: u32 },
+    /// An indexed mirror's fragment, buffered in memory because its
+    /// file could not be held open (see
+    /// [`PackageVersions::from_buffered_mirror_fragments`]).
+    BufferedMirror(Arc<RawValue>),
     /// No fragment — the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
     None,
 }
 
 impl FragmentSource {
-    /// The fragment's JSON text: borrowed for [`FragmentSource::Raw`],
+    /// The fragment's JSON text: borrowed for a buffered fragment,
     /// read from the mirror file for [`FragmentSource::FileSpan`],
     /// absent for [`FragmentSource::None`] or unreadable spans.
     fn json(&self) -> Option<Cow<'_, str>> {
         match self {
-            FragmentSource::Raw(raw) => Some(Cow::Borrowed(raw.get())),
+            FragmentSource::Raw(raw) | FragmentSource::BufferedMirror(raw) => {
+                Some(Cow::Borrowed(raw.get()))
+            }
             FragmentSource::FileSpan { file, offset, len } => {
                 let mut bytes = vec![0u8; *len as usize];
                 if let Err(error) = read_exact_at(&file.file, &mut bytes, *offset) {
@@ -148,42 +129,13 @@ impl FragmentSource {
             FragmentSource::None => None,
         }
     }
-}
 
-/// Fill `buf` from `file` at the absolute `offset`. The handle's read
-/// cursor is never consulted, and callers must not rely on where it
-/// ends up: the unix implementation leaves it untouched, while the
-/// Windows one moves it as a `seek_read` side effect.
-#[cfg(unix)]
-pub fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
-    std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
-}
-
-#[cfg(target_os = "wasi")]
-pub fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
-    std::os::wasi::fs::FileExt::read_exact_at(file, buf, offset)
-}
-
-/// See the unix sibling for the shared contract.
-#[cfg(windows)]
-pub fn read_exact_at(file: &File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
-    while !buf.is_empty() {
-        match std::os::windows::fs::FileExt::seek_read(file, buf, offset) {
-            Ok(0) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof,
-                    "mirror fragment span reaches past the end of the file",
-                ));
-            }
-            Ok(read) => {
-                buf = &mut buf[read..];
-                offset += read as u64;
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(error) => return Err(error),
-        }
+    /// Whether the fragment comes from an indexed on-disk mirror,
+    /// where a decode failure means a damaged file rather than a
+    /// version the registry served badly.
+    fn is_mirror_span(&self) -> bool {
+        matches!(self, FragmentSource::FileSpan { .. } | FragmentSource::BufferedMirror(_))
     }
-    Ok(())
 }
 
 impl Clone for VersionSlot {
@@ -210,10 +162,17 @@ impl VersionSlot {
         }
     }
 
-    fn hydrate(&self, version: &str) -> Option<Arc<PackageVersion>> {
+    fn hydrate(
+        &self,
+        version: &str,
+        corrupt_mirror_fragment: &AtomicBool,
+    ) -> Option<Arc<PackageVersion>> {
         self.parsed
             .get_or_init(|| {
-                let json = self.source.json()?;
+                let Some(json) = self.source.json() else {
+                    self.report_undecodable(version, corrupt_mirror_fragment);
+                    return None;
+                };
                 match serde_json::from_str::<PackageVersion>(&json) {
                     Ok(parsed) => Some(Arc::new(parsed)),
                     Err(error) => {
@@ -223,11 +182,34 @@ impl VersionSlot {
                             version,
                             "skipping registry version with an undecodable manifest",
                         );
+                        self.report_decode_error(version, &json, corrupt_mirror_fragment);
                         None
                     }
                 }
             })
             .clone()
+    }
+
+    /// Only bytes that are not JSON at all mean a damaged mirror. A
+    /// well-formed fragment of the wrong shape is how the registry served
+    /// that version, and the mirror stores it verbatim, so it stays an
+    /// absent version as it is for a fragment read off the network.
+    fn report_decode_error(&self, version: &str, json: &str, corrupt_mirror_fragment: &AtomicBool) {
+        if serde_json::from_str::<serde::de::IgnoredAny>(json).is_err() {
+            self.report_undecodable(version, corrupt_mirror_fragment);
+        }
+    }
+
+    fn report_undecodable(&self, version: &str, corrupt_mirror_fragment: &AtomicBool) {
+        if !self.source.is_mirror_span() {
+            return;
+        }
+        tracing::debug!(
+            target: "pnpm_registry",
+            version,
+            "metadata mirror fragment is damaged; the mirror will be treated as unreadable",
+        );
+        corrupt_mirror_fragment.store(true, Ordering::Relaxed);
     }
 }
 
@@ -237,7 +219,16 @@ impl PackageVersions {
     /// fragment fails to decode.
     #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
-        self.slot(version)?.hydrate(version)
+        self.slot(version)?.hydrate(version, &self.corrupt_mirror_fragment)
+    }
+
+    /// Whether hydrating any version so far read a damaged fragment of
+    /// an indexed on-disk mirror. Lazy, like the hydration it reports
+    /// on: a corrupt fragment nobody touched goes unnoticed, exactly as
+    /// its version going unpicked means nothing was resolved from it.
+    #[must_use]
+    pub fn has_corrupt_mirror_fragment(&self) -> bool {
+        self.corrupt_mirror_fragment.load(Ordering::Relaxed)
     }
 
     /// Reads the fields used by trust-downgrade checks without hydrating
@@ -251,7 +242,10 @@ impl PackageVersions {
                 if let Some(Some(parsed)) = slot.parsed.get() {
                     return Some(Arc::new(VersionTrustMetadata::from(parsed.as_ref())));
                 }
-                let json = slot.source.json()?;
+                let Some(json) = slot.source.json() else {
+                    slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+                    return None;
+                };
                 match serde_json::from_str::<VersionTrustMetadata>(&json) {
                     Ok(trust) => Some(Arc::new(trust)),
                     Err(error) => {
@@ -261,6 +255,7 @@ impl PackageVersions {
                             version,
                             "skipping registry version with undecodable trust metadata",
                         );
+                        slot.report_decode_error(version, &json, &self.corrupt_mirror_fragment);
                         None
                     }
                 }
@@ -310,11 +305,19 @@ impl PackageVersions {
         if let Some(deprecated) = slot.deprecated.get() {
             return *deprecated;
         }
-        let Some(json) = slot.source.json() else { return false };
+        let Some(json) = slot.source.json() else {
+            slot.report_undecodable(version, &self.corrupt_mirror_fragment);
+            return false;
+        };
         *slot.deprecated.get_or_init(|| {
-            json.contains(r#""deprecated""#)
-                && serde_json::from_str::<DeprecatedProbe>(&json)
-                    .is_ok_and(|probe| probe.deprecated.is_some())
+            if !json.contains(r#""deprecated""#) {
+                return false;
+            }
+            let Ok(probe) = serde_json::from_str::<DeprecatedProbe>(&json) else {
+                slot.report_decode_error(version, &json, &self.corrupt_mirror_fragment);
+                return false;
+            };
+            probe.deprecated.is_some()
         })
     }
 
@@ -340,7 +343,9 @@ impl PackageVersions {
     pub fn iter(&self) -> impl Iterator<Item = (&String, Arc<PackageVersion>)> {
         self.slots
             .iter()
-            .filter_map(|(version, slot)| Some((version, slot.hydrate(version)?)))
+            .filter_map(|(version, slot)| {
+                Some((version, slot.hydrate(version, &self.corrupt_mirror_fragment)?))
+            })
     }
 
     /// Filtered copy keeping only the versions `keep` accepts. Slots
@@ -355,6 +360,7 @@ impl PackageVersions {
                 .filter(|(version, _)| keep(version))
                 .map(|(version, slot)| (version.clone(), slot.clone()))
                 .collect(),
+            corrupt_mirror_fragment: Arc::clone(&self.corrupt_mirror_fragment),
         }
     }
 
@@ -369,104 +375,7 @@ impl PackageVersions {
         if !slots.is_sorted_by(|left, right| left.0 <= right.0) {
             slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         }
-        PackageVersions { slots }
-    }
-}
-
-/// Constructors and accessors for the indexed on-disk mirror format
-/// (see `pnpm-resolving-npm-resolver`'s `mirror` module, which owns
-/// the file layout).
-impl PackageVersions {
-    /// Build a map whose fragments are byte spans read on demand from
-    /// the held-open `file` (the indexed mirror). Nothing parses until
-    /// a version hydrates, and no fragment bytes stay resident.
-    ///
-    /// The handle pins the inode: mirror rewrites go through a temp
-    /// file followed by `rename`, so the bytes behind this open handle
-    /// can never shift under the recorded spans.
-    #[must_use]
-    pub fn from_file_spans(
-        file: &Arc<MirrorFile>,
-        spans: impl IntoIterator<Item = (String, u64, u32)>,
-    ) -> Self {
-        PackageVersions::from_slots(
-            spans
-                .into_iter()
-                .map(|(version, offset, len)| {
-                    (
-                        version,
-                        VersionSlot {
-                            source: FragmentSource::FileSpan {
-                                file: Arc::clone(file),
-                                offset,
-                                len,
-                            },
-                            parsed: OnceLock::new(),
-                            deprecated: OnceLock::new(),
-                            trust: OnceLock::new(),
-                        },
-                    )
-                })
-                .collect(),
-        )
-    }
-
-    /// Build a map from already-extracted raw JSON fragments. The
-    /// fallback for a mirror the loader could not keep open (the
-    /// held-handle cap in [`MirrorFile::try_hold`] was reached): the
-    /// fragments stay buffered in memory like a freshly-fetched
-    /// packument's, trading residency for a descriptor.
-    #[must_use]
-    pub fn from_raw_fragments(
-        fragments: impl IntoIterator<Item = (String, Box<RawValue>)>,
-    ) -> Self {
-        PackageVersions::from_slots(
-            fragments
-                .into_iter()
-                .map(|(version, raw)| {
-                    (
-                        version,
-                        VersionSlot {
-                            source: FragmentSource::Raw(Arc::from(raw)),
-                            parsed: OnceLock::new(),
-                            deprecated: OnceLock::new(),
-                            trust: OnceLock::new(),
-                        },
-                    )
-                })
-                .collect(),
-        )
-    }
-
-    /// Iterate every version's JSON fragment text, for the mirror
-    /// writer. Raw fragments borrow; slots holding only a typed
-    /// manifest re-serialize it; file-span slots read their span.
-    /// A slot whose fragment can be neither borrowed nor produced is
-    /// skipped with a warning — the mirror then simply omits that
-    /// version, which reads back as "absent" (the same contract as an
-    /// undecodable fragment).
-    pub fn fragments(&self) -> impl Iterator<Item = (&String, Cow<'_, str>)> {
-        self.slots
-            .iter()
-            .filter_map(|(version, slot)| {
-                if let Some(json) = slot.source.json() {
-                    return Some((version, json));
-                }
-                if let Some(Some(parsed)) = slot.parsed.get() {
-                    match serde_json::to_string(parsed.as_ref()) {
-                        Ok(json) => return Some((version, Cow::Owned(json))),
-                        Err(error) => {
-                            tracing::warn!(
-                                target: "pnpm_registry",
-                                %error,
-                                version,
-                                "failed to re-serialize a typed manifest for the metadata mirror",
-                            );
-                        }
-                    }
-                }
-                None
-            })
+        PackageVersions { slots, corrupt_mirror_fragment: Arc::default() }
     }
 }
 
@@ -545,6 +454,8 @@ impl Serialize for PackageVersions {
         map.end()
     }
 }
+
+mod mirror;
 
 #[cfg(test)]
 mod tests;
