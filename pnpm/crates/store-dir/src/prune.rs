@@ -311,14 +311,18 @@ fn next_walk_dir(
     reachable: &mut HashSet<PathBuf>,
 ) -> Option<PathBuf> {
     let file_type = entry.file_type().ok()?;
+    let entry_path = entry.path();
     if file_type.is_symlink() {
-        let slot = linked_store_slot(&entry.path(), canonical_links)?;
+        let slot = linked_store_slot(&entry_path, canonical_links)?;
         let inner_modules = canonical_links.join(&slot).join("node_modules");
         reachable.insert(slot);
         return Some(inner_modules);
     }
-    if file_type.is_dir() && entry.file_name().to_string_lossy() != ".pnpm" {
-        return Some(entry.path());
+    if file_type.is_dir()
+        && entry.file_name().to_string_lossy() != ".pnpm"
+        && canonical_links.parent() != Some(entry_path.as_path())
+    {
+        return Some(entry_path);
     }
     None
 }
