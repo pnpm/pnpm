@@ -116,13 +116,27 @@ function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boole
 }
 
 function safeJoinPath (root: string, sub: string): string {
-  const joined = path.join(root, sub)
-  // prevent the dir traversal attack
-  const relative = path.relative(root, joined)
-  if (relative.startsWith('..')) {
+  const normalizedSub = sub.replace(/^[/\\]+/, '')
+  const joined = normalizedSub === '' ? root : path.join(root, normalizedSub)
+  // Prevent directory traversal attacks lexically first
+  const lexicalRelative = path.relative(root, joined)
+  if (lexicalRelative === '..' || lexicalRelative.startsWith(`..${path.sep}`) || path.isAbsolute(lexicalRelative)) {
     throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory`)
   }
-  if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
+  let realRoot: string
+  let realJoined: string
+  try {
+    realRoot = fs.realpathSync(root)
+    realJoined = fs.realpathSync(joined)
+  } catch (err: unknown) {
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory`, { cause: err })
+  }
+  // Verify that any intermediate symlinks or resolved target remain inside the repository root
+  const relative = path.relative(realRoot, realJoined)
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory`)
+  }
+  if (!fs.statSync(realJoined).isDirectory()) {
     throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory`)
   }
   return joined
