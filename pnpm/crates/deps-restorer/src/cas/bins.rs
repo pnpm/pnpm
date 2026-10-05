@@ -1,6 +1,7 @@
 use super::{LOADER_FILENAME, StoreManifest, write_file};
 use pnpm_cmd_shim::{
-    Host, PackageBinSource, get_bins_from_package_manifest, link_bins_of_packages,
+    FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest_with_walk,
+    link_bins_of_packages,
 };
 use sha2::{Digest, Sha256};
 use std::{collections::HashMap, io, path::Path, sync::Arc};
@@ -54,7 +55,7 @@ fn bin_source(
     if package.resolution.as_deref() == Some("node") {
         return Ok(Some(PackageBinSource::new(root, Arc::new(metadata))));
     }
-    let commands = get_bins_from_package_manifest::<Host>(&metadata, &root);
+    let commands = package_bins(package, &metadata, &root);
     if commands.is_empty() {
         return Ok(None);
     }
@@ -69,6 +70,23 @@ fn bin_source(
     }
     metadata["bin"] = bins.into();
     Ok(Some(PackageBinSource::new(entry_dir, Arc::new(metadata))))
+}
+
+fn package_bins(
+    package: &super::StorePackage,
+    metadata: &serde_json::Value,
+    root: &Path,
+) -> Vec<pnpm_cmd_shim::Command> {
+    get_bins_from_package_manifest_with_walk(metadata, root, |directory| {
+        let Some(files) = &package.files else {
+            return Host::walk_files(directory).map(Iterator::collect::<Vec<_>>);
+        };
+        Ok(files
+            .keys()
+            .map(|name| root.join(name))
+            .filter(|path| pnpm_fs::is_subdir(directory, path))
+            .collect::<Vec<_>>())
+    })
 }
 
 fn write_entry(root: &Path, path: &Path, target: &Path) -> io::Result<()> {
@@ -97,12 +115,12 @@ fn read_manifest(
             let Some(hash) = files.get("package.json") else {
                 return Ok(serde_json::json!({}));
             };
-            store
-                .join("files")
-                .join(&hash[..2])
-                .join(&hash[2..])
+            pnpm_store_dir::loader_blob_path(&store.join("files"), hash)?
         }
         None => root.join("package.json"),
     };
     pnpm_package_manifest::parse_manifest_bytes(&std::fs::read(path)?).map_err(io::Error::other)
 }
+
+#[cfg(test)]
+mod tests;

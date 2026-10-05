@@ -14,6 +14,8 @@ pub use store_lock::{StoreLockError, StoreOperationLock};
 pub use symlinks::{SYMLINK_MODE, SideEffectsOverlay, is_symlink_mode, normalize_symlink_target};
 pub use upload::*;
 
+pub use loader_references::loader_blob_path;
+
 mod add_files_from_dir;
 mod cas_file;
 mod check_pkg_files_integrity;

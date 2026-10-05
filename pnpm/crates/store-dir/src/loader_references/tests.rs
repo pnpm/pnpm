@@ -49,3 +49,18 @@ fn invalid_loader_manifest_aborts_prune_before_deleting_files() {
         assert!(blob.is_file());
     }
 }
+
+#[test]
+fn loader_blob_paths_reject_absolute_traversal_and_invalid_digests() {
+    let files = std::path::Path::new("store/files");
+    for hash in ["/tmp/package.json", "../../package.json", "a", "é", &"A".repeat(128)] {
+        assert!(super::loader_blob_path(files, hash).is_err(), "{hash}");
+    }
+    for suffix in ["", "-exec"] {
+        let hash = format!("{}{suffix}", "a".repeat(128));
+        assert_eq!(
+            super::loader_blob_path(files, &hash).unwrap(),
+            files.join("aa").join(&hash[2..]),
+        );
+    }
+}

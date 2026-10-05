@@ -27,7 +27,7 @@ pub(crate) fn write_installation(
 ) -> io::Result<()> {
     let manifest = build_manifest(inputs, skipped)?;
     let root = inputs.ctx.workspace_root;
-    write_file(&root.join(MANIFEST_FILENAME), &serde_json::to_vec(&manifest)?)?;
+    pnpm_fs::write_atomic(&root.join(MANIFEST_FILENAME), &serde_json::to_vec(&manifest)?)?;
     write_file(&root.join(LOADER_FILENAME), LOADER.as_bytes())?;
     bins::write_bins(
         &bins::BinInstall {

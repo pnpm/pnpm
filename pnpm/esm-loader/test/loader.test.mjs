@@ -336,3 +336,11 @@ test('caches verified virtual JSON without caching mutable workspace manifests',
   setup.write('package.json', '{"name":"after"}')
   assert.equal(store.filesystem.readJsonSync(workspaceManifest).name, 'after')
 })
+
+test('rejects package main paths escaping into physical workspace files', context => {
+  const setup = fixture(context)
+  setup.write('outside.cjs', 'module.exports = 42')
+  setup.add('example@1', { 'package.json': '{"main":"../../outside.cjs"}' })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.match(setup.run("import value from 'example'; console.log(value)", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+})

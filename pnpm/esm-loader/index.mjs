@@ -37,7 +37,7 @@ export function createStoreHooks (manifestURL) {
       if (owner.stored && request.relative && !within(owner.root, request.filename)) {
         throw loaderError('ERR_PNPM_LOADER_PATH_ESCAPE', `Import ${specifier} escapes package ${owner.id}`)
       }
-      const resolved = resolvePackage(request.specifier, parent, context.conditions)
+      const resolved = resolvePackage(request.specifier, parent, { conditions: context.conditions, filename: request.filename })
       const url = pathToFileURL(resolved.path)
       url.search = request.search || resolved.query || ''
       url.hash = request.hash || resolved.fragment || ''

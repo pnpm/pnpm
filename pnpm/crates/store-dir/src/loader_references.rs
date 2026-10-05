@@ -71,13 +71,14 @@ fn add_references(
             references.package_roots.push(project.join(root));
         }
         for hash in package.files.into_iter().flat_map(BTreeMap::into_values) {
-            references.files.insert(blob_path(&files_dir, &hash)?);
+            references.files.insert(loader_blob_path(&files_dir, &hash)?);
         }
     }
     Ok(())
 }
 
-fn blob_path(files_dir: &Path, hash: &str) -> io::Result<PathBuf> {
+/// Resolve a validated SHA-512 digest, optionally executable, below a CAS files directory.
+pub fn loader_blob_path(files_dir: &Path, hash: &str) -> io::Result<PathBuf> {
     let digest = hash.strip_suffix("-exec").unwrap_or(hash);
     if digest.len() != 128
         || !digest
