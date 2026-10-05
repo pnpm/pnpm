@@ -102,8 +102,8 @@ fn fails_when_registry_package_has_no_bugs_url() {
         .with_body(&body)
         .create();
 
-    fs::write(workspace.join("pnpm-workspace.yaml"), format!("registry: {registry}\n"))
-        .expect("write project workspace settings");
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}\n"))
+        .expect("write project .npmrc");
     let auth_file = empty_auth_file(root.path());
 
     let output = run_bugs(&workspace, &auth_file, &["no-bugs-pkg"]);

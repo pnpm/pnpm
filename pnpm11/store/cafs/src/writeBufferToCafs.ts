@@ -197,7 +197,7 @@ function openSameFile (fileDest: string, stats: fs.BigIntStats): number | null {
  * A close failure after a write is caught by the integrity verification
  * that follows it, and after a refused open there is nothing to lose.
  */
-function closeQuietly (fd: number): void {
+export function closeQuietly (fd: number): void {
   try {
     fs.closeSync(fd)
   } catch {}

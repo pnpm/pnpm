@@ -160,7 +160,7 @@ function consumeStreamedContent (state: ParserState): boolean {
   return true
 }
 
-function createEntryWriter (state: ParserState, entry: PendingEntry): void {
+function startEntryWriter (state: ParserState, entry: PendingEntry): void {
   if (entry.fileType !== 0 && entry.fileType !== ZERO && entry.fileType !== FILE_TYPE_HARD_LINK) return
   const sink = state.createFileWriter?.(entry.fileName, entry.mode, entry.size)
   if (sink) state.writer = { sink, remaining: entry.size }
@@ -181,7 +181,7 @@ function consumeHeader (state: ParserState): boolean {
   const nextEntry = parseHeader(state, header, headerOffset)
   if (entryHasContent(nextEntry.fileType)) {
     state.entry = nextEntry
-    createEntryWriter(state, nextEntry)
+    startEntryWriter(state, nextEntry)
     if (!state.writer) assertBufferedTarballEntry(nextEntry, state.maxBufferedEntrySize)
   } else {
     state.bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)

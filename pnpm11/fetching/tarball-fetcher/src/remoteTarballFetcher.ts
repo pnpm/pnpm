@@ -1,7 +1,6 @@
 import { promises as fs } from 'node:fs'
 import type { IncomingMessage } from 'node:http'
 import { isIP } from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
@@ -18,7 +17,7 @@ import throttle from 'lodash.throttle'
 
 import { BadTarballError } from './errorTypes/index.js'
 
-const MAX_BUFFERED_DOWNLOAD_SIZE = 64 * 1024 * 1024
+export const MAX_BUFFERED_DOWNLOAD_SIZE = 64 * 1024 * 1024
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -177,6 +176,7 @@ async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
       fetchMinSpeedKiBps: ctx.fetchMinSpeedKiBps,
       onProgress,
       size,
+      storeDir: ctx.opts.cafs.storeDir,
       url: ctx.url,
     })
   } catch (err: unknown) {
@@ -232,6 +232,7 @@ type ReadResponseBodyOptions = {
   fetchMinSpeedKiBps: number
   onProgress: ((downloaded: number) => void) | undefined
   size: number | null
+  storeDir: string
   url: string
 }
 
@@ -248,22 +249,17 @@ async function readResponseBody (opts: ReadResponseBodyOptions): Promise<Downloa
       const bytes = chunk as Uint8Array
       state.downloaded += bytes.byteLength
       checkDownloadedSize(opts, state.downloaded, false)
-      await bufferDownloadChunk(state, bytes)
+      await bufferDownloadChunk(state, bytes, opts.storeDir)
       opts.onProgress?.(state.downloaded)
     }
     checkDownloadedSize(opts, state.downloaded, true)
     checkDownloadSpeed(state.downloaded, startTime, opts.fetchMinSpeedKiBps, opts.url)
-    const file = state.file
-    state.file = undefined
-    await file?.close()
+    await state.file?.close()
     return finishDownloadBuffer(state)
   } catch (err: unknown) {
-    await state.file?.close()
-    state.file = undefined
+    await state.file?.close().catch(() => {})
     if (state.directory) await fs.rm(state.directory, { recursive: true, force: true })
     throw err
-  } finally {
-    await state.file?.close()
   }
 }
 
@@ -288,9 +284,10 @@ function checkDownloadedSize (opts: ReadResponseBodyOptions, downloaded: number,
   }
 }
 
-async function bufferDownloadChunk (state: DownloadBuffer, bytes: Uint8Array): Promise<void> {
+async function bufferDownloadChunk (state: DownloadBuffer, bytes: Uint8Array, storeDir: string): Promise<void> {
   if (!state.file && state.downloaded > MAX_BUFFERED_DOWNLOAD_SIZE) {
-    state.directory = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-tarball-'))
+    await fs.mkdir(storeDir, { recursive: true })
+    state.directory = await fs.mkdtemp(path.join(storeDir, 'download-'))
     state.file = await fs.open(path.join(state.directory, 'archive'), 'wx', 0o600)
     for (const buffered of state.chunks) {
       // eslint-disable-next-line no-await-in-loop -- writes preserve tarball byte order
@@ -358,6 +355,7 @@ function handleDownloadRetry (opts: {
     status === 403 ||
     status === 404 ||
     opts.error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
+    opts.error.code === 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' ||
     isNonRetryableError(opts.error)
 
   if (isFatal) {

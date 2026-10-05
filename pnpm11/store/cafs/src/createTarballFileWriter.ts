@@ -8,7 +8,7 @@ import { grantModeBits, mkdirInheritingMode, readDirMode, unixCreationMode } fro
 import { verifyFileIntegrityAsync } from './checkPkgFilesIntegrity.js'
 import { getFilePathByModeInCafs, modeIsExecutable } from './getFilePathInCafs.js'
 import type { TarballFileWriter } from './parseTarball.js'
-import { openStoreFileForRepair, optimisticRenameOverwrite } from './writeBufferToCafs.js'
+import { closeQuietly, openStoreFileForRepair, optimisticRenameOverwrite } from './writeBufferToCafs.js'
 
 export interface TarballFileWriterFactory {
   create: (mode: number, onFile: (file: FileWriteResult) => void) => TarballFileWriter
@@ -80,7 +80,7 @@ async function repairFileInPlace (filename: string, filePath: string, integrity:
   } catch {
     return false
   } finally {
-    fs.closeSync(descriptor)
+    closeQuietly(descriptor)
   }
   return verifyFileIntegrityAsync(filePath, integrity)
 }

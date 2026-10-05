@@ -19,7 +19,10 @@ pub(crate) fn error_log(error: &miette::Report) -> FatalErrorLog {
         name: "pnpm",
         level: LogLevel::Error,
         code: error.code().map(|code| code.to_string()),
-        message: context.map_or_else(|| format!("{error:#}"), ToString::to_string),
+        message: context.map_or_else(
+            || pnpm_diagnostics::collapsed_message(error.as_ref()),
+            ToString::to_string,
+        ),
         prefix: context.map_or_else(
             || {
                 PREFIX
