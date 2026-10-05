@@ -115,7 +115,7 @@ async fn rejects_config_lockfile_redirect_before_installing() {
     .await
     .unwrap_err();
     assert!(
-        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("Configuration dependency"))
+        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("Configuration dependency")),
     );
 }
 
@@ -152,7 +152,7 @@ async fn rejects_config_lockfile_replacing_declared_integrity_pin() {
     .await
     .unwrap_err();
     assert!(
-        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity"))
+        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity")),
     );
 }
 
@@ -188,6 +188,6 @@ async fn rejects_replacing_integrity_pinned_config_version() {
     .await
     .unwrap_err();
     assert!(
-        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity"))
+        matches!(error, ConfigDepError::BadConfigDep { message } if message.contains("configured integrity")),
     );
 }

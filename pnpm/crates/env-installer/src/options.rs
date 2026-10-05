@@ -14,7 +14,7 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 /// Long-lived network/config handles remain borrowed from the caller. Store-index
 /// handles are shared so tarball materialization can read and persist cache rows.
 pub struct ConfigDepsInstallOptions<'a> {
-    pub resolution_verifiers: Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>,
+    pub verification: ConfigDependencyVerification<'a>,
     pub fetching: pnpm_tarball::ArchiveFetchOptions<'a>,
     pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
     pub store: crate::ConfigDependencyStore,
@@ -23,13 +23,17 @@ pub struct ConfigDepsInstallOptions<'a> {
     /// `lockfileDir` — where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
-    /// `default` plus per-scope (`@scope`) registry entries.
-    pub registries: &'a HashMap<String, String>,
     /// `--frozen-lockfile`: refuse to mutate the env lockfile.
     pub frozen_lockfile: bool,
 }
 
-impl ConfigDepsInstallOptions<'_> {
+pub struct ConfigDependencyVerification<'a> {
+    /// `default` plus per-scope (`@scope`) registry entries.
+    pub registries: &'a HashMap<String, String>,
+    pub resolution_verifiers: Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>,
+}
+
+impl ConfigDependencyVerification<'_> {
     /// The install-wide default registry. Used to derive a config
     /// dependency's tarball URL when the lockfile stored an
     /// integrity-only (registry-form) resolution.
@@ -47,7 +51,9 @@ impl ConfigDepsInstallOptions<'_> {
         }
         self.default_registry()
     }
+}
 
+impl ConfigDepsInstallOptions<'_> {
     /// The `prefix`/`requester` string pnpm threads into fetch + log
     /// payloads — the install root.
     pub(crate) fn requester(&self) -> String {

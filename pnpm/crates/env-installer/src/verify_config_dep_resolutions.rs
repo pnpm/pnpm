@@ -1,5 +1,5 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, parse_integrity::parse_integrity,
+    ConfigDepError, ConfigDependencyVerification, parse_integrity::parse_integrity,
     verify_env_lockfile::verify_env_lockfile,
 };
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey};
@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 pub(crate) async fn verify_config_dep_resolutions(
     env: &EnvLockfile,
     declarations: &BTreeMap<String, ConfigDependency>,
-    opts: &ConfigDepsInstallOptions<'_>,
+    verification: &ConfigDependencyVerification<'_>,
 ) -> Result<(), ConfigDepError> {
     verify_env_lockfile(env)?;
     let pins = configured_pins(declarations)?;
@@ -20,13 +20,13 @@ pub(crate) async fn verify_config_dep_resolutions(
         let metadata = env.packages
             .get(&key)
             .ok_or_else(|| ConfigDepError::BadConfigDep {
-                message: format!("Missing configuration dependency \"{key}\""),
+                message: format!(r#"Missing configuration dependency "{key}""#),
             })?;
         if pins.contains_key(&key) {
             continue;
         }
         let version = key.suffix.version().to_string();
-        for verifier in &opts.resolution_verifiers {
+        for verifier in &verification.resolution_verifiers {
             let outcome = verifier.verify(
                 &metadata.resolution,
                 VerifyCtx { name: &key.name, version: &version, registry_name: None },
@@ -72,7 +72,7 @@ fn assert_configured_integrity(
     }
     Err(ConfigDepError::BadConfigDep {
         message: format!(
-            "Configuration dependency \"{key}\" does not match its configured integrity"
+            r#"Configuration dependency "{key}" does not match its configured integrity"#,
         ),
     })
 }
@@ -84,7 +84,7 @@ fn check_verification(
     match outcome {
         ResolutionVerification::Ok => Ok(()),
         ResolutionVerification::Err { reason, .. } => Err(ConfigDepError::BadConfigDep {
-            message: format!("Configuration dependency \"{key}\" {reason}"),
+            message: format!(r#"Configuration dependency "{key}" {reason}"#),
         }),
         ResolutionVerification::FetchFailed { message } => {
             Err(ConfigDepError::BadConfigDep { message })
@@ -107,7 +107,7 @@ fn assert_configured_pins(
         if recorded_version != Some(version.as_str()) || metadata.is_none() {
             return Err(ConfigDepError::BadConfigDep {
                 message: format!(
-                    "Configuration dependency \"{key}\" does not match its configured integrity"
+                    r#"Configuration dependency "{key}" does not match its configured integrity"#,
                 ),
             });
         }

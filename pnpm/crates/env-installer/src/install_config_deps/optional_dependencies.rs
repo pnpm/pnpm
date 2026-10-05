@@ -147,7 +147,7 @@ pub(super) fn normalize_from_lockfile(
             &pkg.resolution,
             name,
             &spec.version,
-            opts.pick_registry(name),
+            opts.verification.pick_registry(name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
@@ -222,7 +222,7 @@ fn read_optional_subdeps(
             &pkg.resolution,
             &subdep_name,
             &version,
-            opts.pick_registry(&subdep_name),
+            opts.verification.pick_registry(&subdep_name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(

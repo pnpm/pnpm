@@ -63,8 +63,7 @@ pub(super) fn signature_packages(
         return Ok(None);
     };
     let lockfile = lockfile.as_ref();
-    let env_lockfile = EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
+    let env_lockfile = read_audit_env_lockfile(lockfile_dir)?;
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
     let env_lockfile = env_lockfile.as_ref();
     let registries: HashMap<String, String> = state.config
@@ -94,6 +93,11 @@ pub(super) fn signature_packages(
             })
             .collect(),
     ))
+}
+
+fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
+    EnvLockfile::read(lockfile_dir)
+        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))
 }
 
 fn signature_integrities(

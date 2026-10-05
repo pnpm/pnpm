@@ -67,7 +67,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     }
 
     if to_resolve.is_empty() && !lockfile_changed {
-        verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
+        verify_config_dep_resolutions(&env_lockfile, config_deps, &opts.verification).await?;
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;
     }
 
@@ -79,7 +79,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     // Removal, migration and resolution can each orphan packages and
     // snapshots; drop them before writing.
     prune_env_lockfile(&mut env_lockfile);
-    verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
+    verify_config_dep_resolutions(&env_lockfile, config_deps, &opts.verification).await?;
     write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
     install_config_deps::<Reporter>(&env_lockfile, opts).await
 }
@@ -142,7 +142,7 @@ fn plan_detailed(
     let Some(tarball) = detail.tarball.clone() else {
         return Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) });
     };
-    let registry = opts.pick_registry(name);
+    let registry = opts.verification.pick_registry(name);
     migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry)?;
     Ok(ConfigDepPlan::Migrated)
 }
@@ -213,7 +213,7 @@ async fn resolve_one(
         .ok_or_else(no_integrity)?
         .suffix
         .to_string();
-    let registry = opts.pick_registry(name);
+    let registry = opts.verification.pick_registry(name);
     let key = pkg_key(name, &version)?;
 
     record_config_dependency(
