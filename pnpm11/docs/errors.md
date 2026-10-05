@@ -92,3 +92,9 @@ Below are the valid forms of `use-node-version`:
 * RC release:
   * `X.Y.Z-rc.W` (`X`, `Y`, `Z`, `W` are integers)
   * `rc/X.Y.Z-rc.W` (`X`, `Y`, `Z`, `W` are integers)
+
+## ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR
+
+A setting in `pnpm-workspace.yaml` or the [global configuration file](./cli/config.md) references an environment variable that isn't set, and the reference has no fallback. The error names the reference, for example `${MY_STORE_DIR}`.
+
+Set the variable, or give the reference a fallback, such as `${NAME:-fallback}`.
