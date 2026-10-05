@@ -246,6 +246,7 @@ impl<'a> OnDiskInputs<'a> {
         linked: &'b pnpm_deps_restorer::linking::LinkPhaseOutput,
     ) -> pnpm_deps_restorer::BuildPhaseGraph<'b> {
         pnpm_deps_restorer::BuildPhaseGraph {
+            trusted_importer_ids: self.projects.project_anchor_importer_ids,
             loaded_snapshots: self.ctx.select_loaded_snapshots(
                 self.projects.materialization_lockfile.snapshots.as_ref(),
             ),

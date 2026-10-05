@@ -416,3 +416,63 @@ fn cas_remove_prunes_command_shims_and_keeps_empty_install_runnable() {
     assert_no_node_modules(&workspace);
     drop((root, mock_instance));
 }
+
+#[test]
+fn loaded_project_local_store_survives_prune_and_requires_registration() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path)
+        .unwrap()
+        .lines()
+        .filter(|line| !line.starts_with("storeDir:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    yaml.push('\n');
+    yaml.push_str("nodeLinker:\n  type: loaded\nstoreDir: .pnpm-store\n");
+    fs::write(yaml_path, yaml).unwrap();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_args(["exec", "hello-world-js-bin"])
+        .assert()
+        .success();
+    assert_no_node_modules(&workspace);
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm-store.json")).unwrap()).unwrap();
+    let registry = Path::new(manifest["storeDir"].as_str().unwrap()).join("projects");
+    fs::remove_dir_all(&registry).unwrap();
+    fs::write(&registry, "blocked registry").unwrap();
+    let failure = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
+    assert!(
+        String::from_utf8_lossy(&failure.get_output().stderr)
+            .contains("ERR_PNPM_STORE_DIR_REGISTER_PROJECT_CREATE_REGISTRY_DIR"),
+    );
+    drop((root, mock_instance));
+}

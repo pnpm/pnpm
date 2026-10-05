@@ -339,9 +339,6 @@ pub(crate) fn current_settings(
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         dedupe_peers: Some(config.dedupe_peers),
         auto_dedupe: config.auto_dedupe.then_some(true),
-        lockfile_include_resolution_settings: config
-            .lockfile_include_resolution_settings
-            .then_some(true),
         dev: Some(included.dev_dependencies),
         // Mirror pnpm's writer, which omits the key for its `undefined`
         // default and records a concrete value only when forced. pacquet
@@ -395,6 +392,9 @@ fn recorded_allow_builds(
 
 fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
+        lockfile_include_resolution_settings: config
+            .lockfile_include_resolution_settings
+            .then_some(true),
         minimum_release_age: config.minimum_release_age,
         minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: Some(

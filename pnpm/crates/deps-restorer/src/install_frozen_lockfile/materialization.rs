@@ -52,6 +52,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 cache: phase.fetched.build_cache(engine_name.as_deref(), phase.store_index_writer),
                 directories: build_directories(install.projects.workspace_root, ctx, phase.linked),
                 graph: crate::BuildPhaseGraph {
+                    trusted_importer_ids: &install.importer_sets().0,
                     loaded_snapshots: ctx.select_loaded_snapshots(snapshots),
                     snapshots,
                     packages,

@@ -199,3 +199,23 @@ fn prune_marks_transitive_slot_reachable() {
     assert!(foo.exists(), "direct dep slot survives");
     assert!(bar.exists(), "transitive dep slot also survives");
 }
+
+#[test]
+fn nonexistent_loader_roots_cannot_escape_links_through_parent_components() {
+    let temporary = tempdir().unwrap();
+    let links = temporary.path().join("links");
+    fs::create_dir_all(&links).unwrap();
+    let links = dunce::canonicalize(links).unwrap();
+    for target in [
+        links.join("../outside/node_modules/missing"),
+        links.join("scope/name/../../../../outside/node_modules/missing"),
+        links.join("node_modules/missing"),
+    ] {
+        assert_eq!(super::store_slot_from_target(&target, &links), None);
+    }
+    let slot = PathBuf::from("scope/name/1/hash");
+    assert_eq!(
+        super::store_slot_from_target(&links.join(&slot).join("node_modules/missing"), &links),
+        Some(slot),
+    );
+}

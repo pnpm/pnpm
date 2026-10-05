@@ -1,3 +1,4 @@
+pub(crate) use bins::BinInstall;
 pub(crate) use link::link_phase;
 
 use crate::{
@@ -31,6 +32,7 @@ pub(crate) fn write_installation(
     write_file(&root.join(LOADER_FILENAME), LOADER.as_bytes())?;
     bins::write_bins(
         &bins::BinInstall {
+            trusted_importer_ids: inputs.projects.trusted_importer_ids,
             config: inputs.ctx.config,
             root,
             importers: &inputs.graph.lockfile.importers,
@@ -146,11 +148,7 @@ fn write_file(path: &Path, contents: &[u8]) -> io::Result<()> {
     pnpm_fs::ensure_file(path, contents, None).map_err(io::Error::other)
 }
 
-pub(crate) fn refresh_bins(
-    config: &pnpm_config::Config,
-    root: &Path,
-    importers: &std::collections::HashMap<String, pnpm_lockfile::ProjectSnapshot>,
-) -> io::Result<()> {
-    let manifest = serde_json::from_slice(&std::fs::read(root.join(MANIFEST_FILENAME))?)?;
-    bins::write_bins(&bins::BinInstall { config, root, importers }, &manifest)
+pub(crate) fn refresh_bins(inputs: &BinInstall<'_>) -> io::Result<()> {
+    let manifest = serde_json::from_slice(&std::fs::read(inputs.root.join(MANIFEST_FILENAME))?)?;
+    bins::write_bins(inputs, &manifest)
 }

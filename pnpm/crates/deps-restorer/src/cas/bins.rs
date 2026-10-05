@@ -7,13 +7,15 @@ use sha2::{Digest, Sha256};
 use std::{collections::HashMap, io, path::Path, sync::Arc};
 use url::Url;
 
-pub(super) struct BinInstall<'a> {
+pub(crate) struct BinInstall<'a> {
     pub config: &'a pnpm_config::Config,
     pub root: &'a Path,
+    pub trusted_importer_ids: &'a std::collections::HashSet<String>,
     pub importers: &'a std::collections::HashMap<String, pnpm_lockfile::ProjectSnapshot>,
 }
 
 pub(super) fn write_bins(inputs: &BinInstall<'_>, manifest: &StoreManifest) -> io::Result<()> {
+    validate_importers(inputs)?;
     let mut cached = HashMap::new();
     for importer in inputs.importers.keys() {
         let Some(project) = manifest.packages.get(importer) else { continue };
@@ -37,6 +39,15 @@ pub(super) fn write_bins(inputs: &BinInstall<'_>, manifest: &StoreManifest) -> i
         )
         .map_err(io::Error::other)?;
         super::bin_state::reconcile_bins(&sources, &directory)?;
+    }
+    Ok(())
+}
+
+fn validate_importers(inputs: &BinInstall<'_>) -> io::Result<()> {
+    for importer in inputs.importers.keys() {
+        if !inputs.trusted_importer_ids.contains(importer) {
+            crate::validate_importer_id(importer).map_err(io::Error::other)?;
+        }
     }
     Ok(())
 }

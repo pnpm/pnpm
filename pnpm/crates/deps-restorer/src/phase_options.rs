@@ -148,6 +148,7 @@ pub struct HoistedLinkGraph<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildPhaseGraph<'a> {
+    pub trusted_importer_ids: &'a std::collections::HashSet<String>,
     pub loaded_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,

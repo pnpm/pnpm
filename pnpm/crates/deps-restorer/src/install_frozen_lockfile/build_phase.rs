@@ -219,8 +219,13 @@ fn finish_cas_bin_links(
     };
     finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;
     if build_output.mutated_slots {
-        crate::cas::refresh_bins(config, inputs.directories.workspace_root, inputs.graph.importers)
-            .map_err(BuildPhaseError::CasBins)?;
+        crate::cas::refresh_bins(&crate::cas::BinInstall {
+            config,
+            root: inputs.directories.workspace_root,
+            importers: inputs.graph.importers,
+            trusted_importer_ids: inputs.graph.trusted_importer_ids,
+        })
+        .map_err(BuildPhaseError::CasBins)?;
     }
     Ok(())
 }

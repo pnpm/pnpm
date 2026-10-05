@@ -338,10 +338,16 @@ fn store_slot_from_target(absolute_target: &Path, canonical_links: &Path) -> Opt
     // We want `<scope>/<name>/<version>/<hash>`.
     let rel = canonical_target.strip_prefix(canonical_links).ok()?;
     let parts: Vec<_> = rel.components().collect();
+    if parts
+        .iter()
+        .any(|part| !matches!(part, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
     let node_modules = parts
         .iter()
         .position(|component| component.as_os_str() == std::ffi::OsStr::new("node_modules"))?;
-    Some(parts[..node_modules].iter().collect())
+    (node_modules > 0).then(|| parts[..node_modules].iter().collect())
 }
 
 /// Sweep phase: walk `<links_dir>/<scope>/<name>/<version>/<hash>`
