@@ -482,8 +482,8 @@ impl Config {
     /// Sources normalize this alias before merging. This fallback handles direct overrides.
     pub fn apply_shamefully_hoist_derivation(&mut self) {
         if self.explicit_settings.contains_key("publicHoistPattern")
-            && !(self.cli_settings.contains("shamefullyHoist")
-                && !self.cli_settings.contains("nodeLinker"))
+            && (self.cli_settings.contains("nodeLinker")
+                || !self.cli_settings.contains("shamefullyHoist"))
         {
             return;
         }
