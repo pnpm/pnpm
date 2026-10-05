@@ -1,6 +1,7 @@
 use super::{
-    Arc, AuthEntry, AuthHeaders, DEFAULT_REGISTRY_SCOPE, ParsedUrl, TokenHelpers,
-    execute_token_helper, is_url_secure_for_credentials, package_scope, run_token_helper_command,
+    Arc, AuthEntry, AuthHeaders, AuthKind, DEFAULT_REGISTRY_SCOPE, ParsedUrl, TokenHelpers,
+    builder::package_scope, execute_token_helper, is_url_secure_for_credentials,
+    run_token_helper_command,
 };
 
 impl AuthHeaders {
@@ -39,10 +40,10 @@ impl AuthHeaders {
         let matched = package_scope(pkg_name)
             .and_then(|scope| self.lookup_with_port_fallback(parsed, Some(scope)))
             .or_else(|| self.lookup_with_port_fallback(parsed, None));
-        let (key, resolved) = matched?;
+        let (key, allow_insecure, resolved) = matched?;
         let is_secure = is_url_secure_for_credentials(url);
         self.transport_security
-            .allows(&key, is_secure)
+            .allows(&key, allow_insecure, is_secure)
             .then_some(resolved)
             .flatten()
     }
@@ -60,7 +61,7 @@ impl AuthHeaders {
         &self,
         parsed: &ParsedUrl<'_>,
         scope: Option<&str>,
-    ) -> Option<(String, Option<String>)> {
+    ) -> Option<(String, bool, Option<String>)> {
         let lookup = |parsed: &ParsedUrl<'_>| match scope {
             Some(scope) => self.lookup_scope_by_nerf(parsed, scope),
             None => self.lookup_by_nerf(parsed),
@@ -80,7 +81,7 @@ impl AuthHeaders {
         &self,
         parsed: &ParsedUrl<'_>,
         scope: &str,
-    ) -> Option<(String, Option<String>)> {
+    ) -> Option<(String, bool, Option<String>)> {
         let scoped_by_uri = self.scoped_by_scope.get(scope)?;
         let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
         let nerfed = parsed.nerf_dart();
@@ -89,8 +90,9 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = scoped_by_uri.get(&key) {
+                let allow_insecure = entry.allow_insecure;
                 let resolved = self.token_helpers.resolve_entry(&key, scope, entry);
-                return Some((key, resolved));
+                return Some((key, allow_insecure, resolved));
             }
         }
         None
@@ -99,7 +101,7 @@ impl AuthHeaders {
     pub(super) fn lookup_by_nerf(
         &self,
         parsed: &ParsedUrl<'_>,
-    ) -> Option<(String, Option<String>)> {
+    ) -> Option<(String, bool, Option<String>)> {
         if self.by_uri.is_empty() {
             return None;
         }
@@ -116,9 +118,10 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = self.by_uri.get(&key) {
+                let allow_insecure = entry.allow_insecure;
                 let resolved =
                     self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry);
-                return Some((key, resolved));
+                return Some((key, allow_insecure, resolved));
             }
         }
         None
@@ -137,9 +140,9 @@ impl TokenHelpers {
         scope: &str,
         entry: &AuthEntry,
     ) -> Option<String> {
-        match entry {
-            AuthEntry::Header(value) => Some(value.clone()),
-            AuthEntry::TokenHelper(command) => {
+        match &entry.kind {
+            AuthKind::Header(value) => Some(value.clone()),
+            AuthKind::TokenHelper(command) => {
                 let cache_key = format!("{scope}\u{0}{key}");
                 // Take the per-key cell out under the global lock, then
                 // release it *before* running the helper.

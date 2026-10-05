@@ -1,7 +1,7 @@
 import { isUrlSecureForCredentials, nerfDart } from '@pnpm/config.registry-auth-key'
 import { BUILTIN_REGISTRIES_BY_PREFIX } from '@pnpm/constants'
 import { redactAndSanitize } from '@pnpm/error'
-import type { RegistriesByScope } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
 import type { Config, PackageManagerNetworkConfig } from '../Config.js'
@@ -46,17 +46,46 @@ export function resolveInitialRegistries (state: ConfigBuildState): InitialRegis
     trustedNetworkConfigs.configByUri ?? {},
     state.env
   )
-  pnpmConfig.configByUri = { ...networkConfigs.configByUri }
+  pnpmConfig.configByUri = preserveTrustedHttpRegistries(
+    packageManagerRegistries,
+    networkConfigs.configByUri ?? {}
+  )
+  return { registriesFromNpmrc, cliScopedRegistries }
+}
+
+function preserveTrustedHttpRegistries (
+  packageManagerRegistries: RegistriesByScope,
+  configByUri: Record<string, RegistryConfig>
+): Record<string, RegistryConfig> {
+  const result = { ...configByUri }
   for (const registryUrl of Object.values(packageManagerRegistries)) {
     if (typeof registryUrl === 'string' && registryUrl.startsWith('http://') && !isUrlSecureForCredentials(registryUrl)) {
-      const nerfed = nerfDart(registryUrl)
-      pnpmConfig.configByUri[registryUrl] = {
-        ...networkConfigs.configByUri?.[nerfed],
-        ...networkConfigs.configByUri?.[registryUrl],
+      copyInsecureRegistryCredentials(registryUrl, configByUri, result)
+    }
+  }
+  return result
+}
+
+function copyInsecureRegistryCredentials (
+  registryUrl: string,
+  source: Record<string, RegistryConfig>,
+  target: Record<string, RegistryConfig>
+): void {
+  const nerfed = nerfDart(registryUrl)
+  target[registryUrl] = {
+    ...source[nerfed],
+    ...source[registryUrl],
+  }
+  const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
+  for (const [key, creds] of Object.entries(source)) {
+    if (key.startsWith(nerfed) && key !== nerfed) {
+      const subUrl = `${base}${key.slice(nerfed.length)}`
+      target[subUrl] = {
+        ...creds,
+        ...source[subUrl],
       }
     }
   }
-  return { registriesFromNpmrc, cliScopedRegistries }
 }
 
 function pickCliScopedRegistries (cliOptions: Record<string, unknown>): Record<string, string> {

@@ -6963,4 +6963,24 @@ describe('cleartext HTTP registry credentials policy', () => {
 
     expect(config.configByUri['http://explicit-http.example.com/']?.['@']?.authToken).toBe('explicit-token')
   })
+
+  test('trusted user .npmrc preserves path-scoped credentials under explicit http:// registry in configByUri', async () => {
+    prepareEmpty()
+    const userNpmrcPath = path.resolve('user.npmrc')
+    fs.writeFileSync(userNpmrcPath, [
+      'registry=http://trusted-http.example.com/',
+      '//trusted-http.example.com/team/:_authToken=team-token',
+    ].join('\n'))
+
+    const { config } = await getConfig({
+      cliOptions: {
+        'npmrc-auth-file': userNpmrcPath,
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.configByUri['http://trusted-http.example.com/team/']).toBeDefined()
+    expect(config.configByUri['http://trusted-http.example.com/team/']?.['@']?.authToken).toBe('team-token')
+  })
 })

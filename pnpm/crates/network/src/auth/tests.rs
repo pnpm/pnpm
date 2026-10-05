@@ -759,3 +759,53 @@ fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
     assert!(!redacted.contains("user:pass"), "{redacted}");
     assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
 }
+
+#[test]
+fn trusted_http_registry_permits_path_scoped_credentials() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([
+            ("//insecure.corp/team/".to_owned(), "Bearer team-token".to_owned()),
+            ("//insecure.corp/".to_owned(), "Bearer root-token".to_owned()),
+        ]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/");
+
+    assert_eq!(
+        headers.for_url("http://insecure.corp/team/pkg").as_deref(),
+        Some("Bearer team-token"),
+    );
+    assert_eq!(headers.for_url("http://insecure.corp/pkg").as_deref(), Some("Bearer root-token"));
+    assert_eq!(headers.for_url("http://other.corp/pkg"), None);
+}
+
+#[test]
+fn trusted_path_scoped_http_registry_does_not_permit_root_credential() {
+    let mut headers = AuthHeaders::from_parts(
+        HashMap::from([("//insecure.corp/".to_owned(), "Bearer root-token".to_owned())]),
+        HashMap::new(),
+    );
+    headers.allow_insecure_host("http://insecure.corp/team/");
+
+    assert_eq!(headers.for_url("http://insecure.corp/team/pkg"), None);
+}
+
+#[test]
+fn scoped_http_credential_does_not_leak_unscoped_https_credential_on_collision() {
+    let headers = AuthHeaders::from_parts(
+        HashMap::from([("//reg.example/".to_owned(), "Bearer default-https".to_owned())]),
+        HashMap::from([(
+            "http://reg.example/".to_owned(),
+            HashMap::from([("@http_pkg".to_owned(), "Bearer scoped-http".to_owned())]),
+        )]),
+    );
+
+    assert_eq!(
+        headers
+            .for_url_with_package("http://reg.example/pkg", Some("@http_pkg/foo"))
+            .as_deref(),
+        Some("Bearer scoped-http"),
+    );
+    assert_eq!(headers.for_url_with_package("http://reg.example/pkg", Some("@other/foo")), None);
+    assert_eq!(headers.for_url("http://reg.example/pkg"), None);
+}

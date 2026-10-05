@@ -45,8 +45,12 @@ function collectNerfedAuthHeaders (
     // Malformed URIs cannot produce a nerf dart and are skipped for nerfed lookup.
   }
   if (nerfed) {
-    if (header && !authHeaders.authHeaderValueByURI[nerfed]) {
-      authHeaders.authHeaderValueByURI[nerfed] = header
+    if (header) {
+      const isHttp = uri.startsWith('http://')
+      const existing = authHeaders.authHeaderValueByURI[nerfed]
+      if (!existing || isHttp) {
+        authHeaders.authHeaderValueByURI[nerfed] = header
+      }
     }
     collectScopedAuthHeaders(registryConfig, nerfed, authHeaders.scopedAuthHeaderValueByURI)
   }

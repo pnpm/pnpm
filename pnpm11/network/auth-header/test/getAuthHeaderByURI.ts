@@ -159,3 +159,34 @@ test('getAuthHeaderByURI() does not allow cleartext HTTP when http entry only co
   expect(getAuthHeaderByURI('http://insecure.lan/')).toBeUndefined()
   expect(getAuthHeaderByURI('https://insecure.lan/')).toBe('Bearer secure-token')
 })
+
+test('getAuthHeaderByURI() allows path-scoped credentials under allowed root HTTP registry', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'root-token' } },
+    '//insecure.lan/team/': { '@': { authToken: 'team-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBe('Bearer team-token')
+  expect(getAuthHeaderByURI('http://insecure.lan/pkg')).toBe('Bearer root-token')
+  expect(getAuthHeaderByURI('http://other.lan/pkg')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not allow root credentials when only path-scoped registry is allowed HTTP', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//insecure.lan/': { '@': { authToken: 'root-token' } },
+  }, {
+    allowedInsecureUris: ['http://insecure.lan/team/'],
+  })
+  expect(getAuthHeaderByURI('http://insecure.lan/team/pkg')).toBeUndefined()
+})
+
+test('getAuthHeaderByURI() does not leak unscoped HTTPS credentials when scoped HTTP credentials exist', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    '//reg.example/': { '@': { authToken: 'default-https' } },
+    'http://reg.example/': { '@http_pkg': { authToken: 'scoped-http' } },
+  })
+  expect(getAuthHeaderByURI('http://reg.example/pkg', { pkgName: '@http_pkg/foo' })).toBe('Bearer scoped-http')
+  expect(getAuthHeaderByURI('http://reg.example/pkg', { pkgName: '@other/foo' })).toBeUndefined()
+  expect(getAuthHeaderByURI('http://reg.example/pkg')).toBeUndefined()
+})

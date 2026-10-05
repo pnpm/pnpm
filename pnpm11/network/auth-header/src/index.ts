@@ -21,6 +21,7 @@ interface AuthHeaderLookup {
 interface ScopedAuthHeaderLookup {
   authHeaderValueByURI: Record<string, string>
   maxParts: number
+  insecureUris: Set<string>
 }
 
 export function createGetAuthHeaderByURI (
@@ -29,12 +30,16 @@ export function createGetAuthHeaderByURI (
 ): (uri: string, opts?: GetAuthHeaderOptions) => string | undefined {
   const authHeaders = getAuthHeadersFromCreds(configByUri)
   const registryURIs = Object.keys(authHeaders.authHeaderValueByURI)
-  const scopedAuthHeaderValueByScope = getScopedAuthHeaderValueByScope(authHeaders.scopedAuthHeaderValueByURI)
+  const scopedAuthHeaderValueByScope = getScopedAuthHeaderValueByScope(
+    authHeaders.scopedAuthHeaderValueByURI,
+    configByUri,
+    opts?.allowedInsecureUris
+  )
   if (registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0) {
     return fallbackAuth
   }
   return getAuthHeaderByURI.bind(null, authHeaders, {
-    insecureUris: collectInsecureUris(configByUri, opts?.allowedInsecureUris),
+    insecureUris: collectInsecureUris(configByUri, DEFAULT_REGISTRY_SCOPE, opts?.allowedInsecureUris),
     maxParts: getMaxParts(registryURIs),
     scopedAuthHeaderValueByScope,
   })
@@ -51,11 +56,12 @@ function fallbackAuth (uri: string): string | undefined {
 
 function collectInsecureUris (
   configByUri: Record<string, RegistryConfig>,
+  scope: string,
   allowed?: string[] | Set<string>
 ): Set<string> {
   const insecureUris = new Set<string>()
   for (const [uri, config] of Object.entries(configByUri)) {
-    if (uri.startsWith('http://') && !isUrlSecureForCredentials(uri) && hasCredentials(config)) {
+    if (uri.startsWith('http://') && !isUrlSecureForCredentials(uri) && hasScopeCredentials(config, scope)) {
       addInsecureUri(insecureUris, uri)
     }
   }
@@ -67,12 +73,8 @@ function collectInsecureUris (
   return insecureUris
 }
 
-function hasCredentials (registryConfig: RegistryConfig): boolean {
-  if (hasCreds(registryConfig[DEFAULT_REGISTRY_SCOPE])) return true
-  for (const [key, val] of Object.entries(registryConfig)) {
-    if (key.startsWith('@') && hasCreds(val as Creds)) return true
-  }
-  return false
+function hasScopeCredentials (registryConfig: RegistryConfig, scope: string): boolean {
+  return hasCreds(registryConfig[scope as keyof RegistryConfig] as Creds | undefined)
 }
 
 function hasCreds (creds?: Creds): boolean {
@@ -98,7 +100,9 @@ function getMaxParts (uris: string[]): number {
 }
 
 function getScopedAuthHeaderValueByScope (
-  authHeaders: Record<string, Record<string, string>>
+  authHeaders: Record<string, Record<string, string>>,
+  configByUri: Record<string, RegistryConfig>,
+  allowedInsecureUris?: string[] | Set<string>
 ): Record<string, ScopedAuthHeaderLookup> {
   const result: Record<string, ScopedAuthHeaderLookup> = {}
   for (const [uri, scopedAuthHeaders] of Object.entries(authHeaders)) {
@@ -107,6 +111,7 @@ function getScopedAuthHeaderValueByScope (
       const scopedAuthHeaderLookup = result[scope] ??= {
         authHeaderValueByURI: {},
         maxParts: 0,
+        insecureUris: collectInsecureUris(configByUri, scope, allowedInsecureUris),
       }
       scopedAuthHeaderLookup.authHeaderValueByURI[uri] = authHeader
       if (parts > scopedAuthHeaderLookup.maxParts) {
@@ -139,7 +144,13 @@ function getAuthHeaderByURI (
   const scope = getScope(opts?.pkgName)
   const scopedAuthHeaderLookup = scope ? lookup.scopedAuthHeaderValueByScope[scope] : undefined
   if (scopedAuthHeaderLookup) {
-    const scopedAuth = getAuthHeaderByNerfedURI(scopedAuthHeaderLookup.authHeaderValueByURI, scopedAuthHeaderLookup.maxParts, uri, isSecure, lookup.insecureUris)
+    const scopedAuth = getAuthHeaderByNerfedURI(
+      scopedAuthHeaderLookup.authHeaderValueByURI,
+      scopedAuthHeaderLookup.maxParts,
+      uri,
+      isSecure,
+      scopedAuthHeaderLookup.insecureUris
+    )
     if (scopedAuth) return scopedAuth
   }
   return getAuthHeaderByNerfedURI(authHeaders.authHeaderValueByURI, lookup.maxParts, uri, isSecure, lookup.insecureUris)
@@ -158,7 +169,7 @@ function getAuthHeaderByNerfedURI (
   for (let partCount = Math.min(parts.length, maxParts) - 1; partCount >= 3; partCount--) {
     const key = `${parts.slice(0, partCount).join('/')}/`
     if (authHeaders[key]) {
-      if (isSecure || insecureUris.has(key)) {
+      if (isKeyAllowed(key, isSecure, insecureUris)) {
         return authHeaders[key]
       }
       return undefined
@@ -169,6 +180,14 @@ function getAuthHeaderByNerfedURI (
     return getAuthHeaderByNerfedURI(authHeaders, maxParts, urlWithoutPort, isSecure, insecureUris)
   }
   return undefined
+}
+
+function isKeyAllowed (key: string, isSecure: boolean, insecureUris: Set<string>): boolean {
+  if (isSecure) return true
+  for (const insecureUri of insecureUris) {
+    if (key === insecureUri || key.startsWith(insecureUri)) return true
+  }
+  return false
 }
 
 function getScope (pkgName: string | undefined): string | undefined {
