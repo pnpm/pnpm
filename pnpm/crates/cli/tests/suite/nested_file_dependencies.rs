@@ -290,20 +290,33 @@ fn file_dep_on_the_parent_directory_gets_a_windows_safe_slot() {
         .success();
 
     let virtual_store = project.join("node_modules/.pnpm");
-    let read = |path: &str| {
-        fs::read_to_string(virtual_store.join(path))
-            .unwrap_or_else(|error| panic!("read {path}: {error}"))
-    };
-    assert_eq!(
-        read(
-            "parent-pkg@file+++_3cf6176c884f1541b42906b711973e2d/node_modules/parent-pkg/index.js"
-        ),
-        "module.exports = 'parent'\n",
-    );
-    assert_eq!(
-        read("parent-pkg@file+++/node_modules/parent-pkg/index.js"),
-        "module.exports = 'plus'\n",
-    );
+    let slots: Vec<_> = fs::read_dir(&virtual_store)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("parent-pkg@file")
+        })
+        .collect();
+    assert_eq!(slots.len(), 2);
+    let mut contents: Vec<_> = slots
+        .iter()
+        .map(|slot| {
+            let name = slot
+                .file_name()
+                .unwrap()
+                .to_string_lossy();
+            assert!(!name.ends_with(['.', ' ']));
+            assert!(!name.contains(['\\', '/', ':', '*', '?', '"', '<', '>', '|']));
+            fs::read_to_string(slot.join("node_modules/parent-pkg/index.js")).unwrap()
+        })
+        .collect();
+    contents.sort();
+    assert_eq!(contents, ["module.exports = 'parent'\n", "module.exports = 'plus'\n"]);
     assert_eq!(
         fs::read_to_string(project.join("node_modules/parent-pkg/index.js"))
             .expect("read node_modules/parent-pkg/index.js"),
