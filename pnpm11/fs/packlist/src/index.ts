@@ -221,9 +221,9 @@ function archivedLinkEscapes (relFile: string, linkTarget: string): boolean {
 }
 
 function realTargetEscapes (boundary: string, absPath: string, isSymlink = true): boolean {
+  const realBoundary = realpathOrUndefined(boundary) ?? boundary
   try {
     const realTarget = fs.realpathSync(absPath)
-    const realBoundary = fs.realpathSync(boundary)
     return isEscapingRelativePath(path.relative(realBoundary, realTarget))
   } catch (err: unknown) {
     if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {

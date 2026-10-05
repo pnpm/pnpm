@@ -116,7 +116,9 @@ test('fetch includes committed Git submodules', async () => {
   expect(filesMap.has('native/answer.js')).toBeTruthy()
 })
 
-test('git fetch does not import files outside repo when bundleDependencies has escaping directory symlink', async () => {
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('git fetch does not import files outside repo when bundleDependencies has escaping directory symlink', async () => {
   const root = temporaryDirectory()
   const outsideDir = path.join(root, 'outside')
   fs.mkdirSync(outsideDir)
