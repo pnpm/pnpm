@@ -4,6 +4,12 @@ use pnpm_lockfile::PkgNameVerPeer;
 
 use super::{EdgeContext, InspectionLayout};
 
+/// A lockfile-derived path component that could escape the directory
+/// it is joined under — the same guard `pnpm licenses` applies before
+/// dereferencing store paths built from lockfile keys. Rooted and
+/// prefixed components are rejected by shape, not `is_absolute()`:
+/// on Windows a rooted-but-prefixless `\escape` (or a prefix-only
+/// `C:evil`) is not "absolute" yet still replaces the join base.
 #[must_use]
 pub fn is_unsafe_path_component(component: &str) -> bool {
     Path::new(component)
@@ -13,7 +19,12 @@ pub fn is_unsafe_path_component(component: &str) -> bool {
         })
 }
 
-/// Filesystem path of a package addressed by `dep_path`.
+/// Filesystem path of a package addressed by `dep_path`. For a local
+/// virtual store the path is constructed directly; for a global
+/// virtual store the symlink through the parent's `node_modules` is
+/// resolved instead; for the hoisted linker the location recorded in
+/// `.modules.yaml` is used. A name that could traverse outside the
+/// virtual store is never joined or dereferenced.
 #[must_use]
 pub fn resolve_package_path(
     layout: &InspectionLayout,
@@ -28,7 +39,7 @@ pub fn resolve_package_path(
         return layout.virtual_store_dir.clone();
     }
     if layout.is_hoisted {
-        return resolve_hoisted_package_path(layout, dep_path, name, version, ctx);
+        return resolve_hoisted_package_path(layout, dep_path, name, version, alias, ctx);
     }
     resolve_virtual_store_package_path(layout, &store_name, name, alias, ctx)
 }
@@ -53,12 +64,20 @@ fn resolve_hoisted_package_path(
     dep_path: &PkgNameVerPeer,
     name: &str,
     version: &str,
+    alias: &str,
     ctx: &EdgeContext<'_>,
 ) -> PathBuf {
     find_hoisted_dirs(&layout.hoisted_dirs, dep_path)
         .and_then(|dirs| pick_hoisted_dir(dirs, ctx))
         .unwrap_or_else(|| {
-            resolve_hoisted_fallback(layout, dep_path, name, version, &ctx.linked_path_base_dir)
+            resolve_hoisted_fallback(
+                layout,
+                dep_path,
+                name,
+                version,
+                alias,
+                &ctx.linked_path_base_dir,
+            )
         })
 }
 
@@ -81,20 +100,25 @@ fn find_hoisted_dirs<'a>(
         .map(Vec::as_slice)
 }
 
+/// The hoisted linker places a dependency under its alias, so an
+/// aliased package (`bar: npm:foo@1`) is probed at `node_modules/bar`.
 fn resolve_hoisted_fallback(
     layout: &InspectionLayout,
     dep_path: &PkgNameVerPeer,
     name: &str,
     version: &str,
+    alias: &str,
     project_dir: &Path,
 ) -> PathBuf {
-    let candidate_project = project_dir.join(&layout.modules_dir_name).join(name);
-    if candidate_matches_version(&candidate_project, version) {
-        return candidate_project;
-    }
-    let candidate_lockfile = layout.lockfile_dir.join(&layout.modules_dir_name).join(name);
-    if candidate_matches_version(&candidate_lockfile, version) {
-        return candidate_lockfile;
+    if !is_unsafe_path_component(alias) {
+        let candidate_project = project_dir.join(&layout.relative_modules_dir).join(alias);
+        if candidate_matches_version(&candidate_project, version) {
+            return candidate_project;
+        }
+        let candidate_lockfile = layout.lockfile_dir.join(&layout.relative_modules_dir).join(alias);
+        if candidate_matches_version(&candidate_lockfile, version) {
+            return candidate_lockfile;
+        }
     }
     let store_name = dep_path.to_virtual_store_name(layout.virtual_store_dir_max_length);
     layout.virtual_store_dir
@@ -135,6 +159,7 @@ fn resolve_virtual_store_package_path(
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_default();
+            // Scoped parents live one level deeper (`node_modules/@scope/pkg`).
             if dir
                 .file_name()
                 .is_some_and(|component| component.to_string_lossy().starts_with('@'))
@@ -166,6 +191,9 @@ pub fn collect_hoisted_dirs(
         if dirs.is_empty() {
             continue;
         }
+        // The hoisted linker collapses the peer variants of one
+        // package version onto the first dependency path it meets,
+        // so only that one is recorded.
         if let Ok(key) = dep_path.parse::<pnpm_lockfile::PackageKey>() {
             hoisted_dirs
                 .entry(key.without_peer().to_string())

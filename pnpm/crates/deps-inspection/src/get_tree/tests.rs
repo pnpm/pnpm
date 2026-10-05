@@ -86,7 +86,7 @@ fn mock_env<'a>(dir: &Path, lockfile: &'a Lockfile) -> PkgInfoEnv<'a> {
         layout: crate::pkg_info::InspectionLayout {
             lockfile_dir: dir.to_path_buf(),
             modules_dir: dir.join("node_modules"),
-            modules_dir_name: std::path::PathBuf::from("node_modules"),
+            relative_modules_dir: std::path::PathBuf::from("node_modules"),
             virtual_store_dir: dir.join("node_modules/.pnpm"),
             virtual_store_dir_max_length: 120,
             store_dir: None,

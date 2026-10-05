@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -58,4 +60,53 @@ test('resolvePackagePath returns virtualStoreDir for unsafe package name', async
     nodeLinker: 'hoisted',
   })
   expect(hoistedPath).toBe(virtualStoreDir)
+})
+
+test('resolvePackagePath probes the alias of a hoisted dependency without hoistedLocations', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-alias-'))
+  try {
+    const aliasedDir = path.join(lockfileDir, 'node_modules', 'bar')
+    fs.mkdirSync(aliasedDir, { recursive: true })
+    fs.writeFileSync(path.join(aliasedDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
+
+    expect(resolvePackagePath({
+      depPath: 'foo@1.0.0',
+      name: 'foo',
+      alias: 'bar',
+      version: '1.0.0',
+      virtualStoreDir: path.join(lockfileDir, 'node_modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+      nodeLinker: 'hoisted',
+      lockfileDir,
+    })).toBe(aliasedDir)
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
+test('resolvePackagePath keeps every segment of a nested modulesDir for a hoisted dependency', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-modules-dir-'))
+  try {
+    const projectDir = path.join(lockfileDir, 'packages/a')
+    const pkgDir = path.join(projectDir, 'www/modules/foo')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
+
+    expect(resolvePackagePath({
+      depPath: 'foo@1.0.0',
+      name: 'foo',
+      alias: 'foo',
+      version: '1.0.0',
+      virtualStoreDir: path.join(lockfileDir, 'www/modules/.pnpm'),
+      virtualStoreDirMaxLength: 120,
+      modulesDir: path.join(lockfileDir, 'www/modules'),
+      nodeLinker: 'hoisted',
+      lockfileDir,
+      projectDir,
+    })).toBe(pkgDir)
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
 })

@@ -2,6 +2,8 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import type { DepPath, PkgId, PkgIdWithPatchHash, PkgResolutionId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
+export { findHoistedPackageDirs } from './hoistedPackageDirs.js'
+
 export function isAbsolute (dependencyPath: string): boolean {
   return dependencyPath[0] !== '/'
 }

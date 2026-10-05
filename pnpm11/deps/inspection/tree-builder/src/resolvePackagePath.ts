@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { depPathToFilename, removeSuffix } from '@pnpm/deps.path'
+import { depPathToFilename, findHoistedPackageDirs } from '@pnpm/deps.path'
 import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.reader'
 
 /**
@@ -13,7 +13,7 @@ import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.reader'
  * For hoisted linker (where virtual store is empty), packages live where the
  * hoisted linker placed them, recorded in hoistedLocations.
  */
-export function resolvePackagePath (opts: {
+export interface ResolvePackagePathOptions {
   depPath: string
   name: string
   alias: string
@@ -26,49 +26,69 @@ export function resolvePackagePath (opts: {
   lockfileDir?: string
   projectDir?: string
   version?: string
-}): string {
+}
+
+export function resolvePackagePath (opts: ResolvePackagePathOptions): string {
   if (isUnsafePathComponent(opts.name)) {
     return opts.virtualStoreDir
   }
   if (opts.nodeLinker === 'hoisted') {
-    const lockfileDir = opts.lockfileDir ?? opts.projectDir
-    if (lockfileDir) {
-      const locations = opts.hoistedLocations?.[opts.depPath] ??
-        opts.hoistedLocations?.[removeSuffix(opts.depPath)] ??
-        (opts.depPath.startsWith('/') ? opts.hoistedLocations?.[opts.depPath.slice(1)] : opts.hoistedLocations?.[`/${opts.depPath}`]) ??
-        []
-      const hoistedPaths = locations
-        .map((location) => hoistedPackageDir(lockfileDir, location))
-        .filter((location): location is string => location != null)
-      if (hoistedPaths.length) {
-        if (opts.parentDir) {
-          const parentDirWithSep = opts.parentDir.endsWith(path.sep) ? opts.parentDir : opts.parentDir + path.sep
-          const nested = hoistedPaths.find((loc) => loc.startsWith(parentDirWithSep) && fs.existsSync(loc))
-          if (nested) return nested
-        }
-        if (opts.projectDir) {
-          const projectDirWithSep = opts.projectDir.endsWith(path.sep) ? opts.projectDir : opts.projectDir + path.sep
-          const inProject = hoistedPaths.find((loc) => (loc === opts.projectDir || loc.startsWith(projectDirWithSep)) && fs.existsSync(loc))
-          if (inProject) return inProject
-        }
-        const existing = hoistedPaths.find((loc) => fs.existsSync(loc))
-        if (existing) return existing
-        return hoistedPaths[0]
-      }
-      const modulesDirName = opts.modulesDir ? path.basename(opts.modulesDir) : 'node_modules'
-      if (opts.projectDir) {
-        const candidateInProject = path.resolve(opts.projectDir, modulesDirName, opts.name)
-        if (candidateMatchesVersion(candidateInProject, opts.version)) {
-          return candidateInProject
-        }
-      }
-      const candidateInLockfile = path.resolve(lockfileDir, modulesDirName, opts.name)
-      if (candidateMatchesVersion(candidateInLockfile, opts.version)) {
-        return candidateInLockfile
-      }
-    }
+    const hoistedPath = resolveHoistedPackagePath(opts)
+    if (hoistedPath != null) return hoistedPath
   }
+  return resolveVirtualStorePackagePath(opts)
+}
 
+function resolveHoistedPackagePath (opts: ResolvePackagePathOptions): string | undefined {
+  const lockfileDir = opts.lockfileDir ?? opts.projectDir
+  if (!lockfileDir) return undefined
+  const hoistedPaths = findHoistedPackageDirs(opts.hoistedLocations, opts.depPath, lockfileDir)
+  if (hoistedPaths.length) return pickHoistedDir(hoistedPaths, opts)
+  return findHoistedByAlias(opts, lockfileDir)
+}
+
+/**
+ * Prefers the copy nested under the parent, then the one inside the project,
+ * then any copy that exists on disk.
+ */
+function pickHoistedDir (dirs: string[], opts: { parentDir?: string, projectDir?: string }): string {
+  for (const baseDir of [opts.parentDir, opts.projectDir]) {
+    if (!baseDir) continue
+    const baseDirWithSep = baseDir.endsWith(path.sep) ? baseDir : baseDir + path.sep
+    const found = dirs.find((dir) => dir.startsWith(baseDirWithSep) && fs.existsSync(dir))
+    if (found) return found
+  }
+  return dirs.find((dir) => fs.existsSync(dir)) ?? dirs[0]
+}
+
+/**
+ * Probes `node_modules/<alias>` of the project and of the lockfile directory,
+ * because the hoisted linker places a dependency under its alias.
+ */
+function findHoistedByAlias (opts: ResolvePackagePathOptions, lockfileDir: string): string | undefined {
+  if (isUnsafePathComponent(opts.alias)) return undefined
+  const relativeModulesDir = getRelativeModulesDir(lockfileDir, opts.modulesDir)
+  return [opts.projectDir, lockfileDir]
+    .filter((dir): dir is string => Boolean(dir))
+    .map((dir) => path.resolve(dir, relativeModulesDir, opts.alias))
+    .find((candidate) => candidateMatchesVersion(candidate, opts.version))
+}
+
+/**
+ * The modules directory relative to the lockfile directory, such as
+ * `node_modules` or `www/modules`. Falls back to its last segment when it
+ * lies outside the lockfile directory.
+ */
+function getRelativeModulesDir (lockfileDir: string, modulesDir: string | undefined): string {
+  if (!modulesDir) return 'node_modules'
+  const relative = path.relative(lockfileDir, modulesDir)
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    return path.basename(modulesDir)
+  }
+  return relative
+}
+
+function resolveVirtualStorePackagePath (opts: ResolvePackagePathOptions): string {
   const fullPackagePath = path.join(
     opts.virtualStoreDir,
     depPathToFilename(opts.depPath, opts.virtualStoreDirMaxLength),
@@ -111,14 +131,6 @@ function getSymlinkNodeModulesDir (opts: { modulesDir?: string, parentDir?: stri
     : nodeModulesDir
 }
 
-function hoistedPackageDir (lockfileDir: string, location: string | undefined): string | undefined {
-  if (location == null || path.isAbsolute(location) || location.startsWith('\\')) return undefined
-  const dir = path.join(lockfileDir, ...location.split(/[/\\]/))
-  const relative = path.relative(lockfileDir, dir)
-  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return undefined
-  return dir
-}
-
 function candidateMatchesVersion (candidate: string, expectedVersion: string | undefined): boolean {
   if (!expectedVersion) return fs.existsSync(candidate)
   try {
@@ -137,4 +149,3 @@ function isUnsafePathComponent (component: string): boolean {
     component.split(/[/\\]/).some((part) => part === '..' || part === '.')
   )
 }
-

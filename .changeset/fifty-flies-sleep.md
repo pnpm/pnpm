@@ -1,7 +1,9 @@
 ---
+"@pnpm/deps.compliance.license-scanner": patch
 "@pnpm/deps.inspection.commands": patch
 "@pnpm/deps.inspection.list": patch
 "@pnpm/deps.inspection.tree-builder": patch
+"@pnpm/deps.path": patch
 "pacquet": patch
 "pnpm": patch
 ---

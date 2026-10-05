@@ -38,7 +38,6 @@ export interface BaseTreeOpts {
   hoistedLocations?: Record<string, string[]>
 }
 
-
 interface GetTreeOpts extends BaseTreeOpts {
   maxDepth: number
   rewriteLinkVersionDir: string

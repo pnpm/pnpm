@@ -40,7 +40,7 @@ fn get_pkg_info_handles_missing_pkg_snapshot_without_crashing() {
         layout: crate::pkg_info::InspectionLayout {
             lockfile_dir: PathBuf::new(),
             modules_dir: PathBuf::new(),
-            modules_dir_name: PathBuf::from("node_modules"),
+            relative_modules_dir: PathBuf::from("node_modules"),
             virtual_store_dir: PathBuf::from(".pnpm"),
             virtual_store_dir_max_length: 120,
             store_dir: None,
@@ -115,7 +115,7 @@ fn resolve_package_path_rejects_traversal_in_lockfile_derived_names() {
         layout: crate::pkg_info::InspectionLayout {
             lockfile_dir: dir.path().to_path_buf(),
             modules_dir: dir.path().join("node_modules"),
-            modules_dir_name: PathBuf::from("node_modules"),
+            relative_modules_dir: PathBuf::from("node_modules"),
             virtual_store_dir: virtual_store_dir.clone(),
             virtual_store_dir_max_length: 120,
             store_dir: None,
@@ -184,7 +184,7 @@ fn resolve_package_path_uses_hoisted_dirs_when_linker_is_hoisted() {
     let layout = crate::pkg_info::InspectionLayout {
         lockfile_dir: dir.path().to_path_buf(),
         modules_dir: dir.path().join("node_modules"),
-        modules_dir_name: PathBuf::from("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
         virtual_store_dir: dir.path().join("node_modules/.pnpm"),
         virtual_store_dir_max_length: 120,
         store_dir: None,
@@ -203,4 +203,65 @@ fn resolve_package_path_uses_hoisted_dirs_when_linker_is_hoisted() {
     let dep_path = "foo@1.0.0".parse().unwrap();
     let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
     assert_eq!(path, hoisted_pkg_dir);
+}
+
+#[test]
+fn resolve_package_path_probes_the_alias_when_hoisted_locations_are_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let aliased_pkg_dir = dir
+        .path()
+        .join("node_modules")
+        .join("bar");
+    std::fs::create_dir_all(&aliased_pkg_dir).unwrap();
+    std::fs::write(aliased_pkg_dir.join("package.json"), r#"{"name":"foo","version":"1.0.0"}"#)
+        .unwrap();
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("node_modules"),
+        relative_modules_dir: PathBuf::from("node_modules"),
+        virtual_store_dir: dir.path().join("node_modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::new(),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: dir.path().to_path_buf(),
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "bar", &ctx);
+    assert_eq!(path, aliased_pkg_dir);
+}
+
+#[test]
+fn resolve_package_path_keeps_every_segment_of_a_nested_modules_dir_when_hoisted() {
+    let dir = tempfile::tempdir().unwrap();
+    let project_dir = dir.path().join("packages/a");
+    let pkg_dir = project_dir.join("www/modules/foo");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(pkg_dir.join("package.json"), r#"{"name":"foo","version":"1.0.0"}"#).unwrap();
+
+    let layout = crate::pkg_info::InspectionLayout {
+        lockfile_dir: dir.path().to_path_buf(),
+        modules_dir: dir.path().join("www/modules"),
+        relative_modules_dir: PathBuf::from("www/modules"),
+        virtual_store_dir: dir.path().join("www/modules/.pnpm"),
+        virtual_store_dir_max_length: 120,
+        store_dir: None,
+        is_hoisted: true,
+        hoisted_dirs: std::collections::BTreeMap::new(),
+    };
+    let ctx = EdgeContext {
+        peers: None,
+        linked_path_base_dir: project_dir,
+        rewrite_link_version_dir: None,
+        parent_dir: None,
+    };
+    let dep_path = "foo@1.0.0".parse().unwrap();
+    let path = super::resolve_package_path(&layout, &dep_path, "foo", "1.0.0", "foo", &ctx);
+    assert_eq!(path, pkg_dir);
 }

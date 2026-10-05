@@ -44,7 +44,8 @@ pub struct InspectionLayout {
     pub lockfile_dir: PathBuf,
     /// Absolute, symlink-resolved `node_modules` of the lockfile root.
     pub modules_dir: PathBuf,
-    pub modules_dir_name: PathBuf,
+    /// [`LoadedState::relative_modules_dir`](crate::build::LoadedState::relative_modules_dir).
+    pub relative_modules_dir: PathBuf,
     /// Absolute virtual store directory (`<modules_dir>/.pnpm` unless
     /// the modules manifest points elsewhere, e.g. a global store).
     pub virtual_store_dir: PathBuf,

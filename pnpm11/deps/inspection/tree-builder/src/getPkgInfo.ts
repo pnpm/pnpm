@@ -87,7 +87,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       hoistedLocations: opts.hoistedLocations,
       lockfileDir: opts.lockfileDir,
       projectDir: opts.linkedPathBaseDir,
-      version,
+      version: lockedInfo.version,
     })
     : resolveLinkedPath(opts)
 

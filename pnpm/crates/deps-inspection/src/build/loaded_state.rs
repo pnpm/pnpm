@@ -8,6 +8,9 @@ use super::{
 /// against. Owns the loaded lockfiles; [`LoadedState::env`] borrows them.
 pub struct LoadedState {
     pub modules_dir: PathBuf,
+    /// The configured modules directory relative to the lockfile
+    /// directory, e.g. `node_modules` or `www/modules`.
+    pub relative_modules_dir: PathBuf,
     pub modules: Option<Modules>,
     pub current_lockfile: Option<Lockfile>,
     pub wanted_lockfile: Option<Lockfile>,
@@ -25,6 +28,16 @@ impl LoadedState {
             Some(dir) => lockfile_dir.join(dir),
             None => lockfile_dir.join("node_modules"),
         };
+        let relative_modules_dir = modules_dir_raw
+            .strip_prefix(lockfile_dir)
+            .map_or_else(
+                |_| {
+                    modules_dir_raw
+                        .file_name()
+                        .map_or_else(|| PathBuf::from("node_modules"), PathBuf::from)
+                },
+                Path::to_path_buf,
+            );
         let modules_dir = pnpm_fs::realpath_missing(&modules_dir_raw)
             .unwrap_or_else(|_| lexical_normalize(&modules_dir_raw));
         let modules = read_modules_manifest::<Host>(&modules_dir)
@@ -39,6 +52,7 @@ impl LoadedState {
             .wrap_err("load the wanted lockfile")?;
         Ok(LoadedState {
             modules_dir,
+            relative_modules_dir,
             modules,
             current_lockfile,
             wanted_lockfile,
@@ -144,13 +158,10 @@ impl LoadedState {
                 || node_linker == pnpm_config::NodeLinker::Hoisted,
                 |linker| linker == pnpm_modules_yaml::NodeLinker::Hoisted,
             );
-        let modules_dir_name = self.modules_dir
-            .file_name()
-            .map_or_else(|| PathBuf::from("node_modules"), PathBuf::from);
         crate::pkg_info::InspectionLayout {
             lockfile_dir: lockfile_dir.to_path_buf(),
             modules_dir: self.modules_dir.clone(),
-            modules_dir_name,
+            relative_modules_dir: self.relative_modules_dir.clone(),
             virtual_store_dir: resolve_virtual_store_dir(self.modules.as_ref(), &self.modules_dir),
             virtual_store_dir_max_length: self.modules
                 .as_ref()

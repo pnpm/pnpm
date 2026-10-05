@@ -293,4 +293,3 @@ function getListOptions (opts: RenderOptions) {
     nodeLinker: opts.nodeLinker,
   }
 }
-
