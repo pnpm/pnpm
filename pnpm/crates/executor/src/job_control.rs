@@ -62,8 +62,8 @@ impl JobGuard {
         };
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::System::JobObjects::{
-            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-            SetInformationJobObject,
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectExtendedLimitInformation, SetInformationJobObject,
         };
 
         // Stop assigning children first so no spawn can reach the handle
@@ -74,9 +74,11 @@ impl JobGuard {
         // [`arm_process_tree_cleanup`]. The information pointer refers to a
         // stack local that outlives the call. Clear the kill limit before
         // closing the handle; if clearing fails, leave the armed handle for
-        // the operating system to close at exit.
+        // the operating system to close at exit. Breakaway stays allowed for
+        // the detached processes that remain in the job.
         unsafe {
-            let info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_BREAKAWAY_OK;
             let set = SetInformationJobObject(
                 self.job,
                 JobObjectExtendedLimitInformation,
