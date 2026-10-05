@@ -539,10 +539,13 @@ describe('addFilesFromTarballBounded', () => {
     const tarball = fs.readFileSync(tarballFile)
     const expected = createCafs(temporaryDirectory()).addFilesFromTarball(tarball, true)
     const buffered = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(tarball, true)
+    const cloned = await createCafs(temporaryDirectory()).addFilesFromTarballBounded(structuredClone(tarball), true)
     const fromFile = await createCafs(temporaryDirectory()).addFilesFromTarballFile(tarballFile, true)
     expect(digestsOf(buffered.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
+    expect(digestsOf(cloned.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
     expect(digestsOf(fromFile.filesIndex)).toStrictEqual(digestsOf(expected.filesIndex))
     expect(buffered.manifest).toStrictEqual(expected.manifest)
+    expect(cloned.manifest).toStrictEqual(expected.manifest)
     expect(fromFile.manifest).toStrictEqual(expected.manifest)
   })
 

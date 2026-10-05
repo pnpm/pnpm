@@ -10,7 +10,7 @@ export interface Bzip2Input {
   readByte: () => number
 }
 
-export function decodeBzip2 (input: Buffer | Bzip2Input, parser: TarballParser): void {
+export function decodeBzip2 (input: Uint8Array | Bzip2Input, parser: TarballParser): void {
   let chunk = Buffer.allocUnsafe(CHUNK_SIZE)
   let written = 0
   Bunzip.decode(createInputStream(input), {
@@ -46,8 +46,8 @@ export function openBzip2Input (filename: string): { input: Bzip2Input, close: (
   }
 }
 
-function createInputStream (input: Buffer | Bzip2Input): { readByte: () => number, read: (buffer: Uint8Array, offset: number, length: number) => number } {
-  const stream = Buffer.isBuffer(input) ? createBufferInput(input) : input
+function createInputStream (input: Uint8Array | Bzip2Input): { readByte: () => number, read: (buffer: Uint8Array, offset: number, length: number) => number } {
+  const stream = 'readByte' in input ? input : createBufferInput(input)
   return {
     readByte: stream.readByte,
     read: (buffer, offset, length) => {
@@ -62,7 +62,7 @@ function createInputStream (input: Buffer | Bzip2Input): { readByte: () => numbe
   }
 }
 
-function createBufferInput (input: Buffer): Bzip2Input {
+function createBufferInput (input: Uint8Array): Bzip2Input {
   let offset = 0
   return { readByte: () => offset < input.length ? input[offset++] : -1 }
 }
