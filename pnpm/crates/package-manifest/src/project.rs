@@ -30,7 +30,7 @@ pub fn safe_read_project_manifest_from_dir(
         let path = dir.join(basename);
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) if pnpm_fs::is_not_found(&error) => continue,
             Err(source) => return Err(PackageManifestError::Read { path, source }),
         };
         return parse_project_manifest(&path, &text).map(Some);

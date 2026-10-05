@@ -1,9 +1,10 @@
 use super::{
     Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PickPackageError,
     PreferredVersionsOverlay, RegistryResponseError, ResolveDependencyTreeError, ResolveError,
-    ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey,
-    WorkspaceFinalWantedKey, cached_workspace_final, completed_resolved_wanted,
-    link_file_deps_inside_package, lock_recoverable, render_specifier, wanted_key_admission,
+    ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, UnsupportedProtocolError,
+    WantedDependency, WantedKey, WorkspaceFinalWantedKey, cached_workspace_final,
+    completed_resolved_wanted, link_file_deps_inside_package, lock_recoverable, render_specifier,
+    wanted_key_admission,
 };
 
 /// Convert a workspace directory resolution into the representation shared by
@@ -424,6 +425,10 @@ pub(super) fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError
     };
     let err = match err.downcast::<GitResolveError>() {
         Ok(git) => return ResolveDependencyTreeError::GitResolve(*git),
+        Err(err) => err,
+    };
+    let err = match err.downcast::<UnsupportedProtocolError>() {
+        Ok(unsupported) => return ResolveDependencyTreeError::UnsupportedProtocol(*unsupported),
         Err(err) => err,
     };
     match err.downcast::<PickPackageError>() {

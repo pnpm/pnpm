@@ -64,7 +64,7 @@ export async function resolveFromLocalPath (
   const spec = parseLocalPath(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, {
     preserveAbsolutePaths: ctx.preserveAbsolutePaths ?? false,
   })
-  return resolveSpec(spec, opts)
+  return resolveSpec(spec, opts, wantedDependency.bareSpecifier)
 }
 
 // link:/file:/workspace: dependencies don't have a "latest" — claim them so
@@ -79,9 +79,14 @@ export async function resolveLatestFromLocal (query: LatestQuery): Promise<Lates
   return undefined
 }
 
+/**
+ * @param pathShapedSpecifier - The written specifier, when the spec was
+ * claimed by its path shape alone.
+ */
 async function resolveSpec (
   spec: LocalPackageSpec | null,
-  opts: LocalResolverOptions
+  opts: LocalResolverOptions,
+  pathShapedSpecifier?: string
 ): Promise<LocalResolveResult | null> {
   if (spec == null) return null
 
@@ -98,7 +103,7 @@ async function resolveSpec (
     }
   }
 
-  const localDependencyManifest = await readLocalDependencyManifest(spec, opts)
+  const localDependencyManifest = await readLocalDependencyManifest(spec, opts, pathShapedSpecifier)
   return {
     id: spec.id,
     manifest: localDependencyManifest,
@@ -149,16 +154,44 @@ async function resolveTarballSpec (
 
 async function readLocalDependencyManifest (
   spec: LocalPackageSpec,
-  opts: LocalResolverOptions
+  opts: LocalResolverOptions,
+  pathShapedSpecifier: string | undefined
 ): Promise<DependencyManifest> {
   try {
     return (await readProjectManifestOnly(spec.fetchSpec)) as DependencyManifest
   } catch (internalErr: unknown) {
     if (!existsSync(spec.fetchSpec)) {
+      throwIfUnsupportedProtocol(pathShapedSpecifier)
       return handleMissingLocalDir(spec, opts.projectDir)
     }
     return handleExistingDirManifestError(internalErr, spec.fetchSpec)
   }
+}
+
+/**
+ * A specifier claimed by its path shape that opens with a protocol of two or
+ * more characters, such as Yarn's `patch:`, names a protocol no resolver
+ * supports. Called only once the directory is found missing.
+ */
+function throwIfUnsupportedProtocol (specifier: string | undefined): void {
+  if (specifier == null) return
+  const protocolEnd = specifier.indexOf(':')
+  if (protocolEnd < 2) return
+  const scheme = specifier.slice(0, protocolEnd)
+  if (!isAsciiLetter(scheme[0]) || ![...scheme].every(isSchemeChar)) return
+  throw new PnpmError(
+    'UNSUPPORTED_PROTOCOL',
+    `Unsupported protocol "${scheme}:" in the dependency specifier "${specifier}"`,
+    { hint: 'If a published package declares this dependency, replace its specifier with the "overrides" setting.' }
+  )
+}
+
+function isAsciiLetter (char: string): boolean {
+  return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
+}
+
+function isSchemeChar (char: string): boolean {
+  return isAsciiLetter(char) || (char >= '0' && char <= '9') || char === '+' || char === '-' || char === '.'
 }
 
 function handleMissingLocalDir (spec: LocalPackageSpec, projectDir: string): DependencyManifest {

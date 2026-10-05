@@ -81,8 +81,8 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
     let path = dir.join("package.json");
     let text = match fs::read_to_string(&path) {
         Ok(text) => text,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(PackageManifestError::Io(err)),
+        Err(err) if pnpm_fs::is_not_found(&err) => return Ok(None),
+        Err(source) => return Err(PackageManifestError::Read { path, source }),
     };
     parse_manifest(&text)
         .map(Some)
