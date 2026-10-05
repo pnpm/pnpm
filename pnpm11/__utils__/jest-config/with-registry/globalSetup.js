@@ -144,6 +144,7 @@ function buildStorage (out, pnpmVersion) {
     '--packages', FIXTURE_PACKAGES,
     '--out', out,
     '--substitute', `0.0.0-test-current-pnpm=${pnpmVersion}`,
+    '--substitute', `http://localhost:7769=http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
   ], { stdio: 'inherit' })
   if (result.status !== 0) {
     throw new Error(
