@@ -375,17 +375,21 @@ function isRegistryShapedResolution (resolution: unknown): boolean {
     variants?: unknown
   }
   if (type === 'variations') return areRegistryShapedVariants(variants)
-  // Custom resolutions are opaque to the npm verifier — they are
-  // fetched by a pnpmfile custom fetcher, never bound to the
-  // registry's `dist.tarball`.
+  // Custom resolver protocols (`type: 'custom:*'`) are a legitimate
+  // non-registry source the user opted into. They can only be materialized by
+  // a project-configured custom fetcher — an unrecognized custom type throws at
+  // fetch time (see @pnpm/fetching.pick-fetcher) — so a forged custom type
+  // cannot launder an artifact past this gate into a build.
+  if (typeof type === 'string' && type.startsWith('custom:')) return true
   if (type != null) return false
   return isRegistryShapedTarballResolution(gitHosted, tarball)
 }
 
 function areRegistryShapedVariants (variants: unknown): boolean {
-  return Array.isArray(variants) && variants.length > 0 && variants.every(
-    (variant) => isRegistryShapedResolution((variant as { resolution?: unknown })?.resolution)
-  )
+  return Array.isArray(variants) && variants.length > 0 && variants.every((variant) => {
+    const resolution = (variant as { resolution?: unknown })?.resolution
+    return resolution != null && isRegistryShapedResolution(resolution)
+  })
 }
 
 function isRegistryShapedTarballResolution (gitHosted: unknown, tarball: unknown): boolean {
