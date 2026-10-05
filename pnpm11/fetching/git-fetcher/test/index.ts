@@ -116,6 +116,47 @@ test('fetch includes committed Git submodules', async () => {
   expect(filesMap.has('native/answer.js')).toBeTruthy()
 })
 
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('git fetch does not import files outside repo when bundleDependencies has escaping directory symlink', async () => {
+  const root = temporaryDirectory()
+  const outsideDir = path.join(root, 'outside')
+  fs.mkdirSync(outsideDir)
+  fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'SUPER_SECRET_TOKEN\n')
+
+  const packageDir = path.join(root, 'package')
+  fs.mkdirSync(packageDir)
+  await execa('git', ['init', '-q', '-b', 'main'], { cwd: packageDir })
+  await execa('git', ['config', 'user.email', 'test@example.invalid'], { cwd: packageDir })
+  await execa('git', ['config', 'user.name', 'Test'], { cwd: packageDir })
+
+  fs.mkdirSync(path.join(packageDir, 'node_modules'))
+  fs.symlinkSync(outsideDir, path.join(packageDir, 'node_modules/bundled-dep'))
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({
+    name: 'with-bundled-symlink',
+    version: '1.0.0',
+    bundleDependencies: ['bundled-dep'],
+  }))
+  await commitAll(packageDir, 'initial commit')
+  const { stdout: commit } = await execa('git', ['rev-parse', 'HEAD'], { cwd: packageDir })
+
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+
+  const { filesMap } = await withEnv({
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'protocol.file.allow',
+    GIT_CONFIG_VALUE_0: 'always',
+  }, async () => fetch(
+    createCafsStore(storeDir),
+    { commit: String(commit).trim(), repo: pathToFileURL(packageDir).href, type: 'git' },
+    { filesIndexFile: path.join(storeDir, 'index.json') }
+  ))
+
+  expect(filesMap.has('package.json')).toBe(true)
+  expect(filesMap.has('node_modules/bundled-dep/secret.txt')).toBe(false)
+})
+
 test('fetch includes nested committed Git submodules', async () => {
   const root = temporaryDirectory()
   const innerDir = path.join(root, 'inner')
