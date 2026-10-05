@@ -434,5 +434,5 @@ test('no hash character for github subdirectory install', async () => {
   ], testDefaults())
 
   expect(fs.readdirSync('./node_modules/.pnpm'))
-    .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+91ab41994c6a1b7319869fa8864163c9954f56ec+path++')
+    .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+91ab41994c6a1b7319869fa88_56355147ba630bfd9db93b3858553cde') // cspell:disable-line
 })

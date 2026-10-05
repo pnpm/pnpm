@@ -19,16 +19,45 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
         .trim_end_matches(['.', ' '])
         .len();
     let trailing = filename.len() - kept;
+    let escapes_ambiguously = has_ambiguous_escape(dep_path);
     if trailing > 0 {
         let mut escaped = filename[..kept].to_string();
         escaped.extend(std::iter::repeat_n('+', trailing));
-        let hash_input = if dep_path.contains('+') { dep_path } else { &filename };
+        let hash_input = if escapes_ambiguously { dep_path } else { &filename };
         return hash_suffix_virtual_store_name(&escaped, hash_input, max_length_without_hash);
     }
-    if dep_path.contains('+') {
+    if escapes_ambiguously {
         return hash_suffix_virtual_store_name(&filename, dep_path, max_length_without_hash);
     }
     shorten_virtual_store_name(filename, max_length_without_hash)
+}
+
+/// Whether escaping the URL or path of a non-registry dependency could map
+/// two distinct dep paths to one name. Only `/` after the scheme escapes
+/// unambiguously.
+fn has_ambiguous_escape(dep_path: &str) -> bool {
+    let pkg_id = dep_path
+        .split('(')
+        .next()
+        .unwrap_or_default();
+    let pkg_id = pkg_id.strip_prefix('/').unwrap_or(pkg_id);
+    let version = if pkg_id.starts_with("file:") {
+        pkg_id
+    } else {
+        let Some((_, version)) = pkg_id
+            .get(1..)
+            .and_then(|rest| rest.split_once('@'))
+        else {
+            return false;
+        };
+        version
+    };
+    let Some((_, location)) = version.split_once(':') else { return false };
+    if crate::parse_registry_qualified_version(version).is_some() {
+        return false;
+    }
+    let location = location.strip_prefix("//").unwrap_or(location);
+    location.contains(['+', '\\', ':', '*', '?', '"', '<', '>', '|', '#'])
 }
 
 /// Pre-escape pass: rewrite `file:` to `file+`, strip a single leading

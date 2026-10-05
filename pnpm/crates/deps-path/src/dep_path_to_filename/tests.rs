@@ -100,7 +100,10 @@ fn escaped_trailing_dots_do_not_collide_with_literal_plus() {
         dep_path_to_filename("parent-pkg@file:..", 120),
         dep_path_to_filename("parent-pkg@file:++", 120),
     );
-    assert!(dep_path_to_filename("parent-pkg@file:++", 120).starts_with("parent-pkg@file+++_"));
+    assert_eq!(
+        dep_path_to_filename("parent-pkg@file:++", 120),
+        "parent-pkg@file+++_533e2d775a8ebec1166dcc5f3df4de30",
+    );
     assert_ne!(
         dep_path_to_filename("Parent-pkg@file:..", 120),
         dep_path_to_filename("Parent-pkg@file:++", 120),
@@ -108,12 +111,65 @@ fn escaped_trailing_dots_do_not_collide_with_literal_plus() {
 }
 
 #[test]
-fn distinct_tarball_paths_stay_apart_before_and_after_shortening() {
+fn urls_with_ambiguous_escapes_are_hashed() {
     let base = "pkg@https://registry.example.com/objects/trusted";
-    for max_length in [40, 120] {
-        let literal_plus = dep_path_to_filename(&format!("{base}+package.tgz"), max_length);
-        let separator = dep_path_to_filename(&format!("{base}/package.tgz"), max_length);
-        assert_ne!(literal_plus, separator);
-        assert!(literal_plus.len() <= max_length);
+    let cases = [
+        ("/package.tgz", "pkg@https+++registry.example.com+objects+trusted+package.tgz"),
+        (
+            "+package.tgz",
+            "pkg@https+++registry.example.com+objects+trusted+package.tgz_5b1382866f68e516badc06db3d605b81",
+        ),
+        (
+            ":package.tgz",
+            "pkg@https+++registry.example.com+objects+trusted+package.tgz_1536617e57923d7a634ea5063d52d423",
+        ),
+        (
+            "?package.tgz",
+            "pkg@https+++registry.example.com+objects+trusted+package.tgz_56ed6c679663e41c52a329ea7ffc783f",
+        ),
+        (
+            "#package.tgz",
+            "pkg@https+++registry.example.com+objects+trusted+package.tgz_30421c24d7ece624b64805feea2d87f4",
+        ),
+    ];
+    for (suffix, expected) in cases {
+        assert_eq!(dep_path_to_filename(&format!("{base}{suffix}"), 120), expected);
     }
+    assert_eq!(
+        dep_path_to_filename(&format!("{base}+package.tgz"), 40),
+        "pkg@htt_5b1382866f68e516badc06db3d605b81",
+    );
+    assert_eq!(
+        dep_path_to_filename(&format!("{base}/package.tgz"), 40),
+        "pkg@htt_db0178b93a3dc73ecc84ba68ab60a4ab",
+    );
+}
+
+#[test]
+fn git_urls_are_hashed_only_with_an_ambiguous_escape() {
+    assert_eq!(
+        dep_path_to_filename("foo@git+https://github.com/something/foo", 120),
+        "foo@git+https+++github.com+something+foo",
+    );
+    assert_eq!(
+        dep_path_to_filename("foo@git+https://github.com/something/foo#1234", 120),
+        "foo@git+https+++github.com+something+foo+1234_b1a78add6ab51a177ff8780d0f64b41d",
+    );
+    assert_eq!(
+        dep_path_to_filename(
+            "foo@https://codeload.github.com/something/foo/tar.gz/1234#path:packages/foo",
+            120,
+        ),
+        "foo@https+++codeload.github.com+something+foo+tar.gz+1234+path+packages+foo_160b2e15ba002509e0f467796aa2dfd1",
+    );
+}
+
+#[test]
+fn registry_versions_with_build_metadata_are_not_hashed() {
+    assert_eq!(dep_path_to_filename("foo@1.0.0+build.5", 120), "foo@1.0.0+build.5");
+    assert_eq!(
+        dep_path_to_filename("esbuild@0.0.0-dev+abc(foo@1.0.0)", 120),
+        "esbuild@0.0.0-dev+abc_foo@1.0.0",
+    );
+    assert_eq!(dep_path_to_filename("foo@work:1.0.0+build", 120), "foo@work+1.0.0+build");
 }
