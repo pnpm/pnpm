@@ -251,3 +251,19 @@ test('an index record over 64 MiB is a cache miss', async () => {
 
   expect(await loadMeta(pkgMirror)).toBeNull()
 })
+
+test('whole-packument readers skip a version without a manifest', async () => {
+  const pkgMirror = path.join(temporaryDirectory(), 'foo.jsonl')
+  const meta = fixtureMeta()
+  const content = prepareIndexedForDisk(meta, undefined)
+  // Same length as the 2.0.0 fragment, but a JSON array.
+  const fragment = Buffer.from(JSON.stringify(meta.versions['2.0.0']))
+  const fragmentStart = content.indexOf(fragment)
+  content.write(`[${' '.repeat(fragment.length - 2)}]`, fragmentStart)
+  await saveMeta(pkgMirror, content)
+
+  const loaded = await loadMeta(pkgMirror, { hydrateEagerly: true })
+  expect(loaded).not.toBeNull()
+  expect(loaded!.versions['2.0.0']).toBeNull()
+  expect(Object.keys(loaded!.versions)).toStrictEqual(['1.0.0', '2.0.0'])
+})

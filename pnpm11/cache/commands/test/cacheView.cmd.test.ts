@@ -117,6 +117,32 @@ describe('cache view', () => {
     expect(JSON.parse(result!)['https://registry.npmjs.org/']).toBeUndefined()
   })
 
+  // The registry served that version in the wrong shape, which the resolver
+  // reads as a version without a manifest rather than as a damaged file.
+  test('skips a version whose cached manifest has the wrong shape', async () => {
+    const mirror = path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org', 'is-negative.jsonl')
+    const bytes = fs.readFileSync(mirror)
+    const lineEnd = bytes.indexOf(10)
+    const [, headersLen, indexLen] = bytes.toString('utf8', 0, lineEnd).split(' ').map(Number)
+    const indexStart = lineEnd + 1 + headersLen
+    const index = JSON.parse(bytes.toString('utf8', indexStart, indexStart + indexLen)) as { versions: Array<[string, number, number]> }
+    const [version, offset, length] = index.versions.find(([candidate]) => candidate === '2.0.2')!
+    bytes.write(`[${' '.repeat(length - 2)}]`, indexStart + indexLen + offset)
+    fs.writeFileSync(mirror, bytes)
+
+    const result = await cache.handler({
+      cacheDir,
+      cliOptions: {},
+      pnpmHomeDir: process.cwd(),
+      storeDir,
+    }, ['view', 'is-negative'])
+
+    const view = JSON.parse(result!)['https://registry.npmjs.org/']
+    expect(view.cachedVersions).not.toContain(version)
+    expect(view.nonCachedVersions).not.toContain(version)
+    expect(view.cachedVersions.length + view.nonCachedVersions.length).toBeGreaterThan(0)
+  })
+
   test('lists all metadata for requested package should specify a package name', async () => {
     await expect(
       cache.handler({

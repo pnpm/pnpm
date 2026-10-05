@@ -63,7 +63,8 @@ function partitionVersionsByStorePresence (
   const cachedVersions: string[] = []
   const nonCachedVersions: string[] = []
   for (const [version, manifest] of Object.entries(metaObject.versions)) {
-    if (!manifest.dist.integrity) continue
+    // A version without a manifest (a fragment of the wrong shape) is skipped.
+    if (!manifest?.dist?.integrity) continue
     const key = storeIndexKey(manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
     if (storeIndex.has(key)) {
       cachedVersions.push(version)

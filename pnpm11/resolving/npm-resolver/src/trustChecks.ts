@@ -221,7 +221,8 @@ function readEarlierTrustEvidence (
   const publishedAt = new Date(ts)
   if (!(publishedAt < filter.beforeDate)) return undefined
 
-  return getTrustEvidence(meta.versions[version])
+  const manifest = meta.versions[version]
+  return manifest == null ? undefined : getTrustEvidence(manifest)
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {

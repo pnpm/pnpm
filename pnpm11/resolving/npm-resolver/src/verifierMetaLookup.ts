@@ -180,7 +180,7 @@ export function fetchFullMetaForTrust (
 function projectTrustMeta (meta: PackageMeta): PackageMeta {
   const versions: Record<string, PackageInRegistry> = {}
   for (const [version, manifest] of Object.entries(meta.versions ?? {})) {
-    versions[version] = projectTrustManifest(manifest)
+    if (manifest != null) versions[version] = projectTrustManifest(manifest)
   }
   return {
     name: meta.name,
@@ -429,7 +429,7 @@ function projectVersionArtifacts (
 ): Map<string, RegistryArtifactHistory> {
   const versionArtifacts = new Map<string, RegistryArtifactHistory>()
   for (const [version, manifest] of Object.entries(versions)) {
-    versionArtifacts.set(version, projectArtifactHistory(manifest))
+    if (manifest != null) versionArtifacts.set(version, projectArtifactHistory(manifest))
   }
   return versionArtifacts
 }
