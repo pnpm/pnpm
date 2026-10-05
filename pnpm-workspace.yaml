@@ -58,6 +58,7 @@ packages:
   - pnpm/tasks/ecosystem-e2e/webcontainer
   - pnpm/wasm
   - pnpr/npm/pnpr
+  - '!vendor/**'
   - '!**/example/**'
   - '!**/test/**'
   - '!pnpm11/resolving/local-resolver/example-package/**'
