@@ -2138,7 +2138,7 @@ test('package manager bootstrap registries ignore project workspace registries',
     default: 'https://trusted.example.com/',
   })
   expect(config.httpsProxy).toBe('http://project-proxy.example.com:8080')
-  expect(config.strictSsl).toBe(false)
+  expect(config.strictSsl).toBe(true)
   expect(config.configByUri).toMatchObject({
     '//project.example.com/': { '@': { authToken: 'project-token' } },
   })
@@ -2152,6 +2152,46 @@ test('package manager bootstrap registries ignore project workspace registries',
     strictSsl: true,
   })
   expect(config.packageManagerNetworkConfig?.configByUri['//project.example.com/']).toBeUndefined()
+})
+
+test('project-level .npmrc cannot disable strict-ssl (GHSA-5r9h-p4mc-r64q)', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', [
+    'strict-ssl=false',
+    '',
+  ].join('\n'), 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.strictSsl).not.toBe(false)
+})
+
+test('user-level .npmrc strict-ssl=false is honored and not overridden by project .npmrc', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'strict-ssl=false',
+    '',
+  ].join('\n'), 'utf8')
+  fs.writeFileSync('.npmrc', [
+    'strict-ssl=true',
+    '',
+  ].join('\n'), 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {
+      userconfig: path.resolve('user.npmrc'),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.strictSsl).toBe(false)
 })
 
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {

@@ -162,7 +162,7 @@ fn read_config_resolves_the_project_npmrc_cascade() {
         resolved.no_proxy,
         Some(serde_json::Value::String("internal.fixture.example".to_string())),
     );
-    assert_eq!(resolved.strict_ssl, Some(false));
+    assert_eq!(resolved.strict_ssl, None);
     assert!(!resolved.store_dir.is_empty());
     assert!(!resolved.cache_dir.is_empty());
 }

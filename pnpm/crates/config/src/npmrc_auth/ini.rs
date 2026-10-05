@@ -5,9 +5,10 @@ use super::{
 };
 
 #[derive(Clone, Copy)]
-struct ParseOptions {
-    expand_auth_value_env: bool,
-    expand_request_destination_env: bool,
+pub(super) struct ParseOptions {
+    pub(super) expand_auth_value_env: bool,
+    pub(super) expand_request_destination_env: bool,
+    pub(super) allow_strict_ssl: bool,
 }
 
 /// One `key=value` line, with comments and blanks skipped and the value
@@ -68,7 +69,11 @@ impl NpmrcAuth {
         Self::from_ini_with_options::<Sys>(
             text,
             npmrc_dir,
-            ParseOptions { expand_auth_value_env: false, expand_request_destination_env: false },
+            ParseOptions {
+                expand_auth_value_env: false,
+                expand_request_destination_env: false,
+                allow_strict_ssl: false,
+            },
         )
     }
 
@@ -93,7 +98,11 @@ impl NpmrcAuth {
         Self::from_ini_with_options::<Sys>(
             text,
             npmrc_dir,
-            ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
+            ParseOptions {
+                expand_auth_value_env: true,
+                expand_request_destination_env: true,
+                allow_strict_ssl: true,
+            },
         )
     }
 
@@ -118,7 +127,7 @@ impl NpmrcAuth {
             if crate::config_types::is_ini_config_key(&key) {
                 auth.raw_ini_config.insert(key.clone(), value.clone());
             }
-            auth.apply_ini_entry(&key, value, npmrc_dir);
+            auth.apply_ini_entry(&key, value, npmrc_dir, opts);
         }
         auth
     }
@@ -200,7 +209,7 @@ impl NpmrcAuth {
     }
 
     /// Record one expanded `key=value` entry in the slot it belongs to.
-    pub(super) fn apply_ini_entry(&mut self, key: &str, value: String, npmrc_dir: &Path) {
+    fn apply_ini_entry(&mut self, key: &str, value: String, npmrc_dir: &Path, opts: ParseOptions) {
         if key == "registry" {
             self.routes.default = Some(value);
             return;
@@ -209,7 +218,7 @@ impl NpmrcAuth {
             self.routes.scoped.insert(scope.to_string(), normalize_registry_url(&value));
             return;
         }
-        if self.apply_network_key(key, &value, npmrc_dir) {
+        if self.apply_network_key(key, &value, npmrc_dir, opts.allow_strict_ssl) {
             return;
         }
         if let Some((uri, suffix)) = split_ini_creds_key(key) {
@@ -226,7 +235,13 @@ impl NpmrcAuth {
 
     /// The proxy and TLS keys that apply to every request, reporting whether
     /// `key` was one of them.
-    pub(super) fn apply_network_key(&mut self, key: &str, value: &str, npmrc_dir: &Path) -> bool {
+    fn apply_network_key(
+        &mut self,
+        key: &str,
+        value: &str,
+        npmrc_dir: &Path,
+        allow_strict_ssl: bool,
+    ) -> bool {
         match key {
             "https-proxy" => self.proxy.https = Some(value.to_string()),
             "http-proxy" => self.proxy.http = Some(value.to_string()),
@@ -238,7 +253,11 @@ impl NpmrcAuth {
             "cafile" => self.tls.cafile = Some(resolve_cafile(value.to_string(), npmrc_dir)),
             "cert" => self.tls.cert = Some(expand_inline_pem(value)),
             "key" => self.tls.key = Some(expand_inline_pem(value)),
-            "strict-ssl" => self.tls.strict_ssl = parse_bool(value),
+            "strict-ssl" => {
+                if allow_strict_ssl {
+                    self.tls.strict_ssl = parse_bool(value);
+                }
+            }
             "local-address" => self.tls.local_address = Some(value.to_string()),
             _ => return false,
         }

@@ -204,6 +204,9 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
   const pnpmConfig = createConfigFromDefaultsAndNpmrc(defaultOptions, npmrcResult.mergedConfig)
+  if (typeof npmrcResult.trustedConfig['strict-ssl'] === 'boolean') {
+    pnpmConfig.strictSsl = npmrcResult.trustedConfig['strict-ssl']
+  }
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
@@ -259,6 +262,7 @@ function createConfigFromDefaultsAndNpmrc (
   ) as unknown as PnpmConfigInProgress
 
   for (const [key, value] of Object.entries(npmrcConfig)) {
+    if (key === 'strict-ssl') continue
     if (Object.hasOwn(types, key)) {
       ;(pnpmConfig as unknown as Record<string, unknown>)[camelcase(key, { locale: 'en-US' })] = value
     }

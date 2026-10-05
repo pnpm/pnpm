@@ -416,6 +416,22 @@ fn strict_ssl_invalid_value_resets_prior_value() {
 }
 
 #[test]
+fn project_ini_ignores_strict_ssl() {
+    assert_eq!(
+        NpmrcAuth::from_project_ini::<NoEnv>("strict-ssl=false\n", Path::new(""))
+            .tls
+            .strict_ssl,
+        None,
+    );
+    assert_eq!(
+        NpmrcAuth::from_project_ini::<NoEnv>("strict-ssl=true\n", Path::new(""))
+            .tls
+            .strict_ssl,
+        None,
+    );
+}
+
+#[test]
 fn parses_local_address_from_ini() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("local-address=10.0.0.5\n", Path::new(""));
     assert_eq!(auth.tls.local_address.as_deref(), Some("10.0.0.5"));

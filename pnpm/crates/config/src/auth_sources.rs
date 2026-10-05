@@ -206,6 +206,7 @@ impl Config {
         self.raw_auth_config = std::mem::take(&mut npmrc_auth.raw_ini_config);
 
         let trusted_auth = merge_auth_sources(trusted_sources);
+        npmrc_auth.tls.strict_ssl = trusted_auth.tls.strict_ssl;
 
         // A `tokenHelper` names an executable, so it is honored only from a
         // trusted, non-repo source.

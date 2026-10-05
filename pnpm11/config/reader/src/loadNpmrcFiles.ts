@@ -71,6 +71,7 @@ export interface LoadNpmrcConfigOpts {
 interface ReadAndFilterNpmrcOptions {
   expandAuthValueEnv?: boolean
   expandRequestDestinationEnv?: boolean
+  allowStrictSsl?: boolean
 }
 
 export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
@@ -150,6 +151,7 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
     {
       expandAuthValueEnv: workspaceIsTrustedAuthFile,
       expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
+      allowStrictSsl: workspaceIsTrustedAuthFile,
     }
   )
 
@@ -300,6 +302,7 @@ function readAndFilterNpmrc (
     const entry = readNpmrcEntry(ctx, rawKey, rawValue)
     // Only keep auth/registry related keys
     if (entry == null || !isNpmrcReadableKey(entry.key)) continue
+    if (entry.key === 'strict-ssl' && opts.allowStrictSsl === false) continue
     result[entry.key] = resolveCafilePath(entry, npmrcDir)
   }
   return rescopeUnscopedCreds(result, filePath, warnings)

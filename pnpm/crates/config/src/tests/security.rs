@@ -114,3 +114,23 @@ fn prepend_project_node_path_omits_paths_containing_the_path_list_delimiter() {
     );
     assert_eq!(env["NODE_PATH"], "/inherited");
 }
+
+#[test]
+pub fn project_npmrc_cannot_disable_strict_ssl() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "");
+
+    let config = load_with_project_and_user("strict-ssl=false\n", user_file);
+    assert_eq!(config.tls.strict_ssl, None);
+}
+
+#[test]
+pub fn user_npmrc_strict_ssl_is_not_overridden_by_project_npmrc() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "strict-ssl=false\n");
+
+    let config = load_with_project_and_user("strict-ssl=true\n", user_file);
+    assert_eq!(config.tls.strict_ssl, Some(false));
+}
