@@ -31,21 +31,6 @@ pub fn workspace_root() -> &'static Path {
     WORKSPACE_ROOT.as_path()
 }
 
-/// Root the per-generation runtime storage directories live under.
-///
-/// The mock cannot point `pnpr` at the generated fixture storage itself.
-/// `pnpr` writes proxy-mode cache entries (the ~2.3k unscoped npm packages
-/// the benchmark lockfile pulls) into `--storage`, and those would be mixed
-/// into the generated tree and lost whenever the fixtures are rebuilt. CI
-/// also caches this root across runs
-/// (`.github/workflows/pacquet-integrated-benchmark.yml`); without that,
-/// cold-cache scenarios pay a full 2.3k-packument fetch from npmjs every
-/// run.
-///
-/// `PNPM_REGISTRY_STORAGE` overrides the root, not one generation's
-/// directory within it.
-///
-/// Defaults to `$HOME/.cache/pnpm-registry/storage`.
 #[must_use]
 pub fn runtime_storage_root() -> &'static Path {
     static ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
