@@ -192,6 +192,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
+            frozen_lockfile: false,
             config_dependencies: None,
             settings: crate::optimistic_repeat_install::settings::current_settings(
                 config,
@@ -340,6 +341,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
+            frozen_lockfile: false,
             config_dependencies: None,
             settings,
         },

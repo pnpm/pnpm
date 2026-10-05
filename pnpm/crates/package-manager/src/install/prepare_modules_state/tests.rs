@@ -133,6 +133,7 @@ fn short_circuits_over(
         tree: ModulesTreeContext { config, workspace_root, node_linker, included: INCLUDED },
         repeat: RepeatInstallPolicy {
             frozen: true,
+            frozen_lockfile: true,
             filtered: false,
             disable_optimistic_check: false,
             supported_architectures: None,

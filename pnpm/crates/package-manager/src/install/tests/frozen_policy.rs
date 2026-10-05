@@ -114,6 +114,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             projects,
             pnpmfiles: Vec::new(),
             filtered_install: false,
+            frozen_lockfile: false,
             config_dependencies: None,
             settings,
         },

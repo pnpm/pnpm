@@ -358,6 +358,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config),
         filtered_install,
+        frozen_lockfile: false,
         config_dependencies: config.config_dependencies.clone(),
         // Settings construction is shared with
         // `optimistic_repeat_install::current_settings` so the
@@ -393,6 +394,18 @@ pub(crate) fn recorded_auto_dedupe(config: &Config, established: Option<bool>) -
         return config.auto_dedupe.then_some(true);
     }
     established
+}
+
+/// Carry forward what a write that only revalidates `state` cannot
+/// establish itself: the dedupe baseline and whether the last install ran
+/// frozen.
+pub(crate) fn carry_recorded_install(
+    new_state: &mut WorkspaceState,
+    state: &WorkspaceState,
+    config: &Config,
+) {
+    new_state.settings.auto_dedupe = recorded_auto_dedupe(config, state.settings.auto_dedupe);
+    new_state.frozen_lockfile = state.frozen_lockfile;
 }
 
 /// Set [`ProjectEntry::has_modules_dir`] for each project the hoisted

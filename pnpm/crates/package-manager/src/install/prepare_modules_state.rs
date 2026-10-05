@@ -194,6 +194,7 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
         carried_state: CarriedWorkspaceState {
             filtered_install: inputs.repeat.filtered,
             recorded_auto_dedupe,
+            frozen_lockfile: inputs.repeat.frozen_lockfile,
         },
     })
     .await
@@ -213,6 +214,7 @@ fn frozen_tree_inputs<'a>(
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: inputs.repeat.frozen,
+            frozen_lockfile: inputs.repeat.frozen_lockfile,
             filtered: inputs.repeat.filtered,
             disable_optimistic_check: inputs.repeat.disable_optimistic_check,
             supported_architectures: inputs.repeat.supported_architectures,

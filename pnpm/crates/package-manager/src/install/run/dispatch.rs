@@ -200,6 +200,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: decided.take_frozen_path,
+            frozen_lockfile: install.lockfile_policy.frozen,
             filtered: scope.importers.filtered_install,
             disable_optimistic_check: install.lockfile_policy.disable_optimistic_repeat,
             supported_architectures: owned.projects.supported_architectures.as_ref(),

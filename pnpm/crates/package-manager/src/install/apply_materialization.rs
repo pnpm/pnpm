@@ -213,11 +213,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
     tracing::info!(target: "pacquet::install", "Complete all");
 
     if complete_resolve_only::<Reporter>(&ResolveOnlyCompletionInputs {
-        mode: crate::install::state_options::CompletionMode {
-            resolve_only: inputs.mode.resolve_only,
-            dry_run: inputs.mode.dry_run,
-            peer_issues_sink_is_none: inputs.mode.peer_issues_sink_is_none,
-        },
+        mode: inputs.mode,
         peers: crate::install::state_options::PeerIssueLockfiles {
             wanted: inputs.resolution.existing_wanted,
             fresh: inputs.materialized.fresh_lockfile.as_ref(),
@@ -318,6 +314,7 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
             && inputs.materialized.fresh_lockfile.is_some())
         .then_some(true),
     );
+    state.frozen_lockfile = inputs.mode.frozen_lockfile;
     update_workspace_state_or_warn::<Reporter>(&inputs.projects.workspace_root, &state);
     tracing::info!(target: "pacquet::install::phase", phase = "apply.workspace_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 }
