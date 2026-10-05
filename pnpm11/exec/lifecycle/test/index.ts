@@ -264,14 +264,10 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
 
 test('dependency lifecycle hooks ignore the configured project shell', async () => {
   const pkgRoot = testFixtures.prepare('with-many-scripts')
-  const runtimeBin = path.join(pkgRoot, 'runtime-bin')
-  fs.mkdirSync(runtimeBin)
-  fs.copyFileSync(process.execPath, path.join(runtimeBin, path.basename(process.execPath)))
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
     scriptShell: path.join(pkgRoot, 'nonexistent-shell'),
-    extraEnv: { PATH: [runtimeBin, path.join(rootModulesDir, '.bin')].join(path.delimiter) },
     optional: false,
     pkgRoot,
     rootModulesDir,

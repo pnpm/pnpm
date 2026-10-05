@@ -471,6 +471,7 @@ fn assert_filtered_install_builds_dependencies_with_the_root_runtime(global_virt
     .unwrap();
     let empty_path = root.path().join("empty-path");
     fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
 
     command(&workspace)
         .with_env("PATH", &empty_path)
@@ -555,6 +556,7 @@ fn assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(global_vi
     .unwrap();
     let empty_path = root.path().join("empty-path");
     fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
 
     command(&workspace)
         .with_env("PATH", &empty_path)

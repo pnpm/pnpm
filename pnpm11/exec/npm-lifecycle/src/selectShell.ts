@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 export interface SelectedShell {
   sh: string
   shFlag: string
@@ -40,13 +38,13 @@ function returnsInterruptedChildStatus (shell: SelectedShell): boolean {
 export function selectShell (scriptShell: string | undefined, platform: NodeJS.Platform, comspec: string | undefined): SelectedShell {
   scriptShell = scriptShell || undefined
   if (platform === 'win32') {
-    const sh = scriptShell ?? comspec ?? path.win32.join(process.env.SystemRoot ?? process.env.windir ?? 'C:\\Windows', 'System32', 'cmd.exe')
+    const sh = scriptShell ?? comspec ?? 'cmd'
     if (scriptShell == null || isCmdExe(scriptShell)) {
       return { sh, shFlag: '/d /s /c', windowsVerbatimArguments: true }
     }
     return { sh, shFlag: '-c', windowsVerbatimArguments: false }
   }
-  return { sh: scriptShell ?? '/bin/sh', shFlag: '-c', windowsVerbatimArguments: false }
+  return { sh: scriptShell ?? 'sh', shFlag: '-c', windowsVerbatimArguments: false }
 }
 
 /**

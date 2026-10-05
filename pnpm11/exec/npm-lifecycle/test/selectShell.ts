@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { commandParsedByCmd, scriptBody, selectShell, useShellEmulator } from '../src/selectShell.js'
 
 test('uses sh -c by default on POSIX', () => {
-  expect(selectShell(undefined, 'linux', undefined)).toEqual({ sh: '/bin/sh', shFlag: '-c', windowsVerbatimArguments: false })
+  expect(selectShell(undefined, 'linux', undefined)).toEqual({ sh: 'sh', shFlag: '-c', windowsVerbatimArguments: false })
 })
 
 test('uses ComSpec with /d /s /c by default on Windows', () => {
