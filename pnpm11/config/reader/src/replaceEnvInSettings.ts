@@ -1,7 +1,5 @@
-import util from 'node:util'
-
 import { envReplace } from '@pnpm/config.env-replace'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { PnpmSettings } from '@pnpm/types'
 
 export interface ReplaceEnvInSettingsOptions {
@@ -54,7 +52,7 @@ function safeEnvReplace (str: string): string {
   try {
     return envReplace(str, process.env)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err)) {
+    if (isError(err)) {
       throw new PnpmError('CONFIG_UNRESOLVED_ENV_VAR', err.message)
     }
     throw err

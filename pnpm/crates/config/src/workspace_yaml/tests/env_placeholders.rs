@@ -106,6 +106,15 @@ fn unresolved_env_var_in_string_setting_fails_on_substitution() {
     assert_eq!(error.to_string(), "Failed to replace env in config: ${PNPM_TEST_UNSET}");
 }
 
+#[test]
+fn a_quoted_placeholder_with_no_value_and_no_fallback_is_reported_as_written() {
+    for document in ["nodeLinker: \"${PNPM_TEST_UNSET}\"\n", "nodeLinker: '${PNPM_TEST_UNSET}'\n"] {
+        let error = parse_settings::<Env>(document).unwrap_err();
+
+        assert_eq!(error.to_string(), "Failed to replace env in config: ${PNPM_TEST_UNSET}");
+    }
+}
+
 /// The placeholder at fault is found by halving, so it is reported however
 /// many unresolved placeholders the file carries ahead of it.
 #[test]

@@ -103,6 +103,9 @@ fn first_unreadable_unresolved_placeholder<Sys: EnvVar>(text: &str) -> Option<St
 
 /// The placeholders of `text` with no value and no fallback, each with the
 /// spelling an error reports it by.
+///
+/// A placeholder that fills a quoted scalar takes the quotes into its range,
+/// so dropping it leaves a null rather than the string `"null"`.
 fn unresolved_placeholders<Sys: EnvVar>(text: &str) -> Vec<(Range<usize>, String)> {
     placeholder_ranges(text)
         .into_iter()
@@ -111,9 +114,24 @@ fn unresolved_placeholders<Sys: EnvVar>(text: &str) -> Vec<(Range<usize>, String
             unresolved
                 .into_iter()
                 .next()
-                .map(|var| (range, var))
+                .map(|var| (with_enclosing_quotes(text, range), var))
         })
         .collect()
+}
+
+fn with_enclosing_quotes(text: &str, range: Range<usize>) -> Range<usize> {
+    let bytes = text.as_bytes();
+    match (
+        range.start
+            .checked_sub(1)
+            .map(|before| bytes[before]),
+        bytes.get(range.end),
+    ) {
+        (Some(open @ (b'"' | b'\'')), Some(&close)) if open == close => {
+            range.start - 1..range.end + 1
+        }
+        _ => range,
+    }
 }
 
 /// Every resolvable placeholder resolved, and every unresolved one outside
