@@ -5,6 +5,7 @@ pub use archive_options::*;
 pub use archive_request::CacheHeaders;
 pub use download::*;
 pub use error::*;
+pub use extract::read_buffered_tar_entry;
 pub(crate) use extract::{
     GZIP_MAGIC, STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
@@ -63,6 +64,9 @@ use tokio::sync::{Notify, RwLock, Semaphore};
 /// grow their buffer on demand, so an archive larger than the ceiling
 /// still decodes in full.
 const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
+
+/// Maximum payload size of a buffered TAR metadata extension.
+pub const MAX_TARBALL_METADATA_BYTES: u64 = MAX_UNTRUSTED_PREALLOC_BYTES as u64;
 
 fn auth_header_for_package_download(
     auth_headers: &AuthHeaders,

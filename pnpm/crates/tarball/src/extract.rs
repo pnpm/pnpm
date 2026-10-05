@@ -284,6 +284,7 @@ pub(crate) fn extract_tarball_entries(
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut archive = Archive::new(Cursor::new(tar_data));
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let entries = archive
         .entries_with_seek()
         .map_err(TarballError::ReadTarballEntries)?
@@ -596,3 +597,24 @@ use streaming::{
 
 mod manifest;
 use manifest::capture_bundled_manifest;
+
+/// Reads a TAR entry that must fit in memory, rejecting oversized payloads
+/// before allocating or reading them.
+pub fn read_buffered_tar_entry(
+    entry: &mut tar::Entry<'_, impl std::io::Read>,
+) -> std::io::Result<Vec<u8>> {
+    let size = entry.size();
+    if size > crate::MAX_TARBALL_METADATA_BYTES {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "tar entry {} is {size} bytes, which exceeds the {}-byte buffered entry limit",
+                entry.path()?.display(),
+                crate::MAX_TARBALL_METADATA_BYTES
+            ),
+        ));
+    }
+    let mut data = Vec::with_capacity(size as usize);
+    entry.read_to_end(&mut data)?;
+    Ok(data)
+}

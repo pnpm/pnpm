@@ -7,6 +7,8 @@ Aliases: `i`
 
 `pnpm install` is used to install all dependencies for a project.
 
+Package manifests and archive metadata larger than 64 MiB are rejected.
+
 In a CI environment, installation fails if a lockfile is present but needs an
 update. To allow lockfile updates in CI, run `pnpm install --no-frozen-lockfile`.
 

@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.build }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [stable, beta, nightly, macos, windows]
+        include:
+          - build: stable
+            os: ubuntu-latest
+            rust: stable
+          - build: beta
+            os: ubuntu-latest
+            rust: beta
+          - build: nightly
+            os: ubuntu-latest
+            rust: nightly
+          - build: macos
+            os: macos-latest
+            rust: stable
+          - build: windows
+            os: windows-latest
+            rust: stable
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install Rust
+      run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
+      shell: bash
+    - run: cargo test
+    - run: cargo test --no-default-features
+    - name: Run cargo test with root
+      run: sudo -E $(which cargo) test
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+
+  wasm:
+    name: Wasm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v6
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-emscripten
+    - run: cargo build --target=wasm32-unknown-emscripten
+
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v6
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+    - run: cargo fmt -- --check
+
+  semver-checks:
+    name: Semver Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v6
+    - uses: obi1kenobi/cargo-semver-checks-action@v2
+      with:
+        # Pinned until cargo-semver-checks supports rustdoc format v57 (Rust 1.93+)
+        rust-toolchain: "1.92.0"
+
+  revdep:
+    name: Reverse deps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v6
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: xtask
+    - name: Test reverse dependencies
+      run: cargo xtask revdep-test
+    - name: Verify tests catch regressions
+      run: cargo xtask revdep-test --self-test
+
+  publish_docs:
+    name: Publish Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v6
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Build documentation
+      run: cargo doc --no-deps --all-features
+    - name: Publish documentation
+      run: |
+        cd target/doc
+        git init
+        git add .
+        git -c user.name='ci' -c user.email='ci' commit -m init
+        git push -f -q https://git:${{ secrets.github_token }}@github.com/${{ github.repository }} HEAD:gh-pages
+      if: github.event_name == 'push' && github.event.ref == 'refs/heads/master'
+
+  # Sentinel job for required checks - configure this job name in
+  # repository settings as the single required status check.
+  required-checks:
+    if: always()
+    needs: [test, wasm, rustfmt, semver-checks, revdep, publish_docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: exit 1
+        if: >-
+          needs.test.result != 'success' ||
+          needs.wasm.result != 'success' ||
+          needs.rustfmt.result != 'success' ||
+          needs.semver-checks.result != 'success' ||
+          needs.revdep.result != 'success' ||
+          needs.publish_docs.result != 'success'

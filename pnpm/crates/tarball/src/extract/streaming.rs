@@ -149,6 +149,7 @@ pub(crate) fn extract_tarball_entries_streaming(
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut archive = Archive::new(reader);
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let mut extract = StreamingExtract::new(store_dir);
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {

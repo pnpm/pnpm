@@ -664,3 +664,147 @@ async fn read_local_tarball_metadata_ignores_a_manifest_below_the_package_root()
     assert!(!metadata.has_manifest_entry);
     assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
 }
+
+#[test]
+fn tar_metadata_limits_reject_extension_headers_before_payload() {
+    for entry_type in [
+        tar::EntryType::GNULongName,
+        tar::EntryType::GNULongLink,
+        tar::EntryType::XHeader,
+        tar::EntryType::XGlobalHeader,
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_path("metadata").unwrap();
+        header.set_size(crate::MAX_TARBALL_METADATA_BYTES + 1);
+        header.set_mode(0o644);
+        header.set_entry_type(entry_type);
+        header.set_cksum();
+        let (_directory, store_path) = tempdir_with_leaked_path();
+        let error = extract_tarball_entries(header.as_bytes(), store_path, None).unwrap_err();
+        assert!(error.to_string().contains("exceeds the"), "{error}");
+        let error =
+            stream_extract_gzipped_tarball(&gzip_bytes(header.as_bytes()), store_path, None)
+                .unwrap_err();
+        assert!(error.to_string().contains("exceeds the"), "{error}");
+    }
+}
+
+#[tokio::test]
+async fn local_tar_metadata_limits_reject_extension_headers_before_payload() {
+    let directory = tempdir().unwrap();
+    for entry_type in [
+        tar::EntryType::GNULongName,
+        tar::EntryType::GNULongLink,
+        tar::EntryType::XHeader,
+        tar::EntryType::XGlobalHeader,
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_path("metadata").unwrap();
+        header.set_size(crate::MAX_TARBALL_METADATA_BYTES + 1);
+        header.set_mode(0o644);
+        header.set_entry_type(entry_type);
+        header.set_cksum();
+        let tarball = directory.path().join("metadata.tgz");
+        std::fs::write(&tarball, gzip_bytes(header.as_bytes())).unwrap();
+        let error = read_local_tarball_metadata(&tarball).await.unwrap_err();
+        assert!(error.to_string().contains("exceeds the"), "{error}");
+    }
+}
+
+#[test]
+fn tar_metadata_limits_preserve_long_names_and_pax_paths() {
+    let long_path = format!("package/{}.js", "a".repeat(150));
+    let pax_path = format!("package/{}.js", "b".repeat(150));
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_size(5);
+    header.set_mode(0o644);
+    header.set_cksum();
+    builder
+        .append_data(&mut header, &long_path, &b"hello"[..])
+        .unwrap();
+    builder
+        .append_pax_extensions([("path", pax_path.as_bytes())])
+        .unwrap();
+    builder
+        .append_data(&mut header, "package/short.js", &b"hello"[..])
+        .unwrap();
+    let tarball = builder.into_inner().unwrap();
+    let (_directory, store_path) = tempdir_with_leaked_path();
+    let (_, eager) = extract_tarball_entries(&tarball, store_path, None).unwrap();
+    let (_, streamed) =
+        stream_extract_gzipped_tarball(&gzip_bytes(&tarball), store_path, None).unwrap();
+    for files in [&eager.files, &streamed.files] {
+        assert!(files.contains_key(long_path.strip_prefix("package/").unwrap()));
+        assert!(files.contains_key(pax_path.strip_prefix("package/").unwrap()));
+    }
+}
+
+#[test]
+fn tar_metadata_limits_preserve_gnu_sparse_reading() {
+    use std::io::Read;
+
+    let mut header = tar::Header::new_gnu();
+    header.set_path("sparse.bin").unwrap();
+    header.set_size(3);
+    header.set_mode(0o644);
+    header.set_entry_type(tar::EntryType::GNUSparse);
+    let gnu = header.as_gnu_mut().unwrap();
+    gnu.set_real_size(9);
+    gnu.sparse[0].set_offset(3);
+    gnu.sparse[0].set_length(3);
+    gnu.sparse[1].set_offset(9);
+    gnu.sparse[1].set_length(0);
+    header.set_cksum();
+    let mut builder = tar::Builder::new(Vec::new());
+    builder
+        .append(&header, &b"abc"[..])
+        .unwrap();
+    let tarball = builder.into_inner().unwrap();
+    let mut archive = tar::Archive::new(tarball.as_slice());
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    let mut entries = archive.entries().unwrap();
+    let mut entry = entries.next().unwrap().unwrap();
+    let mut contents = Vec::new();
+    entry.read_to_end(&mut contents).unwrap();
+    assert_eq!(contents, b"\0\0\0abc\0\0\0");
+}
+
+#[test]
+fn tar_metadata_limits_bound_sparse_extension_chains() {
+    let mut header = tar::Header::new_gnu();
+    header.set_path("sparse.bin").unwrap();
+    header.set_size(0);
+    header.set_entry_type(tar::EntryType::GNUSparse);
+    let gnu = header.as_gnu_mut().unwrap();
+    gnu.set_real_size(1);
+    gnu.set_is_extended(true);
+    header.set_cksum();
+    let mut extension = tar::GnuExtSparseHeader::new();
+    extension.sparse[0].set_offset(1);
+    extension.sparse[0].set_length(0);
+    extension.set_is_extended(true);
+    let mut tarball = header.as_bytes().to_vec();
+    tarball.extend_from_slice(extension.as_bytes());
+    extension.set_is_extended(false);
+    tarball.extend_from_slice(extension.as_bytes());
+    let mut archive = tar::Archive::new(tarball.as_slice());
+    archive.set_max_metadata_size(Some(512));
+    let error = archive
+        .entries()
+        .unwrap()
+        .next()
+        .unwrap()
+        .err()
+        .unwrap();
+    assert!(error.to_string().contains("sparse metadata exceeds"));
+    let mut archive = tar::Archive::new(tarball.as_slice());
+    archive.set_max_metadata_size(Some(1024));
+    let entry = archive
+        .entries()
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap();
+    assert_eq!(entry.size(), 1);
+}
