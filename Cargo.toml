@@ -365,6 +365,16 @@ panic = "abort" # Let it crash and force ourselves to write safe Rust.
 
 # The crates behind manifest and lockfile parsing, version picking and
 # resolution keep full optimization. At "s" those paths run 10-45% slower.
+# Fat LTO reoptimizes the whole program at the root crate's level, so each
+# binary's root crate is listed too.
+[profile.release.package.pnpm-cli]
+opt-level = 3
+[profile.release.package.pnpm-micro-benchmark]
+opt-level = 3
+[profile.release.package.pnpm-napi]
+opt-level = 3
+[profile.release.package.pnpr]
+opt-level = 3
 [profile.release.package.granit-parser]
 opt-level = 3
 [profile.release.package.memchr]
