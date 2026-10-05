@@ -269,6 +269,15 @@ impl UpdateArgs {
         .await
     }
 
+    /// The style a rewritten specifier falls back to: `--save-exact` layered
+    /// over the `saveExact` and `savePrefix` settings.
+    fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
+        RangeSpecStyle::from_save_options(
+            self.save.exact || config.save_exact,
+            config.save_prefix.as_deref(),
+        )
+    }
+
     /// `pnpm update -g`: reinstall each matching global package group,
     /// within its existing range or (with `--latest`) to the newest
     /// version. Delegates to [`crate::cli_args::global::handle_global_update`].
@@ -279,10 +288,7 @@ impl UpdateArgs {
         self.check_global_options()?;
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let range_spec_style = RangeSpecStyle::from_save_options(
-            self.save.exact || config.save_exact,
-            config.save_prefix.as_deref(),
-        );
+        let range_spec_style = self.range_spec_style(config);
         // Before the interactive selection, so the migrated groups are
         // offered too.
         Box::pin(crate::cli_args::global::migrate_legacy_global_packages::<Reporter>(

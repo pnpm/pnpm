@@ -368,7 +368,7 @@ impl UpdateScope<'_> {
     }
 
     pub(super) fn range_spec_style(&self) -> RangeSpecStyle {
-        RangeSpecStyle::from_save_options(self.version.save_exact, None)
+        self.version.range_spec_style
     }
 
     fn use_name_matcher(&self) -> bool {
