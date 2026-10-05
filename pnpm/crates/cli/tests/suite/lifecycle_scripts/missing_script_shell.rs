@@ -4,7 +4,7 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 #[test]
-fn install_names_the_missing_shell_when_a_project_script_fails() {
+fn install_names_the_missing_shell_when_a_dependency_build_script_fails() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -16,7 +16,6 @@ fn install_names_the_missing_shell_when_a_project_script_fails() {
 
     let package_json = serde_json::json!({
         "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
-        "scripts": { "postinstall": "echo project build" },
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
