@@ -6,9 +6,9 @@
 
 use super::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError, PathGuard,
-    add_dir_to_posix_env_path, find_section, render_fish_section, render_fish_settings,
-    render_nu_settings, render_posix_section, render_posix_settings, replace_section,
-    update_shell_config, wrap_settings,
+    add_dir_to_posix_env_path, find_section, fish_quote, render_fish_section, render_fish_settings,
+    render_nu_settings, render_posix_section, render_posix_settings, replace_section, sh_quote,
+    update_shell_config, v11_quote, wrap_settings,
 };
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -142,7 +142,7 @@ fn anywhere_guard_renders_the_outdated_setup_blocks() {
     let mut opts = opts(false);
     opts.proxy_var_sub_dir = Some("bin");
     assert_eq!(
-        render_posix_section(HOME, &opts, PathGuard::Anywhere),
+        render_posix_section(HOME, &opts, PathGuard::Anywhere, sh_quote),
         r#"export PNPM_HOME='/home/user/.pnpm'
 case ":$PATH:" in
   *":$PNPM_HOME/bin:"*) ;;
@@ -150,8 +150,30 @@ case ":$PATH:" in
 esac"#,
     );
     assert_eq!(
-        render_fish_section(HOME, &opts, PathGuard::Anywhere),
+        render_fish_section(HOME, &opts, PathGuard::Anywhere, fish_quote),
         r#"set -gx PNPM_HOME '/home/user/.pnpm'
+if not string match -q -- "$PNPM_HOME/bin" $PATH
+  set -gx PATH "$PNPM_HOME/bin" $PATH
+end"#,
+    );
+}
+
+/// pnpm v11 wrote the proxy value in double quotes.
+#[test]
+fn anywhere_guard_renders_the_v11_setup_blocks() {
+    let mut opts = opts(false);
+    opts.proxy_var_sub_dir = Some("bin");
+    assert_eq!(
+        render_posix_section(HOME, &opts, PathGuard::Anywhere, v11_quote),
+        r#"export PNPM_HOME="/home/user/.pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac"#,
+    );
+    assert_eq!(
+        render_fish_section(HOME, &opts, PathGuard::Anywhere, v11_quote),
+        r#"set -gx PNPM_HOME "/home/user/.pnpm"
 if not string match -q -- "$PNPM_HOME/bin" $PATH
   set -gx PATH "$PNPM_HOME/bin" $PATH
 end"#,
@@ -208,7 +230,7 @@ fn create_config_file_when_it_does_not_exist() {
     let content = wrap_settings("pnpm", "export FOO=1");
 
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, None, &opts(false))
+        update_shell_config(&config_file, &content, &[], &opts(false))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Created);
@@ -225,7 +247,7 @@ fn append_to_an_existing_config_file() {
     let content = wrap_settings("pnpm", "export FOO=1");
 
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, None, &opts(false))
+        update_shell_config(&config_file, &content, &[], &opts(false))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Appended);
@@ -242,7 +264,7 @@ fn skip_when_the_config_is_already_present() {
     fs::write(&config_file, format!("\n{content}\n")).expect("write config file");
 
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, None, &opts(false))
+        update_shell_config(&config_file, &content, &[], &opts(false))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Skipped);
@@ -257,7 +279,7 @@ fn fail_when_the_section_differs_and_overwrite_is_off() {
     fs::write(&config_file, format!("\n{existing}\n")).expect("write config file");
     let content = wrap_settings("pnpm", "export FOO=new");
 
-    let err = update_shell_config(&config_file, &content, None, &opts(false))
+    let err = update_shell_config(&config_file, &content, &[], &opts(false))
         .expect_err("differing section without --force must error");
     assert!(matches!(err, PathExtenderError::BadShellSection { .. }));
     // The original content is left untouched.
@@ -274,8 +296,7 @@ fn replace_when_the_section_differs_and_overwrite_is_on() {
     let content = wrap_settings("pnpm", "export FOO=new");
 
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, None, &opts(true))
-            .expect("update shell config");
+        update_shell_config(&config_file, &content, &[], &opts(true)).expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Modified);
     assert_eq!(old_settings, "export FOO=old");
@@ -292,7 +313,7 @@ fn replace_the_outdated_section_without_overwrite() {
     let content = wrap_settings("pnpm", "export FOO=new");
 
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, Some(&existing), &opts(false))
+        update_shell_config(&config_file, &content, std::slice::from_ref(&existing), &opts(false))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Modified);
@@ -360,7 +381,7 @@ esac"#,
     );
 
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &new_section, None, &opts(true))
+        update_shell_config(&config_file, &new_section, &[], &opts(true))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Modified);
@@ -400,7 +421,7 @@ fn update_shell_config_appends_when_only_comment_present() {
 
     let new_section = wrap_settings("pnpm", "export FOO=1");
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &new_section, None, &opts(false))
+        update_shell_config(&config_file, &new_section, &[], &opts(false))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Appended);
@@ -424,7 +445,7 @@ fn update_shell_config_selects_path_section_when_multiple_sections_exist() {
     let new_env_block =
         wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &new_env_block, None, &opts(true))
+        update_shell_config(&config_file, &new_env_block, &[], &opts(true))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Modified);
@@ -448,7 +469,7 @@ fn update_shell_config_prioritizes_path_block_over_later_block_mentioning_pnpm()
     let new_env_block =
         wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &new_env_block, None, &opts(true))
+        update_shell_config(&config_file, &new_env_block, &[], &opts(true))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Modified);
@@ -472,7 +493,7 @@ fn update_shell_config_prioritizes_generated_env_block_over_later_custom_path_bl
     let new_env_block =
         wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
     let (change_type, old_settings) =
-        update_shell_config(&config_file, &new_env_block, None, &opts(true))
+        update_shell_config(&config_file, &new_env_block, &[], &opts(true))
             .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Modified);
@@ -496,7 +517,7 @@ fn update_shell_config_ignores_comments_mentioning_pnpm_home_and_path() {
 
     let new_env_block =
         wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
-    let (_, old_settings) = update_shell_config(&config_file, &new_env_block, None, &opts(true))
+    let (_, old_settings) = update_shell_config(&config_file, &new_env_block, &[], &opts(true))
         .expect("update shell config");
 
     assert_eq!(old_settings, "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
@@ -513,7 +534,7 @@ fn update_shell_config_skips_an_equivalent_crlf_section() {
         wrap_settings("pnpm", "export PNPM_HOME=/home/user/.pnpm\nexport PATH=$PNPM_HOME:$PATH");
     fs::write(&config_file, lf_block.replace('\n', "\r\n")).expect("write initial config");
 
-    let (change_type, _) = update_shell_config(&config_file, &lf_block, None, &opts(false))
+    let (change_type, _) = update_shell_config(&config_file, &lf_block, &[], &opts(false))
         .expect("update shell config");
 
     assert_eq!(change_type, ConfigFileChangeType::Skipped);

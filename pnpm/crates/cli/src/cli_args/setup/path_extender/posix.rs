@@ -73,12 +73,11 @@ fn setup_shell(
     let dir = dir.to_string_lossy();
     let new_settings = render_posix_settings(&dir, opts);
     let content = wrap_settings(opts.config_section_name, &new_settings);
-    let outdated = wrap_settings(
-        opts.config_section_name,
-        &render_posix_section(&dir, opts, PathGuard::Anywhere),
-    );
-    let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, Some(&outdated), opts)?;
+    let outdated = [sh_quote, v11_quote].map(|quote_value| {
+        let settings = render_posix_section(&dir, opts, PathGuard::Anywhere, quote_value);
+        wrap_settings(opts.config_section_name, &settings)
+    });
+    let (change_type, old_settings) = update_shell_config(&config_file, &content, &outdated, opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
@@ -106,10 +105,16 @@ enum PathGuard {
 /// interpolates the directory into double quotes — where a value containing
 /// `$(...)` / backticks would execute when the rc file is sourced.
 fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
-    render_posix_section(dir, opts, PathGuard::Positioned)
+    render_posix_section(dir, opts, PathGuard::Positioned, sh_quote)
 }
 
-fn render_posix_section(dir: &str, opts: &AddDirToEnvPathOpts, guard: PathGuard) -> String {
+/// `quote_value` quotes the proxy variable's value.
+fn render_posix_section(
+    dir: &str,
+    opts: &AddDirToEnvPathOpts,
+    guard: PathGuard,
+    quote_value: fn(&str) -> String,
+) -> String {
     if let Some(proxy) = opts.proxy_var_name {
         let path_ref = match opts.proxy_var_sub_dir {
             Some(sub_dir) => format!("${proxy}/{sub_dir}"),
@@ -117,7 +122,7 @@ fn render_posix_section(dir: &str, opts: &AddDirToEnvPathOpts, guard: PathGuard)
         };
         format!(
             "export {proxy}={value}\ncase \":$PATH:\" in\n  {pattern}) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
-            value = sh_quote(dir),
+            value = quote_value(dir),
             pattern = create_case_pattern(opts.position, guard, &format!(r#"":{path_ref}:""#)),
             path_value = create_path_value(opts.position, &path_ref),
         )
@@ -139,6 +144,12 @@ fn create_case_pattern(position: AddingPosition, guard: PathGuard, entry: &str) 
         (PathGuard::Positioned, AddingPosition::End) => format!("*{entry}"),
         (PathGuard::Anywhere, _) => format!("*{entry}*"),
     }
+}
+
+/// Wrap `value` in double quotes without escaping, as pnpm v11 writes the
+/// proxy value. Only used to recognize a block pnpm v11 wrote.
+fn v11_quote(value: &str) -> String {
+    format!(r#""{value}""#)
 }
 
 /// Wrap `value` in single quotes, escaping any embedded single quote as
@@ -176,12 +187,11 @@ fn setup_fish_shell(
     let dir = dir.to_string_lossy();
     let new_settings = render_fish_settings(&dir, opts);
     let content = wrap_settings(opts.config_section_name, &new_settings);
-    let outdated = wrap_settings(
-        opts.config_section_name,
-        &render_fish_section(&dir, opts, PathGuard::Anywhere),
-    );
-    let (change_type, old_settings) =
-        update_shell_config(&config_file, &content, Some(&outdated), opts)?;
+    let outdated = [fish_quote, v11_quote].map(|quote_value| {
+        let settings = render_fish_section(&dir, opts, PathGuard::Anywhere, quote_value);
+        wrap_settings(opts.config_section_name, &settings)
+    });
+    let (change_type, old_settings) = update_shell_config(&config_file, &content, &outdated, opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
@@ -190,10 +200,16 @@ fn setup_fish_shell(
 }
 
 fn render_fish_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
-    render_fish_section(dir, opts, PathGuard::Positioned)
+    render_fish_section(dir, opts, PathGuard::Positioned, fish_quote)
 }
 
-fn render_fish_section(dir: &str, opts: &AddDirToEnvPathOpts, guard: PathGuard) -> String {
+/// `quote_value` quotes the proxy variable's value.
+fn render_fish_section(
+    dir: &str,
+    opts: &AddDirToEnvPathOpts,
+    guard: PathGuard,
+    quote_value: fn(&str) -> String,
+) -> String {
     if let Some(proxy) = opts.proxy_var_name {
         let path_ref = match opts.proxy_var_sub_dir {
             Some(sub_dir) => format!("${proxy}/{sub_dir}"),
@@ -208,7 +224,7 @@ fn render_fish_section(dir: &str, opts: &AddDirToEnvPathOpts, guard: PathGuard) 
         let condition = create_fish_condition(opts.position, guard, entry);
         format!(
             "set -gx {proxy} {value}\nif {condition}\n  set -gx PATH {path_value}\nend",
-            value = fish_quote(dir),
+            value = quote_value(dir),
             path_value = create_fish_path_value(opts.position, &quoted_ref),
         )
     } else {
@@ -255,7 +271,7 @@ fn setup_nu_shell(
     let config_file = home_dir()?.join(".config/nushell/env.nu");
     let new_settings = render_nu_settings(&dir.to_string_lossy(), opts);
     let content = wrap_settings(opts.config_section_name, &new_settings);
-    let (change_type, old_settings) = update_shell_config(&config_file, &content, None, opts)?;
+    let (change_type, old_settings) = update_shell_config(&config_file, &content, &[], opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
@@ -305,11 +321,11 @@ fn wrap_settings(section_name: &str, settings: &str) -> String {
 
 /// Write `new_content` into the `# <section>` block of `config_file`. An
 /// existing block that differs is replaced only with `opts.overwrite` or when
-/// it equals `outdated`, the block an earlier pnpm version rendered.
+/// it equals one of `outdated`, the blocks earlier pnpm versions rendered.
 fn update_shell_config(
     config_file: &Path,
     new_content: &str,
-    outdated: Option<&str>,
+    outdated: &[String],
     opts: &AddDirToEnvPathOpts,
 ) -> Result<(ConfigFileChangeType, String), PathExtenderError> {
     if !config_file.exists() {
@@ -328,7 +344,7 @@ fn update_shell_config(
     };
     let current = config_content[matched_range].replace("\r\n", "\n");
     if current != new_content {
-        if !opts.overwrite && outdated != Some(current.as_str()) {
+        if !opts.overwrite && !outdated.contains(&current) {
             return Err(PathExtenderError::BadShellSection {
                 config_file: config_file.to_path_buf(),
                 config_section_name: opts.config_section_name.to_string(),
