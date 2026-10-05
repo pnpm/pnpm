@@ -50,6 +50,53 @@ fn fix_lockfile_merges_git_conflicts() {
     drop((root, mock_instance));
 }
 
+/// <https://github.com/pnpm/pnpm/issues/16618>
+#[test]
+fn fix_lockfile_repairs_an_importer_reference_with_no_snapshot() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "^3.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let locked = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    assert!(locked.contains("        version: 3.1.0\n"), "{locked}");
+    fs::write(
+        &lockfile_path,
+        locked.replace("        version: 3.1.0\n", "        version: 3.0.0\n"),
+    )
+    .expect("write lockfile with a dangling importer reference");
+
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    repaired.verify_importer_snapshot_links().expect("every importer reference has a snapshot");
+    assert!(
+        fs::read_to_string(&lockfile_path)
+            .expect("read repaired lockfile")
+            .contains("        version: 3.1.0\n"),
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     let CommandTempCwd {

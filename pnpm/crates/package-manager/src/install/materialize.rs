@@ -297,6 +297,10 @@ impl<'a> MaterializationInputs<'a, '_> {
                             loaded_lockfile,
                             self.workspace.requested_importer_ids,
                         ),
+                        matches!(
+                            self.resolution.inputs.update_seed_policy,
+                            crate::UpdateSeedPolicy::FixLockfile,
+                        ),
                     )
                 })
             },

@@ -54,6 +54,10 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Entries the install re-resolves instead of reusing. See
     /// [`ReplacedEntries`].
     pub replaced: Option<ReplacedEntries<'a>>,
+    /// The install repairs the lockfile (`--fix-lockfile`), which re-resolves
+    /// an importer reference to a missing snapshot, so such a reference is
+    /// not an error.
+    pub repairs_lockfile: bool,
 }
 
 /// Matches the lockfile entries, by name and version, that the install
@@ -132,6 +136,16 @@ fn verify_offline_structural_checks(lockfile: &Lockfile) -> Result<(), VerifyErr
     Ok(())
 }
 
+fn verify_structure_before_install(
+    lockfile: &Lockfile,
+    opts: &VerifyLockfileResolutionsOptions<'_>,
+) -> Result<(), VerifyError> {
+    if opts.repairs_lockfile {
+        return verify_lockfile_dependency_names(lockfile);
+    }
+    verify_offline_structural_checks(lockfile)
+}
+
 /// Run every active [`ResolutionVerifier`] against every entry in
 /// `lockfile.packages`.
 ///
@@ -146,7 +160,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     // Offline structural gate first: reject invalid dependency names
     // or missing importer snapshot links before the `packages`-absent
     // short-circuit and the cache lookup.
-    verify_offline_structural_checks(lockfile)?;
+    verify_structure_before_install(lockfile, opts)?;
 
     if lockfile.packages.is_none() {
         return Ok(());
