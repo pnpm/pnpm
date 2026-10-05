@@ -68,6 +68,8 @@ export interface LoadNpmrcConfigOpts {
    * must not reach this — repo-controlled config may never supply auth.
    */
   globalConfigAuth?: unknown
+  /** Receives the warnings as they are found, so they survive a throw. */
+  warnings?: string[]
 }
 
 interface ReadAndFilterNpmrcOptions {
@@ -76,7 +78,7 @@ interface ReadAndFilterNpmrcOptions {
 }
 
 export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
-  const warnings: string[] = []
+  const warnings = opts.warnings ?? []
   const env = opts.env ?? process.env as Record<string, string | undefined>
 
   const localPrefix = opts.dir

@@ -212,8 +212,8 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // Only the global config yaml may supply `_auth` (deleted from
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
+    warnings: opts.warnings,
   })
-  opts.warnings?.push(...npmrcResult.warnings)
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
     .filter(([_, value]) => typeof value !== 'undefined')
@@ -235,7 +235,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     npmrcResult,
     pnpmConfig,
     registrySetOnCommandLine: explicitlySetKeys.has('registry'),
-    warnings: opts.warnings ?? npmrcResult.warnings,
+    warnings: npmrcResult.warnings,
   }
   return { configDir, state, globalDepsBuildConfig, globalYamlConfig }
 }
