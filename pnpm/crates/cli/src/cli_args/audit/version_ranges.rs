@@ -88,11 +88,6 @@ pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> S
         .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
 }
 
-/// [`patched_range_for_style`] at pnpm's default caret style.
-pub(crate) fn caret_range_for_patched(patched: &str) -> String {
-    patched_range_for_style(patched, RangeSpecStyle::Major)
-}
-
 pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
     let Ok(dom_range) = dom.trim().parse::<Range>() else { return false };
     let sub = sub.trim();

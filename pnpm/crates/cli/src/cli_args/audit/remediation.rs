@@ -1,10 +1,11 @@
 use super::{
     Arc, AuditAdvisory, AuditArgs, AuditError, AuditFixObserver, AuditOutcome, AuditReport,
     BTreeMap, Config, FixContext, FixMethod, GuardExhaustionPolicy, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardFuture, Reporter, ResolutionObserver,
-    ResolvedPackageHint, State, Version, VulnerabilityGuard, filter_advisories_for_fix,
-    fix_override, fix_with_update, format_fix_with_update_output, interactive_select,
-    print_command_output, prune_ignored_ghsas, sanitize_inline, satisfies_including_prerelease,
+    PackageVersionGuardDecision, PackageVersionGuardFuture, RangeSpecStyle, Reporter,
+    ResolutionObserver, ResolvedPackageHint, State, Version, VulnerabilityGuard,
+    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
+    interactive_select, print_command_output, prune_ignored_ghsas, sanitize_inline,
+    satisfies_including_prerelease,
 };
 
 /// Drop ignored GHSAs that no longer appear in the report, mirroring
@@ -123,7 +124,11 @@ impl AuditArgs {
     ) -> miette::Result<AuditOutcome> {
         prune_ignored_advisories(state.config, report, context.settings_dir)?;
         let filtered = filter_advisories_for_fix(report, context.audit_level, state.config);
-        let Some(filtered) = self.select_advisories(filtered)? else {
+        let range_spec_style = RangeSpecStyle::from_save_options(
+            state.config.save_exact,
+            state.config.save_prefix.as_deref(),
+        );
+        let Some(filtered) = self.select_advisories(filtered, range_spec_style)? else {
             return Ok(AuditOutcome::Clean);
         };
         match fix_method {
@@ -164,11 +169,12 @@ impl AuditArgs {
     fn select_advisories(
         &self,
         filtered: BTreeMap<String, AuditAdvisory>,
+        range_spec_style: RangeSpecStyle,
     ) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
         if !self.interactive {
             return Ok(Some(filtered));
         }
-        interactive_select(filtered)
+        interactive_select(filtered, range_spec_style)
     }
 
     /// Resolve the `--fix` flag (and the `--interactive` implies-override
