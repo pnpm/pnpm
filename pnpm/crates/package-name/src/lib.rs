@@ -2,6 +2,18 @@
 
 pub use is_valid_old_npm_package_name as is_valid_dependency_alias;
 
+/// Whether `version` is a valid package version component for the filesystem.
+/// Rejects path traversal (`..`), path separators (`/`, `\`), current directory (`.`),
+/// and empty strings.
+#[must_use]
+pub fn is_valid_package_version(version: &str) -> bool {
+    let mut components = std::path::Path::new(version).components();
+    !version.is_empty()
+        && !version.contains(['/', '\\'])
+        && matches!(components.next(), Some(std::path::Component::Normal(_)))
+        && components.next().is_none()
+}
+
 /// Whether npm's `validate-npm-package-name` v7 accepts `name` for old packages.
 /// Warning-only names remain valid, including uppercase names and legacy lengths.
 #[must_use]

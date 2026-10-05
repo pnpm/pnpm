@@ -444,3 +444,71 @@ fn trust_lockfile_still_rejects_traversal_dependency_name() {
 
     drop((root, mock_instance));
 }
+
+/// A lockfile containing a path traversal in a package's explicit version
+/// must fail the slot containment check before any directory is created in
+/// the global virtual store — even under `--trust-lockfile`.
+#[test]
+fn install_rejects_a_traversal_version_under_global_virtual_store() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, store_dir, .. } = npmrc_info;
+
+    let config_text = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .unwrap_or_default()
+        .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+    fs::write(workspace.join("pnpm-workspace.yaml"), config_text)
+        .expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "tar-dep": "file:vendor/dep.tgz",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    let lockfile = "lockfileVersion: '9.0'\n\
+        importers:\n  \
+          .:\n    \
+            dependencies:\n      \
+              tar-dep:\n        \
+                specifier: file:vendor/dep.tgz\n        \
+                version: file:vendor/dep.tgz\n\
+        packages:\n  \
+          'tar-dep@file:vendor/dep.tgz':\n    \
+            resolution: {tarball: file:vendor/dep.tgz}\n    \
+            version: ../../escaped\n\
+        snapshots:\n  \
+          'tar-dep@file:vendor/dep.tgz': {}\n";
+    fs::write(workspace.join("pnpm-lock.yaml"), lockfile).expect("write lockfile");
+
+    let output = pacquet
+        .with_args(["install", "--frozen-lockfile", "--trust-lockfile"])
+        .output()
+        .expect("spawn pacquet install");
+
+    assert!(
+        !output.status.success(),
+        "traversal version in global virtual store must be rejected (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"),
+        "stderr must name the invalid-dependency-name code; got:\n{stderr}",
+    );
+
+    let gvs_root = store_dir.join("v11").join("links");
+    assert!(
+        !gvs_root.join("escaped").exists(),
+        "escaped directory must not be created under GVS root",
+    );
+
+    drop((root, mock_instance));
+}

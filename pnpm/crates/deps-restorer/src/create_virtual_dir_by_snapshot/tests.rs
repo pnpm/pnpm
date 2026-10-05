@@ -575,6 +575,96 @@ fn run_rejects_traversal_package_name() {
     );
 }
 
+#[test]
+fn run_rejects_uncontained_slot_before_creating_dirs() {
+    let dir = tempdir().expect("tempdir");
+    let store_dir = dir.path().join("store");
+    let package_key: PackageKey = "evil@1.0.0".parse().expect("parse key");
+    let snapshot = SnapshotEntry::default();
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(package_key.clone(), snapshot.clone());
+
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = store_dir;
+
+    let mut packages = HashMap::new();
+    packages.insert(
+        package_key.without_peer(),
+        pnpm_lockfile::PackageMetadata {
+            resolution: pnpm_lockfile::LockfileResolution::Tarball(
+                pnpm_lockfile::TarballResolution {
+                    tarball: "file:vendor/dep.tgz".to_string(),
+                    integrity: None,
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                },
+            ),
+            version: Some("../../escaped".to_string()),
+            engines: None,
+            cpu: None,
+            os: None,
+            libc: None,
+            deprecated: None,
+            has_bin: None,
+            prepare: None,
+            bundled_dependencies: None,
+            peer_dependencies: None,
+            peer_dependencies_meta: None,
+        },
+    );
+
+    let layout = crate::VirtualStoreLayout::new(
+        &config,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        None,
+        None,
+    );
+    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let logged_methods = AtomicU8::new(0);
+    let skipped = crate::SkippedSnapshots::default();
+
+    let result = CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+            isolate_mutable_sources: false,
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            source_exists: true,
+            force: false,
+            build_marker: None,
+            needs_build: false,
+        },
+        layout: &layout,
+        cas_paths: &cas_paths,
+        package_id: "evil@1.0.0",
+        dir_clone_cache: None,
+        link_concurrency_probe: None,
+    }
+    .run::<pnpm_reporter::SilentReporter>();
+
+    assert!(
+        matches!(result, Err(crate::CreateVirtualDirError::InvalidAlias(_))),
+        "an uncontained slot must be rejected before creating dirs; got {result:?}",
+    );
+    assert!(!dir.path().join("escaped").exists(), "no directory outside the store must be created");
+}
+
 /// A warm reinstall that drops a child dependency unlinks the stale
 /// symlink (and its now-empty `@scope` directory) while leaving the
 /// children it still depends on in place.

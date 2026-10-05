@@ -309,3 +309,63 @@ fn an_unresolvable_alias_keeps_the_tarball_url() {
         other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
     }
 }
+
+#[test]
+fn tarball_manifest_with_traversal_version_is_not_recorded_in_lockfile() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "tar-dep": "https://example.com/tar-dep.tgz" },
+    }));
+
+    let dep_path = DepPath::from("tar-dep@https://example.com/tar-dep.tgz");
+    let resolve_result = super::ResolveResult {
+        id: super::PkgResolutionId::from("https://example.com/tar-dep.tgz"),
+        resolution: LockfileResolution::Tarball(super::TarballResolution {
+            tarball: "https://example.com/tar-dep.tgz".to_string(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "remote-tarball".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("tar-dep".to_string()),
+        policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(json!({ "name": "tar-dep", "version": "../../escaped" }))),
+            non_deprecated_alternative: None,
+        },
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: dep_path.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        depth: 1,
+        is_pure: true,
+        optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
+    };
+    let mut graph = DependenciesGraph::default();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("tar-dep".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let package_key: PackageKey =
+        "tar-dep@https://example.com/tar-dep.tgz".parse().expect("package key");
+    let packages = lockfile.packages.expect("packages map");
+    let metadata = packages.get(&package_key).expect("package metadata");
+    assert_eq!(metadata.version, None);
+}
