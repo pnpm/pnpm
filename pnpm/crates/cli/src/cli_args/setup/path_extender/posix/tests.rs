@@ -39,7 +39,7 @@ fn bash_settings_without_proxy_variable() {
     let mut opts = opts(false);
     opts.proxy_var_name = None;
     let settings = render_posix_settings(HOME, &opts);
-    assert_eq!(settings, "export PATH='/home/user/.pnpm':$PATH",);
+    assert_eq!(settings, "export PATH='/home/user/.pnpm':$PATH");
 }
 
 #[test]
@@ -73,17 +73,15 @@ fn posix_snippet_prepends_when_pnpm_home_is_already_on_path() {
     let pnpm_home = "/home/user/.local/share/pnpm";
     let settings = render_posix_settings(pnpm_home, &opts);
     let script = format!(
-        "PATH=\"/usr/local/bin:{pnpm_home}/bin:/usr/bin\"\n{settings}\nprintf '%s' \"$PATH\"\n"
+        "PATH=\"/usr/local/bin:{pnpm_home}/bin:/usr/bin\"\n{settings}\nprintf '%s' \"$PATH\"\n",
     );
     let output = std::process::Command::new("sh")
         .arg("-c")
         .arg(&script)
         .output()
         .expect("run the setup snippet under sh");
-    let status = output.status;
     let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("snippet status: {status:?} stderr: {stderr}");
-    assert!(status.success(), "sh failed: {stderr}");
+    assert!(output.status.success(), "sh failed: {stderr}");
     let path = String::from_utf8(output.stdout).expect("utf-8 path");
     assert_eq!(path, format!("{pnpm_home}/bin:/usr/local/bin:{pnpm_home}/bin:/usr/bin"));
 }
@@ -105,7 +103,7 @@ fn fish_settings_without_proxy_variable() {
     let mut opts = opts(false);
     opts.proxy_var_name = None;
     let settings = render_fish_settings(HOME, &opts);
-    assert_eq!(settings, "set -gx PATH '/home/user/.pnpm' $PATH",);
+    assert_eq!(settings, "set -gx PATH '/home/user/.pnpm' $PATH");
 }
 
 #[test]
