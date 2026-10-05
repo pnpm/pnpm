@@ -914,6 +914,24 @@ describe('minimumReleaseAgeStrict default', () => {
 })
 
 describe("forSelfUpdate (the project manifest doesn't set self-update's release-age or trust policy)", () => {
+  test('self-update ignores workspace executable hooks and preserves command-line hooks', async () => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      configDependencies: { 'pnpm-plugin-untrusted': '1.0.0+sha512-deadbeef' },
+      pnpmfile: './untrusted.cjs',
+      globalPnpmfile: './untrusted-global.cjs',
+    })
+    const { config } = await getConfig({
+      cliOptions: { pnpmfile: './trusted.cjs' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      forSelfUpdate: true,
+    })
+    expect(config.configDependencies).toBeUndefined()
+    expect(config.globalPnpmfile).toBeUndefined()
+    expect(config.pnpmfile).toBe('./trusted.cjs')
+  })
+
   test('a workspace manifest cannot raise the cutoff or turn strict mode on', async () => {
     prepareEmpty()
 
