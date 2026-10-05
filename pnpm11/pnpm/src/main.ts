@@ -151,6 +151,7 @@ async function readCommandConfig (
     rawCliConfig,
     onlyInheritDlxSettingsFromLocal: cmd === 'dlx' || cmd === 'create',
     forSelfUpdate: cmd === 'self-update',
+    ignoreProjectNpmrc: isGlobalConfigCommand(isConfigCommand, cliOptions),
     printWarnings: !isSingleSettingRead(cmd, cliParams),
   }) as LoadedConfig
   if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams, cliOptions.location)) {
@@ -188,6 +189,10 @@ function applyGlobalScope ({ cmd, params, options }: ParsedCliArgsWithBuiltIn, i
     options.location ??= 'global'
     delete options.global
   }
+}
+
+function isGlobalConfigCommand (isConfigCommand: boolean, cliOptions: ParsedCliArgsWithBuiltIn['options']): boolean {
+  return isConfigCommand && cliOptions.location === 'global'
 }
 
 function applyInvocationToConfig (config: CommandConfig, parsedCliArgs: ParsedCliArgsWithBuiltIn): void {

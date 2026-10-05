@@ -89,6 +89,8 @@ interface GetConfigOptions {
   env?: Record<string, string | undefined>
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
+  /** Skip the project `.npmrc`, as npm does in global mode. */
+  ignoreProjectNpmrc?: boolean
   /**
    * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s settings
    * that govern whether the pnpm binary may be replaced. See
@@ -190,6 +192,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     defaultOptions: defaultOptions as Record<string, unknown>,
     dir: cliOptions.dir as string | undefined,
     workspaceDir: opts.workspaceDir,
+    ignoreProjectNpmrc: opts.ignoreProjectNpmrc,
     npmrcAuthFile: getNpmrcAuthFile({ cliOptions, env, globalYamlConfig }),
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,

@@ -110,7 +110,7 @@ Since v11, `pnpm config get` (without `--json`) no longer prints INI-formatted t
 
 Set the configuration in the global config file.
 
-With `get` and `list`, show the global configuration without the settings from the project's `pnpm-workspace.yaml`.
+With `get` and `list`, show the global configuration without the settings from the project's `pnpm-workspace.yaml` and `.npmrc`.
 
 ### --location
 

@@ -1,6 +1,7 @@
 ---
 "@pnpm/cli.parse-cli-args": patch
+"@pnpm/config.reader": patch
 "pnpm": patch
 ---
 
-`pnpm config` now treats `--global` and `--location=global` as the same option. `pnpm config get --location=global` and `pnpm config list --location=global` included settings from the project's `pnpm-workspace.yaml` before. `pnpm config get --global` failed when the global bin directory was not in PATH [#16598](https://github.com/pnpm/pnpm/issues/16598).
+`pnpm config get` and `pnpm config list` with `--global` or `--location=global` now show only the global configuration. Both flags included the project's `.npmrc` before. `--location=global` also included the project's `pnpm-workspace.yaml`, and `--global` failed when the global bin directory was not in PATH [#16598](https://github.com/pnpm/pnpm/issues/16598).
