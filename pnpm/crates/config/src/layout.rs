@@ -477,23 +477,6 @@ impl Config {
         collect_explicit_settings(&mut self.explicit_settings, settings);
     }
 
-    /// Apply the legacy `shamefullyHoist` setting to the public hoist pattern.
-    ///
-    /// Sources normalize this alias before merging. This fallback handles direct overrides.
-    pub fn apply_shamefully_hoist_derivation(&mut self) {
-        if self.explicit_settings.contains_key("publicHoistPattern")
-            && (self.cli_settings.contains("nodeLinker")
-                || !self.cli_settings.contains("shamefullyHoist"))
-        {
-            return;
-        }
-        match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
-            Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
-            Some(false) => self.public_hoist_pattern = Some(vec![]),
-            None => {}
-        }
-    }
-
     /// Turn [`prefer_symlinked_executables`] on when the hoisted
     /// `nodeLinker` is selected and the user has not configured the
     /// setting — pnpm's `nodeLinker: hoisted` default. Runs *after* the
