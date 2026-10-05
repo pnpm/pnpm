@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
+import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   getLockfileImporterId,
@@ -87,6 +88,7 @@ interface BuildDependentsTreeOptions {
   lockfile: LockfileObject
   nameFormatter?: NameFormatter
   resolvePeersFromWorkspaceRoot?: boolean
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function buildDependentsTree (
@@ -117,6 +119,9 @@ export async function buildDependentsTree (
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
+    nodeLinker: modules?.nodeLinker ?? opts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations && withCollapsedVariants(modules.hoistedLocations),
+    lockfileDir: opts.lockfileDir,
   })
 
   const trees = collectMatchedTrees(search, {
@@ -282,11 +287,14 @@ function resolvePackageNodes (
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+    hoistedLocations?: Record<string, string[]>
+    lockfileDir: string
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()
 
-  function walk (serialized: string, parentDir: string | undefined): void {
+  function walk (serialized: string, parentDir: string | undefined, importerDir: string): void {
     const node = graph.nodes.get(serialized)
     if (!node) return
     for (const edge of node.edges) {
@@ -300,20 +308,20 @@ function resolvePackageNodes (
         alias: edge.alias,
         currentPackages,
         depTypes: {},
-        linkedPathBaseDir: opts.modulesDir, // This might need adjustment for linked deps?
+        linkedPathBaseDir: importerDir,
         parentDir,
         ref: edge.target.nodeId.depPath,
         skipped: new Set(),
       })
 
       resolved.set(childSerialized, { path: pkgInfo.path, readManifest })
-      walk(childSerialized, pkgInfo.path)
+      walk(childSerialized, pkgInfo.path, importerDir)
     }
   }
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type === 'importer') {
-      walk(serialized, undefined)
+      walk(serialized, undefined, path.join(opts.lockfileDir, node.nodeId.importerId))
     }
   }
 
