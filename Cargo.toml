@@ -381,6 +381,8 @@ opt-level = 3
 opt-level = 3
 [profile.release.package.node-semver]
 opt-level = 3
+[profile.release.package.pnpm-cargo-resolver]
+opt-level = 3
 [profile.release.package.pnpm-deps-path]
 opt-level = 3
 [profile.release.package.pnpm-lockfile]
@@ -388,6 +390,8 @@ opt-level = 3
 [profile.release.package.pnpm-package-manifest]
 opt-level = 3
 [profile.release.package.pnpm-package-name]
+opt-level = 3
+[profile.release.package.pnpm-python-resolver]
 opt-level = 3
 [profile.release.package.pnpm-registry]
 opt-level = 3
@@ -400,6 +404,8 @@ opt-level = 3
 [profile.release.package.pnpm-workspace-projects-graph]
 opt-level = 3
 [profile.release.package.pnpm-workspace-task-scheduler]
+opt-level = 3
+[profile.release.package.pubgrub]
 opt-level = 3
 [profile.release.package.serde-saphyr]
 opt-level = 3
