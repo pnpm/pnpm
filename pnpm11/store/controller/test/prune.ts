@@ -8,9 +8,11 @@ import { temporaryDirectory } from 'tempy'
 import { prune } from '../src/storeController/prune.js'
 
 const temporaryDirectories: string[] = []
+const storeIndexes: StoreIndex[] = []
 
 afterEach(async () => {
   jest.restoreAllMocks()
+  for (const storeIndex of storeIndexes.splice(0)) storeIndex.close()
   await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })))
 })
 
@@ -70,7 +72,7 @@ test('prune removes empty stale spill directories', async () => {
 
 test('prune tolerates a missing store directory', async () => {
   const options = createPruneOptions()
-  await fs.rm(options.storeDir, { recursive: true })
+  options.storeDir = path.join(options.storeDir, 'missing')
   await expect(prune(options)).resolves.toBeUndefined()
 })
 
@@ -111,5 +113,7 @@ function createPruneOptions () {
   const directory = temporaryDirectory()
   temporaryDirectories.push(directory)
   const storeDir = path.join(directory, 'store')
-  return { storeDir, cacheDir: path.join(directory, 'cache'), storeIndex: new StoreIndex(storeDir) }
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
+  return { storeDir, cacheDir: path.join(directory, 'cache'), storeIndex }
 }
