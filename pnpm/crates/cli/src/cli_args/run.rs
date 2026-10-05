@@ -32,7 +32,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use recursive::RecursiveRunOutcome;
-use regex::Regex;
+use regress::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,

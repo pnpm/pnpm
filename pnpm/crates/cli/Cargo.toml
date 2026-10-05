@@ -109,6 +109,7 @@ rayon = { workspace = true }
 rustc-hash = { workspace = true }
 reflink-copy = { workspace = true }
 regex = { workspace = true }
+regress = { workspace = true }
 rmp-serde = { workspace = true }
 same-file = { workspace = true }
 serde = { workspace = true }

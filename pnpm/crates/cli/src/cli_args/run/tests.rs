@@ -59,6 +59,19 @@ fn specified_scripts_selects_every_regexp_match() {
     );
 }
 
+#[test]
+fn specified_scripts_supports_ecmascript_lookaround() {
+    let manifest = json!({ "scripts": { "hello:a": "echo a", "hello:b": "echo b" } });
+    assert_eq!(
+        ScriptSelector::new(r"/^hello:(?!b).*$/").unwrap().select(&manifest),
+        vec!["hello:a".to_string()],
+    );
+    assert_eq!(
+        ScriptSelector::new(r"/(?<=:)b$/").unwrap().select(&manifest),
+        vec!["hello:b".to_string()],
+    );
+}
+
 /// An exact hit wins over the regexp reading, so a script literally named
 /// like a regexp literal stays runnable.
 #[test]

@@ -42,7 +42,7 @@ impl<'a> ScriptSelector<'a> {
             .filter(|(script, body)| {
                 body.as_str()
                     .is_some_and(|body| !body.is_empty())
-                    && pattern.is_match(script)
+                    && pattern.find(script).is_some()
             })
             .map(|(script, _)| script.clone())
             .collect()
@@ -64,8 +64,9 @@ impl<'a> ScriptSelector<'a> {
     }
 }
 
-/// Compile a `/pattern/` script selector, as pnpm's
-/// `tryBuildRegExpFromCommand` does. `Ok(None)` means `command` is not a
+/// Compile a `/pattern/` script selector with ECMAScript syntax and
+/// semantics, so lookaround and backreferences work as in a JavaScript
+/// `RegExp`. `Ok(None)` means `command` is not a
 /// regexp literal and addresses a script by name; a pattern the engine
 /// rejects also reads as a plain name, so a mistyped selector surfaces as
 /// the usual "missing script" error rather than a parser diagnostic.
