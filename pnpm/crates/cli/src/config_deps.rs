@@ -324,14 +324,10 @@ impl EnvInstallerContext {
         &self,
         config: &Config,
     ) -> Result<Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>> {
-        pnpm_package_manager::build_resolution_verifiers(
+        pnpm_package_manager::build_config_dependency_resolution_verifiers(
             config,
             Arc::clone(&self.network.http_client),
-            None,
-            Some(Arc::clone(&self.network.auth_headers)),
-            None,
-            None,
-            None,
+            Arc::clone(&self.network.auth_headers),
         )
         .into_diagnostic()
     }

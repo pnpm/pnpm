@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
@@ -509,4 +510,18 @@ test('verifies config dependencies against the registry only when they need to b
   }
   await writeEnvLockfile(process.cwd(), lockfile)
   await expect(resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, offlineOpts)).rejects.toThrow()
+})
+
+test('does not apply minimumReleaseAge to locked config dependencies', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, opts)
+  fs.rmSync('node_modules', { recursive: true })
+
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0' }, {
+    ...opts,
+    minimumReleaseAge: 100 * 365 * 24 * 60,
+    frozenLockfile: true,
+  })
+  expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
 })

@@ -86,12 +86,49 @@ pub fn build_resolution_verifiers(
     planned_canonical_fetches: Option<PlannedCanonicalFetches>,
     lookups: Option<VerifierLookups>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
-    let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
+    let opts = npm_verifier_options(
+        config,
+        http_client,
+        meta_cache,
+        auth_override,
+        observed_dist_stats,
+        planned_canonical_fetches,
+        lookups,
+    )?;
+    Ok(vec![Arc::new(create_npm_resolution_verifier(opts))])
+}
 
+/// Assemble the verifier list for the env lockfile's config dependencies.
+///
+/// It enforces the same tarball-URL binding and `trustPolicy` checks as
+/// [`build_resolution_verifiers`], but not `minimumReleaseAge`: that setting
+/// gates the versions resolution picks, and a config dependency's version is
+/// the one the workspace declares, so resolving a config dependency never
+/// applies it either.
+pub fn build_config_dependency_resolution_verifiers(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    auth_headers: Arc<AuthHeaders>,
+) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
+    let mut opts =
+        npm_verifier_options(config, http_client, None, Some(auth_headers), None, None, None)?;
+    opts.release_age.minimum_minutes = None;
+    Ok(vec![Arc::new(create_npm_resolution_verifier(opts))])
+}
+
+fn npm_verifier_options(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    auth_override: Option<Arc<AuthHeaders>>,
+    observed_dist_stats: Option<ObservedDistStats>,
+    planned_canonical_fetches: Option<PlannedCanonicalFetches>,
+    lookups: Option<VerifierLookups>,
+) -> Result<CreateNpmResolutionVerifierOptions, BuildVerifiersError> {
     let (min_age_exclude, trust_exclude, registries, registries_by_prefix) =
         verifier_policies(config)?;
 
-    let opts = CreateNpmResolutionVerifierOptions {
+    Ok(CreateNpmResolutionVerifierOptions {
         registries,
         registries_by_prefix,
         now: None,
@@ -124,11 +161,7 @@ pub fn build_resolution_verifiers(
             canonical_fetches: planned_canonical_fetches,
             lookups,
         },
-    };
-
-    verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
-
-    Ok(verifiers)
+    })
 }
 
 type VerifierPolicies = (

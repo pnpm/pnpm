@@ -91,9 +91,16 @@ function configDependencyKeys (env: EnvLockfile): Set<string> {
   return keys
 }
 
+/**
+ * The install verifier's options without `minimumReleaseAge`: that setting
+ * gates the versions resolution picks, and a config dependency's version is
+ * the one the workspace declares, so resolving a config dependency never
+ * applies it either.
+ */
 function configVerifierOptions (opts: ResolveAndInstallConfigDepsOpts): Parameters<typeof createNpmResolutionVerifier>[0] {
   return {
     ...opts,
+    minimumReleaseAge: undefined,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime ?? opts.ignoreMissingTimeField,
     getAuthHeaderValueByURI: createGetAuthHeaderByURI(opts.configByUri ?? {}),
     fetchOpts: {
