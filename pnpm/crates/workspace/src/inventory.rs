@@ -67,6 +67,8 @@ pub enum FindWorkspaceInventoryError {
 /// Ignored directories may be absolute or relative to the inventory root.
 /// Negated package patterns prune matching directories and their descendants.
 /// Positive package patterns do not restrict this inventory; the root is always scanned.
+/// A descendant directory holding `pnpm-workspace.yaml` or a `.git` directory
+/// is a separate checkout and is pruned with its descendants.
 pub fn find_workspace_inventory(
     workspace_root: &Path,
     manifest_basenames: &[&str],
