@@ -381,6 +381,9 @@ export function install(
 /**
  * Rebuild dependency build scripts against the already-materialized
  * `node_modules` (frozen path). Takes the same options shape as `install`.
+ * Nothing is resolved, so of the lockfile's settings only the patches have to
+ * match the options, as in pnpm v11's `rebuild`: a lockfile resolved with
+ * other `readPackage` hooks, overrides or specifiers is still rebuilt.
  * @param selectedNames restrict the rebuild to these package names / build
  *   keys; omit (or pass an empty array) to rebuild every build-needing package.
  */

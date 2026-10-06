@@ -120,6 +120,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
                         prune_stale_importers: scope.prune_stale_importers,
                         allow_missing_dependency_free_importers: true,
                         allow_unresolved_optional_dependencies: false,
+                        patches_only: false,
                     },
                 },
             })
@@ -171,6 +172,7 @@ pub(super) async fn synthesize_wanted(
                     prune_stale_importers: scope.prune_stale_importers,
                     allow_missing_dependency_free_importers: true,
                     allow_unresolved_optional_dependencies: false,
+                    patches_only: false,
                 },
             },
         },

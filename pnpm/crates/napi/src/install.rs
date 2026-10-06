@@ -530,18 +530,29 @@ fn run_rebuild_blocking(
     // Restores the previous sink and renderer on drop — including on a
     // panic in `run_install_inner`, which unwinds this dedicated thread.
     let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
+    let rebuild_options = rebuild_options(selected_names);
+    let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
+    outcome.map(|_| ())
+}
+
+/// The rebuild the engine API runs.
+fn rebuild_options(selected_names: Option<Vec<String>>) -> RebuildOptions {
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
-    let rebuild_options = RebuildOptions {
+    RebuildOptions {
         selected_names: selected_names
             .filter(|names| !names.is_empty())
             .map(|names| names.into_iter().collect()),
         // The engine API rebuilds dependencies only; running a workspace
         // project's own deferred scripts is `pnpm rebuild --pending`.
         pending_projects: Vec::new(),
-    };
-    let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
-    outcome.map(|_| ())
+        // The embedder rebuilds the lockfile it just installed or restored,
+        // so only what changes the build output, the patches, has to match
+        // the configuration — as in pnpm v11's `rebuild`. Comparing the
+        // rest, like `pnpmfileChecksum`, fails a rebuild of a lockfile
+        // resolved with other `readPackage` hooks or settings.
+        check_lockfile_patches_only: true,
+    }
 }
 
 #[cfg(test)]

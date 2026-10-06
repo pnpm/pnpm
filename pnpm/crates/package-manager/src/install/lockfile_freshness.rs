@@ -116,6 +116,7 @@ async fn workspace_manifests_satisfy(
                 allow_missing_dependency_free_importers: true,
                 allow_unresolved_optional_dependencies: false,
                 prune_stale_importers: true,
+                patches_only: false,
             },
         },
     )
@@ -227,6 +228,9 @@ pub(crate) struct FreshnessScope {
     /// unfiltered workspace install may, since only it sees the
     /// complete project list.
     pub(crate) prune_stale_importers: bool,
+    /// Check only the lockfile's patches. See
+    /// [`pnpm_deps_restorer::RebuildOptions::check_lockfile_patches_only`].
+    pub(crate) patches_only: bool,
 }
 
 /// The first importer the lockfile records that no project claims.
@@ -309,6 +313,14 @@ pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
+    if inputs.scope.patches_only {
+        let patched_dependency_hashes = inputs.config
+            .patched_dependency_hashes()
+            .map_err(FreshnessCheckError::CalcPatchHashes)?;
+        pnpm_lockfile::check_lockfile_patches(lockfile, patched_dependency_hashes.as_ref())
+            .map_err(FreshnessCheckError::Stale)?;
+        return Ok(Vec::new());
+    }
     let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
     let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
         inputs.pnpmfile_hook,

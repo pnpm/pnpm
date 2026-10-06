@@ -211,6 +211,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     let rebuild = RebuildOptions {
         selected_names: selection.names.map(|names| names.into_iter().collect::<HashSet<_>>()),
         pending_projects: selection.projects,
+        check_lockfile_patches_only: false,
     };
 
     let dependency_groups = rebuild_dependency_groups(state.config)?;

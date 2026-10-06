@@ -179,6 +179,15 @@ pub struct RebuildOptions {
     /// by the rebuild itself; a project's is only settled by running its
     /// scripts, which nothing else in the rebuild path does.
     pub pending_projects: Vec<String>,
+
+    /// Check only the lockfile's patches against the configuration, not
+    /// the settings and manifest specifiers that decide what a resolution
+    /// produces. A rebuild resolves and links nothing, so those cannot
+    /// change what it builds — pnpm v11's `rebuild` compares the patches
+    /// alone. The `@pnpm/napi` rebuild sets it: an embedder rebuilds the
+    /// lockfile it just installed or restored, including one resolved
+    /// with other `readPackage` hooks or settings.
+    pub check_lockfile_patches_only: bool,
 }
 
 impl RebuildOptions {
