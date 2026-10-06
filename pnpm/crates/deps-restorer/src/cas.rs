@@ -127,6 +127,12 @@ fn package_files(inputs: &LinkPhaseInputs<'_>, id: &str) -> io::Result<BTreeMap<
     let files_dir = inputs.ctx.config.store_dir.root().join("files");
     paths.cas_paths
         .iter()
+        // The loader rejects a manifest listing any file under a package's own `node_modules`.
+        .filter(|(name, _)| {
+            !name
+                .split('/')
+                .any(|part| part == "node_modules")
+        })
         .map(|(name, path)| {
             let relative = path
                 .strip_prefix(&files_dir)
