@@ -5,7 +5,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-import { createStoreHooks } from '../index.mjs'
+import { assertSupportedNode, createStoreHooks } from '../index.mjs'
 import { openStore } from '../store.mjs'
 import { fixture } from './fixture.mjs'
 
@@ -371,4 +371,13 @@ test('does not resolve a package bundled in a sibling directory', context => {
   })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_UNDECLARED_DEPENDENCY/)
+})
+
+test('rejects Node.js versions whose imported CommonJS bypasses the resolve hooks', () => {
+  for (const version of ['22.23.3', '24.17.0', '25.9.0', '26.1.0']) {
+    assert.throws(() => assertSupportedNode(version), { code: 'ERR_PNPM_LOADER_UNSUPPORTED_NODE' }, version)
+  }
+  for (const version of ['24.18.0', '24.21.0', '26.2.0', '26.10.0', '27.0.0']) {
+    assert.doesNotThrow(() => assertSupportedNode(version), version)
+  }
 })

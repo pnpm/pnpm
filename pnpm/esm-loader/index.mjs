@@ -1,5 +1,6 @@
 import { isBuiltin, registerHooks } from 'node:module'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath, pathToFileURL, URL } from 'node:url'
 
 import { createResolver } from './resolver.mjs'
@@ -7,7 +8,24 @@ import { loaderError, openStore, within } from './store.mjs'
 
 /** Register a version 1 store manifest. Returns Node's deregisterable hook handle. */
 export function registerStoreLoader (manifestURL) {
+  assertSupportedNode(process.versions.node)
   return registerHooks(createStoreHooks(manifestURL))
+}
+
+/**
+ * Throw on a Node.js version whose module hooks cannot serve store files.
+ *
+ * Before 24.18.0 and 26.2.0, and on every 25.x release, CommonJS that ESM imports gets a
+ * `require()` that resolves through `Module._resolveFilename` without calling the
+ * resolve hooks, so a stored CommonJS package fails on its first relative `require()`.
+ */
+export function assertSupportedNode (version) {
+  const [major, minor] = version.split('.').map(Number)
+  if ((major === 24 && minor >= 18) || (major === 26 && minor >= 2) || major > 26) return
+  throw loaderError(
+    'ERR_PNPM_LOADER_UNSUPPORTED_NODE',
+    `The pnpm store loader requires Node.js ^24.18.0 or >=26.2.0, but this is Node.js ${version}. Use a supported Node.js version, or install with a different nodeLinker.`
+  )
 }
 
 export function createStoreHooks (manifestURL) {
