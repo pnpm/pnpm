@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.security.signatures",
-  "version": "1102.0.8",
+  "version": "1102.0.9",
   "description": "Verify package signatures from npm registries",
   "keywords": [
     "pnpm",

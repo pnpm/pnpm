@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.web-auth",
-  "version": "1101.6.2",
+  "version": "1101.6.3",
   "description": "Web-based authentication flow with QR code display and token polling",
   "keywords": [
     "pnpm",
