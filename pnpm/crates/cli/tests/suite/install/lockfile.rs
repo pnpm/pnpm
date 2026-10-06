@@ -300,18 +300,31 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     drop((root, mock_instance));
 }
 
-fn assert_expected_fix_metadata(lockfile: &pnpm_lockfile::Lockfile) {
-    let packages = lockfile.packages.as_ref().expect("packages");
-    let (_, dep_meta) = packages
-        .iter()
-        .find(|(k, _)| k.to_string() == "@pnpm.e2e/deprecated@1.0.0")
-        .expect("deprecated package in lockfile");
-    assert!(dep_meta.deprecated.is_some());
-    let (_, bin_meta) = packages
-        .iter()
-        .find(|(k, _)| k.to_string() == "@pnpm.e2e/hello-world-js-bin@1.0.0")
-        .expect("hello-world-js-bin in lockfile");
-    assert_eq!(bin_meta.has_bin, Some(true));
+fn locked_package<'a>(
+    lockfile: &'a pnpm_lockfile::Lockfile,
+    package_key: &str,
+) -> &'a pnpm_lockfile::PackageMetadata {
+    lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .get(&package_key.parse().expect("parse package key"))
+        .unwrap_or_else(|| panic!("missing package {package_key}"))
+}
+
+/// Record a deprecation notice the registry metadata does not carry, so only
+/// the lockfile can supply it.
+fn record_lockfile_only_deprecation(lockfile_path: &std::path::Path, package_key: &str) {
+    let mut lockfile = pnpm_lockfile::Lockfile::load_from_path(lockfile_path)
+        .expect("load lockfile")
+        .expect("lockfile present");
+    let (_, metadata) = lockfile.packages
+        .as_mut()
+        .expect("packages")
+        .iter_mut()
+        .find(|(key, _)| key.to_string() == package_key)
+        .unwrap_or_else(|| panic!("missing package {package_key}"));
+    metadata.deprecated = Some("locked deprecation".to_string());
+    lockfile.save_to_path(lockfile_path).expect("write lockfile");
 }
 
 #[test]
@@ -325,7 +338,7 @@ fn fix_lockfile_preserves_has_bin_and_deprecated() {
     } = CommandTempCwd::init().add_mocked_registry();
     let pkg_json = serde_json::json!({
         "dependencies": {
-            "@pnpm.e2e/deprecated": "1.0.0",
+            "is-positive": "1.0.0",
             "@pnpm.e2e/hello-world-js-bin": "1.0.0",
         },
     });
@@ -334,16 +347,10 @@ fn fix_lockfile_preserves_has_bin_and_deprecated() {
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let initial = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
-        .expect("load initial lockfile")
-        .expect("initial lockfile");
-    assert_expected_fix_metadata(&initial);
+    record_lockfile_only_deprecation(&lockfile_path, "is-positive@1.0.0");
 
-    let mut command = new_pacquet_command(&workspace);
-    command.env("CI", "true");
-    command
+    new_pacquet_command(&workspace)
         .with_args(["install", "--fix-lockfile", "--lockfile-only"])
         .assert()
         .success();
@@ -351,7 +358,11 @@ fn fix_lockfile_preserves_has_bin_and_deprecated() {
     let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
         .expect("load repaired lockfile")
         .expect("repaired lockfile");
-    assert_expected_fix_metadata(&repaired);
+    assert_eq!(
+        locked_package(&repaired, "is-positive@1.0.0").deprecated.as_deref(),
+        Some("locked deprecation"),
+    );
+    assert_eq!(locked_package(&repaired, "@pnpm.e2e/hello-world-js-bin@1.0.0").has_bin, Some(true));
 
     drop((root, mock_instance));
 }
