@@ -156,7 +156,7 @@ fn is_plain_safe_last(code: u32) -> bool {
     !is_whitespace(code) && code != CHAR_COLON
 }
 
-fn is_plain_safe(code: u32, prev: Option<u32>, style: CollectionStyle) -> bool {
+pub(super) fn is_plain_safe(code: u32, prev: Option<u32>, style: CollectionStyle) -> bool {
     let code_is_ns_or_ws = is_ns_char_or_whitespace(code);
     let code_is_ns = code_is_ns_or_ws && !is_whitespace(code);
     let indicator_is_safe = match style {
