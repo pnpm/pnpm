@@ -156,27 +156,23 @@ fn is_plain_safe_last(code: u32) -> bool {
     !is_whitespace(code) && code != CHAR_COLON
 }
 
+/// `ns-plain-char`, which the grammar states as `ns-plain-safe` plus the two
+/// neighbour rules: a `#` opens a comment unless it follows a non-space, and a
+/// `:` ends the scalar unless a non-space follows it. Those two outrank the
+/// flow indicators, as they do in the fork.
 pub(super) fn is_plain_safe(code: u32, prev: Option<u32>, style: CollectionStyle) -> bool {
-    let code_is_ns_or_ws = is_ns_char_or_whitespace(code);
-    let code_is_ns = code_is_ns_or_ws && !is_whitespace(code);
-    let indicator_is_safe = match style {
-        CollectionStyle::Block => true,
-        CollectionStyle::Flow => !is_flow_indicator(code),
-    };
-    let base = code_is_ns_or_ws && indicator_is_safe;
-    let prev_is_colon = prev == Some(CHAR_COLON);
-    let prev_is_ns =
-        prev.is_some_and(|prev| is_ns_char_or_whitespace(prev) && !is_whitespace(prev));
-    // change to true on '[^ ]#'
-    if prev_is_ns && code == CHAR_SHARP {
-        return true;
+    match (code, prev, style) {
+        (CHAR_SHARP, prev, _) => prev.is_some_and(is_ns_char),
+        (code, Some(CHAR_COLON), _) => is_ns_char(code),
+        (code, _, CollectionStyle::Block) => is_ns_char_or_whitespace(code),
+        (code, _, CollectionStyle::Flow) => {
+            is_ns_char_or_whitespace(code) && !is_flow_indicator(code)
+        }
     }
-    // change to true on ':[^ ]'
-    if prev_is_colon && code_is_ns {
-        return true;
-    }
-    // ns-plain-char: a non-`#` base character that isn't the `: ` sequence.
-    base && code != CHAR_SHARP && (!prev_is_colon || code_is_ns)
+}
+
+fn is_ns_char(code: u32) -> bool {
+    is_ns_char_or_whitespace(code) && !is_whitespace(code)
 }
 
 /// The characters that end a plain scalar inside a flow collection.
