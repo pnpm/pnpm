@@ -100,6 +100,68 @@ pub struct PackageVersion {
     pub other: HashMap<String, serde_json::Value>,
 }
 
+/// The fields of a version that the lockfile policy checks read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VersionPolicyFields {
+    pub dist: PackageDistribution,
+    pub npm_user: Option<NpmUser>,
+}
+
+impl From<&PackageVersion> for VersionPolicyFields {
+    fn from(version: &PackageVersion) -> Self {
+        VersionPolicyFields { dist: version.dist.clone(), npm_user: version.npm_user.clone() }
+    }
+}
+
+/// A [`PackageVersion`] without its catch-all [`PackageVersion::other`]
+/// map, decoded for [`VersionPolicyFields`]. Every field whose decode can
+/// fail keeps the deserializer [`PackageVersion`] gives it, so a fragment
+/// decodes here exactly when it decodes as a [`PackageVersion`]. Dropping
+/// the `#[serde(flatten)]` catch-all spares buffering and copying every
+/// other key of the manifest.
+#[derive(Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Mirrors the fallible fields of `PackageVersion`; grouping them would need `#[serde(flatten)]`, which buffers the manifest."
+    )
+)]
+pub(crate) struct PolicyFieldsProbe {
+    #[serde(rename = "name")]
+    _name: String,
+    #[serde(rename = "version")]
+    _version: node_semver::Version,
+    dist: PackageDistribution,
+    #[serde(default, rename = "dependencies", deserialize_with = "deserialize_dependency_map")]
+    _dependencies: Option<HashMap<String, String>>,
+    #[serde(default, rename = "devDependencies", deserialize_with = "deserialize_dependency_map")]
+    _dev_dependencies: Option<HashMap<String, String>>,
+    #[serde(default, rename = "peerDependencies", deserialize_with = "deserialize_dependency_map")]
+    _peer_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        rename = "optionalDependencies",
+        deserialize_with = "deserialize_dependency_map"
+    )]
+    _optional_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        rename = "_npmUser",
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
+        alias = "_npm_user"
+    )]
+    npm_user: Option<NpmUser>,
+    #[serde(default, rename = "deprecated", deserialize_with = "deserialize_deprecated_field")]
+    _deprecated: Option<String>,
+}
+
+impl From<PolicyFieldsProbe> for VersionPolicyFields {
+    fn from(probe: PolicyFieldsProbe) -> Self {
+        VersionPolicyFields { dist: probe.dist, npm_user: probe.npm_user }
+    }
+}
+
 impl Eq for PackageVersion {}
 
 /// Deserialize a `Record<string, string>`-shaped dependency map while

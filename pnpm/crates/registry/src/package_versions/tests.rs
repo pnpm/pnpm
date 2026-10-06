@@ -73,14 +73,14 @@ fn undecodable_fragment_behaves_as_absent() {
 }
 
 #[test]
-fn uncached_walk_reuses_hydrated_manifests_and_keeps_no_others() {
+fn policy_field_walk_reuses_hydrated_manifests_and_hydrates_no_others() {
     let package = parse_package(
         r#"{
             "name": "foo",
             "dist-tags": {},
             "versions": {
                 "1.0.0": {"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}},
-                "2.0.0": {"name": "foo", "version": "2.0.0", "dist": {"integrity": "sha512-b", "tarball": "https://r/foo-2.0.0.tgz"}},
+                "2.0.0": {"name": "foo", "version": "2.0.0", "_npmUser": {"trustedPublisher": {"id": "github"}}, "dist": {"integrity": "sha512-b", "tarball": "https://r/foo-2.0.0.tgz"}},
                 "9.9.9": {"this is": "not a version manifest"}
             }
         }"#,
@@ -88,24 +88,65 @@ fn uncached_walk_reuses_hydrated_manifests_and_keeps_no_others() {
     let hydrated = package.versions.get("1.0.0").expect("hydrate 1.0.0");
 
     let walked: HashMap<_, _> = package.versions
-        .iter_uncached()
-        .map(|(version, manifest)| (version.as_str(), manifest))
+        .iter_policy_fields()
+        .map(|(version, fields)| (version.as_str(), fields))
         .collect();
 
     assert_eq!(walked.len(), 2);
-    assert!(std::sync::Arc::ptr_eq(&walked["1.0.0"], &hydrated));
+    assert_eq!(walked["1.0.0"], crate::VersionPolicyFields::from(hydrated.as_ref()));
     let decoded = &walked["2.0.0"];
-    assert_eq!(decoded.version.to_string(), "2.0.0");
-    let hydrated_later = package.versions.get("2.0.0").expect("hydrate 2.0.0");
-    assert!(!std::sync::Arc::ptr_eq(decoded, &hydrated_later));
+    assert_eq!(decoded.dist.tarball, "https://r/foo-2.0.0.tgz");
+    assert!(
+        decoded.npm_user
+            .as_ref()
+            .and_then(|user| user.trusted_publisher.as_ref())
+            .is_some(),
+    );
+    assert!(!package.versions.is_hydrated("2.0.0"));
 }
 
 #[test]
-fn uncached_walk_reports_a_damaged_mirror_fragment() {
+fn policy_field_walk_reports_a_damaged_mirror_fragment() {
     let versions = mirror_versions();
 
-    assert_eq!(versions.iter_uncached().count(), 1);
+    assert_eq!(versions.iter_policy_fields().count(), 1);
     assert!(versions.has_corrupt_mirror_fragment());
+}
+
+/// The walk must keep exactly the versions a full decode keeps, so a policy
+/// check sees the same version set either way.
+#[test]
+fn policy_fields_decode_exactly_where_a_manifest_does() {
+    let fragments = [
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"readme":"x","scripts":{"test":"t"}}"#,
+        r#"{"version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":"foo","version":"not semver","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz","integrity":"not integrity"}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"dependencies":"bar"}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"devDependencies":{"bar":{"nested":true}}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"optionalDependencies":3}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"peerDependencies":null}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"deprecated":5}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"deprecated":false}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"_npmUser":"someone"}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"peerDependenciesMeta":3}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz","fileCount":"12"}}"#,
+        r#"{"name":"foo","name":"bar","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":7,"version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#,
+    ];
+    for fragment in fragments {
+        let manifest = serde_json::from_str::<PackageVersion>(fragment);
+        let probe = serde_json::from_str::<crate::package_version::PolicyFieldsProbe>(fragment);
+        assert_eq!(manifest.is_ok(), probe.is_ok(), "{fragment}");
+        if let (Ok(manifest), Ok(probe)) = (manifest, probe) {
+            assert_eq!(
+                crate::VersionPolicyFields::from(&manifest),
+                crate::VersionPolicyFields::from(probe),
+                "{fragment}",
+            );
+        }
+    }
 }
 
 /// A mirror-backed packument whose valid fragment sits before a

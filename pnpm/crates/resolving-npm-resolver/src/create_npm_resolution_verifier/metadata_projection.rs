@@ -1,7 +1,8 @@
 use super::{
     Arc, DistStats, HashMap, JsonValue, Package, Pipe, PublishedAtTimeMap, TrustEvidence,
-    TrustHistory, TrustHistoryProjection, get_trust_evidence,
+    TrustHistory, TrustHistoryProjection,
 };
+use crate::trust_checks::get_policy_trust_evidence;
 
 /// Project a packument to what [`fail_if_trust_downgraded`] reads from it.
 ///
@@ -18,8 +19,8 @@ pub(super) fn project_trust_meta(meta: &Package) -> TrustHistoryProjection {
                 .collect()
         });
     let evidence = meta.versions
-        .iter_uncached()
-        .map(|(version, manifest)| (version.clone(), get_trust_evidence(&manifest)))
+        .iter_policy_fields()
+        .map(|(version, fields)| (version.clone(), get_policy_trust_evidence(&fields)))
         .collect();
     TrustHistoryProjection { name: meta.name.clone(), time, evidence }
 }
@@ -67,15 +68,15 @@ pub(super) fn project_abbreviated_meta(
     // One uncached pass: `meta` may be the resolver's shared packument.
     let mut version_artifacts = HashMap::new();
     let mut version_dist_stats = HashMap::new();
-    for (version, manifest) in meta.versions.iter_uncached() {
+    for (version, fields) in meta.versions.iter_policy_fields() {
         let stats = DistStats {
-            unpacked_size: manifest.dist.unpacked_size,
-            file_count: manifest.dist.file_count,
+            unpacked_size: fields.dist.unpacked_size,
+            file_count: fields.dist.file_count,
         };
         if stats.unpacked_size.is_some() || stats.file_count.is_some() {
             version_dist_stats.insert(version.clone(), stats);
         }
-        version_artifacts.insert(version.clone(), project_artifact_history(&manifest.dist));
+        version_artifacts.insert(version.clone(), project_artifact_history(&fields.dist));
     }
     // `time` also carries package-level `created`/`modified` keys; keeping
     // them is harmless (lookups are by exact version) and cheaper than

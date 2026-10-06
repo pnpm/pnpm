@@ -75,7 +75,6 @@ use crate::{
     FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
     TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
     fetch_full_metadata_cached::fetch_full_metadata_projected,
-    get_trust_evidence,
     lookup_context::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
         TrustHistoryProjection, package_key, version_key,

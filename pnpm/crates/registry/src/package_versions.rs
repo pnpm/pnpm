@@ -36,10 +36,13 @@ use std::{
     },
 };
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::DeserializeOwned};
 use serde_json::value::RawValue;
 
-use crate::package_version::{PackageVersion, VersionTrustMetadata, deserialize_deprecated_field};
+use crate::package_version::{
+    PackageVersion, PolicyFieldsProbe, VersionPolicyFields, VersionTrustMetadata,
+    deserialize_deprecated_field,
+};
 
 /// Single-field view of a version manifest for
 /// [`PackageVersions::is_deprecated`] — same normalization as
@@ -168,34 +171,38 @@ impl VersionSlot {
         corrupt_mirror_fragment: &AtomicBool,
     ) -> Option<Arc<PackageVersion>> {
         self.parsed
-            .get_or_init(|| self.decode(version, corrupt_mirror_fragment))
+            .get_or_init(|| self.decode(version, corrupt_mirror_fragment).map(Arc::new))
             .clone()
     }
 
-    /// The hydrated manifest when there is one, else a fresh decode that
-    /// the slot does not keep.
-    fn hydrated_or_decode(
+    /// [`VersionPolicyFields`] of the hydrated manifest when there is one,
+    /// else of a fresh decode that the slot does not keep.
+    fn policy_fields(
         &self,
         version: &str,
         corrupt_mirror_fragment: &AtomicBool,
-    ) -> Option<Arc<PackageVersion>> {
+    ) -> Option<VersionPolicyFields> {
         match self.parsed.get() {
-            Some(parsed) => parsed.clone(),
-            None => self.decode(version, corrupt_mirror_fragment),
+            Some(parsed) => parsed.as_deref().map(VersionPolicyFields::from),
+            None => self
+                .decode::<PolicyFieldsProbe>(version, corrupt_mirror_fragment)
+                .map(VersionPolicyFields::from),
         }
     }
 
-    fn decode(
+    /// Decode the fragment as `Manifest`, which must fail exactly where a
+    /// [`PackageVersion`] does.
+    fn decode<Manifest: DeserializeOwned>(
         &self,
         version: &str,
         corrupt_mirror_fragment: &AtomicBool,
-    ) -> Option<Arc<PackageVersion>> {
+    ) -> Option<Manifest> {
         let Some(json) = self.source.json() else {
             self.report_undecodable(version, corrupt_mirror_fragment);
             return None;
         };
-        match serde_json::from_str::<PackageVersion>(&json) {
-            Ok(parsed) => Some(Arc::new(parsed)),
+        match serde_json::from_str::<Manifest>(&json) {
+            Ok(parsed) => Some(parsed),
             Err(error) => {
                 tracing::warn!(
                     target: "pnpm_registry",
@@ -280,6 +287,14 @@ impl PackageVersions {
                 }
             })
             .as_deref()
+    }
+
+    /// Whether `version`'s typed manifest is held, hydrated by [`Self::get`]
+    /// or [`Self::iter`]. Never hydrates.
+    #[must_use]
+    pub fn is_hydrated(&self, version: &str) -> bool {
+        self.slot(version)
+            .is_some_and(|slot| slot.parsed.get().is_some())
     }
 
     /// Whether the packument lists `version`. Never hydrates.
@@ -367,16 +382,17 @@ impl PackageVersions {
             })
     }
 
-    /// [`Self::iter`] without filling the hydration cache: a version not
-    /// hydrated yet is decoded for the caller and kept nowhere else. A full
-    /// walk over a packument that outlives it, such as one in the
-    /// resolver's shared cache, would otherwise keep every manifest the
-    /// packument lists in memory.
-    pub fn iter_uncached(&self) -> impl Iterator<Item = (&String, Arc<PackageVersion>)> {
+    /// The [`VersionPolicyFields`] of every version that decodes as a
+    /// [`PackageVersion`], without filling the hydration cache: a version
+    /// not hydrated yet is decoded for the caller and kept nowhere else, and
+    /// none of its other fields are built. A full walk over a packument that
+    /// outlives it, such as one in the resolver's shared cache, would
+    /// otherwise keep every manifest the packument lists in memory.
+    pub fn iter_policy_fields(&self) -> impl Iterator<Item = (&String, VersionPolicyFields)> {
         self.slots
             .iter()
             .filter_map(|(version, slot)| {
-                Some((version, slot.hydrated_or_decode(version, &self.corrupt_mirror_fragment)?))
+                Some((version, slot.policy_fields(version, &self.corrupt_mirror_fragment)?))
             })
     }
 

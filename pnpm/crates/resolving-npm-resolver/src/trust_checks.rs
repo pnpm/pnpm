@@ -14,7 +14,10 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pnpm_registry::{Package, PackageVersion, VersionTrustMetadata};
+use pnpm_registry::{
+    NpmUser, Package, PackageDistribution, PackageVersion, VersionPolicyFields,
+    VersionTrustMetadata,
+};
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
 
 use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
@@ -302,18 +305,25 @@ fn detect_strongest_trust_evidence_before(
 /// exposes.
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
-    let has_approver = version.npm_user
-        .as_ref()
-        .and_then(|user| user.approver.as_ref())
-        .is_some();
-    let has_provenance = version.dist.attestations
+    trust_evidence_of(version.npm_user.as_ref(), &version.dist)
+}
+
+/// [`get_trust_evidence`] for the policy fields of a version.
+#[must_use]
+pub(crate) fn get_policy_trust_evidence(fields: &VersionPolicyFields) -> Option<TrustEvidence> {
+    trust_evidence_of(fields.npm_user.as_ref(), &fields.dist)
+}
+
+fn trust_evidence_of(
+    npm_user: Option<&NpmUser>,
+    dist: &PackageDistribution,
+) -> Option<TrustEvidence> {
+    let has_approver = npm_user.and_then(|user| user.approver.as_ref()).is_some();
+    let has_provenance = dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .is_some();
-    let has_trusted_publisher = version.npm_user
-        .as_ref()
-        .and_then(|user| user.trusted_publisher.as_ref())
-        .is_some();
+    let has_trusted_publisher = npm_user.and_then(|user| user.trusted_publisher.as_ref()).is_some();
     classify_trust_evidence(has_approver, has_trusted_publisher, has_provenance)
 }
 

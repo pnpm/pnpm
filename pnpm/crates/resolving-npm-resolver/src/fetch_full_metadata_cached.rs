@@ -90,7 +90,7 @@ pub async fn fetch_full_metadata_cached(
 
 /// [`fetch_full_metadata_cached`] for a caller that keeps only `project`'s
 /// result. `project` must read every version, through
-/// [`pnpm_registry::PackageVersions::iter_uncached`], so the document is
+/// [`pnpm_registry::PackageVersions::iter_policy_fields`], so the document is
 /// never hydrated as a whole. A damaged mirror fragment found by the walk is
 /// handled as [`fetch_full_metadata_cached`] handles it, and the refetched
 /// document is projected instead.

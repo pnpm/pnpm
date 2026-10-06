@@ -5,7 +5,7 @@ use super::{
 };
 
 fn count_versions(meta: &pnpm_registry::Package) -> usize {
-    meta.versions.iter_uncached().count()
+    meta.versions.iter_policy_fields().count()
 }
 
 /// Breaks the bytes of the `1.0.0` fragment without moving any span, so only

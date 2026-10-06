@@ -210,14 +210,7 @@ async fn policy_checks_read_the_shared_packument_without_hydrating_it() {
     let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
 
     assert_eq!(result, ResolutionVerification::Ok);
-    // An unhydrated version decodes afresh on every uncached walk.
-    let walk = || {
-        shared.versions
-            .iter_uncached()
-            .map(|(_, manifest)| manifest)
-            .collect::<Vec<_>>()
-    };
-    for (first, second) in walk().iter().zip(walk().iter()) {
-        assert!(!Arc::ptr_eq(first, second), "{} was hydrated", first.version);
+    for version in shared.versions.keys() {
+        assert!(!shared.versions.is_hydrated(version), "{version} was hydrated");
     }
 }
