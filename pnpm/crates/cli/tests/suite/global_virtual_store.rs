@@ -344,6 +344,52 @@ fn a_slot_left_incomplete_by_an_interrupted_import_is_repaired() {
     drop((root, mock_instance));
 }
 
+/// A project's current lockfile cannot vouch for a shared slot: another
+/// project's interrupted install may have re-created it without its child
+/// links or package files, so a reinstall that keeps `node_modules` must
+/// still repair it (pnpm/pnpm#16642).
+#[test]
+fn an_incomplete_slot_is_repaired_even_when_the_current_lockfile_records_it() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "optimisticRepeatInstall: false\n");
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/.pnpm/lock.yaml").exists());
+
+    let hash_dir =
+        sole_hash_dir(&pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0"));
+    let child_link = pkg_in_slot(&hash_dir, "@pnpm.e2e/dep-of-pkg-with-1-dep");
+    let marker = pkg_in_slot(&hash_dir, "@pnpm.e2e/pkg-with-1-dep").join("package.json");
+
+    eprintln!("Removing a child link from the slot...");
+    pnpm_fs::remove_symlink_dir(&child_link).expect("remove the child link");
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        is_symlink_or_junction(&child_link).expect("inspect the child link"),
+        "the reinstall must restore the missing child link at {child_link:?}",
+    );
+
+    eprintln!("Removing the slot's completion marker...");
+    fs::remove_file(&marker).expect("remove the completion marker");
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(marker.is_file(), "the reinstall must re-import the package files at {marker:?}");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
     const WORKERS: usize = 8;
