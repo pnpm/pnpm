@@ -4,11 +4,11 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::str;
 
-use crate::GnuExtSparseHeader;
 use crate::header::BLOCK_SIZE;
 use crate::header::GNU_SPARSE_HEADERS_COUNT;
-use crate::header::{HeaderMode, path2bytes};
-use crate::{EntryType, Header, other};
+use crate::header::{path2bytes, HeaderMode};
+use crate::GnuExtSparseHeader;
+use crate::{other, EntryType, Header};
 
 /// A structure for building archives
 ///
@@ -604,7 +604,11 @@ impl EntryWriter<'_> {
         // Reserve space for header, will be overwritten once data is written.
         obj.write_all([0u8; BLOCK_SIZE as usize].as_ref())?;
 
-        Ok(EntryWriter { obj, header, written: 0 })
+        Ok(EntryWriter {
+            obj,
+            header,
+            written: 0,
+        })
     }
 
     /// Finish writing the current entry in the archive.
@@ -630,7 +634,8 @@ impl EntryWriter<'_> {
         let written = (self.written + remaining) as i64;
 
         // Seek back to the header position.
-        self.obj.seek(io::SeekFrom::Current(-written - BLOCK_SIZE as i64))?;
+        self.obj
+            .seek(io::SeekFrom::Current(-written - BLOCK_SIZE as i64))?;
 
         self.header.set_size(self.written);
         self.header.set_cksum();
@@ -684,30 +689,42 @@ fn append_path_with_name(
     options: BuilderOptions,
 ) -> io::Result<()> {
     let stat = if options.follow {
-        fs::metadata(path)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting metadata for {}", err, path.display()),
-                )
-            })?
+        fs::metadata(path).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting metadata for {}", err, path.display()),
+            )
+        })?
     } else {
-        fs::symlink_metadata(path)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting metadata for {}", err, path.display()),
-                )
-            })?
+        fs::symlink_metadata(path).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting metadata for {}", err, path.display()),
+            )
+        })?
     };
     let ar_name = name.unwrap_or(path);
     if stat.is_file() {
         append_file(dst, ar_name, &mut fs::File::open(path)?, options)
     } else if stat.is_dir() {
-        append_fs(dst, ar_name, &stat, options.mode, options.preserve_absolute, None)
+        append_fs(
+            dst,
+            ar_name,
+            &stat,
+            options.mode,
+            options.preserve_absolute,
+            None,
+        )
     } else if stat.file_type().is_symlink() {
         let link_name = fs::read_link(path)?;
-        append_fs(dst, ar_name, &stat, options.mode, options.preserve_absolute, Some(&link_name))
+        append_fs(
+            dst,
+            ar_name,
+            &stat,
+            options.mode,
+            options.preserve_absolute,
+            Some(&link_name),
+        )
     } else {
         #[cfg(unix)]
         {
@@ -734,7 +751,10 @@ fn append_special(
     let entry_type;
     if file_type.is_socket() {
         // sockets can't be archived
-        return Err(other(&format!("{}: socket can not be archived", path.display())));
+        return Err(other(&format!(
+            "{}: socket can not be archived",
+            path.display()
+        )));
     } else if file_type.is_fifo() {
         entry_type = EntryType::Fifo;
     } else if file_type.is_char_device() {
@@ -773,8 +793,11 @@ fn append_file(
 
     prepare_header_path(dst, &mut header, path, options.preserve_absolute)?;
     header.set_metadata_in_mode(&stat, options.mode);
-    let sparse_entries =
-        if options.sparse { prepare_header_sparse(file, &stat, &mut header)? } else { None };
+    let sparse_entries = if options.sparse {
+        prepare_header_sparse(file, &stat, &mut header)?
+    } else {
+        None
+    };
     header.set_cksum();
     dst.write_all(header.as_bytes())?;
 
@@ -800,7 +823,14 @@ fn append_dir(
     options: BuilderOptions,
 ) -> io::Result<()> {
     let stat = fs::metadata(src_path)?;
-    append_fs(dst, path, &stat, options.mode, options.preserve_absolute, None)
+    append_fs(
+        dst,
+        path,
+        &stat,
+        options.mode,
+        options.preserve_absolute,
+        None,
+    )
 }
 
 fn prepare_header(size: u64, entry_type: u8) -> Header {
@@ -828,8 +858,11 @@ fn prepare_header_path(
     // working (probably because it's too long) then try to use the GNU-specific
     // long name extension by emitting an entry which indicates that it's the
     // filename.
-    let result =
-        if allow_absolute { header.set_path_absolute(path) } else { header.set_path(path) };
+    let result = if allow_absolute {
+        header.set_path_absolute(path)
+    } else {
+        header.set_path(path)
+    };
 
     if let Err(e) = result {
         let data = path2bytes(path)?;
@@ -912,7 +945,8 @@ fn prepare_header_sparse(
 /// Write extra sparse headers into `dst` for those entries that did not fit in the main header.
 fn append_extended_sparse_headers(dst: &mut dyn Write, entries: &SparseEntries) -> io::Result<()> {
     // The first `GNU_SPARSE_HEADERS_COUNT` entries are written to the main header, so skip them.
-    let mut it = entries.entries
+    let mut it = entries
+        .entries
         .iter()
         .skip(GNU_SPARSE_HEADERS_COUNT)
         .peekable();
@@ -1008,9 +1042,7 @@ struct SparseEntries {
 
 impl SparseEntries {
     fn size(&self) -> u64 {
-        self.entries
-            .last()
-            .map_or(0, |e| e.offset + e.num_bytes)
+        self.entries.last().map_or(0, |e| e.offset + e.num_bytes)
     }
 }
 
@@ -1069,7 +1101,10 @@ fn find_sparse_entries_seek(
         } else {
             // Fully sparse file.
             Some(SparseEntries {
-                entries: vec![SparseEntry { offset: stat.size(), num_bytes: 0 }],
+                entries: vec![SparseEntry {
+                    offset: stat.size(),
+                    num_bytes: 0,
+                }],
                 on_disk_size: 0,
             })
         });
@@ -1185,11 +1220,17 @@ fn find_sparse_entries_seek(
     // Add a final zero-length entry. It is required if the file ends with a
     // hole, and redundant otherwise. However, we add it unconditionally to
     // mimic GNU tar behavior.
-    entries.push(SparseEntry { offset: stat.size(), num_bytes: 0 });
+    entries.push(SparseEntry {
+        offset: stat.size(),
+        num_bytes: 0,
+    });
 
     file.seek(io::SeekFrom::Start(0))?;
 
-    Ok(Some(SparseEntries { entries, on_disk_size }))
+    Ok(Some(SparseEntries {
+        entries,
+        on_disk_size,
+    }))
 }
 
 impl<W: Write> Drop for Builder<W> {
@@ -1212,50 +1253,95 @@ mod tests {
             ("|", &[]),
             (
                 "|    |    |    |    |",
-                &[SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 }],
+                &[SparseEntry {
+                    offset: 4 * SPARSE_BLOCK_SIZE,
+                    num_bytes: 0,
+                }],
             ),
             (
                 "|####|####|####|####|",
                 &[
-                    SparseEntry { offset: 0, num_bytes: 4 * SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 },
+                    SparseEntry {
+                        offset: 0,
+                        num_bytes: 4 * SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 4 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 0,
+                    },
                 ],
             ),
             (
                 "|####|####|    |    |",
                 &[
-                    SparseEntry { offset: 0, num_bytes: 2 * SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 },
+                    SparseEntry {
+                        offset: 0,
+                        num_bytes: 2 * SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 4 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 0,
+                    },
                 ],
             ),
             (
                 "|    |    |####|####|",
                 &[
-                    SparseEntry { offset: 2 * SPARSE_BLOCK_SIZE, num_bytes: 2 * SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 },
+                    SparseEntry {
+                        offset: 2 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 2 * SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 4 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 0,
+                    },
                 ],
             ),
             (
                 "|####|    |####|    |",
                 &[
-                    SparseEntry { offset: 0, num_bytes: SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 2 * SPARSE_BLOCK_SIZE, num_bytes: SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 },
+                    SparseEntry {
+                        offset: 0,
+                        num_bytes: SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 2 * SPARSE_BLOCK_SIZE,
+                        num_bytes: SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 4 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 0,
+                    },
                 ],
             ),
             (
                 "|####|    |    |####|",
                 &[
-                    SparseEntry { offset: 0, num_bytes: SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 3 * SPARSE_BLOCK_SIZE, num_bytes: SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 },
+                    SparseEntry {
+                        offset: 0,
+                        num_bytes: SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 3 * SPARSE_BLOCK_SIZE,
+                        num_bytes: SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 4 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 0,
+                    },
                 ],
             ),
             (
                 "|    |####|####|    |",
                 &[
-                    SparseEntry { offset: SPARSE_BLOCK_SIZE, num_bytes: 2 * SPARSE_BLOCK_SIZE },
-                    SparseEntry { offset: 4 * SPARSE_BLOCK_SIZE, num_bytes: 0 },
+                    SparseEntry {
+                        offset: SPARSE_BLOCK_SIZE,
+                        num_bytes: 2 * SPARSE_BLOCK_SIZE,
+                    },
+                    SparseEntry {
+                        offset: 4 * SPARSE_BLOCK_SIZE,
+                        num_bytes: 0,
+                    },
                 ],
             ),
         ];
@@ -1264,18 +1350,13 @@ mod tests {
 
         for &(description, map) in cases {
             file.set_len(0).unwrap();
-            file.set_len(
-                map.last()
-                    .map_or(0, |e| e.offset + e.num_bytes),
-            )
-            .unwrap();
+            file.set_len(map.last().map_or(0, |e| e.offset + e.num_bytes))
+                .unwrap();
 
             for e in map {
-                file.seek(io::SeekFrom::Start(e.offset))
-                    .unwrap();
+                file.seek(io::SeekFrom::Start(e.offset)).unwrap();
                 for _ in 0..e.num_bytes / SPARSE_BLOCK_SIZE {
-                    file.write_all(&[0xFF; SPARSE_BLOCK_SIZE as usize])
-                        .unwrap();
+                    file.write_all(&[0xFF; SPARSE_BLOCK_SIZE as usize]).unwrap();
                 }
             }
 
@@ -1284,10 +1365,13 @@ mod tests {
                 &[] => None,
 
                 // 100% dense.
-                &[
-                    SparseEntry { offset: 0, num_bytes: x1 },
-                    SparseEntry { offset: x2, num_bytes: 0 },
-                ] if x1 == x2 => None,
+                &[SparseEntry {
+                    offset: 0,
+                    num_bytes: x1,
+                }, SparseEntry {
+                    offset: x2,
+                    num_bytes: 0,
+                }] if x1 == x2 => None,
 
                 // Sparse.
                 map => Some(SparseEntries {
@@ -1332,16 +1416,12 @@ mod tests {
 
         // Check that we didn't miss any data blocks. However, reporting some
         // holes as data is not an error during the loose check.
-        if expected.entries
-            .iter()
-            .any(|e| {
-                !reported.entries
-                    .iter()
-                    .any(|r| {
-                        e.offset >= r.offset && e.offset + e.num_bytes <= r.offset + r.num_bytes
-                    })
-            })
-        {
+        if expected.entries.iter().any(|e| {
+            !reported
+                .entries
+                .iter()
+                .any(|r| e.offset >= r.offset && e.offset + e.num_bytes <= r.offset + r.num_bytes)
+        }) {
             return Err("Reported is not a superset of expected");
         }
 
@@ -1358,12 +1438,7 @@ mod tests {
             prev_end = Some(e.offset + e.num_bytes);
         }
 
-        if reported.on_disk_size
-            != reported.entries
-                .iter()
-                .map(|e| e.num_bytes)
-                .sum()
-        {
+        if reported.on_disk_size != reported.entries.iter().map(|e| e.num_bytes).sum() {
             return Err("Incorrect on-disk size");
         }
 

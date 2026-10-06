@@ -12,8 +12,8 @@ use std::mem;
 use std::path::{Component, Path, PathBuf};
 use std::str;
 
-use crate::EntryType;
 use crate::other;
+use crate::EntryType;
 
 /// A deterministic, arbitrary, non-zero timestamp that use used as `mtime`
 /// of headers when [`HeaderMode::Deterministic`] is used.
@@ -152,7 +152,9 @@ impl Header {
     /// extensions such as long path names, long link names, and setting the
     /// atime/ctime metadata attributes of files.
     pub fn new_gnu() -> Header {
-        let mut header = Header { bytes: [0; BLOCK_SIZE as usize] };
+        let mut header = Header {
+            bytes: [0; BLOCK_SIZE as usize],
+        };
         unsafe {
             let gnu = cast_mut::<_, GnuHeader>(&mut header);
             gnu.magic = *b"ustar ";
@@ -170,7 +172,9 @@ impl Header {
     ///
     /// UStar is also the basis used for pax archives.
     pub fn new_ustar() -> Header {
-        let mut header = Header { bytes: [0; BLOCK_SIZE as usize] };
+        let mut header = Header {
+            bytes: [0; BLOCK_SIZE as usize],
+        };
         unsafe {
             let gnu = cast_mut::<_, UstarHeader>(&mut header);
             gnu.magic = *b"ustar\0";
@@ -187,7 +191,9 @@ impl Header {
     /// format limits the path name limit and isn't able to contain extra
     /// metadata like atime/ctime.
     pub fn new_old() -> Header {
-        let mut header = Header { bytes: [0; BLOCK_SIZE as usize] };
+        let mut header = Header {
+            bytes: [0; BLOCK_SIZE as usize],
+        };
         header.set_mtime(0);
         header
     }
@@ -225,12 +231,20 @@ impl Header {
     /// magic/version fields of the UStar format have the appropriate values,
     /// returning `None` if they aren't correct.
     pub fn as_ustar(&self) -> Option<&UstarHeader> {
-        if self.is_ustar() { Some(unsafe { cast(self) }) } else { None }
+        if self.is_ustar() {
+            Some(unsafe { cast(self) })
+        } else {
+            None
+        }
     }
 
     /// Same as `as_ustar_mut`, but the mutable version.
     pub fn as_ustar_mut(&mut self) -> Option<&mut UstarHeader> {
-        if self.is_ustar() { Some(unsafe { cast_mut(self) }) } else { None }
+        if self.is_ustar() {
+            Some(unsafe { cast_mut(self) })
+        } else {
+            None
+        }
     }
 
     /// View this archive header as a raw GNU archive header.
@@ -243,12 +257,20 @@ impl Header {
     /// magic/version fields of the GNU format have the appropriate values,
     /// returning `None` if they aren't correct.
     pub fn as_gnu(&self) -> Option<&GnuHeader> {
-        if self.is_gnu() { Some(unsafe { cast(self) }) } else { None }
+        if self.is_gnu() {
+            Some(unsafe { cast(self) })
+        } else {
+            None
+        }
     }
 
     /// Same as `as_gnu`, but the mutable version.
     pub fn as_gnu_mut(&mut self) -> Option<&mut GnuHeader> {
-        if self.is_gnu() { Some(unsafe { cast_mut(self) }) } else { None }
+        if self.is_gnu() {
+            Some(unsafe { cast_mut(self) })
+        } else {
+            None
+        }
     }
 
     /// Treats the given byte slice as a header.
@@ -295,13 +317,12 @@ impl Header {
     ///
     /// May return an error if the field is corrupted.
     pub fn entry_size(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.as_old().size)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting size for {}", err, self.path_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.as_old().size).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting size for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// Returns the file size this header represents.
@@ -437,7 +458,11 @@ impl Header {
     /// separators.
     pub fn link_name_bytes(&self) -> Option<Cow<'_, [u8]>> {
         let old = self.as_old();
-        if old.linkname[0] != 0 { Some(Cow::Borrowed(truncate(&old.linkname))) } else { None }
+        if old.linkname[0] != 0 {
+            Some(Cow::Borrowed(truncate(&old.linkname)))
+        } else {
+            None
+        }
     }
 
     /// Sets the link name for this header.
@@ -453,13 +478,12 @@ impl Header {
     }
 
     fn _set_link_name(&mut self, path: &Path) -> io::Result<()> {
-        copy_path_into(&mut self.as_old_mut().linkname, path, true, true)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when setting link name for {}", err, self.path_lossy()),
-                )
-            })
+        copy_path_into(&mut self.as_old_mut().linkname, path, true, true).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when setting link name for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// Sets the link name for this header without any transformation.
@@ -497,13 +521,12 @@ impl Header {
     ///
     /// May return an error if the field is corrupted.
     pub fn uid(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.as_old().uid)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting uid for {}", err, self.path_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.as_old().uid).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting uid for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// Encodes the `uid` provided into this header.
@@ -513,13 +536,12 @@ impl Header {
 
     /// Returns the value of the group's user ID field
     pub fn gid(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.as_old().gid)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting gid for {}", err, self.path_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.as_old().gid).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting gid for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// Encodes the `gid` provided into this header.
@@ -529,13 +551,12 @@ impl Header {
 
     /// Returns the last modification time in Unix time format
     pub fn mtime(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.as_old().mtime)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting mtime for {}", err, self.path_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.as_old().mtime).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting mtime for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// Encodes the `mtime` provided into this header.
@@ -743,7 +764,11 @@ impl Header {
     fn fill_from(&mut self, meta: &fs::Metadata, mode: HeaderMode) {
         self.fill_platform_from(meta, mode);
         // Set size of directories to zero
-        self.set_size(if meta.is_dir() || meta.file_type().is_symlink() { 0 } else { meta.len() });
+        self.set_size(if meta.is_dir() || meta.file_type().is_symlink() {
+            0
+        } else {
+            meta.len()
+        });
         if let Some(ustar) = self.as_ustar_mut() {
             ustar.set_device_major(0);
             ustar.set_device_minor(0);
@@ -780,8 +805,11 @@ impl Header {
                 self.set_gid(0);
 
                 // Use a default umask value, but propagate the (user) execute bit.
-                let fs_mode =
-                    if meta.is_dir() || (0o100 & meta.mode() == 0o100) { 0o755 } else { 0o644 };
+                let fs_mode = if meta.is_dir() || (0o100 & meta.mode() == 0o100) {
+                    0o755
+                } else {
+                    0o644
+                };
                 self.set_mode(fs_mode);
             }
         }
@@ -1003,13 +1031,12 @@ impl UstarHeader {
         let bytes = path2bytes(path)?;
         let (maxnamelen, maxprefixlen) = (self.name.len(), self.prefix.len());
         if bytes.len() <= maxnamelen {
-            copy_path_into(&mut self.name, path, false, allow_absolute)
-                .map_err(|err| {
-                    io::Error::new(
-                        err.kind(),
-                        format!("{} when setting path for {}", err, self.path_lossy()),
-                    )
-                })?;
+            copy_path_into(&mut self.name, path, false, allow_absolute).map_err(|err| {
+                io::Error::new(
+                    err.kind(),
+                    format!("{} when setting path for {}", err, self.path_lossy()),
+                )
+            })?;
         } else {
             let mut prefix = path;
             let mut prefixlen;
@@ -1028,21 +1055,19 @@ impl UstarHeader {
                     break;
                 }
             }
-            copy_path_into(&mut self.prefix, prefix, false, allow_absolute)
-                .map_err(|err| {
-                    io::Error::new(
-                        err.kind(),
-                        format!("{} when setting path for {}", err, self.path_lossy()),
-                    )
-                })?;
+            copy_path_into(&mut self.prefix, prefix, false, allow_absolute).map_err(|err| {
+                io::Error::new(
+                    err.kind(),
+                    format!("{} when setting path for {}", err, self.path_lossy()),
+                )
+            })?;
             let path = bytes2path(Cow::Borrowed(&bytes[prefixlen + 1..]))?;
-            copy_path_into(&mut self.name, &path, false, allow_absolute)
-                .map_err(|err| {
-                    io::Error::new(
-                        err.kind(),
-                        format!("{} when setting path for {}", err, self.path_lossy()),
-                    )
-                })?;
+            copy_path_into(&mut self.name, &path, false, allow_absolute).map_err(|err| {
+                io::Error::new(
+                    err.kind(),
+                    format!("{} when setting path for {}", err, self.path_lossy()),
+                )
+            })?;
         }
         Ok(())
     }
@@ -1054,13 +1079,12 @@ impl UstarHeader {
 
     /// See `Header::set_username`
     pub fn set_username(&mut self, name: &str) -> io::Result<()> {
-        copy_into(&mut self.uname, name.as_bytes())
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when setting username for {}", err, self.path_lossy()),
-                )
-            })
+        copy_into(&mut self.uname, name.as_bytes()).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when setting username for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// See `Header::groupname_bytes`
@@ -1070,13 +1094,12 @@ impl UstarHeader {
 
     /// See `Header::set_groupname`
     pub fn set_groupname(&mut self, name: &str) -> io::Result<()> {
-        copy_into(&mut self.gname, name.as_bytes())
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when setting groupname for {}", err, self.path_lossy()),
-                )
-            })
+        copy_into(&mut self.gname, name.as_bytes()).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when setting groupname for {}", err, self.path_lossy()),
+            )
+        })
     }
 
     /// See `Header::device_major`
@@ -1086,7 +1109,11 @@ impl UstarHeader {
             .map_err(|err| {
                 io::Error::new(
                     err.kind(),
-                    format!("{} when getting device_major for {}", err, self.path_lossy()),
+                    format!(
+                        "{} when getting device_major for {}",
+                        err,
+                        self.path_lossy()
+                    ),
                 )
             })
     }
@@ -1103,7 +1130,11 @@ impl UstarHeader {
             .map_err(|err| {
                 io::Error::new(
                     err.kind(),
-                    format!("{} when getting device_minor for {}", err, self.path_lossy()),
+                    format!(
+                        "{} when getting device_minor for {}",
+                        err,
+                        self.path_lossy()
+                    ),
                 )
             })
     }
@@ -1149,13 +1180,16 @@ impl GnuHeader {
 
     /// See `Header::set_username`
     pub fn set_username(&mut self, name: &str) -> io::Result<()> {
-        copy_into(&mut self.uname, name.as_bytes())
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when setting username for {}", err, self.fullname_lossy()),
-                )
-            })
+        copy_into(&mut self.uname, name.as_bytes()).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!(
+                    "{} when setting username for {}",
+                    err,
+                    self.fullname_lossy()
+                ),
+            )
+        })
     }
 
     /// See `Header::groupname_bytes`
@@ -1165,13 +1199,16 @@ impl GnuHeader {
 
     /// See `Header::set_groupname`
     pub fn set_groupname(&mut self, name: &str) -> io::Result<()> {
-        copy_into(&mut self.gname, name.as_bytes())
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when setting groupname for {}", err, self.fullname_lossy()),
-                )
-            })
+        copy_into(&mut self.gname, name.as_bytes()).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!(
+                    "{} when setting groupname for {}",
+                    err,
+                    self.fullname_lossy()
+                ),
+            )
+        })
     }
 
     /// See `Header::device_major`
@@ -1181,7 +1218,11 @@ impl GnuHeader {
             .map_err(|err| {
                 io::Error::new(
                     err.kind(),
-                    format!("{} when getting device_major for {}", err, self.fullname_lossy()),
+                    format!(
+                        "{} when getting device_major for {}",
+                        err,
+                        self.fullname_lossy()
+                    ),
                 )
             })
     }
@@ -1198,7 +1239,11 @@ impl GnuHeader {
             .map_err(|err| {
                 io::Error::new(
                     err.kind(),
-                    format!("{} when getting device_minor for {}", err, self.fullname_lossy()),
+                    format!(
+                        "{} when getting device_minor for {}",
+                        err,
+                        self.fullname_lossy()
+                    ),
                 )
             })
     }
@@ -1210,13 +1255,12 @@ impl GnuHeader {
 
     /// Returns the last modification time in Unix time format
     pub fn atime(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.atime)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting atime for {}", err, self.fullname_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.atime).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting atime for {}", err, self.fullname_lossy()),
+            )
+        })
     }
 
     /// Encodes the `atime` provided into this header.
@@ -1229,13 +1273,12 @@ impl GnuHeader {
 
     /// Returns the last modification time in Unix time format
     pub fn ctime(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.ctime)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting ctime for {}", err, self.fullname_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.ctime).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting ctime for {}", err, self.fullname_lossy()),
+            )
+        })
     }
 
     /// Encodes the `ctime` provided into this header.
@@ -1251,13 +1294,16 @@ impl GnuHeader {
     /// This is applicable for sparse files where the returned size here is the
     /// size of the entire file after the sparse regions have been filled in.
     pub fn real_size(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.realsize)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting real_size for {}", err, self.fullname_lossy()),
-                )
-            })
+        num_field_wrapper_from(&self.realsize).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!(
+                    "{} when getting real_size for {}",
+                    err,
+                    self.fullname_lossy()
+                ),
+            )
+        })
     }
 
     /// Encodes the `real_size` provided into this header.
@@ -1334,13 +1380,12 @@ impl GnuSparseHeader {
     ///
     /// Returns `Err` for a malformed `offset` field.
     pub fn offset(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.offset)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting offset from sparse header", err),
-                )
-            })
+        num_field_wrapper_from(&self.offset).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting offset from sparse header", err),
+            )
+        })
     }
 
     /// Encodes the `offset` provided into this header.
@@ -1352,13 +1397,12 @@ impl GnuSparseHeader {
     ///
     /// Returns `Err` for a malformed `numbytes` field.
     pub fn length(&self) -> io::Result<u64> {
-        num_field_wrapper_from(&self.numbytes)
-            .map_err(|err| {
-                io::Error::new(
-                    err.kind(),
-                    format!("{} when getting length from sparse header", err),
-                )
-            })
+        num_field_wrapper_from(&self.numbytes).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("{} when getting length from sparse header", err),
+            )
+        })
     }
 
     /// Encodes the `length` provided into this header.
@@ -1466,7 +1510,11 @@ fn num_field_wrapper_into(dst: &mut [u8], src: u64) {
 // Wrapper to figure out if we should read the header field in binary (numeric
 // extension) or octal (standard encoding).
 fn num_field_wrapper_from(src: &[u8]) -> io::Result<u64> {
-    if src[0] & 0x80 != 0 { Ok(numeric_extended_from(src)) } else { octal_from(src) }
+    if src[0] & 0x80 != 0 {
+        Ok(numeric_extended_from(src))
+    } else {
+        octal_from(src)
+    }
 }
 
 // When writing numeric fields with is the extended form, the high bit of the
@@ -1475,18 +1523,11 @@ fn num_field_wrapper_from(src: &[u8]) -> io::Result<u64> {
 // This handles writing u64 to 8 (uid, gid) or 12 (size, *time) bytes array.
 fn numeric_extended_into(dst: &mut [u8], src: u64) {
     let len: usize = dst.len();
-    for (slot, val) in dst
-        .iter_mut()
-        .zip(
-            repeat(0)
-                .take(len - 8) // to zero init extra bytes
-                .chain(
-                    (0..8)
-                        .rev()
-                        .map(|x| ((src >> (8 * x)) & 0xff) as u8),
-                ),
-        )
-    {
+    for (slot, val) in dst.iter_mut().zip(
+        repeat(0)
+            .take(len - 8) // to zero init extra bytes
+            .chain((0..8).rev().map(|x| ((src >> (8 * x)) & 0xff) as u8)),
+    ) {
         *slot = val;
     }
     dst[0] |= 0x80;
@@ -1524,10 +1565,7 @@ fn copy_into(slot: &mut [u8], bytes: &[u8]) -> io::Result<()> {
     } else if bytes.contains(&0) {
         Err(other("provided value contains a nul byte"))
     } else {
-        for (slot, val) in slot
-            .iter_mut()
-            .zip(bytes.iter().chain(Some(&0)))
-        {
+        for (slot, val) in slot.iter_mut().zip(bytes.iter().chain(Some(&0))) {
             *slot = *val;
         }
         Ok(())
@@ -1716,9 +1754,9 @@ pub fn bytes2path(bytes: Cow<[u8]>) -> io::Result<Cow<Path>> {
         Cow::Borrowed(bytes) => {
             Cow::Borrowed(Path::new(str::from_utf8(bytes).map_err(invalid_utf8)?))
         }
-        Cow::Owned(bytes) => {
-            Cow::Owned(PathBuf::from(String::from_utf8(bytes).map_err(invalid_utf8)?))
-        }
+        Cow::Owned(bytes) => Cow::Owned(PathBuf::from(
+            String::from_utf8(bytes).map_err(invalid_utf8)?,
+        )),
     })
 }
 

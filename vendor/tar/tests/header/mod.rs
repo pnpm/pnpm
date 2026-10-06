@@ -51,12 +51,7 @@ fn link_name() {
     }
 
     let name = "foo\\bar\0";
-    for (slot, val) in h
-        .as_old_mut()
-        .linkname
-        .iter_mut()
-        .zip(name.as_bytes())
-    {
+    for (slot, val) in h.as_old_mut().linkname.iter_mut().zip(name.as_bytes()) {
         *slot = *val;
     }
     assert_eq!(h.link_name().unwrap().unwrap().to_str(), Some("foo\\bar"));
@@ -190,10 +185,7 @@ fn set_ustar_path_hard() {
 
 #[test]
 fn set_metadata_deterministic() {
-    let td = Builder::new()
-        .prefix("tar-rs")
-        .tempdir()
-        .unwrap();
+    let td = Builder::new().prefix("tar-rs").tempdir().unwrap();
     let tmppath = td.path().join("tmpfile");
 
     fn mk_header(path: &Path, readonly: bool) -> Result<Header, io::Error> {
@@ -249,7 +241,9 @@ fn extended_numeric_format() {
     h.uid = [0x80, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78];
     assert_eq!(h.as_header().uid().unwrap(), 0x12345678);
 
-    h.mtime = [0x80, 0, 0, 0, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+    h.mtime = [
+        0x80, 0, 0, 0, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+    ];
     assert_eq!(h.as_header().mtime().unwrap(), 0x0123456789abcdef);
 
     h.realsize = [0x80, 0, 0, 0, 0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde];

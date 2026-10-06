@@ -11,7 +11,10 @@ pub struct TarError {
 
 impl TarError {
     pub fn new(desc: impl Into<Cow<'static, str>>, err: Error) -> TarError {
-        TarError { desc: desc.into(), io: err }
+        TarError {
+            desc: desc.into(),
+            io: err,
+        }
     }
 }
 

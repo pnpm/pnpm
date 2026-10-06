@@ -49,7 +49,9 @@ impl<'entry> PaxExtensions<'entry> {
         fn is_newline(a: &u8) -> bool {
             *a == b'\n'
         }
-        PaxExtensions { data: a.split(is_newline) }
+        PaxExtensions {
+            data: a.split(is_newline),
+        }
     }
 }
 
@@ -98,11 +100,7 @@ impl<'entry> Iterator for PaxExtensions<'entry> {
                 .and_then(|i| {
                     str::from_utf8(&line[..i])
                         .ok()
-                        .and_then(|len| {
-                            len.parse::<usize>()
-                                .ok()
-                                .map(|j| (i + 1, j))
-                        })
+                        .and_then(|len| len.parse::<usize>().ok().map(|j| (i + 1, j)))
                 })
                 .and_then(|(kvstart, reported_len)| {
                     if line.len() + 1 == reported_len {

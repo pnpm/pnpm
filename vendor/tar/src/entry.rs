@@ -288,7 +288,10 @@ impl<'a> EntryFields<'a> {
     }
 
     pub fn into_entry<R: Read>(self) -> Entry<'a, R> {
-        Entry { fields: self, _ignored: marker::PhantomData }
+        Entry {
+            fields: self,
+            _ignored: marker::PhantomData,
+        }
     }
 
     pub fn read_all(&mut self) -> io::Result<Vec<u8>> {
@@ -371,7 +374,9 @@ impl<'a> EntryFields<'a> {
             }
             self.pax_extensions = Some(self.read_all()?);
         }
-        Ok(Some(PaxExtensions::new(self.pax_extensions.as_ref().unwrap())))
+        Ok(Some(PaxExtensions::new(
+            self.pax_extensions.as_ref().unwrap(),
+        )))
     }
 
     fn unpack_in(&mut self, dst: &Path) -> io::Result<bool> {
@@ -390,11 +395,12 @@ impl<'a> EntryFields<'a> {
 
         let mut file_dst = dst.to_path_buf();
         {
-            let path = self
-                .path()
-                .map_err(|e| {
-                    TarError::new(format!("invalid path in entry header: {}", self.path_lossy()), e)
-                })?;
+            let path = self.path().map_err(|e| {
+                TarError::new(
+                    format!("invalid path in entry header: {}", self.path_lossy()),
+                    e,
+                )
+            })?;
             for part in path.components() {
                 match part {
                     // Leading '/' characters, root paths, and '.'
@@ -439,16 +445,18 @@ impl<'a> EntryFields<'a> {
     /// Unpack as destination directory `dst`.
     fn unpack_dir(&mut self, dst: &Path) -> io::Result<()> {
         // If the directory already exists just let it slide
-        fs::create_dir(dst)
-            .or_else(|err| {
-                if err.kind() == ErrorKind::AlreadyExists {
-                    let prev = fs::symlink_metadata(dst);
-                    if prev.map(|m| m.is_dir()).unwrap_or(false) {
-                        return Ok(());
-                    }
+        fs::create_dir(dst).or_else(|err| {
+            if err.kind() == ErrorKind::AlreadyExists {
+                let prev = fs::symlink_metadata(dst);
+                if prev.map(|m| m.is_dir()).unwrap_or(false) {
+                    return Ok(());
                 }
-                Err(Error::new(err.kind(), format!("{} when creating dir {}", err, dst.display())))
-            })
+            }
+            Err(Error::new(
+                err.kind(),
+                format!("{} when creating dir {}", err, dst.display()),
+            ))
+        })
     }
 
     /// Returns access to the header of this entry in the archive.
@@ -474,19 +482,16 @@ impl<'a> EntryFields<'a> {
         }
 
         fn get_mtime(header: &Header) -> Option<FileTime> {
-            header
-                .mtime()
-                .ok()
-                .map(|mtime| {
-                    // For some more information on this see the comments in
-                    // `Header::fill_platform_from`, but the general idea is that
-                    // we're trying to avoid 0-mtime files coming out of archives
-                    // since some tools don't ingest them well. Perhaps one day
-                    // when Cargo stops working with 0-mtime archives we can remove
-                    // this.
-                    let mtime = if mtime == 0 { 1 } else { mtime };
-                    FileTime::from_unix_time(mtime as i64, 0)
-                })
+            header.mtime().ok().map(|mtime| {
+                // For some more information on this see the comments in
+                // `Header::fill_platform_from`, but the general idea is that
+                // we're trying to avoid 0-mtime files coming out of archives
+                // since some tools don't ingest them well. Perhaps one day
+                // when Cargo stops working with 0-mtime archives we can remove
+                // this.
+                let mtime = if mtime == 0 { 1 } else { mtime };
+                FileTime::from_unix_time(mtime as i64, 0)
+            })
         }
 
         let kind = self.header.entry_type();
@@ -540,18 +545,17 @@ impl<'a> EntryFields<'a> {
                     }
                     None => src.into_owned(),
                 };
-                fs::hard_link(&link_src, dst)
-                    .map_err(|err| {
-                        Error::new(
-                            err.kind(),
-                            format!(
-                                "{} when hard linking {} to {}",
-                                err,
-                                link_src.display(),
-                                dst.display()
-                            ),
-                        )
-                    })?;
+                fs::hard_link(&link_src, dst).map_err(|err| {
+                    Error::new(
+                        err.kind(),
+                        format!(
+                            "{} when hard linking {} to {}",
+                            err,
+                            link_src.display(),
+                            dst.display()
+                        ),
+                    )
+                })?;
             } else {
                 symlink(&src, dst)
                     .or_else(|err_io| {
@@ -581,13 +585,9 @@ impl<'a> EntryFields<'a> {
                 }
                 if self.preserve_mtime {
                     if let Some(mtime) = get_mtime(&self.header) {
-                        filetime::set_symlink_file_times(dst, mtime, mtime)
-                            .map_err(|e| {
-                                TarError::new(
-                                    format!("failed to set mtime for `{}`", dst.display()),
-                                    e,
-                                )
-                            })?;
+                        filetime::set_symlink_file_times(dst, mtime, mtime).map_err(|e| {
+                            TarError::new(format!("failed to set mtime for `{}`", dst.display()), e)
+                        })?;
                     }
                 }
             }
@@ -644,26 +644,22 @@ impl<'a> EntryFields<'a> {
         // Ensure we write a new file rather than overwriting in-place which
         // is attackable; if an existing file is found unlink it.
         fn open(dst: &Path) -> io::Result<std::fs::File> {
-            OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(dst)
+            OpenOptions::new().write(true).create_new(true).open(dst)
         }
         let mut f = (|| -> io::Result<std::fs::File> {
-            let mut f = open(dst)
-                .or_else(|err| {
-                    if err.kind() != ErrorKind::AlreadyExists {
-                        Err(err)
-                    } else if self.overwrite {
-                        match fs::remove_file(dst) {
-                            Ok(()) => open(dst),
-                            Err(ref e) if e.kind() == io::ErrorKind::NotFound => open(dst),
-                            Err(e) => Err(e),
-                        }
-                    } else {
-                        Err(err)
+            let mut f = open(dst).or_else(|err| {
+                if err.kind() != ErrorKind::AlreadyExists {
+                    Err(err)
+                } else if self.overwrite {
+                    match fs::remove_file(dst) {
+                        Ok(()) => open(dst),
+                        Err(ref e) if e.kind() == io::ErrorKind::NotFound => open(dst),
+                        Err(e) => Err(e),
                     }
-                })?;
+                } else {
+                    Err(err)
+                }
+            })?;
             for io in self.data.drain(..) {
                 match io {
                     EntryIo::Data(mut d) => {
@@ -696,10 +692,9 @@ impl<'a> EntryFields<'a> {
 
         if self.preserve_mtime {
             if let Some(mtime) = get_mtime(&self.header) {
-                filetime::set_file_handle_times(&f, Some(mtime), Some(mtime))
-                    .map_err(|e| {
-                        TarError::new(format!("failed to set mtime for `{}`", dst.display()), e)
-                    })?;
+                filetime::set_file_handle_times(&f, Some(mtime), Some(mtime)).map_err(|e| {
+                    TarError::new(format!("failed to set mtime for `{}`", dst.display()), e)
+                })?;
             }
         }
         set_perms_ownerships(
@@ -721,19 +716,18 @@ impl<'a> EntryFields<'a> {
             uid: u64,
             gid: u64,
         ) -> Result<(), TarError> {
-            _set_ownerships(dst, f, uid, gid)
-                .map_err(|e| {
-                    TarError::new(
-                        format!(
-                            "failed to set ownerships to uid={:?}, gid={:?} \
+            _set_ownerships(dst, f, uid, gid).map_err(|e| {
+                TarError::new(
+                    format!(
+                        "failed to set ownerships to uid={:?}, gid={:?} \
                          for `{}`",
-                            uid,
-                            gid,
-                            dst.display()
-                        ),
-                        e,
-                    )
-                })
+                        uid,
+                        gid,
+                        dst.display()
+                    ),
+                    e,
+                )
+            })
         }
 
         #[cfg(all(unix, not(target_arch = "wasm32")))]
@@ -745,16 +739,12 @@ impl<'a> EntryFields<'a> {
         ) -> io::Result<()> {
             use std::os::unix::prelude::*;
 
-            let uid: libc::uid_t = uid
-                .try_into()
-                .map_err(|_| {
-                    io::Error::new(io::ErrorKind::Other, format!("UID {} is too large!", uid))
-                })?;
-            let gid: libc::gid_t = gid
-                .try_into()
-                .map_err(|_| {
-                    io::Error::new(io::ErrorKind::Other, format!("GID {} is too large!", gid))
-                })?;
+            let uid: libc::uid_t = uid.try_into().map_err(|_| {
+                io::Error::new(io::ErrorKind::Other, format!("UID {} is too large!", uid))
+            })?;
+            let gid: libc::gid_t = gid.try_into().map_err(|_| {
+                io::Error::new(io::ErrorKind::Other, format!("GID {} is too large!", gid))
+            })?;
             match f {
                 Some(f) => unsafe {
                     let fd = f.as_raw_fd();
@@ -765,13 +755,12 @@ impl<'a> EntryFields<'a> {
                     }
                 },
                 None => unsafe {
-                    let path = std::ffi::CString::new(dst.as_os_str().as_bytes())
-                        .map_err(|e| {
-                            io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("path contains null character: {:?}", e),
-                            )
-                        })?;
+                    let path = std::ffi::CString::new(dst.as_os_str().as_bytes()).map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("path contains null character: {:?}", e),
+                        )
+                    })?;
                     if libc::lchown(path.as_ptr(), uid, gid) != 0 {
                         Err(io::Error::last_os_error())
                     } else {
@@ -799,18 +788,17 @@ impl<'a> EntryFields<'a> {
             mask: u32,
             preserve: bool,
         ) -> Result<(), TarError> {
-            _set_perms(dst, f, mode, mask, preserve)
-                .map_err(|e| {
-                    TarError::new(
-                        format!(
-                            "failed to set permissions to {:o} \
+            _set_perms(dst, f, mode, mask, preserve).map_err(|e| {
+                TarError::new(
+                    format!(
+                        "failed to set permissions to {:o} \
                          for `{}`",
-                            mode,
-                            dst.display()
-                        ),
-                        e,
-                    )
-                })
+                        mode,
+                        dst.display()
+                    ),
+                    e,
+                )
+            })
         }
 
         #[cfg(all(unix, not(target_arch = "wasm32")))]
@@ -883,26 +871,24 @@ impl<'a> EntryFields<'a> {
                 .filter_map(|e| {
                     let key = e.key_bytes();
                     let prefix = crate::pax::PAX_SCHILYXATTR.as_bytes();
-                    key.strip_prefix(prefix)
-                        .map(|rest| (rest, e))
+                    key.strip_prefix(prefix).map(|rest| (rest, e))
                 })
                 .map(|(key, e)| (OsStr::from_bytes(key), e.value_bytes()));
 
             for (key, value) in exts {
-                xattr::set(dst, key, value)
-                    .map_err(|e| {
-                        TarError::new(
-                            format!(
-                                "failed to set extended \
+                xattr::set(dst, key, value).map_err(|e| {
+                    TarError::new(
+                        format!(
+                            "failed to set extended \
                              attributes to {}. \
                              Xattrs: key={:?}, value={:?}.",
-                                dst.display(),
-                                key,
-                                String::from_utf8_lossy(value)
-                            ),
-                            e,
-                        )
-                    })?;
+                            dst.display(),
+                            key,
+                            String::from_utf8_lossy(value)
+                        ),
+                        e,
+                    )
+                })?;
             }
 
             Ok(())
@@ -937,22 +923,24 @@ impl<'a> EntryFields<'a> {
 
     fn validate_inside_dst(&self, dst: &Path, file_dst: &Path) -> io::Result<PathBuf> {
         // Abort if target (canonical) parent is outside of `dst`
-        let canon_parent = file_dst
-            .canonicalize()
-            .map_err(|err| {
-                Error::new(
-                    err.kind(),
-                    format!("{} while canonicalizing {}", err, file_dst.display()),
-                )
-            })?;
-        let canon_target = dst
-            .canonicalize()
-            .map_err(|err| {
-                Error::new(err.kind(), format!("{} while canonicalizing {}", err, dst.display()))
-            })?;
+        let canon_parent = file_dst.canonicalize().map_err(|err| {
+            Error::new(
+                err.kind(),
+                format!("{} while canonicalizing {}", err, file_dst.display()),
+            )
+        })?;
+        let canon_target = dst.canonicalize().map_err(|err| {
+            Error::new(
+                err.kind(),
+                format!("{} while canonicalizing {}", err, dst.display()),
+            )
+        })?;
         if !canon_parent.starts_with(&canon_target) {
             let err = TarError::new(
-                format!("trying to unpack outside of destination path: {}", canon_target.display()),
+                format!(
+                    "trying to unpack outside of destination path: {}",
+                    canon_target.display()
+                ),
                 // TODO: use ErrorKind::InvalidInput here? (minor breaking change)
                 Error::new(ErrorKind::Other, "Invalid argument"),
             );
@@ -965,10 +953,7 @@ impl<'a> EntryFields<'a> {
 impl<'a> Read for EntryFields<'a> {
     fn read(&mut self, into: &mut [u8]) -> io::Result<usize> {
         loop {
-            match self.data
-                .get_mut(0)
-                .map(|io| io.read(into))
-            {
+            match self.data.get_mut(0).map(|io| io.read(into)) {
                 Some(Ok(0)) => {
                     self.data.remove(0);
                 }

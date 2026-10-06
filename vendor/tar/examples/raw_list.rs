@@ -10,12 +10,7 @@ use tar::Archive;
 
 fn main() {
     let mut ar = Archive::new(stdin());
-    for (i, file) in ar
-        .entries()
-        .unwrap()
-        .raw(true)
-        .enumerate()
-    {
+    for (i, file) in ar.entries().unwrap().raw(true).enumerate() {
         println!("-------------------------- Entry {}", i);
         let mut f = file.unwrap();
         println!("path: {}", f.path().unwrap().display());
