@@ -49,7 +49,7 @@ A custom preload can register an explicit manifest:
 ```js
 import { registerStoreLoader } from '@pnpm/esm-loader'
 
-registerStoreLoader(new URL('./.store-manifest.json', import.meta.url))
+registerStoreLoader(new URL('./node_modules/.pnpm/.store-manifest.json', import.meta.url))
 ```
 
 Run it with `node --import ./preload.mjs app.mjs`. The registration returns Node's hook handle, which has a `deregister()` method. Register before importing application dependencies. Workers inherit a `--import` preload through Node's default execution arguments.
