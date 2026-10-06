@@ -211,23 +211,23 @@ fn store_inode_mode_is_linkable_rejects_other_differences() {
     assert!(!store_inode_mode_is_linkable(0o646, plain_077), "extra other-write");
     assert!(
         !store_inode_mode_is_linkable(0o666, store_entry_mode(false, 0o022)),
-        "extra other-write"
+        "extra other-write",
     );
     assert!(
         !store_inode_mode_is_linkable(0o600, store_entry_mode(false, 0o022)),
-        "missing read bits"
+        "missing read bits",
     );
     assert!(
         !store_inode_mode_is_linkable(0o644, store_entry_mode(true, 0o022)),
-        "missing execute bits"
+        "missing execute bits",
     );
     assert!(
         !store_inode_mode_is_linkable(0o755, store_entry_mode(false, 0o022)),
-        "extra execute bits"
+        "extra execute bits",
     );
     assert!(
         !store_inode_mode_is_linkable(0o444, store_entry_mode(false, 0o022)),
-        "missing owner write"
+        "missing owner write",
     );
 }
 
