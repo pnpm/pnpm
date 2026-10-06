@@ -12,6 +12,7 @@ pub use build_settings::{
     LEGACY_BUILD_SETTINGS, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds, set_allow_builds,
     set_allow_builds_clearing_legacy,
 };
+pub use catalog_references::CatalogReferenceSources;
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{
     remove_overrides, set_audit_ignore_ghsas, set_config_dependencies,
@@ -28,8 +29,6 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 
 mod edit;
 mod flow;
@@ -145,17 +144,14 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     /// Catalog entries to merge into the `catalog:` / `catalogs:` blocks.
     pub updated_catalogs: Option<&'a Catalogs>,
     /// Run the `catalogPrune` pass after the merge: drop catalog
-    /// entries no manifest in [`Self::all_projects`] references.
+    /// entries nothing in [`Self::catalog_references`] references.
     pub catalog_prune: bool,
-    /// Every workspace project manifest (with in-memory dependency edits
-    /// applied), consulted by the cleanup pass to decide which catalog
-    /// entries are still referenced. An empty list disables the cleanup
-    /// pass, mirroring upstream's `allProjects ?? []` guard.
-    pub all_projects: &'a [&'a PackageManifest],
+    pub catalog_references: CatalogReferenceSources<'a>,
     /// Package name → the versions the freshly resolved lockfile
     /// records. Present only when the lockfile covers every project the
     /// exclude lists govern; `None` disables the passes below that consult
-    /// it, mirroring the [`Self::all_projects`] guard of `catalogPrune`.
+    /// it, mirroring the [`CatalogReferenceSources::all_projects`] guard of
+    /// `catalogPrune`.
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
     pub prune_minimum_release_age_excludes: bool,
     pub prune_trust_policy_excludes: bool,
@@ -188,8 +184,8 @@ pub fn update_workspace_manifest(
     }
 
     let mut changed = add_updated_catalogs(&mut manifest, opts, &path)?;
-    if opts.catalog_prune && !opts.all_projects.is_empty() {
-        let references = collect_catalog_references(opts.all_projects, &manifest);
+    if opts.catalog_prune && !opts.catalog_references.all_projects.is_empty() {
+        let references = opts.catalog_references.collect(&manifest);
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
     if let Some(resolved) = opts.resolved_package_versions {
@@ -303,46 +299,6 @@ fn first_control_char_value(catalogs: &Catalogs) -> Option<&str> {
         })
         .find(|value| has_control_char(value))
         .map(String::as_str)
-}
-
-/// The upstream `packageReferences` map: every raw dependency specifier per
-/// package name across `dependencies`, `devDependencies`,
-/// `optionalDependencies`, and `peerDependencies` of every project, plus the
-/// workspace manifest's own `catalog:`-valued `overrides:` (whose selector
-/// names the referenced package). Selectors that fail to parse are skipped,
-/// matching upstream.
-fn collect_catalog_references(
-    all_projects: &[&PackageManifest],
-    manifest: &Manifest,
-) -> edit::CatalogReferences {
-    const GROUPS: [DependencyGroup; 4] = [
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Optional,
-        DependencyGroup::Peer,
-    ];
-    let mut references = edit::CatalogReferences::new();
-    for project in all_projects {
-        for (name, specifier) in project.dependencies(GROUPS) {
-            references
-                .entry(name.to_string())
-                .or_default()
-                .insert(specifier.to_string());
-        }
-    }
-    for (selector, specifier) in manifest.overrides.iter().flatten() {
-        if !specifier.starts_with("catalog:") {
-            continue;
-        }
-        let Ok((_, target_pkg)) = parse_pkg_and_parent_selector(selector) else {
-            continue;
-        };
-        references
-            .entry(target_pkg.name)
-            .or_default()
-            .insert(specifier.clone());
-    }
-    references
 }
 
 /// Set or delete an arbitrary top-level field in the YAML manifest at `path`
@@ -525,5 +481,6 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
 }
 
 mod build_settings;
+mod catalog_references;
 
 mod version_policies;

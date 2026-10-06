@@ -11,7 +11,8 @@ use pnpm_package_manifest::PackageManifest;
 use tempfile::TempDir;
 
 use crate::{
-    UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, update_workspace_manifest,
+    CatalogReferenceSources, UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME,
+    update_workspace_manifest,
 };
 
 fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
@@ -58,7 +59,10 @@ fn run_cleanup(
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: updated,
             catalog_prune: true,
-            all_projects: projects,
+            catalog_references: CatalogReferenceSources {
+                all_projects: projects,
+                ..Default::default()
+            },
             ..Default::default()
         },
     )
@@ -243,7 +247,10 @@ fn run_update_field(
 /// assert the parsed shape; these assert the format-preserving text the
 /// pacquet writer produces for the same inputs.
 mod remove_unused_catalogs {
-    use super::{PackageManifest, catalogs, project, run_cleanup};
+    use super::{
+        CatalogReferenceSources, PackageManifest, UpdateWorkspaceManifestOptions, catalogs,
+        project, run_cleanup, run_with,
+    };
 
     /// TS: `remove the default catalog if it is empty`.
     #[test]
@@ -399,6 +406,30 @@ mod remove_unused_catalogs {
                  catalogs:\n  bar:\n    def: 2.0.0\n\
                  overrides:\n  foo: 'catalog:'\n  def: 'catalog:bar'\n",
             ),
+        );
+    }
+
+    #[test]
+    fn keeps_unreferenced_entries_listed_in_kept_catalogs() {
+        let consumer = project(serde_json::json!({ "dependencies": { "abc": "catalog:foo" } }));
+        let kept = catalogs(&[("default", &[("bar", "3.2.1")]), ("foo", &[("ghi", "7.8.9")])]);
+        let out = run_with(
+            Some(
+                "catalog:\n  bar: 3.2.1\n  baz: 1.0.0\n\
+                 catalogs:\n  foo:\n    abc: 0.1.2\n    ghi: 7.8.9\n    jkl: 1.0.0\n",
+            ),
+            &UpdateWorkspaceManifestOptions {
+                catalog_prune: true,
+                catalog_references: CatalogReferenceSources {
+                    all_projects: &[&consumer],
+                    kept_catalogs: Some(&kept),
+                },
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some("catalog:\n  bar: 3.2.1\ncatalogs:\n  foo:\n    abc: 0.1.2\n    ghi: 7.8.9\n"),
         );
     }
 }

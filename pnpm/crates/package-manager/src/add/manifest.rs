@@ -28,6 +28,7 @@ pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
         add.config,
         &prepared.workspace_dir,
         &prepared.updated_catalogs,
+        None,
         projects,
     )
     .map_err(AddError::WriteWorkspaceManifest)?;
@@ -68,6 +69,7 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
         add.config,
         Some(&catalog_ctx.workspace_dir),
         &updated_catalogs,
+        None,
         manifest,
     )
     .map_err(AddError::WriteWorkspaceManifest)?;

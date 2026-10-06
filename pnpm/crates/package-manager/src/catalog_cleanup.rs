@@ -22,8 +22,8 @@ use pnpm_workspace::{
     workspace_package_patterns,
 };
 use pnpm_workspace_manifest_writer::{
-    ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
-    update_workspace_manifest,
+    CatalogReferenceSources, ResolvedPackageVersions, UpdateWorkspaceManifestError,
+    UpdateWorkspaceManifestOptions, update_workspace_manifest,
 };
 use std::path::{Path, PathBuf};
 
@@ -55,6 +55,7 @@ pub(crate) fn write_workspace_catalogs(
     config: &Config,
     workspace_dir: Option<&Path>,
     updated_catalogs: &Catalogs,
+    kept_catalogs: Option<&Catalogs>,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
     if updated_catalogs.is_empty() && !config.catalog_prune {
@@ -76,7 +77,10 @@ pub(crate) fn write_workspace_catalogs(
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: Some(updated_catalogs),
             catalog_prune: config.catalog_prune,
-            all_projects: &all_projects,
+            catalog_references: CatalogReferenceSources {
+                all_projects: &all_projects,
+                kept_catalogs,
+            },
             ..Default::default()
         },
     )
@@ -89,6 +93,7 @@ pub(crate) fn write_workspace_catalogs_selected(
     config: &Config,
     workspace_dir: &Path,
     updated_catalogs: &Catalogs,
+    kept_catalogs: Option<&Catalogs>,
     projects: &[Project],
 ) -> Result<(), WriteWorkspaceCatalogsError> {
     if updated_catalogs.is_empty() && !config.catalog_prune {
@@ -103,11 +108,31 @@ pub(crate) fn write_workspace_catalogs_selected(
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: Some(updated_catalogs),
             catalog_prune: config.catalog_prune,
-            all_projects: &all_projects,
+            catalog_references: CatalogReferenceSources {
+                all_projects: &all_projects,
+                kept_catalogs,
+            },
             ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
+}
+
+/// The catalog entries `lockfile` records.
+pub(crate) fn lockfile_catalogs(lockfile: &Lockfile) -> Option<Catalogs> {
+    let catalogs = lockfile.catalogs.as_ref()?;
+    Some(
+        catalogs
+            .iter()
+            .map(|(catalog_name, entries)| {
+                let entries = entries
+                    .iter()
+                    .map(|(alias, entry)| (alias.clone(), entry.specifier.clone()))
+                    .collect();
+                (catalog_name.clone(), entries)
+            })
+            .collect(),
+    )
 }
 
 fn derive_workspace_dir(

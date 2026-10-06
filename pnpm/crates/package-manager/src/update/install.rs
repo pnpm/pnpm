@@ -40,6 +40,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
             update.config,
             site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
             &prepared.updated_catalogs,
+            None,
             selected.projects,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
@@ -90,6 +91,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
             update.config,
             prepared.workspace_dir_for_catalogs.as_deref(),
             &prepared.updated_catalogs,
+            None,
             manifest,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
