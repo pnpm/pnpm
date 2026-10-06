@@ -33,6 +33,7 @@
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
