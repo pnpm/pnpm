@@ -90,7 +90,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
         lockfile: lockfiles.wanted.get(),
         lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
-        freshness: frozen_dispatch_freshness(settled, options),
+        freshness: settled.freshness_inputs().for_rebuild(options.rebuild.as_ref()),
     })
     .await?;
 
@@ -277,24 +277,6 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     tracing::info!(target: "pacquet::install", "Start all");
     Ok(root_preinstall_ran)
 }
-/// The freshness inputs the frozen-vs-fresh dispatch checks the lockfile
-/// with. A rebuild may ask for the patches alone to be checked.
-fn frozen_dispatch_freshness<'r>(
-    settled: Settled<'r, '_>,
-    options: &InstallRunOptions<'_, '_>,
-) -> LockfileFreshnessInputs<'r, 'r> {
-    let freshness = settled.freshness_inputs();
-    LockfileFreshnessInputs {
-        scope: FreshnessScope {
-            patches_only: options.rebuild
-                .as_ref()
-                .is_some_and(|rebuild| rebuild.check_lockfile_patches_only),
-            ..freshness.scope
-        },
-        ..freshness
-    }
-}
-
 /// What the frozen-vs-fresh dispatch decides on.
 pub(super) struct FrozenDispatch<'a> {
     dry_run: bool,
@@ -371,9 +353,7 @@ async fn frozen_path<Reporter: self::Reporter>(
         ..dispatch.freshness
     };
     let skipped = check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
-    if dispatch.freshness.scope.prune_stale_importers
-        && !dispatch.freshness.scope.patches_only
-    {
+    if dispatch.freshness.scope.prune_stale_importers {
         check_importer_manifests_exist(lockfile, &freshness).map_err(InstallError::from)?;
     }
     report_unresolved_optional_dependencies::<Reporter>(&skipped);

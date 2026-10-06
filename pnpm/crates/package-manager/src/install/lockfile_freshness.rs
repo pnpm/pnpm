@@ -265,7 +265,7 @@ pub(super) fn check_importer_manifests_exist(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<(), FreshnessCheckError> {
-    if inputs.scope.ignore_manifest_check {
+    if inputs.scope.ignore_manifest_check || inputs.scope.patches_only {
         return Ok(());
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
@@ -314,12 +314,7 @@ pub(super) async fn check_lockfile_freshness(
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     if inputs.scope.patches_only {
-        let patched_dependency_hashes = inputs.config
-            .patched_dependency_hashes()
-            .map_err(FreshnessCheckError::CalcPatchHashes)?;
-        pnpm_lockfile::check_lockfile_patches(lockfile, patched_dependency_hashes.as_ref())
-            .map_err(FreshnessCheckError::Stale)?;
-        return Ok(Vec::new());
+        return patches::check_lockfile_patches(lockfile, inputs.config).map(|()| Vec::new());
     }
     let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
     let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
@@ -532,6 +527,8 @@ pub(crate) fn check_lockfile_settings_drift(
     )
     .map_err(FreshnessCheckError::Stale)
 }
+
+mod patches;
 
 #[cfg(test)]
 mod tests;
