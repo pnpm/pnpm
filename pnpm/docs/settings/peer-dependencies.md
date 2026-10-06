@@ -15,7 +15,7 @@ The version picked is the highest one satisfying the peer range. Since an automa
 
 #### Optional Peer Dependencies
 
-pnpm does not download a missing optional peer dependency. If the workspace already has a version of that package that satisfies the optional peer range, pnpm resolves the optional peer to it. That version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
+pnpm installs a missing optional peer dependency only if the workspace already has a version of it that satisfies the optional peer range. In that case, pnpm resolves the optional peer to that version. That version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
 
 pnpm also resolves optional peers this way when [`dedupePeerDependents`](#dedupepeerdependents) is `true`. To stop it, set both `autoInstallPeers` and `dedupePeerDependents` to `false`.
 
