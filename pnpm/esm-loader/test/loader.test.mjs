@@ -374,10 +374,10 @@ test('does not resolve a package bundled in a sibling directory', context => {
 })
 
 test('rejects Node.js versions whose imported CommonJS bypasses the resolve hooks', () => {
-  for (const version of ['22.23.3', '24.17.0', '25.9.0', '26.1.0']) {
+  for (const version of ['22.13.0', '22.23.3', '24.17.0', '24.18.0-rc.1', '25.9.0', '26.1.0', '26.2.0-rc.1']) {
     assert.throws(() => assertSupportedNode(version), { code: 'ERR_PNPM_LOADER_UNSUPPORTED_NODE' }, version)
   }
-  for (const version of ['24.18.0', '24.21.0', '26.2.0', '26.10.0', '27.0.0']) {
+  for (const version of ['24.18.0', '24.18.1-rc.1', '24.21.0', '26.2.0', '26.10.0', '27.0.0', '27.0.0-nightly20261001abcdef']) {
     assert.doesNotThrow(() => assertSupportedNode(version), version)
   }
 })
