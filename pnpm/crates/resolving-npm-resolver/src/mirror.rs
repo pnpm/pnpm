@@ -68,6 +68,7 @@ mod headers;
 mod legacy;
 
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fmt::Write as _,
     fs::{self, File, OpenOptions},
@@ -244,19 +245,21 @@ pub fn save_meta_indexed_with_headers(
     let headers = serde_json::to_string(headers)
         .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
-    let mut fragment_bytes = Vec::new();
-    let mut spans = Vec::with_capacity(meta.versions.len());
-    for (version, json) in meta.versions.fragments() {
-        let offset = fragment_bytes.len() as u64;
-        let len = u32::try_from(json.len()).unwrap_or(u32::MAX);
-        if len as usize != json.len() || len > MAX_FRAGMENT_LEN {
-            // A version manifest past the loader's fragment bound
-            // would be persisted only to be skipped on every read;
-            // omit it so the saved and served views agree.
-            continue;
-        }
-        fragment_bytes.extend_from_slice(json.as_bytes());
-        spans.push((version.clone(), offset, len));
+    let fragments: Vec<(&String, Cow<'_, str>)> = meta.versions
+        .fragments()
+        .filter(|(_, json)| {
+            // A version manifest past the loader's fragment bound would be
+            // persisted only to be skipped on every read; omit it so the
+            // saved and served views agree.
+            u32::try_from(json.len()).is_ok_and(|len| len <= MAX_FRAGMENT_LEN)
+        })
+        .collect();
+    let mut spans = Vec::with_capacity(fragments.len());
+    let mut offset = 0u64;
+    for (version, json) in &fragments {
+        let len = json.len() as u32;
+        spans.push(((*version).clone(), offset, len));
+        offset += u64::from(len);
     }
 
     let index = serde_json::to_string(&MirrorIndex {
@@ -268,13 +271,18 @@ pub fn save_meta_indexed_with_headers(
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
-    let mut contents = String::with_capacity(headers.len() + index.len() + 64);
-    let _ = writeln!(contents, "{MIRROR_FORMAT_ID} {} {}", headers.len(), index.len());
-    contents.push_str(&headers);
-    contents.push_str(&index);
-    let mut bytes = contents.into_bytes();
-    bytes.extend_from_slice(&fragment_bytes);
-    save_meta(pkg_mirror, &bytes)
+    // Streamed, so the multi-megabyte body of a large packument is never
+    // copied into one buffer.
+    save_meta_with(pkg_mirror, |file| {
+        let mut file = io::BufWriter::new(file);
+        writeln!(file, "{MIRROR_FORMAT_ID} {} {}", headers.len(), index.len())?;
+        file.write_all(headers.as_bytes())?;
+        file.write_all(index.as_bytes())?;
+        for (_, json) in &fragments {
+            file.write_all(json.as_bytes())?;
+        }
+        file.flush()
+    })
 }
 
 /// Atomically persist `meta` at `pkg_mirror` in pnpm's two-line
@@ -527,6 +535,14 @@ pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHe
 /// The rename is the only atomic step; an observer sees either the
 /// old contents or the new ones, never a torn body line.
 pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError> {
+    save_meta_with(pkg_mirror, |file| file.write_all(contents))
+}
+
+/// [`save_meta`] with the contents written by `write`.
+fn save_meta_with(
+    pkg_mirror: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+) -> Result<(), SaveMetaError> {
     #[cfg(test)]
     if let Some(error) = save_fail::forced_mirror_save_error(pkg_mirror) {
         return Err(error);
@@ -541,8 +557,7 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
             .create_new(true)
             .open(&temp)
             .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
-        file.write_all(contents)
-            .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
+        write(&mut file).map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
     }
     fs::rename(&temp, pkg_mirror)
         .map_err(|error| {

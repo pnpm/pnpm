@@ -137,8 +137,8 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    let manifest = meta.versions
-        .get(version)
+    let current = meta.versions
+        .trust_metadata(version)
         .ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: format!(
                 "missing version object for version {version} of {name} in metadata",
@@ -153,7 +153,7 @@ pub fn fail_if_trust_downgraded(
         return Ok(());
     };
 
-    let current = get_trust_evidence(&manifest);
+    let current = get_trust_evidence_compact(current);
     let current_rank = current.map_or(0u8, trust_rank);
     let prior_rank = trust_rank(strongest_prior);
     if current_rank < prior_rank {

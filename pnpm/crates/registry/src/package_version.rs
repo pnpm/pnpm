@@ -292,6 +292,38 @@ pub struct VersionTrustDist {
     pub attestations: Option<AttestationsDist>,
 }
 
+impl VersionTrustMetadata {
+    /// Copy holding only the trust evidence: the approver's presence, the
+    /// trusted publisher, and the provenance marker. Names, emails, and
+    /// the attestation URL are dropped.
+    #[must_use]
+    pub fn evidence_only(&self) -> VersionTrustMetadata {
+        let approver = self.npm_user.as_ref().and_then(|user| user.approver.as_ref());
+        let trusted_publisher =
+            self.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref());
+        let npm_user = (approver.is_some() || trusted_publisher.is_some()).then(|| NpmUser {
+            name: None,
+            email: None,
+            approver: approver.map(|_| Approver::default()),
+            trusted_publisher: trusted_publisher.cloned(),
+        });
+        let provenance = self.dist
+            .as_ref()
+            .and_then(|dist| dist.attestations.as_ref())
+            .and_then(|attestations| attestations.provenance.clone());
+        let dist = provenance.map(|provenance| VersionTrustDist {
+            attestations: Some(AttestationsDist { provenance: Some(provenance), url: None }),
+        });
+        VersionTrustMetadata { npm_user, dist }
+    }
+
+    /// Whether this carries no trust evidence at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.npm_user.is_none() && self.dist.is_none()
+    }
+}
+
 impl From<&PackageVersion> for VersionTrustMetadata {
     fn from(version: &PackageVersion) -> Self {
         VersionTrustMetadata {

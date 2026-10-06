@@ -236,7 +236,15 @@ impl PackageVersions {
     /// decode failures are cached per version.
     #[must_use]
     pub fn trust_metadata(&self, version: &str) -> Option<&VersionTrustMetadata> {
-        let slot = self.slot(version)?;
+        self.slot_trust_metadata(version, self.slot(version)?)
+            .map(Arc::as_ref)
+    }
+
+    fn slot_trust_metadata<'slot>(
+        &self,
+        version: &str,
+        slot: &'slot VersionSlot,
+    ) -> Option<&'slot Arc<VersionTrustMetadata>> {
         slot.trust
             .get_or_init(|| {
                 if let Some(Some(parsed)) = slot.parsed.get() {
@@ -260,7 +268,7 @@ impl PackageVersions {
                     }
                 }
             })
-            .as_deref()
+            .as_ref()
     }
 
     /// Whether the packument lists `version`. Never hydrates.
@@ -456,6 +464,7 @@ impl Serialize for PackageVersions {
 }
 
 mod mirror;
+mod partial_reads;
 
 #[cfg(test)]
 mod tests;

@@ -504,3 +504,127 @@ fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
     assert!(!versions.is_deprecated("1.0.0"));
     assert!(!versions.has_corrupt_mirror_fragment());
 }
+
+#[test]
+fn checking_mirror_fragments_reports_damage_without_hydrating() {
+    let versions = mirror_versions();
+
+    assert!(versions.check_mirror_fragments());
+    assert!(versions.has_corrupt_mirror_fragment());
+    assert!(
+        versions
+            .slot("1.0.0")
+            .unwrap()
+            .parsed
+            .get()
+            .is_none(),
+    );
+}
+
+#[test]
+fn checking_intact_mirror_fragments_reports_nothing() {
+    const VALID: &str =
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#;
+    let versions =
+        mirror_spans(VALID, [("1.0.0".to_string(), 0, u32::try_from(VALID.len()).unwrap())]);
+
+    assert!(!versions.check_mirror_fragments());
+    assert!(
+        versions
+            .slot("1.0.0")
+            .unwrap()
+            .parsed
+            .get()
+            .is_none(),
+    );
+}
+
+#[test]
+fn dist_reads_only_the_dist_field() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"version": "not semver", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz", "fileCount": 3}},
+                "2.0.0": {"dist": "not an object"}
+            }
+        }"#,
+    );
+
+    let dist = package.versions.dist("1.0.0").expect("decode dist");
+    assert_eq!(dist.tarball, "https://r/foo-1.0.0.tgz");
+    assert_eq!(dist.file_count, Some(3));
+    assert!(
+        package.versions
+            .slot("1.0.0")
+            .unwrap()
+            .parsed
+            .get()
+            .is_none(),
+    );
+    assert!(package.versions.dist("2.0.0").is_none());
+    assert!(package.versions.dist("3.0.0").is_none());
+}
+
+#[test]
+fn trust_projection_keeps_only_trust_evidence() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "_npmUser": {
+                        "name": "publisher",
+                        "email": "publisher@example.com",
+                        "approver": {"name": "a", "email": "a@example.com"},
+                        "trustedPublisher": {"id": "github"}
+                    },
+                    "dist": {
+                        "tarball": "https://r/foo-1.0.0.tgz",
+                        "attestations": {"url": "https://r/attestations", "provenance": {"predicateType": "https://slsa.dev/provenance/v1"}}
+                    }
+                },
+                "2.0.0": {"name": "foo", "version": "2.0.0", "_npmUser": {"name": "publisher"}, "dist": {"tarball": "https://r/foo-2.0.0.tgz"}},
+                "3.0.0": {"dist": "not an object"}
+            }
+        }"#,
+    );
+
+    let projection = package.versions.trust_projection();
+
+    assert_eq!(
+        projection
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["1.0.0", "2.0.0", "3.0.0"],
+    );
+    assert!(projection.get("1.0.0").is_none());
+    let evidence = projection.trust_metadata("1.0.0").expect("trust evidence of 1.0.0");
+    dbg!(evidence);
+    let npm_user = evidence.npm_user.as_ref().expect("publisher markers");
+    assert!(npm_user.name.is_none() && npm_user.email.is_none());
+    let approver = npm_user.approver.as_ref().expect("approver marker");
+    assert!(approver.name.is_none() && approver.email.is_none());
+    assert_eq!(
+        npm_user.trusted_publisher.as_ref().and_then(|publisher| publisher.id.as_deref()),
+        Some("github"),
+    );
+    let attestations = evidence.dist
+        .as_ref()
+        .and_then(|dist| dist.attestations.as_ref())
+        .expect("attestations");
+    assert!(attestations.provenance.is_some());
+    assert!(attestations.url.is_none());
+    assert!(
+        projection
+            .trust_metadata("2.0.0")
+            .expect("2.0.0 is listed")
+            .is_empty(),
+    );
+    assert!(projection.trust_metadata("3.0.0").is_none());
+}

@@ -63,9 +63,7 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pnpm_registry::{
-    Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
-};
+use pnpm_registry::{DerivedPackuments, Package, PackageDistribution};
 use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };

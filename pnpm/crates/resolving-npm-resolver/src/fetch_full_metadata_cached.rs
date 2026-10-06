@@ -72,9 +72,10 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 /// Fetch the full registry metadata document for `pkg_name`, reusing
 /// the shared on-disk mirror when `cache_dir` is supplied.
 ///
-/// Every version is hydrated before the document is returned, because
-/// its callers read across all versions and have no fallback of their
-/// own. A damaged mirror fragment therefore reads as a missing mirror:
+/// Every version's mirror fragment is checked before the document is
+/// returned, because its callers read across all versions and have no
+/// fallback of their own. A damaged mirror fragment therefore reads as a
+/// missing mirror:
 /// offline it fails with `ERR_PNPM_NO_OFFLINE_META`, online the document
 /// is refetched without the conditional cache, which rewrites the mirror.
 pub async fn fetch_full_metadata_cached(
@@ -82,7 +83,7 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
-    if !has_damaged_fragment(&meta) {
+    if !meta.versions.check_mirror_fragments() {
         return Ok(meta);
     }
     if opts.offline {
@@ -96,12 +97,7 @@ pub async fn fetch_full_metadata_cached(
     fetch_metadata_cached(pkg_name, opts, true).await
 }
 
-fn has_damaged_fragment(meta: &Package) -> bool {
-    meta.versions.iter().for_each(drop);
-    meta.versions.has_corrupt_mirror_fragment()
-}
-
-/// [`fetch_full_metadata_cached`] without the up-front hydration, for the
+/// [`fetch_full_metadata_cached`] without the up-front fragment check, for the
 /// resolver, which checks the versions it reads itself.
 pub(crate) async fn fetch_full_metadata_cached_lazily(
     pkg_name: &str,
@@ -188,7 +184,7 @@ impl FetchAttempt<'_> {
 
         let decode = self.decoder(&response, client.acquired_at());
         let raw_body = response
-            .text()
+            .bytes()
             .await
             .inspect_err(|error| opts.http.http_client.downscale_on_timeout(self.url, error))
             .map_err(|error| FetchMetadataError::BodyRead {
@@ -208,7 +204,7 @@ impl FetchAttempt<'_> {
         // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
         // tokio worker for hundreds of milliseconds and stalls every
         // socket that worker pumps.
-        let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
+        let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(raw_body))
             .await
             .map_err(|error| FetchMetadataError::ParseTask {
                 url: redact_url_credentials(self.url),
@@ -344,12 +340,15 @@ struct DecodeMeta {
 }
 
 impl DecodeMeta {
-    fn run(self, raw_body: &str) -> Result<(Package, Duration), FetchMetadataError> {
-        let mut meta: Package = serde_json::from_str(raw_body)
+    fn run(self, raw_body: impl AsRef<[u8]>) -> Result<(Package, Duration), FetchMetadataError> {
+        let mut meta: Package = serde_json::from_slice(raw_body.as_ref())
             .map_err(|error| FetchMetadataError::Decode {
                 url: redact_url_credentials(&self.url),
                 error,
             })?;
+        // The parsed document holds its own copy of every version, so the
+        // body is released before the mirror write adds more buffers.
+        drop(raw_body);
         meta.drop_incomplete_publish_times();
         let elapsed = self.started_at.elapsed();
         if self.normalize_to_abbreviated {
