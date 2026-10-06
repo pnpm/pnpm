@@ -12,7 +12,7 @@
     "*.mjs"
   ],
   "engines": {
-    "node": ">=26.10.0"
+    "node": "^24.18.0 || >=26.2.0"
   },
   "scripts": {
     "prepare": "node scripts/bundle-runtime.mjs",

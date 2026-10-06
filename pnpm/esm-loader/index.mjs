@@ -1,5 +1,6 @@
-import { isBuiltin, registerHooks } from 'node:module'
+import module, { isBuiltin } from 'node:module'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath, pathToFileURL, URL } from 'node:url'
 
 import { createResolver } from './resolver.mjs'
@@ -7,7 +8,29 @@ import { loaderError, openStore, within } from './store.mjs'
 
 /** Register a version 1 store manifest. Returns Node's deregisterable hook handle. */
 export function registerStoreLoader (manifestURL) {
-  return registerHooks(createStoreHooks(manifestURL))
+  assertSupportedNode(process.versions.node)
+  // Read from the namespace after the version check: Node.js releases without
+  // `registerHooks` would fail a named import while the module links.
+  return module.registerHooks(createStoreHooks(manifestURL))
+}
+
+/**
+ * Check that a Node.js version can run the store loader.
+ *
+ * @param {string} version A version as `process.versions.node` reports it, such as `24.18.0` or `27.0.0-nightly20261001abcdef`.
+ * @throws {Error} `ERR_PNPM_LOADER_UNSUPPORTED_NODE` unless the version satisfies `^24.18.0 || >=26.2.0`.
+ * A prerelease of 24.18.0 or 26.2.0 is below that range and is rejected. On the rejected versions,
+ * CommonJS that ESM imports resolves its `require()` calls without the loader's resolve hooks.
+ */
+export function assertSupportedNode (version) {
+  const [release, prerelease] = version.split('-', 2)
+  const [major, minor, patch] = release.split('.').map(Number)
+  const atLeast = (minimumMinor) => minor > minimumMinor || (minor === minimumMinor && (patch > 0 || prerelease === undefined))
+  if ((major === 24 && atLeast(18)) || (major === 26 && atLeast(2)) || major > 26) return
+  throw loaderError(
+    'ERR_PNPM_LOADER_UNSUPPORTED_NODE',
+    `The pnpm store loader requires Node.js ^24.18.0 or >=26.2.0, but this is Node.js ${version}. Use a supported Node.js version, or install with a different nodeLinker.`
+  )
 }
 
 export function createStoreHooks (manifestURL) {
