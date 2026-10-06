@@ -30,7 +30,7 @@ jobs:
         uses: $/.github/actions/install-crates
 
       - name: Install cargo-unused-features
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
         with:
           tool: cargo-unused-features
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Install cargo-udeps
         if: steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
         with:
           tool: cargo-udeps
 
