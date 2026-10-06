@@ -1,7 +1,7 @@
 use super::{
     COMPLETE_FILE, build_storage_at, build_storage_at_with_substitutions, discard_unusable_storage,
-    ensure_storage, latest_version, packages_dir, publish_storage, restore_claimed_storage,
-    set_dist_tag,
+    ensure_storage, latest_version, packages_dir, publish_storage, remove_tree,
+    restore_claimed_storage, set_dist_tag,
 };
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
@@ -261,4 +261,26 @@ fn tagging_an_unpublished_version_fails_loudly() {
     build_storage_at(&packages_dir(), out.path());
 
     set_dist_tag(out.path(), "@pnpm.e2e/foo", "999.0.0", "latest");
+}
+
+#[test]
+fn removing_a_tree_accepts_one_that_is_already_gone() {
+    let root = TempDir::new().expect("create temp dir");
+    let absent = root.path().join("storage.stale");
+
+    remove_tree(&absent, "remove unusable registry fixture storage");
+
+    assert!(!absent.exists());
+}
+
+#[test]
+fn removing_a_tree_takes_out_its_whole_subtree() {
+    let root = TempDir::new().expect("create temp dir");
+    let tree = root.path().join("storage.stale");
+    fs::create_dir_all(tree.join("@pnpm.e2e")).expect("create nested dir");
+    fs::write(tree.join("@pnpm.e2e").join("packument"), "stale").expect("write stale file");
+
+    remove_tree(&tree, "remove unusable registry fixture storage");
+
+    assert!(!tree.exists());
 }
