@@ -72,6 +72,87 @@ fn undecodable_fragment_behaves_as_absent() {
     assert!(!package.versions.has_corrupt_mirror_fragment());
 }
 
+#[test]
+fn policy_field_walk_reuses_hydrated_manifests_and_hydrates_no_others() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}},
+                "2.0.0": {"name": "foo", "version": "2.0.0", "_npmUser": {"trustedPublisher": {"id": "github"}}, "dist": {"integrity": "sha512-b", "tarball": "https://r/foo-2.0.0.tgz"}},
+                "9.9.9": {"this is": "not a version manifest"}
+            }
+        }"#,
+    );
+    let hydrated = package.versions.get("1.0.0").expect("hydrate 1.0.0");
+
+    let walked: HashMap<_, _> = package.versions
+        .iter_policy_fields()
+        .map(|(version, fields)| (version.as_str(), fields))
+        .collect();
+
+    assert_eq!(walked.len(), 2);
+    assert_eq!(walked["1.0.0"], crate::VersionPolicyFields::from(hydrated.as_ref()));
+    let decoded = &walked["2.0.0"];
+    assert_eq!(decoded.dist.tarball, "https://r/foo-2.0.0.tgz");
+    assert!(
+        decoded.npm_user
+            .as_ref()
+            .and_then(|user| user.trusted_publisher.as_ref())
+            .is_some(),
+    );
+    assert!(!package.versions.is_hydrated("2.0.0"));
+}
+
+#[test]
+fn policy_field_walk_reports_a_damaged_mirror_fragment() {
+    let versions = mirror_versions();
+
+    assert_eq!(versions.iter_policy_fields().count(), 1);
+    assert!(versions.has_corrupt_mirror_fragment());
+}
+
+/// The walk must keep exactly the versions a full decode keeps, so a policy
+/// check sees the same version set either way.
+#[test]
+fn policy_fields_decode_exactly_where_a_manifest_does() {
+    let fragments = [
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"readme":"x","scripts":{"test":"t"}}"#,
+        r#"{"version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":"foo","version":"not semver","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz","integrity":"not integrity"}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"dependencies":"bar"}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"devDependencies":{"bar":{"nested":true}}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"optionalDependencies":3}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"peerDependencies":null}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"deprecated":5}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"deprecated":false}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"_npmUser":"someone"}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"peerDependenciesMeta":3}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz","fileCount":"12"}}"#,
+        r#"{"name":"foo","name":"bar","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":7,"version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"peerDependenciesMeta":{},"peerDependenciesMeta":{}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"_npmUser":{},"_npmUser":{}}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"deprecated":"x","deprecated":"y"}"#,
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"},"readme":"a","readme":"b"}"#,
+    ];
+    for fragment in fragments {
+        let manifest = serde_json::from_str::<PackageVersion>(fragment);
+        let probe = serde_json::from_str::<crate::package_version::PolicyFieldsProbe>(fragment);
+        assert_eq!(manifest.is_ok(), probe.is_ok(), "{fragment}");
+        if let (Ok(manifest), Ok(probe)) = (manifest, probe) {
+            assert_eq!(
+                crate::VersionPolicyFields::from(&manifest),
+                crate::VersionPolicyFields::from(probe),
+                "{fragment}",
+            );
+        }
+    }
+}
+
 /// A mirror-backed packument whose valid fragment sits before a
 /// damaged one, plus the two spans that address them.
 fn mirror_versions() -> crate::PackageVersions {
@@ -503,4 +584,23 @@ fn a_well_formed_mirror_fragment_of_the_wrong_shape_is_not_damage() {
     assert!(versions.get("1.0.0").is_none());
     assert!(!versions.is_deprecated("1.0.0"));
     assert!(!versions.has_corrupt_mirror_fragment());
+}
+
+#[test]
+fn checking_mirror_fragments_reports_damage_without_hydrating() {
+    let versions = mirror_versions();
+
+    assert!(versions.check_mirror_fragments());
+    assert!(!versions.is_hydrated("1.0.0"));
+}
+
+#[test]
+fn checking_intact_mirror_fragments_reports_nothing() {
+    const VALID: &str =
+        r#"{"name":"foo","version":"1.0.0","dist":{"tarball":"https://r/foo.tgz"}}"#;
+    let versions =
+        mirror_spans(VALID, [("1.0.0".to_string(), 0, u32::try_from(VALID.len()).unwrap())]);
+
+    assert!(!versions.check_mirror_fragments());
+    assert!(!versions.is_hydrated("1.0.0"));
 }

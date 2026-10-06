@@ -53,7 +53,7 @@ impl NpmResolutionVerifier {
             now: self.now,
             ignore_missing_time_field: self.metadata.ignore_missing_time_field,
         };
-        match fail_if_trust_downgraded(&meta, version, &trust_opts) {
+        match fail_if_trust_downgraded(meta.as_ref(), version, &trust_opts) {
             Ok(()) => None,
             Err(err) => Some(ResolutionVerification::Err {
                 code: TRUST_DOWNGRADE_VIOLATION_CODE,

@@ -72,9 +72,10 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 /// Fetch the full registry metadata document for `pkg_name`, reusing
 /// the shared on-disk mirror when `cache_dir` is supplied.
 ///
-/// Every version is hydrated before the document is returned, because
-/// its callers read across all versions and have no fallback of their
-/// own. A damaged mirror fragment therefore reads as a missing mirror:
+/// Every version's mirror fragment is checked before the document is
+/// returned, because its callers read across all versions and have no
+/// fallback of their own. A damaged mirror fragment therefore reads as a
+/// missing mirror:
 /// offline it fails with `ERR_PNPM_NO_OFFLINE_META`, online the document
 /// is refetched without the conditional cache, which rewrites the mirror.
 pub async fn fetch_full_metadata_cached(
@@ -82,9 +83,36 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
-    if !has_damaged_fragment(&meta) {
+    if !meta.versions.check_mirror_fragments() {
         return Ok(meta);
     }
+    refetch_damaged_mirror(pkg_name, opts).await
+}
+
+/// [`fetch_full_metadata_cached`] for a caller that keeps only `project`'s
+/// result. `project` must read every version, through
+/// [`pnpm_registry::PackageVersions::iter_policy_fields`], so the document is
+/// never hydrated as a whole. A damaged mirror fragment found by the walk is
+/// handled as [`fetch_full_metadata_cached`] handles it, and the refetched
+/// document is projected instead.
+pub(crate) async fn fetch_full_metadata_projected<Projection>(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+    project: impl Fn(&Package) -> Projection,
+) -> Result<Projection, FetchMetadataError> {
+    let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
+    let projection = project(&meta);
+    if !meta.versions.has_corrupt_mirror_fragment() {
+        return Ok(projection);
+    }
+    drop(meta);
+    refetch_damaged_mirror(pkg_name, opts).await.map(|meta| project(&meta))
+}
+
+async fn refetch_damaged_mirror(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Result<Package, FetchMetadataError> {
     if opts.offline {
         let url = to_registry_url(opts.registry, pkg_name);
         return Err(FetchMetadataError::NoOfflineMeta {
@@ -96,12 +124,7 @@ pub async fn fetch_full_metadata_cached(
     fetch_metadata_cached(pkg_name, opts, true).await
 }
 
-fn has_damaged_fragment(meta: &Package) -> bool {
-    meta.versions.iter().for_each(drop);
-    meta.versions.has_corrupt_mirror_fragment()
-}
-
-/// [`fetch_full_metadata_cached`] without the up-front hydration, for the
+/// [`fetch_full_metadata_cached`] without the up-front fragment check, for the
 /// resolver, which checks the versions it reads itself.
 pub(crate) async fn fetch_full_metadata_cached_lazily(
     pkg_name: &str,

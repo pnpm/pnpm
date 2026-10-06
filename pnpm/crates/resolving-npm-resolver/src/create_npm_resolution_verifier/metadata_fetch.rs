@@ -1,8 +1,9 @@
 use super::{
     Arc, FetchAttestationOptions, FetchFullMetadataCachedOptions, NpmResolutionVerifier, OnceCell,
-    Package, Pipe, PkgName, PublishedAtTimeMap, fetch_attestation_published_at,
-    fetch_full_metadata_cached, load_local_meta_time, package_key, project_abbreviated_meta,
-    project_trust_meta, redact_url_credentials, render_fetch_metadata_error,
+    Package, Pipe, PkgName, PublishedAtTimeMap, TrustHistoryProjection,
+    fetch_attestation_published_at, fetch_full_metadata_cached, fetch_full_metadata_projected,
+    load_local_meta_time, package_key, project_abbreviated_meta, project_trust_meta,
+    redact_url_credentials, render_fetch_metadata_error,
 };
 
 impl NpmResolutionVerifier {
@@ -67,12 +68,11 @@ impl NpmResolutionVerifier {
             // tarball-URL check needs to tell a transport failure apart
             // from a version genuinely absent from the metadata, otherwise
             // it reports a 403 as a tampering-style mismatch.
-            match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                Ok(meta) => {
-                    Ok(project_abbreviated_meta(&meta, self.metadata.registry_supports_time_field))
-                }
-                Err(error) => Err(render_fetch_metadata_error(&error)),
-            }
+            fetch_full_metadata_projected(&name.to_string(), &opts, |meta| {
+                project_abbreviated_meta(meta, self.metadata.registry_supports_time_field)
+            })
+            .await
+            .map_err(|error| render_fetch_metadata_error(&error))
         })
         .await;
         value.clone()
@@ -187,7 +187,7 @@ impl NpmResolutionVerifier {
         &self,
         registry: &str,
         name: &PkgName,
-    ) -> Result<Arc<Package>, String> {
+    ) -> Result<Arc<TrustHistoryProjection>, String> {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
@@ -220,18 +220,9 @@ impl NpmResolutionVerifier {
                     return Ok(Arc::new(projection));
                 }
             }
-            // Project the packument to just the fields `fail_if_trust_downgraded`
-            // reads before stashing in the cache. The full document — dependency
-            // graphs, dist-tags, scripts, READMEs for every version — would
-            // otherwise stay resident in this map for the entire install, which
-            // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
-            // cap (see [#11860]).
-            //
-            // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
             self.metadata
-                .fetch_full_meta(registry, name)
+                .fetch_full_meta_projected(registry, name, project_trust_meta)
                 .await
-                .map(|meta| project_trust_meta(&meta))
                 .map(Arc::new)
         })
         .await
@@ -245,7 +236,24 @@ impl super::VerificationMetadataClient {
         registry: &str,
         name: &PkgName,
     ) -> Result<Package, String> {
-        let opts = FetchFullMetadataCachedOptions {
+        fetch_full_metadata_cached(&name.to_string(), &self.full_meta_options(registry))
+            .await
+            .map_err(|error| render_fetch_metadata_error(&error))
+    }
+
+    pub(super) async fn fetch_full_meta_projected<Projection>(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        project: impl Fn(&Package) -> Projection,
+    ) -> Result<Projection, String> {
+        let opts = self.full_meta_options(registry);
+        fetch_full_metadata_projected(&name.to_string(), &opts, project).await
+            .map_err(|error| render_fetch_metadata_error(&error))
+    }
+
+    fn full_meta_options<'a>(&'a self, registry: &'a str) -> FetchFullMetadataCachedOptions<'a> {
+        FetchFullMetadataCachedOptions {
             registry,
             cache_dir: self.cache_dir.as_deref(),
             // The verifier reads `time` and trust evidence per-version,
@@ -259,8 +267,6 @@ impl super::VerificationMetadataClient {
                 auth_headers: &self.auth_headers,
                 retry_opts: self.retry_opts,
             },
-        };
-        fetch_full_metadata_cached(&name.to_string(), &opts).await
-            .map_err(|error| render_fetch_metadata_error(&error))
+        }
     }
 }
