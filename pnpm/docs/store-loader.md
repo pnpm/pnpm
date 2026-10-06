@@ -124,13 +124,13 @@ The loader supports ESM and CommonJS, relative modules, dynamic imports, `create
 
 Stored modules have virtual file URLs under `.pnpm-loader/` next to the manifest. That directory is never created. These URLs retain package identity and source filenames; the loader reads the corresponding bytes from CAS and verifies their hashes. The virtual namespace is reserved and cannot also be a workspace root.
 
-Only declared dependencies are available through bare imports. There is no fallback to an application's existing `node_modules` tree for a dependency missing from the manifest. Built-in modules continue to use Node's loader. Absolute paths returned by resolvers remain loadable. Relative local application files use Node's normal resolution. Packages without a `package.json` receive an in-memory empty manifest to keep resolution within their package boundary.
+Bare imports resolve to declared dependencies. A dependency bundled in the importing package's own `node_modules` directory takes precedence, as it does in Node.js. There is no fallback to an application's existing `node_modules` tree for a dependency missing from the manifest. Built-in modules continue to use Node's loader. Absolute paths returned by resolvers remain loadable. Relative local application files use Node's normal resolution. Packages without a `package.json` receive an in-memory empty manifest to keep resolution within their package boundary.
 
 ## Compatibility limits
 
 This loader does not emulate a general filesystem. `import.meta.url`, `__filename`, `__dirname`, and `require.resolve()` for stored modules identify virtual locations. Passing them to ordinary `fs` APIs will not read store assets. Packages that read adjacent assets, scan directories, write into their package directory, or depend on a physical filename need materialization or a separate filesystem integration.
 
-Native addons, WebAssembly, TypeScript, bundled `node_modules` directories, and package-internal symlinks are not supported by this runtime. The loader ignores files under a package's own `node_modules` directory. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
+Native addons, WebAssembly, TypeScript, and package-internal symlinks are not supported by this runtime. JavaScript bins may have no file extension. Native addons may also require neighboring shared libraries, even if their build output is cached.
 
 Use `.mjs` or `"type": "module"` for ESM. Stored `.js` files without a package type are treated as CommonJS; Node's syntax detection for ambiguous `.js` files is not implemented. The resolver is not a promise of complete Node resolution parity.
 

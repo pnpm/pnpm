@@ -26,7 +26,7 @@ export function openStore (manifestURL) {
   }
   const owner = packageLookup(packages)
   const filesystem = virtualFilesystem({ files, directories, virtualRoot })
-  return { packages, owner, filesystem, files, virtualRoot }
+  return { packages, owner, filesystem, files, directories, virtualRoot }
 }
 
 function packageLookup (packages) {
@@ -100,8 +100,7 @@ function indexFiles (pkg, files, directories, storeDir) {
     if (!validFilename(name, parts) || typeof hash !== 'string' || !/^[a-f0-9]{128}(?:-exec)?$/.test(hash)) {
       throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid store file ${pkg.id}/${name}`)
     }
-    // Bundled dependencies are unsupported, so their files stay out of the virtual filesystem.
-    if (parts.includes('node_modules')) continue
+    if (parts.includes('node_modules')) pkg.hasNodeModules = true
     const filename = path.join(pkg.root, name)
     files.set(filename, { blob: path.join(storeDir, 'files', hash.slice(0, 2), hash.slice(2)), hash: hash.slice(0, 128) })
     for (let parent = path.dirname(filename); within(pkg.root, parent); parent = path.dirname(parent)) {

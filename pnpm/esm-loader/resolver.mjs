@@ -9,6 +9,7 @@ export function createResolver (store) {
   const pnpApi = {
     resolveToUnqualified (name, issuer) {
       const owner = store.owner(path.resolve(issuer))
+      if (owner?.hasNodeModules && bundles(store.directories, owner, { issuer: path.resolve(issuer), name })) return null
       const dependency = owner?.dependencies.get(name)
       if (dependency === undefined) {
         throw loaderError('ERR_PNPM_LOADER_UNDECLARED_DEPENDENCY', `Package ${owner?.id ?? issuer} does not declare ${name}`)
@@ -48,4 +49,12 @@ export function createResolver (store) {
     }
     return resolved
   }
+}
+
+/** Whether a `node_modules` directory inside `owner` provides `name` to `issuer`, as Node's lookup would find it before any declared dependency. */
+function bundles (directories, owner, { issuer, name }) {
+  for (let directory = issuer; within(owner.root, directory); directory = path.dirname(directory)) {
+    if (directories.has(path.join(directory, 'node_modules', name))) return true
+  }
+  return false
 }
