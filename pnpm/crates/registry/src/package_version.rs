@@ -114,8 +114,9 @@ impl From<&PackageVersion> for VersionPolicyFields {
 }
 
 /// A [`PackageVersion`] without its catch-all [`PackageVersion::other`]
-/// map, decoded for [`VersionPolicyFields`]. Every field whose decode can
-/// fail keeps the deserializer [`PackageVersion`] gives it, so a fragment
+/// map, decoded for [`VersionPolicyFields`]. Every field [`PackageVersion`]
+/// declares keeps the deserializer it has there, including the ones that
+/// cannot fail, since a duplicated declared key fails either way. A fragment
 /// decodes here exactly when it decodes as a [`PackageVersion`]. Dropping
 /// the `#[serde(flatten)]` catch-all spares buffering and copying every
 /// other key of the manifest.
@@ -124,7 +125,7 @@ impl From<&PackageVersion> for VersionPolicyFields {
     dylint_lib = "perfectionist",
     expect(
         perfectionist::too_many_struct_fields,
-        reason = "Mirrors the fallible fields of `PackageVersion`; grouping them would need `#[serde(flatten)]`, which buffers the manifest."
+        reason = "Mirrors the declared fields of `PackageVersion`; grouping them would need `#[serde(flatten)]`, which buffers the manifest."
     )
 )]
 pub(crate) struct PolicyFieldsProbe {
@@ -145,6 +146,12 @@ pub(crate) struct PolicyFieldsProbe {
         deserialize_with = "deserialize_dependency_map"
     )]
     _optional_dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        default,
+        rename = "peerDependenciesMeta",
+        deserialize_with = "crate::wire_tolerance::deserialize_record_map"
+    )]
+    _peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
     #[serde(
         default,
         rename = "_npmUser",

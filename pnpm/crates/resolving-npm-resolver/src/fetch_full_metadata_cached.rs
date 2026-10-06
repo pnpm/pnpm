@@ -72,9 +72,10 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 /// Fetch the full registry metadata document for `pkg_name`, reusing
 /// the shared on-disk mirror when `cache_dir` is supplied.
 ///
-/// Every version is hydrated before the document is returned, because
-/// its callers read across all versions and have no fallback of their
-/// own. A damaged mirror fragment therefore reads as a missing mirror:
+/// Every version's mirror fragment is checked before the document is
+/// returned, because its callers read across all versions and have no
+/// fallback of their own. A damaged mirror fragment therefore reads as a
+/// missing mirror:
 /// offline it fails with `ERR_PNPM_NO_OFFLINE_META`, online the document
 /// is refetched without the conditional cache, which rewrites the mirror.
 pub async fn fetch_full_metadata_cached(
@@ -82,7 +83,7 @@ pub async fn fetch_full_metadata_cached(
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
     let meta = fetch_metadata_cached(pkg_name, opts, false).await?;
-    if !has_damaged_fragment(&meta) {
+    if !meta.versions.check_mirror_fragments() {
         return Ok(meta);
     }
     refetch_damaged_mirror(pkg_name, opts).await
@@ -108,11 +109,6 @@ pub(crate) async fn fetch_full_metadata_projected<Projection>(
     refetch_damaged_mirror(pkg_name, opts).await.map(|meta| project(&meta))
 }
 
-fn has_damaged_fragment(meta: &Package) -> bool {
-    meta.versions.iter().for_each(drop);
-    meta.versions.has_corrupt_mirror_fragment()
-}
-
 async fn refetch_damaged_mirror(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
@@ -128,7 +124,7 @@ async fn refetch_damaged_mirror(
     fetch_metadata_cached(pkg_name, opts, true).await
 }
 
-/// [`fetch_full_metadata_cached`] without the up-front hydration, for the
+/// [`fetch_full_metadata_cached`] without the up-front fragment check, for the
 /// resolver, which checks the versions it reads itself.
 pub(crate) async fn fetch_full_metadata_cached_lazily(
     pkg_name: &str,
