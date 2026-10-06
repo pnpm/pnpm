@@ -2,7 +2,7 @@
 title: Experimental store loader
 ---
 
-pnpm's experimental loaded linker lets Node.js load JavaScript and JSON directly from the content-addressable store without creating an application `node_modules` directory. The loader is included with pnpm.
+pnpm's experimental loaded linker lets Node.js load JavaScript and JSON directly from the content-addressable store without placing packages in `node_modules`. The loader is included with pnpm.
 
 This is an experimental install mode. Enable it persistently in `pnpm-workspace.yaml` so install and execution commands use the same layout:
 
@@ -13,15 +13,15 @@ nodeLinker:
     - vitest
 ```
 
-Run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `.pnpm-store.json`, writes its bundled runtime to `.pnpm-store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly.
+Run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `node_modules/.pnpm/.store-manifest.json`, writes its bundled runtime to `node_modules/.pnpm/.store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly.
 
 `nodeLinker.excluded` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in CAS. Patched packages, runtimes such as `node@runtime:`, and their dependency trees are materialized automatically. Packages needing build scripts must be selected explicitly unless scripts are disabled. The normal build approval policy still applies.
 
-The mode enables the global virtual store. With the default layout, application state and bin shims live under `.pnpm`, and no application `node_modules` directory is created. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
+The mode enables the global virtual store. `node_modules` holds only installation state and bin shims, not packages. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
 
 When switching an existing project, remove its old `node_modules` directories before installing. Changing the mode does not remove directories belonging to the previous layout.
 
-Add `.pnpm/`, `.pnpm-store.json`, and `.pnpm-store-loader.mjs` to `.gitignore`. These are generated, machine-local installation files. Reinstall after moving the project. CAS installs currently regenerate and verify their runtime manifest on repeat installs rather than using the optimistic installation shortcut.
+The generated files are machine-local. Reinstall after moving the project. CAS installs currently regenerate and verify their runtime manifest on repeat installs rather than using the optimistic installation shortcut.
 
 The loader is embedded in the pnpm executable and needs no separately installed runtime package. The standalone `@pnpm/esm-loader` API remains available for manual integration. Plain `node app.mjs` outside pnpm needs the explicit preload described below.
 
@@ -32,24 +32,24 @@ The loader is embedded in the pnpm executable and needs no separately installed 
 The loader requires Node.js 26.10.0 or later. After a CAS install, run Node directly with:
 
 ```sh
-node --import ./.pnpm-store-loader.mjs app.mjs
+node --import ./node_modules/.pnpm/.store-loader.mjs app.mjs
 ```
 
 For standalone integration, make the loader available separately from the application's dependencies and preload its registration module:
 
 ```sh
-PNPM_LOADER_MANIFEST=/absolute/path/to/.pnpm-store.json \
+PNPM_LOADER_MANIFEST=/absolute/path/to/.store-manifest.json \
   node --import /absolute/path/to/esm-loader/register.mjs app.mjs
 ```
 
-On Windows, set `PNPM_LOADER_MANIFEST` using your shell's environment-variable syntax. If the variable is omitted, the loader reads `.pnpm-store.json` from the current working directory.
+On Windows, set `PNPM_LOADER_MANIFEST` using your shell's environment-variable syntax. If the variable is omitted, the loader reads `node_modules/.pnpm/.store-manifest.json` from the current working directory.
 
 A custom preload can register an explicit manifest:
 
 ```js
 import { registerStoreLoader } from '@pnpm/esm-loader'
 
-registerStoreLoader(new URL('./.pnpm-store.json', import.meta.url))
+registerStoreLoader(new URL('./node_modules/.pnpm/.store-manifest.json', import.meta.url))
 ```
 
 Run it with `node --import ./preload.mjs app.mjs`. The registration returns Node's hook handle, which has a `deregister()` method. Register before importing application dependencies. Workers inherit a `--import` preload through Node's default execution arguments.
@@ -99,7 +99,7 @@ The manifest describes the effective files to load. A producer can represent cac
 
 ## Opting out packages into the global virtual store
 
-A package that needs physical files can use a normal global virtual store (GVS) installation, including its full locked dependency tree and dependency links. The application does not need a `node_modules` directory. GVS itself retains its conventional `node_modules` layout.
+A package that needs physical files can use a normal global virtual store (GVS) installation, including its full locked dependency tree and dependency links. The application's `node_modules` does not need to contain it. GVS itself retains its conventional `node_modules` layout.
 
 Point the package's manifest entry at its real GVS directory and set `resolution` to `node`:
 

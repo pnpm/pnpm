@@ -12,7 +12,7 @@ if (!fixture) throw new Error('Usage: test-gvs-repository.mjs <retained fixture>
 const root = path.resolve(fixture)
 assertIsolated(root)
 await bundleLoader(root)
-const manifest = JSON.parse(fs.readFileSync(path.join(root, '.pnpm-store.json'), 'utf8'))
+const manifest = JSON.parse(fs.readFileSync(path.join(root, '.store-manifest.json'), 'utf8'))
 const source = JSON.parse(fs.readFileSync(path.join(root, 'repository-source.json'), 'utf8'))
 const installed = await installOptOuts(source, manifest, names)
 for (const [id, directory] of Object.entries(installed.materialized)) {

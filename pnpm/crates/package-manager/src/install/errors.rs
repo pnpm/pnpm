@@ -32,6 +32,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     RegisterLoadedProject(#[error(source)] pnpm_store_dir::RegisterProjectError),
 
+    #[display("Failed to create the store loader directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_CREATE_STORE_LOADER_DIR))]
+    CreateStoreLoaderDir {
+        dir: std::path::PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] pnpm_store_dir::StoreLockError),
 

@@ -29,10 +29,10 @@ export function fixture (context) {
     return files
   }
   function run (source, options = {}) {
-    write('.pnpm-store.json', JSON.stringify(manifest))
+    write('.store-manifest.json', JSON.stringify(manifest))
     write('app.mjs', source)
     const result = spawnSync(process.execPath, ['--import', register, ...(options.args ?? []), 'app.mjs'], {
-      cwd: root, encoding: 'utf8', env: { ...process.env, ...options.env, PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json') },
+      cwd: root, encoding: 'utf8', env: { ...process.env, ...options.env, PNPM_LOADER_MANIFEST: path.join(root, '.store-manifest.json') },
     })
     assert.equal(fs.existsSync(path.join(root, 'node_modules')), false)
     assert.equal(fs.existsSync(path.join(root, '.pnpm-loader')), false)
