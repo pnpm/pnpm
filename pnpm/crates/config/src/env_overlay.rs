@@ -307,6 +307,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
         json_field!(settings, reader, side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(settings, reader, side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
+        json_field!(settings, reader, side_effects_cache_exclude, "SIDE_EFFECTS_CACHE_EXCLUDE");
     }
 
     fn read_network_env(&mut self, reader: &StringReader<'_>) {
