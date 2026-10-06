@@ -84,7 +84,7 @@ impl Remove<'_> {
 
         persist_manifest::<Reporter>(manifest)?;
 
-        write_workspace_catalogs(remove.config, None, &Catalogs::new(), manifest)
+        write_workspace_catalogs(remove.config, None, &Catalogs::new(), None, manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
         post_install_prune(remove.config, None, manifest)
@@ -336,7 +336,7 @@ fn finalize_selected_remove<Reporter: self::Reporter>(
     manifest: &PackageManifest,
 ) -> Result<(), RemoveError> {
     persist_selected_manifests::<Reporter>(projects, selected_indices)?;
-    write_workspace_catalogs_selected(config, workspace_root, &Catalogs::new(), projects)
+    write_workspace_catalogs_selected(config, workspace_root, &Catalogs::new(), None, projects)
         .map_err(RemoveError::WriteWorkspaceManifest)?;
     post_install_prune(config, Some(workspace_root), manifest)
         .map_err(RemoveError::WriteWorkspaceManifest)?;

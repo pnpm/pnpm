@@ -55,6 +55,7 @@ pub(crate) fn write_workspace_catalogs(
     config: &Config,
     workspace_dir: Option<&Path>,
     updated_catalogs: &Catalogs,
+    kept_catalogs: Option<&Catalogs>,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
     if updated_catalogs.is_empty() && !config.catalog_prune {
@@ -77,6 +78,7 @@ pub(crate) fn write_workspace_catalogs(
             updated_catalogs: Some(updated_catalogs),
             catalog_prune: config.catalog_prune,
             all_projects: &all_projects,
+            kept_catalogs,
             ..Default::default()
         },
     )
@@ -89,6 +91,7 @@ pub(crate) fn write_workspace_catalogs_selected(
     config: &Config,
     workspace_dir: &Path,
     updated_catalogs: &Catalogs,
+    kept_catalogs: Option<&Catalogs>,
     projects: &[Project],
 ) -> Result<(), WriteWorkspaceCatalogsError> {
     if updated_catalogs.is_empty() && !config.catalog_prune {
@@ -104,10 +107,34 @@ pub(crate) fn write_workspace_catalogs_selected(
             updated_catalogs: Some(updated_catalogs),
             catalog_prune: config.catalog_prune,
             all_projects: &all_projects,
+            kept_catalogs,
             ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
+}
+
+/// The catalog entries the wanted lockfile under `workspace_dir` records.
+pub(crate) fn lockfile_catalogs(
+    config: &Config,
+    workspace_dir: &Path,
+) -> Result<Option<Catalogs>, WriteWorkspaceCatalogsError> {
+    let lockfile = Lockfile::load_wanted_from_dir(config.lockfile_dir_for(workspace_dir))
+        .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?;
+    Ok(lockfile
+        .and_then(|lockfile| lockfile.catalogs)
+        .map(|catalogs| {
+            catalogs
+                .into_iter()
+                .map(|(catalog_name, entries)| {
+                    let entries = entries
+                        .into_iter()
+                        .map(|(alias, entry)| (alias, entry.specifier))
+                        .collect();
+                    (catalog_name, entries)
+                })
+                .collect()
+        }))
 }
 
 fn derive_workspace_dir(

@@ -27,7 +27,7 @@ use std::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pnpm_catalogs_types::Catalogs;
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 
@@ -152,6 +152,9 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     /// entries are still referenced. An empty list disables the cleanup
     /// pass, mirroring upstream's `allProjects ?? []` guard.
     pub all_projects: &'a [&'a PackageManifest],
+    /// Catalog entries the cleanup pass keeps even when no manifest in
+    /// [`Self::all_projects`] references them.
+    pub kept_catalogs: Option<&'a Catalogs>,
     /// Package name → the versions the freshly resolved lockfile
     /// records. Present only when the lockfile covers every project the
     /// exclude lists govern; `None` disables the passes below that consult
@@ -189,7 +192,10 @@ pub fn update_workspace_manifest(
 
     let mut changed = add_updated_catalogs(&mut manifest, opts, &path)?;
     if opts.catalog_prune && !opts.all_projects.is_empty() {
-        let references = collect_catalog_references(opts.all_projects, &manifest);
+        let mut references = collect_catalog_references(opts.all_projects, &manifest);
+        if let Some(kept_catalogs) = opts.kept_catalogs {
+            add_kept_catalog_references(&mut references, kept_catalogs);
+        }
         changed |= edit::remove_unused_catalogs(&mut manifest, &references);
     }
     if let Some(resolved) = opts.resolved_package_versions {
@@ -343,6 +349,24 @@ fn collect_catalog_references(
             .insert(specifier.clone());
     }
     references
+}
+
+/// Add the reference that keeps each entry of `kept_catalogs` through the
+/// cleanup pass.
+fn add_kept_catalog_references(references: &mut edit::CatalogReferences, kept_catalogs: &Catalogs) {
+    for (catalog_name, entries) in kept_catalogs {
+        let specifier = if catalog_name == DEFAULT_CATALOG_NAME {
+            "catalog:".to_string()
+        } else {
+            format!("catalog:{catalog_name}")
+        };
+        for alias in entries.keys() {
+            references
+                .entry(alias.clone())
+                .or_default()
+                .insert(specifier.clone());
+        }
+    }
 }
 
 /// Set or delete an arbitrary top-level field in the YAML manifest at `path`
